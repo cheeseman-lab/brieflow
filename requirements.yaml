@@ -1,0 +1,23 @@
+name: brieflow
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - conda-forge::python=3.11
+  - conda-forge::pip=24.2
+  - conda-forge::ipykernel=6.28.0
+  - conda-forge::numpy=1.26.4
+  - conda-forge::pandas=2.2.3
+  - conda-forge::scikit-image=0.19.3
+  - conda-forge::joblib=1.4.2
+  - conda-forge::natsort=8.4.0
+  - conda-forge::nd2reader=3.3.0
+  - conda-forge::pytables=3.10.1
+  - conda-forge::mahotas=1.4.18
+  - conda-forge::seaborn=0.13.2
+  - conda-forge::tqdm=4.66.5
+  - conda-forge::microfilm=0.2.1
+  - conda-forge::cellpose=3.0.11
+  - conda-forge::graphviz=12.0.0
+  - conda-forge::coincbc=2.10.12
+  - bioconda::snakemake=8.20.5

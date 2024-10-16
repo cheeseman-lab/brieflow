@@ -1,0 +1,23 @@
+# BrieFlow configuration file
+
+# Defining samples:
+#   Samples must be defined in the following TSV files with columns:
+#     sbs_samples.tsv: sample_fp, well, tile, cycle
+#     phenotype_samples.tsv: sample_fp, well, tile
+
+# Paths:
+#   Paths are resolved through the following rules:
+#     1. If the path is absolute, the path is parsed as-is
+#     2. If the path is not absolute, the path at 'root' is appended to it
+
+# Suffixes:
+#   Each subsection contains a 'suffix' key that defines the folder under
+#   'output_fp' where the results of that section are put.
+
+
+# General options
+all:
+  root: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/analysis_root"
+  output_fp: "sunbeam_output/"
+  sbs_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/sbs_samples.tsv"
+  phenotype_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/phenotype_samples.tsv"

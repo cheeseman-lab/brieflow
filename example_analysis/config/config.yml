@@ -17,7 +17,7 @@
 
 # General options
 all:
-  root: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/analysis_root"
-  output_fp: "sunbeam_output/"
+  root_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/analysis_root"
+  output_fp: "brieflow_output/"
   sbs_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/sbs_samples.tsv"
   phenotype_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/phenotype_samples.tsv"

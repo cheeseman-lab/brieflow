@@ -3,3 +3,4 @@
 */.snakemake
 
 example_analysis/data/
+example_analysis/analysis_root/

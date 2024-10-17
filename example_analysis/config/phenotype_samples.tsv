@@ -1,0 +1,5 @@
+sample_fp	well	tile
+data/input/phenotype/P001_Pheno_20x_Wells-A1_Points-001__Channel_AF750,Cy3,GFP,DAPI.nd2	A1	1
+data/input/phenotype/P001_Pheno_20x_Wells-A1_Points-100__Channel_AF750,Cy3,GFP,DAPI.nd2	A1	100
+data/input/phenotype/P001_Pheno_20x_Wells-A2_Points-001__Channel_AF750,Cy3,GFP,DAPI.nd2	A2	1
+data/input/phenotype/P001_Pheno_20x_Wells-A2_Points-100__Channel_AF750,Cy3,GFP,DAPI.nd2	A2	100

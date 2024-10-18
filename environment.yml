@@ -1,0 +1,13 @@
+name: brieflow
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - snakemake=8
+  - pip
+  - ipykernel
+  - pandas
+  - numpy
+  - pip:
+      - -e .

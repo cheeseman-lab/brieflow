@@ -22,5 +22,7 @@ rule extract_metadata_sbs:
         )
     output:
         PREPROCESS_FP / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv"
+    conda:
+        "../envs/preprocess.yml"
     script:
         "../scripts/preprocess/extract_metadata_tile.py"

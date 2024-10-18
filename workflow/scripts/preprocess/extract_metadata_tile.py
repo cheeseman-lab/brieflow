@@ -1,5 +1,3 @@
-import pickle
-import pandas as pd
 from lib.preprocess.preprocess import _extract_metadata_tile
 
 # Extract metadata from ND2 file paths using the _extract_metadata_tile function

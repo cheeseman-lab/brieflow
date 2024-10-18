@@ -7,6 +7,20 @@ OUTPUT_FP = ROOT_FP / config["all"]["output_fp"]
 SBS_SAMPLES_FP = Path(config["all"]["sbs_samples_fp"])
 PHENOTYPE_SAMPLES_FP = Path(config["all"]["phenotype_samples_fp"])
 
+
+# load data for samples (this should go into helper function and be stored better)
+# Load the sample TSV files with pandas
+sbs_samples = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
+sbs_samples = sbs_samples.sort_values(by=["well", "tile", "cycle"])
+SBS_WELLS = list(sbs_samples["well"].unique())
+SBS_TILES = list(sbs_samples["tile"].unique())
+SBS_CYCLES = list(sbs_samples["cycle"].unique())
+
+phenotype_samples = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
+phenotype_samples = phenotype_samples.sort_values(by=["well", "tile"])
+PHENOTYPE_WELLS = list(sbs_samples["well"].unique())
+PHENOTYPE_TILES = list(sbs_samples["tile"].unique())
+
 # Print the paths
 print(f"Root path: {ROOT_FP}")
 print(f"Output path: {OUTPUT_FP}")
@@ -14,7 +28,14 @@ print(f"Output path: {OUTPUT_FP}")
 
 include: "rules/preprocess.smk"
 
-# Define the target for the workflow
+
+PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
+
+# Define the target files for the workflow
 rule all:
     input:
-        ROOT_FP / config["preprocess"]["suffix"] / "transposed_df.tsv"
+        expand(
+            PREPROCESS_FP / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.pkl",
+            well=SBS_WELLS,
+            cycle=SBS_CYCLES,
+        ),

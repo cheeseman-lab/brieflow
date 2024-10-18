@@ -1,3 +1,4 @@
+import glob
 from pathlib import Path
 
 PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
@@ -10,14 +11,17 @@ phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
 print(f"SBS samples shape: {sbs_samples_df.shape}")
 print(f"Phenotype samples shape: {phenotype_samples_df.shape}")
 
-# Create a test rule to transpose and save the DataFrame
-rule save_transposed_df:
+# File patterns for SBS and PH images with placeholders (find all tiles to compile metadata)
+SBS_INPUT_PATTERN_METADATA = "input/sbs/*C{cycle}_Wells-{well}_Points-*__Channel*.nd2"
+
+# Extract metadata for SBS images
+rule extract_metadata_sbs:
+    input:
+        lambda wildcards: sbs_samples_df[
+            (sbs_samples_df["well"] == wildcards.well) & 
+            (sbs_samples_df["cycle"] == wildcards.cycle)
+        ]["sample_fp"].tolist(),
     output:
-        PREPROCESS_FP / "transposed_df.tsv"
-    run:
-        print("Transposing the DataFrame...")
-        # Transpose the DataFrame
-        transposed_df = sbs_samples_df.transpose()
-        # Save the transposed DataFrame to the output file
-        transposed_df.to_csv(output[0], sep="\t")
-        print(f"Transposed DataFrame saved to {output[0]}")
+        PREPROCESS_FP / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.pkl"
+    script:
+        "../scripts/preprocess/extract_metadata_tile.py"

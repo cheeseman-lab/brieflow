@@ -2,22 +2,40 @@ import pandas as pd
 from pathlib import Path
 
 # Get the general configuration options
-root_fp = config["all"]["root_fp"]
-output_fp = config["all"]["output_fp"]
-sbs_samples_fp = config["all"]["sbs_samples_fp"]
-phenotype_samples_fp = config["all"]["phenotype_samples_fp"]
+ROOT_FP = Path(config["all"]["root_fp"])
+OUTPUT_FP = ROOT_FP / config["all"]["output_fp"]
+SBS_SAMPLES_FP = Path(config["all"]["sbs_samples_fp"])
+PHENOTYPE_SAMPLES_FP = Path(config["all"]["phenotype_samples_fp"])
 
-# Print the root path
-print(f"Root path: {root_fp}")
 
-# Print the output path appended to the root path
-output_full_path = Path(root_fp) / output_fp
-print(f"Output path: {output_full_path}")
-
+# load data for samples (this should go into helper function and be stored better)
 # Load the sample TSV files with pandas
-sbs_samples_df = pd.read_csv(sbs_samples_fp, sep="\t")
-phenotype_samples_df = pd.read_csv(phenotype_samples_fp, sep="\t")
+sbs_samples = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
+sbs_samples = sbs_samples.sort_values(by=["well", "tile", "cycle"])
+SBS_WELLS = list(sbs_samples["well"].unique())
+SBS_TILES = list(sbs_samples["tile"].unique())
+SBS_CYCLES = list(sbs_samples["cycle"].unique())
 
-# Print the shape of each DataFrame
-print(f"SBS samples shape: {sbs_samples_df.shape}")
-print(f"Phenotype samples shape: {phenotype_samples_df.shape}")
+phenotype_samples = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
+phenotype_samples = phenotype_samples.sort_values(by=["well", "tile"])
+PHENOTYPE_WELLS = list(sbs_samples["well"].unique())
+PHENOTYPE_TILES = list(sbs_samples["tile"].unique())
+
+# Print the paths
+print(f"Root path: {ROOT_FP}")
+print(f"Output path: {OUTPUT_FP}")
+
+
+include: "rules/preprocess.smk"
+
+
+PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
+
+# Define the target files for the workflow
+rule all:
+    input:
+        expand(
+            PREPROCESS_FP / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv",
+            well=SBS_WELLS,
+            cycle=SBS_CYCLES,
+        ),

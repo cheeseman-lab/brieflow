@@ -1,6 +1,8 @@
 */.DS_Store
 */.ipynb_checkpoints
 */.snakemake
+__pycache__/
+*.egg-info/
 
 example_analysis/data/
 example_analysis/analysis_root/

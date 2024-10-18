@@ -1,5 +1,6 @@
-import glob
 from pathlib import Path
+
+from lib.preprocess.file_utils import get_sample_fps
 
 PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 
@@ -11,17 +12,15 @@ phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
 print(f"SBS samples shape: {sbs_samples_df.shape}")
 print(f"Phenotype samples shape: {phenotype_samples_df.shape}")
 
-# File patterns for SBS and PH images with placeholders (find all tiles to compile metadata)
-SBS_INPUT_PATTERN_METADATA = "input/sbs/*C{cycle}_Wells-{well}_Points-*__Channel*.nd2"
-
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
     input:
-        lambda wildcards: sbs_samples_df[
-            (sbs_samples_df["well"] == wildcards.well) & 
-            (sbs_samples_df["cycle"] == wildcards.cycle)
-        ]["sample_fp"].tolist(),
+        lambda wildcards: get_sample_fps(
+            sbs_samples_df,
+            well=wildcards.well,
+            cycle=wildcards.cycle
+        )
     output:
-        PREPROCESS_FP / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.pkl"
+        PREPROCESS_FP / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv"
     script:
         "../scripts/preprocess/extract_metadata_tile.py"

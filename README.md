@@ -12,7 +12,6 @@ Use the following commands to create and activate the `brieflow` conda environme
 
 ```sh
 conda env create --file=environment.yml
-
 conda activate brieflow
 ```
 

@@ -21,3 +21,7 @@ all:
   output_fp: "brieflow_output/"
   sbs_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/sbs_samples.tsv"
   phenotype_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/phenotype_samples.tsv"
+
+# Preprocessing
+preprocess:
+  suffix: preprocess

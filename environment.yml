@@ -1,0 +1,14 @@
+name: brieflow
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - snakemake=8
+  - coincbc=2.10.12 # Pinned because need this version specifically. Should check if relevant across machines.
+  - pip
+  - ipykernel
+  - pandas
+  - numpy
+  - pip:
+      - -e .

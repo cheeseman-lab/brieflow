@@ -31,11 +31,14 @@ include: "rules/preprocess.smk"
 
 PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 
+
 # Define the target files for the workflow
 rule all:
     input:
         expand(
-            PREPROCESS_FP / "metadata" / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv",
+            PREPROCESS_FP
+            / "metadata"
+            / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv",
             well=SBS_WELLS,
             cycle=SBS_CYCLES,
         ),
@@ -45,7 +48,23 @@ rule all:
             cycle=SBS_CYCLES,
         ),
         expand(
-            PREPROCESS_FP / "sbs_tifs" / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif",
+            PREPROCESS_FP
+            / "sbs_tifs"
+            / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif",
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+            cycle=SBS_CYCLES,
+        ),
+        expand(
+            PREPROCESS_FP / "phenotype_tifs" / "20X_{well}_Tile-{tile}.phenotype.tif",
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+            cycle=SBS_CYCLES,
+        ),
+        expand(
+            PREPROCESS_FP
+            / "illumination_correction"
+            / "10X_c{cycle}-SBS-{cycle}_{well}.sbs.illumination_correction.tif",
             well=SBS_WELLS,
             tile=SBS_TILES,
             cycle=SBS_CYCLES,

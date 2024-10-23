@@ -58,3 +58,38 @@ rule convert_sbs:
         channel_order_flip=True
     script:
         "../scripts/preprocess/nd2_to_tif.py"
+
+# Convert phenotype ND2 files to TIFF
+rule convert_phenotype:
+    conda:
+        "../envs/preprocess.yml"
+    input:
+        lambda wildcards: get_sample_fps(
+            phenotype_samples_df,
+            well=wildcards.well,
+            tile=wildcards.tile
+        )
+    output:
+        PREPROCESS_FP / "phenotype_tifs" / "20X_{well}_Tile-{tile}.phenotype.tif"
+    params:
+        channel_order_flip=True
+    script:
+        "../scripts/preprocess/nd2_to_tif.py"
+
+# Calculate illumination correction for sbs files
+rule calculate_ic_sbs:
+    conda:
+        "../envs/preprocess.yml"
+    input:
+        lambda wildcards: expand(
+            PREPROCESS_FP / "sbs_tifs" / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif",
+            well=wildcards.well,
+            tile=SBS_TILES,
+            cycle=wildcards.cycle,
+        ),
+    output:
+        PREPROCESS_FP / "illumination_correction" / "10X_c{cycle}-SBS-{cycle}_{well}.sbs.illumination_correction.tif"
+    params:
+        threading=True
+    script:
+        "../scripts/preprocess/calculate_ic.py"

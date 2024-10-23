@@ -33,7 +33,6 @@ def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
     
     # Iterate through all provided files
     for file_path in files:
-        if file_path.endswith('.nd2'):
             tile = extract_tile_from_filename(file_path)
             
             with ND2Reader(file_path) as images:
@@ -78,13 +77,11 @@ def nd2_to_tif(file: str, channel_order_flip: bool = False) -> np.ndarray:
     Returns:
         np.ndarray: Image data as a multidimensional numpy array.
     """
-
     with ND2Reader(file) as images:
 
         # Determine the axes order (always include 'c' for channels)
         axes = 'cyx'
         if 'z' in images.axes:
-            print("There is a z dimension")
             axes = 'zcyx'
 
         images.bundle_axes = axes
@@ -102,7 +99,5 @@ def nd2_to_tif(file: str, channel_order_flip: bool = False) -> np.ndarray:
 
         # Ensure the image is uint16
         image_array = np.array(image, dtype=np.uint16)
-
-        print(f"Final image shape: {image_array.shape}")
 
     return image_array

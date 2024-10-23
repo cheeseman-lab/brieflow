@@ -5,3 +5,4 @@ dependencies:
   - python=3.11
   - nd2reader
   - scikit-image
+  - joblib

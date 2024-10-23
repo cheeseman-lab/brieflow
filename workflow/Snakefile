@@ -35,7 +35,17 @@ PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 rule all:
     input:
         expand(
-            PREPROCESS_FP / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv",
+            PREPROCESS_FP / "metadata" / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv",
             well=SBS_WELLS,
             cycle=SBS_CYCLES,
         ),
+        expand(
+            PREPROCESS_FP / "metadata" / "20X_{well}.metadata.tsv",
+            well=SBS_WELLS,
+            cycle=SBS_CYCLES,
+        ),
+        # expand(
+        #     PREPROCESS_FP / "sbs_tifs" / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif"
+        #     well=SBS_WELLS,
+        #     cycle=SBS_CYCLES,
+        # ),

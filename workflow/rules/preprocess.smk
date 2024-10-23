@@ -21,8 +21,38 @@ rule extract_metadata_sbs:
             cycle=wildcards.cycle
         )
     output:
-        PREPROCESS_FP / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv"
+        PREPROCESS_FP / "metadata" /  "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv"
     conda:
         "../envs/preprocess.yml"
     script:
         "../scripts/preprocess/extract_metadata_tile.py"
+
+# Extract metadata for phenotype images
+rule extract_metadata_phenotype:
+    input:
+        lambda wildcards: get_sample_fps(
+            phenotype_samples_df,
+            well=wildcards.well
+        )
+    output:
+        PREPROCESS_FP / "metadata" / "20X_{well}.metadata.tsv"
+    conda:
+        "../envs/preprocess.yml"
+    script:
+        "../scripts/preprocess/extract_metadata_tile.py"
+
+# Convert SBS ND2 files to TIFF
+# rule convert_sbs:
+#     input:
+#         lambda wildcards: get_sample_fps(
+#             sbs_samples_df,
+#             well=wildcards.well,
+#             cycle=wildcards.cycle,
+#             tile=wildcards.tile
+#         )
+#     output:
+#         PREPROCESS_FP / "sbs_tifs" / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif"
+#     params:
+#         channel_order_flip=True
+#     script:
+#         "../scripts/preprocess/nd2_to_tif.py"

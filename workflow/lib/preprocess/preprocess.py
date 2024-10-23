@@ -1,23 +1,30 @@
 import re
 
 import pandas as pd
+import numpy as np
 from nd2reader import ND2Reader
 
-def extract_tile_from_filename(filename):
-    match = re.search(r'Points-(\d+)', filename)
+def extract_tile_from_filename(filepath: str) -> int:
+    """
+    Extracts the tile number from a given filename.
+
+    Args:
+        filepath (str): The path to the file as a pathlib.Path object.
+
+    Returns:
+        int: The extracted tile number, or None if not found.
+    """
+    match = re.search(r'Points-(\d+)', filepath)
     if match:
         return int(match.group(1))
     return None
 
-def _extract_metadata_tile(files):
+def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
     """
     Extracts metadata from a list of ND2 files.
 
     Args:
-        files (list): List of paths to ND2 files.
-        parse_function_home (str): Absolute path to the screen directory.
-        parse_function_dataset (str): Dataset name within the screen directory.
-        parse_function_tiles (bool): Whether to include tile information in the parsing function.
+        files (list[str]): List of pathlib.Path objects pointing to ND2 files.
 
     Returns:
         pandas.DataFrame: Combined extracted metadata from all provided ND2 files.
@@ -59,3 +66,49 @@ def _extract_metadata_tile(files):
     else:
         print(f"No valid ND2 files found in the provided list.")
         return pd.DataFrame()  # Return an empty DataFrame if no files were processed
+
+def convert_to_tif_tile(file, channel_order_flip=False):
+    """
+    Converts a single ND2 file with one field of view and multiple channels to a multidimensional numpy array.
+
+    Args:
+        file (str): Path to the ND2 file.
+        channel_order_flip (bool): If True, reverses the order of channels. Defaults to False.
+        parse_function_home (str): Absolute path to the screen directory for file parsing.
+        parse_function_dataset (str): Dataset name within the screen directory for file parsing.
+        parse_function_tiles (bool): Whether to include tile parsing. Defaults to True.
+        zstacks (int): Number of z-stacks to keep. If 1, performs max projection. Defaults to 1.
+
+    Returns:
+        Numpy array: image data
+    """
+
+    with ND2Reader(file) as images:
+        print(f"Available channels: {images.metadata['channels']}")
+        print(f"Image axes: {images.axes}")
+
+        # Determine the axes order (always include 'c' for channels)
+        axes = 'cyx'
+        if 'z' in images.axes:
+            print("There is a z dimension")
+            axes = 'zcyx'
+
+        images.bundle_axes = axes
+        
+        # Get the single image (all channels)
+        image = images[0]
+
+        # Handle z-stacks: max project if 'z' is in axes
+        if 'z' in axes:
+            image = np.max(image, axis=0)  # Max projection along z-axis
+
+        # Flip channel order if specified
+        if channel_order_flip:
+            image = np.flip(image, axis=0)  # Flip along first axis (channels)
+
+        # Ensure the image is uint16
+        image_array = np.array(image, dtype=np.uint16)
+
+        print(f"Final image shape: {image_array.shape}")
+
+    return image_array

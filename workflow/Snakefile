@@ -44,8 +44,9 @@ rule all:
             well=SBS_WELLS,
             cycle=SBS_CYCLES,
         ),
-        # expand(
-        #     PREPROCESS_FP / "sbs_tifs" / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif"
-        #     well=SBS_WELLS,
-        #     cycle=SBS_CYCLES,
-        # ),
+        expand(
+            PREPROCESS_FP / "sbs_tifs" / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif",
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+            cycle=SBS_CYCLES,
+        ),

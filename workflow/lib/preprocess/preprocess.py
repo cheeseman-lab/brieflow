@@ -67,25 +67,19 @@ def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
         print(f"No valid ND2 files found in the provided list.")
         return pd.DataFrame()  # Return an empty DataFrame if no files were processed
 
-def convert_to_tif_tile(file, channel_order_flip=False):
+def nd2_to_tif(file: str, channel_order_flip: bool = False) -> np.ndarray:
     """
     Converts a single ND2 file with one field of view and multiple channels to a multidimensional numpy array.
 
     Args:
-        file (str): Path to the ND2 file.
-        channel_order_flip (bool): If True, reverses the order of channels. Defaults to False.
-        parse_function_home (str): Absolute path to the screen directory for file parsing.
-        parse_function_dataset (str): Dataset name within the screen directory for file parsing.
-        parse_function_tiles (bool): Whether to include tile parsing. Defaults to True.
-        zstacks (int): Number of z-stacks to keep. If 1, performs max projection. Defaults to 1.
+        file (str): Path to the ND2 file
+        channel_order_flip (bool, optional): If True, reverses the order of channels. Defaults to False.
 
     Returns:
-        Numpy array: image data
+        np.ndarray: Image data as a multidimensional numpy array.
     """
 
     with ND2Reader(file) as images:
-        print(f"Available channels: {images.metadata['channels']}")
-        print(f"Image axes: {images.axes}")
 
         # Determine the axes order (always include 'c' for channels)
         axes = 'cyx'

@@ -37,7 +37,59 @@ def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
     return np.array(arr_).reshape(output_shape)
 
 
-def calculate_ic(files, smooth=None, rescale=True, threading=False, slicer=slice(None)):
+import numpy as np
+import warnings
+from skimage import morphology, filters
+from joblib import Parallel, delayed
+from skimage.io import imread
+from typing import List
+
+def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.ndarray:
+    """
+    Accumulates an image's contribution by adding a sliced version of it to the provided data array.
+
+    Arguments:
+    ----------
+    file : str
+        Path to the image file to be accumulated.
+    slicer : slice
+        Slice object to select specific parts of the image.
+    data : np.ndarray
+        The numpy array where the accumulated image data is stored.
+    N : int
+        The number of files, used to average the data by dividing each image.
+
+    Returns:
+    --------
+    np.ndarray
+        Updated image data with the new image accumulated.
+    """
+    data += imread(file)[slicer] / N
+    return data
+
+@applyIJ
+def rescale_channels(data: np.ndarray) -> np.ndarray:
+    """
+    Rescales the image data by dividing by a robust minimum and setting values below 1 to 1.
+
+    Arguments:
+    ----------
+    data : np.ndarray
+        The input image data to be rescaled.
+
+    Returns:
+    --------
+    np.ndarray
+        The rescaled image data.
+    """
+    # Use 2nd percentile for robust minimum
+    robust_min = np.quantile(data.reshape(-1), q=0.02)
+    robust_min = 1 if robust_min == 0 else robust_min
+    data = data / robust_min
+    data[data < 1] = 1
+    return data
+
+def calculate_ic(files: List[str], smooth: int = None, rescale: bool = True, threading: bool = False, slicer: slice = slice(None)) -> np.ndarray:
     """
     Calculate illumination correction field for use with the apply_illumination_correction
     Snake method. Equivalent to CellProfiler's CorrectIlluminationCalculate module with
@@ -46,9 +98,9 @@ def calculate_ic(files, smooth=None, rescale=True, threading=False, slicer=slice
     Note: Algorithm originally benchmarked using ~250 images per plate to calculate plate-wise
     illumination correction functions (Singh et al. J Microscopy, 256(3):231-236, 2014).
 
-    Parameters:
-    -----------
-    files : list
+    Arguments:
+    ----------
+    files : List[str]
         List of file paths to images for which to calculate the illumination correction.
     smooth : int, optional
         Smoothing factor for the correction. Default is calculated as 1/20th of the image area.
@@ -61,28 +113,22 @@ def calculate_ic(files, smooth=None, rescale=True, threading=False, slicer=slice
 
     Returns:
     --------
-    numpy.ndarray
+    np.ndarray
         The calculated illumination correction field.
     """
     
-    N = len(files)
-    
-    print(f"{N} files passed into image correction module")
-    
-    # Initialize global data variable
-    global data
-    data = imread(files[0])[slicer] / N
-    
-    def accumulate_image(file):
-        global data
-        data += imread(file)[slicer] / N
+    # Initialize data variable
+    data = imread(files[0])[slicer] / len(files)
     
     # Accumulate images using threading or sequential processing, averaging them
     if threading:
-        Parallel(n_jobs=-1, require='sharedmem')(delayed(accumulate_image)(file) for file in files[1:])
+        # Accumulate results in parallel and combine them
+        results = Parallel(n_jobs=-1, require='sharedmem')(delayed(accumulate_image)(file, slicer, np.zeros_like(data), len(files)) for file in files[1:])
+        for result in results:
+            data += result  # Aggregate results from parallel processing
     else:
         for file in files[1:]:
-            accumulate_image(file)
+            data = accumulate_image(file, slicer, data, len(files))
     
     # Squeeze and convert data to uint16 (remove any dimensions of size 1)
     data = np.squeeze(data.astype(np.uint16))
@@ -92,8 +138,8 @@ def calculate_ic(files, smooth=None, rescale=True, threading=False, slicer=slice
         smooth = int(np.sqrt((data.shape[-1] * data.shape[-2]) / (np.pi * 20)))
     print(f"Smoothing factor: {smooth}")
     
-    selem = skimage.morphology.disk(smooth)
-    median_filter = applyIJ(skimage.filters.median)
+    selem = morphology.disk(smooth)
+    median_filter = applyIJ(filters.median)
     
     # Apply median filter with warning suppression
     with warnings.catch_warnings():
@@ -102,15 +148,6 @@ def calculate_ic(files, smooth=None, rescale=True, threading=False, slicer=slice
     
     # Rescale channels if requested
     if rescale:
-        @applyIJ
-        def rescale_channels(data):
-            # Use 2nd percentile for robust minimum
-            robust_min = np.quantile(data.reshape(-1), q=0.02)
-            robust_min = 1 if robust_min == 0 else robust_min
-            data = data / robust_min
-            data[data < 1] = 1
-            return data
-        
         smoothed = rescale_channels(smoothed)
     
     return smoothed

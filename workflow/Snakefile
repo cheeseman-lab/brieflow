@@ -69,3 +69,11 @@ rule all:
             tile=SBS_TILES,
             cycle=SBS_CYCLES,
         ),
+        expand(
+            PREPROCESS_FP
+            / "illumination_correction"
+            / "20X_{well}.phenotype.illumination_correction.tif",
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+            cycle=SBS_CYCLES,
+        ),

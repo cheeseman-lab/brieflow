@@ -1,10 +1,11 @@
 import decorator
 import warnings
+from types import List
 
 from joblib import Parallel, delayed
 import numpy as np
-import skimage.morphology
-import skimage.filters
+from skimage import morphology
+from skimage import filters
 from skimage.io import imread
 
 
@@ -36,14 +37,6 @@ def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
 
     # Reshape the resulting list of arrays to the determined output shape
     return np.array(arr_).reshape(output_shape)
-
-
-import numpy as np
-import warnings
-from skimage import morphology, filters
-from joblib import Parallel, delayed
-from skimage.io import imread
-from typing import List
 
 
 def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.ndarray:

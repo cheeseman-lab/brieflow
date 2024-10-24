@@ -63,7 +63,7 @@ def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
         combined_metadata = combined_metadata.sort_values('field_of_view').reset_index(drop=True)
         return combined_metadata
     else:
-        print(f"No valid ND2 files found in the provided list.")
+        print("No valid ND2 files found in the provided list.")
         return pd.DataFrame()  # Return an empty DataFrame if no files were processed
 
 def nd2_to_tif(file: str, channel_order_flip: bool = False) -> np.ndarray:

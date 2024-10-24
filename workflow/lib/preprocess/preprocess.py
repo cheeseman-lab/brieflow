@@ -10,11 +10,12 @@ def extract_tile_from_filename(filepath: str) -> int:
     Extracts the tile number from a given filename.
 
     Args:
-        filepath (str): The path to the file as a pathlib.Path object.
+        filepath (str): The path to the file.
 
     Returns:
         int: The extracted tile number, or None if not found.
     """
+
     match = re.search(r"Points-(\d+)", filepath)
     if match:
         return int(match.group(1))
@@ -26,11 +27,12 @@ def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
     Extracts metadata from a list of ND2 files.
 
     Args:
-        files (list[str]): List of pathlib.Path objects pointing to ND2 files.
+        files (list[str]): List of file paths pointing to ND2 files.
 
     Returns:
-        pandas.DataFrame: Combined extracted metadata from all provided ND2 files.
+        pd.DataFrame: Combined extracted metadata from all provided ND2 files.
     """
+
     all_metadata = []
 
     # Iterate through all provided files
@@ -80,12 +82,13 @@ def nd2_to_tif(file: str, channel_order_flip: bool = False) -> np.ndarray:
     Converts a single ND2 file with one field of view and multiple channels to a multidimensional numpy array.
 
     Args:
-        file (str): Path to the ND2 file
+        file (str): Path to the ND2 file.
         channel_order_flip (bool, optional): If True, reverses the order of channels. Defaults to False.
 
     Returns:
         np.ndarray: Image data as a multidimensional numpy array.
     """
+
     with ND2Reader(file) as images:
         # Determine the axes order (always include 'c' for channels)
         axes = "cyx"

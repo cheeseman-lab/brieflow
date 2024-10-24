@@ -14,7 +14,7 @@ def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
     """
     Decorator to apply a function that expects 2D input to the trailing two dimensions of a multi-dimensional array.
 
-    Arguments:
+    Args:
         f (Callable): The function to apply to each 2D slice of the input array.
         arr (np.ndarray): The input array with at least two dimensions, where the function will be applied to the last two dimensions.
         *args (tuple): Additional positional arguments to be passed to the function.
@@ -23,6 +23,7 @@ def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
     Returns:
         np.ndarray: The output array with the function applied to the trailing two dimensions of the input array.
     """
+
     # Get the height and width of the trailing two dimensions of the input array
     h, w = arr.shape[-2:]
 
@@ -43,22 +44,16 @@ def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.n
     """
     Accumulates an image's contribution by adding a sliced version of it to the provided data array.
 
-    Arguments:
-    ----------
-    file : str
-        Path to the image file to be accumulated.
-    slicer : slice
-        Slice object to select specific parts of the image.
-    data : np.ndarray
-        The numpy array where the accumulated image data is stored.
-    N : int
-        The number of files, used to average the data by dividing each image.
+    Args:
+        file (str): Path to the image file to be accumulated.
+        slicer (slice): Slice object to select specific parts of the image.
+        data (np.ndarray): The numpy array where the accumulated image data is stored.
+        N (int): The number of files, used to average the data by dividing each image.
 
     Returns:
-    --------
-    np.ndarray
-        Updated image data with the new image accumulated.
+        np.ndarray: Updated image data with the new image accumulated.
     """
+
     data += imread(file)[slicer] / N
     return data
 
@@ -68,16 +63,13 @@ def rescale_channels(data: np.ndarray) -> np.ndarray:
     """
     Rescales the image data by dividing by a robust minimum and setting values below 1 to 1.
 
-    Arguments:
-    ----------
-    data : np.ndarray
-        The input image data to be rescaled.
+    Args:
+        data (np.ndarray): The input image data to be rescaled.
 
     Returns:
-    --------
-    np.ndarray
-        The rescaled image data.
+        np.ndarray: The rescaled image data.
     """
+
     # Use 2nd percentile for robust minimum
     robust_min = np.quantile(data.reshape(-1), q=0.02)
     robust_min = 1 if robust_min == 0 else robust_min
@@ -101,23 +93,15 @@ def calculate_ic_field(
     Note: Algorithm originally benchmarked using ~250 images per plate to calculate plate-wise
     illumination correction functions (Singh et al. J Microscopy, 256(3):231-236, 2014).
 
-    Arguments:
-    ----------
-    files : List[str]
-        List of file paths to images for which to calculate the illumination correction.
-    smooth : int, optional
-        Smoothing factor for the correction. Default is calculated as 1/20th of the image area.
-    rescale : bool, default True
-        Whether to rescale the correction field.
-    threading : bool, default False
-        Whether to use threading for parallel processing.
-    slicer : slice, optional
-        Slice object to select specific parts of the images.
+    Args:
+        files (List[str]): List of file paths to images for which to calculate the illumination correction.
+        smooth (int, optional): Smoothing factor for the correction. Default is calculated as 1/20th of the image area.
+        rescale (bool, optional): Whether to rescale the correction field. Defaults to True.
+        threading (bool, optional): Whether to use threading for parallel processing. Defaults to False.
+        slicer (slice, optional): Slice object to select specific parts of the images.
 
     Returns:
-    --------
-    np.ndarray
-        The calculated illumination correction field.
+        np.ndarray: The calculated illumination correction field.
     """
 
     # Initialize data variable

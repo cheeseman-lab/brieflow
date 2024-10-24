@@ -8,14 +8,15 @@ def get_sample_fps(
     Filters the samples DataFrame based on optional well, tile, and cycle inputs.
 
     Args:
-        samples_df (pandas.DataFrame): DataFrame containing sample data.
+        samples_df (pd.DataFrame): DataFrame containing sample data.
         well (str, optional): Well identifier to filter by.
         tile (int, optional): Tile number to filter by.
         cycle (int, optional): Cycle number to filter by.
 
     Returns:
-        list[str]: List of sample file paths as str objects that match the filters.
+        list[str]: List of sample file paths that match the filters.
     """
+
     # Start with the full DataFrame
     filtered_df = samples_df
 

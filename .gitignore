@@ -3,6 +3,7 @@
 */.snakemake
 __pycache__/
 *.egg-info/
+.ruff_cache/
 
 example_analysis/data/
 example_analysis/analysis_root/

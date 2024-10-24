@@ -63,16 +63,14 @@ rule all:
         ),
         expand(
             PREPROCESS_FP
-            / "illumination_correction"
-            / "10X_c{cycle}-SBS-{cycle}_{well}.sbs.illumination_correction.tif",
+            / "ic_fields"
+            / "10X_c{cycle}-SBS-{cycle}_{well}.sbs.ic_field.tif",
             well=SBS_WELLS,
             tile=SBS_TILES,
             cycle=SBS_CYCLES,
         ),
         expand(
-            PREPROCESS_FP
-            / "illumination_correction"
-            / "20X_{well}.phenotype.illumination_correction.tif",
+            PREPROCESS_FP / "ic_fields" / "20X_{well}.phenotype.ic_field.tif",
             well=SBS_WELLS,
             tile=SBS_TILES,
             cycle=SBS_CYCLES,

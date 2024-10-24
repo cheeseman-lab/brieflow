@@ -10,5 +10,6 @@ dependencies:
   - ipykernel
   - pandas
   - numpy
+  - black
   - pip:
       - -e .

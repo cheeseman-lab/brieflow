@@ -76,7 +76,7 @@ rule convert_phenotype:
         "../scripts/preprocess/nd2_to_tif.py"
 
 
-# Calculate illumination correction for sbs files
+# Calculate illumination correction function for sbs files
 rule calculate_ic_sbs:
     conda:
         "../envs/preprocess.yml"
@@ -90,13 +90,11 @@ rule calculate_ic_sbs:
             cycle=wildcards.cycle,
         ),
     output:
-        PREPROCESS_FP
-        / "illumination_correction"
-        / "10X_c{cycle}-SBS-{cycle}_{well}.sbs.illumination_correction.tif",
+        PREPROCESS_FP / "ic_fields" / "10X_c{cycle}-SBS-{cycle}_{well}.sbs.ic_field.tif",
     params:
         threading=True,
     script:
-        "../scripts/preprocess/calculate_ic.py"
+        "../scripts/preprocess/calculate_ic_field.py"
 
 
 # Calculate illumination correction for phenotype files
@@ -110,10 +108,8 @@ rule calculate_ic_phenotype:
             tile=PHENOTYPE_TILES,
         ),
     output:
-        PREPROCESS_FP
-        / "illumination_correction"
-        / "20X_{well}.phenotype.illumination_correction.tif",
+        PREPROCESS_FP / "ic_fields" / "20X_{well}.phenotype.ic_field.tif",
     params:
         threading=True,
     script:
-        "../scripts/preprocess/calculate_ic.py"
+        "../scripts/preprocess/calculate_ic_field.py"

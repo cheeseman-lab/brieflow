@@ -7,6 +7,7 @@ import skimage.morphology
 import skimage.filters
 from skimage.io import imread
 
+
 @decorator.decorator
 def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
     """
@@ -23,7 +24,7 @@ def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
     """
     # Get the height and width of the trailing two dimensions of the input array
     h, w = arr.shape[-2:]
-    
+
     # Reshape the input array to a 3D array with shape (-1, h, w), where -1 indicates the product of all other dimensions
     reshaped = arr.reshape((-1, h, w))
 
@@ -32,7 +33,7 @@ def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
 
     # Determine the output shape based on the input array shape and the shape of the output from the function f
     output_shape = arr.shape[:-2] + arr_[0].shape
-    
+
     # Reshape the resulting list of arrays to the determined output shape
     return np.array(arr_).reshape(output_shape)
 
@@ -43,6 +44,7 @@ from skimage import morphology, filters
 from joblib import Parallel, delayed
 from skimage.io import imread
 from typing import List
+
 
 def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.ndarray:
     """
@@ -67,6 +69,7 @@ def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.n
     data += imread(file)[slicer] / N
     return data
 
+
 @applyIJ
 def rescale_channels(data: np.ndarray) -> np.ndarray:
     """
@@ -89,7 +92,14 @@ def rescale_channels(data: np.ndarray) -> np.ndarray:
     data[data < 1] = 1
     return data
 
-def calculate_ic(files: List[str], smooth: int = None, rescale: bool = True, threading: bool = False, slicer: slice = slice(None)) -> np.ndarray:
+
+def calculate_ic_field(
+    files: List[str],
+    smooth: int = None,
+    rescale: bool = True,
+    threading: bool = False,
+    slicer: slice = slice(None),
+) -> np.ndarray:
     """
     Calculate illumination correction field for use with the apply_illumination_correction
     Snake method. Equivalent to CellProfiler's CorrectIlluminationCalculate module with
@@ -116,38 +126,40 @@ def calculate_ic(files: List[str], smooth: int = None, rescale: bool = True, thr
     np.ndarray
         The calculated illumination correction field.
     """
-    
+
     # Initialize data variable
     data = imread(files[0])[slicer] / len(files)
-    
+
     # Accumulate images using threading or sequential processing, averaging them
     if threading:
         # Accumulate results in parallel and combine them
-        results = Parallel(n_jobs=-1, require='sharedmem')(delayed(accumulate_image)(file, slicer, np.zeros_like(data), len(files)) for file in files[1:])
+        results = Parallel(n_jobs=-1, require="sharedmem")(
+            delayed(accumulate_image)(file, slicer, np.zeros_like(data), len(files))
+            for file in files[1:]
+        )
         for result in results:
             data += result  # Aggregate results from parallel processing
     else:
         for file in files[1:]:
             data = accumulate_image(file, slicer, data, len(files))
-    
+
     # Squeeze and convert data to uint16 (remove any dimensions of size 1)
     data = np.squeeze(data.astype(np.uint16))
-    
+
     # Calculate default smoothing factor if not provided
     if not smooth:
         smooth = int(np.sqrt((data.shape[-1] * data.shape[-2]) / (np.pi * 20)))
-    print(f"Smoothing factor: {smooth}")
-    
+
     selem = morphology.disk(smooth)
     median_filter = applyIJ(filters.median)
-    
+
     # Apply median filter with warning suppression
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        smoothed = median_filter(data, selem, behavior='rank')
-    
+        smoothed = median_filter(data, selem, behavior="rank")
+
     # Rescale channels if requested
     if rescale:
         smoothed = rescale_channels(smoothed)
-    
+
     return smoothed

@@ -16,4 +16,5 @@ packages = ["preprocess"]
 include-package-data = true
 
 [tool.ruff]
+# exclude files that do not follow ruff linting with snakemake.input and snakemake.output
 exclude = ["workflow/scripts/"]

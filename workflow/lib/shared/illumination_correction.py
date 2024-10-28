@@ -1,3 +1,8 @@
+"""
+Functions related to illumination correction in BrieFlow.
+Used in preprocessing to calculate the ic field and downstream steps to apply the ic field to images.
+"""
+
 import decorator
 import warnings
 from types import List

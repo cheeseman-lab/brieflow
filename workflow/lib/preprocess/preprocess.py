@@ -1,5 +1,5 @@
 """
-Utility functions for preprocessing ND2 files in preparation for downstream BrieFlow steps.
+Functions for preprocessing ND2 files in preparation for downstream BrieFlow steps.
 """
 
 import pandas as pd

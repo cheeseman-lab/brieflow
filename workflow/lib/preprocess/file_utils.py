@@ -1,3 +1,9 @@
+"""
+Utility functions for handling and filtering sample file paths in the BrieFlow pipeline.
+"""
+
+import re
+
 import pandas as pd
 
 
@@ -32,3 +38,20 @@ def get_sample_fps(
 
     # Return the list of file paths as Path objects
     return filtered_df["sample_fp"].tolist()
+
+
+def extract_tile_from_filename(filepath: str) -> int:
+    """
+    Extracts the tile number from a given filename.
+
+    Args:
+        filepath (str): The path to the file.
+
+    Returns:
+        int: The extracted tile number, or None if not found.
+    """
+
+    match = re.search(r"Points-(\d+)", filepath)
+    if match:
+        return int(match.group(1))
+    return None

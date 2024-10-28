@@ -1,25 +1,12 @@
-import re
+"""
+Utility functions for preprocessing ND2 files in preparation for downstream BrieFlow steps.
+"""
 
 import pandas as pd
 import numpy as np
 from nd2reader import ND2Reader
 
-
-def extract_tile_from_filename(filepath: str) -> int:
-    """
-    Extracts the tile number from a given filename.
-
-    Args:
-        filepath (str): The path to the file.
-
-    Returns:
-        int: The extracted tile number, or None if not found.
-    """
-
-    match = re.search(r"Points-(\d+)", filepath)
-    if match:
-        return int(match.group(1))
-    return None
+from preprocess.file_utils import extract_tile_from_filename
 
 
 def extract_metadata_tile(files: list[str]) -> pd.DataFrame:

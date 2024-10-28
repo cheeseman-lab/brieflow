@@ -1,4 +1,3 @@
-import snakemake
 from lib.shared.illumination_correction import calculate_ic_field
 from skimage.io import imsave
 

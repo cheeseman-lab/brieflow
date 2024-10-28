@@ -1,4 +1,3 @@
-import snakemake
 from lib.preprocess.preprocess import extract_metadata_tile
 
 # Extract metadata from ND2 file paths using the _extract_metadata_tile function

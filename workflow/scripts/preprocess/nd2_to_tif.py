@@ -1,4 +1,3 @@
-import snakemake
 from lib.preprocess.preprocess import nd2_to_tif
 from skimage.io import imsave
 

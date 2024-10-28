@@ -5,7 +5,7 @@ Used in preprocessing to calculate the ic field and downstream steps to apply th
 
 import decorator
 import warnings
-from types import List
+from typing import List
 
 from joblib import Parallel, delayed
 import numpy as np

@@ -14,3 +14,6 @@ dependencies = []
 package-dir = {"" = "workflow/lib"}
 packages = ["preprocess"]
 include-package-data = true
+
+[tool.ruff]
+exclude = ["workflow/scripts/"]

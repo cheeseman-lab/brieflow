@@ -22,7 +22,7 @@ rule extract_metadata_sbs:
             sbs_samples_df, well=wildcards.well, cycle=wildcards.cycle
         ),
     output:
-        PREPROCESS_FP / "metadata" / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv",
+        PREPROCESS_FP / "metadata" / "sbs" / "W{well}_C{cycle}__metadata.tsv",
     script:
         "../scripts/preprocess/extract_metadata_tile.py"
 
@@ -34,7 +34,7 @@ rule extract_metadata_phenotype:
     input:
         lambda wildcards: get_sample_fps(phenotype_samples_df, well=wildcards.well),
     output:
-        PREPROCESS_FP / "metadata" / "20X_{well}.metadata.tsv",
+        PREPROCESS_FP / "metadata" / "phenotype" / "W{well}__metadata.tsv",
     script:
         "../scripts/preprocess/extract_metadata_tile.py"
 
@@ -52,12 +52,12 @@ rule convert_sbs:
         ),
     output:
         PREPROCESS_FP
-        / "sbs_tifs"
+        / "tiffs" / 
         / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif",
     params:
         channel_order_flip=True,
     script:
-        "../scripts/preprocess/nd2_to_tif.py"
+        "../scripts/preprocess/nd2_to_tiff.py"
 
 
 # Convert phenotype ND2 files to TIFF
@@ -73,7 +73,7 @@ rule convert_phenotype:
     params:
         channel_order_flip=True,
     script:
-        "../scripts/preprocess/nd2_to_tif.py"
+        "../scripts/preprocess/nd2_to_tiff.py"
 
 
 # Calculate illumination correction function for sbs files

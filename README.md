@@ -38,6 +38,6 @@ We use the following conventions:
 - [Google format](format) for function docstrings
 - [tsv](https://en.wikipedia.org/wiki/Tab-separated_values#:~:text=Tab%2Dseparated%20values%20(TSV),similar%20to%20comma%2Dseparated%20values.) file format for saving small dataframes that require easy readability
 - [hdf5](https://www.hdfgroup.org/solutions/hdf5/) file format for saving large dataframes
-- Data location information (well, tile, cycle, etc) with leading zeros + `__` + type of information (cell features, phenotype info, etc) + `.` + file type. 
+- Data location information (well, tile, cycle, etc) + `__` + type of information (cell features, phenotype info, etc) + `.` + file type. 
 Data is stored in its respective analysis directories. 
-For example: `analysis_root/preprocess/ic_fields/sbs/A01_T0001_C01__ic_field.tiff`
+For example: `analysis_root/preprocess/ic_fields/sbs/A01_T1_C1__ic_field.tiff`

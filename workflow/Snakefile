@@ -60,9 +60,11 @@ rule all:
             cycle=SBS_CYCLES,
         ),
         expand(
-            PREPROCESS_FP / "ic_fields" / "sbs" / "W{well}_C{cycle}__ic_field.tiff",
+            PREPROCESS_FP
+            / "ic_fields"
+            / "sbs"
+            / get_filename({"well": "{well}", "cycle": "{cycle}"}, "ic_field", "tiff"),
             well=SBS_WELLS,
-            tile=SBS_TILES,
             cycle=SBS_CYCLES,
         ),
         expand(

@@ -86,7 +86,11 @@ rule calculate_ic_sbs:
             cycle=wildcards.cycle,
         ),
     output:
-        PREPROCESS_FP / "ic_fields" / "sbs" / "W{well}_C{cycle}__ic_field.tiff",
+        # PREPROCESS_FP / "ic_fields" / "sbs" / "W{well}_C{cycle}__ic_field.tiff",
+        PREPROCESS_FP
+        / "ic_fields"
+        / "sbs"
+        / get_filename({"well": "{well}", "cycle": "{cycle}"}, "ic_field", "tiff"),
     params:
         threading=True,
     script:

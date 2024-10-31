@@ -86,7 +86,6 @@ rule calculate_ic_sbs:
             cycle=wildcards.cycle,
         ),
     output:
-        # PREPROCESS_FP / "ic_fields" / "sbs" / "W{well}_C{cycle}__ic_field.tiff",
         PREPROCESS_FP
         / "ic_fields"
         / "sbs"

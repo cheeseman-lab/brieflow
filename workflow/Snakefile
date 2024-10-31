@@ -6,8 +6,8 @@ from lib.shared.file_utils import get_filename
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
 OUTPUT_FP = ROOT_FP / config["all"]["output_fp"]
-SBS_SAMPLES_FP = Path(config["all"]["sbs_samples_fp"])
-PHENOTYPE_SAMPLES_FP = Path(config["all"]["phenotype_samples_fp"])
+SBS_SAMPLES_FP = Path(config["preprocessing"]["sbs_samples_fp"])
+PHENOTYPE_SAMPLES_FP = Path(config["preprocessing"]["phenotype_samples_fp"])
 
 
 # load data for samples (this should go into helper function and be stored better)

@@ -4,7 +4,9 @@ from lib.shared.file_utils import get_sample_fps, get_filename
 PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 
 # Load the sample TSV files with pandas
+SBS_SAMPLES_FP = Path(config["preprocessing"]["sbs_samples_fp"])
 sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
+PHENOTYPE_SAMPLES_FP = Path(config["preprocessing"]["phenotype_samples_fp"])
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
 
 # Print the shape of each DataFrame

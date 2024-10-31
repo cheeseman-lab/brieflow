@@ -19,12 +19,12 @@
 all:
   root_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/analysis_root"
   output_fp: "brieflow_output/"
-  sbs_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/sbs_samples.tsv"
-  phenotype_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/phenotype_samples.tsv"
 
 # Preprocessing
 preprocess:
   suffix: preprocess
+  sbs_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/sbs_samples.tsv"
+  phenotype_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/phenotype_samples.tsv"
 
 # SBS processing
 sbs_processing:

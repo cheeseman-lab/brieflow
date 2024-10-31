@@ -31,6 +31,13 @@ sh run_analysis.sh
 
 ## Contribution Notes
 
-- We use the [one sentence per line](https://nick.groenen.me/notes/one-sentence-per-line/) convention for markdown files.
-- We use [ruff](https://github.com/astral-sh/ruff) for linting and formatting code.
-- We use the [Google format](format) for function docstrings.
+We use [ruff](https://github.com/astral-sh/ruff) for linting and formatting code.
+
+We use the following conventions:
+- [One sentence per line](https://nick.groenen.me/notes/one-sentence-per-line/) convention for markdown files
+- [Google format](format) for function docstrings
+- [tsv](https://en.wikipedia.org/wiki/Tab-separated_values#:~:text=Tab%2Dseparated%20values%20(TSV),similar%20to%20comma%2Dseparated%20values.) file format for saving small dataframes that require easy readability
+- [hdf5](https://www.hdfgroup.org/solutions/hdf5/) file format for saving large dataframes
+- Data location information (well, tile, cycle, etc) with leading zeros + `__` + type of information (cell features, phenotype info, etc) + `.` + file type. 
+Data is stored in its respective analysis directories. 
+For example: `analysis_root/preprocess/ic_fields/sbs/A1_T0001_C01__ic_field.tiff`

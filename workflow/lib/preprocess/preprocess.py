@@ -64,7 +64,7 @@ def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
         return pd.DataFrame()  # Return an empty DataFrame if no files were processed
 
 
-def nd2_to_tif(file: str, channel_order_flip: bool = False) -> np.ndarray:
+def nd2_to_tiff(file: str, channel_order_flip: bool = False) -> np.ndarray:
     """
     Converts a single ND2 file with one field of view and multiple channels to a multidimensional numpy array.
 

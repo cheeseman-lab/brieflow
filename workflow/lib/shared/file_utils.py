@@ -55,3 +55,37 @@ def extract_tile_from_filename(filepath: str) -> int:
     if match:
         return int(match.group(1))
     return None
+
+
+def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
+    """
+    Generate a structured filename based on data location, information type, and file type.
+
+    Parameters:
+    - data_location (dict): Dictionary containing location info like well, tile, and cycle.
+    - info_type (str): Type of information (e.g., 'cell_features', 'sbs_reads').
+    - file_type (str): File extension/type (e.g., 'tsv', 'hdf5', 'tiff').
+
+    Returns:
+    - str: Structured filename.
+    """
+
+    # Define components for location data
+    # Well has no leading zeros
+    well = f"W{data_location.get('well', '')}"
+    # Tile has 4 digits with leading zeros
+    tile = (
+        f"_T{int(data_location.get('tile', '0')):04d}"
+        if "tile" in data_location
+        else ""
+    )
+    # Cycle has 2 digits with leading zeros
+    cycle = (
+        f"_C{int(data_location.get('cycle', '0')):02d}"
+        if "cycle" in data_location
+        else ""
+    )
+
+    # Construct filename by combining components with info_type and file_type
+    filename = f"{well}{tile}{cycle}__{info_type}.{file_type}"
+    return filename

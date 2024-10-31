@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lib.shared.file_utils import get_sample_fps
+from lib.shared.file_utils import get_sample_fps, get_filename
 
 PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 
@@ -51,9 +51,7 @@ rule convert_sbs:
             tile=wildcards.tile,
         ),
     output:
-        PREPROCESS_FP
-        / "tiffs" / 
-        / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif",
+        PREPROCESS_FP / "images" / "sbs" / "W{well}_T{tile}_C{cycle}__image.tiff",
     params:
         channel_order_flip=True,
     script:
@@ -69,7 +67,7 @@ rule convert_phenotype:
             phenotype_samples_df, well=wildcards.well, tile=wildcards.tile
         ),
     output:
-        PREPROCESS_FP / "phenotype_tifs" / "20X_{well}_Tile-{tile}.phenotype.tif",
+        PREPROCESS_FP / "images" / "phenotype" / "W{well}_T{tile}__image.tiff",
     params:
         channel_order_flip=True,
     script:
@@ -82,15 +80,13 @@ rule calculate_ic_sbs:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: expand(
-            PREPROCESS_FP
-            / "sbs_tifs"
-            / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif",
+            PREPROCESS_FP / "images" / "sbs" / "W{well}_T{tile}_C{cycle}__image.tiff",
             well=wildcards.well,
             tile=SBS_TILES,
             cycle=wildcards.cycle,
         ),
     output:
-        PREPROCESS_FP / "ic_fields" / "10X_c{cycle}-SBS-{cycle}_{well}.sbs.ic_field.tif",
+        PREPROCESS_FP / "ic_fields" / "sbs" / "W{well}_C{cycle}__ic_field.tiff",
     params:
         threading=True,
     script:
@@ -103,12 +99,15 @@ rule calculate_ic_phenotype:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: expand(
-            PREPROCESS_FP / "phenotype_tifs" / "20X_{well}_Tile-{tile}.phenotype.tif",
+            PREPROCESS_FP / "images" / "phenotype" / "W{well}_T{tile}__image.tiff",
             well=wildcards.well,
             tile=PHENOTYPE_TILES,
         ),
     output:
-        PREPROCESS_FP / "ic_fields" / "20X_{well}.phenotype.ic_field.tif",
+        PREPROCESS_FP
+        / "ic_fields"
+        / "phenotype"
+        / get_filename({"well": "{well}"}, "ic_field", "tiff"),
     params:
         threading=True,
     script:

@@ -40,4 +40,4 @@ We use the following conventions:
 - [hdf5](https://www.hdfgroup.org/solutions/hdf5/) file format for saving large dataframes
 - Data location information (well, tile, cycle, etc) + `__` + type of information (cell features, phenotype info, etc) + `.` + file type. 
 Data is stored in its respective analysis directories. 
-For example: `analysis_root/preprocess/ic_fields/sbs/A01_T1_C1__ic_field.tiff`
+For example: `analysis_root/preprocess/ic_fields/sbs/A1_T1_C1__ic_field.tiff`

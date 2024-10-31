@@ -1,5 +1,4 @@
 from pathlib import Path
-
 from lib.shared.file_utils import get_sample_fps, get_filename
 
 PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
@@ -22,7 +21,10 @@ rule extract_metadata_sbs:
             sbs_samples_df, well=wildcards.well, cycle=wildcards.cycle
         ),
     output:
-        PREPROCESS_FP / "metadata" / "sbs" / "W{well}_C{cycle}__metadata.tsv",
+        PREPROCESS_FP
+        / "metadata"
+        / "sbs"
+        / get_filename({"well": "{well}", "cycle": "{cycle}"}, "metadata", "tsv"),
     script:
         "../scripts/preprocess/extract_metadata_tile.py"
 
@@ -34,7 +36,10 @@ rule extract_metadata_phenotype:
     input:
         lambda wildcards: get_sample_fps(phenotype_samples_df, well=wildcards.well),
     output:
-        PREPROCESS_FP / "metadata" / "phenotype" / "W{well}__metadata.tsv",
+        PREPROCESS_FP
+        / "metadata"
+        / "phenotype"
+        / get_filename({"well": "{well}"}, "metadata", "tsv"),
     script:
         "../scripts/preprocess/extract_metadata_tile.py"
 
@@ -51,7 +56,12 @@ rule convert_sbs:
             tile=wildcards.tile,
         ),
     output:
-        PREPROCESS_FP / "images" / "sbs" / "W{well}_T{tile}_C{cycle}__image.tiff",
+        PREPROCESS_FP
+        / "images"
+        / "sbs"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}, "image", "tiff"
+        ),
     params:
         channel_order_flip=True,
     script:
@@ -67,23 +77,31 @@ rule convert_phenotype:
             phenotype_samples_df, well=wildcards.well, tile=wildcards.tile
         ),
     output:
-        PREPROCESS_FP / "images" / "phenotype" / "W{well}_T{tile}__image.tiff",
+        PREPROCESS_FP
+        / "images"
+        / "phenotype"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "image", "tiff"),
     params:
         channel_order_flip=True,
     script:
         "../scripts/preprocess/nd2_to_tiff.py"
 
 
-# Calculate illumination correction function for sbs files
+# Calculate illumination correction function for SBS files
 rule calculate_ic_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: expand(
-            PREPROCESS_FP / "images" / "sbs" / "W{well}_T{tile}_C{cycle}__image.tiff",
-            well=wildcards.well,
+            PREPROCESS_FP
+            / "images"
+            / "sbs"
+            / get_filename(
+                {"well": wildcards.well, "tile": "{tile}", "cycle": wildcards.cycle},
+                "image",
+                "tiff",
+            ),
             tile=SBS_TILES,
-            cycle=wildcards.cycle,
         ),
     output:
         PREPROCESS_FP
@@ -102,8 +120,12 @@ rule calculate_ic_phenotype:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: expand(
-            PREPROCESS_FP / "images" / "phenotype" / "W{well}_T{tile}__image.tiff",
-            well=wildcards.well,
+            PREPROCESS_FP
+            / "images"
+            / "phenotype"
+            / get_filename(
+                {"well": wildcards.well, "tile": "{tile}"}, "image", "tiff"
+            ),
             tile=PHENOTYPE_TILES,
         ),
     output:

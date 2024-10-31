@@ -38,26 +38,40 @@ PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 rule all:
     input:
         expand(
-            PREPROCESS_FP / "metadata" / "sbs" / "W{well}_C{cycle}__metadata.tsv",
+            PREPROCESS_FP
+            / "metadata"
+            / "sbs"
+            / get_filename({"well": "{well}", "cycle": "{cycle}"}, "metadata", "tsv"),
             well=SBS_WELLS,
             cycle=SBS_CYCLES,
         ),
         expand(
-            PREPROCESS_FP / "metadata" / "phenotype" / "W{well}__metadata.tsv",
+            PREPROCESS_FP
+            / "metadata"
+            / "phenotype"
+            / get_filename({"well": "{well}"}, "metadata", "tsv"),
             well=SBS_WELLS,
-            cycle=SBS_CYCLES,
         ),
         expand(
-            PREPROCESS_FP / "images" / "sbs" / "W{well}_T{tile}_C{cycle}__image.tiff",
+            PREPROCESS_FP
+            / "images"
+            / "sbs"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
+                "image",
+                "tiff",
+            ),
             well=SBS_WELLS,
             tile=SBS_TILES,
             cycle=SBS_CYCLES,
         ),
         expand(
-            PREPROCESS_FP / "images" / "phenotype" / "W{well}_T{tile}__image.tiff",
+            PREPROCESS_FP
+            / "images"
+            / "phenotype"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "image", "tiff"),
             well=SBS_WELLS,
             tile=SBS_TILES,
-            cycle=SBS_CYCLES,
         ),
         expand(
             PREPROCESS_FP

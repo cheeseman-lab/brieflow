@@ -25,3 +25,7 @@ all:
 # Preprocessing
 preprocess:
   suffix: preprocess
+
+# SBS processing
+sbs_processing:
+  suffix: sbs_processing

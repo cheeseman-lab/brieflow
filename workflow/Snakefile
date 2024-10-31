@@ -29,6 +29,7 @@ print(f"Output path: {OUTPUT_FP}")
 
 
 include: "rules/preprocess.smk"
+include: "rules/sbs_processing.smk"
 
 
 PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
@@ -37,6 +38,7 @@ PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 # Define the target files for the workflow
 rule all:
     input:
+        # preprocessing
         expand(
             PREPROCESS_FP
             / "metadata"
@@ -87,4 +89,12 @@ rule all:
             / "phenotype"
             / get_filename({"well": "{well}"}, "ic_field", "tiff"),
             well=SBS_WELLS,
+        ),
+        # sbs
+        expand(
+            SBS_PROCESSING_FP
+            / "images"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tsv"),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
         ),

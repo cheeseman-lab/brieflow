@@ -29,3 +29,4 @@ preprocess:
 # SBS processing
 sbs_process:
   suffix: sbs_process
+  segmentation_cycle: -1

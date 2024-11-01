@@ -61,6 +61,5 @@ rule align:
         method="sbs_mean",
         upsample_factor=1,
         display_ranges=config["sbs_processing"]["display_ranges"],
-        luts=config["sbs_processing"]["luts"],
     script:
         "../scripts/sbs_processing/align_cycles.py"

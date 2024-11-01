@@ -1,4 +1,4 @@
-from lib.sbs_processing.align_cycles import align_cycles
+from lib.sbs_process.align_cycles import align_cycles
 from skimage.io import imsave
 
 # align cycles

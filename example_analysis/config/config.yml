@@ -27,8 +27,8 @@ preprocess:
   phenotype_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/phenotype_samples.tsv"
 
 # SBS processing
-sbs_processing:
-  suffix: sbs_processing
+sbs_process:
+  suffix: sbs_process
   display_ranges: [
       [500, 15000],  # Range for DAPI channel
       [100, 10000],  # Range for CY3 channel

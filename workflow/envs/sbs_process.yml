@@ -1,4 +1,4 @@
-name: sbs
+name: sbs_process
 channels:
   - conda-forge
 dependencies:

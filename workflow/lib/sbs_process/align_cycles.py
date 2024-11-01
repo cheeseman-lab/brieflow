@@ -262,7 +262,7 @@ def align_cycles(
     window=2,
     cutoff=1,
     q_norm=70,
-    align_within_cycle=True,
+    use_align_within_cycle=True,
     cycle_files=None,
     keep_extras=False,
     n=1,
@@ -359,12 +359,12 @@ def align_cycles(
 
     # Align between SBS channels for each cycle
     aligned = stacked.copy()
-    if align_within_cycle:
+    if use_align_within_cycle:
 
         def align_it(x):
             return align_within_cycle(x, window=window, upsample_factor=upsample_factor)
 
-    aligned[:, n:] = np.array([align_it(x) for x in aligned[:, n:]])
+        aligned[:, n:] = np.array([align_it(x) for x in aligned[:, n:]])
 
     if method == "DAPI":
         # Align cycles using the DAPI channel

@@ -256,7 +256,7 @@ def normalize_by_percentile(data_, q_norm=70):
 
 
 def align_cycles(
-    data,
+    image_data,
     method="DAPI",
     upsample_factor=2,
     window=2,
@@ -273,7 +273,7 @@ def align_cycles(
 
     Parameters
     ----------
-    data : np.ndarray or list of np.ndarrays
+    image_data : np.ndarray or list of np.ndarrays
         Unaligned SBS image with dimensions (CYCLE, CHANNEL, I, J) or list of single cycle
         SBS images, each with dimensions (CHANNEL, I, J)
 
@@ -324,19 +324,19 @@ def align_cycles(
         # Iterate through cycle files to de-nest list of numpy arrays
         for cycle in cycle_files:
             if cycle == 1:
-                arr.append(data[current])
+                arr.append(image_data[current])
             else:
-                arr.append(np.array(data[current : current + cycle]))
+                arr.append(np.array(image_data[current : current + cycle]))
             current += cycle
-        data = arr
-        print(data[0].shape)
-        print(data[1].shape)
+        image_data = arr
+        print(image_data[0].shape)
+        print(image_data[1].shape)
 
     # Check if the number of channels varies across cycles
-    if not all(x.shape == data[0].shape for x in data):
+    if not all(x.shape == image_data[0].shape for x in image_data):
         # Keep only channels in common across all cycles
-        channels = [x.shape[-3] if x.ndim > 2 else 1 for x in data]
-        stacked = np.array([x[-min(channels) :] for x in data])
+        channels = [x.shape[-3] if x.ndim > 2 else 1 for x in image_data]
+        stacked = np.array([x[-min(channels) :] for x in image_data])
 
         # Add back extra channels if requested
         if keep_extras:
@@ -344,7 +344,9 @@ def align_cycles(
             arr = []
             for cycle, extra in enumerate(extras):
                 if extra != 0:
-                    arr.extend([data[cycle][extra_ch] for extra_ch in range(extra)])
+                    arr.extend(
+                        [image_data[cycle][extra_ch] for extra_ch in range(extra)]
+                    )
             propagate = np.array(arr)
             stacked = np.concatenate(
                 (np.array([propagate] * stacked.shape[0]), stacked), axis=1
@@ -352,10 +354,12 @@ def align_cycles(
         else:
             extras = [0] * stacked.shape[0]
     else:
-        stacked = np.array(data)
+        stacked = np.array(image_data)
         extras = [0] * stacked.shape[0]
 
-    assert stacked.ndim == 4, "Input data must have dimensions CYCLE, CHANNEL, I, J"
+    assert (
+        stacked.ndim == 4
+    ), "Input image_data must have dimensions CYCLE, CHANNEL, I, J"
 
     # Align between SBS channels for each cycle
     aligned = stacked.copy()

@@ -1,11 +1,12 @@
 from lib.sbs_process.align_cycles import align_cycles
 from skimage.io import imread, imsave
 
-data = [imread(file_path) for file_path in snakemake.input]
+# load image data
+image_data = [imread(file_path) for file_path in snakemake.input]
 
 # align cycles
 aligned_data = align_cycles(
-    data,
+    image_data,
     method=snakemake.params.method,
     upsample_factor=snakemake.params.upsample_factor,
 )

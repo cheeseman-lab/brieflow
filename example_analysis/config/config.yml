@@ -29,3 +29,17 @@ preprocess:
 # SBS processing
 sbs_processing:
   suffix: sbs_processing
+  display_ranges: [
+      [500, 15000],  # Range for DAPI channel
+      [100, 10000],  # Range for CY3 channel
+      [100, 10000],  # Range for A594 channel
+      [200, 25000],  # Range for CY5 channel
+      [200, 25000],  # Range for CY7 channel
+  ]
+  luts: [
+      ops.io.GRAY,  # Lookup table for DAPI channel
+      ops.io.GREEN,  # Lookup table for CY3 channel
+      ops.io.RED,  # Lookup table for A594 channel
+      ops.io.MAGENTA,  # Lookup table for CY5 channel
+      ops.io.CYAN,  # Lookup table for CY7 channel
+  ]

@@ -1,5 +1,5 @@
 from pathlib import Path
-from lib.shared.file_utils import get_sample_fps, get_filename
+from lib.preprocess.file_utils import get_sample_fps, get_filename
 
 PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 

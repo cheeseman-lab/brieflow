@@ -58,12 +58,9 @@ rule align:
         / "images"
         / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tsv"),
     params:
-        method="mean",
-        cycle_files=CYCLE_FILES,
+        method="sbs_mean",
         upsample_factor=1,
-        n=1,
-        keep_extras=False,
-        display_ranges=DISPLAY_RANGES,
-        luts=LUTS,
+        display_ranges=config["sbs_processing"]["display_ranges"],
+        luts=config["sbs_processing"]["luts"],
     script:
         "../scripts/sbs_processing/align_cycles.py"

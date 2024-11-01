@@ -68,3 +68,21 @@ rule compute_standard_deviation:
         remove_index=0,
     script:
         "../scripts/sbs_process/compute_standard_deviation.py"
+
+
+# Find local maxima of SBS reads across cycles
+rule find_peaks:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "standard_deviation", "tiff"
+        ),
+    output:
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "peaks", "tiff"),
+    script:
+        "../scripts/sbs_process/find_peaks.py"

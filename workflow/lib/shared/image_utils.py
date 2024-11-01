@@ -32,3 +32,23 @@ def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
 
     # Reshape the resulting list of arrays to the determined output shape
     return np.array(arr_).reshape(output_shape)
+
+
+def remove_channels(data, remove_index):
+    """
+    Remove channel or list of channels from array of shape (..., CHANNELS, I, J).
+
+    Parameters:
+    - data (numpy array): Input array of shape (..., CHANNELS, I, J).
+    - remove_index (int or list of ints): Index or indices of the channels to remove.
+
+    Returns:
+    - numpy array: Array with specified channels removed.
+    """
+    # Create a boolean mask for all channels
+    channels_mask = np.ones(data.shape[-3], dtype=bool)
+    # Set the values corresponding to channels in remove_index to False
+    channels_mask[remove_index] = False
+    # Apply the mask along the channel axis to remove specified channels
+    data = data[..., channels_mask, :, :]
+    return data

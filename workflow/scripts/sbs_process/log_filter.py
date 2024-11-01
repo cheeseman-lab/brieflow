@@ -1,9 +1,11 @@
 from lib.sbs_process.log_filter import log_filter
-from skimage.io import imsave
+from skimage.io import imread, imsave
+
+aligned_image_data = imread(snakemake.input[0])
 
 # apply log filter
 log_filtered = log_filter(
-    data=snakemake.input[0],
+    aligned_image_data=aligned_image_data,
     skip_index=snakemake.params.skip_index,
 )
 

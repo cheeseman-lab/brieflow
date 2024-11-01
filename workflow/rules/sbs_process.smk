@@ -35,6 +35,8 @@ rule align:
 
 # Applies Laplacian-of-Gaussian filter to all channels
 rule log_filter:
+    conda:
+        "../envs/sbs_process.yml"
     input:
         SBS_PROCESS_FP
         / "images"

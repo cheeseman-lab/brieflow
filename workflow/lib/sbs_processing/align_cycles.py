@@ -23,7 +23,8 @@ def apply_window(data, window):
     height, width = data.shape[-2:]
 
     # Define a function to find the border based on the window size
-    find_border = lambda x: int((x / 2.0) * (1 - 1 / float(window)))
+    def find_border(x):
+        return int((x / 2.0) * (1 - 1 / float(window)))
 
     # Calculate border indices
     i, j = find_border(height), find_border(width)
@@ -359,10 +360,11 @@ def align_cycles(
     # Align between SBS channels for each cycle
     aligned = stacked.copy()
     if align_within_cycle:
-        align_it = lambda x: align_within_cycle(
-            x, window=window, upsample_factor=upsample_factor
-        )
-        aligned[:, n:] = np.array([align_it(x) for x in aligned[:, n:]])
+
+        def align_it(x):
+            return align_within_cycle(x, window=window, upsample_factor=upsample_factor)
+
+    aligned[:, n:] = np.array([align_it(x) for x in aligned[:, n:]])
 
     if method == "DAPI":
         # Align cycles using the DAPI channel

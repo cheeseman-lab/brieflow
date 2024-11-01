@@ -24,10 +24,26 @@ rule align:
     output:
         SBS_PROCESS_FP
         / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tsv"),
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
     params:
         method="sbs_mean",
         upsample_factor=1,
         display_ranges=config["sbs_process"]["display_ranges"],
     script:
         "../scripts/sbs_process/align_cycles.py"
+
+
+# Applies Laplacian-of-Gaussian filter to all channels
+rule log_filter:
+    input:
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
+    output:
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "log_filtered", "tiff"),
+    params:
+        skip_index=0,
+    script:
+        "../scripts/sbs_process/log_filter.py"

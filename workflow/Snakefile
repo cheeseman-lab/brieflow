@@ -94,7 +94,16 @@ rule all:
         expand(
             SBS_PROCESS_FP
             / "images"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tsv"),
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "images"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, "log_filtered", "tiff"
+            ),
             well=SBS_WELLS,
             tile=SBS_TILES,
         ),

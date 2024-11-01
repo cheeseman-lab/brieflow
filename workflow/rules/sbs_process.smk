@@ -5,7 +5,7 @@ PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 SBS_PROCESS_FP = ROOT_FP / config["sbs_process"]["suffix"]
 
 
-# Aligns images from each sequencing round
+# Align images from each sequencing round
 rule align:
     conda:
         "../envs/sbs_process.yml"
@@ -32,7 +32,7 @@ rule align:
         "../scripts/sbs_process/align_cycles.py"
 
 
-# Applies Laplacian-of-Gaussian filter to all channels
+# Apply Laplacian-of-Gaussian filter to all channels
 rule log_filter:
     conda:
         "../envs/sbs_process.yml"
@@ -50,7 +50,7 @@ rule log_filter:
         "../scripts/sbs_process/log_filter.py"
 
 
-# Computes standard deviation of SBS reads across cycles
+# Compute standard deviation of SBS reads across cycles
 rule compute_standard_deviation:
     conda:
         "../envs/sbs_process.yml"
@@ -88,7 +88,7 @@ rule find_peaks:
         "../scripts/sbs_process/find_peaks.py"
 
 
-# Dilates sequencing channels to compensate for single-pixel alignment error.
+# Dilate sequencing channels to compensate for single-pixel alignment error.
 rule max_filter:
     conda:
         "../envs/sbs_process.yml"
@@ -107,21 +107,31 @@ rule max_filter:
         "../scripts/sbs_process/max_filter.py"
 
 
-# Applies illumination correction to segmentation cycle
+# Apply illumination correction field from segmentation cycle
 rule apply_ic_field:
+    conda:
+        "../envs/sbs_process.yml"
     input:
-        f"{IMAGES_DIR}/10X_{{well}}_Tile-{{tile}}.aligned.tif",
-        f"{INPUT_DIR}/sbs_ic_tifs/{IC_PREPROCESS_PATTERN}".format(
-            cycle=SBS_CYCLES[SEGMENTATION_CYCLE]
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
+        # illumination correction field from cycle of interest
+        lambda wildcards: expand(
+            PREPROCESS_FP
+            / "images"
+            / "sbs"
+            / get_filename(
+                {"well": wildcards.well, "tile": wildcards.tile, "cycle": "{cycle}"},
+                "image",
+                "tiff",
+            ),
+            cycle=SBS_CYCLES[config["sbs_process"]["segmentation_cycle"]],
         ),
     output:
-        temp(f"{IMAGES_DIR}/10X_{{well}}_Tile-{{tile}}.illumination_correction.tif"),
-    run:
-        aligned = read(input[0])
-        aligned_0 = aligned[0]
-        print(aligned_0.shape)
-        Snake_sbs.apply_illumination_correction(
-            data=aligned_0,
-            correction=input[1],
-            output=output,
-        )
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "ic_field_applied", "tiff"
+        ),
+    script:
+        "../scripts/sbs_process/apply_ic_field.py"

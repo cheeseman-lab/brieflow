@@ -107,3 +107,12 @@ rule all:
             well=SBS_WELLS,
             tile=SBS_TILES,
         ),
+        expand(
+            SBS_PROCESS_FP
+            / "images"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, "standard_deviation", "tiff"
+            ),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),

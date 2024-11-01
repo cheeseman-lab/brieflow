@@ -29,10 +29,3 @@ preprocess:
 # SBS processing
 sbs_process:
   suffix: sbs_process
-  display_ranges: [
-      [500, 15000],  # Range for DAPI channel
-      [100, 10000],  # Range for CY3 channel
-      [100, 10000],  # Range for A594 channel
-      [200, 25000],  # Range for CY5 channel
-      [200, 25000],  # Range for CY7 channel
-  ]

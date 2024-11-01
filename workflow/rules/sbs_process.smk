@@ -28,7 +28,6 @@ rule align:
     params:
         method="sbs_mean",
         upsample_factor=1,
-        display_ranges=config["sbs_process"]["display_ranges"],
     script:
         "../scripts/sbs_process/align_cycles.py"
 
@@ -49,3 +48,23 @@ rule log_filter:
         skip_index=0,
     script:
         "../scripts/sbs_process/log_filter.py"
+
+
+# Computes standard deviation of SBS reads across cycles
+rule compute_standard_deviation:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "log_filtered", "tiff"),
+    output:
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "standard_deviation", "tiff"
+        ),
+    params:
+        remove_index=0,
+    script:
+        "../scripts/sbs_process/compute_standard_deviation.py"

@@ -6,7 +6,7 @@ log_filtered_data = imread(snakemake.input[0])
 # compute standard deviation
 standard_deviation = compute_standard_deviation(
     log_filtered_data=log_filtered_data,
-    skip_index=snakemake.params.skip_index,
+    remove_index=snakemake.params.remove_index,
 )
 
 # Save the aligned data as a .tiff file

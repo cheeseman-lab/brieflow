@@ -4,8 +4,7 @@ from lib.shared.image_utils import remove_channels
 
 
 def compute_standard_deviation(log_filtered_data, remove_index=None):
-    """
-    Use standard deviation over cycles, followed by mean across channels to estimate sequencing read locations.
+    """Use standard deviation over cycles, followed by mean across channels to estimate sequencing read locations.
     If only 1 cycle is present, takes standard deviation across channels.
 
     Parameters:

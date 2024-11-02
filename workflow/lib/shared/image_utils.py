@@ -5,8 +5,7 @@ import numpy as np
 
 @decorator.decorator
 def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
-    """
-    Decorator to apply a function that expects 2D input to the trailing two dimensions of a multi-dimensional array.
+    """Decorator to apply a function that expects 2D input to the trailing two dimensions of a multi-dimensional array.
 
     Args:
         f (Callable): The function to apply to each 2D slice of the input array.
@@ -17,7 +16,6 @@ def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
     Returns:
         np.ndarray: The output array with the function applied to the trailing two dimensions of the input array.
     """
-
     # Get the height and width of the trailing two dimensions of the input array
     h, w = arr.shape[-2:]
 
@@ -35,8 +33,7 @@ def applyIJ(f, arr: np.ndarray, *args: tuple, **kwargs: dict) -> np.ndarray:
 
 
 def remove_channels(data, remove_index):
-    """
-    Remove channel or list of channels from array of shape (..., CHANNELS, I, J).
+    """Remove channel or list of channels from array of shape (..., CHANNELS, I, J).
 
     Parameters:
     - data (numpy array): Input array of shape (..., CHANNELS, I, J).

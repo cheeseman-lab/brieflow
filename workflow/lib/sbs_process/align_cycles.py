@@ -14,7 +14,7 @@ def apply_window(data, window):
     window : int
         Size of the window to apply.
 
-    Returns
+    Returns:
     -------
     filtered : numpy array
         Filtered image data.
@@ -47,7 +47,7 @@ def fill_noise(data, mask, x1, x2):
     x2 : int
         Upper threshold value.
 
-    Returns
+    Returns:
     -------
     filtered : numpy array
         Filtered image data.
@@ -72,7 +72,7 @@ def calculate_offsets(data_, upsample_factor):
     upsample_factor : int
         Upsampling factor for cross-correlation.
 
-    Returns
+    Returns:
     -------
     offsets : numpy array
         Offset values between images.
@@ -110,7 +110,7 @@ def filter_percentiles(data, q1, q2):
     q2 : int
         Upper percentile threshold.
 
-    Returns
+    Returns:
     -------
     filtered : numpy array
         Filtered image data.
@@ -133,7 +133,7 @@ def apply_offsets(data_, offsets):
     offsets : numpy array
         Offset values to be applied.
 
-    Returns
+    Returns:
     -------
     warped : numpy array
         Warped image data.
@@ -171,7 +171,7 @@ def align_within_cycle(data_, upsample_factor=4, window=1, q1=0, q2=90):
     q2 : int, optional, default: 90
         Upper percentile threshold.
 
-    Returns
+    Returns:
     -------
     aligned : numpy array
         Aligned image data.
@@ -202,7 +202,7 @@ def align_between_cycles(
     return_offsets : bool, optional, default: False
         Whether to return the calculated offsets.
 
-    Returns
+    Returns:
     -------
     aligned : numpy array
         Aligned image data.
@@ -238,7 +238,7 @@ def normalize_by_percentile(data_, q_norm=70):
     q_norm : int, optional, default: 70
         Percentile value for normalization.
 
-    Returns
+    Returns:
     -------
     normed : numpy array
         Normalized image data.
@@ -268,8 +268,7 @@ def align_cycles(
     n=1,
     remove_for_cycle_alignment=None,
 ):
-    """
-    Rigid alignment of sequencing cycles and channels.
+    """Rigid alignment of sequencing cycles and channels.
 
     Parameters
     ----------
@@ -311,12 +310,11 @@ def align_cycles(
         Channel index to remove when finding cycle offsets. This is after dealing with `keep_extras`,
         so should only account for channels in common across all cycles if `keep_extras`=False.
 
-    Returns
+    Returns:
     -------
     aligned : np.ndarray
         SBS image aligned across cycles.
     """
-
     # Handle case where cycle_files is provided
     if cycle_files is not None:
         arr = []

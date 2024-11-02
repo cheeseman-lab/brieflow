@@ -1,5 +1,4 @@
-"""
-Functions related to illumination correction in BrieFlow.
+"""Functions related to illumination correction in BrieFlow.
 Used in preprocessing to calculate the ic field and downstream steps to apply the ic field to images.
 """
 
@@ -16,8 +15,7 @@ from lib.shared.image_utils import applyIJ
 
 
 def applyIJ_parallel(f, arr, n_jobs=-2, backend="threading", *args, **kwargs):
-    """
-    Decorator to apply a function that expects 2D input to the trailing two dimensions of an array,
+    """Decorator to apply a function that expects 2D input to the trailing two dimensions of an array,
     parallelizing computation across 2D frames.
 
     Parameters:
@@ -31,7 +29,6 @@ def applyIJ_parallel(f, arr, n_jobs=-2, backend="threading", *args, **kwargs):
     Returns:
         numpy.ndarray: Output array after applying the function in parallel.
     """
-
     h, w = arr.shape[-2:]
     reshaped = arr.reshape((-1, h, w))
 
@@ -46,8 +43,7 @@ def applyIJ_parallel(f, arr, n_jobs=-2, backend="threading", *args, **kwargs):
 
 
 def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.ndarray:
-    """
-    Accumulates an image's contribution by adding a sliced version of it to the provided data array.
+    """Accumulates an image's contribution by adding a sliced version of it to the provided data array.
 
     Args:
         file (str): Path to the image file to be accumulated.
@@ -58,15 +54,13 @@ def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.n
     Returns:
         np.ndarray: Updated image data with the new image accumulated.
     """
-
     data += imread(file)[slicer] / N
     return data
 
 
 @applyIJ
 def rescale_channels(data: np.ndarray) -> np.ndarray:
-    """
-    Rescales the image data by dividing by a robust minimum and setting values below 1 to 1.
+    """Rescales the image data by dividing by a robust minimum and setting values below 1 to 1.
 
     Args:
         data (np.ndarray): The input image data to be rescaled.
@@ -74,7 +68,6 @@ def rescale_channels(data: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: The rescaled image data.
     """
-
     # Use 2nd percentile for robust minimum
     robust_min = np.quantile(data.reshape(-1), q=0.02)
     robust_min = 1 if robust_min == 0 else robust_min
@@ -90,8 +83,7 @@ def calculate_ic_field(
     threading: bool = False,
     slicer: slice = slice(None),
 ) -> np.ndarray:
-    """
-    Calculate illumination correction field for use with the apply_illumination_correction
+    """Calculate illumination correction field for use with the apply_illumination_correction
     Snake method. Equivalent to CellProfiler's CorrectIlluminationCalculate module with
     option "Regular", "All", "Median Filter".
 
@@ -108,7 +100,6 @@ def calculate_ic_field(
     Returns:
         np.ndarray: The calculated illumination correction field.
     """
-
     # Initialize data variable
     data = imread(files[0])[slicer] / len(files)
 
@@ -151,8 +142,7 @@ def calculate_ic_field(
 def rolling_ball_background_skimage(
     image, radius=100, ball=None, shrink_factor=None, smooth=None, **kwargs
 ):
-    """
-    Apply rolling ball background subtraction to an image using skimage.
+    """Apply rolling ball background subtraction to an image using skimage.
 
     Parameters:
     -----------
@@ -233,8 +223,7 @@ def rolling_ball_background_skimage(
 def subtract_background(
     image, radius=100, ball=None, shrink_factor=None, smooth=None, **kwargs
 ):
-    """
-    Subtract the background from an image using the rolling ball algorithm.
+    """Subtract the background from an image using the rolling ball algorithm.
 
     Parameters:
     -----------
@@ -284,8 +273,7 @@ def apply_ic_field(
     n_jobs=1,
     backend="threading",
 ):
-    """
-    Apply illumination correction to the given data.
+    """Apply illumination correction to the given data.
 
     Parameters:
     data (numpy array): The input data to be corrected.
@@ -299,7 +287,6 @@ def apply_ic_field(
     Returns:
     numpy array: The corrected data.
     """
-
     # If zproject is True, perform a maximum projection along the first axis
     if zproject:
         data = data.max(axis=0)

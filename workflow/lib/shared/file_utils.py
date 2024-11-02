@@ -1,11 +1,9 @@
-"""
-Utility functions for handling and filtering sample file paths in the BrieFlow pipeline.
+"""Utility functions for handling and filtering sample file paths in the BrieFlow pipeline.
 """
 
 
 def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
-    """
-    Generate a structured filename based on data location, information type, and file type.
+    """Generate a structured filename based on data location, information type, and file type.
 
     Parameters:
     - data_location (dict): Dictionary containing location info like well, tile, and cycle.
@@ -15,7 +13,6 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     Returns:
     - str: Structured filename.
     """
-
     # Well has no leading zeros
     well_str = f"W{data_location.get('well')}"
 

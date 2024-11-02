@@ -9,8 +9,7 @@ from lib.shared.image_utils import applyIJ
 
 @applyIJ
 def log_ndi(data, sigma=1, *args, **kwargs):
-    """
-    Apply Laplacian of Gaussian to each image in a stack of shape (..., I, J).
+    """Apply Laplacian of Gaussian to each image in a stack of shape (..., I, J).
 
     Parameters:
         data (numpy.ndarray): Input data.
@@ -37,8 +36,7 @@ def log_ndi(data, sigma=1, *args, **kwargs):
 
 
 def log_filter(aligned_image_data, sigma=1, skip_index=None):
-    """
-    Apply Laplacian-of-Gaussian filter from scipy.ndimage to the input data.
+    """Apply Laplacian-of-Gaussian filter from scipy.ndimage to the input data.
 
     Parameters:
         aligned_image_data (numpy.ndarray): Aligned SBS image data with expected dimensions of (CYCLE, CHANNEL, I, J).

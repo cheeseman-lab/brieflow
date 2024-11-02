@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from nd2reader import ND2Reader
 
-from preprocess.file_utils import extract_tile_from_filename
+from shared.file_utils import extract_tile_from_filename
 
 
 def extract_metadata_tile(files: list[str]) -> pd.DataFrame:

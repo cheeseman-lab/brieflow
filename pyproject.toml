@@ -16,10 +16,12 @@ packages = ["preprocess"]
 include-package-data = true
 
 [tool.ruff]
-# exclude files that do not follow ruff linting with snakemake.input and snakemake.output
-exclude = ["workflow/scripts/"]
 
 [tool.ruff.lint]
 # Configure pydocstyle settings under lint
 select = ["D"]
 pydocstyle = { convention = "google" }
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore docstring check for script files
+"workflow/scripts/*.py" = ["D100"]

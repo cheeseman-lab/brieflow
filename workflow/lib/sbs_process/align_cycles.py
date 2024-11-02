@@ -240,7 +240,7 @@ def align_cycles(
             images. Defaults to 1.
         q_norm (int, optional): Quantile for normalization to help deal with noise in images.
             Defaults to 70.
-        align_within_cycle (bool, optional): Align SBS channels within cycles. Defaults to True.
+        use_align_within_cycle (bool, optional): Align SBS channels within cycles. Defaults to True.
         cycle_files (list[int] or None, optional): Used for parsing sets of images where individual
             channels are in separate files, typically handled in preprocessing to combine images
             from the same cycle. Defaults to None.

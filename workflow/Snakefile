@@ -1,6 +1,8 @@
 import pandas as pd
 from pathlib import Path
 
+from lib.shared.file_utils import get_filename
+
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
 OUTPUT_FP = ROOT_FP / config["all"]["output_fp"]
@@ -38,40 +40,51 @@ rule all:
         expand(
             PREPROCESS_FP
             / "metadata"
-            / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv",
-            well=SBS_WELLS,
-            cycle=SBS_CYCLES,
-        ),
-        expand(
-            PREPROCESS_FP / "metadata" / "20X_{well}.metadata.tsv",
+            / "sbs"
+            / get_filename({"well": "{well}", "cycle": "{cycle}"}, "metadata", "tsv"),
             well=SBS_WELLS,
             cycle=SBS_CYCLES,
         ),
         expand(
             PREPROCESS_FP
-            / "sbs_tifs"
-            / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif",
+            / "metadata"
+            / "phenotype"
+            / get_filename({"well": "{well}"}, "metadata", "tsv"),
+            well=SBS_WELLS,
+        ),
+        expand(
+            PREPROCESS_FP
+            / "images"
+            / "sbs"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
+                "image",
+                "tiff",
+            ),
             well=SBS_WELLS,
             tile=SBS_TILES,
             cycle=SBS_CYCLES,
         ),
         expand(
-            PREPROCESS_FP / "phenotype_tifs" / "20X_{well}_Tile-{tile}.phenotype.tif",
+            PREPROCESS_FP
+            / "images"
+            / "phenotype"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "image", "tiff"),
             well=SBS_WELLS,
             tile=SBS_TILES,
+        ),
+        expand(
+            PREPROCESS_FP
+            / "ic_fields"
+            / "sbs"
+            / get_filename({"well": "{well}", "cycle": "{cycle}"}, "ic_field", "tiff"),
+            well=SBS_WELLS,
             cycle=SBS_CYCLES,
         ),
         expand(
             PREPROCESS_FP
             / "ic_fields"
-            / "10X_c{cycle}-SBS-{cycle}_{well}.sbs.ic_field.tif",
+            / "phenotype"
+            / get_filename({"well": "{well}"}, "ic_field", "tiff"),
             well=SBS_WELLS,
-            tile=SBS_TILES,
-            cycle=SBS_CYCLES,
-        ),
-        expand(
-            PREPROCESS_FP / "ic_fields" / "20X_{well}.phenotype.ic_field.tif",
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-            cycle=SBS_CYCLES,
         ),

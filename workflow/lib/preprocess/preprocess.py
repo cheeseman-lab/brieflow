@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from nd2reader import ND2Reader
 
-from preprocess.file_utils import extract_tile_from_filename
+from shared.file_utils import extract_tile_from_filename
 
 
 def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
@@ -64,7 +64,7 @@ def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
         return pd.DataFrame()  # Return an empty DataFrame if no files were processed
 
 
-def nd2_to_tif(file: str, channel_order_flip: bool = False) -> np.ndarray:
+def nd2_to_tiff(file: str, channel_order_flip: bool = False) -> np.ndarray:
     """
     Converts a single ND2 file with one field of view and multiple channels to a multidimensional numpy array.
 

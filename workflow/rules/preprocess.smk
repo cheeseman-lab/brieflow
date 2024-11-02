@@ -1,6 +1,5 @@
 from pathlib import Path
-
-from lib.preprocess.file_utils import get_sample_fps
+from lib.shared.file_utils import get_sample_fps, get_filename
 
 PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 
@@ -22,7 +21,10 @@ rule extract_metadata_sbs:
             sbs_samples_df, well=wildcards.well, cycle=wildcards.cycle
         ),
     output:
-        PREPROCESS_FP / "metadata" / "10X_c{cycle}-SBS-{cycle}_{well}.metadata.tsv",
+        PREPROCESS_FP
+        / "metadata"
+        / "sbs"
+        / get_filename({"well": "{well}", "cycle": "{cycle}"}, "metadata", "tsv"),
     script:
         "../scripts/preprocess/extract_metadata_tile.py"
 
@@ -34,7 +36,10 @@ rule extract_metadata_phenotype:
     input:
         lambda wildcards: get_sample_fps(phenotype_samples_df, well=wildcards.well),
     output:
-        PREPROCESS_FP / "metadata" / "20X_{well}.metadata.tsv",
+        PREPROCESS_FP
+        / "metadata"
+        / "phenotype"
+        / get_filename({"well": "{well}"}, "metadata", "tsv"),
     script:
         "../scripts/preprocess/extract_metadata_tile.py"
 
@@ -52,12 +57,15 @@ rule convert_sbs:
         ),
     output:
         PREPROCESS_FP
-        / "sbs_tifs"
-        / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif",
+        / "images"
+        / "sbs"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}, "image", "tiff"
+        ),
     params:
         channel_order_flip=True,
     script:
-        "../scripts/preprocess/nd2_to_tif.py"
+        "../scripts/preprocess/nd2_to_tiff.py"
 
 
 # Convert phenotype ND2 files to TIFF
@@ -69,28 +77,37 @@ rule convert_phenotype:
             phenotype_samples_df, well=wildcards.well, tile=wildcards.tile
         ),
     output:
-        PREPROCESS_FP / "phenotype_tifs" / "20X_{well}_Tile-{tile}.phenotype.tif",
+        PREPROCESS_FP
+        / "images"
+        / "phenotype"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "image", "tiff"),
     params:
         channel_order_flip=True,
     script:
-        "../scripts/preprocess/nd2_to_tif.py"
+        "../scripts/preprocess/nd2_to_tiff.py"
 
 
-# Calculate illumination correction function for sbs files
+# Calculate illumination correction function for SBS files
 rule calculate_ic_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: expand(
             PREPROCESS_FP
-            / "sbs_tifs"
-            / "10X_c{cycle}-SBS-{cycle}_{well}_Tile-{tile}.sbs.tif",
-            well=wildcards.well,
+            / "images"
+            / "sbs"
+            / get_filename(
+                {"well": wildcards.well, "tile": "{tile}", "cycle": wildcards.cycle},
+                "image",
+                "tiff",
+            ),
             tile=SBS_TILES,
-            cycle=wildcards.cycle,
         ),
     output:
-        PREPROCESS_FP / "ic_fields" / "10X_c{cycle}-SBS-{cycle}_{well}.sbs.ic_field.tif",
+        PREPROCESS_FP
+        / "ic_fields"
+        / "sbs"
+        / get_filename({"well": "{well}", "cycle": "{cycle}"}, "ic_field", "tiff"),
     params:
         threading=True,
     script:
@@ -103,12 +120,19 @@ rule calculate_ic_phenotype:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: expand(
-            PREPROCESS_FP / "phenotype_tifs" / "20X_{well}_Tile-{tile}.phenotype.tif",
-            well=wildcards.well,
+            PREPROCESS_FP
+            / "images"
+            / "phenotype"
+            / get_filename(
+                {"well": wildcards.well, "tile": "{tile}"}, "image", "tiff"
+            ),
             tile=PHENOTYPE_TILES,
         ),
     output:
-        PREPROCESS_FP / "ic_fields" / "20X_{well}.phenotype.ic_field.tif",
+        PREPROCESS_FP
+        / "ic_fields"
+        / "phenotype"
+        / get_filename({"well": "{well}"}, "ic_field", "tiff"),
     params:
         threading=True,
     script:

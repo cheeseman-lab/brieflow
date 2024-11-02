@@ -1,8 +1,8 @@
-from lib.preprocess.preprocess import nd2_to_tif
+from lib.preprocess.preprocess import nd2_to_tiff
 from skimage.io import imsave
 
 # convert the ND2 file to a TIF image array
-image_array = nd2_to_tif(
+image_array = nd2_to_tiff(
     snakemake.input[0], channel_order_flip=snakemake.params.channel_order_flip
 )
 

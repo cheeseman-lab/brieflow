@@ -1,13 +1,14 @@
+"""Compute standard deviation across cycles and mean across channels to estimate sequencing read locations."""
+
 import numpy as np
 
 from lib.shared.image_utils import remove_channels
 
 
 def compute_standard_deviation(log_filtered_data, remove_index=None):
-    """Use standard deviation over cycles, followed by mean across channels to estimate sequencing read locations.
-    If only 1 cycle is present, takes standard deviation across channels.
+    """Use standard deviation over cycles, followed by mean across channels to estimate sequencing read locations; If only 1 cycle is present, takes standard deviation across channels.
 
-    Parameters:
+    Args:
         log_filtered_data (numpy.ndarray): LoG-ed SBS image data with expected dimensions of (CYCLE, CHANNEL, I, J).
         remove_index (None or int, optional): Index of data to remove from subsequent analysis, generally any non-SBS channels (e.g., DAPI).
 

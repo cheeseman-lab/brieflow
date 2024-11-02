@@ -1,3 +1,10 @@
+"""Module for aligning cycles in SBS.
+
+Uses NumPy and scikit-image to provide image
+alignment between sequencing cycles, apply percentile-based filtering, fill masked
+areas with noise, and perform various transformations to enhance image data quality.
+"""
+
 import numpy as np
 import skimage
 

@@ -1,3 +1,5 @@
+"""Shared image processing utilities."""
+
 import decorator
 
 import numpy as np

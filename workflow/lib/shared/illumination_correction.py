@@ -1,4 +1,5 @@
 """Functions related to illumination correction in BrieFlow.
+
 Used in preprocessing to calculate the ic field and downstream steps to apply the ic field to images.
 """
 
@@ -15,8 +16,7 @@ from lib.shared.image_utils import applyIJ
 
 
 def applyIJ_parallel(f, arr, n_jobs=-2, backend="threading", *args, **kwargs):
-    """Decorator to apply a function that expects 2D input to the trailing two dimensions of an array,
-    parallelizing computation across 2D frames.
+    """Decorator to apply a function that expects 2D input to the trailing two dimensions of an array, parallelizing computation across 2D frames.
 
     Parameters:
         f (function): The function to be decorated and applied in parallel.
@@ -83,8 +83,9 @@ def calculate_ic_field(
     threading: bool = False,
     slicer: slice = slice(None),
 ) -> np.ndarray:
-    """Calculate illumination correction field for use with the apply_illumination_correction
-    Snake method. Equivalent to CellProfiler's CorrectIlluminationCalculate module with
+    """Calculate illumination correction field for use with the apply_ic_field.
+
+    Equivalent to CellProfiler's CorrectIlluminationCalculate module with
     option "Regular", "All", "Median Filter".
 
     Note: Algorithm originally benchmarked using ~250 images per plate to calculate plate-wise

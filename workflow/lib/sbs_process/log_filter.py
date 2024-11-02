@@ -1,3 +1,5 @@
+"""Filter data with Laplacian of Gaussian filter."""
+
 import warnings
 
 import numpy as np

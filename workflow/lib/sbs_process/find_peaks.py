@@ -1,3 +1,5 @@
+"""Find SBS peaks."""
+
 import numpy as np
 
 from lib.shared.image_utils import remove_channels
@@ -5,6 +7,7 @@ from lib.shared.image_utils import remove_channels
 
 def find_neighborhood_peaks(data, n=5):
     """Finds local maxima in the input data.
+
     At a maximum, the value is max - min in a neighborhood of width `n`.
     Elsewhere, it is zero.
 
@@ -45,6 +48,7 @@ def find_neighborhood_peaks(data, n=5):
 
 def find_peaks(standard_deviation_data, width=5, remove_index=None):
     """Find local maxima and label by difference to next-highest neighboring pixel.
+
     Conventionally used to estimate SBS read locations by inputting the standard deviation score.
 
     Parameters:

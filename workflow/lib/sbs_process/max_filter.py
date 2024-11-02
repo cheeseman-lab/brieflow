@@ -1,3 +1,5 @@
+"""Apply a maximum filter to an image."""
+
 from scipy.ndimage.filters import maximum_filter
 
 from lib.shared.image_utils import remove_channels
@@ -5,6 +7,7 @@ from lib.shared.image_utils import remove_channels
 
 def max_filter(log_filtered_data, width, remove_index=None):
     """Apply a maximum filter in a window of `width`.
+
     Conventionally operates on Laplacian-of-Gaussian filtered SBS data,
     dilating sequencing channels to compensate for single-pixel alignment error.
 

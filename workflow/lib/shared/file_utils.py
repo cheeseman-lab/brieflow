@@ -1,5 +1,4 @@
-"""Utility functions for handling and filtering sample file paths in the BrieFlow pipeline.
-"""
+"""Utility functions for handling and filtering sample file paths in the BrieFlow pipeline."""
 
 
 def get_filename(data_location: dict, info_type: str, file_type: str) -> str:

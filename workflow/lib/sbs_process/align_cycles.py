@@ -14,17 +14,12 @@ from lib.shared.image_utils import applyIJ
 def apply_window(data, window):
     """Apply a window to image data.
 
-    Parameters
-    ----------
-    data : numpy array
-        Image data.
-    window : int
-        Size of the window to apply.
+    Args:
+        data (np.ndarray): Image data.
+        window (int): Size of the window to apply.
 
     Returns:
-    -------
-    filtered : numpy array
-        Filtered image data.
+        np.ndarray: Filtered image data.
     """
     # Extract height and width dimensions from the last two axes of the data shape
     height, width = data.shape[-2:]
@@ -43,21 +38,14 @@ def apply_window(data, window):
 def fill_noise(data, mask, x1, x2):
     """Fill masked areas of data with uniform noise.
 
-    Parameters
-    ----------
-    data : numpy array
-        Input image data.
-    mask : numpy array
-        Boolean mask indicating areas to be replaced with noise.
-    x1 : int
-        Lower threshold value.
-    x2 : int
-        Upper threshold value.
+    Args:
+        data (np.ndarray): Input image data.
+        mask (np.ndarray): Boolean mask indicating areas to be replaced with noise.
+        x1 (int): Lower threshold value.
+        x2 (int): Upper threshold value.
 
     Returns:
-    -------
-    filtered : numpy array
-        Filtered image data.
+        np.ndarray: Filtered image data.
     """
     # Make a copy of the original data
     filtered = data.copy()
@@ -72,17 +60,12 @@ def fill_noise(data, mask, x1, x2):
 def calculate_offsets(data_, upsample_factor):
     """Calculate offsets between images using phase cross-correlation.
 
-    Parameters
-    ----------
-    data_ : numpy array
-        Image data.
-    upsample_factor : int
-        Upsampling factor for cross-correlation.
+    Args:
+        data_ (np.ndarray): Image data.
+        upsample_factor (int): Upsampling factor for cross-correlation.
 
     Returns:
-    -------
-    offsets : numpy array
-        Offset values between images.
+        np.ndarray: Offset values between images.
     """
     # Set the target frame as the first frame in the data
     target = data_[0]
@@ -108,19 +91,13 @@ def calculate_offsets(data_, upsample_factor):
 def filter_percentiles(data, q1, q2):
     """Replace data outside of the percentile range [q1, q2] with uniform noise.
 
-    Parameters
-    ----------
-    data : numpy array
-        Input image data.
-    q1 : int
-        Lower percentile threshold.
-    q2 : int
-        Upper percentile threshold.
+    Args:
+        data (np.ndarray): Input image data.
+        q1 (int): Lower percentile threshold.
+        q2 (int): Upper percentile threshold.
 
     Returns:
-    -------
-    filtered : numpy array
-        Filtered image data.
+        np.ndarray: Filtered image data.
     """
     # Calculate the q1th and q2th percentiles of the input data
     x1, x2 = np.percentile(data, [q1, q2])
@@ -133,17 +110,12 @@ def filter_percentiles(data, q1, q2):
 def apply_offsets(data_, offsets):
     """Apply offsets to image data.
 
-    Parameters
-    ----------
-    data_ : numpy array
-        Image data.
-    offsets : numpy array
-        Offset values to be applied.
+    Args:
+        data_ (np.ndarray): Image data.
+        offsets (np.ndarray): Offset values to be applied.
 
     Returns:
-    -------
-    warped : numpy array
-        Warped image data.
+        np.ndarray: Warped image data.
     """
     # Initialize an empty list to store warped frames
     warped = []
@@ -165,23 +137,15 @@ def apply_offsets(data_, offsets):
 def align_within_cycle(data_, upsample_factor=4, window=1, q1=0, q2=90):
     """Align images within the same cycle.
 
-    Parameters
-    ----------
-    data_ : numpy array
-        Image data.
-    upsample_factor : int, optional, default: 4
-        Upsampling factor for cross-correlation.
-    window : int, optional, default: 1
-        Size of the window to apply during alignment.
-    q1 : int, optional, default: 0
-        Lower percentile threshold.
-    q2 : int, optional, default: 90
-        Upper percentile threshold.
+    Args:
+        data_ (np.ndarray): Image data.
+        upsample_factor (int, optional): Upsampling factor for cross-correlation. Defaults to 4.
+        window (int, optional): Size of the window to apply during alignment. Defaults to 1.
+        q1 (int, optional): Lower percentile threshold. Defaults to 0.
+        q2 (int, optional): Upper percentile threshold. Defaults to 90.
 
     Returns:
-    -------
-    aligned : numpy array
-        Aligned image data.
+        np.ndarray: Aligned image data.
     """
     # Filter the input data based on percentiles
     filtered = filter_percentiles(apply_window(data_, window), q1=q1, q2=q2)
@@ -196,25 +160,16 @@ def align_between_cycles(
 ):
     """Align images between different cycles.
 
-    Parameters
-    ----------
-    data : numpy array
-        Image data.
-    channel_index : int
-        Index of the channel to align between cycles.
-    upsample_factor : int, optional, default: 4
-        Upsampling factor for cross-correlation.
-    window : int, optional, default: 1
-        Size of the window to apply during alignment.
-    return_offsets : bool, optional, default: False
-        Whether to return the calculated offsets.
+    Args:
+        data (np.ndarray): Image data.
+        channel_index (int): Index of the channel to align between cycles.
+        upsample_factor (int, optional): Upsampling factor for cross-correlation. Defaults to 4.
+        window (int, optional): Size of the window to apply during alignment. Defaults to 1.
+        return_offsets (bool, optional): Whether to return the calculated offsets. Defaults to False.
 
     Returns:
-    -------
-    aligned : numpy array
-        Aligned image data.
-    offsets : numpy array, optional
-        Calculated offsets if return_offsets is True.
+        np.ndarray: Aligned image data.
+        np.ndarray, optional: Calculated offsets if return_offsets is True.
     """
     # Calculate offsets from the target channel
     target = apply_window(data[:, channel_index], window)
@@ -238,17 +193,12 @@ def align_between_cycles(
 def normalize_by_percentile(data_, q_norm=70):
     """Normalize data by the specified percentile.
 
-    Parameters
-    ----------
-    data_ : numpy array
-        Input image data.
-    q_norm : int, optional, default: 70
-        Percentile value for normalization.
+    Args:
+        data_ (np.ndarray): Input image data.
+        q_norm (int, optional): Percentile value for normalization. Defaults to 70.
 
     Returns:
-    -------
-    normed : numpy array
-        Normalized image data.
+        np.ndarray: Normalized image data.
     """
     # Get the shape of the input data
     shape = data_.shape
@@ -277,50 +227,34 @@ def align_cycles(
 ):
     """Rigid alignment of sequencing cycles and channels.
 
-    Parameters
-    ----------
-    image_data : np.ndarray or list of np.ndarrays
-        Unaligned SBS image with dimensions (CYCLE, CHANNEL, I, J) or list of single cycle
-        SBS images, each with dimensions (CHANNEL, I, J)
-
-    method : {'DAPI','sbs_mean'}
-        Method to use for alignment.
-
-    upsample_factor : int, default 2
-        Subpixel alignment is done if `upsample_factor` is greater than one (can be slow).
-
-    window : int or float, default 2
-        A centered subset of data is used if `window` is greater than one.
-
-    cutoff : int or float, default 1
-        Cutoff for normalized data to help deal with noise in images.
-
-    q_norm : int, default 70
-        Quantile for normalization to help deal with noise in images.
-
-    align_within_cycle : bool, default True
-        Align SBS channels within cycles.
-
-    cycle_files : list of int or None, default None
-        Used for parsing sets of images where individual channels are in separate files, which
-        is more typically handled in a preprocessing step to combine images from the same cycle.
-
-    keep_extras : bool, default False
-        Retain channels that are not common across all cycles by propagating each 'extra' channel
-        to all cycles. Ignored if same number of channels exist for all cycles.
-
-    n : int, default 1
-        Determines the first SBS channel in `data`. This is after dealing with `keep_extras`, so
-        should only account for channels in common across all cycles if `keep_extras`=False.
-
-    remove_for_cycle_alignment : None or int, default int
-        Channel index to remove when finding cycle offsets. This is after dealing with `keep_extras`,
-        so should only account for channels in common across all cycles if `keep_extras`=False.
+    Args:
+        image_data (np.ndarray or list of np.ndarray): Unaligned SBS image with dimensions
+            (CYCLE, CHANNEL, I, J) or list of single cycle SBS images, each with dimensions
+            (CHANNEL, I, J).
+        method (str): Method to use for alignment. Options are {'DAPI', 'sbs_mean'}.
+        upsample_factor (int, optional): Subpixel alignment is done if greater than one
+            (can be slow). Defaults to 2.
+        window (int or float, optional): A centered subset of data is used if greater than one.
+            Defaults to 2.
+        cutoff (int or float, optional): Cutoff for normalized data to help deal with noise in
+            images. Defaults to 1.
+        q_norm (int, optional): Quantile for normalization to help deal with noise in images.
+            Defaults to 70.
+        align_within_cycle (bool, optional): Align SBS channels within cycles. Defaults to True.
+        cycle_files (list[int] or None, optional): Used for parsing sets of images where individual
+            channels are in separate files, typically handled in preprocessing to combine images
+            from the same cycle. Defaults to None.
+        keep_extras (bool, optional): Retain channels that are not common across all cycles by
+            propagating each 'extra' channel to all cycles. Ignored if the same number of channels
+            exist for all cycles. Defaults to False.
+        n (int, optional): Determines the first SBS channel in `data`. This should only account
+            for channels in common across all cycles if `keep_extras` is False. Defaults to 1.
+        remove_for_cycle_alignment (int or None, optional): Channel index to remove when finding
+            cycle offsets. This should only account for channels in common across all cycles if
+            `keep_extras` is False. Defaults to None.
 
     Returns:
-    -------
-    aligned : np.ndarray
-        SBS image aligned across cycles.
+        np.ndarray: SBS image aligned across cycles.
     """
     # Handle case where cycle_files is provided
     if cycle_files is not None:

@@ -9,7 +9,9 @@ from typing import List
 from joblib import Parallel, delayed
 import numpy as np
 from skimage import morphology
-from skimage import filters
+import skimage.restoration
+import skimage.transform
+import skimage.filters
 from skimage.io import imread
 
 from lib.shared.image_utils import applyIJ
@@ -18,7 +20,7 @@ from lib.shared.image_utils import applyIJ
 def applyIJ_parallel(f, arr, n_jobs=-2, backend="threading", *args, **kwargs):
     """Decorator to apply a function that expects 2D input to the trailing two dimensions of an array, parallelizing computation across 2D frames.
 
-    Parameters:
+    Args:
         f (function): The function to be decorated and applied in parallel.
         arr (numpy.ndarray): The input array to apply the function to.
         n_jobs (int): The number of jobs to run in parallel. Default is -2.
@@ -125,7 +127,7 @@ def calculate_ic_field(
         smooth = int(np.sqrt((data.shape[-1] * data.shape[-2]) / (np.pi * 20)))
 
     selem = morphology.disk(smooth)
-    median_filter = applyIJ(filters.median)
+    median_filter = applyIJ(skimage.filters.median)
 
     # Apply median filter with warning suppression
     with warnings.catch_warnings():
@@ -145,31 +147,19 @@ def rolling_ball_background_skimage(
 ):
     """Apply rolling ball background subtraction to an image using skimage.
 
-    Parameters:
-    -----------
-    image : numpy.ndarray
-        Input image for background subtraction.
-    radius : int, default 100
-        Radius of the rolling ball.
-    ball : numpy.ndarray, optional
-        Precomputed ball kernel. If None, it will be generated.
-    shrink_factor : int, optional
-        Factor by which to shrink the image and ball for faster computation.
-        Default is determined based on the radius.
-    smooth : float, optional
-        Sigma for Gaussian smoothing applied to the background after rolling ball.
-    kwargs : dict
-        Additional arguments passed to skimage's rolling_ball function.
+    Args:
+        image (np.ndarray): Input image for background subtraction.
+        radius (int, optional): Radius of the rolling ball. Defaults to 100.
+        ball (np.ndarray, optional): Precomputed ball kernel. If None, it will be generated.
+        shrink_factor (int, optional): Factor to shrink the image and ball for faster computation.
+            Determined based on radius if not provided.
+        smooth (float, optional): Sigma for Gaussian smoothing applied to the background after
+            rolling ball. Defaults to None.
+        **kwargs: Additional arguments passed to skimage's rolling_ball function.
 
     Returns:
-    --------
-    numpy.ndarray
-        The calculated background to be subtracted from the original image.
+        np.ndarray: Calculated background to be subtracted from the original image.
     """
-    import skimage.restoration
-    import skimage.transform
-    import skimage.filters
-
     # Generate the ball kernel if not provided
     if ball is None:
         ball = skimage.restoration.ball_kernel(radius, ndim=2)
@@ -226,26 +216,18 @@ def subtract_background(
 ):
     """Subtract the background from an image using the rolling ball algorithm.
 
-    Parameters:
-    -----------
-    image : numpy.ndarray
-        Input image from which to subtract the background.
-    radius : int, default 100
-        Radius of the rolling ball.
-    ball : numpy.ndarray, optional
-        Precomputed ball kernel. If None, it will be generated.
-    shrink_factor : int, optional
-        Factor by which to shrink the image and ball for faster computation.
-        Default is determined based on the radius.
-    smooth : float, optional
-        Sigma for Gaussian smoothing applied to the background after rolling ball.
-    kwargs : dict
-        Additional arguments passed to the rolling_ball_background_skimage function.
+    Args:
+        image (np.ndarray): Input image from which to subtract the background.
+        radius (int, optional): Radius of the rolling ball. Defaults to 100.
+        ball (np.ndarray, optional): Precomputed ball kernel. If None, it will be generated.
+        shrink_factor (int, optional): Factor to shrink the image and ball for faster computation.
+            Determined based on radius if not provided.
+        smooth (float, optional): Sigma for Gaussian smoothing applied to the background after
+            rolling ball. Defaults to None.
+        **kwargs: Additional arguments passed to the rolling_ball_background_skimage function.
 
     Returns:
-    --------
-    numpy.ndarray
-        The image with the background subtracted.
+        np.ndarray: Image with the background subtracted.
     """
     # Calculate the background using the rolling ball algorithm
     background = rolling_ball_background_skimage(
@@ -276,17 +258,21 @@ def apply_ic_field(
 ):
     """Apply illumination correction to the given data.
 
-    Parameters:
-    data (numpy array): The input data to be corrected.
-    correction (numpy array, optional): The correction factor to be applied. Default is None.
-    zproject (bool, optional): If True, perform a maximum projection along the first axis. Default is False.
-    rolling_ball (bool, optional): If True, apply a rolling ball background subtraction. Default is False.
-    rolling_ball_kwargs (dict, optional): Additional arguments for the rolling ball background subtraction. Default is an empty dictionary.
-    n_jobs (int, optional): The number of parallel jobs to run. Default is 1 (no parallelization).
-    backend (str, optional): The parallel backend to use ('threading' or 'multiprocessing'). Default is 'threading'.
+    Args:
+        data (np.ndarray): Input data to be corrected.
+        correction (np.ndarray, optional): Correction factor to be applied. Defaults to None.
+        zproject (bool, optional): If True, perform a maximum projection along the first axis.
+            Defaults to False.
+        rolling_ball (bool, optional): If True, apply rolling ball background subtraction.
+            Defaults to False.
+        rolling_ball_kwargs (dict, optional): Additional arguments for rolling ball background
+            subtraction. Defaults to an empty dictionary.
+        n_jobs (int, optional): Number of parallel jobs to run. Defaults to 1 (no parallelization).
+        backend (str, optional): Parallel backend to use ('threading' or 'multiprocessing').
+            Defaults to 'threading'.
 
     Returns:
-    numpy array: The corrected data.
+        np.ndarray: Corrected data.
     """
     # If zproject is True, perform a maximum projection along the first axis
     if zproject:

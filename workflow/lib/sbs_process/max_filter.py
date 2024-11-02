@@ -11,7 +11,7 @@ def max_filter(log_filtered_data, width, remove_index=None):
     Conventionally operates on Laplacian-of-Gaussian filtered SBS data,
     dilating sequencing channels to compensate for single-pixel alignment error.
 
-    Parameters:
+    Args:
         log_filtered_data (numpy.ndarray): Log filtered image data with expected dimensions of (..., I, J) with up to 4 total dimensions.
         width (int): Neighborhood size for max filtering.
         remove_index (None or int, optional): Index of data to remove from subsequent analysis, generally any non-SBS channels (e.g., DAPI).

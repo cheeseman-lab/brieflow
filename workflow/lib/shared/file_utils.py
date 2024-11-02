@@ -4,13 +4,13 @@
 def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     """Generate a structured filename based on data location, information type, and file type.
 
-    Parameters:
-    - data_location (dict): Dictionary containing location info like well, tile, and cycle.
-    - info_type (str): Type of information (e.g., 'cell_features', 'sbs_reads').
-    - file_type (str): File extension/type (e.g., 'tsv', 'hdf5', 'tiff').
+    Args:
+        data_location (dict): Dictionary containing location info like well, tile, and cycle.
+        info_type (str): Type of information (e.g., 'cell_features', 'sbs_reads').
+        file_type (str): File extension/type (e.g., 'tsv', 'hdf5', 'tiff').
 
     Returns:
-    - str: Structured filename.
+        str: Structured filename.
     """
     # Well has no leading zeros
     well_str = f"W{data_location.get('well')}"

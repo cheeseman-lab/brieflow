@@ -11,7 +11,7 @@ def find_neighborhood_peaks(data, n=5):
     At a maximum, the value is max - min in a neighborhood of width `n`.
     Elsewhere, it is zero.
 
-    Parameters:
+    Args:
         data (numpy.ndarray): Input data.
         n (int, optional): Width of the neighborhood for finding local maxima. Default is 5.
 
@@ -51,7 +51,7 @@ def find_peaks(standard_deviation_data, width=5, remove_index=None):
 
     Conventionally used to estimate SBS read locations by inputting the standard deviation score.
 
-    Parameters:
+    Args:
         standard_deviation_data (numpy.ndarray): 2D image data of sbs standard deviation.
         width (int, optional): Neighborhood size for finding local maxima. Default is 5.
         remove_index (None or int, optional): Index of data to remove from subsequent analysis, generally any non-SBS channels (e.g., DAPI).

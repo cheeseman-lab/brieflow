@@ -136,7 +136,7 @@ rule all:
             SBS_PROCESS_FP
             / "images"
             / get_filename(
-                {"well": "{well}", "tile": "{tile}"}, "ic_field_applied", "tiff"
+                {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
             ),
             well=SBS_WELLS,
             tile=SBS_TILES,

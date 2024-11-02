@@ -131,7 +131,7 @@ rule apply_ic_field:
         SBS_PROCESS_FP
         / "images"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "ic_field_applied", "tiff"
+            {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
         ),
     script:
         "../scripts/sbs_process/apply_ic_field.py"

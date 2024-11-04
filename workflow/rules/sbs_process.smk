@@ -133,5 +133,7 @@ rule apply_ic_field:
         / get_filename(
             {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
         ),
+    params:
+        segmentation_cycle=SBS_CYCLES[config["sbs_process"]["segmentation_cycle"]],
     script:
         "../scripts/sbs_process/apply_ic_field.py"

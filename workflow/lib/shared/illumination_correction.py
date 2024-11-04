@@ -87,8 +87,9 @@ def calculate_ic_field(
 ) -> np.ndarray:
     """Calculate illumination correction field for use with the apply_ic_field.
 
-    Equivalent to CellProfiler's CorrectIlluminationCalculate module with
-    option "Regular", "All", "Median Filter".
+    Based CellProfiler's CorrectIlluminationCalculate module with
+    options "Regular", "All", "Median Filter".
+    https://github.com/CellProfiler/CellProfiler/blob/fa81fb0f2850c7c6d9cefdf4e71806188f1dc546/src/frontend/cellprofiler/modules/correctilluminationcalculate.py#L96
 
     Note: Algorithm originally benchmarked using ~250 images per plate to calculate plate-wise
     illumination correction functions (Singh et al. J Microscopy, 256(3):231-236, 2014).
@@ -257,6 +258,9 @@ def apply_ic_field(
     backend="threading",
 ):
     """Apply illumination correction to the given data.
+
+    Based CellProfiler's CorrectIlluminationApply module
+    https://github.com/CellProfiler/CellProfiler/blob/fa81fb0f2850c7c6d9cefdf4e71806188f1dc546/src/frontend/cellprofiler/modules/correctilluminationapply.py#L62
 
     Args:
         data (np.ndarray): Input data to be corrected.

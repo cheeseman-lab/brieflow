@@ -9,6 +9,30 @@ import skimage
 from lib.shared.image_utils import applyIJ
 
 
+def log_filter(aligned_image_data, sigma=1, skip_index=None):
+    """Apply Laplacian-of-Gaussian filter from scipy.ndimage to the input data.
+
+    Args:
+        aligned_image_data (numpy.ndarray): Aligned SBS image data with expected dimensions of (CYCLE, CHANNEL, I, J).
+        sigma (float, optional): Size of the Gaussian kernel used in the Laplacian-of-Gaussian filter. Default is 1.
+        skip_index (None or int, optional): If an integer, skips transforming a specific channel (e.g., DAPI with skip_index=0).
+
+    Returns:
+        loged (numpy.ndarray): LoG-ed `data`.
+    """
+    # Convert input data to a numpy array
+    aligned_image_data = np.array(aligned_image_data)
+
+    # Apply Laplacian-of-Gaussian filter to the data using ops.process.log_ndi function from ops.process module
+    loged = log_ndi(aligned_image_data, sigma=sigma)
+
+    # If skip_index is specified, keep the original values for the corresponding channel
+    if skip_index is not None:
+        loged[..., skip_index, :, :] = aligned_image_data[..., skip_index, :, :]
+
+    return loged
+
+
 @applyIJ
 def log_ndi(data, sigma=1, *args, **kwargs):
     """Apply Laplacian of Gaussian to each image in a stack of shape (..., I, J).
@@ -35,27 +59,3 @@ def log_ndi(data, sigma=1, *args, **kwargs):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return skimage.img_as_uint(arr_)
-
-
-def log_filter(aligned_image_data, sigma=1, skip_index=None):
-    """Apply Laplacian-of-Gaussian filter from scipy.ndimage to the input data.
-
-    Args:
-        aligned_image_data (numpy.ndarray): Aligned SBS image data with expected dimensions of (CYCLE, CHANNEL, I, J).
-        sigma (float, optional): Size of the Gaussian kernel used in the Laplacian-of-Gaussian filter. Default is 1.
-        skip_index (None or int, optional): If an integer, skips transforming a specific channel (e.g., DAPI with skip_index=0).
-
-    Returns:
-        loged (numpy.ndarray): LoG-ed `data`.
-    """
-    # Convert input data to a numpy array
-    aligned_image_data = np.array(aligned_image_data)
-
-    # Apply Laplacian-of-Gaussian filter to the data using ops.process.log_ndi function from ops.process module
-    loged = log_ndi(aligned_image_data, sigma=sigma)
-
-    # If skip_index is specified, keep the original values for the corresponding channel
-    if skip_index is not None:
-        loged[..., skip_index, :, :] = aligned_image_data[..., skip_index, :, :]
-
-    return loged

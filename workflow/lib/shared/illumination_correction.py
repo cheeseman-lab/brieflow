@@ -17,67 +17,6 @@ from skimage.io import imread
 from lib.shared.image_utils import applyIJ
 
 
-def applyIJ_parallel(f, arr, n_jobs=-2, backend="threading", *args, **kwargs):
-    """Decorator to apply a function that expects 2D input to the trailing two dimensions of an array, parallelizing computation across 2D frames.
-
-    Args:
-        f (function): The function to be decorated and applied in parallel.
-        arr (numpy.ndarray): The input array to apply the function to.
-        n_jobs (int): The number of jobs to run in parallel. Default is -2.
-        backend (str): The parallelization backend to use. Default is 'threading'.
-        *args: Additional positional arguments to be passed to the function.
-        **kwargs: Additional keyword arguments to be passed to the function.
-
-    Returns:
-        numpy.ndarray: Output array after applying the function in parallel.
-    """
-    h, w = arr.shape[-2:]
-    reshaped = arr.reshape((-1, h, w))
-
-    work = reshaped
-
-    arr_ = Parallel(n_jobs=n_jobs, backend=backend)(
-        delayed(f)(frame, *args, **kwargs) for frame in work
-    )
-
-    output_shape = arr.shape[:-2] + arr_[0].shape
-    return np.array(arr_).reshape(output_shape)
-
-
-def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.ndarray:
-    """Accumulates an image's contribution by adding a sliced version of it to the provided data array.
-
-    Args:
-        file (str): Path to the image file to be accumulated.
-        slicer (slice): Slice object to select specific parts of the image.
-        data (np.ndarray): The numpy array where the accumulated image data is stored.
-        N (int): The number of files, used to average the data by dividing each image.
-
-    Returns:
-        np.ndarray: Updated image data with the new image accumulated.
-    """
-    data += imread(file)[slicer] / N
-    return data
-
-
-@applyIJ
-def rescale_channels(data: np.ndarray) -> np.ndarray:
-    """Rescales the image data by dividing by a robust minimum and setting values below 1 to 1.
-
-    Args:
-        data (np.ndarray): The input image data to be rescaled.
-
-    Returns:
-        np.ndarray: The rescaled image data.
-    """
-    # Use 2nd percentile for robust minimum
-    robust_min = np.quantile(data.reshape(-1), q=0.02)
-    robust_min = 1 if robust_min == 0 else robust_min
-    data = data / robust_min
-    data[data < 1] = 1
-    return data
-
-
 def calculate_ic_field(
     files: List[str],
     smooth: int = None,
@@ -140,6 +79,124 @@ def calculate_ic_field(
         smoothed = rescale_channels(smoothed)
 
     return smoothed
+
+
+def apply_ic_field(
+    data,
+    correction=None,
+    zproject=False,
+    rolling_ball=False,
+    rolling_ball_kwargs={},
+    n_jobs=1,
+    backend="threading",
+):
+    """Apply illumination correction to the given data.
+
+    Based CellProfiler's CorrectIlluminationApply module
+    https://github.com/CellProfiler/CellProfiler/blob/fa81fb0f2850c7c6d9cefdf4e71806188f1dc546/src/frontend/cellprofiler/modules/correctilluminationapply.py#L62
+
+    Args:
+        data (np.ndarray): Input data to be corrected.
+        correction (np.ndarray, optional): Correction factor to be applied. Defaults to None.
+        zproject (bool, optional): If True, perform a maximum projection along the first axis.
+            Defaults to False.
+        rolling_ball (bool, optional): If True, apply rolling ball background subtraction.
+            Defaults to False.
+        rolling_ball_kwargs (dict, optional): Additional arguments for rolling ball background
+            subtraction. Defaults to an empty dictionary.
+        n_jobs (int, optional): Number of parallel jobs to run. Defaults to 1 (no parallelization).
+        backend (str, optional): Parallel backend to use ('threading' or 'multiprocessing').
+            Defaults to 'threading'.
+
+    Returns:
+        np.ndarray: Corrected data.
+    """
+    # If zproject is True, perform a maximum projection along the first axis
+    if zproject:
+        data = data.max(axis=0)
+
+    # If n_jobs is 1, process the data without parallelization
+    if n_jobs == 1:
+        # Apply the correction factor if provided
+        if correction is not None:
+            data = (data / correction).astype(np.uint16)
+
+        # Apply rolling ball background subtraction if specified
+        if rolling_ball:
+            data = subtract_background(data, **rolling_ball_kwargs).astype(np.uint16)
+
+        return data
+
+    else:
+        # If n_jobs is greater than 1, apply illumination correction in parallel
+        return applyIJ_parallel(
+            apply_ic_field,
+            arr=data,
+            correction=correction,
+            backend=backend,
+            n_jobs=n_jobs,
+        )
+
+
+def applyIJ_parallel(f, arr, n_jobs=-2, backend="threading", *args, **kwargs):
+    """Decorator to apply a function that expects 2D input to the trailing two dimensions of an array, parallelizing computation across 2D frames.
+
+    Args:
+        f (function): The function to be decorated and applied in parallel.
+        arr (numpy.ndarray): The input array to apply the function to.
+        n_jobs (int): The number of jobs to run in parallel. Default is -2.
+        backend (str): The parallelization backend to use. Default is 'threading'.
+        *args: Additional positional arguments to be passed to the function.
+        **kwargs: Additional keyword arguments to be passed to the function.
+
+    Returns:
+        numpy.ndarray: Output array after applying the function in parallel.
+    """
+    h, w = arr.shape[-2:]
+    reshaped = arr.reshape((-1, h, w))
+
+    work = reshaped
+
+    arr_ = Parallel(n_jobs=n_jobs, backend=backend)(
+        delayed(f)(frame, *args, **kwargs) for frame in work
+    )
+
+    output_shape = arr.shape[:-2] + arr_[0].shape
+    return np.array(arr_).reshape(output_shape)
+
+
+def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.ndarray:
+    """Accumulates an image's contribution by adding a sliced version of it to the provided data array.
+
+    Args:
+        file (str): Path to the image file to be accumulated.
+        slicer (slice): Slice object to select specific parts of the image.
+        data (np.ndarray): The numpy array where the accumulated image data is stored.
+        N (int): The number of files, used to average the data by dividing each image.
+
+    Returns:
+        np.ndarray: Updated image data with the new image accumulated.
+    """
+    data += imread(file)[slicer] / N
+    return data
+
+
+@applyIJ
+def rescale_channels(data: np.ndarray) -> np.ndarray:
+    """Rescales the image data by dividing by a robust minimum and setting values below 1 to 1.
+
+    Args:
+        data (np.ndarray): The input image data to be rescaled.
+
+    Returns:
+        np.ndarray: The rescaled image data.
+    """
+    # Use 2nd percentile for robust minimum
+    robust_min = np.quantile(data.reshape(-1), q=0.02)
+    robust_min = 1 if robust_min == 0 else robust_min
+    data = data / robust_min
+    data[data < 1] = 1
+    return data
 
 
 @applyIJ
@@ -246,60 +303,3 @@ def subtract_background(
 
     # Subtract the background from the image
     return image - background
-
-
-def apply_ic_field(
-    data,
-    correction=None,
-    zproject=False,
-    rolling_ball=False,
-    rolling_ball_kwargs={},
-    n_jobs=1,
-    backend="threading",
-):
-    """Apply illumination correction to the given data.
-
-    Based CellProfiler's CorrectIlluminationApply module
-    https://github.com/CellProfiler/CellProfiler/blob/fa81fb0f2850c7c6d9cefdf4e71806188f1dc546/src/frontend/cellprofiler/modules/correctilluminationapply.py#L62
-
-    Args:
-        data (np.ndarray): Input data to be corrected.
-        correction (np.ndarray, optional): Correction factor to be applied. Defaults to None.
-        zproject (bool, optional): If True, perform a maximum projection along the first axis.
-            Defaults to False.
-        rolling_ball (bool, optional): If True, apply rolling ball background subtraction.
-            Defaults to False.
-        rolling_ball_kwargs (dict, optional): Additional arguments for rolling ball background
-            subtraction. Defaults to an empty dictionary.
-        n_jobs (int, optional): Number of parallel jobs to run. Defaults to 1 (no parallelization).
-        backend (str, optional): Parallel backend to use ('threading' or 'multiprocessing').
-            Defaults to 'threading'.
-
-    Returns:
-        np.ndarray: Corrected data.
-    """
-    # If zproject is True, perform a maximum projection along the first axis
-    if zproject:
-        data = data.max(axis=0)
-
-    # If n_jobs is 1, process the data without parallelization
-    if n_jobs == 1:
-        # Apply the correction factor if provided
-        if correction is not None:
-            data = (data / correction).astype(np.uint16)
-
-        # Apply rolling ball background subtraction if specified
-        if rolling_ball:
-            data = subtract_background(data, **rolling_ball_kwargs).astype(np.uint16)
-
-        return data
-
-    else:
-        # If n_jobs is greater than 1, apply illumination correction in parallel
-        return applyIJ_parallel(
-            apply_ic_field,
-            arr=data,
-            correction=correction,
-            backend=backend,
-            n_jobs=n_jobs,
-        )

@@ -11,6 +11,132 @@ import skimage
 from lib.shared.image_utils import applyIJ
 
 
+def align_cycles(
+    image_data,
+    method="DAPI",
+    upsample_factor=2,
+    window=2,
+    cutoff=1,
+    q_norm=70,
+    use_align_within_cycle=True,
+    cycle_files=None,
+    keep_extras=False,
+    n=1,
+    remove_for_cycle_alignment=None,
+):
+    """Rigid alignment of sequencing cycles and channels.
+
+    Args:
+        image_data (np.ndarray or list of np.ndarray): Unaligned SBS image with dimensions
+            (CYCLE, CHANNEL, I, J) or list of single cycle SBS images, each with dimensions
+            (CHANNEL, I, J).
+        method (str): Method to use for alignment. Options are {'DAPI', 'sbs_mean'}.
+        upsample_factor (int, optional): Subpixel alignment is done if greater than one
+            (can be slow). Defaults to 2.
+        window (int or float, optional): A centered subset of data is used if greater than one.
+            Defaults to 2.
+        cutoff (int or float, optional): Cutoff for normalized data to help deal with noise in
+            images. Defaults to 1.
+        q_norm (int, optional): Quantile for normalization to help deal with noise in images.
+            Defaults to 70.
+        use_align_within_cycle (bool, optional): Align SBS channels within cycles. Defaults to True.
+        cycle_files (list[int] or None, optional): Used for parsing sets of images where individual
+            channels are in separate files, typically handled in preprocessing to combine images
+            from the same cycle. Defaults to None.
+        keep_extras (bool, optional): Retain channels that are not common across all cycles by
+            propagating each 'extra' channel to all cycles. Ignored if the same number of channels
+            exist for all cycles. Defaults to False.
+        n (int, optional): Determines the first SBS channel in `data`. This should only account
+            for channels in common across all cycles if `keep_extras` is False. Defaults to 1.
+        remove_for_cycle_alignment (int or None, optional): Channel index to remove when finding
+            cycle offsets. This should only account for channels in common across all cycles if
+            `keep_extras` is False. Defaults to None.
+
+    Returns:
+        np.ndarray: SBS image aligned across cycles.
+    """
+    # Handle case where cycle_files is provided
+    if cycle_files is not None:
+        arr = []
+        current = 0
+        # Iterate through cycle files to de-nest list of numpy arrays
+        for cycle in cycle_files:
+            if cycle == 1:
+                arr.append(image_data[current])
+            else:
+                arr.append(np.array(image_data[current : current + cycle]))
+            current += cycle
+        image_data = arr
+        print(image_data[0].shape)
+        print(image_data[1].shape)
+
+    # Check if the number of channels varies across cycles
+    if not all(x.shape == image_data[0].shape for x in image_data):
+        # Keep only channels in common across all cycles
+        channels = [x.shape[-3] if x.ndim > 2 else 1 for x in image_data]
+        stacked = np.array([x[-min(channels) :] for x in image_data])
+
+        # Add back extra channels if requested
+        if keep_extras:
+            extras = np.array(channels) - min(channels)
+            arr = []
+            for cycle, extra in enumerate(extras):
+                if extra != 0:
+                    arr.extend(
+                        [image_data[cycle][extra_ch] for extra_ch in range(extra)]
+                    )
+            propagate = np.array(arr)
+            stacked = np.concatenate(
+                (np.array([propagate] * stacked.shape[0]), stacked), axis=1
+            )
+        else:
+            extras = [0] * stacked.shape[0]
+    else:
+        stacked = np.array(image_data)
+        extras = [0] * stacked.shape[0]
+
+    assert (
+        stacked.ndim == 4
+    ), "Input image_data must have dimensions CYCLE, CHANNEL, I, J"
+
+    # Align between SBS channels for each cycle
+    aligned = stacked.copy()
+    if use_align_within_cycle:
+
+        def align_it(x):
+            return align_within_cycle(x, window=window, upsample_factor=upsample_factor)
+
+        aligned[:, n:] = np.array([align_it(x) for x in aligned[:, n:]])
+
+    if method == "DAPI":
+        # Align cycles using the DAPI channel
+        aligned = align_between_cycles(
+            aligned, channel_index=0, window=window, upsample_factor=upsample_factor
+        )
+    elif method == "sbs_mean":
+        # Calculate cycle offsets using the average of SBS channels
+        sbs_channels = list(range(n, aligned.shape[1]))
+        if remove_for_cycle_alignment is not None:
+            sbs_channels.remove(remove_for_cycle_alignment)
+        target = apply_window(aligned[:, sbs_channels], window=window).max(axis=1)
+        normed = normalize_by_percentile(target, q_norm=q_norm)
+        normed[normed > cutoff] = cutoff
+        offsets = calculate_offsets(normed, upsample_factor=upsample_factor)
+        # Apply cycle offsets to each channel
+        for channel in range(aligned.shape[1]):
+            if channel >= sum(extras):
+                aligned[:, channel] = apply_offsets(aligned[:, channel], offsets)
+            else:
+                # Don't apply offsets to extra channel in the cycle it was acquired
+                extra_idx = list(np.cumsum(extras) > channel).index(True)
+                extra_offsets = np.array([offsets[extra_idx]] * aligned.shape[0])
+                aligned[:, channel] = apply_offsets(aligned[:, channel], extra_offsets)
+    else:
+        raise ValueError(f'method "{method}" not implemented')
+
+    return aligned
+
+
 def apply_window(data, window):
     """Apply a window to image data.
 
@@ -210,129 +336,3 @@ def normalize_by_percentile(data_, q_norm=70):
     normed = data_ / p
     # Return the normalized data
     return normed
-
-
-def align_cycles(
-    image_data,
-    method="DAPI",
-    upsample_factor=2,
-    window=2,
-    cutoff=1,
-    q_norm=70,
-    use_align_within_cycle=True,
-    cycle_files=None,
-    keep_extras=False,
-    n=1,
-    remove_for_cycle_alignment=None,
-):
-    """Rigid alignment of sequencing cycles and channels.
-
-    Args:
-        image_data (np.ndarray or list of np.ndarray): Unaligned SBS image with dimensions
-            (CYCLE, CHANNEL, I, J) or list of single cycle SBS images, each with dimensions
-            (CHANNEL, I, J).
-        method (str): Method to use for alignment. Options are {'DAPI', 'sbs_mean'}.
-        upsample_factor (int, optional): Subpixel alignment is done if greater than one
-            (can be slow). Defaults to 2.
-        window (int or float, optional): A centered subset of data is used if greater than one.
-            Defaults to 2.
-        cutoff (int or float, optional): Cutoff for normalized data to help deal with noise in
-            images. Defaults to 1.
-        q_norm (int, optional): Quantile for normalization to help deal with noise in images.
-            Defaults to 70.
-        use_align_within_cycle (bool, optional): Align SBS channels within cycles. Defaults to True.
-        cycle_files (list[int] or None, optional): Used for parsing sets of images where individual
-            channels are in separate files, typically handled in preprocessing to combine images
-            from the same cycle. Defaults to None.
-        keep_extras (bool, optional): Retain channels that are not common across all cycles by
-            propagating each 'extra' channel to all cycles. Ignored if the same number of channels
-            exist for all cycles. Defaults to False.
-        n (int, optional): Determines the first SBS channel in `data`. This should only account
-            for channels in common across all cycles if `keep_extras` is False. Defaults to 1.
-        remove_for_cycle_alignment (int or None, optional): Channel index to remove when finding
-            cycle offsets. This should only account for channels in common across all cycles if
-            `keep_extras` is False. Defaults to None.
-
-    Returns:
-        np.ndarray: SBS image aligned across cycles.
-    """
-    # Handle case where cycle_files is provided
-    if cycle_files is not None:
-        arr = []
-        current = 0
-        # Iterate through cycle files to de-nest list of numpy arrays
-        for cycle in cycle_files:
-            if cycle == 1:
-                arr.append(image_data[current])
-            else:
-                arr.append(np.array(image_data[current : current + cycle]))
-            current += cycle
-        image_data = arr
-        print(image_data[0].shape)
-        print(image_data[1].shape)
-
-    # Check if the number of channels varies across cycles
-    if not all(x.shape == image_data[0].shape for x in image_data):
-        # Keep only channels in common across all cycles
-        channels = [x.shape[-3] if x.ndim > 2 else 1 for x in image_data]
-        stacked = np.array([x[-min(channels) :] for x in image_data])
-
-        # Add back extra channels if requested
-        if keep_extras:
-            extras = np.array(channels) - min(channels)
-            arr = []
-            for cycle, extra in enumerate(extras):
-                if extra != 0:
-                    arr.extend(
-                        [image_data[cycle][extra_ch] for extra_ch in range(extra)]
-                    )
-            propagate = np.array(arr)
-            stacked = np.concatenate(
-                (np.array([propagate] * stacked.shape[0]), stacked), axis=1
-            )
-        else:
-            extras = [0] * stacked.shape[0]
-    else:
-        stacked = np.array(image_data)
-        extras = [0] * stacked.shape[0]
-
-    assert (
-        stacked.ndim == 4
-    ), "Input image_data must have dimensions CYCLE, CHANNEL, I, J"
-
-    # Align between SBS channels for each cycle
-    aligned = stacked.copy()
-    if use_align_within_cycle:
-
-        def align_it(x):
-            return align_within_cycle(x, window=window, upsample_factor=upsample_factor)
-
-        aligned[:, n:] = np.array([align_it(x) for x in aligned[:, n:]])
-
-    if method == "DAPI":
-        # Align cycles using the DAPI channel
-        aligned = align_between_cycles(
-            aligned, channel_index=0, window=window, upsample_factor=upsample_factor
-        )
-    elif method == "sbs_mean":
-        # Calculate cycle offsets using the average of SBS channels
-        sbs_channels = list(range(n, aligned.shape[1]))
-        if remove_for_cycle_alignment is not None:
-            sbs_channels.remove(remove_for_cycle_alignment)
-        target = apply_window(aligned[:, sbs_channels], window=window).max(axis=1)
-        normed = normalize_by_percentile(target, q_norm=q_norm)
-        normed[normed > cutoff] = cutoff
-        offsets = calculate_offsets(normed, upsample_factor=upsample_factor)
-        # Apply cycle offsets to each channel
-        for channel in range(aligned.shape[1]):
-            if channel >= sum(extras):
-                aligned[:, channel] = apply_offsets(aligned[:, channel], offsets)
-            else:
-                # Don't apply offsets to extra channel in the cycle it was acquired
-                extra_idx = list(np.cumsum(extras) > channel).index(True)
-                extra_offsets = np.array([offsets[extra_idx]] * aligned.shape[0])
-                aligned[:, channel] = apply_offsets(aligned[:, channel], extra_offsets)
-    else:
-        raise ValueError(f'method "{method}" not implemented')
-
-    return aligned

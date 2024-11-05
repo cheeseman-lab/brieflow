@@ -1,4 +1,4 @@
-# BrieFlow
+# Brieflow
 
 Extensible pipeline tool for processing optical pooled screens data.
 
@@ -13,8 +13,12 @@ Please check back for updates!
 Use the following commands to create and activate the `brieflow` conda environment:
 
 ```sh
+# create brieflow conda environment
 conda env create --file=environment.yml
+# activate brieflow conda environment
 conda activate brieflow
+# set conda installation to use strict channel priorities
+conda config --set channel_priority strict
 ```
 
 ### Step 2: Run example analysis

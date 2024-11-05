@@ -6,8 +6,8 @@ from lib.shared.file_utils import get_filename
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
 OUTPUT_FP = ROOT_FP / config["all"]["output_fp"]
-SBS_SAMPLES_FP = Path(config["all"]["sbs_samples_fp"])
-PHENOTYPE_SAMPLES_FP = Path(config["all"]["phenotype_samples_fp"])
+SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])
+PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 
 
 # load data for samples (this should go into helper function and be stored better)
@@ -29,6 +29,7 @@ print(f"Output path: {OUTPUT_FP}")
 
 
 include: "rules/preprocess.smk"
+include: "rules/sbs_process.smk"
 
 
 PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
@@ -37,6 +38,7 @@ PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 # Define the target files for the workflow
 rule all:
     input:
+        # preprocessing
         expand(
             PREPROCESS_FP
             / "metadata"
@@ -87,4 +89,55 @@ rule all:
             / "phenotype"
             / get_filename({"well": "{well}"}, "ic_field", "tiff"),
             well=SBS_WELLS,
+        ),
+        # sbs
+        expand(
+            SBS_PROCESS_FP
+            / "images"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "images"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, "log_filtered", "tiff"
+            ),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "images"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, "standard_deviation", "tiff"
+            ),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "images"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "peaks", "tiff"),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "images"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, "max_filtered", "tiff"
+            ),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "images"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
+            ),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
         ),

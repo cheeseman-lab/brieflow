@@ -1,0 +1,8 @@
+name: sbs_process
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - scikit-image
+  - scipy
+  - joblib

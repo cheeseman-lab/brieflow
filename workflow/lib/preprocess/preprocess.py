@@ -1,17 +1,14 @@
-"""
-Functions for preprocessing ND2 files in preparation for downstream BrieFlow steps.
-"""
+"""Functions for preprocessing ND2 files in preparation for downstream BrieFlow steps."""
 
 import pandas as pd
 import numpy as np
 from nd2reader import ND2Reader
 
-from shared.file_utils import extract_tile_from_filename
+from lib.preprocess.file_utils import extract_tile_from_filename
 
 
 def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
-    """
-    Extracts metadata from a list of ND2 files.
+    """Extracts metadata from a list of ND2 files.
 
     Args:
         files (list[str]): List of file paths pointing to ND2 files.
@@ -19,7 +16,6 @@ def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Combined extracted metadata from all provided ND2 files.
     """
-
     all_metadata = []
 
     # Iterate through all provided files
@@ -65,8 +61,7 @@ def extract_metadata_tile(files: list[str]) -> pd.DataFrame:
 
 
 def nd2_to_tiff(file: str, channel_order_flip: bool = False) -> np.ndarray:
-    """
-    Converts a single ND2 file with one field of view and multiple channels to a multidimensional numpy array.
+    """Converts a single ND2 file with one field of view and multiple channels to a multidimensional numpy array.
 
     Args:
         file (str): Path to the ND2 file.
@@ -75,7 +70,6 @@ def nd2_to_tiff(file: str, channel_order_flip: bool = False) -> np.ndarray:
     Returns:
         np.ndarray: Image data as a multidimensional numpy array.
     """
-
     with ND2Reader(file) as images:
         # Determine the axes order (always include 'c' for channels)
         axes = "cyx"

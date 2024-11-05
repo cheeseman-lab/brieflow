@@ -30,8 +30,9 @@ def calculate_ic_field(
     options "Regular", "All", "Median Filter".
     https://github.com/CellProfiler/CellProfiler/blob/fa81fb0f2850c7c6d9cefdf4e71806188f1dc546/src/frontend/cellprofiler/modules/correctilluminationcalculate.py#L96
 
-    Note: Algorithm originally benchmarked using ~250 images per plate to calculate plate-wise
+    NOTE: Algorithm originally benchmarked using ~250 images per plate to calculate plate-wise
     illumination correction functions (Singh et al. J Microscopy, 256(3):231-236, 2014).
+    Illumination correction calculation will not work with a small set of images.
 
     Args:
         files (List[str]): List of file paths to images for which to calculate the illumination correction.

@@ -118,11 +118,11 @@ rule apply_ic_field:
         # illumination correction field from cycle of interest
         lambda wildcards: expand(
             PREPROCESS_FP
-            / "images"
+            / "ic_fields"
             / "sbs"
             / get_filename(
-                {"well": wildcards.well, "tile": wildcards.tile, "cycle": "{cycle}"},
-                "image",
+                {"well": wildcards.well, "cycle": "{cycle}"},
+                "ic_field",
                 "tiff",
             ),
             cycle=SBS_CYCLES[config["sbs_process"]["segmentation_cycle"]],

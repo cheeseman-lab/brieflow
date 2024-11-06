@@ -34,3 +34,5 @@ sbs_process:
   cyto_index: 4
   nuclei_diameter: 13.2
   cell_diameter: 19.5
+  threshold_peaks: 315
+  bases: "GTAC"

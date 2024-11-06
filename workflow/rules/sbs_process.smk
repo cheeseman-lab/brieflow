@@ -161,5 +161,32 @@ rule segment:
         cyto_index=config["sbs_process"]["cyto_index"],
         nuclei_diameter=config["sbs_process"]["nuclei_diameter"],
         cell_diameter=config["sbs_process"]["cell_diameter"],
+        # TODO: remove or implement
+        # cyto_model=config["sbs_process"]["cyto_model"],
     script:
         "../scripts/sbs_process/segment_cellpose.py"
+
+
+# Extract bases from peaks
+rule extract_bases:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "peaks", "tiff"),
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "max_filtered", "tiff"),
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tiff"),
+    output:
+        SBS_PROCESS_FP
+        / "tsvs"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "bases", "tsv"),
+    params:
+        threshold_peaks=config["sbs_process"]["threshold_peaks"],
+        bases=config["sbs_process"]["bases"],
+    script:
+        "../scripts/sbs_process/extract_bases.py"

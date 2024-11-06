@@ -10,7 +10,7 @@ It includes functions for:
 import numpy as np
 
 # constants for calling reads
-from lib.sbs_process.sbs_process_constants import (
+from sbs_process.constants import (
     WELL,
     TILE,
     CELL,

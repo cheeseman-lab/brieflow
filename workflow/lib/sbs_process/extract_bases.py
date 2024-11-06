@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 # constants for extracting bases
-from lib.sbs_process.sbs_process_constants import (
+from sbs_process.constants import (
     CYCLE,
     CHANNEL,
     POSITION_I,

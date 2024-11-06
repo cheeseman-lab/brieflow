@@ -246,3 +246,60 @@ rule extract_phenotype_minimal:
         ),
     script:
         "../scripts/sbs_process/extract_phenotype_minimal.py"
+
+
+# Rule for combining read results from different wells
+rule merge_reads:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        lambda wildcards: expand(
+            SBS_PROCESS_FP
+            / "tsvs"
+            / get_filename({"well": wildcards.well, "tile": "{tile}"}, "reads", "tsv"),
+            tile=SBS_TILES,
+        ),
+    output:
+        SBS_PROCESS_FP / "hdfs" / get_filename({"well": "{well}"}, "reads", "hdf5"),
+    script:
+        "../scripts/shared/merge_dfs.py"
+
+
+# Rule for combining cell results from different wells
+rule merge_cells:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        lambda wildcards: expand(
+            SBS_PROCESS_FP
+            / "tsvs"
+            / get_filename({"well": wildcards.well, "tile": "{tile}"}, "cells", "tsv"),
+            tile=SBS_TILES,
+        ),
+    output:
+        SBS_PROCESS_FP / "hdfs" / get_filename({"well": "{well}"}, "cells", "hdf5"),
+    script:
+        "../scripts/shared/merge_dfs.py"
+
+
+# Rule for combining phenotypic info results from different wells
+rule merge_minimal_phenotype_info:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        lambda wildcards: expand(
+            SBS_PROCESS_FP
+            / "tsvs"
+            / get_filename(
+                {"well": wildcards.well, "tile": "{tile}"},
+                "minimal_phenotype_info",
+                "tsv",
+            ),
+            tile=SBS_TILES,
+        ),
+    output:
+        SBS_PROCESS_FP
+        / "hdfs"
+        / get_filename({"well": "{well}"}, "minimal_phenotype_info", "hdf5"),
+    script:
+        "../scripts/shared/merge_dfs.py"

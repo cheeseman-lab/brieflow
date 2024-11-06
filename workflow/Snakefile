@@ -169,3 +169,12 @@ rule all:
             well=SBS_WELLS,
             tile=SBS_TILES,
         ),
+        expand(
+            SBS_PROCESS_FP
+            / "tsvs"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, "minimal_phenotype_info", "tsv"
+            ),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),

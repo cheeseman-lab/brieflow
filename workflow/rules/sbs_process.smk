@@ -209,3 +209,21 @@ rule call_reads:
         / get_filename({"well": "{well}", "tile": "{tile}"}, "reads", "tsv"),
     script:
         "../scripts/sbs_process/call_reads.py"
+
+
+# Extract minimal phenotype features
+rule extract_phenotype_minimal:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"),
+    output:
+        SBS_PROCESS_FP
+        / "tsvs"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "minimal_phenotype_info", "tsv"
+        ),
+    script:
+        "../scripts/sbs_process/extract_phenotype_minimal.py"

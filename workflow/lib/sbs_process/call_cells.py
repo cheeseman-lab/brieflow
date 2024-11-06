@@ -23,11 +23,11 @@ from lib.sbs_process.sbs_process_constants import (
 )
 
 
-def call_cells(df_reads, df_pool=None, q_min=0):
+def call_cells(reads_data, df_pool=None, q_min=0):
     """Perform median correction independently for each tile.
 
     Args:
-        df_reads (DataFrame): DataFrame containing read information.
+        reads_data (DataFrame): DataFrame containing read information.
         df_pool (DataFrame, optional): DataFrame containing pool information. Default is None.
         q_min (int, optional): Minimum quality threshold. Default is 0.
 
@@ -35,25 +35,25 @@ def call_cells(df_reads, df_pool=None, q_min=0):
         DataFrame: DataFrame containing corrected cells.
     """
     # Check if df_reads is None and return if so
-    if df_reads is None:
+    if reads_data is None:
         return
 
     # Check if df_pool is None
     if df_pool is None:
         # Filter reads by quality threshold and call cells
-        return df_reads.query("Q_min >= @q_min").pipe(call_cells)
+        return reads_data.query("Q_min >= @q_min").pipe(call_cells_helper)
     else:
         # Determine the experimental prefix length
-        prefix_length = len(df_reads.iloc[0].barcode)
+        prefix_length = len(reads_data.iloc[0].barcode)
 
         # Add prefix to the pool DataFrame
         df_pool[PREFIX] = df_pool.apply(lambda x: x.sgRNA[:prefix_length], axis=1)
 
         # Filter reads by quality threshold and call cells mapping
-        return df_reads.query("Q_min >= @q_min").pipe(call_cells_mapping, df_pool)
+        return reads_data.query("Q_min >= @q_min").pipe(call_cells_mapping, df_pool)
 
 
-def call_cells(df_reads):
+def call_cells_helper(df_reads):
     """Determine the count of top barcodes for each cell.
 
     Args:

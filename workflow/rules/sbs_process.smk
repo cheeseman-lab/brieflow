@@ -211,6 +211,25 @@ rule call_reads:
         "../scripts/sbs_process/call_reads.py"
 
 
+# Call cells
+rule call_cells:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        SBS_PROCESS_FP
+        / "tsvs"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "reads", "tsv"),
+    output:
+        SBS_PROCESS_FP
+        / "tsvs"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tsv"),
+    params:
+        df_design_path=config["sbs_process"]["df_design_path"],
+        q_min=config["sbs_process"]["q_min"],
+    script:
+        "../scripts/sbs_process/call_cells.py"
+
+
 # Extract minimal phenotype features
 rule extract_phenotype_minimal:
     conda:

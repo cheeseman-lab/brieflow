@@ -10,14 +10,16 @@ It includes functions for:
 import numpy as np
 
 # constants for calling reads
-WELL = "well"
-TILE = "tile"
-CELL = "cell"
-READ = "read"
-CHANNEL = "channel"
-CYCLE = "cycle"
-BARCODE = "barcode"
-INTENSITY = "intensity"
+from lib.sbs_process.sbs_process_constants import (
+    WELL,
+    TILE,
+    CELL,
+    READ,
+    CHANNEL,
+    CYCLE,
+    BARCODE,
+    INTENSITY,
+)
 
 
 def call_reads(

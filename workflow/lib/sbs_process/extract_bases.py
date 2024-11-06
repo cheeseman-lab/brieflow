@@ -8,13 +8,15 @@ import numpy as np
 import pandas as pd
 
 # constants for extracting bases
-CHANNEL = "channel"
-CYCLE = "cycle"
-POSITION_I = "i"
-POSITION_J = "j"
-INTENSITY = "intensity"
-CELL = "cell"
-READ = "read"
+from lib.sbs_process.sbs_process_constants import (
+    CYCLE,
+    CHANNEL,
+    POSITION_I,
+    POSITION_J,
+    INTENSITY,
+    CELL,
+    READ,
+)
 
 
 def extract_bases(

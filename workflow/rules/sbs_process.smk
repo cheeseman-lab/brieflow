@@ -161,8 +161,7 @@ rule segment:
         cyto_index=config["sbs_process"]["cyto_index"],
         nuclei_diameter=config["sbs_process"]["nuclei_diameter"],
         cell_diameter=config["sbs_process"]["cell_diameter"],
-        # TODO: remove or implement
-        # cyto_model=config["sbs_process"]["cyto_model"],
+        cyto_model=config["sbs_process"]["cyto_model"],
     script:
         "../scripts/sbs_process/segment_cellpose.py"
 

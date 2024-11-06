@@ -28,6 +28,7 @@ def segment_cellpose(
     cyto_index,
     nuclei_diameter,
     cell_diameter,
+    cyto_model="cyto",
     cellpose_kwargs=dict(),
     cells=True,
     reconcile="consensus",
@@ -42,6 +43,7 @@ def segment_cellpose(
         cyto_index (int): Index of cytoplasmic channel.
         nuclei_diameter (int): Estimated diameter of nuclei.
         cell_diameter (int): Estimated diameter of cells.
+        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto'.
         logscale (bool, optional): Whether to apply logarithmic transformation to image data.
         cellpose_kwargs (dict, optional): Additional keyword arguments for Cellpose.
         cells (bool, optional): Whether to segment both nuclei and cells or just nuclei.
@@ -69,6 +71,7 @@ def segment_cellpose(
                 rgb,
                 nuclei_diameter,
                 cell_diameter,
+                cyto_model=cyto_model,
                 reconcile=reconcile,
                 return_counts=True,
                 **cellpose_kwargs,

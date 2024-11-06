@@ -12,6 +12,7 @@ nuclei_data, cells_data = segment_cellpose(
     cyto_index=snakemake.params.cyto_index,
     nuclei_diameter=snakemake.params.nuclei_diameter,
     cell_diameter=snakemake.params.cell_diameter,
+    cyto_model=snakemake.params.cyto_model,
 )
 
 # save segmented nuclei data

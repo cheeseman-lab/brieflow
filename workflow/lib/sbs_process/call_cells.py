@@ -1,3 +1,5 @@
+"""Utility functions for calling cells from sequencing reads."""
+
 import pandas as pd
 
 # constants for calling cells

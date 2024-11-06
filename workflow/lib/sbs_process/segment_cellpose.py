@@ -95,9 +95,6 @@ def segment_cellpose(
         else:
             return nuclei, cells
     else:
-        # Segment only nuclei
-        from ops.cellpose import segment_cellpose_nuclei_rgb
-
         nuclei = segment_cellpose_nuclei_rgb(rgb, nuclei_diameter, **cellpose_kwargs)
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
         print(f"Number of nuclei segmented: {counts['final_nuclei']}")
@@ -231,6 +228,44 @@ def segment_cellpose_rgb(
         return nuclei, cells, counts
     else:
         return nuclei, cells
+
+
+def segment_cellpose_nuclei_rgb(
+    rgb, nuclei_diameter, gpu=False, remove_edges=True, **kwargs
+):
+    """Segment nuclei using the Cellpose algorithm from an RGB image.
+
+    Args:
+        rgb (numpy.ndarray): RGB image.
+        nuclei_diameter (int): Diameter of nuclei for segmentation.
+        gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
+        remove_edges (bool, optional): Whether to remove nuclei touching the image edges. Default is True.
+        **kwargs: Additional keyword arguments.
+
+    Returns:
+        numpy.ndarray: Labeled segmentation mask of nuclei.
+    """
+    # Instantiate Cellpose model for nuclei segmentation
+    model_dapi = Cellpose(model_type="nuclei", gpu=gpu)
+
+    # Segment nuclei using Cellpose from the RGB image
+    nuclei, _, _, _ = model_dapi.eval(rgb, channels=[3, 0], diameter=nuclei_diameter)
+
+    # Print the number of nuclei found before and after removing edges
+    print(
+        f"found {len(np.unique(nuclei))} nuclei before removing edges", file=sys.stderr
+    )
+
+    # Remove nuclei touching the image edges if specified
+    if remove_edges:
+        print("removing edges")
+        nuclei = clear_border(nuclei)
+
+    # Print the final number of nuclei after processing
+    print(f"found {len(np.unique(nuclei))} final nuclei", file=sys.stderr)
+
+    # Return the segmented nuclei
+    return nuclei
 
 
 def reconcile_nuclei_cells(nuclei, cells, how="consensus"):

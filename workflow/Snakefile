@@ -145,13 +145,13 @@ rule all:
             SBS_PROCESS_FP
             / "images"
             / get_filename({"well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"),
-            well=["A1"] #SBS_WELLS,
-            tile=[1] #SBS_TILES,
+            well=SBS_WELLS,
+            tile=SBS_TILES,
         ),
         expand(
             SBS_PROCESS_FP
             / "images"
             / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tiff"),
-            well=["A1"] #SBS_WELLS,
-            tile=[1] #SBS_TILES,
+            well=SBS_WELLS,
+            tile=SBS_TILES,
         ),

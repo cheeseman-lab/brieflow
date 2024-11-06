@@ -1,13 +1,7 @@
-"""Sequencing Data Processing and Base Calling Utilities!
+"""Extract Base Utilities!
 
-This module provides a set of functions for mapping and analyzing sequencing reads
-(step 2 -- sbs base calling). It includes functions for:
-
-1. Base Intensity Extraction: Functions to extract base intensities from sequencing data.
-2. Base Calling: Algorithms for calling bases from raw intensity data.
-3. Read Formatting: Tools to format and normalize sequencing reads.
-4. Quality Score Calculation: Functions to compute quality scores for sequencing reads.
-5. Barcode Assignment: Utilities for assigning barcodes to cells based on sequencing data.
+This module provides a set of functions for mapping and analyzing sequencing reads.
+It includes functions to extract base intensities from sequencing data.
 """
 
 import numpy as np

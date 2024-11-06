@@ -190,3 +190,22 @@ rule extract_bases:
         bases=config["sbs_process"]["bases"],
     script:
         "../scripts/sbs_process/extract_bases.py"
+
+
+# Call reads
+rule call_reads:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        SBS_PROCESS_FP
+        / "tsvs"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "bases", "tsv"),
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "peaks", "tiff"),
+    output:
+        SBS_PROCESS_FP
+        / "tsvs"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "reads", "tsv"),
+    script:
+        "../scripts/sbs_process/call_reads.py"

@@ -137,3 +137,29 @@ rule apply_ic_field:
         segmentation_cycle=SBS_CYCLES[config["sbs_process"]["segmentation_cycle"]],
     script:
         "../scripts/sbs_process/apply_ic_field.py"
+
+
+# Segments cells and nuclei using pre-defined methods
+rule segment:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
+        ),
+    output:
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"),
+        SBS_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tiff"),
+    params:
+        dapi_index=config["sbs_process"]["dapi_index"],
+        cyto_index=config["sbs_process"]["cyto_index"],
+        nuclei_diameter=config["sbs_process"]["nuclei_diameter"],
+        cell_diameter=config["sbs_process"]["cell_diameter"],
+    script:
+        "../scripts/sbs_process/segment_cellpose.py"

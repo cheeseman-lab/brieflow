@@ -21,7 +21,10 @@ INTENSITY = "intensity"
 
 
 def call_reads(
-    bases_data, peaks_data=None, correction_only_in_cells=True, normalize_bases=True
+    bases_data,
+    peaks_data=None,
+    correction_only_in_cells=True,
+    normalize_bases_first=True,
 ):
     """Call reads for in situ sequencing data.
 
@@ -44,7 +47,7 @@ def call_reads(
         Snake.extract_bases(). Often identified spots outside of cells are not true sequencing
         reads.
 
-    normalize_bases : boolean, default True
+    normalize_bases_first : boolean, default True
         If True, normalizes the base intensities before performing median correction.
 
     Returns:
@@ -60,7 +63,7 @@ def call_reads(
     cycles = len(set(bases_data["cycle"]))
     channels = len(set(bases_data["channel"]))
 
-    if normalize_bases:
+    if normalize_bases_first:
         # Clean up and normalize base intensities, then perform median calling
         df_reads = (
             bases_data.pipe(clean_up_bases)
@@ -315,3 +318,22 @@ def quality(X):
     Q = (Q * 2).clip(0, 1)
 
     return Q
+
+
+def normalize_bases(df):
+    """Normalize the channel intensities by the median brightness of each channel in all spots.
+
+    Args:
+        df (pandas.DataFrame): DataFrame containing spot intensity data.
+
+    Returns:
+        pandas.DataFrame: DataFrame with normalized intensity values.
+    """
+    # Calculate median brightness of each channel
+    df_medians = df.groupby("channel").intensity.median()
+
+    # Normalize intensity values by dividing by respective channel median
+    df_out = df.copy()
+    df_out.intensity = df.apply(lambda x: x.intensity / df_medians[x.channel], axis=1)
+
+    return df_out

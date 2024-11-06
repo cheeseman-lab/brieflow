@@ -36,6 +36,6 @@ sbs_process:
   cell_diameter: 19.5
   threshold_peaks: 315
   bases: "GTAC"
-  df_design_path: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/pool10_design.csv"
+  df_design_path: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/pool10_design.tsv"
   q_min: 0
 

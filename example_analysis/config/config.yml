@@ -12,13 +12,11 @@
 
 # Suffixes:
 #   Each subsection contains a 'suffix' key that defines the folder under
-#   'output_fp' where the results of that section are put.
 
 
 # General options
 all:
   root_fp: "analysis_root/"
-  output_fp: "brieflow_output/"
 
 # Preprocessing
 preprocess:
@@ -40,3 +38,5 @@ sbs_process:
   df_design_path: "config/pool10_design.tsv"
   q_min: 0
 
+logs:
+  suffix: logs

@@ -5,7 +5,6 @@ from lib.shared.file_utils import get_filename
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
-OUTPUT_FP = ROOT_FP / config["all"]["output_fp"]
 SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])
 PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 
@@ -24,8 +23,7 @@ PHENOTYPE_WELLS = list(sbs_samples["well"].unique())
 PHENOTYPE_TILES = list(sbs_samples["tile"].unique())
 
 # Print the paths
-print(f"Root path: {ROOT_FP}")
-print(f"Output path: {OUTPUT_FP}")
+# print(f"Root path: {ROOT_FP}")
 
 
 include: "rules/preprocess.smk"

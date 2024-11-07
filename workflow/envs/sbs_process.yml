@@ -6,3 +6,5 @@ dependencies:
   - scikit-image
   - scipy
   - joblib
+  - cellpose # TODO: pin version if reproducbility is important (version may change segmentations)
+  - pytables

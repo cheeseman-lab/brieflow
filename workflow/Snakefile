@@ -141,3 +141,65 @@ rule all:
             well=SBS_WELLS,
             tile=SBS_TILES,
         ),
+        expand(
+            SBS_PROCESS_FP
+            / "images"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "images"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tiff"),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "tsvs"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "bases", "tsv"),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "tsvs"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "reads", "tsv"),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "tsvs"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tsv"),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "tsvs"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, "minimal_phenotype_info", "tsv"
+            ),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "hdfs"
+            / get_filename({"well": "{well}"}, "reads", "hdf5"),
+            well=SBS_WELLS,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "hdfs"
+            / get_filename({"well": "{well}"}, "cells", "hdf5"),
+            well=SBS_WELLS,
+        ),
+        expand(
+            SBS_PROCESS_FP
+            / "hdfs"
+            / get_filename({"well": "{well}"}, "minimal_phenotype_info", "hdf5"),
+            well=SBS_WELLS,
+        ),

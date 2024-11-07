@@ -24,4 +24,6 @@ pydocstyle = { convention = "google" }
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore docstring check for script files
-"workflow/scripts/*.py" = ["D100"]
+"workflow/scripts/*.py" = ["D100", "D103"]
+# Ignore all checks for external files
+"workflow/lib/shared/external/*.py" = ["ALL"]

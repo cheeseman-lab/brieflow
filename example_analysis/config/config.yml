@@ -37,6 +37,3 @@ sbs_process:
   bases: "GTAC"
   df_design_path: "config/pool10_design.tsv"
   q_min: 0
-
-logs:
-  suffix: logs

@@ -10,4 +10,3 @@ snakemake --snakefile "$SNAKEFILE" --configfile "$CONFIG_FILE" --rulegraph | dot
 
 # Run Snakemake with the specified Snakefile and config file
 snakemake  --use-conda --cores all --snakefile "$SNAKEFILE" --configfile "$CONFIG_FILE"
-

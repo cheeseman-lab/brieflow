@@ -1,13 +1,16 @@
-import pandas as pd
+import logging
 from pathlib import Path
+
+import pandas as pd
 
 from lib.shared.file_utils import get_filename
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
+
+# Get paths to the sample files dfs
 SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])
 PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
-
 
 # load data for samples (this should go into helper function and be stored better)
 # Load the sample TSV files with pandas

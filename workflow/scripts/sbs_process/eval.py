@@ -18,15 +18,11 @@ df_pool["prefix"] = df_pool.apply(lambda x: x.sgRNA[: x.prefix_length], axis=1)
 barcodes = df_pool["prefix"]
 
 # Concatenate files
-print("Concatenating files...")
 reads = load_and_concatenate_hdfs(snakemake.input.read_files)
 cells = load_and_concatenate_hdfs(snakemake.input.cell_files)
 minimal_phenotype_info = load_and_concatenate_hdfs(
     snakemake.input.minimal_phenotype_info_files
 )
-
-# Generate plots
-print("Generating plots...")
 
 plot_mapping_vs_threshold(reads, barcodes, "peak")
 plt.gcf().savefig(snakemake.output[0])
@@ -74,9 +70,6 @@ outliers = plot_gene_symbol_histogram(cells, x_cutoff=30)
 plt.gcf().savefig(snakemake.output[8])
 plt.close()
 
-num_rows = len(minimal_phenotype_info)
-print(f"The number of cells extracted in the sbs step is: {num_rows}")
-
 # Calculate and print mapped single gene statistics
 print("Calculating mapped single gene statistics...")
 cells["mapped_single_gene"] = cells.apply(
@@ -90,4 +83,9 @@ cells["mapped_single_gene"] = cells.apply(
 )
 print(cells.mapped_single_gene.value_counts())
 
-print("QC analysis completed.")
+num_rows = len(minimal_phenotype_info)
+
+with open(snakemake.output[9], "w") as eval_stats_file:
+    eval_stats_file.write(f"Number of cells extracted in sbs step: {num_rows}\n")
+    eval_stats_file.write("Mapped single gene statistics:\n")
+    eval_stats_file.write(cells.mapped_single_gene.value_counts().to_string())

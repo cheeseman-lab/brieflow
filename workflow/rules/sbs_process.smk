@@ -348,6 +348,7 @@ rule eval_sbs_process:
         SBS_PROCESS_FP / "eval" / "cell_mapping_heatmap_any.png",
         SBS_PROCESS_FP / "eval" / "reads_per_cell_histogram.png",
         SBS_PROCESS_FP / "eval" / "gene_symbol_histogram.png",
+        SBS_PROCESS_FP / "eval" / "eval_stats.txt",
     params:
         df_design_path=config["sbs_process"]["df_design_path"],
     script:

@@ -248,7 +248,7 @@ rule extract_phenotype_minimal:
 
 
 # Rule for combining read results from different wells
-rule merge_reads:
+rule combine_reads:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -261,11 +261,11 @@ rule merge_reads:
     output:
         SBS_PROCESS_FP / "hdfs" / get_filename({"well": "{well}"}, "reads", "hdf5"),
     script:
-        "../scripts/shared/merge_dfs.py"
+        "../scripts/shared/combine_dfs.py"
 
 
 # Rule for combining cell results from different wells
-rule merge_cells:
+rule combine_cells:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -278,11 +278,11 @@ rule merge_cells:
     output:
         SBS_PROCESS_FP / "hdfs" / get_filename({"well": "{well}"}, "cells", "hdf5"),
     script:
-        "../scripts/shared/merge_dfs.py"
+        "../scripts/shared/combine_dfs.py"
 
 
 # Rule for combining phenotypic info results from different wells
-rule merge_minimal_phenotype_info:
+rule combine_minimal_phenotype_info:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -301,4 +301,4 @@ rule merge_minimal_phenotype_info:
         / "hdfs"
         / get_filename({"well": "{well}"}, "minimal_phenotype_info", "hdf5"),
     script:
-        "../scripts/shared/merge_dfs.py"
+        "../scripts/shared/combine_dfs.py"

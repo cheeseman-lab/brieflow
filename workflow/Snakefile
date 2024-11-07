@@ -90,7 +90,7 @@ rule all:
             / get_filename({"well": "{well}"}, "ic_field", "tiff"),
             well=SBS_WELLS,
         ),
-        # sbs
+        # sbs process
         expand(
             SBS_PROCESS_FP
             / "images"
@@ -203,3 +203,7 @@ rule all:
             / get_filename({"well": "{well}"}, "minimal_phenotype_info", "hdf5"),
             well=SBS_WELLS,
         ),
+        # sbs eval
+        SBS_PROCESS_FP / "eval" / "mapping_vs_threshold_peak.png",
+        SBS_PROCESS_FP / "eval" / "mapping_vs_threshold_qmin.png",
+        SBS_PROCESS_FP / "eval" / "read_mapping_heatmap.png",

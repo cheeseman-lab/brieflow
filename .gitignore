@@ -1,5 +1,5 @@
 # files related to local development/usage
-*/.DS_Store
+.DS_Store
 */.ipynb_checkpoints
 */.snakemake
 __pycache__/

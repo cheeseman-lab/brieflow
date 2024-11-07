@@ -42,10 +42,6 @@ def extract_bases(
     if max_filtered_data.ndim == 3:
         max_filtered_data = max_filtered_data[None]
 
-    # TODO: determine if we need to go back to the original code
-    # If so, remove transpose and fix shape while loading
-    max_filtered_data = np.transpose(max_filtered_data, (0, 3, 1, 2))
-
     if len(bases) != max_filtered_data.shape[1]:
         error = "Sequencing {0} bases {1} but maxed data had shape {2}"
         raise ValueError(error.format(len(bases), bases, max_filtered_data.shape))

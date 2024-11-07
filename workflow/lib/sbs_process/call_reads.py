@@ -302,7 +302,10 @@ def call_bases_fast(values, bases):
 
 
 def quality(X):
-    """Calculate quality scores based on the intensity values.
+    """Calculate quality scores for base calling.
+
+    Quality score is based on the highest and second-highest intensity channels.
+    Calculated as 1 - [log2(2 + second) / log2(2 + first)].
 
     Args:
         X (numpy array): Array containing intensity values.

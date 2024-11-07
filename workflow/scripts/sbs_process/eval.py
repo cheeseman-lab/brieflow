@@ -1,5 +1,3 @@
-import os
-
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -11,7 +9,6 @@ from lib.sbs_process.eval import (
     plot_cell_mapping_heatmap,
     plot_reads_per_cell_histogram,
     plot_gene_symbol_histogram,
-    s,
 )
 
 # Read barcodes
@@ -45,7 +42,7 @@ plt.close()
 
 df_summary_one, _ = plot_cell_mapping_heatmap(
     cells,
-    sbs_info,
+    minimal_phenotype_info,
     barcodes,
     mapping_to="one",
     mapping_strategy="gene_symbols",

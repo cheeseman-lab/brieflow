@@ -318,12 +318,22 @@ rule eval_sbs_process:
             ),
             well=SBS_WELLS,
         ),
-        minimal_phenotype_info_files=lambda wildcards: expand(
+        cell_files=lambda wildcards: expand(
             SBS_PROCESS_FP
             / "hdfs"
             / get_filename(
                 {"well": "{well}"},
                 "cells",
+                "hdf5",
+            ),
+            well=SBS_WELLS,
+        ),
+        minimal_phenotype_info_files=lambda wildcards: expand(
+            SBS_PROCESS_FP
+            / "hdfs"
+            / get_filename(
+                {"well": "{well}"},
+                "minimal_phenotype_info",
                 "hdf5",
             ),
             well=SBS_WELLS,

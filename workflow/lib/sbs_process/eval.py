@@ -9,25 +9,6 @@ import matplotlib.ticker as ticker
 from lib.shared.eval import plot_plate_heatmap
 
 
-# helper function to load and concatenate hdfs
-def load_and_concatenate_hdfs(hdf_files):
-    """Load and concatenate HDF files from a provided list into a single DataFrame.
-
-    Args:
-        hdf_files (list of str): List of paths to HDF files.
-
-    Returns:
-        pd.DataFrame: Concatenated DataFrame.
-    """
-    # Load each HDF file into a pandas DataFrame
-    dfs = [pd.read_hdf(file) for file in hdf_files]
-
-    # Concatenate all DataFrames into a single DataFrame
-    concatenated_df = pd.concat(dfs, ignore_index=True)
-
-    return concatenated_df
-
-
 def plot_mapping_vs_threshold(
     df_reads, barcodes, threshold_var="peak", ax=None, **kwargs
 ):

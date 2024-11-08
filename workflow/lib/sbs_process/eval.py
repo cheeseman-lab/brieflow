@@ -53,6 +53,7 @@ def plot_mapping_vs_threshold(
     Returns:
         pandas.DataFrame: Summary table of thresholds and associated mapping rates, number of spots mapped
         used for plotting.
+        matplotlib.figure.Figure: The figure object containing the plot.
     """
     # Exclude spots not in cells
     df_passed = df_reads.copy().query("cell > 0")
@@ -77,51 +78,55 @@ def plot_mapping_vs_threshold(
     mapping_rate = []
     spots_mapped = []
     for threshold in thresholds:
-        df_passed = df_passed.query("{} > @threshold".format(threshold_var))
-        spots_mapped.append(df_passed[df_passed["mapped"]].pipe(len))
+        df_thresholded = df_passed.query(f"{threshold_var} > @threshold")
+        spots_mapped.append(df_thresholded[df_thresholded["mapped"]].shape[0])
         mapping_rate.append(
-            df_passed[df_passed["mapped"]].pipe(len) / df_passed.pipe(len)
+            df_thresholded[df_thresholded["mapped"]].shape[0] / df_thresholded.shape[0]
         )
 
     # Create DataFrame for summary
     df_summary = pd.DataFrame(
-        np.array([thresholds, mapping_rate, spots_mapped]).T,
-        columns=["{}_threshold".format(threshold_var), "mapping_rate", "mapped_spots"],
+        {
+            f"{threshold_var}_threshold": thresholds,
+            "mapping_rate": mapping_rate,
+            "mapped_spots": spots_mapped,
+        }
     )
 
-    # Plot
-    if not ax:
-        ax = sns.lineplot(
-            data=df_summary,
-            x="{}_threshold".format(threshold_var),
-            y="mapping_rate",
-            **kwargs,
-        )
+    # Create a new figure if ax is not provided
+    if ax is None:
+        fig, ax = plt.subplots()
     else:
-        sns.lineplot(
-            data=df_summary,
-            x="{}_threshold".format(threshold_var),
-            y="mapping_rate",
-            ax=ax,
-            **kwargs,
-        )
+        fig = ax.figure
+
+    # Plot on the main axis
+    sns.lineplot(
+        data=df_summary,
+        x=f"{threshold_var}_threshold",
+        y="mapping_rate",
+        ax=ax,
+        **kwargs,
+    )
     ax.set_ylabel("mapping rate", fontsize=18)
-    ax.set_xlabel("{} threshold".format(threshold_var), fontsize=18)
+    ax.set_xlabel(f"{threshold_var} threshold", fontsize=18)
+
+    # Plot on the secondary axis
     ax_right = ax.twinx()
     sns.lineplot(
         data=df_summary,
-        x="{}_threshold".format(threshold_var),
+        x=f"{threshold_var}_threshold",
         y="mapped_spots",
         ax=ax_right,
         color="coral",
         **kwargs,
     )
     ax_right.set_ylabel("mapped spots", fontsize=18)
-    plt.legend(
-        ax.get_lines() + ax_right.get_lines(), ["mapping rate", "mapped spots"], loc=7
-    )
+    ax_right.legend(["mapped spots"], loc="upper right")
 
-    return df_summary
+    # Main axis legend
+    ax.legend(["mapping rate"], loc="upper left")
+
+    return df_summary, fig
 
 
 def plot_read_mapping_heatmap(
@@ -154,7 +159,7 @@ def plot_read_mapping_heatmap(
 
     Returns:
         pandas.DataFrame: DataFrame used for plotting, optional output, only returns if return_summary=True.
-        np.array: Array of matplotlib Axes objects.
+        matplotlib.figure.Figure: The figure object containing the plot.
     """
     # Mark reads as mapped or unmapped based on provided barcodes
     df_reads.loc[:, "mapped"] = df_reads["barcode"].isin(barcodes)
@@ -172,12 +177,12 @@ def plot_read_mapping_heatmap(
 
     if return_summary and return_plot:
         # Plot heatmap
-        axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
-        return df_summary, axes
+        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        return df_summary, fig
     elif return_plot:
         # Plot heatmap
-        axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
-        return axes
+        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        return fig
     elif return_summary:
         return df_summary
     else:
@@ -270,7 +275,7 @@ def plot_cell_mapping_heatmap(
 
     if return_summary and return_plot:
         # Plot heatmap
-        axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        fig = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
         return df_summary, axes
     elif return_plot:
         # Plot heatmap

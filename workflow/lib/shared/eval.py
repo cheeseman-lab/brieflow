@@ -196,4 +196,4 @@ def plot_plate_heatmap(
     cbar.set_label(metric, fontsize=18)
     cbar_ax.yaxis.set_ticks_position("left")
 
-    return axes, cbar
+    return fig, cbar

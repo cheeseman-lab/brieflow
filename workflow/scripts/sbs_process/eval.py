@@ -24,17 +24,14 @@ minimal_phenotype_info = load_and_concatenate_hdfs(
     snakemake.input.minimal_phenotype_info_files
 )
 
-plot_mapping_vs_threshold(reads, barcodes, "peak")
-plt.gcf().savefig(snakemake.output[0])
-plt.close()
+_, fig = plot_mapping_vs_threshold(reads, barcodes, "peak")
+fig.savefig(snakemake.output[0])
 
-plot_mapping_vs_threshold(reads, barcodes, "Q_min")
-plt.gcf().savefig(snakemake.output[1])
-plt.close()
+_, fig = plot_mapping_vs_threshold(reads, barcodes, "Q_min")
+fig.savefig(snakemake.output[1])
 
-plot_read_mapping_heatmap(reads, barcodes, shape="6W_sbs")
-plt.gcf().savefig(snakemake.output[2])
-plt.close()
+fig = plot_read_mapping_heatmap(reads, barcodes, shape="6W_sbs")
+fig.savefig(snakemake.output[2])
 
 df_summary_one, _ = plot_cell_mapping_heatmap(
     cells,
@@ -49,43 +46,43 @@ df_summary_one.to_csv(snakemake.output[3], index=False, sep="\t")
 plt.gcf().savefig(snakemake.output[4])
 plt.close()
 
-df_summary_any, _ = plot_cell_mapping_heatmap(
-    cells,
-    minimal_phenotype_info,
-    barcodes,
-    mapping_to="any",
-    mapping_strategy="gene_symbols",
-    shape="6W_sbs",
-    return_summary=True,
-)
-df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")
-plt.gcf().savefig(snakemake.output[6])
-plt.close()
+# df_summary_any, _ = plot_cell_mapping_heatmap(
+#     cells,
+#     minimal_phenotype_info,
+#     barcodes,
+#     mapping_to="any",
+#     mapping_strategy="gene_symbols",
+#     shape="6W_sbs",
+#     return_summary=True,
+# )
+# df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")
+# plt.gcf().savefig(snakemake.output[6])
+# plt.close()
 
-outliers = plot_reads_per_cell_histogram(cells, x_cutoff=20)
-plt.savefig(snakemake.output[7])
-plt.close()
+# outliers = plot_reads_per_cell_histogram(cells, x_cutoff=20)
+# plt.savefig(snakemake.output[7])
+# plt.close()
 
-outliers = plot_gene_symbol_histogram(cells, x_cutoff=30)
-plt.gcf().savefig(snakemake.output[8])
-plt.close()
+# outliers = plot_gene_symbol_histogram(cells, x_cutoff=30)
+# plt.gcf().savefig(snakemake.output[8])
+# plt.close()
 
-# Calculate and print mapped single gene statistics
-print("Calculating mapped single gene statistics...")
-cells["mapped_single_gene"] = cells.apply(
-    lambda x: (
-        True
-        if (pd.notnull(x.gene_symbol_0) & pd.isnull(x.gene_symbol_1))
-        | (x.gene_symbol_0 == x.gene_symbol_1)
-        else False
-    ),
-    axis=1,
-)
-print(cells.mapped_single_gene.value_counts())
+# # Calculate and print mapped single gene statistics
+# print("Calculating mapped single gene statistics...")
+# cells["mapped_single_gene"] = cells.apply(
+#     lambda x: (
+#         True
+#         if (pd.notnull(x.gene_symbol_0) & pd.isnull(x.gene_symbol_1))
+#         | (x.gene_symbol_0 == x.gene_symbol_1)
+#         else False
+#     ),
+#     axis=1,
+# )
+# print(cells.mapped_single_gene.value_counts())
 
-num_rows = len(minimal_phenotype_info)
+# num_rows = len(minimal_phenotype_info)
 
-with open(snakemake.output[9], "w") as eval_stats_file:
-    eval_stats_file.write(f"Number of cells extracted in sbs step: {num_rows}\n")
-    eval_stats_file.write("Mapped single gene statistics:\n")
-    eval_stats_file.write(cells.mapped_single_gene.value_counts().to_string())
+# with open(snakemake.output[9], "w") as eval_stats_file:
+#     eval_stats_file.write(f"Number of cells extracted in sbs step: {num_rows}\n")
+#     eval_stats_file.write("Mapped single gene statistics:\n")
+#     eval_stats_file.write(cells.mapped_single_gene.value_counts().to_string())

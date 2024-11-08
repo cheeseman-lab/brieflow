@@ -22,7 +22,8 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
         str: Structured filename.
     """
     # Well has no leading zeros
-    well_str = f"W{data_location.get('well')}"
+    well = data_location.get("well")
+    well_str = f"W{well}" if well else ""
 
     # Tile with 4 digits leading zero padding if numeric
     tile = data_location.get("tile")
@@ -33,7 +34,10 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     cycle_str = f"_C{cycle}" if cycle else ""
 
     # Construct filename by combining components with info_type and file_type
-    filename = f"{well_str}{tile_str}{cycle_str}__{info_type}.{file_type}"
+    if well or tile or cycle:
+        filename = f"{well_str}{tile_str}{cycle_str}__{info_type}.{file_type}"
+    else:
+        filename = f"{info_type}.{file_type}"
     return filename
 
 

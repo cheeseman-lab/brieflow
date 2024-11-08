@@ -2,7 +2,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from lib.sbs_process.eval import (
-    load_and_concatenate_hdfs,
     plot_mapping_vs_threshold,
     plot_mapping_vs_threshold,
     plot_read_mapping_heatmap,
@@ -18,11 +17,9 @@ df_pool["prefix"] = df_pool.apply(lambda x: x.sgRNA[: x.prefix_length], axis=1)
 barcodes = df_pool["prefix"]
 
 # Concatenate files
-reads = load_and_concatenate_hdfs(snakemake.input.read_files)
-cells = load_and_concatenate_hdfs(snakemake.input.cell_files)
-minimal_phenotype_info = load_and_concatenate_hdfs(
-    snakemake.input.minimal_phenotype_info_files
-)
+reads = pd.read_hdf(snakemake.input[0])
+cells = pd.read_hdf(snakemake.input[1])
+minimal_phenotype_info = pd.read_hdf(snakemake.input[2])
 
 _, fig = plot_mapping_vs_threshold(reads, barcodes, "peak")
 fig.savefig(snakemake.output[0])

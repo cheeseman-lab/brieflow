@@ -255,11 +255,12 @@ rule combine_reads:
         lambda wildcards: expand(
             SBS_PROCESS_FP
             / "tsvs"
-            / get_filename({"well": wildcards.well, "tile": "{tile}"}, "reads", "tsv"),
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "reads", "tsv"),
+            well=SBS_WELLS,
             tile=SBS_TILES,
         ),
     output:
-        SBS_PROCESS_FP / "hdfs" / get_filename({"well": "{well}"}, "reads", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "reads", "hdf5"),
     script:
         "../scripts/shared/combine_dfs.py"
 
@@ -272,11 +273,12 @@ rule combine_cells:
         lambda wildcards: expand(
             SBS_PROCESS_FP
             / "tsvs"
-            / get_filename({"well": wildcards.well, "tile": "{tile}"}, "cells", "tsv"),
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tsv"),
+            well=SBS_WELLS,
             tile=SBS_TILES,
         ),
     output:
-        SBS_PROCESS_FP / "hdfs" / get_filename({"well": "{well}"}, "cells", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
     script:
         "../scripts/shared/combine_dfs.py"
 
@@ -290,16 +292,15 @@ rule combine_minimal_phenotype_info:
             SBS_PROCESS_FP
             / "tsvs"
             / get_filename(
-                {"well": wildcards.well, "tile": "{tile}"},
+                {"well": "{well}", "tile": "{tile}"},
                 "minimal_phenotype_info",
                 "tsv",
             ),
+            well=SBS_WELLS,
             tile=SBS_TILES,
         ),
     output:
-        SBS_PROCESS_FP
-        / "hdfs"
-        / get_filename({"well": "{well}"}, "minimal_phenotype_info", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "minimal_phenotype_info", "hdf5"),
     script:
         "../scripts/shared/combine_dfs.py"
 

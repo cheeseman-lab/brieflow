@@ -10,7 +10,6 @@ from lib.shared.eval import plot_plate_heatmap
 
 
 # helper function to load and concatenate hdfs
-# helper function to load and concatenate HDFs
 def load_and_concatenate_hdfs(hdf_files):
     """Load and concatenate HDF files from a provided list into a single DataFrame.
 

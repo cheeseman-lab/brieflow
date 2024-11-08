@@ -60,22 +60,22 @@ fig.savefig(snakemake.output[7])
 _, fig = plot_gene_symbol_histogram(cells, x_cutoff=30)
 fig.savefig(snakemake.output[8])
 
-# # Calculate and print mapped single gene statistics
-# print("Calculating mapped single gene statistics...")
-# cells["mapped_single_gene"] = cells.apply(
-#     lambda x: (
-#         True
-#         if (pd.notnull(x.gene_symbol_0) & pd.isnull(x.gene_symbol_1))
-#         | (x.gene_symbol_0 == x.gene_symbol_1)
-#         else False
-#     ),
-#     axis=1,
-# )
-# print(cells.mapped_single_gene.value_counts())
+# Calculate and print mapped single gene statistics
+print("Calculating mapped single gene statistics...")
+cells["mapped_single_gene"] = cells.apply(
+    lambda x: (
+        True
+        if (pd.notnull(x.gene_symbol_0) & pd.isnull(x.gene_symbol_1))
+        | (x.gene_symbol_0 == x.gene_symbol_1)
+        else False
+    ),
+    axis=1,
+)
+print(cells.mapped_single_gene.value_counts())
 
-# num_rows = len(minimal_phenotype_info)
+num_rows = len(minimal_phenotype_info)
 
-# with open(snakemake.output[9], "w") as eval_stats_file:
-#     eval_stats_file.write(f"Number of cells extracted in sbs step: {num_rows}\n")
-#     eval_stats_file.write("Mapped single gene statistics:\n")
-#     eval_stats_file.write(cells.mapped_single_gene.value_counts().to_string())
+with open(snakemake.output[9], "w") as eval_stats_file:
+    eval_stats_file.write(f"Number of cells extracted in sbs step: {num_rows}\n")
+    eval_stats_file.write("Mapped single gene statistics:\n")
+    eval_stats_file.write(cells.mapped_single_gene.value_counts().to_string())

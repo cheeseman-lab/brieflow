@@ -309,36 +309,9 @@ rule eval_sbs_process:
     conda:
         "../envs/sbs_process.yml"
     input:
-        read_files=lambda wildcards: expand(
-            SBS_PROCESS_FP
-            / "hdfs"
-            / get_filename(
-                {"well": "{well}"},
-                "reads",
-                "hdf5",
-            ),
-            well=SBS_WELLS,
-        ),
-        cell_files=lambda wildcards: expand(
-            SBS_PROCESS_FP
-            / "hdfs"
-            / get_filename(
-                {"well": "{well}"},
-                "cells",
-                "hdf5",
-            ),
-            well=SBS_WELLS,
-        ),
-        minimal_phenotype_info_files=lambda wildcards: expand(
-            SBS_PROCESS_FP
-            / "hdfs"
-            / get_filename(
-                {"well": "{well}"},
-                "minimal_phenotype_info",
-                "hdf5",
-            ),
-            well=SBS_WELLS,
-        ),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "reads", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "minimal_phenotype_info", "hdf5"),
     output:
         SBS_PROCESS_FP / "eval" / "mapping_vs_threshold_peak.png",
         SBS_PROCESS_FP / "eval" / "mapping_vs_threshold_qmin.png",
@@ -349,7 +322,7 @@ rule eval_sbs_process:
         SBS_PROCESS_FP / "eval" / "cell_mapping_heatmap_any.png",
         SBS_PROCESS_FP / "eval" / "reads_per_cell_histogram.png",
         SBS_PROCESS_FP / "eval" / "gene_symbol_histogram.png",
-        # SBS_PROCESS_FP / "eval" / "eval_stats.txt",
+        SBS_PROCESS_FP / "eval" / "eval_stats.txt",
     params:
         df_design_path=config["sbs_process"]["df_design_path"],
     script:

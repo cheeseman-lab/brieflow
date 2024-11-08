@@ -230,7 +230,7 @@ def plot_cell_mapping_heatmap(
 
     Returns:
         pandas.DataFrame: DataFrame used for plotting, optional output, only returns if return_summary=True.
-        np.array: Array of matplotlib Axes objects.
+        matplotlib.figure.Figure: The figure object containing the plot.
     """
     # Mark cells as mapped or unmapped based on provided barcodes or gene symbols
     if mapping_strategy == "barcodes":
@@ -275,16 +275,22 @@ def plot_cell_mapping_heatmap(
 
     if return_summary and return_plot:
         # Plot heatmap
-        fig = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
-        return df_summary, axes
+        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        return df_summary, fig
     elif return_plot:
         # Plot heatmap
-        axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
-        return axes
+        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        return fig
     elif return_summary:
         return df_summary
     else:
         return None
+
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+import matplotlib.ticker as ticker
 
 
 def plot_reads_per_cell_histogram(df, x_cutoff=40):
@@ -295,14 +301,14 @@ def plot_reads_per_cell_histogram(df, x_cutoff=40):
             DataFrame containing the data with columns including 'barcode_count' representing the number of reads
             per cell.
         x_cutoff (int, optional):
-            Cutoff value for the x-axis. Defaults to 20.
-        bins (int, optional):
-            Number of bins for the histogram. Defaults to 40.
+            Cutoff value for the x-axis. Defaults to 40.
 
     Returns:
         pandas.Series: Series containing outlier values exceeding the x_cutoff.
+        matplotlib.figure.Figure: The figure object containing the plot.
     """
-    plt.figure(figsize=(12, 7))
+    # Create the figure and axis
+    fig, ax = plt.subplots(figsize=(12, 7))
     sns.set_style("white")
 
     # Create bins from 0 to x_cutoff (inclusive)
@@ -310,32 +316,32 @@ def plot_reads_per_cell_histogram(df, x_cutoff=40):
 
     # Plot the histogram
     sns.histplot(
-        data=df, x="barcode_count", bins=bins, color="skyblue", edgecolor="black"
+        data=df, x="barcode_count", bins=bins, color="skyblue", edgecolor="black", ax=ax
     )
 
     # Set title and axis labels
-    plt.title("Histogram of Barcode Count", fontsize=16, fontweight="bold")
-    plt.xlabel("Number of ISS reads per cell", fontsize=12)
-    plt.ylabel("Number of cells", fontsize=12)
+    ax.set_title("Histogram of Barcode Count", fontsize=16, fontweight="bold")
+    ax.set_xlabel("Number of ISS reads per cell", fontsize=12)
+    ax.set_ylabel("Number of cells", fontsize=12)
 
     # Find outlier values
     outliers = df[df["barcode_count"] > x_cutoff]["barcode_count"]
 
     # Restrict x-axis to stop at x_cutoff and set integer ticks
-    plt.xlim(0, x_cutoff)
-    plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax.set_xlim(0, x_cutoff)
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     # Format y-axis to use scientific notation
-    plt.gca().yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
-    plt.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
+    ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+    ax.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
 
     # Remove top and right spines
     sns.despine()
 
     # Adjust layout
-    plt.tight_layout()
+    fig.tight_layout()
 
-    return outliers
+    return outliers, fig
 
 
 def plot_gene_symbol_histogram(df, x_cutoff=40):
@@ -346,19 +352,19 @@ def plot_gene_symbol_histogram(df, x_cutoff=40):
             DataFrame containing the data with a column 'gene_symbol_0'.
         x_cutoff (int, optional):
             Cutoff value for the x-axis. Defaults to 40.
-        bins (int, optional):
-            Number of bins for the histogram. Defaults to 40.
 
     Returns:
-        None
+        pandas.Series: Series containing outlier gene symbols with counts exceeding x_cutoff.
+        matplotlib.figure.Figure: The figure object containing the histogram plot.
     """
     # Count occurrences of each unique gene_symbol_0
     gene_symbol_counts = df["gene_symbol_0"].value_counts()
 
-    plt.figure(figsize=(12, 7))
+    # Create figure and axis for the plot
+    fig, ax = plt.subplots(figsize=(12, 7))
     sns.set_style("white")
 
-    # Set bin number
+    # Set bin number based on x_cutoff
     if x_cutoff < 100:
         num_bins = x_cutoff
     else:
@@ -369,28 +375,29 @@ def plot_gene_symbol_histogram(df, x_cutoff=40):
 
     # Plot the histogram
     sns.histplot(
-        data=gene_symbol_counts, bins=bins, color="lightgreen", edgecolor="black"
+        data=gene_symbol_counts, bins=bins, color="lightgreen", edgecolor="black", ax=ax
     )
 
     # Set title and axis labels
-    plt.title("Histogram of Gene Symbol Counts", fontsize=16, fontweight="bold")
-    plt.xlabel("Number of cells per mapped gene", fontsize=12)
-    plt.ylabel("Number of mapped genes", fontsize=12)
+    ax.set_title("Histogram of Gene Symbol Counts", fontsize=16, fontweight="bold")
+    ax.set_xlabel("Number of cells per mapped gene", fontsize=12)
+    ax.set_ylabel("Number of mapped genes", fontsize=12)
 
+    # Identify outlier values
     outliers = gene_symbol_counts[gene_symbol_counts > x_cutoff]
 
     # Restrict x-axis to stop at x_cutoff and set integer ticks
-    plt.xlim(0, x_cutoff)
-    plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax.set_xlim(0, x_cutoff)
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     # Format y-axis to use scientific notation
-    plt.gca().yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
-    plt.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
+    ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+    ax.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
 
     # Remove top and right spines
     sns.despine()
 
     # Adjust layout
-    plt.tight_layout()
+    fig.tight_layout()
 
-    return outliers
+    return outliers, fig

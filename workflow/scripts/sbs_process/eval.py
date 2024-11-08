@@ -33,7 +33,7 @@ fig.savefig(snakemake.output[1])
 fig = plot_read_mapping_heatmap(reads, barcodes, shape="6W_sbs")
 fig.savefig(snakemake.output[2])
 
-df_summary_one, _ = plot_cell_mapping_heatmap(
+df_summary_one, fig = plot_cell_mapping_heatmap(
     cells,
     minimal_phenotype_info,
     barcodes,
@@ -43,29 +43,25 @@ df_summary_one, _ = plot_cell_mapping_heatmap(
     return_summary=True,
 )
 df_summary_one.to_csv(snakemake.output[3], index=False, sep="\t")
-plt.gcf().savefig(snakemake.output[4])
-plt.close()
+fig.savefig(snakemake.output[4])
 
-# df_summary_any, _ = plot_cell_mapping_heatmap(
-#     cells,
-#     minimal_phenotype_info,
-#     barcodes,
-#     mapping_to="any",
-#     mapping_strategy="gene_symbols",
-#     shape="6W_sbs",
-#     return_summary=True,
-# )
-# df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")
-# plt.gcf().savefig(snakemake.output[6])
-# plt.close()
+df_summary_any, fig = plot_cell_mapping_heatmap(
+    cells,
+    minimal_phenotype_info,
+    barcodes,
+    mapping_to="any",
+    mapping_strategy="gene_symbols",
+    shape="6W_sbs",
+    return_summary=True,
+)
+df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")
+fig.savefig(snakemake.output[6])
 
-# outliers = plot_reads_per_cell_histogram(cells, x_cutoff=20)
-# plt.savefig(snakemake.output[7])
-# plt.close()
+_, fig = plot_reads_per_cell_histogram(cells, x_cutoff=20)
+fig.savefig(snakemake.output[7])
 
-# outliers = plot_gene_symbol_histogram(cells, x_cutoff=30)
-# plt.gcf().savefig(snakemake.output[8])
-# plt.close()
+_, fig = plot_gene_symbol_histogram(cells, x_cutoff=30)
+fig.savefig(snakemake.output[8])
 
 # # Calculate and print mapped single gene statistics
 # print("Calculating mapped single gene statistics...")

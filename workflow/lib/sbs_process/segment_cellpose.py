@@ -83,6 +83,7 @@ def segment_cellpose(
                 rgb,
                 nuclei_diameter,
                 cell_diameter,
+                cyto_model=cyto_model,
                 reconcile=reconcile,
                 **cellpose_kwargs,
             )

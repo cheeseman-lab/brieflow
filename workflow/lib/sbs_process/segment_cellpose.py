@@ -28,7 +28,7 @@ def segment_cellpose(
     cyto_index,
     nuclei_diameter,
     cell_diameter,
-    cyto_model="cyto",
+    cyto_model="cyto3",
     cellpose_kwargs=dict(),
     cells=True,
     reconcile="consensus",
@@ -43,7 +43,7 @@ def segment_cellpose(
         cyto_index (int): Index of cytoplasmic channel.
         nuclei_diameter (int): Estimated diameter of nuclei.
         cell_diameter (int): Estimated diameter of cells.
-        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto'.
+        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
         logscale (bool, optional): Whether to apply logarithmic transformation to image data.
         cellpose_kwargs (dict, optional): Additional keyword arguments for Cellpose.
         cells (bool, optional): Whether to segment both nuclei and cells or just nuclei.
@@ -152,7 +152,7 @@ def segment_cellpose_rgb(
     nuclei_diameter,
     cell_diameter,
     gpu=False,
-    cyto_model="cyto",
+    cyto_model="cyto3",
     reconcile="consensus",
     remove_edges=True,
     return_counts=False,
@@ -164,7 +164,7 @@ def segment_cellpose_rgb(
         nuclei_diameter (int): Diameter of nuclei for segmentation.
         cell_diameter (int): Diameter of cells for segmentation.
         gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
-        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto'.
+        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
         logscale (bool, optional): Whether to apply log scaling to the cytoplasmic channel. Default is True.
         remove_edges (bool, optional): Whether to remove nuclei and cells touching the image edges. Default is True.

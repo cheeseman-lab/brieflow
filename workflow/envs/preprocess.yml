@@ -3,6 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - nd2reader
+  - nd2
+  - xarray
   - scikit-image
   - joblib

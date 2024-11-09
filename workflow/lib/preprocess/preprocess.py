@@ -78,8 +78,7 @@ def extract_metadata_tile(files: list[str], z_interval: int = 4, verbose: bool =
 
 
 def nd2_to_tiff(file: str, channel_order_flip: bool = False, verbose: bool = False) -> np.ndarray:
-    """Converts a single ND2 file with one field of view and multiple channels to a multidimensional numpy array, 
-    ensuring the structure is CYX.
+    """Converts a single ND2 file with one field of view and multiple channels to a multidimensional numpy array, ensuring the structure is CYX.
 
     Args:
         file (str): Path to the ND2 file.

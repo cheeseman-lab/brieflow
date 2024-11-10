@@ -235,8 +235,8 @@ rule call_cells:
         "../scripts/sbs_process/call_cells.py"
 
 
-# Extract minimal phenotype features
-rule extract_phenotype_minimal:
+# Extract minimal sbs info
+rule extract_sbs_info:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -246,11 +246,9 @@ rule extract_phenotype_minimal:
     output:
         SBS_PROCESS_FP
         / "tsvs"
-        / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "minimal_phenotype_info", "tsv"
-        ),
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "sbs_info", "tsv"),
     script:
-        "../scripts/sbs_process/extract_phenotype_minimal.py"
+        "../scripts/sbs_process/extract_sbs_info.py"
 
 
 # Rule for combining read results from different wells
@@ -289,8 +287,8 @@ rule combine_cells:
         "../scripts/shared/combine_dfs.py"
 
 
-# Rule for combining phenotypic info results from different wells
-rule combine_minimal_phenotype_info:
+# Rule for combining sbs info results from different wells
+rule combine_sbs_info:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -299,14 +297,14 @@ rule combine_minimal_phenotype_info:
             / "tsvs"
             / get_filename(
                 {"well": "{well}", "tile": "{tile}"},
-                "minimal_phenotype_info",
+                "sbs_info",
                 "tsv",
             ),
             well=SBS_WELLS,
             tile=SBS_TILES,
         ),
     output:
-        SBS_PROCESS_FP / "hdfs" / get_filename({}, "minimal_phenotype_info", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "sbs_info", "hdf5"),
     script:
         "../scripts/shared/combine_dfs.py"
 
@@ -339,7 +337,7 @@ rule eval_mapping:
     input:
         SBS_PROCESS_FP / "hdfs" / get_filename({}, "reads", "hdf5"),
         SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
-        SBS_PROCESS_FP / "hdfs" / get_filename({}, "minimal_phenotype_info", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "sbs_info", "hdf5"),
     output:
         SBS_PROCESS_FP / "eval" / "mapping_vs_threshold_peak.png",
         SBS_PROCESS_FP / "eval" / "mapping_vs_threshold_qmin.png",

@@ -1,3 +1,5 @@
+"""Functions for evaluating segmentation results."""
+
 from pathlib import Path
 
 import pandas as pd

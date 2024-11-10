@@ -192,15 +192,13 @@ rule all:
         expand(
             SBS_PROCESS_FP
             / "tsvs"
-            / get_filename(
-                {"well": "{well}", "tile": "{tile}"}, "minimal_phenotype_info", "tsv"
-            ),
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "sbs_info", "tsv"),
             well=SBS_WELLS,
             tile=SBS_TILES,
         ),
         SBS_PROCESS_FP / "hdfs" / get_filename({}, "reads", "hdf5"),
         SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
-        SBS_PROCESS_FP / "hdfs" / get_filename({}, "minimal_phenotype_info", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "sbs_info", "hdf5"),
         # sbs eval
         SBS_PROCESS_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
         SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",

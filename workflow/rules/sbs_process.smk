@@ -159,7 +159,7 @@ rule segment:
         SBS_PROCESS_FP
         / "tsvs"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsvs"
+            {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsv"
         ),
     params:
         dapi_index=config["sbs_process"]["dapi_index"],
@@ -315,12 +315,16 @@ rule eval_segmentation:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_FP
-        / "tsvs"
-        / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsvs"
+        segmentation_stats_paths=lambda wildcards: expand(
+            SBS_PROCESS_FP
+            / "tsvs"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsv"
+            ),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
         ),
-        SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
+        cells_path=SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
     output:
         SBS_PROCESS_FP / "eval" / "segmentation_overview.tsv",
     script:

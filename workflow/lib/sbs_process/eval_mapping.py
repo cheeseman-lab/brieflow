@@ -196,7 +196,7 @@ def plot_cell_mapping_heatmap(
         mapping_to (str):
             Cells to include as 'mapped'. 'one' only includes cells mapping to a single barcode, 'any' includes cells
             mapping to at least 1 barcode. Options are {'one', 'any'}.
-        mapping_strategy (str): Strategy to use for mapping cells. Options are {'barcodes', 'gene_symbols'}.
+        mapping_strategy (str): Strategy to use for mapping cells. Options are {'barcodes', 'gene symbols'}.
         shape (str, optional):
             Shape of subplot for each well used in plot_plate_heatmap. Defaults to 'square'.
         plate (str):
@@ -217,12 +217,12 @@ def plot_cell_mapping_heatmap(
         df_cells.loc[:, ["mapped_0", "mapped_1"]] = (
             df_cells[["cell_barcode_0", "cell_barcode_1"]].isin(barcodes).values
         )
-    elif mapping_strategy == "gene_symbols":
+    elif mapping_strategy == "gene symbols":
         df_cells["mapped_0"] = (~df_cells["gene_symbol_0"].isna()).astype(int)
         df_cells["mapped_1"] = (~df_cells["gene_symbol_1"].isna()).astype(int)
     else:
         raise ValueError(
-            f"Invalid mapping strategy: {mapping_strategy}. Choose 'barcodes' or 'gene_symbols'."
+            f"Invalid mapping strategy: {mapping_strategy}. Choose 'barcodes' or 'gene symbols'."
         )
 
     # Merge cell mapping information with sbs info
@@ -234,10 +234,10 @@ def plot_cell_mapping_heatmap(
 
     # Determine mapping criteria and calculate mapping rates
     if mapping_to == "one":
-        metric = "fraction of cells mapping to 1 barcode"
+        metric = f"fraction of cells mapping to 1 {mapping_strategy}"
         df = df.assign(mapped=lambda x: x[["mapped_0", "mapped_1"]].sum(axis=1) == 1)
     elif mapping_to == "any":
-        metric = "fraction of cells mapping to >=1 barcode"
+        metric = f"fraction of cells mapping to >=1 {mapping_strategy}"
         df = df.assign(mapped=lambda x: x[["mapped_0", "mapped_1"]].sum(axis=1) > 0)
     else:
         raise ValueError(f"mapping_to={mapping_to} not implemented")

@@ -69,7 +69,7 @@ def parse_filename(filename: str) -> tuple:
 
         for element in elements:
             if element.startswith("W"):
-                data_location["well"] = element  # well stays as string
+                data_location["well"] = element[1:]  # remove 'W'
             elif element.startswith("T"):
                 data_location["tile"] = int(
                     element[1:]

@@ -1,6 +1,6 @@
 import pandas as pd
 
-from lib.sbs_process.eval import (
+from lib.sbs_process.eval_mapping import (
     plot_mapping_vs_threshold,
     plot_mapping_vs_threshold,
     plot_read_mapping_heatmap,
@@ -18,7 +18,7 @@ barcodes = df_pool["prefix"]
 # Concatenate files
 reads = pd.read_hdf(snakemake.input[0])
 cells = pd.read_hdf(snakemake.input[1])
-minimal_phenotype_info = pd.read_hdf(snakemake.input[2])
+sbs_info = pd.read_hdf(snakemake.input[2])
 
 _, fig = plot_mapping_vs_threshold(reads, barcodes, "peak")
 fig.savefig(snakemake.output[0])
@@ -31,10 +31,10 @@ fig.savefig(snakemake.output[2])
 
 df_summary_one, fig = plot_cell_mapping_heatmap(
     cells,
-    minimal_phenotype_info,
+    sbs_info,
     barcodes,
     mapping_to="one",
-    mapping_strategy="gene_symbols",
+    mapping_strategy="gene symbols",
     shape="6W_sbs",
     return_summary=True,
 )
@@ -43,10 +43,10 @@ fig.savefig(snakemake.output[4])
 
 df_summary_any, fig = plot_cell_mapping_heatmap(
     cells,
-    minimal_phenotype_info,
+    sbs_info,
     barcodes,
     mapping_to="any",
-    mapping_strategy="gene_symbols",
+    mapping_strategy="gene symbols",
     shape="6W_sbs",
     return_summary=True,
 )
@@ -60,20 +60,14 @@ _, fig = plot_gene_symbol_histogram(cells, x_cutoff=30)
 fig.savefig(snakemake.output[8])
 
 
-# Calculate and print mapped single gene statistics
-cells["mapped_single_gene"] = cells.apply(
-    lambda x: (
-        True
-        if (pd.notnull(x.gene_symbol_0) & pd.isnull(x.gene_symbol_1))
-        | (x.gene_symbol_0 == x.gene_symbol_1)
-        else False
-    ),
-    axis=1,
-)
+def mapping_overview(sbs_info, cells):
+    # Group by 'well' and count the number of cells per well
+    cell_counts = sbs_info.groupby("well").size().reset_index(name="total_cells")
 
-num_rows = len(minimal_phenotype_info)
+    return cell_counts
 
-with open(snakemake.output[9], "w") as eval_stats_file:
-    eval_stats_file.write(f"Number of cells extracted in sbs step: {num_rows}\n")
-    eval_stats_file.write("Mapped single gene statistics:\n")
-    eval_stats_file.write(cells.mapped_single_gene.value_counts().to_string())
+
+# Get the mapping overview
+mapping_overview_df = mapping_overview(sbs_info, cells)
+# Save the mapping overview
+mapping_overview_df.to_csv(snakemake.output[9], sep="\t", index=False)

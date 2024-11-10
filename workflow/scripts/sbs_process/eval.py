@@ -1,5 +1,4 @@
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from lib.sbs_process.eval import (
     plot_mapping_vs_threshold,
@@ -59,6 +58,7 @@ fig.savefig(snakemake.output[7])
 
 _, fig = plot_gene_symbol_histogram(cells, x_cutoff=30)
 fig.savefig(snakemake.output[8])
+
 
 # Calculate and print mapped single gene statistics
 print("Calculating mapped single gene statistics...")

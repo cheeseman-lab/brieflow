@@ -156,12 +156,18 @@ rule segment:
         SBS_PROCESS_FP
         / "images"
         / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tiff"),
+        SBS_PROCESS_FP
+        / "tsvs"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsvs"
+        ),
     params:
         dapi_index=config["sbs_process"]["dapi_index"],
         cyto_index=config["sbs_process"]["cyto_index"],
         nuclei_diameter=config["sbs_process"]["nuclei_diameter"],
         cell_diameter=config["sbs_process"]["cell_diameter"],
         cyto_model=config["sbs_process"]["cyto_model"],
+        return_counts=True,
     script:
         "../scripts/sbs_process/segment_cellpose.py"
 
@@ -305,7 +311,23 @@ rule combine_minimal_phenotype_info:
         "../scripts/shared/combine_dfs.py"
 
 
-rule eval_sbs_process:
+rule eval_segmentation:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        SBS_PROCESS_FP
+        / "tsvs"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsvs"
+        ),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
+    output:
+        SBS_PROCESS_FP / "eval" / "segmentation_overview.tsv",
+    script:
+        "../scripts/sbs_process/eval_segmentation.py"
+
+
+rule eval_mapping:
     conda:
         "../envs/sbs_process.yml"
     input:

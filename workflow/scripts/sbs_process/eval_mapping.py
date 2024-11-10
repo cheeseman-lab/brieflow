@@ -61,10 +61,73 @@ fig.savefig(snakemake.output[8])
 
 
 def mapping_overview(sbs_info, cells):
-    # Group by 'well' and count the number of cells per well
-    cell_counts = sbs_info.groupby("well").size().reset_index(name="total_cells")
+    # Count the total number of cells per well
+    cell_counts = sbs_info.groupby("well").size().reset_index(name="total_cells__count")
 
-    return cell_counts
+    # Count and calculate percent of cells with 1 barcode mapping per well
+    one_barcode_mapping = (
+        cells[cells["barcode_count"] == 1]
+        .groupby("well")
+        .size()
+        .reset_index(name="1_barcode_cells__count")
+    )
+    one_barcode_mapping["1_barcode_cells__percent"] = (
+        one_barcode_mapping["1_barcode_cells__count"]
+        / cell_counts["total_cells__count"]
+        * 100
+    )
+
+    # Count and calculate percent of cells with >=1 barcode mapping per well
+    multiple_barcode_mapping = (
+        cells[cells["barcode_count"] >= 1]
+        .groupby("well")
+        .size()
+        .reset_index(name="1_or_more_barcodes__count")
+    )
+    multiple_barcode_mapping["1_or_more_barcodes__percent"] = (
+        multiple_barcode_mapping["1_or_more_barcodes__count"]
+        / cell_counts["total_cells__count"]
+        * 100
+    )
+
+    # Count and calculate percent of cells with 1 gene symbol mapping per well
+    one_gene_mapping = (
+        cells[(~cells["gene_symbol_0"].isna()) & (cells["gene_symbol_1"].isna())]
+        .groupby("well")
+        .size()
+        .reset_index(name="1_gene_cells__count")
+    )
+    one_gene_mapping["1_gene_cells__percent"] = (
+        one_gene_mapping["1_gene_cells__count"]
+        / cell_counts["total_cells__count"]
+        * 100
+    )
+
+    # Count and calculate percent of cells with >=1 gene symbol mapping per well
+    multiple_gene_mapping = (
+        cells[(~cells["gene_symbol_0"].isna()) | (~cells["gene_symbol_1"].isna())]
+        .groupby("well")
+        .size()
+        .reset_index(name="1_or_more_genes__count")
+    )
+    multiple_gene_mapping["1_or_more_genes__percent"] = (
+        multiple_gene_mapping["1_or_more_genes__count"]
+        / cell_counts["total_cells__count"]
+        * 100
+    )
+
+    # Merge all counts and percents into a single DataFrame
+    overview_df = (
+        cell_counts.merge(one_barcode_mapping, on="well", how="left")
+        .merge(multiple_barcode_mapping, on="well", how="left")
+        .merge(one_gene_mapping, on="well", how="left")
+        .merge(multiple_gene_mapping, on="well", how="left")
+    )
+
+    # Fill NaN values with 0 (for cases where no cells meet criteria)
+    overview_df.fillna(0, inplace=True)
+
+    return overview_df
 
 
 # Get the mapping overview

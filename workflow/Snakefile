@@ -203,6 +203,8 @@ rule all:
         SBS_PROCESS_FP / "hdfs" / get_filename({}, "minimal_phenotype_info", "hdf5"),
         # sbs eval
         SBS_PROCESS_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
+        SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
+        SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
         SBS_PROCESS_FP / "eval" / "mapping_vs_threshold_peak.png",
         SBS_PROCESS_FP / "eval" / "mapping_vs_threshold_qmin.png",
         SBS_PROCESS_FP / "eval" / "read_mapping_heatmap.png",

@@ -61,7 +61,6 @@ fig.savefig(snakemake.output[8])
 
 
 # Calculate and print mapped single gene statistics
-print("Calculating mapped single gene statistics...")
 cells["mapped_single_gene"] = cells.apply(
     lambda x: (
         True
@@ -71,7 +70,6 @@ cells["mapped_single_gene"] = cells.apply(
     ),
     axis=1,
 )
-print(cells.mapped_single_gene.value_counts())
 
 num_rows = len(minimal_phenotype_info)
 

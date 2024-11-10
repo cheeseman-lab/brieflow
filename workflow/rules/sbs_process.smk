@@ -327,6 +327,8 @@ rule eval_segmentation:
         cells_path=SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
     output:
         SBS_PROCESS_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
+        SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
+        SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
     script:
         "../scripts/sbs_process/eval_segmentation.py"
 

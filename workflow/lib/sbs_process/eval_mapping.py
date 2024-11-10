@@ -381,3 +381,95 @@ def plot_gene_symbol_histogram(df, x_cutoff=40):
     fig.tight_layout()
 
     return outliers, fig
+
+
+import pandas as pd
+
+
+def mapping_overview(sbs_info, cells):
+    """Generate an overview of cell counts and mapping statistics per well.
+
+    This function calculates the total number of cells per well and determines the counts and
+    percentages of cells with specific barcode and gene symbol mappings. It returns a summary
+    DataFrame with counts and percentages for each well, detailing:
+        - Total cells
+        - Cells with exactly 1 barcode mapping
+        - Cells with 1 or more barcode mappings
+        - Cells with exactly 1 gene symbol mapping
+        - Cells with 1 or more gene symbol mappings
+
+    Args:
+        sbs_info (pandas.DataFrame): DataFrame with information on cells, including the 'well' column.
+        cells (pandas.DataFrame): DataFrame containing cell data with 'well', 'barcode_count', 'gene_symbol_0',
+                                  and 'gene_symbol_1' columns.
+
+    Returns:
+        pandas.DataFrame: A summary DataFrame with mapping counts and percentages per well.
+    """
+    # Count the total number of cells per well
+    cell_counts = sbs_info.groupby("well").size().reset_index(name="total_cells__count")
+
+    # Count and calculate percent of cells with 1 barcode mapping per well
+    one_barcode_mapping = (
+        cells[cells["barcode_count"] == 1]
+        .groupby("well")
+        .size()
+        .reset_index(name="1_barcode_cells__count")
+    )
+    one_barcode_mapping["1_barcode_cells__percent"] = (
+        one_barcode_mapping["1_barcode_cells__count"]
+        / cell_counts["total_cells__count"]
+        * 100
+    )
+
+    # Count and calculate percent of cells with >=1 barcode mapping per well
+    multiple_barcode_mapping = (
+        cells[cells["barcode_count"] >= 1]
+        .groupby("well")
+        .size()
+        .reset_index(name="1_or_more_barcodes__count")
+    )
+    multiple_barcode_mapping["1_or_more_barcodes__percent"] = (
+        multiple_barcode_mapping["1_or_more_barcodes__count"]
+        / cell_counts["total_cells__count"]
+        * 100
+    )
+
+    # Count and calculate percent of cells with 1 gene symbol mapping per well
+    one_gene_mapping = (
+        cells[(~cells["gene_symbol_0"].isna()) & (cells["gene_symbol_1"].isna())]
+        .groupby("well")
+        .size()
+        .reset_index(name="1_gene_cells__count")
+    )
+    one_gene_mapping["1_gene_cells__percent"] = (
+        one_gene_mapping["1_gene_cells__count"]
+        / cell_counts["total_cells__count"]
+        * 100
+    )
+
+    # Count and calculate percent of cells with >=1 gene symbol mapping per well
+    multiple_gene_mapping = (
+        cells[(~cells["gene_symbol_0"].isna()) | (~cells["gene_symbol_1"].isna())]
+        .groupby("well")
+        .size()
+        .reset_index(name="1_or_more_genes__count")
+    )
+    multiple_gene_mapping["1_or_more_genes__percent"] = (
+        multiple_gene_mapping["1_or_more_genes__count"]
+        / cell_counts["total_cells__count"]
+        * 100
+    )
+
+    # Merge all counts and percents into a single DataFrame
+    mapping_overview_df = (
+        cell_counts.merge(one_barcode_mapping, on="well", how="left")
+        .merge(multiple_barcode_mapping, on="well", how="left")
+        .merge(one_gene_mapping, on="well", how="left")
+        .merge(multiple_gene_mapping, on="well", how="left")
+    )
+
+    # Fill NaN values with 0 (for cases where no cells meet criteria)
+    mapping_overview_df.fillna(0, inplace=True)
+
+    return mapping_overview_df

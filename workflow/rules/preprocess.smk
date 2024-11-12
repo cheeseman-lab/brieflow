@@ -141,3 +141,59 @@ rule calculate_ic_phenotype:
         threading=True,
     script:
         "../scripts/preprocess/calculate_ic_field.py"
+
+
+# rule for all preprocessing steps
+rule all_preprocess:
+    input:
+        expand(
+            PREPROCESS_FP
+            / "metadata"
+            / "sbs"
+            / get_filename({"well": "{well}", "cycle": "{cycle}"}, "metadata", "tsv"),
+            well=SBS_WELLS,
+            cycle=SBS_CYCLES,
+        ),
+        expand(
+            PREPROCESS_FP
+            / "metadata"
+            / "phenotype"
+            / get_filename({"well": "{well}"}, "metadata", "tsv"),
+            well=SBS_WELLS,
+        ),
+        expand(
+            PREPROCESS_FP
+            / "images"
+            / "sbs"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
+                "image",
+                "tiff",
+            ),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+            cycle=SBS_CYCLES,
+        ),
+        expand(
+            PREPROCESS_FP
+            / "images"
+            / "phenotype"
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "image", "tiff"),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        expand(
+            PREPROCESS_FP
+            / "ic_fields"
+            / "sbs"
+            / get_filename({"well": "{well}", "cycle": "{cycle}"}, "ic_field", "tiff"),
+            well=SBS_WELLS,
+            cycle=SBS_CYCLES,
+        ),
+        expand(
+            PREPROCESS_FP
+            / "ic_fields"
+            / "phenotype"
+            / get_filename({"well": "{well}"}, "ic_field", "tiff"),
+            well=SBS_WELLS,
+        ),

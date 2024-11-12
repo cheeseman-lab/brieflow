@@ -29,6 +29,8 @@ rule extract_metadata_sbs:
         / "metadata"
         / "sbs"
         / get_filename({"well": "{well}", "cycle": "{cycle}"}, "metadata", "tsv"),
+    params:
+        z_interval=None,
     script:
         "../scripts/preprocess/extract_metadata_tile.py"
 
@@ -44,6 +46,8 @@ rule extract_metadata_phenotype:
         / "metadata"
         / "phenotype"
         / get_filename({"well": "{well}"}, "metadata", "tsv"),
+    params:
+        z_interval=4,
     script:
         "../scripts/preprocess/extract_metadata_tile.py"
 

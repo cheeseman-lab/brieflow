@@ -26,16 +26,14 @@ preprocess:
 
 # SBS processing
 sbs_process:
-  # fixed params for sbs processing
   suffix: sbs_process
+  segmentation_cycle: -1 # apply ic field from last sequencing cycle
   dapi_index: 0
   cyto_index: 4
-  bases: "GTAC"
-  df_design_path: "config/pool10_design.tsv"
-  # params dumped to config file from 2.configure_sbs_process_params.ipynb
-  segmentation_cycle: -1
   nuclei_diameter: 13.2
   cell_diameter: 19.5
   cyto_model: "cyto3"
   threshold_peaks: 315
+  bases: "GTAC"
+  df_design_path: "config/pool10_design.tsv"
   q_min: 0

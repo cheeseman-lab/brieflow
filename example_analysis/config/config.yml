@@ -12,19 +12,17 @@
 
 # Suffixes:
 #   Each subsection contains a 'suffix' key that defines the folder under
-#   'output_fp' where the results of that section are put.
 
 
 # General options
 all:
-  root_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/analysis_root"
-  output_fp: "brieflow_output/"
+  root_fp: "analysis_root/"
 
 # Preprocessing
 preprocess:
   suffix: preprocess
-  sbs_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/sbs_samples.tsv"
-  phenotype_samples_fp: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/phenotype_samples.tsv"
+  sbs_samples_fp: "config/sbs_samples.tsv"
+  phenotype_samples_fp: "config/phenotype_samples.tsv"
 
 # SBS processing
 sbs_process:
@@ -37,6 +35,5 @@ sbs_process:
   cyto_model: "cyto3"
   threshold_peaks: 315
   bases: "GTAC"
-  df_design_path: "/Users/roshankern/Desktop/Github/BrieFlow/example_analysis/config/pool10_design.tsv"
+  df_design_path: "config/pool10_design.tsv"
   q_min: 0
-

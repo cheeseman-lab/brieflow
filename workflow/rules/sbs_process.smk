@@ -156,12 +156,18 @@ rule segment:
         SBS_PROCESS_FP
         / "images"
         / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tiff"),
+        SBS_PROCESS_FP
+        / "tsvs"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsv"
+        ),
     params:
         dapi_index=config["sbs_process"]["dapi_index"],
         cyto_index=config["sbs_process"]["cyto_index"],
         nuclei_diameter=config["sbs_process"]["nuclei_diameter"],
         cell_diameter=config["sbs_process"]["cell_diameter"],
         cyto_model=config["sbs_process"]["cyto_model"],
+        return_counts=True,
     script:
         "../scripts/sbs_process/segment_cellpose.py"
 
@@ -229,8 +235,8 @@ rule call_cells:
         "../scripts/sbs_process/call_cells.py"
 
 
-# Extract minimal phenotype features
-rule extract_phenotype_minimal:
+# Extract minimal sbs info
+rule extract_sbs_info:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -240,11 +246,9 @@ rule extract_phenotype_minimal:
     output:
         SBS_PROCESS_FP
         / "tsvs"
-        / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "minimal_phenotype_info", "tsv"
-        ),
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "sbs_info", "tsv"),
     script:
-        "../scripts/sbs_process/extract_phenotype_minimal.py"
+        "../scripts/sbs_process/extract_sbs_info.py"
 
 
 # Rule for combining read results from different wells
@@ -255,11 +259,12 @@ rule combine_reads:
         lambda wildcards: expand(
             SBS_PROCESS_FP
             / "tsvs"
-            / get_filename({"well": wildcards.well, "tile": "{tile}"}, "reads", "tsv"),
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "reads", "tsv"),
+            well=SBS_WELLS,
             tile=SBS_TILES,
         ),
     output:
-        SBS_PROCESS_FP / "hdfs" / get_filename({"well": "{well}"}, "reads", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "reads", "hdf5"),
     script:
         "../scripts/shared/combine_dfs.py"
 
@@ -272,17 +277,18 @@ rule combine_cells:
         lambda wildcards: expand(
             SBS_PROCESS_FP
             / "tsvs"
-            / get_filename({"well": wildcards.well, "tile": "{tile}"}, "cells", "tsv"),
+            / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tsv"),
+            well=SBS_WELLS,
             tile=SBS_TILES,
         ),
     output:
-        SBS_PROCESS_FP / "hdfs" / get_filename({"well": "{well}"}, "cells", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
     script:
         "../scripts/shared/combine_dfs.py"
 
 
-# Rule for combining phenotypic info results from different wells
-rule combine_minimal_phenotype_info:
+# Rule for combining sbs info results from different wells
+rule combine_sbs_info:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -290,15 +296,60 @@ rule combine_minimal_phenotype_info:
             SBS_PROCESS_FP
             / "tsvs"
             / get_filename(
-                {"well": wildcards.well, "tile": "{tile}"},
-                "minimal_phenotype_info",
+                {"well": "{well}", "tile": "{tile}"},
+                "sbs_info",
                 "tsv",
             ),
+            well=SBS_WELLS,
             tile=SBS_TILES,
         ),
     output:
-        SBS_PROCESS_FP
-        / "hdfs"
-        / get_filename({"well": "{well}"}, "minimal_phenotype_info", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "sbs_info", "hdf5"),
     script:
         "../scripts/shared/combine_dfs.py"
+
+
+rule eval_segmentation:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        segmentation_stats_paths=lambda wildcards: expand(
+            SBS_PROCESS_FP
+            / "tsvs"
+            / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsv"
+            ),
+            well=SBS_WELLS,
+            tile=SBS_TILES,
+        ),
+        cells_path=SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
+    output:
+        SBS_PROCESS_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
+        SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
+        SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
+    script:
+        "../scripts/sbs_process/eval_segmentation.py"
+
+
+rule eval_mapping:
+    conda:
+        "../envs/sbs_process.yml"
+    input:
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "reads", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
+        SBS_PROCESS_FP / "hdfs" / get_filename({}, "sbs_info", "hdf5"),
+    output:
+        SBS_PROCESS_FP / "eval" / "mapping" / "mapping_vs_threshold_peak.png",
+        SBS_PROCESS_FP / "eval" / "mapping" / "mapping_vs_threshold_qmin.png",
+        SBS_PROCESS_FP / "eval" / "mapping" / "read_mapping_heatmap.png",
+        SBS_PROCESS_FP / "eval" / "mapping" / "cell_mapping_heatmap_one.tsv",
+        SBS_PROCESS_FP / "eval" / "mapping" / "cell_mapping_heatmap_one.png",
+        SBS_PROCESS_FP / "eval" / "mapping" / "cell_mapping_heatmap_any.tsv",
+        SBS_PROCESS_FP / "eval" / "mapping" / "cell_mapping_heatmap_any.png",
+        SBS_PROCESS_FP / "eval" / "mapping" / "reads_per_cell_histogram.png",
+        SBS_PROCESS_FP / "eval" / "mapping" / "gene_symbol_histogram.png",
+        SBS_PROCESS_FP / "eval" / "mapping" / "mapping_overview.tsv",
+    params:
+        df_design_path=config["sbs_process"]["df_design_path"],
+    script:
+        "../scripts/sbs_process/eval_mapping.py"

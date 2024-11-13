@@ -1,3 +1,4 @@
+
 # BrieFlow configuration file
 
 # Defining samples:
@@ -6,34 +7,28 @@
 #     phenotype_samples.tsv: sample_fp, well, tile
 
 # Paths:
-#   Paths are resolved through the following rules:
-#     1. If the path is absolute, the path is parsed as-is
-#     2. If the path is not absolute, the path at 'root' is appended to it
+#   Paths are resolved relative to the directory the workflow is run from
 
 # Suffixes:
-#   Each subsection contains a 'suffix' key that defines the folder under
+#   Each subsection contains a 'suffix' key that defines the folder for saving process files
 
+# Parameters:
 
-# General options
 all:
-  root_fp: "analysis_root/"
-
-# Preprocessing
+  root_fp: analysis_root/
 preprocess:
+  phenotype_samples_fp: config/phenotype_samples.tsv
+  sbs_samples_fp: config/sbs_samples.tsv
   suffix: preprocess
-  sbs_samples_fp: "config/sbs_samples.tsv"
-  phenotype_samples_fp: "config/phenotype_samples.tsv"
-
-# SBS processing
 sbs_process:
-  suffix: sbs_process
-  segmentation_cycle: -1 # apply ic field from last sequencing cycle
-  dapi_index: 0
-  cyto_index: 4
-  nuclei_diameter: 13.2
+  bases: GTAC
   cell_diameter: 19.5
-  cyto_model: "cyto3"
-  threshold_peaks: 315
-  bases: "GTAC"
-  df_design_path: "config/pool10_design.tsv"
+  cyto_index: 4
+  cyto_model: cyto3
+  dapi_index: 0
+  df_design_path: config/pool10_design.tsv
+  nuclei_diameter: 13.2
   q_min: 0
+  segmentation_cycle: -1
+  suffix: sbs_process
+  threshold_peaks: 315

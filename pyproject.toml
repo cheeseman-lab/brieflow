@@ -11,9 +11,9 @@ license = { file = "LICENSE" }
 dependencies = []
 
 [tool.setuptools]
-package-dir = {"" = "workflow/lib"}
-packages = ["preprocess"]
-include-package-data = true
+package-dir = {"" = "workflow"}
+packages = ["lib"]
+
 
 [tool.ruff]
 

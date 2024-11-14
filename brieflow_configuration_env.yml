@@ -1,4 +1,4 @@
-name: brieflow_workflows
+name: brieflow_configuration
 channels:
   - conda-forge
   - bioconda
@@ -6,10 +6,13 @@ channels:
 dependencies:
   - python=3.11
   - snakemake=8
-  - coincbc=2.10.12 # Pinned because need this version specifically. Should check if relevant across machines.
   - pip
   - ipykernel
   - pandas
   - numpy
+  - pyyaml
+  - scikit-image
+  - microfilm
+  - seaborn
   - pip:
       - -e .

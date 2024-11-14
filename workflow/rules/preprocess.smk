@@ -3,18 +3,7 @@ from pathlib import Path
 from lib.shared.file_utils import get_filename
 from lib.preprocess.file_utils import get_sample_fps
 
-# PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
 PREPROCESS_FP = ROOT_FP / "preprocess"
-
-# Load the sample TSV files with pandas
-SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])
-sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
-PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
-phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
-
-# Log the shape of each DataFrame
-# print(f"SBS samples shape: {sbs_samples.shape}")
-# print(f"Phenotype samples shape: {phenotype_samples.shape}")
 
 
 # Extract metadata for SBS images

@@ -14,29 +14,31 @@ PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 
 # load data for samples (this should go into helper function and be stored better)
 # Load the sample TSV files with pandas
-sbs_samples = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
-sbs_samples = sbs_samples.sort_values(by=["well", "tile", "cycle"])
-SBS_WELLS = list(sbs_samples["well"].unique())
-SBS_TILES = list(sbs_samples["tile"].unique())
-SBS_CYCLES = list(sbs_samples["cycle"].unique())
+sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
+sbs_samples_df = sbs_samples_df.sort_values(by=["well", "tile", "cycle"])
+SBS_WELLS = list(sbs_samples_df["well"].unique())
+SBS_TILES = list(sbs_samples_df["tile"].unique())
+SBS_CYCLES = list(sbs_samples_df["cycle"].unique())
 # TODO: unrestrict wells and tiles after testing
-# SBS_WELLS = ["A1"]
-# SBS_TILES = [1]
+SBS_WELLS = ["A1"]
+SBS_TILES = [1]
 
-phenotype_samples = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
-phenotype_samples = phenotype_samples.sort_values(by=["well", "tile"])
-PHENOTYPE_WELLS = list(sbs_samples["well"].unique())
-PHENOTYPE_TILES = list(sbs_samples["tile"].unique())
-
-# Print the paths
-# print(f"Root path: {ROOT_FP}")
+phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
+phenotype_samples_df = phenotype_samples_df.sort_values(by=["well", "tile"])
+PHENOTYPE_WELLS = list(phenotype_samples_df["well"].unique())
+PHENOTYPE_TILES = list(phenotype_samples_df["tile"].unique())
 
 
 include: "rules/preprocess.smk"
-include: "rules/sbs_process.smk"
 
 
-PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
+if "sbs_process" in config:
+
+    include: "rules/sbs_process.smk"
+
+
+PREPROCESS_FP = ROOT_FP / "preprocess"
+SBS_PROCESS_FP = ROOT_FP / "sbs_process"
 
 
 # Define the target files for the workflow

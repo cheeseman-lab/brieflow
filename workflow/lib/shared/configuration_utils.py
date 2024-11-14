@@ -14,5 +14,5 @@ CONFIG_FILE_HEADER = """
 # Suffixes:
 #   Each subsection contains a 'suffix' key that defines the folder for saving process files
 
-# Parameters:\n
+# Parameters:
 """

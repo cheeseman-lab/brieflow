@@ -10,13 +10,15 @@ Please check back for updates!
 
 Brieflow is set up as a Snakemake workflow with user configuration between steps where necessary. 
 Thus, a user must configure parameters between workflow steps with configuration notebooks.
-This example analysis details the steps necessary for configuring parameters and running workflows.
+This example analysis details the steps necessary for configuring parameters and running step workflows.
 While each step's workflow has its own Conda environment (compiled by Snakemake at runtime), the notebooks all share a configuration environment.
 
 ### Step 1: Set up workflow/configuration Conda environments
 
 The workflows share a base environment (`brieflow_workflows`) and each have their own Conda environments compiled by Snakemake at runtime (in [workflow/envs](workflow/envs)).
 All notebooks share a configuration environment (`brieflow_configuration`).
+
+*Note*: We do not include the data necessary for this example analysis in this repo as it is too large.
 
 #### Step 1a: Set up Brieflow workflows environment
 
@@ -40,28 +42,46 @@ Use the following commands to set up the `brieflow_configuration` Conda environm
 conda env create --file=brieflow_configuration_env.yml
 ```
 
-### Step 2: Run workflow steps
+### Step 2: Run example analysis in steps
+
+Follow the instructions below to configure paramers and run wokflows.
+All of these steps are done in the example analysis folder.
+Use the following command to enter this folder:
+`cd example_analysis`.
 
 #### Step 2.0: Configure preprocess params
 
+Follow the steps in [0.configure_preprocess_params.ipynb](example_analysis/0.configure_preprocess_params.ipynb) to configure preprocess params.
+
 #### Step 2.1: Run preprocessing workflow
+
+```sh
+conda activate brieflow_workflows
+sh 1.run_preprocessing.sh
+```
 
 #### Step 2.2: Configure SBS process params
 
+Follow the steps in [2.configure_sbs_process_params.ipynb](example_analysis/2.configure_sbs_process_params.ipynb) to configure preprocess params.
+
 #### Step 2.3: Run SBS process workflow
+
+```sh
+conda activate brieflow_workflows
+sh 1.run_sbs_process.sh
+```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.
 
-### Run entire workflow steps
 
-If the 
+### Run entire example analysis
+
+If all parameter configurations are known for the entire Brieflow pipeline, it is possible to run the entire pipeline with the following:
 
 ```sh
 cd example_analysis
 sh run_analysis.sh
 ```
-
-*Note*: We do not include the data necessary for this example analysis in this repo as it is too large.
 
 
 ## Contribution Notes

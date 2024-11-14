@@ -1,4 +1,4 @@
-name: brieflow
+name: brieflow_workflows
 channels:
   - conda-forge
   - bioconda

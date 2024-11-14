@@ -125,7 +125,7 @@ rule apply_ic_field:
                 "ic_field",
                 "tiff",
             ),
-            cycle=SBS_CYCLES[config["sbs_process"]["segmentation_cycle"]],
+            cycle=SBS_CYCLES[config["sbs_process"]["segmentation_cycle_index"]],
         ),
     output:
         SBS_PROCESS_FP

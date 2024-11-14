@@ -1,9 +1,19 @@
-from pathlib import Path
-
 from lib.shared.file_utils import get_filename
 from lib.preprocess.file_utils import get_sample_fps
+from targets.preprocess import get_preprocess_mapped_outputs
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
+
+PREPROCESS_OUTPUTS = get_preprocess_mapped_outputs(
+    PREPROCESS_FP,
+    SBS_WELLS,
+    SBS_TILES,
+    SBS_CYCLES,
+    PHENOTYPE_WELLS,
+    PHENOTYPE_TILES,
+)
+
+print(PREPROCESS_OUTPUTS)
 
 
 # Extract metadata for SBS images
@@ -15,10 +25,7 @@ rule extract_metadata_sbs:
             sbs_samples_df, well=wildcards.well, cycle=wildcards.cycle
         ),
     output:
-        PREPROCESS_FP
-        / "metadata"
-        / "sbs"
-        / get_filename({"well": "{well}", "cycle": "{cycle}"}, "metadata", "tsv"),
+        PREPROCESS_OUTPUTS["extract_metadata_sbs"],
     params:
         z_interval=None,
     script:

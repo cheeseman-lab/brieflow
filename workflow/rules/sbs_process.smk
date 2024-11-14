@@ -1,8 +1,8 @@
 from pathlib import Path
 from lib.shared.file_utils import get_filename
 
-PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
-SBS_PROCESS_FP = ROOT_FP / config["sbs_process"]["suffix"]
+PREPROCESS_FP = ROOT_FP / "preprocess"
+SBS_PROCESS_FP = ROOT_FP / "sbs_process"
 
 
 # Align images from each sequencing round
@@ -134,7 +134,9 @@ rule apply_ic_field:
             {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
         ),
     params:
-        segmentation_cycle=SBS_CYCLES[config["sbs_process"]["segmentation_cycle"]],
+        segmentation_cycle_index=SBS_CYCLES[
+            config["sbs_process"]["segmentation_cycle_index"]
+        ],
     script:
         "../scripts/sbs_process/apply_ic_field.py"
 

@@ -1,6 +1,6 @@
 from skimage.io import imread
 
-from shared.extract_phenotype_minimal import extract_phenotype_minimal
+from lib.shared.extract_phenotype_minimal import extract_phenotype_minimal
 
 # load nuclei data
 nuclei_data = imread(snakemake.input[0])

@@ -11,8 +11,5 @@ CONFIG_FILE_HEADER = """
 # Paths:
 #   Paths are resolved relative to the directory the workflow is run from
 
-# Suffixes:
-#   Each subsection contains a 'suffix' key that defines the folder for saving process files
-
 # Parameters:
 """

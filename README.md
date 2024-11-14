@@ -68,7 +68,7 @@ Follow the steps in [2.configure_sbs_process_params.ipynb](example_analysis/2.co
 
 ```sh
 conda activate brieflow_workflows
-sh 1.run_sbs_process.sh
+sh 3.run_sbs_process.sh
 ```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.

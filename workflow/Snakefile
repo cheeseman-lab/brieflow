@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from lib.shared.file_utils import get_filename
+from lib.shared.target_utils import get_filename
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
@@ -27,11 +27,6 @@ PHENOTYPE_TILES = list(phenotype_samples_df["tile"].unique())
 
 
 include: "targets/preprocess.smk"
-
-
-print(MAPPED_PREPROCESS_OUTPUTS)
-
-
 include: "rules/preprocess.smk"
 
 
@@ -43,5 +38,5 @@ include: "rules/preprocess.smk"
 # Define the target files for the workflow
 rule all:
     input:
-        # preprocessing
-        sum(PREPROCESS_TARGETS.values(), []),
+        # preprocess
+        PREPROCESS_TARGETS_ALL,

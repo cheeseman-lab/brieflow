@@ -1,7 +1,6 @@
 from lib.shared.file_utils import get_filename
 from lib.preprocess.file_utils import get_sample_fps
-
-from targets.preprocess_helper import output_to_input
+from lib.shared.target_utils import output_to_input
 
 
 # Extract metadata for SBS images
@@ -15,7 +14,7 @@ rule extract_metadata_sbs:
             cycle=wildcards.cycle,
         ),
     output:
-        MAPPED_PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+        PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
         z_interval=None,
     script:
@@ -32,7 +31,7 @@ rule extract_metadata_phenotype:
             well=wildcards.well,
         ),
     output:
-        MAPPED_PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
+        PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:
         z_interval=4,
     script:
@@ -51,7 +50,7 @@ rule convert_sbs:
             tile=wildcards.tile,
         ),
     output:
-        MAPPED_PREPROCESS_OUTPUTS["convert_sbs"],
+        PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
     params:
         channel_order_flip=True,
     script:
@@ -69,7 +68,7 @@ rule convert_phenotype:
             tile=wildcards.tile,
         ),
     output:
-        MAPPED_PREPROCESS_OUTPUTS["convert_phenotype"],
+        PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
     params:
         channel_order_flip=True,
     script:
@@ -87,7 +86,7 @@ rule calculate_ic_sbs:
             wildcards,
         ),
     output:
-        MAPPED_PREPROCESS_OUTPUTS["calculate_ic_sbs"],
+        PREPROCESS_OUTPUTS_MAPPED["calculate_ic_sbs"],
     params:
         threading=True,
     script:
@@ -105,7 +104,7 @@ rule calculate_ic_phenotype:
             wildcards,
         ),
     output:
-        MAPPED_PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
+        PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],
     params:
         threading=True,
     script:
@@ -115,4 +114,4 @@ rule calculate_ic_phenotype:
 # rule for all preprocessing steps
 rule all_preprocess:
     input:
-        sum(PREPROCESS_TARGETS.values(), []),
+        PREPROCESS_TARGETS_ALL,

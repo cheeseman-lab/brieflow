@@ -1,3 +1,5 @@
+"""Helper functions for using Snakemake outputs and targets for use with Brieflow."""
+
 from snakemake.io import expand
 
 

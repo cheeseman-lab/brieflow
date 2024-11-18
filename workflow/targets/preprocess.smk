@@ -1,20 +1,9 @@
-from snakemake.io import temp, protected
-
-from targets.preprocess_helper import (
+from lib.shared.target_utils import (
     map_outputs,
     outputs_to_targets,
 )
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
-
-PREPROCESS_OUTPUT_MAPPINGS = {
-    "extract_metadata_sbs": None,
-    "extract_metadata_phenotype": None,
-    "convert_sbs": None,
-    "convert_phenotype": temp,
-    "calculate_ic_sbs": None,
-    "calculate_ic_phenotype": protected,
-}
 
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
@@ -59,13 +48,22 @@ PREPROCESS_OUTPUTS = {
     ],
 }
 
+PREPROCESS_OUTPUT_MAPPINGS = {
+    "extract_metadata_sbs": None,
+    "extract_metadata_phenotype": None,
+    "convert_sbs": None,
+    "convert_phenotype": None,
+    "calculate_ic_sbs": None,
+    "calculate_ic_phenotype": None,
+}
+
 PREPROCESS_WILDCARDS = {
     "well": SBS_WELLS,
     "tile": SBS_TILES,
     "cycle": SBS_CYCLES,
 }
 
-MAPPED_PREPROCESS_OUTPUTS = map_outputs(
+PREPROCESS_OUTPUTS_MAPPED = map_outputs(
     PREPROCESS_OUTPUTS,
     PREPROCESS_OUTPUT_MAPPINGS,
 )
@@ -74,3 +72,5 @@ PREPROCESS_TARGETS = outputs_to_targets(
     PREPROCESS_OUTPUTS,
     PREPROCESS_WILDCARDS,
 )
+
+PREPROCESS_TARGETS_ALL = sum(PREPROCESS_TARGETS.values(), [])

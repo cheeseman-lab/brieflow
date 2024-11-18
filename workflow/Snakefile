@@ -50,11 +50,9 @@ PREPROCESS_TARGETS = get_preprocess_targets(
     PHENOTYPE_TILES,
 )
 
-print(PREPROCESS_TARGETS)
-
 
 # Define the target files for the workflow
 rule all:
     input:
         # preprocessing
-        PREPROCESS_TARGETS["extract_metadata_sbs"],
+        sum(PREPROCESS_TARGETS.values(), []),

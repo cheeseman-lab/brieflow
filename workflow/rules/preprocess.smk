@@ -1,10 +1,22 @@
 from lib.shared.file_utils import get_filename
 from lib.preprocess.file_utils import get_sample_fps
-from targets.preprocess import get_preprocess_mapped_outputs
+from targets.preprocess import (
+    get_preprocess_mapped_outputs,
+    get_preprocess_targets,
+    get_rule_input,
+)
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
 PREPROCESS_OUTPUTS = get_preprocess_mapped_outputs(
+    PREPROCESS_FP,
+    SBS_WELLS,
+    SBS_TILES,
+    SBS_CYCLES,
+    PHENOTYPE_WELLS,
+    PHENOTYPE_TILES,
+)
+PREPROCESS_TARGETS = get_preprocess_targets(
     PREPROCESS_FP,
     SBS_WELLS,
     SBS_TILES,
@@ -39,10 +51,7 @@ rule extract_metadata_phenotype:
     input:
         lambda wildcards: get_sample_fps(phenotype_samples_df, well=wildcards.well),
     output:
-        PREPROCESS_FP
-        / "metadata"
-        / "phenotype"
-        / get_filename({"well": "{well}"}, "metadata", "tsv"),
+        PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
     params:
         z_interval=4,
     script:
@@ -61,12 +70,7 @@ rule convert_sbs:
             tile=wildcards.tile,
         ),
     output:
-        PREPROCESS_FP
-        / "images"
-        / "sbs"
-        / get_filename(
-            {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}, "image", "tiff"
-        ),
+        PREPROCESS_OUTPUTS["convert_sbs"],
     params:
         channel_order_flip=True,
     script:
@@ -82,10 +86,7 @@ rule convert_phenotype:
             phenotype_samples_df, well=wildcards.well, tile=wildcards.tile
         ),
     output:
-        PREPROCESS_FP
-        / "images"
-        / "phenotype"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "image", "tiff"),
+        PREPROCESS_OUTPUTS["convert_phenotype"],
     params:
         channel_order_flip=True,
     script:
@@ -97,22 +98,11 @@ rule calculate_ic_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: expand(
-            PREPROCESS_FP
-            / "images"
-            / "sbs"
-            / get_filename(
-                {"well": wildcards.well, "tile": "{tile}", "cycle": wildcards.cycle},
-                "image",
-                "tiff",
-            ),
-            tile=SBS_TILES,
+        lambda wildcards: get_rule_input(
+            PREPROCESS_OUTPUTS["convert_sbs"], {"tile": SBS_TILES}, wildcards
         ),
     output:
-        PREPROCESS_FP
-        / "ic_fields"
-        / "sbs"
-        / get_filename({"well": "{well}", "cycle": "{cycle}"}, "ic_field", "tiff"),
+        PREPROCESS_OUTPUTS["calculate_ic_sbs"],
     params:
         threading=True,
     script:
@@ -134,10 +124,7 @@ rule calculate_ic_phenotype:
             tile=PHENOTYPE_TILES,
         ),
     output:
-        PREPROCESS_FP
-        / "ic_fields"
-        / "phenotype"
-        / get_filename({"well": "{well}"}, "ic_field", "tiff"),
+        PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
     params:
         threading=True,
     script:
@@ -147,54 +134,4 @@ rule calculate_ic_phenotype:
 # rule for all preprocessing steps
 rule all_preprocess:
     input:
-        expand(
-            PREPROCESS_FP
-            / "metadata"
-            / "sbs"
-            / get_filename({"well": "{well}", "cycle": "{cycle}"}, "metadata", "tsv"),
-            well=SBS_WELLS,
-            cycle=SBS_CYCLES,
-        ),
-        expand(
-            PREPROCESS_FP
-            / "metadata"
-            / "phenotype"
-            / get_filename({"well": "{well}"}, "metadata", "tsv"),
-            well=SBS_WELLS,
-        ),
-        expand(
-            PREPROCESS_FP
-            / "images"
-            / "sbs"
-            / get_filename(
-                {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
-                "image",
-                "tiff",
-            ),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-            cycle=SBS_CYCLES,
-        ),
-        expand(
-            PREPROCESS_FP
-            / "images"
-            / "phenotype"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "image", "tiff"),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            PREPROCESS_FP
-            / "ic_fields"
-            / "sbs"
-            / get_filename({"well": "{well}", "cycle": "{cycle}"}, "ic_field", "tiff"),
-            well=SBS_WELLS,
-            cycle=SBS_CYCLES,
-        ),
-        expand(
-            PREPROCESS_FP
-            / "ic_fields"
-            / "phenotype"
-            / get_filename({"well": "{well}"}, "ic_field", "tiff"),
-            well=SBS_WELLS,
-        ),
+        sum(PREPROCESS_TARGETS.values(), []),

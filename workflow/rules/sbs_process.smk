@@ -1,7 +1,5 @@
 from lib.shared.file_utils import get_filename
-
-PREPROCESS_FP = ROOT_FP / "preprocess"
-SBS_PROCESS_FP = ROOT_FP / "sbs_process"
+from lib.shared.target_utils import output_to_input
 
 
 # Align images from each sequencing round
@@ -21,9 +19,7 @@ rule align:
             cycle=SBS_CYCLES,
         ),
     output:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
+        SBS_PROCESS_OUTPUTS_MAPPED["align"],
     params:
         method="sbs_mean",
         upsample_factor=1,
@@ -36,13 +32,9 @@ rule log_filter:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
+        SBS_PROCESS_OUTPUTS_MAPPED["align"],
     output:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "log_filtered", "tiff"),
+        SBS_PROCESS_OUTPUTS_MAPPED["log_filter"],
     params:
         skip_index=0,
     script:
@@ -54,15 +46,9 @@ rule compute_standard_deviation:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "log_filtered", "tiff"),
+        SBS_PROCESS_OUTPUTS_MAPPED["log_filter"],
     output:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "standard_deviation", "tiff"
-        ),
+        SBS_PROCESS_OUTPUTS_MAPPED["compute_standard_deviation"],
     params:
         remove_index=0,
     script:
@@ -74,15 +60,9 @@ rule find_peaks:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "standard_deviation", "tiff"
-        ),
+        SBS_PROCESS_OUTPUTS_MAPPED["compute_standard_deviation"],
     output:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "peaks", "tiff"),
+        SBS_PROCESS_OUTPUTS_MAPPED["find_peaks"],
     script:
         "../scripts/sbs_process/find_peaks.py"
 
@@ -92,13 +72,9 @@ rule max_filter:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "log_filtered", "tiff"),
+        SBS_PROCESS_OUTPUTS_MAPPED["log_filter"],
     output:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "max_filtered", "tiff"),
+        SBS_PROCESS_OUTPUTS_MAPPED["max_filter"],
     params:
         width=3,
         remove_index=0,
@@ -111,9 +87,7 @@ rule apply_ic_field:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
+        SBS_PROCESS_OUTPUTS_MAPPED["align"],
         # illumination correction field from cycle of interest
         lambda wildcards: expand(
             PREPROCESS_FP
@@ -127,11 +101,7 @@ rule apply_ic_field:
             cycle=SBS_CYCLES[config["sbs_process"]["segmentation_cycle_index"]],
         ),
     output:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
-        ),
+        SBS_PROCESS_OUTPUTS_MAPPED["apply_ic_field"],
     params:
         segmentation_cycle_index=SBS_CYCLES[
             config["sbs_process"]["segmentation_cycle_index"]
@@ -145,11 +115,7 @@ rule segment:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_FP
-        / "images"
-        / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
-        ),
+        SBS_PROCESS_OUTPUTS_MAPPED["apply_ic_field"],
     output:
         SBS_PROCESS_FP
         / "images"

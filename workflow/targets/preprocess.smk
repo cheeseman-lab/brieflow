@@ -1,7 +1,6 @@
-from lib.shared.target_utils import (
-    map_outputs,
-    outputs_to_targets,
-)
+from lib.shared.file_utils import get_filename
+from lib.shared.target_utils import map_outputs, outputs_to_targets
+
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
@@ -23,9 +22,7 @@ PREPROCESS_OUTPUTS = {
         / "images"
         / "sbs"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
-            "image",
-            "tiff",
+            {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}, "image", "tiff"
         ),
     ],
     "convert_phenotype": [

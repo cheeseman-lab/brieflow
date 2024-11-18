@@ -1,31 +1,7 @@
 from lib.shared.file_utils import get_filename
 from lib.preprocess.file_utils import get_sample_fps
-from targets.preprocess import (
-    get_preprocess_mapped_outputs,
-    get_preprocess_targets,
-    get_rule_input,
-)
 
-PREPROCESS_FP = ROOT_FP / "preprocess"
-
-PREPROCESS_OUTPUTS = get_preprocess_mapped_outputs(
-    PREPROCESS_FP,
-    SBS_WELLS,
-    SBS_TILES,
-    SBS_CYCLES,
-    PHENOTYPE_WELLS,
-    PHENOTYPE_TILES,
-)
-PREPROCESS_TARGETS = get_preprocess_targets(
-    PREPROCESS_FP,
-    SBS_WELLS,
-    SBS_TILES,
-    SBS_CYCLES,
-    PHENOTYPE_WELLS,
-    PHENOTYPE_TILES,
-)
-
-print(PREPROCESS_OUTPUTS)
+from targets.preprocess_helper import output_to_input
 
 
 # Extract metadata for SBS images
@@ -34,10 +10,12 @@ rule extract_metadata_sbs:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: get_sample_fps(
-            sbs_samples_df, well=wildcards.well, cycle=wildcards.cycle
+            sbs_samples_df,
+            well=wildcards.well,
+            cycle=wildcards.cycle,
         ),
     output:
-        PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+        MAPPED_PREPROCESS_OUTPUTS["extract_metadata_sbs"],
     params:
         z_interval=None,
     script:
@@ -49,9 +27,12 @@ rule extract_metadata_phenotype:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: get_sample_fps(phenotype_samples_df, well=wildcards.well),
+        lambda wildcards: get_sample_fps(
+            phenotype_samples_df,
+            well=wildcards.well,
+        ),
     output:
-        PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
+        MAPPED_PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
     params:
         z_interval=4,
     script:
@@ -70,7 +51,7 @@ rule convert_sbs:
             tile=wildcards.tile,
         ),
     output:
-        PREPROCESS_OUTPUTS["convert_sbs"],
+        MAPPED_PREPROCESS_OUTPUTS["convert_sbs"],
     params:
         channel_order_flip=True,
     script:
@@ -83,10 +64,12 @@ rule convert_phenotype:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: get_sample_fps(
-            phenotype_samples_df, well=wildcards.well, tile=wildcards.tile
+            phenotype_samples_df,
+            well=wildcards.well,
+            tile=wildcards.tile,
         ),
     output:
-        PREPROCESS_OUTPUTS["convert_phenotype"],
+        MAPPED_PREPROCESS_OUTPUTS["convert_phenotype"],
     params:
         channel_order_flip=True,
     script:
@@ -98,11 +81,13 @@ rule calculate_ic_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: get_rule_input(
-            PREPROCESS_OUTPUTS["convert_sbs"], {"tile": SBS_TILES}, wildcards
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["convert_sbs"],
+            {"tile": SBS_TILES},
+            wildcards,
         ),
     output:
-        PREPROCESS_OUTPUTS["calculate_ic_sbs"],
+        MAPPED_PREPROCESS_OUTPUTS["calculate_ic_sbs"],
     params:
         threading=True,
     script:
@@ -114,17 +99,13 @@ rule calculate_ic_phenotype:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: expand(
-            PREPROCESS_FP
-            / "images"
-            / "phenotype"
-            / get_filename(
-                {"well": wildcards.well, "tile": "{tile}"}, "image", "tiff"
-            ),
-            tile=PHENOTYPE_TILES,
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["convert_phenotype"],
+            {"tile": PHENOTYPE_TILES},
+            wildcards,
         ),
     output:
-        PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
+        MAPPED_PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
     params:
         threading=True,
     script:

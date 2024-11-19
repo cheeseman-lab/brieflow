@@ -5,6 +5,34 @@ Extensible pipeline tool for processing optical pooled screens data.
 We are actively moving code from [OpticalPooledScreens](https://github.com/cheeseman-lab/OpticalPooledScreens).
 Please check back for updates! 
 
+## Definitions
+
+Terms mentioned throughout the code and documentation include:
+- **Brieflow library**: Code in [workflow/lib](workflow/lib) used to perform Brieflow processing.
+Used with Snakemake to run Brieflow steps.
+- **Process/Workflow**: Used synonymously to refer to larger steps of the Brieflow pipeline.
+Example processes/workflows: `preprocessing`, `sbs_process`, `phenotype_process`
+- **Sub-process**: Refers to a smaller step within a process.
+Sub-processes use scripts and Brieflow library code to complete tasks.
+Example sub-processes in the preprocessing process: `extract_metadata_sbs`, `convert_sbs`, `calculate_ic_sbs`.
+
+
+## Project Structure
+
+Brieflow is built on top of [Snakemake](https://snakemake.readthedocs.io/en/stable/index.html#snakemake).
+We follow the [Snakemake structure guidelines](https://snakemake.readthedocs.io/en/stable/snakefiles/deployment.html) with some exceptions.
+The Brieflow project structure is as follows:
+
+```
+workflow/
+├── envs/ - Environment YAML files that describe dependencies for different workflows.
+├── lib/ - Brieflow library code used for performing Brieflow processing. 
+├── rules/ - Snakemake rule files for each process. Used to organize sub-processses within each process with inputs, outputs, parameters, and script file location.
+├── scripts/ - Python script files for sub-processes. Called by processes.
+├── targets/ - Snakemake files used to define inputs and their mappings for each process.
+└── Snakefile - Main Snakefile used to call processes.
+```
+
 
 ## Running Example Analyis
 
@@ -86,7 +114,13 @@ sh run_analysis.sh
 
 ## Contribution Notes
 
+
+### Dev Tools
+
 We use [ruff](https://github.com/astral-sh/ruff) for linting and formatting code.
+
+
+### Conventions
 
 We use the following conventions:
 - [One sentence per line](https://nick.groenen.me/notes/one-sentence-per-line/) convention for markdown files

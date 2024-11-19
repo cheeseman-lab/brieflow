@@ -8,7 +8,9 @@ def map_outputs(outputs, output_type_mappings):
 
     Args:
         outputs (dict): Output templates with `pathlib.Path` paths (e.g., PREPROCESS_OUTPUTS).
-        output_type_mappings (dict): Mapping of output rules to Snakemake output types (e.g., temp, protected).
+        output_type_mappings (dict): Mapping of output rules to Snakemake output types.
+                                     Can be a single function (e.g., temp, protected) or
+                                     a list of functions for multiple outputs.
 
     Returns:
         dict: Final mapped outputs with output type mappings applied.
@@ -19,13 +21,28 @@ def map_outputs(outputs, output_type_mappings):
         # Get the output type mapping for the current rule
         output_func = output_type_mappings.get(rule_name)
 
-        # Apply the mapping function (e.g., temp, protected) or return raw paths
+        # If no mapping function, keep outputs as is
         if output_func is None:
             mapped_outputs[rule_name] = output_templates
         else:
-            mapped_outputs[rule_name] = [
-                output_func(output) for output in output_templates
-            ]
+            # Check if output_func is a list (for multiple outputs)
+            if isinstance(output_func, list):
+                # Ensure the length matches the output_templates
+                if len(output_func) != len(output_templates):
+                    raise ValueError(
+                        f"Length of output mappings for '{rule_name}' does not match "
+                        f"number of outputs. Expected {len(output_templates)}, got {len(output_func)}."
+                    )
+                # Apply each mapping function to the corresponding template
+                mapped_outputs[rule_name] = [
+                    func(output) if func else output
+                    for output, func in zip(output_templates, output_func)
+                ]
+            else:
+                # Apply the single mapping function to all templates
+                mapped_outputs[rule_name] = [
+                    output_func(output) for output in output_templates
+                ]
 
     return mapped_outputs
 

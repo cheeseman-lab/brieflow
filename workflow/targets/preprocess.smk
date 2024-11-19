@@ -54,20 +54,40 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "calculate_ic_phenotype": None,
 }
 
-PREPROCESS_WILDCARDS = {
+PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
+
+# Generate SBS preprocessing targets
+SBS_WILDCARDS = {
     "well": SBS_WELLS,
     "tile": SBS_TILES,
     "cycle": SBS_CYCLES,
 }
-
-PREPROCESS_OUTPUTS_MAPPED = map_outputs(
-    PREPROCESS_OUTPUTS,
-    PREPROCESS_OUTPUT_MAPPINGS,
+PREPROCESS_OUTPUTS_SBS = {
+    rule_name: templates
+    for rule_name, templates in PREPROCESS_OUTPUTS.items()
+    if "sbs" in rule_name
+}
+PREPROCESS_TARGETS_SBS = outputs_to_targets(
+    PREPROCESS_OUTPUTS_SBS,
+    SBS_WILDCARDS,
 )
 
-PREPROCESS_TARGETS = outputs_to_targets(
-    PREPROCESS_OUTPUTS,
-    PREPROCESS_WILDCARDS,
+# Generate phenotype preprocessing targets
+PHENOTYPE_WILDCARDS = {
+    "well": PHENOTYPE_WELLS,
+    "tile": PHENOTYPE_TILES,
+}
+PREPROCESS_OUTPUTS_PHENOTYPE = {
+    rule_name: templates
+    for rule_name, templates in PREPROCESS_OUTPUTS.items()
+    if "phenotype" in rule_name
+}
+PREPROCESS_TARGETS_PHENOTYPE = outputs_to_targets(
+    PREPROCESS_OUTPUTS_PHENOTYPE,
+    PHENOTYPE_WILDCARDS,
 )
 
-PREPROCESS_TARGETS_ALL = sum(PREPROCESS_TARGETS.values(), [])
+# Combine all preprocessing targets
+PREPROCESS_TARGETS_ALL = sum(PREPROCESS_TARGETS_SBS.values(), []) + sum(
+    PREPROCESS_TARGETS_PHENOTYPE.values(), []
+)

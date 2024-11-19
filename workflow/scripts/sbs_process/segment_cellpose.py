@@ -3,7 +3,6 @@ from skimage.io import imread, imsave
 
 # load illumination corrected data
 illumination_corrected_data = imread(snakemake.input[0])
-print(illumination_corrected_data.shape)
 
 # segment cells using cellpose
 nuclei_data, cells_data, counts_df = segment_cellpose(
@@ -23,5 +22,4 @@ imsave(snakemake.output[0], nuclei_data)
 imsave(snakemake.output[1], cells_data)
 
 # save counts data
-print(counts_df)
 counts_df.to_csv(snakemake.output[2], index=False, sep="\t")

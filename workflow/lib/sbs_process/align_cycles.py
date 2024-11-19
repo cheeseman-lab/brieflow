@@ -67,8 +67,6 @@ def align_cycles(
                 arr.append(np.array(image_data[current : current + cycle]))
             current += cycle
         image_data = arr
-        print(image_data[0].shape)
-        print(image_data[1].shape)
 
     # Check if the number of channels varies across cycles
     if not all(x.shape == image_data[0].shape for x in image_data):

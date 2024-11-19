@@ -33,16 +33,17 @@ include: "targets/preprocess.smk"
 include: "rules/preprocess.smk"
 
 
+ALL_TARGETS = PREPROCESS_TARGETS_ALL
+
 if "sbs_process" in config:
 
     include: "targets/sbs_process.smk"
     include: "rules/sbs_process.smk"
 
+    ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
+
 
 # Define the target files for the workflow
 rule all:
     input:
-        # preprocess
-        PREPROCESS_TARGETS_ALL,
-        # sbs_process
-        SBS_PROCESS_TARGETS_ALL,
+        ALL_TARGETS,

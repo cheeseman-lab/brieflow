@@ -61,7 +61,7 @@ conda activate brieflow_workflows
 conda config --set channel_priority strict
 ```
 
-#### Step 1a: Set up Brieflow configuration environment
+#### Step 1b: Set up Brieflow configuration environment
 
 Use the following commands to set up the `brieflow_configuration` Conda environment:
 
@@ -90,7 +90,7 @@ sh 1.run_preprocessing.sh
 
 #### Step 2.2: Configure SBS process params
 
-Follow the steps in [2.configure_sbs_process_params.ipynb](example_analysis/2.configure_sbs_process_params.ipynb) to configure preprocess params.
+Follow the steps in [2.configure_sbs_process_params.ipynb](example_analysis/2.configure_sbs_process_params.ipynb) to configure SBS params.
 
 #### Step 2.3: Run SBS process workflow
 
@@ -108,7 +108,7 @@ If all parameter configurations are known for the entire Brieflow pipeline, it i
 
 ```sh
 cd example_analysis
-sh run_analysis.sh
+sh run_entire_analysis.sh
 ```
 
 

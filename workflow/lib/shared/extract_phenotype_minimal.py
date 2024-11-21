@@ -1,5 +1,7 @@
 """Utilities for extracting minimal phenotype features from nuclei data."""
 
+from lib.shared.features import features_basic
+
 
 def extract_phenotype_minimal(phenotype_data, nuclei_data, wildcards):
     """Extracts minimal phenotype features from the provided phenotype data.
@@ -33,19 +35,16 @@ def extract_features(data, labels, wildcards, features=None, multichannel=False)
     Returns:
         pandas.DataFrame: Table of labeled regions in labels with corresponding feature measurements.
     """
-    # Import necessary modules and feature functions
-    from shared.features import features_basic
-
     features = features.copy() if features else dict()
     features.update(features_basic)
 
     # Choose appropriate feature table based on multichannel flag
     if multichannel:
-        from shared.feature_table_utils import (
+        from lib.shared.feature_table_utils import (
             feature_table_multichannel as feature_table,
         )
     else:
-        from shared.feature_table_utils import feature_table
+        from lib.shared.feature_table_utils import feature_table
 
     # Extract features using the feature table function
     df = feature_table(data, labels, features)

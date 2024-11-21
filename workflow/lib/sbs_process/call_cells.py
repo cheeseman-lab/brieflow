@@ -3,7 +3,7 @@
 import pandas as pd
 
 # constants for calling cells
-from sbs_process.constants import (
+from lib.sbs_process.constants import (
     PREFIX,
     SGRNA,
     GENE_SYMBOL,

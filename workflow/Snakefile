@@ -14,202 +14,36 @@ PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 
 # load data for samples (this should go into helper function and be stored better)
 # Load the sample TSV files with pandas
-sbs_samples = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
-sbs_samples = sbs_samples.sort_values(by=["well", "tile", "cycle"])
-SBS_WELLS = list(sbs_samples["well"].unique())
-SBS_TILES = list(sbs_samples["tile"].unique())
-SBS_CYCLES = list(sbs_samples["cycle"].unique())
+sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
+sbs_samples_df = sbs_samples_df.sort_values(by=["well", "tile", "cycle"])
+SBS_WELLS = list(sbs_samples_df["well"].unique())
+SBS_TILES = list(sbs_samples_df["tile"].unique())
+SBS_CYCLES = list(sbs_samples_df["cycle"].unique())
 # TODO: unrestrict wells and tiles after testing
 # SBS_WELLS = ["A1"]
 # SBS_TILES = [1]
 
-phenotype_samples = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
-phenotype_samples = phenotype_samples.sort_values(by=["well", "tile"])
-PHENOTYPE_WELLS = list(sbs_samples["well"].unique())
-PHENOTYPE_TILES = list(sbs_samples["tile"].unique())
-
-# Print the paths
-# print(f"Root path: {ROOT_FP}")
+phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
+phenotype_samples_df = phenotype_samples_df.sort_values(by=["well", "tile"])
+PHENOTYPE_WELLS = list(phenotype_samples_df["well"].unique())
+PHENOTYPE_TILES = list(phenotype_samples_df["tile"].unique())
 
 
+include: "targets/preprocess.smk"
 include: "rules/preprocess.smk"
-include: "rules/sbs_process.smk"
 
 
-PREPROCESS_FP = ROOT_FP / config["preprocess"]["suffix"]
+ALL_TARGETS = PREPROCESS_TARGETS_ALL
+
+if "sbs_process" in config:
+
+    include: "targets/sbs_process.smk"
+    include: "rules/sbs_process.smk"
+
+    ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
 
 
 # Define the target files for the workflow
 rule all:
     input:
-        # preprocessing
-        expand(
-            PREPROCESS_FP
-            / "metadata"
-            / "sbs"
-            / get_filename({"well": "{well}", "cycle": "{cycle}"}, "metadata", "tsv"),
-            well=SBS_WELLS,
-            cycle=SBS_CYCLES,
-        ),
-        expand(
-            PREPROCESS_FP
-            / "metadata"
-            / "phenotype"
-            / get_filename({"well": "{well}"}, "metadata", "tsv"),
-            well=SBS_WELLS,
-        ),
-        expand(
-            PREPROCESS_FP
-            / "images"
-            / "sbs"
-            / get_filename(
-                {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
-                "image",
-                "tiff",
-            ),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-            cycle=SBS_CYCLES,
-        ),
-        expand(
-            PREPROCESS_FP
-            / "images"
-            / "phenotype"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "image", "tiff"),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            PREPROCESS_FP
-            / "ic_fields"
-            / "sbs"
-            / get_filename({"well": "{well}", "cycle": "{cycle}"}, "ic_field", "tiff"),
-            well=SBS_WELLS,
-            cycle=SBS_CYCLES,
-        ),
-        expand(
-            PREPROCESS_FP
-            / "ic_fields"
-            / "phenotype"
-            / get_filename({"well": "{well}"}, "ic_field", "tiff"),
-            well=SBS_WELLS,
-        ),
-        # sbs process
-        expand(
-            SBS_PROCESS_FP
-            / "images"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "images"
-            / get_filename(
-                {"well": "{well}", "tile": "{tile}"}, "log_filtered", "tiff"
-            ),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "images"
-            / get_filename(
-                {"well": "{well}", "tile": "{tile}"}, "standard_deviation", "tiff"
-            ),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "images"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "peaks", "tiff"),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "images"
-            / get_filename(
-                {"well": "{well}", "tile": "{tile}"}, "max_filtered", "tiff"
-            ),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "images"
-            / get_filename(
-                {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
-            ),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "images"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "images"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tiff"),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "tsvs"
-            / get_filename(
-                {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsv"
-            ),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "tsvs"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "bases", "tsv"),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "tsvs"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "reads", "tsv"),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "tsvs"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tsv"),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        expand(
-            SBS_PROCESS_FP
-            / "tsvs"
-            / get_filename({"well": "{well}", "tile": "{tile}"}, "sbs_info", "tsv"),
-            well=SBS_WELLS,
-            tile=SBS_TILES,
-        ),
-        SBS_PROCESS_FP / "hdfs" / get_filename({}, "reads", "hdf5"),
-        SBS_PROCESS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
-        SBS_PROCESS_FP / "hdfs" / get_filename({}, "sbs_info", "hdf5"),
-        # sbs eval
-        SBS_PROCESS_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
-        SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
-        SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
-        SBS_PROCESS_FP / "eval" / "mapping" / "mapping_vs_threshold_peak.png",
-        SBS_PROCESS_FP / "eval" / "mapping" / "mapping_vs_threshold_qmin.png",
-        SBS_PROCESS_FP / "eval" / "mapping" / "read_mapping_heatmap.png",
-        SBS_PROCESS_FP / "eval" / "mapping" / "cell_mapping_heatmap_one.tsv",
-        SBS_PROCESS_FP / "eval" / "mapping" / "cell_mapping_heatmap_one.png",
-        SBS_PROCESS_FP / "eval" / "mapping" / "cell_mapping_heatmap_any.tsv",
-        SBS_PROCESS_FP / "eval" / "mapping" / "cell_mapping_heatmap_any.png",
-        SBS_PROCESS_FP / "eval" / "mapping" / "reads_per_cell_histogram.png",
-        SBS_PROCESS_FP / "eval" / "mapping" / "gene_symbol_histogram.png",
-        SBS_PROCESS_FP / "eval" / "mapping" / "mapping_overview.tsv",
+        ALL_TARGETS,

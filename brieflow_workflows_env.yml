@@ -13,3 +13,4 @@ dependencies:
   - numpy
   - pip:
       - -e .
+      - snakemake-executor-plugin-slurm

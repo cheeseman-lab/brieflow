@@ -1,0 +1,16 @@
+
+# BrieFlow cluster configuration file
+
+default-resources:
+    slurm_partition: 20
+    slurm_account: wibrusers
+    mem_mb: 6000
+jobs: 10
+
+# set-resources:
+#     <rulename>:
+#         slurm_partition: "<other partition>" # deviating partition for this rule
+#         runtime: 60 # 1 hour
+#         slurm_extra: "'--nice=150'"
+#         mem_mb_per_cpu: 1800
+#         cpus_per_task: 40

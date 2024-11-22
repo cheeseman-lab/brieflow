@@ -1,0 +1,8 @@
+
+# BrieFlow cluster configuration file
+
+cluster: sbatch -p 20 --parsable --ntasks 1 --cpus-per-task {resources.cpus} --mem {resources.mem_mb}M --output=out/snakerule-%j.out
+default-resources:
+  - cpus=3
+  - mem_mb=6000
+jobs: 100

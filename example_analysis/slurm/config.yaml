@@ -5,6 +5,9 @@ default-resources:
     slurm_partition: 20
     slurm_account: wibrusers
     mem_mb: 6000
+    tasks: 1
+    cpus_per_task: 3
+    slurm_extra: "'--output=slurm_output/stdout/%j.out --error=slurm_output/stderr/%j.err'"
 jobs: 10
 
 # set-resources:

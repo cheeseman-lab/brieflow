@@ -3,6 +3,9 @@ from lib.preprocess.file_utils import get_sample_fps
 from lib.shared.target_utils import output_to_input
 
 
+print(PREPROCESS_OUTPUTS_MAPPED)
+
+
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
     conda:
@@ -21,6 +24,22 @@ rule extract_metadata_sbs:
         tile=lambda wildcards: wildcards.tile,
     script:
         "../scripts/preprocess/extract_tile_metadata.py"
+
+
+# Extract metadata for SBS images
+rule combine_metadata_sbs:
+    conda:
+        "../envs/preprocess.yml"
+    input:
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+            {"tile": SBS_TILES},
+            wildcards,
+        ),
+    output:
+        PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
+    script:
+        "../scripts/shared/combine_dfs.py"
 
 
 # # Extract metadata for phenotype images
@@ -42,7 +61,7 @@ rule extract_metadata_sbs:
 #         "../scripts/preprocess/extract_tile_metadata.py"
 
 
-# Convert SBS ND2 files to TIFF
+# # Convert SBS ND2 files to TIFF
 # rule convert_sbs:
 #     conda:
 #         "../envs/preprocess.yml"

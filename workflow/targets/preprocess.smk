@@ -13,6 +13,14 @@ PREPROCESS_OUTPUTS = {
             {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}, "metadata", "tsv"
         ),
     ],
+    "combine_metadata_sbs": [
+        PREPROCESS_FP
+        / "metadata"
+        / "sbs"
+        / get_filename(
+            {"well": "{well}", "cycle": "{cycle}"}, "combined_metadata", "tsv"
+        ),
+    ],
     # "extract_metadata_phenotype": [
     #     PREPROCESS_FP
     #     / "metadata"
@@ -49,6 +57,7 @@ PREPROCESS_OUTPUTS = {
 
 PREPROCESS_OUTPUT_MAPPINGS = {
     "extract_metadata_sbs": None,
+    "combine_metadata_sbs": None,
     "extract_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,

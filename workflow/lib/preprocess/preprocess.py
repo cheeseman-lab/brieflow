@@ -21,51 +21,62 @@ def extract_metadata_tile(
         pd.DataFrame: Combined extracted metadata from all provided ND2 files.
     """
     all_metadata = []
-
     for file_path in files:
         if verbose:
             print(f"Processing {file_path}")
-
         tile = extract_tile_from_filename(file_path)
-
+        
         try:
             with nd2.ND2File(file_path) as images:
-                # Get coordinate data with error handling
-                metadata = {
-                    "x_data": getattr(images.experiment[0], "position_x", []),
-                    "y_data": getattr(images.experiment[0], "position_y", []),
-                    "z_data": getattr(images.experiment[0], "position_z", []),
+                frame_meta = images.frame_metadata(0)
+                
+                # Get position data from first channel's position information
+                if frame_meta.channels and hasattr(frame_meta.channels[0], 'position'):
+                    stage_pos = frame_meta.channels[0].position.stagePositionUm
+                    metadata = {
+                        "x_data": [stage_pos.x],
+                        "y_data": [stage_pos.y],
+                        "z_data": [stage_pos.z],
+                        "pfs_offset": frame_meta.channels[0].position.pfsOffset,
+                    }
+                else:
+                    metadata = {
+                        "x_data": [],
+                        "y_data": [],
+                        "z_data": [],
+                        "pfs_offset": None,
+                    }
+                
+                # Add basic metadata
+                metadata.update({
                     "field_of_view": tile,
                     "filename": file_path,
-                }
-
-                # Add additional metadata if available
-                try:
-                    metadata["pfs_offset"] = images.metadata.channels[0].pfs_offset
-                except (AttributeError, IndexError):
-                    metadata["pfs_offset"] = None
-
-                # Add more metadata fields
-                metadata.update(
-                    {
-                        "channels": images.channel_count(),
-                        "pixel_size_x": getattr(images.metadata, "pixel_size_x", None),
-                        "pixel_size_y": getattr(images.metadata, "pixel_size_y", None),
-                        "z_step": getattr(images.metadata, "z_step", None),
-                    }
-                )
-
-                df = pd.DataFrame(metadata)
-
+                    "channels": frame_meta.contents.channelCount,
+                })
+                
+                # Get pixel size from first channel's volume information
+                if frame_meta.channels and hasattr(frame_meta.channels[0], 'volume'):
+                    x_cal, y_cal, _ = frame_meta.channels[0].volume.axesCalibration
+                    metadata.update({
+                        "pixel_size_x": x_cal,
+                        "pixel_size_y": y_cal,
+                    })
+                else:
+                    metadata.update({
+                        "pixel_size_x": None,
+                        "pixel_size_y": None,
+                    })
+                
+                df = pd.DataFrame([metadata])
+                
                 # Sample z-planes if interval is specified and z_data exists
                 if z_interval and len(metadata["z_data"]) > 0:
                     df = df.iloc[::z_interval, :]
-
+                
                 if verbose:
                     print(f"Found {len(df)} positions for tile {tile}")
-
                 all_metadata.append(df)
-
+                
         except Exception as e:
             print(f"Error processing {file_path}: {str(e)}")
             continue
@@ -76,10 +87,6 @@ def extract_metadata_tile(
             combined_metadata["field_of_view"], errors="coerce"
         )
         return combined_metadata.sort_values("field_of_view").reset_index(drop=True)
-
-    print("No valid ND2 files found in the provided list.")
-    return pd.DataFrame()
-
 
 def nd2_to_tiff(
     file: str, channel_order_flip: bool = False, verbose: bool = False

@@ -12,9 +12,7 @@ def get_file(f):
 
 # Get input, output, and threads from Snakemake
 input_files = snakemake.input
-print(input_files)
 output_file = snakemake.output[0]
-print(output_file)
 output_type = getattr(snakemake.params, "output_type", "hdf")
 threads = snakemake.threads
 

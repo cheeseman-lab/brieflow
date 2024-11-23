@@ -14,7 +14,6 @@ dependencies:
   - scikit-image
   - joblib
   - cellpose # TODO: pin version if reproducbility is important (version may change segmentations)
-  - pytables
   - microfilm
   - seaborn
   - pip:

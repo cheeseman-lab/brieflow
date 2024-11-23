@@ -15,9 +15,17 @@ input_files = snakemake.input
 print(input_files)
 output_file = snakemake.output[0]
 print(output_file)
+output_type = getattr(snakemake.params, "output_type", "hdf")
 threads = snakemake.threads
 
 # Load, concatenate, and save the data
 arr_reads = Parallel(n_jobs=threads)(delayed(get_file)(file) for file in input_files)
 df_reads = pd.concat(arr_reads)
-df_reads.to_hdf(output_file, "x", mode="w")
+
+# Save the data based on output_type
+if output_type == "hdf":
+    df_reads.to_hdf(output_file, "x", mode="w")
+elif output_type == "tsv":
+    df_reads.to_csv(output_file, sep="\t", index=False)
+else:
+    raise ValueError(f"Unsupported output type: {output_type}")

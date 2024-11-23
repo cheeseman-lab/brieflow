@@ -4,11 +4,9 @@ import pandas as pd
 import numpy as np
 import nd2
 
-from lib.preprocess.file_utils import extract_tile_from_filename
-
 
 def extract_tile_metadata(
-    tile_fp: str, tile: int, z_interval: int = 4, verbose: bool = True
+    tile_fp: str, tile: int, z_interval: int = 4, verbose: bool = False
 ) -> pd.DataFrame:
     """Extracts metadata from a single ND2 file for a specific tile.
 
@@ -47,7 +45,7 @@ def extract_tile_metadata(
         # Add basic metadata
         metadata.update(
             {
-                "field_of_view": tile,
+                "tile": tile,
                 "filename": tile_fp,
                 "channels": frame_meta.contents.channelCount,
             }

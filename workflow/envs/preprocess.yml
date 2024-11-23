@@ -6,3 +6,4 @@ dependencies:
   - xarray
   - scikit-image
   - joblib
+  - pytables # need pytables defined in module env

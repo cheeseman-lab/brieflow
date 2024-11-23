@@ -25,37 +25,58 @@ def extract_tile_metadata(
         print(f"Processing tile {tile} from file {tile_fp}")
 
     with nd2.ND2File(tile_fp) as images:
-        # Extract coordinate and metadata fields
-        print(images.experiment)
-        metadata = {
-            "x_data": getattr(images.experiment[0], "position_x", []),
-            "y_data": getattr(images.experiment[0], "position_y", []),
-            "z_data": getattr(images.experiment[0], "position_z", []),
-            "field_of_view": tile,
-            "filename": tile_fp,
-            "channels": images.channel_count(),
-            "pixel_size_x": getattr(images.metadata, "pixel_size_x", None),
-            "pixel_size_y": getattr(images.metadata, "pixel_size_y", None),
-            "z_step": getattr(images.metadata, "z_step", None),
-        }
-        print(metadata)
+        frame_meta = images.frame_metadata(0)
 
-        # Add additional metadata if available
-        try:
-            metadata["pfs_offset"] = images.metadata.channels[0].pfs_offset
-        except (AttributeError, IndexError):
-            metadata["pfs_offset"] = None
+        # Get position data from first channel's position information
+        if frame_meta.channels and hasattr(frame_meta.channels[0], "position"):
+            stage_pos = frame_meta.channels[0].position.stagePositionUm
+            metadata = {
+                "x_data": [stage_pos.x],
+                "y_data": [stage_pos.y],
+                "z_data": [stage_pos.z],
+                "pfs_offset": frame_meta.channels[0].position.pfsOffset,
+            }
+        else:
+            metadata = {
+                "x_data": [],
+                "y_data": [],
+                "z_data": [],
+                "pfs_offset": None,
+            }
 
-        df = pd.DataFrame(metadata)
+        # Add basic metadata
+        metadata.update(
+            {
+                "field_of_view": tile,
+                "filename": tile_fp,
+                "channels": frame_meta.contents.channelCount,
+            }
+        )
+
+        # Get pixel size from first channel's volume information
+        if frame_meta.channels and hasattr(frame_meta.channels[0], "volume"):
+            x_cal, y_cal, _ = frame_meta.channels[0].volume.axesCalibration
+            metadata.update(
+                {
+                    "pixel_size_x": x_cal,
+                    "pixel_size_y": y_cal,
+                }
+            )
+        else:
+            metadata.update(
+                {
+                    "pixel_size_x": None,
+                    "pixel_size_y": None,
+                }
+            )
+
+        df = pd.DataFrame([metadata])
 
         # Sample z-planes if interval is specified and z_data exists
         if z_interval and len(metadata["z_data"]) > 0:
             df = df.iloc[::z_interval, :]
 
-        if verbose:
-            print(f"Found {len(df)} positions for tile {tile}")
-
-        return df
+    return df
 
 
 def extract_metadata_tile(

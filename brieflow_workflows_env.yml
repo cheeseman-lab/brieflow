@@ -11,6 +11,5 @@ dependencies:
   - ipykernel
   - pandas
   - numpy
-  - pytables
   - pip:
       - -e .

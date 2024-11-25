@@ -46,6 +46,7 @@ def extract_phenotype_cp_multichannel(
         cytoplasms (numpy.ndarray, optional): Cytoplasmic segmentation data.
         wildcards (dict): Dictionary containing wildcards.
         nucleus_channels (str or list): List of nucleus channel indices to consider or 'all'.
+        cytoplasm_channels (str or list): List of cytoplasm channel indices to consider or 'all'.
         cell_channels (str or list): List of cell channel indices to consider or 'all'.
         foci_channel (int): Index of the channel containing foci information.
         channel_names (list): List of channel names.

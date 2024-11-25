@@ -4,16 +4,58 @@
 default-resources:
     slurm_partition: 20
     slurm_account: wibrusers
-    mem_mb: 6000
+    mem_mb: 2000
     tasks: 1
-    cpus_per_task: 3
+    cpus_per_task: 1
+    runtime: 120
     slurm_extra: "'--output=slurm_output/stdout/%j.out --error=slurm_output/stderr/%j.err'"
-jobs: 10
+    # slurm_extra: "'--output=slurm_output/log/%j.out'"
+jobs: 100
 
-# set-resources:
-#     <rulename>:
-#         slurm_partition: "<other partition>" # deviating partition for this rule
-#         runtime: 60 # 1 hour
-#         slurm_extra: "'--nice=150'"
-#         mem_mb_per_cpu: 1800
-#         cpus_per_task: 40
+set-resources:
+    # preprocessing
+    extract_metadata_sbs:
+        mem_mb: 100
+    extract_metadata_phenotype:
+        mem_mb: 100
+    convert_sbs:
+        mem_mb: 500
+    convert_ph:
+        mem_mb: 500
+    calculate_ic_sbs:
+        mem_mb: 2000
+    calculate_ic_phenotype:
+        mem_mb: 2000
+    # sbs_process
+    align:
+        mem_mb: 1000
+    log_filter:
+        mem_mb: 1000
+    compute_standard_deviation:
+        mem_mb: 750
+    find_peaks:
+        mem_mb: 200
+    max_filter:
+        mem_mb: 750
+    apply_ic_field:
+        mem_mb: 1000
+    segment:
+        slurm_partition: "'nvidia-2080ti-20'"
+        mem_mb: 3000
+        cpus_per_task: 4
+        slurm_extra: "'--gres=gpu:1'"
+    extract_bases:
+        mem_mb: 750
+    call_reads:
+        mem_mb: 100
+    call_cells:
+        mem_mb: 200
+    extract_sbs_info:
+        mem_mb: 200
+    combine_reads:
+        mem_mb: 20000
+    combine_cells:
+        mem_mb: 20000
+    combine_sbs_info:
+        mem_mb: 20000
+    # phenotype_process

@@ -12,3 +12,6 @@ example_analysis/analysis_root/
 
 # test notebooks
 test_file_differences.ipynb
+
+# slurm outputs
+example_analysis/slurm_output/

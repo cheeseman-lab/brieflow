@@ -1,4 +1,4 @@
-from lib.sbs_process.segment_cellpose import segment_cellpose
+from shared.segment_cellpose import segment_cellpose
 from skimage.io import imread, imsave
 
 # load illumination corrected data

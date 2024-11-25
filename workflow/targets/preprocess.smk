@@ -9,13 +9,29 @@ PREPROCESS_OUTPUTS = {
         PREPROCESS_FP
         / "metadata"
         / "sbs"
-        / get_filename({"well": "{well}", "cycle": "{cycle}"}, "metadata", "tsv"),
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}, "metadata", "tsv"
+        ),
+    ],
+    "combine_metadata_sbs": [
+        PREPROCESS_FP
+        / "metadata"
+        / "sbs"
+        / get_filename(
+            {"well": "{well}", "cycle": "{cycle}"}, "combined_metadata", "tsv"
+        ),
     ],
     "extract_metadata_phenotype": [
         PREPROCESS_FP
         / "metadata"
         / "phenotype"
-        / get_filename({"well": "{well}"}, "metadata", "tsv"),
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "metadata", "tsv"),
+    ],
+    "combine_metadata_phenotype": [
+        PREPROCESS_FP
+        / "metadata"
+        / "phenotype"
+        / get_filename({"well": "{well}"}, "combined_metadata", "tsv"),
     ],
     "convert_sbs": [
         PREPROCESS_FP
@@ -46,8 +62,10 @@ PREPROCESS_OUTPUTS = {
 }
 
 PREPROCESS_OUTPUT_MAPPINGS = {
-    "extract_metadata_sbs": None,
-    "extract_metadata_phenotype": None,
+    "extract_metadata_sbs": temp,
+    "combine_metadata_sbs": None,
+    "extract_metadata_phenotype": temp,
+    "combine_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,
     "calculate_ic_sbs": None,

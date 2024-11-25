@@ -1,8 +1,8 @@
-from lib.preprocess.preprocess import extract_metadata_tile
+from lib.preprocess.preprocess import extract_tile_metadata
 
 # Extract metadata from ND2 file paths using the _extract_metadata_tile function
-metadata_df = extract_metadata_tile(
-    snakemake.input, z_interval=snakemake.params.z_interval
+metadata_df = extract_tile_metadata(
+    snakemake.input[0], snakemake.params.tile, z_interval=snakemake.params.z_interval
 )
 
 # Save the extracted metadata to the output path

@@ -11,14 +11,34 @@ rule extract_metadata_sbs:
         lambda wildcards: get_sample_fps(
             sbs_samples_df,
             well=wildcards.well,
+            tile=wildcards.tile,
             cycle=wildcards.cycle,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
         z_interval=None,
+        tile=lambda wildcards: wildcards.tile,
     script:
-        "../scripts/preprocess/extract_metadata_tile.py"
+        "../scripts/preprocess/extract_tile_metadata.py"
+
+
+# Extract metadata for SBS images
+rule combine_metadata_sbs:
+    conda:
+        "../envs/preprocess.yml"
+    input:
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+            {"tile": SBS_TILES},
+            wildcards,
+        ),
+    output:
+        PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
+    params:
+        output_type="tsv",
+    script:
+        "../scripts/shared/combine_dfs.py"
 
 
 # Extract metadata for phenotype images
@@ -29,13 +49,33 @@ rule extract_metadata_phenotype:
         lambda wildcards: get_sample_fps(
             phenotype_samples_df,
             well=wildcards.well,
+            tile=wildcards.tile,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:
         z_interval=4,
+        tile=lambda wildcards: wildcards.tile,
     script:
-        "../scripts/preprocess/extract_metadata_tile.py"
+        "../scripts/preprocess/extract_tile_metadata.py"
+
+
+# Extract metadata for SBS images
+rule combine_metadata_phenotype:
+    conda:
+        "../envs/preprocess.yml"
+    input:
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
+            {"tile": SBS_TILES},
+            wildcards,
+        ),
+    output:
+        PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
+    params:
+        output_type="tsv",
+    script:
+        "../scripts/shared/combine_dfs.py"
 
 
 # Convert SBS ND2 files to TIFF

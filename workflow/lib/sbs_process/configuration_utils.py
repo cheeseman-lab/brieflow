@@ -7,12 +7,12 @@ import skimage.morphology
 def identify_cytoplasm_cellpose(nuclei, cells):
     """Identifies and isolates the cytoplasm region in an image based on the provided nuclei and cells masks.
 
-    Parameters:
-    nuclei (ndarray): A 2D array representing the nuclei regions.
-    cells (ndarray): A 2D array representing the cells regions.
+    Args:
+        nuclei (ndarray): A 2D array representing the nuclei regions.
+        cells (ndarray): A 2D array representing the cells regions.
 
     Returns:
-    ndarray: A 2D array representing the cytoplasm regions.
+        ndarray: A 2D array representing the cytoplasm regions.
     """
     # Check if the number of unique labels in nuclei and cells are the same
     if len(np.unique(nuclei)) != len(np.unique(cells)):

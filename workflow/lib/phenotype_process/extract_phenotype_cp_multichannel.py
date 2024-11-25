@@ -12,7 +12,7 @@ import skimage.segmentation
 from scipy import ndimage as ndi
 
 import lib.shared.features
-from external.cp_emulator import (
+from lib.external.cp_emulator import (
     grayscale_features_multichannel,
     correlation_features_multichannel,
     shape_features,
@@ -39,19 +39,19 @@ def extract_phenotype_cp_multichannel(
 ):
     """Extract phenotype features from CellProfiler-like data with multi-channel functionality.
 
-    Parameters:
-    - data_phenotype (numpy.ndarray): Phenotype data array of shape (..., CHANNELS, I, J).
-    - nuclei (numpy.ndarray): Nuclei segmentation data.
-    - cells (numpy.ndarray): Cell segmentation data.
-    - cytoplasms (numpy.ndarray, optional): Cytoplasmic segmentation data.
-    - wildcards (dict): Dictionary containing wildcards.
-    - nucleus_channels (str or list): List of nucleus channel indices to consider or 'all'.
-    - cell_channels (str or list): List of cell channel indices to consider or 'all'.
-    - foci_channel (int): Index of the channel containing foci information.
-    - channel_names (list): List of channel names.
+    Args:
+        data_phenotype (numpy.ndarray): Phenotype data array of shape (..., CHANNELS, I, J).
+        nuclei (numpy.ndarray): Nuclei segmentation data.
+        cells (numpy.ndarray): Cell segmentation data.
+        cytoplasms (numpy.ndarray, optional): Cytoplasmic segmentation data.
+        wildcards (dict): Dictionary containing wildcards.
+        nucleus_channels (str or list): List of nucleus channel indices to consider or 'all'.
+        cell_channels (str or list): List of cell channel indices to consider or 'all'.
+        foci_channel (int): Index of the channel containing foci information.
+        channel_names (list): List of channel names.
 
     Returns:
-    - pandas.DataFrame: DataFrame containing extracted phenotype features.
+        pandas.DataFrame: DataFrame containing extracted phenotype features.
     """
     # Check if all channels should be used
     if nucleus_channels == "all":

@@ -1,5 +1,7 @@
 """Shared utilties for configuring Brieflow process parameters."""
 
+import numpy as np
+import matplotlib
 import skimage.morphology
 
 CONFIG_FILE_HEADER = """
@@ -15,6 +17,26 @@ CONFIG_FILE_HEADER = """
 
 # Parameters:
 """
+
+
+def random_cmap(alpha=0.5, num_colors=256):
+    """Create a random colormap for segmentation.
+
+    Args:
+        alpha (float, optional): Transparency value for the colors in the colormap, ranging from 0 (transparent)
+            to 1 (opaque). Defaults to 0.5.
+        num_colors (int, optional): Number of colors to generate in the colormap. Defaults to 256.
+
+    Returns:
+        matplotlib.colors.ListedColormap: A colormap object with randomly generated colors, where the first
+            color is set to black with full transparency.
+    """
+    colmat = np.random.rand(num_colors, 4)
+    colmat[:, -1] = alpha
+    # Set the first color to black with full transparency
+    colmat[0, :] = [0, 0, 0, 1]
+    cmap = matplotlib.colors.ListedColormap(colmat)
+    return cmap
 
 
 def outline_mask(arr, direction="outer", width=1):

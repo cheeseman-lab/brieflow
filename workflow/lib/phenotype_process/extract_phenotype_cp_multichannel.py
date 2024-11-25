@@ -22,7 +22,7 @@ from lib.external.cp_emulator import (
     neighbor_measurements,
 )
 from lib.shared.extract_phenotype_minimal import extract_features
-from lib.sbs_process.log_filter import log_ndi
+from lib.shared.log_filter import log_ndi
 
 
 def extract_phenotype_cp_multichannel(
@@ -243,7 +243,7 @@ def find_foci(data, radius=3, threshold=10, remove_border_foci=False):
     """
     # Apply white tophat filter to highlight foci
     tophat = skimage.morphology.white_tophat(
-        data, selem=skimage.morphology.disk(radius)
+        data, footprint=skimage.morphology.disk(radius)
     )
 
     # Apply Laplacian of Gaussian to the filtered image

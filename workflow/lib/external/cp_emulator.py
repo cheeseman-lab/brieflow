@@ -18,6 +18,11 @@ It includes functions for:
 4. Feature Extraction Functions: Functions for extracting features from images using the dictionaries.
 """
 
+from functools import partial
+from decorator import decorator
+from itertools import starmap, combinations
+from warnings import catch_warnings, simplefilter
+
 import numpy as np
 from scipy.stats import median_abs_deviation, rankdata  # new in version 1.3.0
 from scipy.spatial.distance import pdist
@@ -25,20 +30,14 @@ from scipy.ndimage.morphology import distance_transform_edt as distance_transfor
 from mahotas.features import haralick, pftas, zernike_moments
 from mahotas.thresholding import otsu
 from scipy.spatial import ConvexHull, QhullError
-from functools import partial
-from itertools import starmap, combinations
-from warnings import catch_warnings, simplefilter
 import skimage.measure
 import skimage.morphology
 from skimage import img_as_ubyte
-from ops.features import (
+from lib.shared.features import (
     correlate_channels_masked,
     masked,
     correlate_channels_all_multichannel,
 )
-from ops.utils import subimage
-from decorator import decorator
-from itertools import combinations
 # from scipy.ndimage import map_coordinates # only required for granularity spectrum, which is currently unused
 
 ######################################################################################################################################
@@ -1137,6 +1136,38 @@ def neighbor_info(
         "number_neighbors": n_neighbors,
         "percent_touching": percent_touching,
     }
+
+
+def subimage(stack, bbox, pad=0):
+    """
+    Extract a rectangular region from a stack of images with optional padding.
+
+    Args:
+        stack (np.ndarray): Input stack of images [...xYxX].
+        bbox (np.ndarray or list): Bounding box coordinates (min_row, min_col, max_row, max_col).
+        pad (int, optional): Padding width. Defaults to 0.
+
+    Returns:
+        np.ndarray: Extracted subimage.
+
+    Notes:
+        - If boundary lies outside stack, raises error.
+        - If padded rectangle extends outside stack, fills with zeros.
+    """
+    i0, j0, i1, j1 = bbox + np.array([-pad, -pad, pad, pad])
+
+    sub = np.zeros(stack.shape[:-2] + (i1 - i0, j1 - j0), dtype=stack.dtype)
+
+    i0_, j0_ = max(i0, 0), max(j0, 0)
+    i1_, j1_ = min(i1, stack.shape[-2]), min(j1, stack.shape[-1])
+    s = (
+        Ellipsis,
+        slice(i0_ - i0, (i0_ - i0) + i1_ - i0_),
+        slice(j0_ - j0, (j0_ - j0) + j1_ - j0_),
+    )
+
+    sub[s] = stack[..., i0_:i1_, j0_:j1_]
+    return sub
 
 
 def cp_disk(radius):

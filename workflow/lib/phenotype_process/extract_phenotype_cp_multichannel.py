@@ -1,3 +1,5 @@
+"""Helper function to extract phenotype features from CellProfiler-like data with multi-channel functionality."""
+
 from itertools import combinations, permutations, product
 
 import numpy as np
@@ -230,7 +232,7 @@ def extract_features_bare(
 def find_foci(data, radius=3, threshold=10, remove_border_foci=False):
     """Detect foci in the given image using a white tophat filter and other processing steps.
 
-    Parameters:
+    Args:
         data (numpy.ndarray): Input image data.
         radius (int, optional): Radius of the disk used in the white tophat filter. Default is 3.
         threshold (float, optional): Threshold value for identifying foci in the processed image. Default is 10.
@@ -270,7 +272,7 @@ def find_foci(data, radius=3, threshold=10, remove_border_foci=False):
 def apply_watershed(img, smooth=4):
     """Apply the watershed algorithm to the given image to refine segmentation.
 
-    Parameters:
+    Args:
         img (numpy.ndarray): Input binary image.
         smooth (float, optional): Size of Gaussian kernel used to smooth the distance map. Default is 4.
 
@@ -301,7 +303,7 @@ def apply_watershed(img, smooth=4):
 def remove_border(labels, mask, dilate=5):
     """Remove labeled regions that touch the border of the given mask.
 
-    Parameters:
+    Args:
         labels (numpy.ndarray): Labeled image.
         mask (numpy.ndarray): Mask indicating the border regions.
         dilate (int, optional): Number of dilation iterations to apply to the mask. Default is 5.

@@ -76,6 +76,23 @@ def correlate_channels_multichannel(r, first, second):
     return corr.mean()
 
 
+def correlate_channels_all_multichannel(r):
+    """Compute cross-correlation between masked images of all channels within a region.
+
+    Args:
+        r (skimage regionprops object): Region properties object containing intensity images for multiple channels.
+
+    Returns:
+        array: Array containing cross-correlation values between all pairs of channels.
+    """
+    # Compute correlation coefficients for all pairs of channels
+    R = np.corrcoef(r.intensity_image[r.image].T)
+
+    # Extract upper triangle (excluding the diagonal)
+    # same order as itertools.combinations of channel numbers
+    return R[np.triu_indices_from(R, k=1)]
+
+
 def count_labels(labels, return_list=False):
     """Count the unique non-zero labels in a labeled segmentation mask.
 

@@ -10,7 +10,7 @@ import skimage.segmentation
 from scipy import ndimage as ndi
 
 import lib.shared.features
-from lib.phenotype_process.cp_emulator import (
+from external.cp_emulator import (
     grayscale_features_multichannel,
     correlation_features_multichannel,
     shape_features,

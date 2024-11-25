@@ -12,6 +12,18 @@
 # Parameters:
 all:
   root_fp: analysis_root/
+phenotype_process:
+  cell_diameter: 55.3
+  channel_names:
+  - dapi
+  - coxiv
+  - cenpa
+  - wga
+  cyto_channel: 1
+  cyto_model: cyto3
+  dapi_index: 0
+  foci_channel: 1
+  nuclei_diameter: 47.1
 preprocess:
   phenotype_samples_fp: config/phenotype_samples.tsv
   sbs_samples_fp: config/sbs_samples.tsv

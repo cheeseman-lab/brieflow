@@ -288,7 +288,7 @@ def apply_watershed(img, smooth=4):
 
     # Identify local maxima in the distance transform
     local_max = skimage.feature.peak_local_max(
-        distance, indices=False, footprint=np.ones((3, 3)), exclude_border=False
+        distance, footprint=np.ones((3, 3)), exclude_border=False
     )
 
     # Label the local maxima

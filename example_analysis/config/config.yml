@@ -22,7 +22,7 @@ phenotype_process:
   cyto_channel: 1
   cyto_model: cyto3
   dapi_index: 0
-  foci_channel: 1
+  foci_channel: 2
   nuclei_diameter: 47.1
 preprocess:
   phenotype_samples_fp: config/phenotype_samples.tsv

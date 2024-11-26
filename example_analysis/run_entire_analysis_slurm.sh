@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=1               # Single CPU for the controller job
 #SBATCH --mem=4G                        # Memory for the controller job
 #SBATCH --time=72:00:00                 # Time limit (hrs:min:sec)
-#SBATCH --output=slurm_output/log/all-%j.out  # Standard output log
+#SBATCH --output=slurm_output/main/all-%j.out  # Standard output log
 
 # Set the path to the main Snakefile and the config file
 BRIEFLOW_PATH="../"
@@ -14,7 +14,7 @@ PROFILE_FILE_PATH="slurm/"
 RULEGRAPH_FILE="../images/brieflow_rulegraph.png"
 
 # Create slurm output directories
-mkdir -p slurm_output/stdout slurm_output/stderr slurm_output/log
+mkdir -p slurm_output/rule
 
 # Activate conda environment (adjust path as needed)
 source ~/.bashrc

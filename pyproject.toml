@@ -26,4 +26,4 @@ pydocstyle = { convention = "google" }
 # Ignore docstring check for script files
 "workflow/scripts/*.py" = ["D100", "D103"]
 # Ignore all checks for external files
-"workflow/lib/shared/external/*.py" = ["ALL"]
+"workflow/lib/external/*.py" = ["ALL"]

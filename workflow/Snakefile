@@ -20,8 +20,8 @@ SBS_WELLS = list(sbs_samples_df["well"].unique())
 SBS_TILES = list(sbs_samples_df["tile"].unique())
 SBS_CYCLES = list(sbs_samples_df["cycle"].unique())
 # TODO: unrestrict wells and tiles after testing
-# SBS_WELLS = ["A1"]
-# SBS_TILES = [1]
+SBS_WELLS = ["A1"]
+SBS_TILES = [1]
 
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
 phenotype_samples_df = phenotype_samples_df.sort_values(by=["well", "tile"])

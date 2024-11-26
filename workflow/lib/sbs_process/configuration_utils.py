@@ -1,7 +1,8 @@
-"""Utility functions for configuring SBS processing parameters."""
+"""Utility functions for configuring SBS process parameters."""
 
 import numpy as np
-import skimage.morphology
+
+from lib.shared.configuration_utils import outline_mask
 
 
 def annotate_segment_on_sequencing_data(data, nuclei, cells):
@@ -39,44 +40,3 @@ def annotate_segment_on_sequencing_data(data, nuclei, cells):
     annotated[:, channels] = mask
 
     return np.squeeze(annotated)
-
-
-def outline_mask(arr, direction="outer", width=1):
-    """Remove interior of label mask in `arr`.
-
-    Args:
-        arr (numpy.ndarray): The input label mask array.
-        direction (str, optional): The direction of outlining. 'outer' outlines the outer boundary, 'inner' outlines the inner boundary. Default is 'outer'.
-        width (int, optional): The width of the structuring element used for erosion and dilation. Default is 1.
-
-    Returns:
-        numpy.ndarray: The label mask array with the outlined interior removed.
-
-    Raises:
-        ValueError: If `direction` is neither 'outer' nor 'inner'.
-    """
-    selem = skimage.morphology.disk(
-        width
-    )  # Create a disk-shaped structuring element with the specified width
-    arr = (
-        arr.copy()
-    )  # Create a copy of the input array to avoid modifying the original array
-    if direction == "outer":  # If outlining direction is 'outer'
-        mask = skimage.morphology.erosion(
-            arr, selem
-        )  # Erode the mask using the structuring element
-        arr[mask > 0] = 0  # Set interior pixels to 0
-        return arr  # Return the modified array
-    elif direction == "inner":  # If outlining direction is 'inner'
-        mask1 = (
-            skimage.morphology.erosion(arr, selem) == arr
-        )  # Create a mask for pixels on the inner boundary
-        mask2 = (
-            skimage.morphology.dilation(arr, selem) == arr
-        )  # Create a mask for pixels on the outer boundary
-        arr[mask1 & mask2] = (
-            0  # Set pixels within the inner boundary and outside the outer boundary to 0
-        )
-        return arr  # Return the modified array
-    else:  # If direction is neither 'outer' nor 'inner'
-        raise ValueError(direction)  # Raise a ValueError

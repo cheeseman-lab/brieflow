@@ -6,7 +6,7 @@ import re
 
 import numpy as np
 
-from lib.shared.external.tifffile import TiffFile, TiffSequence
+from lib.external.tifffile import TiffFile, TiffSequence
 
 log = logging.getLogger(__name__)
 

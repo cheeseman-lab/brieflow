@@ -1,4 +1,4 @@
-from lib.sbs_process.log_filter import log_filter
+from lib.shared.log_filter import log_filter
 from skimage.io import imread, imsave
 
 # load aligned image data

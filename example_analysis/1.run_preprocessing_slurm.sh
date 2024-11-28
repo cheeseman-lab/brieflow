@@ -25,3 +25,4 @@ snakemake --use-conda --executor slurm \
     --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
     --configfile "$CONFIG_FILE_PATH" \
     --until all_preprocess
+    

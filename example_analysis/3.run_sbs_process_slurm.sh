@@ -24,3 +24,4 @@ snakemake --use-conda --executor slurm \
     --workflow-profile "$PROFILE_FILE_PATH" \
     --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
     --configfile "$CONFIG_FILE_PATH"
+    

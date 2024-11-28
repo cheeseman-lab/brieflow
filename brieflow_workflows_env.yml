@@ -6,6 +6,7 @@ channels:
 dependencies:
   - python=3.11
   - snakemake=8
+  - snakemake-executor-plugin-slurm
   - coincbc=2.10.12 # Pinned because need this version specifically. Should check if relevant across machines.
   - pip
   - ipykernel
@@ -13,4 +14,3 @@ dependencies:
   - numpy
   - pip:
       - -e .
-      - snakemake-executor-plugin-slurm

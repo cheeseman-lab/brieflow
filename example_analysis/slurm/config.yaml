@@ -58,3 +58,4 @@ set-resources:
     combine_sbs_info:
         mem_mb: 20000
     # phenotype_process
+    

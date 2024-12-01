@@ -1,0 +1,5 @@
+name: phenotype_process
+channels:
+  - conda-forge
+dependencies:
+  - scikit-image

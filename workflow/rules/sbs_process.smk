@@ -1,4 +1,3 @@
-from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import output_to_input
 
 

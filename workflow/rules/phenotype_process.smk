@@ -33,6 +33,34 @@ rule segment_phenotype:
         "../scripts/shared/segment_cellpose.py"
 
 
+# Extract cytoplasmic masks from segmented nuclei, cells
+rule identify_cytoplasm:
+    conda:
+        "../envs/phenotype_process.yml"
+    input:
+        # nuclei segmentation map
+        PHENOTYPE_PROCESS_OUTPUTS["segment_phenotype"][0],
+        # cells segmentation map
+        PHENOTYPE_PROCESS_OUTPUTS["segment_phenotype"][1],
+    output:
+        PHENOTYPE_PROCESS_OUTPUTS_MAPPED["identify_cytoplasm"],
+    script:
+        "../scripts/phenotype_process/identify_cytoplasm_cellpose.py"
+
+
+# Extract minimal phenotype information from segmented nuclei images
+rule extract_phenotype_info:
+    conda:
+        "../envs/phenotype_process.yml"
+    input:
+        # nuclei segmentation map
+        PHENOTYPE_PROCESS_OUTPUTS["segment_phenotype"][0],
+    output:
+        PHENOTYPE_PROCESS_OUTPUTS_MAPPED["extract_phenotype_info"],
+    script:
+        "../scripts/shared/extract_phenotype_minimal.py"
+
+
 # rule for all phenotpye processing steps
 rule all_phenotype_process:
     input:

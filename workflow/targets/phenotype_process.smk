@@ -25,10 +25,25 @@ PHENOTYPE_PROCESS_OUTPUTS = {
             {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsv"
         ),
     ],
+    "identify_cytoplasm": [
+        PHENOTYPE_PROCESS_FP
+        / "images"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "identified_cytoplasms", "tiff"
+        ),
+    ],
+    "extract_phenotype_info": [
+        PHENOTYPE_PROCESS_FP
+        / "tsvs"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "phenotype_info", "tsv"),
+    ],
 }
 
 PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
     "apply_ic_field_phenotype": None,
+    "segment_phenotype": None,
+    "identify_cytoplasm": None,
+    "extract_phenotype_info": None,
 }
 
 PHENOTYPE_PROCESS_WILDCARDS = {

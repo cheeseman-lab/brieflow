@@ -172,7 +172,7 @@ rule extract_sbs_info:
     output:
         SBS_PROCESS_OUTPUTS_MAPPED["extract_sbs_info"],
     script:
-        "../scripts/sbs_process/extract_sbs_info.py"
+        "../scripts/shared/extract_phenotype_minimal.py"
 
 
 # Rule for combining read results from different wells

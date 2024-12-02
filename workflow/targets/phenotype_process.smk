@@ -4,6 +4,7 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 PHENOTYPE_PROCESS_FP = ROOT_FP / "phenotype_process"
 
+
 PHENOTYPE_PROCESS_OUTPUTS = {
     "apply_ic_field_phenotype": [
         PHENOTYPE_PROCESS_FP
@@ -54,6 +55,11 @@ PHENOTYPE_PROCESS_OUTPUTS = {
         PHENOTYPE_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
         PHENOTYPE_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
     ],
+    # "eval_mapping_phenotype": [
+    #     PHENOTYPE_PROCESS_FP / "eval" / "mapping" / "segmentation_overview.tsv",
+    #     PHENOTYPE_PROCESS_FP / "eval" / "mapping" / "cell_density_heatmap.tsv",
+    #     PHENOTYPE_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
+    # ],
 }
 
 PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
@@ -65,6 +71,7 @@ PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
     "extract_phenotype_cp": None,
     "merge_phenotype_cp": None,
     "eval_segmentation_phenotype": None,
+    # "eval_mapping_phenotype": None,
 }
 
 PHENOTYPE_PROCESS_WILDCARDS = {

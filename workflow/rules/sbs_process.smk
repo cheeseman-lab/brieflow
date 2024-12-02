@@ -76,7 +76,7 @@ rule max_filter:
 
 
 # Apply illumination correction field from segmentation cycle
-rule apply_ic_field:
+rule apply_ic_field_sbs:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -88,13 +88,13 @@ rule apply_ic_field:
             wildcards,
         ),
     output:
-        SBS_PROCESS_OUTPUTS_MAPPED["apply_ic_field"],
+        SBS_PROCESS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
         segmentation_cycle_index=SBS_CYCLES[
             config["sbs_process"]["segmentation_cycle_index"]
         ],
     script:
-        "../scripts/sbs_process/apply_ic_field.py"
+        "../scripts/sbs_process/apply_ic_field_sbs.py"
 
 
 # Segments cells and nuclei using pre-defined methods
@@ -102,7 +102,7 @@ rule segment:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_OUTPUTS["apply_ic_field"],
+        SBS_PROCESS_OUTPUTS["apply_ic_field_sbs"],
     output:
         SBS_PROCESS_OUTPUTS_MAPPED["segment"],
     params:

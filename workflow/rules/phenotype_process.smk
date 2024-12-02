@@ -11,7 +11,7 @@ rule apply_ic_field_phenotype:
     output:
         PHENOTYPE_PROCESS_OUTPUTS_MAPPED["apply_ic_field_phenotype"],
     script:
-        "../scripts/phenotype_process/apply_ic_field.py"
+        "../scripts/phenotype_process/apply_ic_field_phenotype.py"
 
 
 # rule for all phenotpye processing steps

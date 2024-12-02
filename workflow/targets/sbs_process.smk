@@ -32,7 +32,7 @@ SBS_PROCESS_OUTPUTS = {
         / "images"
         / get_filename({"well": "{well}", "tile": "{tile}"}, "max_filtered", "tiff"),
     ],
-    "apply_ic_field": [
+    "apply_ic_field_sbs": [
         SBS_PROCESS_FP
         / "images"
         / get_filename(
@@ -106,7 +106,7 @@ SBS_PROCESS_OUTPUT_MAPPINGS = {
     "compute_standard_deviation": None,
     "find_peaks": None,
     "max_filter": None,
-    "apply_ic_field": None,
+    "apply_ic_field_sbs": None,
     "segment": None,
     "extract_bases": None,
     "call_reads": None,

@@ -6,7 +6,8 @@ import re
 
 import numpy as np
 
-from lib.external.tifffile import TiffFile, TiffSequence
+# from lib.external.tifffile import TiffFile, TiffSequence
+from tifffile import imread, TiffFile, TiffSequence
 
 log = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ def read_stack(filename, copy=True, maxworkers=None, fix_axes=False):
     Returns:
         np.ndarray: Image data.
     """
-    data = imread_tiff(filename, multifile=False, is_ome=False, maxworkers=maxworkers)
+    data = imread(filename, _multifile=False, is_ome=False, maxworkers=maxworkers)
 
     while data.shape[0] == 1:
         data = np.squeeze(data, axis=(0,))
@@ -118,84 +119,84 @@ def read_stack(filename, copy=True, maxworkers=None, fix_axes=False):
     return data
 
 
-# NOTE: memoize decorator not migrated from OpticalPooledScreens
-# consider migrating if needed
-def imread_tiff(files, **kwargs):
-    """Return image data from TIFF file(s) as a numpy array.
+# # NOTE: memoize decorator not migrated from OpticalPooledScreens
+# # consider migrating if needed
+# def imread_tiff(files, **kwargs):
+#     """Return image data from TIFF file(s) as a numpy array.
 
-    Refer to the TiffFile and TiffSequence classes and their `asarray`
-    functions for detailed documentation.
+#     Refer to the TiffFile and TiffSequence classes and their `asarray`
+#     functions for detailed documentation.
 
-    Args:
-        files (str, binary stream, or sequence): File name, seekable binary
-            stream, glob pattern, or sequence of file names.
-        **kwargs:
-            - name, offset, size, multifile, is_ome: Passed to the TiffFile constructor.
-            - pattern: Passed to the TiffSequence constructor.
-            - Other parameters: Passed to the `asarray` functions. If no arguments
-              are provided, the first image series in the file is returned.
+#     Args:
+#         files (str, binary stream, or sequence): File name, seekable binary
+#             stream, glob pattern, or sequence of file names.
+#         **kwargs:
+#             - name, offset, size, multifile, is_ome: Passed to the TiffFile constructor.
+#             - pattern: Passed to the TiffSequence constructor.
+#             - Other parameters: Passed to the `asarray` functions. If no arguments
+#               are provided, the first image series in the file is returned.
 
-    Returns:
-        numpy.ndarray: Image data from the specified TIFF file(s).
-    """
-    kwargs_file = parse_kwargs(
-        kwargs,
-        "is_ome",
-        "multifile",
-        "_useframes",
-        "name",
-        "offset",
-        "size",
-        "multifile_close",
-        "fastij",
-        "movie",
-    )  # legacy
-    kwargs_seq = parse_kwargs(kwargs, "pattern")
+#     Returns:
+#         numpy.ndarray: Image data from the specified TIFF file(s).
+#     """
+#     kwargs_file = parse_kwargs(
+#         kwargs,
+#         "is_ome",
+#         "multifile",
+#         "_useframes",
+#         "name",
+#         "offset",
+#         "size",
+#         "multifile_close",
+#         "fastij",
+#         "movie",
+#     )  # legacy
+#     kwargs_seq = parse_kwargs(kwargs, "pattern")
 
-    if kwargs.get("pages", None) is not None:
-        if kwargs.get("key", None) is not None:
-            raise TypeError("the 'pages' and 'key' arguments cannot be used together")
-        log.warning("imread: the 'pages' argument is deprecated")
-        kwargs["key"] = kwargs.pop("pages")
+#     if kwargs.get("pages", None) is not None:
+#         if kwargs.get("key", None) is not None:
+#             raise TypeError("the 'pages' and 'key' arguments cannot be used together")
+#         log.warning("imread: the 'pages' argument is deprecated")
+#         kwargs["key"] = kwargs.pop("pages")
 
-    basestring = str, bytes
-    if isinstance(files, basestring) and any(i in files for i in "?*"):
-        files = glob.glob(files)
-    if not files:
-        raise ValueError("no files found")
-    if not hasattr(files, "seek") and len(files) == 1:
-        files = files[0]
+#     basestring = str, bytes
+#     if isinstance(files, basestring) and any(i in files for i in "?*"):
+#         files = glob.glob(files)
+#     if not files:
+#         raise ValueError("no files found")
+#     if not hasattr(files, "seek") and len(files) == 1:
+#         files = files[0]
 
-    if isinstance(files, basestring) or hasattr(files, "seek"):
-        with TiffFile(files, **kwargs_file) as tif:
-            return tif.asarray(**kwargs)
-    else:
-        with TiffSequence(files, **kwargs_seq) as imseq:
-            return imseq.asarray(**kwargs)
+#     if isinstance(files, basestring) or hasattr(files, "seek"):
+#         with TiffFile(files, **kwargs_file) as tif:
+#             return tif.asarray(**kwargs)
+#     else:
+#         with TiffSequence(files, **kwargs_seq) as imseq:
+#             return imseq.asarray(**kwargs)
 
 
-def parse_kwargs(kwargs, *keys, **keyvalues):
-    """Return dict with keys from keys|keyvals and values from kwargs|keyvals.
+# def parse_kwargs(kwargs, *keys, **keyvalues):
+#     """Return dict with keys from keys|keyvals and values from kwargs|keyvals.
 
-    Existing keys are deleted from kwargs.
+#     Existing keys are deleted from kwargs.
 
-    >>> kwargs = {'one': 1, 'two': 2, 'four': 4}
-    >>> kwargs2 = parse_kwargs(kwargs, 'two', 'three', four=None, five=5)
-    >>> kwargs == {'one': 1}
-    True
-    >>> kwargs2 == {'two': 2, 'four': 4, 'five': 5}
-    True
+#     >>> kwargs = {'one': 1, 'two': 2, 'four': 4}
+#     >>> kwargs2 = parse_kwargs(kwargs, 'two', 'three', four=None, five=5)
+#     >>> kwargs == {'one': 1}
+#     True
+#     >>> kwargs2 == {'two': 2, 'four': 4, 'five': 5}
+#     True
 
-    """
-    result = {}
-    for key in keys:
-        if key in kwargs:
-            result[key] = kwargs[key]
-            del kwargs[key]
-    for key, value in keyvalues.items():
-        if key in kwargs:
-            result[key] = kwargs[key]
-            del kwargs[key]
-        else:
-            result[key] = value
-    return result
+#     """
+#     result = {}
+#     for key in keys:
+#         if key in kwargs:
+#             result[key] = kwargs[key]
+#             del kwargs[key]
+#     for key, value in keyvalues.items():
+#         if key in kwargs:
+#             result[key] = kwargs[key]
+#             del kwargs[key]
+#         else:
+#             result[key] = value
+#     return result

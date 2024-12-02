@@ -12,5 +12,6 @@ dependencies:
   - ipykernel
   - pandas
   - numpy
+  - tifffile
   - pip:
       - -e .

@@ -17,22 +17,25 @@ arr_reads = Parallel(n_jobs=snakemake.threads)(
 phenotype_cp = pd.concat(arr_reads)
 phenotype_cp.to_hdf(snakemake.output[0], "x", mode="w")
 
-# Save subset of features
-phenotype_cp_min = phenotype_cp[
-    [
-        "well",
-        "tile",
-        "label",
-        "cell_i",
-        "cell_j",
-        "cell_bounds_0",
-        "cell_bounds_1",
-        "cell_bounds_2",
-        "cell_bounds_3",
-        "cell_dapi_min",
-        "cell_cenpa_min",
-        "cell_coxiv_min",
-        "cell_wga_min",
-    ]
+# Create subset of features
+# Add bounds for each channel
+bounds_features = [
+    f"cell_bounds_{i}" for i in range(len(snakemake.params.channel_names))
 ]
+# Add minimum intensity feature for each channel
+channel_min_features = [
+    f"cell_{channel}_min" for channel in snakemake.params.channel_names
+]
+# Final features
+phenotype_cp_min_features = [
+    "well",
+    "tile",
+    "label",
+    "cell_i",
+    "cell_j",
+]
+phenotype_cp_min_features.extend(bounds_features + channel_min_features)
+
+# Save subset of features
+phenotype_cp_min = phenotype_cp[phenotype_cp_min_features]
 phenotype_cp_min.to_hdf(snakemake.output[1], "x", mode="w")

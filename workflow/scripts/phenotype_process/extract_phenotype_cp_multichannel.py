@@ -1,5 +1,3 @@
-from skimage.io import imsave
-
 from lib.shared.file_utils import read_stack
 from lib.phenotype_process.extract_phenotype_cp_multichannel import (
     extract_phenotype_cp_multichannel,
@@ -12,15 +10,6 @@ cells = read_stack(snakemake.input[2])
 cytoplasms = read_stack(snakemake.input[3])
 
 # extract phenotype CellProfiler information
-print(
-    snakemake.input[0],
-    snakemake.input[1],
-    snakemake.input[2],
-    snakemake.input[3],
-    snakemake.params.foci_channel,
-    snakemake.params.channel_names,
-    snakemake.wildcards,
-)
 phenotype_cp = extract_phenotype_cp_multichannel(
     data_phenotype=data_phenotype,
     nuclei=nuclei,

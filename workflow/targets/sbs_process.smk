@@ -81,7 +81,7 @@ SBS_PROCESS_OUTPUTS = {
     "combine_sbs_info": [
         SBS_PROCESS_FP / "hdfs" / get_filename({}, "sbs_info", "hdf5"),
     ],
-    "eval_segmentation": [
+    "eval_segmentation_sbs": [
         SBS_PROCESS_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
         SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
         SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
@@ -115,7 +115,7 @@ SBS_PROCESS_OUTPUT_MAPPINGS = {
     "combine_reads": None,
     "combine_cells": None,
     "combine_sbs_info": None,
-    "eval_segmentation": None,
+    "eval_segmentation_sbs": None,
     "eval_mapping": None,
 }
 

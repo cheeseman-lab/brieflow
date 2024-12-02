@@ -223,7 +223,7 @@ rule combine_sbs_info:
         "../scripts/shared/combine_dfs.py"
 
 
-rule eval_segmentation:
+rule eval_segmentation_sbs:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -236,7 +236,7 @@ rule eval_segmentation:
         # path to hdf with combined cell data
         cells_path=SBS_PROCESS_OUTPUTS["combine_cells"][0],
     output:
-        SBS_PROCESS_OUTPUTS_MAPPED["eval_segmentation"],
+        SBS_PROCESS_OUTPUTS_MAPPED["eval_segmentation_sbs"],
     script:
         "../scripts/shared/eval_segmentation.py"
 

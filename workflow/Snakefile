@@ -46,12 +46,12 @@ if "sbs_process" in config:
     ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
 
 
-# if "phenotype_process" in config:
+if "phenotype_process" in config:
 
-#     include: "targets/phenotype_process.smk"
-#     include: "rules/phenotype_process.smk"
+    include: "targets/phenotype_process.smk"
+    include: "rules/phenotype_process.smk"
 
-#     ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
+    ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
 
 
 # Define the target files for the workflow

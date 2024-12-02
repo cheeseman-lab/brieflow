@@ -9,8 +9,6 @@ aligned_image_data_segmentation_cycle = aligned_image_data[
 
 # load illumination correction field
 ic_field = imread(snakemake.input[1])
-print(snakemake.input[1])
-print(ic_field.shape)
 
 # apply illumination correction field
 corrected_image_data = apply_ic_field(

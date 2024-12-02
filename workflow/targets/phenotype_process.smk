@@ -5,7 +5,7 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 PHENOTYPE_PROCESS_FP = ROOT_FP / "phenotype_process"
 
 PHENOTYPE_PROCESS_OUTPUTS = {
-    "apply_ic_field": [
+    "apply_ic_field_phenotype": [
         PHENOTYPE_PROCESS_FP
         / "images"
         / get_filename(
@@ -15,7 +15,7 @@ PHENOTYPE_PROCESS_OUTPUTS = {
 }
 
 PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
-    "apply_ic_field": None,
+    "apply_ic_field_phenotype": None,
 }
 
 PHENOTYPE_PROCESS_WILDCARDS = {

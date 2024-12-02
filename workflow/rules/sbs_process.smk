@@ -254,3 +254,9 @@ rule eval_mapping:
         df_design_path=config["sbs_process"]["df_design_path"],
     script:
         "../scripts/sbs_process/eval_mapping.py"
+
+
+# rule for all sbs processing steps
+rule all_sbs_process:
+    input:
+        SBS_PROCESS_TARGETS_ALL,

@@ -61,6 +61,22 @@ rule extract_phenotype_info:
         "../scripts/shared/extract_phenotype_minimal.py"
 
 
+# Combine phenotype info results from different wells
+rule merge_phenotype_info:
+    conda:
+        "../envs/phenotype_process.yml"
+    input:
+        lambda wildcards: output_to_input(
+            PHENOTYPE_PROCESS_OUTPUTS["extract_phenotype_info"],
+            {"tile": PHENOTYPE_TILES},
+            wildcards,
+        ),
+    output:
+        PHENOTYPE_PROCESS_OUTPUTS_MAPPED["merge_phenotype_info"],
+    script:
+        "../scripts/shared/combine_dfs.py"
+
+
 # rule for all phenotpye processing steps
 rule all_phenotype_process:
     input:

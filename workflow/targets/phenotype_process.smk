@@ -37,6 +37,11 @@ PHENOTYPE_PROCESS_OUTPUTS = {
         / "tsvs"
         / get_filename({"well": "{well}", "tile": "{tile}"}, "phenotype_info", "tsv"),
     ],
+    "merge_phenotype_info": [
+        PHENOTYPE_PROCESS_FP
+        / "hdfs"
+        / get_filename({"well": "{well}"}, "phenotype_info", "tsv"),
+    ],
 }
 
 PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {

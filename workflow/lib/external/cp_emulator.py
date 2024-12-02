@@ -42,151 +42,6 @@ from lib.shared.features import (
 
 ######################################################################################################################################
 
-## CELLPROFILER SEGMENTATION FUNCTIONS (UNUSED)
-
-
-def identify_secondary_objects(
-    image,
-    primary_segmentation,
-    method="propagation",
-    regularization_factor=0.05,
-    threshold="otsu",
-    remove_boundary_objects=True,
-):
-    """
-    Identifies secondary objects in an image based on primary segmentation.
-
-    Parameters:
-    - image: Input image
-    - primary_segmentation: Segmentation of primary objects
-    - method: Segmentation method (only 'propagation' is implemented)
-    - regularization_factor: Factor for regularization in propagation
-    - threshold: Method or value for thresholding ('otsu', array, or numeric)
-    - remove_boundary_objects: Whether to remove objects touching the image boundary
-    """
-
-    # Check if the method is supported (only 'propagation' is implemented)
-    if method != "propagation":
-        raise ValueError(f"method={method} not implemented")
-
-    # Import the propagate function from centrosome library
-    from centrosome.propagate import propagate
-
-    # Determine the thresholding method
-    if isinstance(threshold, np.ndarray):
-        # If threshold is already an array, use it directly
-        thresholded = threshold
-    elif isinstance(threshold, (int, float)):
-        # If threshold is a number, apply simple thresholding
-        thresholded = image > threshold
-    elif threshold == "otsu":
-        # If 'otsu', apply Otsu's thresholding method
-        thresholded = image > otsu(image)
-    else:
-        # Raise error for unsupported thresholding methods
-        raise ValueError(f"threshold={threshold} not implemented")
-
-    # Perform propagation to identify secondary objects
-    secondary_segmentation, _ = propagate(
-        img_as_ubyte(image), primary_segmentation, thresholded, regularization_factor
-    )
-
-    # Optionally remove objects touching the image boundary
-    if remove_boundary_objects:
-        # Identify objects touching the boundary
-        cut = np.concatenate(
-            [
-                secondary_segmentation[0, :],
-                secondary_segmentation[-1, :],
-                secondary_segmentation[:, 0],
-                secondary_segmentation[:, -1],
-            ]
-        )
-        # Set boundary-touching objects to 0 (background)
-        secondary_segmentation.flat[np.in1d(secondary_segmentation, np.unique(cut))] = 0
-
-    # Return the secondary segmentation as 16-bit unsigned integers
-    return secondary_segmentation.astype(np.uint16)
-
-
-######################################################################################################################################
-
-## CELLPROFILER FEATURE EXTRACTION FUNCTIONS (UNUSED)
-
-# Predefined features from CellProfiler and additional sources (scikit-image and mahotas), implemented as functions operating
-# on scikit-image RegionProps objects.
-
-# For most feature groups, 3 versions are implemented for different approaches to handling image channels:
-
-# no suffix: uses ops.utils.regionprops, calculating many intensity metrics only using the first channel.
-# 		Each feature function takes argument: a RegionProps object (especially useful when a single channel
-# 		image is used to instantiate the RegionProps objects).
-# "_ch" suffix: uses ops.utils.regionprops similar to above, but each intensity-based feature function takes at
-# 		least two arguments: a RegionProps object and a channel index (or two channel indices for correlation feature functions) to
-# 		define which channels to use for the given feature calculation.
-# "_multichannel" suffix: uses ops.utils.regionprops_multichannel (requires scikit-image >= 0.18.0), calculating intensity-based features
-# 		for all channels simultaneously (each function has a single argument: a RegionProps object). This can save significant computation
-#  		time when multiple channels are used.
-
-# Features adapted from:
-# Bray et al. 2016 Nature Protocols 11:1757-1774
-# Cell Painting, a high-content image-based assay for morphological profiling using multiplexed fluorescent dyes
-#
-# Also helpful:
-# 	https://github.com/carpenterlab/2016_bray_natprot/wiki/What-do-Cell-Painting-features-mean%3F
-# https://raw.githubusercontent.com/wiki/carpenterlab/2016_bray_natprot/attachments/feature_names.txt
-# http://cellprofiler-manual.s3.amazonaws.com/CellProfiler-3.1.5/modules/measurement.html
-
-# Note: original protocol uses 20X objective, 2x2 binning.
-# Length scales needed for feature extraction should technically be correspondingly scaled,
-# e.g., 20X with 1x1 binning images should use suggested linear length scales * 2
-
-
-def apply_extract_features_cp(well_tile, filepattern):
-    """
-    Extracts cellular phenotype features from microscopy images for a specific well and tile.
-
-    Parameters:
-    - well_tile: Tuple containing well and tile identifiers
-    - filepattern: Dictionary or object containing file naming patterns
-    """
-
-    # Import necessary functions from custom modules
-    from ops.io_hdf import read_hdf_image
-    from ops.io import read_stack as read
-    from ops.firesnake import Snake
-    from ops.filenames import name_file as name
-
-    # Create wildcards dictionary for file naming
-    wildcards = {"well": well_tile[0], "tile": well_tile[1]}
-    filepattern.update(wildcards)
-
-    # Read the stacked (multi-channel) image data
-    stacked = read_hdf_image(name(filepattern))
-
-    # Read the nuclei and cell segmentation images
-    nuclei = read(name(filepattern, subdir="process_ph", tag="nuclei", ext="tif"))
-    cells = read(name(filepattern, subdir="process_ph", tag="cells", ext="tif"))
-
-    # Extract phenotype features using Snake._extract_phenotype_cp method
-    df_result = Snake._extract_phenotype_cp(
-        data_phenotype=stacked,
-        nuclei=nuclei,
-        cells=cells,
-        wildcards=wildcards,
-        nucleus_channels=[0, 1, 2, 3],  # Use all 4 channels for nucleus analysis
-        cell_channels=[0, 1, 2, 3],  # Use all 4 channels for cell analysis
-        channel_names=["dapi", "tubulin", "gh2ax", "phalloidin"],
-    )
-
-    # Save the resulting features to a CSV file
-    df_result.to_csv(
-        name(filepattern, subdir="process_ph", tag="cp_phenotype", ext="csv")
-    )
-
-
-######################################################################################################################################
-
 ## CELLPROFILER FEATURE DICTIONARIES (IN USE)
 
 # MeasureCorrelation
@@ -1046,7 +901,7 @@ def mass_displacement_grayscale(local_centroid, intensity_image):
 
 
 def closest_objects(labeled, n_cpu=1):
-    from ops.process import feature_table
+    from lib.shared.feature_table_utils import feature_table
     from scipy.spatial import cKDTree
 
     features = {
@@ -1120,14 +975,14 @@ def neighbor_info(
     outline_mask = subimage(outlined, bbox, pad=distance) == label
 
     dilated = skimage.morphology.binary_dilation(
-        label_mask == label, selem=neighbors_disk
+        label_mask == label, footprint=neighbors_disk
     )
     neighbors = np.unique(label_mask[dilated])
     neighbors = neighbors[(neighbors != 0) & (neighbors != label)]
     n_neighbors = len(neighbors)
 
     dilated_neighbors = skimage.morphology.binary_dilation(
-        (label_mask != label) & (label_mask != 0), selem=perimeter_disk
+        (label_mask != label) & (label_mask != 0), footprint=perimeter_disk
     )
     percent_touching = (outline_mask & dilated_neighbors).sum() / outline_mask.sum()
 

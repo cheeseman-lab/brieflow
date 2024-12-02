@@ -242,30 +242,22 @@ def find_foci(data, radius=3, threshold=10, remove_border_foci=False):
     Returns:
         labeled (numpy.ndarray): Labeled segmentation mask of foci.
     """
-    print("Debugging find foci!")
     # Apply white tophat filter to highlight foci
     tophat = skimage.morphology.white_tophat(
         data, footprint=skimage.morphology.disk(radius)
     )
-    print(tophat.shape)
 
     # Apply Laplacian of Gaussian to the filtered image
     tophat_log = log_ndi(tophat, sigma=radius)
-    print(tophat_log.shape)
 
     # Threshold the image to create a binary mask
     mask = tophat_log > threshold
-    print(mask)
-    print(mask.shape)
 
     # Remove small objects from the mask
     mask = skimage.morphology.remove_small_objects(mask, min_size=(radius**2))
-    print(mask.shape)
 
     # Label connected components in the mask
     labeled = skimage.measure.label(mask)
-    print(labeled)
-    print(labeled.shape)
 
     # Apply watershed algorithm to refine segmentation
     labeled = apply_watershed(labeled, smooth=1)
@@ -308,10 +300,6 @@ def apply_watershed(img, smooth=4):
     markers = ndi.label(local_max)[0]
 
     # Apply watershed algorithm to the distance transform
-    print("Debugging apply watershed!")
-    print("Distance:", distance)
-    print("Markers:", markers)
-    print("Input Image:", img)
     result = skimage.segmentation.watershed(-distance, markers, mask=img)
 
     return result.astype(np.uint16)

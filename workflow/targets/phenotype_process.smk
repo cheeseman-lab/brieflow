@@ -40,12 +40,20 @@ PHENOTYPE_PROCESS_OUTPUTS = {
     "merge_phenotype_info": [
         PHENOTYPE_PROCESS_FP
         / "hdfs"
-        / get_filename({"well": "{well}"}, "phenotype_info", "tsv"),
+        / get_filename({"well": "{well}"}, "phenotype_info", "hdf5"),
     ],
     "extract_phenotype_cp": [
         PHENOTYPE_PROCESS_FP
         / "tsvs"
         / get_filename({"well": "{well}", "tile": "{tile}"}, "phenotype_cp", "tsv"),
+    ],
+    "merge_phenotype_cp": [
+        PHENOTYPE_PROCESS_FP
+        / "hdfs"
+        / get_filename({"well": "{well}"}, "phenotype_cp", "hdf5"),
+        PHENOTYPE_PROCESS_FP
+        / "hdfs"
+        / get_filename({"well": "{well}"}, "phenotype_cp_min", "hdf5"),
     ],
 }
 

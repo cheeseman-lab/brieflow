@@ -97,6 +97,22 @@ rule extract_phenotype_cp:
         "../scripts/phenotype_process/extract_phenotype_cp_multichannel.py"
 
 
+# Combine phenotype results from different wells
+rule merge_phenotype_cp:
+    conda:
+        "../envs/phenotype_process.yml"
+    input:
+        lambda wildcards: output_to_input(
+            PHENOTYPE_PROCESS_OUTPUTS["extract_phenotype_cp"],
+            {"tile": PHENOTYPE_TILES},
+            wildcards,
+        ),
+    output:
+        PHENOTYPE_PROCESS_OUTPUTS_MAPPED["merge_phenotype_cp"],
+    script:
+        "../scripts/phenotype_process/merge_phenotype_cp.py"
+
+
 # Rule for all phenotype processing steps
 rule all_phenotype_process:
     input:

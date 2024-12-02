@@ -1,6 +1,6 @@
 """Utility functions for evaluating phenotype mapping results."""
 
-from lib.shared.eval_mapping import plot_plate_heatmap
+from lib.shared.eval import plot_plate_heatmap
 
 
 def plot_count_heatmap(

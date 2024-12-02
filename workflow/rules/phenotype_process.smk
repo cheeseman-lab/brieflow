@@ -107,6 +107,8 @@ rule merge_phenotype_cp:
             {"tile": PHENOTYPE_TILES, "well": PHENOTYPE_WELLS},
             wildcards,
         ),
+    params:
+        channel_names=config["phenotype_process"]["channel_names"],
     output:
         PHENOTYPE_PROCESS_OUTPUTS_MAPPED["merge_phenotype_cp"],
     script:

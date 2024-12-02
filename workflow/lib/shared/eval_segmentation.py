@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from lib.shared.file_utils import parse_filename
-from lib.shared.eval_mapping import plot_plate_heatmap
+from lib.shared.eval import plot_plate_heatmap
 
 
 def segmentation_overview(segmentation_stats_paths):

@@ -64,6 +64,7 @@ PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
     "extract_phenotype_info": None,
     "merge_phenotype_info": None,
     "extract_phenotype_cp": None,
+    "merge_phenotype_cp": None,
 }
 
 PHENOTYPE_PROCESS_WILDCARDS = {

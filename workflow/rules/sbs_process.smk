@@ -113,7 +113,7 @@ rule segment:
         cyto_model=config["sbs_process"]["cyto_model"],
         return_counts=True,
     script:
-        "../scripts/sbs_process/segment_cellpose.py"
+        "../scripts/shared/segment_cellpose.py"
 
 
 # Extract bases from peaks

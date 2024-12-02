@@ -19,7 +19,7 @@ phenotype_process:
   - coxiv
   - cenpa
   - wga
-  cyto_channel: 1
+  cyto_index: 1
   cyto_model: cyto3
   dapi_index: 0
   foci_channel: 2

@@ -14,6 +14,25 @@ rule apply_ic_field_phenotype:
         "../scripts/phenotype_process/apply_ic_field_phenotype.py"
 
 
+# Segments cells and nuclei using pre-defined methods
+rule segment_phenotype:
+    conda:
+        "../envs/phenotype_process.yml"
+    input:
+        PHENOTYPE_PROCESS_OUTPUTS["apply_ic_field_phenotype"],
+    output:
+        PHENOTYPE_PROCESS_OUTPUTS_MAPPED["segment_phenotype"],
+    params:
+        dapi_index=config["phenotype_process"]["dapi_index"],
+        cyto_index=config["phenotype_process"]["cyto_index"],
+        nuclei_diameter=config["phenotype_process"]["nuclei_diameter"],
+        cell_diameter=config["phenotype_process"]["cell_diameter"],
+        cyto_model=config["phenotype_process"]["cyto_model"],
+        return_counts=True,
+    script:
+        "../scripts/shared/segment_cellpose.py"
+
+
 # rule for all phenotpye processing steps
 rule all_phenotype_process:
     input:

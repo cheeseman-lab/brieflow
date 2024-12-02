@@ -12,6 +12,19 @@ PHENOTYPE_PROCESS_OUTPUTS = {
             {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
         ),
     ],
+    "segment_phenotype": [
+        PHENOTYPE_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"),
+        PHENOTYPE_PROCESS_FP
+        / "images"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tiff"),
+        PHENOTYPE_PROCESS_FP
+        / "tsvs"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsv"
+        ),
+    ],
 }
 
 PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {

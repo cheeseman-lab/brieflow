@@ -98,13 +98,13 @@ rule apply_ic_field_sbs:
 
 
 # Segments cells and nuclei using pre-defined methods
-rule segment:
+rule segment_sbs:
     conda:
         "../envs/sbs_process.yml"
     input:
         SBS_PROCESS_OUTPUTS["apply_ic_field_sbs"],
     output:
-        SBS_PROCESS_OUTPUTS_MAPPED["segment"],
+        SBS_PROCESS_OUTPUTS_MAPPED["segment_sbs"],
     params:
         dapi_index=config["sbs_process"]["dapi_index"],
         cyto_index=config["sbs_process"]["cyto_index"],
@@ -124,7 +124,7 @@ rule extract_bases:
         SBS_PROCESS_OUTPUTS["find_peaks"],
         SBS_PROCESS_OUTPUTS["max_filter"],
         # use cell segmentation map
-        SBS_PROCESS_OUTPUTS["segment"][1],
+        SBS_PROCESS_OUTPUTS["segment_sbs"][1],
     output:
         SBS_PROCESS_OUTPUTS_MAPPED["extract_bases"],
     params:
@@ -168,7 +168,7 @@ rule extract_sbs_info:
         "../envs/sbs_process.yml"
     input:
         # use nuclei segmentation map
-        SBS_PROCESS_OUTPUTS["segment"][0],
+        SBS_PROCESS_OUTPUTS["segment_sbs"][0],
     output:
         SBS_PROCESS_OUTPUTS_MAPPED["extract_sbs_info"],
     script:
@@ -229,7 +229,7 @@ rule eval_segmentation:
     input:
         # path to segmentation stats for well/tile
         segmentation_stats_paths=lambda wildcards: output_to_input(
-            SBS_PROCESS_OUTPUTS["segment"][2],
+            SBS_PROCESS_OUTPUTS["segment_sbs"][2],
             {"well": SBS_WELLS, "tile": SBS_TILES},
             wildcards,
         ),

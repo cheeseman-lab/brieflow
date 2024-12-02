@@ -39,7 +39,7 @@ SBS_PROCESS_OUTPUTS = {
             {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
         ),
     ],
-    "segment": [
+    "segment_sbs": [
         SBS_PROCESS_FP
         / "images"
         / get_filename({"well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"),
@@ -107,7 +107,7 @@ SBS_PROCESS_OUTPUT_MAPPINGS = {
     "find_peaks": None,
     "max_filter": None,
     "apply_ic_field_sbs": None,
-    "segment": None,
+    "segment_sbs": None,
     "extract_bases": None,
     "call_reads": None,
     "call_cells": None,

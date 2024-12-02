@@ -1,6 +1,7 @@
+from skimage.io import imsave
+
 from lib.shared.file_utils import read_stack
 from lib.shared.illumination_correction import apply_ic_field
-from skimage.io import imread, imsave
 
 # load raw image data
 print(snakemake.input[0])

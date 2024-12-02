@@ -1,8 +1,10 @@
+from skimage.io import imsave
+
+from lib.shared.file_utils import read_stack
 from lib.shared.segment_cellpose import segment_cellpose
-from skimage.io import imread, imsave
 
 # load illumination corrected data
-illumination_corrected_data = imread(snakemake.input[0])
+illumination_corrected_data = read_stack(snakemake.input[0])
 
 # segment cells using cellpose
 nuclei_data, cells_data, counts_df = segment_cellpose(

@@ -6,13 +6,13 @@ CONFIG_FILE_PATH="config/config.yml"
 
 # TODO: Run both processes when done with testing
 
-# Run the phenotype preprocess rules
-# snakemake --use-conda --cores all \
-#     --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
-#     --configfile "$CONFIG_FILE_PATH" \
-#     --until all_sbs_process
+# Run the SBS process rules
+snakemake --use-conda --cores all \
+    --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
+    --configfile "$CONFIG_FILE_PATH" \
+    --until all_sbs_process
 
-# Run the phenotype preprocess rules
+# Run the phenotype process rules
 snakemake --use-conda --cores all \
     --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
     --configfile "$CONFIG_FILE_PATH" \

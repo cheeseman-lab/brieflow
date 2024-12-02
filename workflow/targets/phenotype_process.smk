@@ -4,6 +4,9 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 PHENOTYPE_PROCESS_FP = ROOT_FP / "phenotype_process"
 
+# determine feature eval outputs based on channel names
+channel_names = config["phenotype_process"]["channel_names"]
+eval_features = [f"cell_{channel}_min" for channel in channel_names]
 
 PHENOTYPE_PROCESS_OUTPUTS = {
     "apply_ic_field_phenotype": [
@@ -55,11 +58,15 @@ PHENOTYPE_PROCESS_OUTPUTS = {
         PHENOTYPE_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
         PHENOTYPE_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
     ],
-    # "eval_mapping_phenotype": [
-    #     PHENOTYPE_PROCESS_FP / "eval" / "mapping" / "segmentation_overview.tsv",
-    #     PHENOTYPE_PROCESS_FP / "eval" / "mapping" / "cell_density_heatmap.tsv",
-    #     PHENOTYPE_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
-    # ],
+    # create heatmap tsv and png for each evaluated feature
+    "eval_features": [
+        PHENOTYPE_PROCESS_FP / "eval" / "features" / f"{feature}_heatmap.tsv"
+        for feature in eval_features
+    ]
+    + [
+        PHENOTYPE_PROCESS_FP / "eval" / "features" / f"{feature}_heatmap.png"
+        for feature in eval_features
+    ],
 }
 
 PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
@@ -71,7 +78,7 @@ PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
     "extract_phenotype_cp": None,
     "merge_phenotype_cp": None,
     "eval_segmentation_phenotype": None,
-    # "eval_mapping_phenotype": None,
+    "eval_features": None,
 }
 
 PHENOTYPE_PROCESS_WILDCARDS = {

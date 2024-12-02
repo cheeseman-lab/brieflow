@@ -134,17 +134,16 @@ rule eval_segmentation_phenotype:
         "../scripts/shared/eval_segmentation.py"
 
 
-# rule eval_mapping_phenotype:
-#     conda:
-#         "../envs/phenotype_process.yml"
-#     input:
-#         PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"],
-#         # use minimum phenotype CellProfiler features for evaluation
-#         PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
-#     output:
-#         PHENOTYPE_PROCESS_OUTPUTS_MAPPED["eval_mapping_phenotype"],
-#     script:
-#         "../scripts/sbs_process/eval_mapping.py"
+rule eval_features:
+    conda:
+        "../envs/phenotype_process.yml"
+    input:
+        # use minimum phenotype CellProfiler features for evaluation
+        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
+    output:
+        PHENOTYPE_PROCESS_OUTPUTS_MAPPED["eval_features"],
+    script:
+        "../scripts/phenotype_process/eval_features.py"
 
 
 # Rule for all phenotype processing steps

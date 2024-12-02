@@ -121,24 +121,22 @@ def read_stack(filename, copy=True, maxworkers=None, fix_axes=False):
 # NOTE: memoize decorator not migrated from OpticalPooledScreens
 # consider migrating if needed
 def imread_tiff(files, **kwargs):
-    """Return image data from TIFF file(s) as numpy array.
+    """Return image data from TIFF file(s) as a numpy array.
 
-    Refer to the TiffFile and  TiffSequence classes and their asarray
-    functions for documentation.
+    Refer to the TiffFile and TiffSequence classes and their `asarray`
+    functions for detailed documentation.
 
-    Parameters
-    ----------
-    files : str, binary stream, or sequence
-        File name, seekable binary stream, glob pattern, or sequence of
-        file names.
-    kwargs : dict
-        Parameters 'name', 'offset', 'size', 'multifile', and 'is_ome'
-        are passed to the TiffFile constructor.
-        The 'pattern' parameter is passed to the TiffSequence constructor.
-        Other parameters are passed to the asarray functions.
-        The first image series in the file is returned if no arguments are
-        provided.
+    Args:
+        files (str, binary stream, or sequence): File name, seekable binary
+            stream, glob pattern, or sequence of file names.
+        **kwargs:
+            - name, offset, size, multifile, is_ome: Passed to the TiffFile constructor.
+            - pattern: Passed to the TiffSequence constructor.
+            - Other parameters: Passed to the `asarray` functions. If no arguments
+              are provided, the first image series in the file is returned.
 
+    Returns:
+        numpy.ndarray: Image data from the specified TIFF file(s).
     """
     kwargs_file = parse_kwargs(
         kwargs,

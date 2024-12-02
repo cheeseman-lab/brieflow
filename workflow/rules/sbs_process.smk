@@ -238,7 +238,7 @@ rule eval_segmentation:
     output:
         SBS_PROCESS_OUTPUTS_MAPPED["eval_segmentation"],
     script:
-        "../scripts/sbs_process/eval_segmentation.py"
+        "../scripts/shared/eval_segmentation.py"
 
 
 rule eval_mapping:

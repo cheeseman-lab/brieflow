@@ -6,7 +6,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-from lib.shared.eval import plot_plate_heatmap
+from lib.shared.eval_mapping import plot_plate_heatmap
 
 
 def plot_mapping_vs_threshold(

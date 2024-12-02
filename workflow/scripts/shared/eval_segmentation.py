@@ -1,12 +1,9 @@
-from lib.sbs_process.eval_segmentation import (
+import pandas as pd
+
+from lib.shared.eval_segmentation import (
     segmentation_overview,
     plot_cell_density_heatmap,
 )
-
-
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 # Get the segmentation overview

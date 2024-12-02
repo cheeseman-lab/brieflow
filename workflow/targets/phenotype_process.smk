@@ -42,6 +42,11 @@ PHENOTYPE_PROCESS_OUTPUTS = {
         / "hdfs"
         / get_filename({"well": "{well}"}, "phenotype_info", "tsv"),
     ],
+    "extract_phenotype_cp": [
+        PHENOTYPE_PROCESS_FP
+        / "tsvs"
+        / get_filename({"well": "{well}", "tile": "{tile}"}, "phenotype_cp", "tsv"),
+    ],
 }
 
 PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
@@ -49,6 +54,8 @@ PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
     "segment_phenotype": None,
     "identify_cytoplasm": None,
     "extract_phenotype_info": None,
+    "merge_phenotype_info": None,
+    "extract_phenotype_cp": None,
 }
 
 PHENOTYPE_PROCESS_WILDCARDS = {

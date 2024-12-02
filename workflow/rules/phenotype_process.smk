@@ -77,7 +77,27 @@ rule merge_phenotype_info:
         "../scripts/shared/combine_dfs.py"
 
 
-# rule for all phenotpye processing steps
+# Extract full phenotype information using CellProfiler from phenotype images
+rule extract_phenotype_cp:
+    conda:
+        "../envs/phenotype_process.yml"
+    input:
+        PHENOTYPE_PROCESS_OUTPUTS["apply_ic_field_phenotype"],
+        # nuclei segmentation map
+        PHENOTYPE_PROCESS_OUTPUTS["segment_phenotype"][0],
+        # cells segmentation map
+        PHENOTYPE_PROCESS_OUTPUTS["segment_phenotype"][1],
+        PHENOTYPE_PROCESS_OUTPUTS["identify_cytoplasm"],
+    output:
+        PHENOTYPE_PROCESS_OUTPUTS_MAPPED["extract_phenotype_cp"],
+    params:
+        foci_channel=config["phenotype_process"]["foci_channel"],
+        channel_names=config["phenotype_process"]["channel_names"],
+    script:
+        "../scripts/phenotype_process/extract_phenotype_cp_multichannel.py"
+
+
+# Rule for all phenotype processing steps
 rule all_phenotype_process:
     input:
         PHENOTYPE_PROCESS_TARGETS_ALL,

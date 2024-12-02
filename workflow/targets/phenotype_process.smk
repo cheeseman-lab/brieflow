@@ -49,6 +49,11 @@ PHENOTYPE_PROCESS_OUTPUTS = {
         PHENOTYPE_PROCESS_FP / "hdfs" / get_filename({}, "phenotype_cp", "hdf5"),
         PHENOTYPE_PROCESS_FP / "hdfs" / get_filename({}, "phenotype_cp_min", "hdf5"),
     ],
+    "eval_segmentation_phenotype": [
+        PHENOTYPE_PROCESS_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
+        PHENOTYPE_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
+        PHENOTYPE_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
+    ],
 }
 
 PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
@@ -59,6 +64,7 @@ PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
     "merge_phenotype_info": None,
     "extract_phenotype_cp": None,
     "merge_phenotype_cp": None,
+    "eval_segmentation_phenotype": None,
 }
 
 PHENOTYPE_PROCESS_WILDCARDS = {

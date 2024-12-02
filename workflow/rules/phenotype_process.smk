@@ -113,22 +113,23 @@ rule merge_phenotype_cp:
         "../scripts/phenotype_process/merge_phenotype_cp.py"
 
 
-# rule eval_segmentation:
-#     conda:
-#         "../envs/phenotype_process.yml"
-#     input:
-#         # path to segmentation stats for well/tile
-#         segmentation_stats_paths=lambda wildcards: output_to_input(
-#             PHENOTYPE_PROCESS_OUTPUTS["segment_phenotype"][2],
-#             {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES},
-#             wildcards,
-#         ),
-#         # path to hdf with combined cell data
-#         cells_path=PHENOTYPE_PROCESS_OUTPUTS["combine_cells"][0],
-#     output:
-#         SBS_PROCESS_OUTPUTS_MAPPED["eval_segmentation"],
-#     script:
-#         "../scripts/shared/eval_segmentation.py"
+# Evaluate segmentation results
+rule eval_segmentation_phenotype:
+    conda:
+        "../envs/phenotype_process.yml"
+    input:
+        # path to segmentation stats for well/tile
+        segmentation_stats_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_PROCESS_OUTPUTS["segment_phenotype"][2],
+            {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES},
+            wildcards,
+        ),
+        # path to hdf with combined cell data
+        cells_path=PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"][0],
+    output:
+        PHENOTYPE_PROCESS_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
+    script:
+        "../scripts/shared/eval_segmentation.py"
 
 
 # Rule for all phenotype processing steps

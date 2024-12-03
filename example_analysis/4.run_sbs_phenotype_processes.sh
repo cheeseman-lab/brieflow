@@ -6,14 +6,8 @@ CONFIG_FILE_PATH="config/config.yml"
 
 # TODO: Run both processes when done with testing
 
-# Run the SBS process rules
+# Run the SBS/phenotype process rules
 snakemake --use-conda --cores all \
     --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
     --configfile "$CONFIG_FILE_PATH" \
-    --until all_sbs_process
-
-# Run the phenotype process rules
-snakemake --use-conda --cores all \
-    --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
-    --configfile "$CONFIG_FILE_PATH" \
-    --until all_phenotype_process
+    --until all_sbs_process all_phenotype_process

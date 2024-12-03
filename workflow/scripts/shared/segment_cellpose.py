@@ -1,5 +1,4 @@
-from tifffile import imread
-from skimage.io import imsave
+from tifffile import imread, imsave
 
 from lib.shared.segment_cellpose import segment_cellpose
 

@@ -1,5 +1,6 @@
+from tifffile import imread, imsave
+
 from lib.sbs_process.compute_standard_deviation import compute_standard_deviation
-from skimage.io import imread, imsave
 
 # load log filtered image data
 log_filtered_data = imread(snakemake.input[0])

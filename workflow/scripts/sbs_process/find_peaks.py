@@ -1,5 +1,6 @@
+from tifffile import imread, imsave
+
 from lib.sbs_process.find_peaks import find_peaks
-from skimage.io import imread, imsave
 
 # load standard deviation data
 standard_deviation_data = imread(snakemake.input[0])

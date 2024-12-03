@@ -1,5 +1,5 @@
-from skimage.io import imread
 import pandas as pd
+from tifffile import imread, imsave
 
 from lib.sbs_process.call_reads import call_reads
 

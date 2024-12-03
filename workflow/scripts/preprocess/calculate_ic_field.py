@@ -1,5 +1,6 @@
+from tifffile import imsave
+
 from lib.shared.illumination_correction import calculate_ic_field
-from skimage.io import imsave
 
 # convert the ND2 file to a TIF image array
 ic_field = calculate_ic_field(snakemake.input, threading=snakemake.params.threading)

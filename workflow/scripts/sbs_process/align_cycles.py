@@ -1,5 +1,6 @@
+from tifffile import imread, imsave
+
 from lib.sbs_process.align_cycles import align_cycles
-from skimage.io import imread, imsave
 
 # load image data
 image_data = [imread(file_path) for file_path in snakemake.input]

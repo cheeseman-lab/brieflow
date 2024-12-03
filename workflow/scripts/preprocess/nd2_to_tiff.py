@@ -1,5 +1,6 @@
+from tifffile import imsave
+
 from lib.preprocess.preprocess import nd2_to_tiff
-from skimage.io import imsave
 
 # convert the ND2 file to a TIF image array
 image_array = nd2_to_tiff(

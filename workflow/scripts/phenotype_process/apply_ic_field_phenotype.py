@@ -1,5 +1,4 @@
-from tifffile import imread
-from skimage.io import imsave
+from tifffile import imread, imsave
 
 from lib.shared.illumination_correction import apply_ic_field
 

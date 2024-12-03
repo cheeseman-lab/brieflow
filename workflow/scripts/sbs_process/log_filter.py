@@ -1,5 +1,6 @@
+from tifffile import imread, imsave
+
 from lib.shared.log_filter import log_filter
-from skimage.io import imread, imsave
 
 # load aligned image data
 aligned_image_data = imread(snakemake.input[0])

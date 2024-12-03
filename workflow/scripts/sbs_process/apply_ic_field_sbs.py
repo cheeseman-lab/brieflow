@@ -1,5 +1,6 @@
+from tifffile import imread, imsave
+
 from lib.shared.illumination_correction import apply_ic_field
-from skimage.io import imread, imsave
 
 # load aligned image data
 aligned_image_data = imread(snakemake.input[0])

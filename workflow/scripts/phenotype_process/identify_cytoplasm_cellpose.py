@@ -1,5 +1,4 @@
-from tifffile import imread
-from skimage.io import imsave
+from tifffile import imread, imsave
 
 from lib.phenotype_process.identify_cytoplasm_cellpose import (
     identify_cytoplasm_cellpose,

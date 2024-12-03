@@ -12,29 +12,6 @@
 # Parameters:
 all:
   root_fp: analysis_root/
-phenotype_process:
-  cell_diameter: 55.3
-  channel_names:
-  - dapi
-  - coxiv
-  - cenpa
-  - wga
-  cyto_index: 1
-  cyto_model: cyto3
-  dapi_index: 0
-  foci_channel: 2
-  nuclei_diameter: 47.1
 preprocess:
   phenotype_samples_fp: config/phenotype_samples.tsv
   sbs_samples_fp: config/sbs_samples.tsv
-sbs_process:
-  bases: GTAC
-  cell_diameter: 19.5
-  cyto_index: 4
-  cyto_model: cyto3
-  dapi_index: 0
-  df_design_path: config/pool10_design.tsv
-  nuclei_diameter: 13.2
-  q_min: 0
-  segmentation_cycle_index: -1
-  threshold_peaks: 315

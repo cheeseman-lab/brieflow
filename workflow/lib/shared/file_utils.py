@@ -81,36 +81,3 @@ def parse_filename(filename: str) -> tuple:
         info_type = parts[0]
 
     return data_location, info_type, file_type
-
-
-def read_stack(filename, copy=True, maxworkers=None, fix_axes=False):
-    """Reads a TIFF file into a numpy array, with optional memory mapping and axis fixing.
-
-    Args:
-        filename (str): Path to the TIFF file.
-        copy (bool): If True, returns a copy of the data. Default is True.
-        maxworkers (int): Number of threads for decompression. Default is None.
-        fix_axes (bool): If True, fixes incorrect axis orders. Default is False.
-
-    Returns:
-        np.ndarray: Image data.
-    """
-    data = imread(filename, _multifile=False, is_ome=False, maxworkers=maxworkers)
-
-    while data.shape[0] == 1:
-        data = np.squeeze(data, axis=(0,))
-
-    if copy:
-        data = data.copy()
-
-    if fix_axes:
-        if data.ndim != 4:
-            raise ValueError("`fix_axes` only tested for data with 4 dimensions")
-        data = np.array(
-            [
-                data.reshape((-1,) + data.shape[-2:])[n :: data.shape[-4]]
-                for n in range(data.shape[-4])
-            ]
-        )
-
-    return data

@@ -1,5 +1,5 @@
 import pandas as pd
-from tifffile import imread, imsave
+from tifffile import imread, imwrite
 
 from lib.sbs_process.call_reads import call_reads
 

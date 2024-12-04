@@ -1,4 +1,4 @@
-from tifffile import imsave
+from tifffile import imwrite
 
 from lib.preprocess.preprocess import nd2_to_tiff
 
@@ -8,4 +8,4 @@ image_array = nd2_to_tiff(
 )
 
 # save TIF image array to the output path
-imsave(snakemake.output[0], image_array)
+imwrite(snakemake.output[0], image_array)

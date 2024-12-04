@@ -1,4 +1,4 @@
-from tifffile import imread, imsave
+from tifffile import imread, imwrite
 
 from lib.sbs_process.compute_standard_deviation import compute_standard_deviation
 
@@ -12,4 +12,4 @@ standard_deviation = compute_standard_deviation(
 )
 
 # Save the aligned data as a .tiff file
-imsave(snakemake.output[0], standard_deviation)
+imwrite(snakemake.output[0], standard_deviation)

@@ -1,4 +1,4 @@
-from tifffile import imread, imsave
+from tifffile import imread, imwrite
 
 from lib.sbs_process.max_filter import max_filter
 
@@ -13,4 +13,4 @@ max_filtered = max_filter(
 )
 
 # Save the aligned data as a .tiff file
-imsave(snakemake.output[0], max_filtered)
+imwrite(snakemake.output[0], max_filtered)

@@ -1,4 +1,4 @@
-from tifffile import imread, imsave
+from tifffile import imread, imwrite
 
 from lib.sbs_process.align_cycles import align_cycles
 
@@ -13,4 +13,4 @@ aligned_data = align_cycles(
 )
 
 # Save the aligned data as a .tiff file
-imsave(snakemake.output[0], aligned_data)
+imwrite(snakemake.output[0], aligned_data)

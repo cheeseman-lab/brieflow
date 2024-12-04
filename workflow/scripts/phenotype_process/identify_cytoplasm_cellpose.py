@@ -1,4 +1,4 @@
-from tifffile import imread, imsave
+from tifffile import imread, imwrite
 
 from lib.phenotype_process.identify_cytoplasm_cellpose import (
     identify_cytoplasm_cellpose,
@@ -12,4 +12,4 @@ cells = imread(snakemake.input[1])
 cytoplasms = identify_cytoplasm_cellpose(nuclei, cells)
 
 # save cytoplasms data
-imsave(snakemake.output[0], cytoplasms)
+imwrite(snakemake.output[0], cytoplasms)

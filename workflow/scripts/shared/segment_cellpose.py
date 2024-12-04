@@ -1,4 +1,4 @@
-from tifffile import imread, imsave
+from tifffile import imread, imwrite
 
 from lib.shared.segment_cellpose import segment_cellpose
 
@@ -17,10 +17,10 @@ nuclei_data, cells_data, counts_df = segment_cellpose(
 )
 
 # save segmented nuclei data
-imsave(snakemake.output[0], nuclei_data)
+imwrite(snakemake.output[0], nuclei_data)
 
 # save segmented cells data
-imsave(snakemake.output[1], cells_data)
+imwrite(snakemake.output[1], cells_data)
 
 # save counts data
 counts_df.to_csv(snakemake.output[2], index=False, sep="\t")

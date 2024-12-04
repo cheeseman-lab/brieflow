@@ -1,4 +1,4 @@
-from tifffile import imread, imsave
+from tifffile import imread, imwrite
 
 from lib.shared.log_filter import log_filter
 
@@ -12,4 +12,4 @@ log_filtered = log_filter(
 )
 
 # Save the aligned data as a .tiff file
-imsave(snakemake.output[0], log_filtered)
+imwrite(snakemake.output[0], log_filtered)

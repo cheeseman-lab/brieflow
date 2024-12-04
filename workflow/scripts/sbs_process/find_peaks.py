@@ -1,4 +1,4 @@
-from tifffile import imread, imsave
+from tifffile import imread, imwrite
 
 from lib.sbs_process.find_peaks import find_peaks
 
@@ -9,4 +9,4 @@ standard_deviation_data = imread(snakemake.input[0])
 peaks = find_peaks(standard_deviation_data=standard_deviation_data)
 
 # save peak data
-imsave(snakemake.output[0], peaks)
+imwrite(snakemake.output[0], peaks)

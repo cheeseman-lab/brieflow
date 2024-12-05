@@ -8,6 +8,7 @@ It includes functions for:
 """
 
 import numpy as np
+import pandas as pd
 
 # constants for calling reads
 from lib.sbs_process.constants import (
@@ -56,8 +57,8 @@ def call_reads(
     df_reads : pandas DataFrame
         Table of all reads with base calls resulting from SBS compensation and related metadata.
     """
-    if bases_data is None:
-        return
+    if bases_data.empty:
+        return pd.DataFrame()
     if correction_only_in_cells:
         if len(bases_data.query("cell > 0")) == 0:
             return

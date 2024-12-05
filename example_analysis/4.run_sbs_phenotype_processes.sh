@@ -10,4 +10,4 @@ CONFIG_FILE_PATH="config/config.yml"
 snakemake --use-conda --cores all \
     --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
     --configfile "$CONFIG_FILE_PATH" \
-    --until all_sbs_process #all_phenotype_process
+    --until all_sbs_process all_phenotype_process

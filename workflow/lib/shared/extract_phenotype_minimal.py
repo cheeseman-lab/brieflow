@@ -2,6 +2,8 @@
 
 from lib.shared.features import features_basic
 
+import pandas as pd
+
 
 def extract_phenotype_minimal(phenotype_data, nuclei_data, wildcards):
     """Extracts minimal phenotype features from the provided phenotype data.
@@ -15,11 +17,15 @@ def extract_phenotype_minimal(phenotype_data, nuclei_data, wildcards):
         pandas DataFrame: Extracted minimal phenotype features with cell labels.
     """
     # Call _extract_features method to extract features using provided phenotype data and nuclei information
-    return (
-        extract_features(phenotype_data, nuclei_data, wildcards, dict())
-        # Rename the column containing labels to 'cell'
-        .rename(columns={"label": "cell"})
-    )
+    phentoype_minimal = extract_features(
+        phenotype_data, nuclei_data, wildcards, dict()
+    ).rename(columns={"label": "cell"})
+
+    if phentoype_minimal.empty:
+        columns = ["area", "i", "j", "cell", "bounds", "tile", "well"]
+        return pd.DataFrame(columns=columns)
+    else:
+        return phentoype_minimal
 
 
 def extract_features(data, labels, wildcards, features=None, multichannel=False):

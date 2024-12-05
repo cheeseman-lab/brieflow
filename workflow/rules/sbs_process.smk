@@ -255,3 +255,22 @@ rule eval_mapping:
         df_design_path=config["sbs_process"]["df_design_path"],
     script:
         "../scripts/sbs_process/eval_mapping.py"
+
+
+if config['sbs_process']['mode'] == 'segment_paramsearch':
+    rule segment_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            SBS_PROCESS_OUTPUTS["apply_ic_field"]
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["segment_paramsearch"]
+        params:
+            dapi_index=config["sbs_process"]["dapi_index"],
+            cyto_index=config["sbs_process"]["cyto_index"],
+            nuclei_diameter=lambda wildcards: float(wildcards.nuclei_diameter),
+            cell_diameter=lambda wildcards: float(wildcards.cell_diameter),
+            cyto_model=config["sbs_process"]["cyto_model"],
+            return_counts=True
+        script:
+            "../scripts/sbs_process/segment_cellpose.py"

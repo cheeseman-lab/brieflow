@@ -38,3 +38,4 @@ sbs_process:
   q_min: 0
   segmentation_cycle_index: -1
   threshold_peaks: 315
+  mode: 'segment_paramsearch'

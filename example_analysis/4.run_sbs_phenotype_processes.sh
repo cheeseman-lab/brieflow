@@ -7,4 +7,4 @@ CONFIG_FILE_PATH="config/config.yml"
 # Run only the preprocess rules
 snakemake --use-conda --cores all \
     --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
-    --configfile "$CONFIG_FILE_PATH" \
+    --configfile "$CONFIG_FILE_PATH" 

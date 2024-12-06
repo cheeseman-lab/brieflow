@@ -21,7 +21,7 @@ from lib.external.cp_emulator import (
     shape_columns,
     neighbor_measurements,
 )
-from lib.shared.extract_phenotype_minimal import extract_features
+from lib.shared.feature_extraction import extract_features, extract_features_bare
 from lib.shared.log_filter import log_ndi
 
 
@@ -195,43 +195,6 @@ def extract_phenotype_cp_multichannel(
 
     # Concatenate data frames and reset index
     return pd.concat(dfs, axis=1, join="outer", sort=True).reset_index()
-
-
-def extract_features_bare(
-    data, labels, features=None, wildcards=None, multichannel=False
-):
-    """Extract features in dictionary and combine with generic region features.
-
-    Args:
-        data (numpy.ndarray): Image data of dimensions (CHANNEL, I, J).
-        labels (numpy.ndarray): Labeled segmentation mask defining objects to extract features from.
-        features (dict or None): Features to extract and their defining functions. Default is None.
-        wildcards (dict or None): Metadata to include in the output table, e.g., well, tile, etc. Default is None.
-        multichannel (bool): Flag indicating whether the data has multiple channels.
-
-    Returns:
-        pandas.DataFrame: Table of labeled regions in labels with corresponding feature measurements.
-    """
-    features = features.copy() if features else dict()
-    features.update({"label": lambda r: r.label})
-
-    # Choose appropriate feature table based on multichannel flag
-    if multichannel:
-        from lib.shared.feature_table_utils import (
-            feature_table_multichannel as feature_table,
-        )
-    else:
-        from lib.shared.feature_table_utils import feature_table
-
-    # Extract features using the feature table function
-    df = feature_table(data, labels, features)
-
-    # Add wildcard metadata to the DataFrame if provided
-    if wildcards is not None:
-        for k, v in sorted(wildcards.items()):
-            df[k] = v
-
-    return df
 
 
 def find_foci(data, radius=3, threshold=10, remove_border_foci=False):

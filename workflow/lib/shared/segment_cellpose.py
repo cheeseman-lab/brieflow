@@ -29,11 +29,15 @@ def segment_cellpose(
     nuclei_diameter,
     cell_diameter,
     cyto_model="cyto3",
-    cellpose_kwargs=dict(),
+    cellpose_kwargs=dict(
+        flow_threshold=0.4,    
+        cellprob_threshold=0
+    ),
     cells=True,
     reconcile="consensus",
     logscale=True,
     return_counts=False,
+    gpu=False,
 ):
     """Segment cells using Cellpose algorithm.
 
@@ -49,6 +53,7 @@ def segment_cellpose(
         cells (bool, optional): Whether to segment both nuclei and cells or just nuclei.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
         return_counts (bool, optional): Whether to return counts of nuclei and cells. Default is False.
+        gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
 
     Returns:
         tuple or numpy.ndarray: If 'cells' is True, returns tuple of nuclei and cell segmentation masks,
@@ -74,6 +79,7 @@ def segment_cellpose(
                 cyto_model=cyto_model,
                 reconcile=reconcile,
                 return_counts=True,
+                gpu=gpu,
                 **cellpose_kwargs,
             )
             counts.update(seg_counts)
@@ -85,6 +91,7 @@ def segment_cellpose(
                 cell_diameter,
                 cyto_model=cyto_model,
                 reconcile=reconcile,
+                gpu=gpu,
                 **cellpose_kwargs,
             )
 
@@ -148,15 +155,72 @@ def prepare_cellpose(data, dapi_index, cyto_index, logscale=True, log_kwargs=dic
     return np.array([red, green, blue])
 
 
+def estimate_diameters(
+    data,
+    dapi_index,
+    cyto_index,
+    channels=[2, 3],  # Default channels for cell estimation  
+    cyto_model="cyto3",
+    cellpose_kwargs=dict(
+        flow_threshold=0.4,    
+        cellprob_threshold=0
+    ),
+    gpu=False,
+    logscale=True,
+):
+    """Estimate optimal cell diameter using Cellpose's diameter estimation.
+    
+    Args:
+        data (numpy.ndarray): Multichannel image data
+        dapi_index (int): Index of DAPI channel
+        cyto_index (int): Index of cytoplasmic channel
+        channels (list): Channel indices for diameter estimation [cytoplasm, nuclei]
+        cyto_model (str): Cellpose model type to use
+        gpu (bool): Whether to use GPU
+        logscale (bool): Whether to apply log scaling to image
+        
+    Returns:
+        tuple: Estimated diameters for (nuclei, cells)
+    """
+
+    # Prepare RGB image
+    log_kwargs = cellpose_kwargs.pop(
+        "log_kwargs", dict()
+    )  # Extract log_kwargs from cellpose_kwargs
+    rgb = prepare_cellpose(
+        data, dapi_index, cyto_index, logscale, log_kwargs=log_kwargs
+    )
+    
+    # Find optimal nuclei diameter
+    print("Estimating nuclei diameters...")
+    model_nuclei = Cellpose(model_type="nuclei", gpu=gpu)
+    diam_nuclear, _ = model_nuclei.sz.eval(rgb, channels=[3, 0])
+    diam_nuclear = np.maximum(5.0, diam_nuclear)
+    print(f"Estimated nuclear diameter: {diam_nuclear:.1f} pixels")
+
+    # Find optimal cell diameter
+    print("Estimating cell diameters...")
+    model_cyto = Cellpose(model_type=cyto_model, gpu=gpu)
+    diam_cell, _ = model_cyto.sz.eval(rgb, channels=channels)
+    diam_cell = np.maximum(5.0, diam_cell)  
+    print(f"Estimated cell diameter: {diam_cell:.1f} pixels")
+    diam_cell = 0
+    
+    return diam_nuclear, diam_cell
+
+
 def segment_cellpose_rgb(
     rgb,
     nuclei_diameter,
     cell_diameter,
-    gpu=False,
     cyto_model="cyto3",
     reconcile="consensus",
     remove_edges=True,
     return_counts=False,
+    flow_threshold=0.4,
+    cellprob_threshold=0,
+    gpu=False,
+    **kwargs
 ):
     """Segment nuclei and cells using the Cellpose algorithm from an RGB image.
 
@@ -183,9 +247,24 @@ def segment_cellpose_rgb(
 
     counts = {}
 
-    # Segment nuclei and cells using Cellpose from the RGB image
-    nuclei, _, _, _ = model_dapi.eval(rgb, channels=[3, 0], diameter=nuclei_diameter)
-    cells, _, _, _ = model_cyto.eval(rgb, channels=[2, 3], diameter=cell_diameter)
+    # Segment nuclei and cells using Cellpose from the RGB image with enhanced parameters
+    nuclei, _, _, _ = model_dapi.eval(
+        rgb, 
+        channels=[3, 0], 
+        diameter=nuclei_diameter,
+        flow_threshold=flow_threshold,
+        cellprob_threshold=cellprob_threshold,
+        **kwargs
+    )
+    
+    cells, _, _, _ = model_cyto.eval(
+        rgb, 
+        channels=[2, 3], 
+        diameter=cell_diameter,
+        flow_threshold=flow_threshold,
+        cellprob_threshold=cellprob_threshold,
+        **kwargs
+    )
 
     counts["initial_nuclei"] = (
         len(np.unique(nuclei)) - 1

@@ -7,13 +7,11 @@ from pathlib import Path
 
 from lib.shared.file_utils import get_filename
 
-def initialize_segment_paramsearch(config, wells, tiles):
+def initialize_segment_paramsearch(config):
     """Initialize parameter search for segmentation.
 
     Args:
         config (dict): Configuration dictionary.
-        wells (list): List of wells.
-        tiles (list): List of tiles.
 
     Returns:
         dict: Updated configuration dictionary.
@@ -50,5 +48,8 @@ def initialize_segment_paramsearch(config, wells, tiles):
                 "paramsearch_nd{nuclei_diameter}_cd{cell_diameter}_segmentation_stats",
                 "tsv"
             )
-        ]
+        ],
+        "segment_paramsearch_summary": [
+            SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_summary.tsv"
+        ]       
     }

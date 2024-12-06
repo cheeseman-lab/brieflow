@@ -48,10 +48,10 @@ if "sbs_process" in config:
     # If paramsearch mode, get the outputs first
     if config["sbs_process"]["mode"] == "segment_paramsearch":
         # Generate the paramsearch outputs
-        config, nuclei_paramspace, cell_paramspace, paramsearch_outputs = initialize_segment_paramsearch(config, SBS_WELLS, SBS_TILES)
+        config, nuclei_paramspace, cell_paramspace, paramsearch_outputs = initialize_segment_paramsearch(config)
         # Update the global variables
         SBS_PROCESS_OUTPUTS.update(paramsearch_outputs)
-        SBS_PROCESS_OUTPUT_MAPPINGS.update({"segment_paramsearch": None})  
+        SBS_PROCESS_OUTPUT_MAPPINGS.update({"segment_paramsearch": None, "segment_paramsearch_summary": None})  
         SBS_PROCESS_WILDCARDS.update({
             "nuclei_diameter": nuclei_paramspace,
             "cell_diameter": cell_paramspace

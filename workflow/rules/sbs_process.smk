@@ -274,3 +274,19 @@ if config['sbs_process']['mode'] == 'segment_paramsearch':
             return_counts=True
         script:
             "../scripts/sbs_process/segment_cellpose.py"
+
+    rule summarize_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            lambda wildcards: output_to_input(
+                SBS_PROCESS_OUTPUTS["segment_paramsearch"][2::3],  # Take every 3rd output since that's the TSV
+                {"well": SBS_WELLS, "tile": SBS_TILES, 
+                "nuclei_diameter": SBS_PROCESS_WILDCARDS["nuclei_diameter"],
+                "cell_diameter": SBS_PROCESS_WILDCARDS["cell_diameter"]},
+                wildcards,
+            )
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["segment_paramsearch_summary"]
+        script:
+            "../scripts/shared/paramsearch_combine_dfs.py"

@@ -54,6 +54,10 @@ def extract_phenotype_cp_multichannel(
     Returns:
         pandas.DataFrame: DataFrame containing extracted phenotype features.
     """
+    # If nuclei or cells are empty, return an empty DataFrame
+    if np.sum(nuclei) == 0 or np.sum(cells) == 0:
+        return pd.DataFrame(columns=["well", "tile"])
+
     # Check if all channels should be used
     if nucleus_channels == "all":
         try:

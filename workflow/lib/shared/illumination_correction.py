@@ -12,9 +12,9 @@ from skimage import morphology
 import skimage.restoration
 import skimage.transform
 import skimage.filters
+from tifffile import imread
 
 from lib.shared.image_utils import applyIJ
-from lib.shared.file_utils import read_stack
 
 
 def calculate_ic_field(
@@ -45,7 +45,7 @@ def calculate_ic_field(
         np.ndarray: The calculated illumination correction field.
     """
     # Initialize data variable
-    data = read_stack(files[0])[slicer] / len(files)
+    data = imread(files[0])[slicer] / len(files)
 
     # Accumulate images using threading or sequential processing, averaging them
     if threading:
@@ -178,7 +178,7 @@ def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.n
     Returns:
         np.ndarray: Updated image data with the new image accumulated.
     """
-    data += read_stack(file)[slicer] / N
+    data += imread(file)[slicer] / N
     return data
 
 

@@ -17,5 +17,7 @@ dependencies:
   - pytables
   - microfilm
   - seaborn
+  - tifffile
+  - mahotas
   - pip:
       - -e .

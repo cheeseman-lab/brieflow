@@ -1,13 +1,14 @@
-from lib.shared.file_utils import read_stack
+from tifffile import imread
+
 from lib.phenotype_process.extract_phenotype_cp_multichannel import (
     extract_phenotype_cp_multichannel,
 )
 
 # load inputs
-data_phenotype = read_stack(snakemake.input[0])
-nuclei = read_stack(snakemake.input[1])
-cells = read_stack(snakemake.input[2])
-cytoplasms = read_stack(snakemake.input[3])
+data_phenotype = imread(snakemake.input[0])
+nuclei = imread(snakemake.input[1])
+cells = imread(snakemake.input[2])
+cytoplasms = imread(snakemake.input[3])
 
 # extract phenotype CellProfiler information
 phenotype_cp = extract_phenotype_cp_multichannel(

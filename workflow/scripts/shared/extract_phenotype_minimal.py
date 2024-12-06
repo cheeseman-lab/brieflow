@@ -1,4 +1,4 @@
-from skimage.io import imread
+from tifffile import imread
 
 from lib.shared.extract_phenotype_minimal import extract_phenotype_minimal
 

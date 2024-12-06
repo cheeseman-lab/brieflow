@@ -66,7 +66,7 @@ rule combine_metadata_phenotype:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-            {"tile": SBS_TILES},
+            {"tile": PHENOTYPE_TILES},
             wildcards,
         ),
     output:

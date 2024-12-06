@@ -1,5 +1,6 @@
+from tifffile import imread, imwrite
+
 from lib.shared.log_filter import log_filter
-from skimage.io import imread, imsave
 
 # load aligned image data
 aligned_image_data = imread(snakemake.input[0])
@@ -11,4 +12,4 @@ log_filtered = log_filter(
 )
 
 # Save the aligned data as a .tiff file
-imsave(snakemake.output[0], log_filtered)
+imwrite(snakemake.output[0], log_filtered)

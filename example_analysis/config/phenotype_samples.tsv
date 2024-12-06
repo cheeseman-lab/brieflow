@@ -1,7 +1,7 @@
 sample_fp	well	tile
 data/real_images/phenotype/P001_Pheno_20x_Wells-A1_Points-001__Channel_AF750,Cy3,GFP,DAPI.nd2	A1	1
 data/empty_images/phenotype/P003_Pheno_20x_Wells-A1_Points-002__Channel_AF750,Cy3,GFP,DAPI.nd2	A1	2
-data/empty_images/phenotype/P003_Pheno_20x_Wells-A1_Points-003__Channel_AF750,Cy3,GFP,DAPI.nd2	A1	3
 data/real_images/phenotype/P001_Pheno_20x_Wells-A1_Points-100__Channel_AF750,Cy3,GFP,DAPI.nd2	A1	100
 data/real_images/phenotype/P001_Pheno_20x_Wells-A2_Points-001__Channel_AF750,Cy3,GFP,DAPI.nd2	A2	1
+data/empty_images/phenotype/P003_Pheno_20x_Wells-A2_Points-002__Channel_AF750,Cy3,GFP,DAPI.nd2	A2	2
 data/real_images/phenotype/P001_Pheno_20x_Wells-A2_Points-100__Channel_AF750,Cy3,GFP,DAPI.nd2	A2	100

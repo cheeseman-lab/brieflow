@@ -62,7 +62,21 @@ def extract_bases(
     for k, v in sorted(wildcards.items()):
         df_bases[k] = v
 
-    return df_bases
+    if df_bases.empty:
+        columns = [
+            "read",
+            "cycle",
+            "channel",
+            "intensity",
+            "cell",
+            "i",
+            "j",
+            "tile",
+            "well",
+        ]
+        return pd.DataFrame(columns=columns)
+    else:
+        return df_bases
 
 
 def extract_base_intensity(maxed, peaks, cells, threshold_peaks):

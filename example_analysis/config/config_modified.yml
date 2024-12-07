@@ -1,0 +1,57 @@
+
+# BrieFlow configuration file
+
+# Defining samples:
+#   Samples must be defined in the following TSV files with columns:
+#     sbs_samples.tsv: sample_fp, well, tile, cycle
+#     phenotype_samples.tsv: sample_fp, well, tile
+
+# Paths:
+#   Paths are resolved relative to the directory the workflow is run from
+
+# Parameters:
+all:
+  root_fp: analysis_root/
+phenotype_process:
+  cell_diameter: 0
+  channel_names:
+  - dapi
+  - coxiv
+  - cenpa
+  - wga
+  cyto_channel: 1
+  cyto_model: cyto3
+  dapi_index: 0
+  foci_channel: 2
+  nuclei_diameter: !!python/object/apply:numpy.core.multiarray.scalar
+  - !!python/object/apply:numpy.dtype
+    args:
+    - f8
+    - false
+    - true
+    state: !!python/tuple
+    - 3
+    - <
+    - null
+    - null
+    - null
+    - -1
+    - -1
+    - 0
+  - !!binary |
+    odWEx5BwREA=
+preprocess:
+  phenotype_samples_fp: config/phenotype_samples.tsv
+  sbs_samples_fp: config/sbs_samples.tsv
+sbs_process:
+  bases: GTAC
+  cell_diameter: 19.5
+  cyto_index: 4
+  cyto_model: cyto3
+  dapi_index: 0
+  df_design_path: config/pool10_design.tsv
+  mode: segment_paramsearch
+  nuclei_diameter: 13.2
+  q_min: 0
+  segmentation_cycle_index: -1
+  threshold_peaks: 315

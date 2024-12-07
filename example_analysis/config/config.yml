@@ -35,7 +35,10 @@ sbs_process:
   dapi_index: 0
   df_design_path: config/pool10_design.tsv
   nuclei_diameter: 13.2
+  flow_threshold: 0.4
+  cellprob_threshold: 0.0
   q_min: 0
   segmentation_cycle_index: -1
   threshold_peaks: 315
+  gpu: false
   mode: 'segment_paramsearch'

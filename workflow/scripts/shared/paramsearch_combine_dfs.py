@@ -11,16 +11,19 @@ def get_file(filepath):
         params = path.stem.split('__')[1].split('_')
         
         # Extract nuclei and cell diameters using nd and cd prefixes
-        nuclei_diam = float([p for p in params if 'nd' in p][0].replace('nd', ''))
-        cell_diam = float([p for p in params if 'cd' in p][0].replace('cd', ''))
+        nuclei_diameter = float([p for p in params if 'nd' in p][0].replace('nd', ''))
+        cell_diameter = float([p for p in params if 'cd' in p][0].replace('cd', ''))
+        flow_threshold = float([p for p in params if 'ft' in p][0].replace('ft', ''))
+        cellprob_threshold = float([p for p in params if 'cp' in p][0].replace('cp', ''))
         
         # Read the data
         df = pd.read_csv(filepath, sep="\t")
         
         # Add parameter columns before the rest of the columns
-        df.insert(0, 'nuclei_diameter', nuclei_diam)
-        df.insert(1, 'cell_diameter', cell_diam)
-                
+        df.insert(0, 'nuclei_diameter', nuclei_diameter)
+        df.insert(1, 'cell_diameter', cell_diameter)
+        df.insert(2, 'flow_threshold', flow_threshold)
+        df.insert(3, 'cellprob_threshold', cellprob_threshold)                
         return df
     except pd.errors.EmptyDataError:
         pass

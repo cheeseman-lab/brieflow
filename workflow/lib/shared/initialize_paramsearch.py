@@ -17,39 +17,108 @@ def initialize_segment_paramsearch(config):
         dict: Updated configuration dictionary.
         Paramspace: Nuclei parameter space.
         Paramspace: Cell parameter space.
+
     """
 
     if config['sbs_process'].get('mode') != 'segment_paramsearch':
-        return config, None, None
+        return config, None, None, None, None
         
     if 'paramsearch' not in config['sbs_process']:
         base_nuclei = config['sbs_process']['nuclei_diameter']
         base_cell = config['sbs_process']['cell_diameter']
         nuclei_diameters = [base_nuclei - 2, base_nuclei, base_nuclei + 2]
         cell_diameters = [base_cell - 2, base_cell, base_cell + 2]
+        flow_thresholds = [0.2, 0.4, 0.6]
+        cell_probs = [-4, -2, 0, 2, 4]
     else:
         nuclei_diameters = config['sbs_process']['paramsearch']['nuclei_diameter']
         cell_diameters = config['sbs_process']['paramsearch']['cell_diameter']
+        flow_thresholds = config['sbs_process']['paramsearch']['flow_threshold']
+        cell_probs = config['sbs_process']['paramsearch']['cellprob_threshold']
     
     SBS_PROCESS_FP = Path(config['all']['root_fp']) / 'sbs_process'
 
     # Create the output pattern using {wildcards} in the info_type
-    return config, nuclei_diameters, cell_diameters, {
+    return config, nuclei_diameters, cell_diameters, flow_thresholds, cell_probs, {
         "segment_paramsearch": [
             SBS_PROCESS_FP / "paramsearch" / "images" / get_filename(
                 {"well": "{well}", "tile": "{tile}"},
-                f"paramsearch_nd{{nuclei_diameter}}_cd{{cell_diameter}}_{suffix}",
+                f"paramsearch_nd{{nuclei_diameter}}_cd{{cell_diameter}}_ft{{flow_threshold}}_cp{{cellprob_threshold}}_{suffix}",
                 "tiff"
             )
             for suffix in ["nuclei", "cells"]
         ] + [
             SBS_PROCESS_FP / "paramsearch" / "tsvs" / get_filename(
                 {"well": "{well}", "tile": "{tile}"},
-                "paramsearch_nd{nuclei_diameter}_cd{cell_diameter}_segmentation_stats",
+                "paramsearch_nd{nuclei_diameter}_cd{cell_diameter}_ft{flow_threshold}_cp{cellprob_threshold}_segmentation_stats",
                 "tsv"
             )
         ],
-        "segment_paramsearch_summary": [
+        "summarize_segment_paramsearch": [
             SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_summary.tsv"
         ]       
+    }
+
+def initialize_mapping_paramsearch(config):
+    """Initialize parameter search for mapping.
+
+    Args:
+        config (dict): Configuration dictionary.
+
+    Returns:
+        dict: Updated configuration dictionary.
+        
+    """
+    if config['sbs_process'].get('mode') != 'mapping_paramsearch':
+        return config, None, None, None
+
+    if 'paramsearch' not in config['sbs_process']:
+        threshold_peaks = [200, 300, 400]
+        q_mins = [0.7, 0.8, 0.9, 1]
+    else:
+        threshold_peaks = config['sbs_process']['paramsearch']['threshold_peaks']
+        q_mins = config['sbs_process']['paramsearch']['q_mins']
+
+    SBS_PROCESS_FP = Path(config['all']['root_fp']) / 'sbs_process'
+    
+    # Create the output pattern using {wildcards} in the info_type
+def initialize_mapping_paramsearch(config):
+    """Initialize parameter search for mapping."""
+    if config['sbs_process'].get('mode') != 'mapping_paramsearch':
+        return config, None, None, None
+        
+    if 'paramsearch' not in config['sbs_process']:
+        threshold_peaks = [200, 300, 400]
+        q_mins = [0.7, 0.8, 0.9, 1]
+    else:
+        threshold_peaks = config['sbs_process']['paramsearch']['threshold_peaks']
+        q_mins = config['sbs_process']['paramsearch']['q_mins']
+    
+    SBS_PROCESS_FP = Path(config['all']['root_fp']) / 'sbs_process'
+    
+    return config, threshold_peaks, q_mins, {
+        "extract_bases_paramsearch": [
+            SBS_PROCESS_FP / "paramsearch" / "tsvs" / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, 
+                "bases_tp{threshold_peaks}", 
+                "tsv"
+            )
+        ],
+        "call_reads_paramsearch": [
+            SBS_PROCESS_FP / "paramsearch" / "tsvs" / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, 
+                "reads_tp{threshold_peaks}", 
+                "tsv"
+            )
+        ],
+        "call_cells_paramsearch": [
+            SBS_PROCESS_FP / "paramsearch" / "tsvs" / get_filename(
+                {"well": "{well}", "tile": "{tile}"}, 
+                "cells_tp{threshold_peaks}_qm{q_min}", 
+                "tsv"
+            )
+        ],
+        "summarize_mapping_paramsearch": [
+            SBS_PROCESS_FP / "paramsearch" / "summary" / "mapping_summary.tsv"
+        ]
     }

@@ -45,18 +45,45 @@ if "sbs_process" in config:
     # print("targets", SBS_PROCESS_TARGETS)
     # print("targets all", SBS_PROCESS_TARGETS_ALL)
 
-    # If paramsearch mode, get the outputs first
+    # Update targets and wildcards for segment_paramsearch mode
     if config["sbs_process"]["mode"] == "segment_paramsearch":
-        # Generate the paramsearch outputs
-        config, nuclei_paramspace, cell_paramspace, paramsearch_outputs = initialize_segment_paramsearch(config)
-        # Update the global variables
+        config, nuclei_diameters, cell_diameters, flow_thresholds, cell_probs, paramsearch_outputs = initialize_segment_paramsearch(config)
+        
         SBS_PROCESS_OUTPUTS.update(paramsearch_outputs)
-        SBS_PROCESS_OUTPUT_MAPPINGS.update({"segment_paramsearch": None, "segment_paramsearch_summary": None})  
+        SBS_PROCESS_OUTPUT_MAPPINGS.update({
+            "segment_paramsearch": None, 
+            "summarize_segment_paramsearch": None
+        })  
+        
         SBS_PROCESS_WILDCARDS.update({
-            "nuclei_diameter": nuclei_paramspace,
-            "cell_diameter": cell_paramspace
+            "nuclei_diameter": nuclei_diameters,
+            "cell_diameter": cell_diameters,
+            "flow_threshold": flow_thresholds,
+            "cellprob_threshold": cell_probs
         })
-        # Repeat the mapping and target generation
+        
+        SBS_PROCESS_OUTPUTS_MAPPED = map_outputs(SBS_PROCESS_OUTPUTS, SBS_PROCESS_OUTPUT_MAPPINGS)
+        SBS_PROCESS_TARGETS = outputs_to_targets(SBS_PROCESS_OUTPUTS_MAPPED, SBS_PROCESS_WILDCARDS)
+        SBS_PROCESS_TARGETS_ALL = sum(SBS_PROCESS_TARGETS.values(), [])
+
+
+    # Update Snakefile condition:
+    if config["sbs_process"]["mode"] == "mapping_paramsearch":
+        config, threshold_peaks, q_mins, paramsearch_outputs = initialize_mapping_paramsearch(config)
+        
+        SBS_PROCESS_OUTPUTS.update(paramsearch_outputs)
+        SBS_PROCESS_OUTPUT_MAPPINGS.update({
+            "extract_bases_paramsearch": None,
+            "call_reads_paramsearch": None, 
+            "call_cells_paramsearch": None,
+            "mapping_paramsearch_summary": None
+        })
+        
+        SBS_PROCESS_WILDCARDS.update({
+            "threshold_peaks": threshold_peaks,
+            "q_min": q_mins
+        })
+        
         SBS_PROCESS_OUTPUTS_MAPPED = map_outputs(SBS_PROCESS_OUTPUTS, SBS_PROCESS_OUTPUT_MAPPINGS)
         SBS_PROCESS_TARGETS = outputs_to_targets(SBS_PROCESS_OUTPUTS_MAPPED, SBS_PROCESS_WILDCARDS)
         SBS_PROCESS_TARGETS_ALL = sum(SBS_PROCESS_TARGETS.values(), [])

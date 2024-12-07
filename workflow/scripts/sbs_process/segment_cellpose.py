@@ -12,14 +12,15 @@ nuclei_data, cells_data, counts_df = segment_cellpose(
     nuclei_diameter=snakemake.params.nuclei_diameter,
     cell_diameter=snakemake.params.cell_diameter,
     cyto_model=snakemake.params.cyto_model,
+    cellpose_kwargs=dict(
+        flow_threshold=snakemake.params.flow_threshold,
+        cellprob_threshold=snakemake.params.cellprob_threshold,
+    ),
     return_counts=snakemake.params.return_counts,
+    gpu=snakemake.params.gpu,
 )
 
-# save segmented nuclei data
+# save outputs
 imsave(snakemake.output[0], nuclei_data)
-
-# save segmented cells data
 imsave(snakemake.output[1], cells_data)
-
-# save counts data
 counts_df.to_csv(snakemake.output[2], index=False, sep="\t")

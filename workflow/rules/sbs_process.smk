@@ -112,7 +112,10 @@ rule segment:
         nuclei_diameter=config["sbs_process"]["nuclei_diameter"],
         cell_diameter=config["sbs_process"]["cell_diameter"],
         cyto_model=config["sbs_process"]["cyto_model"],
+        flow_threshold=config["sbs_process"]["flow_threshold"],
+        cellprob_threshold=config["sbs_process"]["cellprob_threshold"],
         return_counts=True,
+        gpu=config["sbs_process"]["gpu"],
     script:
         "../scripts/sbs_process/segment_cellpose.py"
 
@@ -267,26 +270,83 @@ if config['sbs_process']['mode'] == 'segment_paramsearch':
             SBS_PROCESS_OUTPUTS_MAPPED["segment_paramsearch"]
         params:
             dapi_index=config["sbs_process"]["dapi_index"],
-            cyto_index=config["sbs_process"]["cyto_index"],
+            cyto_index=config["sbs_process"]["cyto_index"], 
             nuclei_diameter=lambda wildcards: float(wildcards.nuclei_diameter),
             cell_diameter=lambda wildcards: float(wildcards.cell_diameter),
             cyto_model=config["sbs_process"]["cyto_model"],
-            return_counts=True
+            flow_threshold=lambda wildcards: float(wildcards.flow_threshold),
+            cellprob_threshold=lambda wildcards: float(wildcards.cellprob_threshold),
+            return_counts=True,
+            gpu=config["sbs_process"]["gpu"],
         script:
             "../scripts/sbs_process/segment_cellpose.py"
 
-    rule summarize_paramsearch:
+    rule summarize_segment_paramsearch:
         conda:
-            "../envs/sbs_process.yml"
+            "../envs/sbs_process.yml" 
         input:
             lambda wildcards: output_to_input(
-                SBS_PROCESS_OUTPUTS["segment_paramsearch"][2::3],  # Take every 3rd output since that's the TSV
-                {"well": SBS_WELLS, "tile": SBS_TILES, 
-                "nuclei_diameter": SBS_PROCESS_WILDCARDS["nuclei_diameter"],
-                "cell_diameter": SBS_PROCESS_WILDCARDS["cell_diameter"]},
+                SBS_PROCESS_OUTPUTS["segment_paramsearch"][2::3],
+                {"well": SBS_WELLS, "tile": SBS_TILES,
+                    "nuclei_diameter": SBS_PROCESS_WILDCARDS["nuclei_diameter"],
+                    "cell_diameter": SBS_PROCESS_WILDCARDS["cell_diameter"],
+                    "flow_threshold": SBS_PROCESS_WILDCARDS["flow_threshold"],
+                    "cellprob_threshold": SBS_PROCESS_WILDCARDS["cellprob_threshold"]},
                 wildcards,
             )
         output:
             SBS_PROCESS_OUTPUTS_MAPPED["segment_paramsearch_summary"]
         script:
             "../scripts/shared/paramsearch_combine_dfs.py"
+
+
+if config['sbs_process']['mode'] == 'mapping_paramsearch':
+    rule extract_bases_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            peaks=SBS_PROCESS_OUTPUTS["find_peaks"],
+            max_filtered=SBS_PROCESS_OUTPUTS["max_filter"],
+            # use cell segmentation map
+            segmentation=SBS_PROCESS_OUTPUTS["segment"][1]
+        output:
+            ### building
+        params:
+            threshold_peaks= ### building,
+            bases=config["sbs_process"]["bases"],
+        script:
+            "../scripts/sbs_process/extract_bases.py"
+
+    rule call_reads_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            ### extract bases output
+            SBS_PROCESS_OUTPUTS["find_peaks"],
+        output:
+            ### building
+        script:
+            "../scripts/sbs_process/call_reads.py"
+
+    rule call_cells_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            SBS_PROCESS_OUTPUTS["call_reads"],
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["call_cells"],
+        params:
+            df_design_path=config["sbs_process"]["df_design_path"],
+            q_min= ### building,
+        script:
+            "../scripts/sbs_process/call_cells.py"
+
+    rule summarize_mapping_paramsearch:
+        conda:
+            "../envs/sbs_process.yml" 
+        input:
+            ### building
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["segment_paramsearch_summary"]
+        script:
+            ### building

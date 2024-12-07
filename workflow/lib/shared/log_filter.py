@@ -23,7 +23,7 @@ def log_filter(aligned_image_data, sigma=1, skip_index=None):
     # Convert input data to a numpy array
     aligned_image_data = np.array(aligned_image_data)
 
-    # Apply Laplacian-of-Gaussian filter to the data using ops.process.log_ndi function from ops.process module
+    # Apply Laplacian-of-Gaussian filter
     loged = log_ndi(aligned_image_data, sigma=sigma)
 
     # If skip_index is specified, keep the original values for the corresponding channel

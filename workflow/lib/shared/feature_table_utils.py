@@ -124,7 +124,7 @@ def regionprops(labeled, intensity_image):
 def regionprops_multichannel(labeled, intensity_image):
     """Format intensity image axes for compatibility with updated skimage.measure.regionprops that allows multichannel images.
 
-    Some operations are faster than `ops.utils.regionprops`, others are slower.
+    Some operations are faster than regionprops, others are slower.
 
     Args:
         labeled (np.ndarray): Labeled segmentation mask defining objects.

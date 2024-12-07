@@ -35,8 +35,37 @@ def call_cells(reads_data, df_pool=None, q_min=0):
         DataFrame: DataFrame containing corrected cells.
     """
     # Check if df_reads is None and return if so
-    if reads_data is None:
-        return
+    if reads_data.empty:
+        columns = [
+            "cell",
+            "tile",
+            "well",
+            "Q_0",
+            "Q_1",
+            "Q_2",
+            "Q_3",
+            "Q_4",
+            "Q_5",
+            "Q_6",
+            "Q_7",
+            "Q_8",
+            "Q_9",
+            "Q_10",
+            "Q_min",
+            "peak",
+            "cell_barcode_0",
+            "cell_barcode_count_0",
+            "cell_barcode_1",
+            "cell_barcode_count_1",
+            "barcode_count",
+            "sgRNA_0",
+            "gene_symbol_0",
+            "gene_id_0",
+            "sgRNA_1",
+            "gene_symbol_1",
+            "gene_id_1",
+        ]
+        return pd.DataFrame(columns=columns)
 
     # Check if df_pool is None
     if df_pool is None:

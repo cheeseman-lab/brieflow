@@ -20,14 +20,18 @@ sbs_samples_df = sbs_samples_df.sort_values(by=["well", "tile", "cycle"])
 SBS_WELLS = list(sbs_samples_df["well"].unique())
 SBS_TILES = list(sbs_samples_df["tile"].unique())
 SBS_CYCLES = list(sbs_samples_df["cycle"].unique())
-# TODO: unrestrict wells and tiles after testing
-SBS_WELLS = ["A1"]
-SBS_TILES = [1]
 
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
 phenotype_samples_df = phenotype_samples_df.sort_values(by=["well", "tile"])
 PHENOTYPE_WELLS = list(phenotype_samples_df["well"].unique())
 PHENOTYPE_TILES = list(phenotype_samples_df["tile"].unique())
+
+# TODO: unrestrict wells and tiles after testing
+SBS_WELLS = ["A1"]
+SBS_TILES = [1]
+# SBS_CYCLES = [1]
+PHENOTYPE_WELLS = ["A1"]
+PHENOTYPE_TILES = [1]
 
 include: "targets/preprocess.smk"
 include: "rules/preprocess.smk"
@@ -99,6 +103,13 @@ if "sbs_process" in config:
 
     ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
 
+
+if "phenotype_process" in config:
+
+    include: "targets/phenotype_process.smk"
+    include: "rules/phenotype_process.smk"
+
+    ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
 
 
 # Define the target files for the workflow

@@ -15,11 +15,11 @@ all:
 phenotype_process:
   cell_diameter: 55.3
   channel_names:
-  - dapi
-  - coxiv
-  - cenpa
-  - wga
-  cyto_channel: 1
+  - DAPI
+  - COXIV
+  - CENPA
+  - WGA
+  cyto_index: 1
   cyto_model: cyto3
   dapi_index: 0
   foci_channel: 2
@@ -28,7 +28,11 @@ preprocess:
   phenotype_samples_fp: config/phenotype_samples.tsv
   sbs_samples_fp: config/sbs_samples.tsv
 sbs_process:
-  bases: GTAC
+  bases:
+  - G
+  - T
+  - A
+  - C
   cell_diameter: 19.5
   cyto_index: 4
   cyto_model: cyto3

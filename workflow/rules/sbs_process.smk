@@ -1,4 +1,3 @@
-from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import output_to_input
 
 
@@ -77,7 +76,7 @@ rule max_filter:
 
 
 # Apply illumination correction field from segmentation cycle
-rule apply_ic_field:
+rule apply_ic_field_sbs:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -89,23 +88,23 @@ rule apply_ic_field:
             wildcards,
         ),
     output:
-        SBS_PROCESS_OUTPUTS_MAPPED["apply_ic_field"],
+        SBS_PROCESS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
         segmentation_cycle_index=SBS_CYCLES[
             config["sbs_process"]["segmentation_cycle_index"]
         ],
     script:
-        "../scripts/sbs_process/apply_ic_field.py"
+        "../scripts/sbs_process/apply_ic_field_sbs.py"
 
 
 # Segments cells and nuclei using pre-defined methods
-rule segment:
+rule segment_sbs:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_OUTPUTS["apply_ic_field"],
+        SBS_PROCESS_OUTPUTS["apply_ic_field_sbs"],
     output:
-        SBS_PROCESS_OUTPUTS_MAPPED["segment"],
+        SBS_PROCESS_OUTPUTS_MAPPED["segment_sbs"],
     params:
         dapi_index=config["sbs_process"]["dapi_index"],
         cyto_index=config["sbs_process"]["cyto_index"],
@@ -117,7 +116,7 @@ rule segment:
         return_counts=True,
         gpu=config["sbs_process"]["gpu"],
     script:
-        "../scripts/sbs_process/segment_cellpose.py"
+        "../scripts/shared/segment_cellpose.py"
 
 
 # Extract bases from peaks
@@ -128,7 +127,7 @@ rule extract_bases:
         SBS_PROCESS_OUTPUTS["find_peaks"],
         SBS_PROCESS_OUTPUTS["max_filter"],
         # use cell segmentation map
-        SBS_PROCESS_OUTPUTS["segment"][1],
+        SBS_PROCESS_OUTPUTS["segment_sbs"][1],
     output:
         SBS_PROCESS_OUTPUTS_MAPPED["extract_bases"],
     params:
@@ -172,11 +171,11 @@ rule extract_sbs_info:
         "../envs/sbs_process.yml"
     input:
         # use nuclei segmentation map
-        SBS_PROCESS_OUTPUTS["segment"][0],
+        SBS_PROCESS_OUTPUTS["segment_sbs"][0],
     output:
         SBS_PROCESS_OUTPUTS_MAPPED["extract_sbs_info"],
     script:
-        "../scripts/sbs_process/extract_sbs_info.py"
+        "../scripts/shared/extract_phenotype_minimal.py"
 
 
 # Rule for combining read results from different wells
@@ -227,22 +226,22 @@ rule combine_sbs_info:
         "../scripts/shared/combine_dfs.py"
 
 
-rule eval_segmentation:
+rule eval_segmentation_sbs:
     conda:
         "../envs/sbs_process.yml"
     input:
         # path to segmentation stats for well/tile
         segmentation_stats_paths=lambda wildcards: output_to_input(
-            SBS_PROCESS_OUTPUTS["segment"][2],
+            SBS_PROCESS_OUTPUTS["segment_sbs"][2],
             {"well": SBS_WELLS, "tile": SBS_TILES},
             wildcards,
         ),
         # path to hdf with combined cell data
         cells_path=SBS_PROCESS_OUTPUTS["combine_cells"][0],
     output:
-        SBS_PROCESS_OUTPUTS_MAPPED["eval_segmentation"],
+        SBS_PROCESS_OUTPUTS_MAPPED["eval_segmentation_sbs"],
     script:
-        "../scripts/sbs_process/eval_segmentation.py"
+        "../scripts/shared/eval_segmentation.py"
 
 
 rule eval_mapping:
@@ -350,3 +349,9 @@ if config['sbs_process']['mode'] == 'mapping_paramsearch':
             SBS_PROCESS_OUTPUTS_MAPPED["segment_paramsearch_summary"]
         script:
             ### building
+
+
+# rule for all sbs processing steps
+rule all_sbs_process:
+    input:
+        SBS_PROCESS_TARGETS_ALL,

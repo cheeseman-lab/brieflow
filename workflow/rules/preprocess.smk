@@ -1,4 +1,3 @@
-from lib.shared.file_utils import get_filename
 from lib.preprocess.file_utils import get_sample_fps
 from lib.shared.target_utils import output_to_input
 
@@ -67,7 +66,7 @@ rule combine_metadata_phenotype:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-            {"tile": SBS_TILES},
+            {"tile": PHENOTYPE_TILES},
             wildcards,
         ),
     output:

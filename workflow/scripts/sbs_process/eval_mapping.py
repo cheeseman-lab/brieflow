@@ -16,7 +16,7 @@ df_pool = df_design.query("dialout==[0,1]").drop_duplicates("sgRNA")
 df_pool["prefix"] = df_pool.apply(lambda x: x.sgRNA[: x.prefix_length], axis=1)
 barcodes = df_pool["prefix"]
 
-# Concatenate files
+# Load SBS processing files
 reads = pd.read_hdf(snakemake.input[0])
 cells = pd.read_hdf(snakemake.input[1])
 sbs_info = pd.read_hdf(snakemake.input[2])

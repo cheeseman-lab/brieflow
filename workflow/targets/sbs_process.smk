@@ -32,14 +32,14 @@ SBS_PROCESS_OUTPUTS = {
         / "images"
         / get_filename({"well": "{well}", "tile": "{tile}"}, "max_filtered", "tiff"),
     ],
-    "apply_ic_field": [
+    "apply_ic_field_sbs": [
         SBS_PROCESS_FP
         / "images"
         / get_filename(
             {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
         ),
     ],
-    "segment": [
+    "segment_sbs": [
         SBS_PROCESS_FP
         / "images"
         / get_filename({"well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"),
@@ -81,7 +81,7 @@ SBS_PROCESS_OUTPUTS = {
     "combine_sbs_info": [
         SBS_PROCESS_FP / "hdfs" / get_filename({}, "sbs_info", "hdf5"),
     ],
-    "eval_segmentation": [
+    "eval_segmentation_sbs": [
         SBS_PROCESS_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
         SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
         SBS_PROCESS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
@@ -106,8 +106,8 @@ SBS_PROCESS_OUTPUT_MAPPINGS = {
     "compute_standard_deviation": None,
     "find_peaks": None,
     "max_filter": None,
-    "apply_ic_field": None,
-    "segment": None,
+    "apply_ic_field_sbs": None,
+    "segment_sbs": None,
     "extract_bases": None,
     "call_reads": None,
     "call_cells": None,
@@ -115,7 +115,7 @@ SBS_PROCESS_OUTPUT_MAPPINGS = {
     "combine_reads": None,
     "combine_cells": None,
     "combine_sbs_info": None,
-    "eval_segmentation": None,
+    "eval_segmentation_sbs": None,
     "eval_mapping": None,
 }
 

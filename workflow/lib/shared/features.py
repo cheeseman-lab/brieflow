@@ -50,8 +50,6 @@ def masked(r, index):
 def correlate_channels_multichannel(r, first, second):
     """Compute cross-correlation between non-zero pixels in the specified channels.
 
-    This function is intended to be used with ops.utils.regionprops_multichannel.
-
     Args:
         r (skimage regionprops object): Region properties object containing intensity images for multiple channels.
         first (int): Index of the first channel.

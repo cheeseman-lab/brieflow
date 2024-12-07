@@ -88,15 +88,16 @@ conda activate brieflow_workflows
 sh 1.run_preprocessing.sh
 ```
 
-#### Step 2.2: Configure SBS process params
+#### Step 2.2: Configure SBS/phenotype process params
 
-Follow the steps in [2.configure_sbs_process_params.ipynb](example_analysis/2.configure_sbs_process_params.ipynb) to configure SBS params.
+1) Follow the steps in [2.configure_sbs_process_params.ipynb](example_analysis/2.configure_sbs_process_params.ipynb) to configure SBS process params.
+2) Follow the steps in [3.configure_phenotype_process_params.ipynb](example_analysis/3.configure_phenotype_process_params.ipynb) to configure phenotype process params.
 
-#### Step 2.3: Run SBS process workflow
+#### Step 2.3: Run SBS/phenotype process workflow
 
 ```sh
 conda activate brieflow_workflows
-sh 3.run_sbs_process.sh
+sh 4.run_sbs_phenotype_processes.sh
 ```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.

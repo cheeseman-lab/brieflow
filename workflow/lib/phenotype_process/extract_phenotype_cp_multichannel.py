@@ -21,7 +21,7 @@ from lib.external.cp_emulator import (
     shape_columns,
     neighbor_measurements,
 )
-from lib.shared.extract_phenotype_minimal import extract_features
+from lib.shared.feature_extraction import extract_features, extract_features_bare
 from lib.shared.log_filter import log_ndi
 
 
@@ -54,6 +54,10 @@ def extract_phenotype_cp_multichannel(
     Returns:
         pandas.DataFrame: DataFrame containing extracted phenotype features.
     """
+    # If nuclei or cells are empty, return an empty DataFrame
+    if np.sum(nuclei) == 0 or np.sum(cells) == 0:
+        return pd.DataFrame(columns=["well", "tile"])
+
     # Check if all channels should be used
     if nucleus_channels == "all":
         try:
@@ -193,43 +197,6 @@ def extract_phenotype_cp_multichannel(
     return pd.concat(dfs, axis=1, join="outer", sort=True).reset_index()
 
 
-def extract_features_bare(
-    data, labels, features=None, wildcards=None, multichannel=False
-):
-    """Extract features in dictionary and combine with generic region features.
-
-    Args:
-        data (numpy.ndarray): Image data of dimensions (CHANNEL, I, J).
-        labels (numpy.ndarray): Labeled segmentation mask defining objects to extract features from.
-        features (dict or None): Features to extract and their defining functions. Default is None.
-        wildcards (dict or None): Metadata to include in the output table, e.g., well, tile, etc. Default is None.
-        multichannel (bool): Flag indicating whether the data has multiple channels.
-
-    Returns:
-        pandas.DataFrame: Table of labeled regions in labels with corresponding feature measurements.
-    """
-    features = features.copy() if features else dict()
-    features.update({"label": lambda r: r.label})
-
-    # Choose appropriate feature table based on multichannel flag
-    if multichannel:
-        from lib.shared.feature_table_utils import (
-            feature_table_multichannel as feature_table,
-        )
-    else:
-        from lib.shared.feature_table_utils import feature_table
-
-    # Extract features using the feature table function
-    df = feature_table(data, labels, features)
-
-    # Add wildcard metadata to the DataFrame if provided
-    if wildcards is not None:
-        for k, v in sorted(wildcards.items()):
-            df[k] = v
-
-    return df
-
-
 def find_foci(data, radius=3, threshold=10, remove_border_foci=False):
     """Detect foci in the given image using a white tophat filter and other processing steps.
 
@@ -288,9 +255,13 @@ def apply_watershed(img, smooth=4):
         distance = skimage.filters.gaussian(distance, sigma=smooth)
 
     # Identify local maxima in the distance transform
-    local_max = skimage.feature.peak_local_max(
+    local_max_coords = skimage.feature.peak_local_max(
         distance, footprint=np.ones((3, 3)), exclude_border=False
     )
+
+    # Create a boolean mask for peaks
+    local_max = np.zeros_like(distance, dtype=bool)
+    local_max[tuple(local_max_coords.T)] = True  # Convert coordinates to a boolean mask
 
     # Label the local maxima
     markers = ndi.label(local_max)[0]

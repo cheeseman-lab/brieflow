@@ -3,7 +3,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from lib.shared.initialize_paramsearch import initialize_segment_paramsearch
+from lib.shared.initialize_paramsearch import initialize_segment_sbs_paramsearch
+from lib.shared.initialize_paramsearch import initialize_mapping_sbs_paramsearch
+from lib.shared.initialize_paramsearch import initialize_segment_phenotype_paramsearch
 from lib.shared.target_utils import outputs_to_targets, map_outputs
 
 # Get the general configuration options
@@ -29,7 +31,6 @@ PHENOTYPE_TILES = list(phenotype_samples_df["tile"].unique())
 # TODO: unrestrict wells and tiles after testing
 SBS_WELLS = ["A1"]
 SBS_TILES = [1]
-# SBS_CYCLES = [1]
 PHENOTYPE_WELLS = ["A1"]
 PHENOTYPE_TILES = [1]
 
@@ -50,14 +51,15 @@ if "sbs_process" in config:
     # print("targets all", SBS_PROCESS_TARGETS_ALL)
 
     # Update targets and wildcards for segment_paramsearch mode
-    if config["sbs_process"]["mode"] == "segment_paramsearch":
-        config, nuclei_diameters, cell_diameters, flow_thresholds, cell_probs, paramsearch_outputs = initialize_segment_paramsearch(config)
+    if config["sbs_process"]["mode"] == "segment_sbs_paramsearch":
+        config, nuclei_diameters, cell_diameters, flow_thresholds, cell_probs, paramsearch_outputs = initialize_segment_sbs_paramsearch(config)
         
         SBS_PROCESS_OUTPUTS.update(paramsearch_outputs)
         SBS_PROCESS_OUTPUT_MAPPINGS.update({
-            "segment_paramsearch": None, 
-            "summarize_segment_paramsearch": None
-        })  
+            "segment_sbs_paramsearch": None, 
+            "summarize_segment_sbs_paramsearch": None
+        })
+        
         
         SBS_PROCESS_WILDCARDS.update({
             "nuclei_diameter": nuclei_diameters,
@@ -72,15 +74,15 @@ if "sbs_process" in config:
 
 
     # Update Snakefile condition:
-    if config["sbs_process"]["mode"] == "mapping_paramsearch":
-        config, threshold_peaks, q_mins, paramsearch_outputs = initialize_mapping_paramsearch(config)
+    if config["sbs_process"]["mode"] == "mapping_sbs_paramsearch":
+        config, threshold_peaks, q_mins, paramsearch_outputs = initialize_mapping_sbs_paramsearch(config)
         
         SBS_PROCESS_OUTPUTS.update(paramsearch_outputs)
         SBS_PROCESS_OUTPUT_MAPPINGS.update({
-            "extract_bases_paramsearch": None,
-            "call_reads_paramsearch": None, 
-            "call_cells_paramsearch": None,
-            "mapping_paramsearch_summary": None
+            "extract_bases_sbs_paramsearch": None,
+            "call_reads_sbs_paramsearch": None, 
+            "call_cells_sbs_paramsearch": None,
+            "summarize_mapping_sbs_paramsearch": None
         })
         
         SBS_PROCESS_WILDCARDS.update({
@@ -105,10 +107,43 @@ if "sbs_process" in config:
 
 
 if "phenotype_process" in config:
-
     include: "targets/phenotype_process.smk"
-    include: "rules/phenotype_process.smk"
+    
+    # Update targets and wildcards for segment_paramsearch mode
+    if config["phenotype_process"]["mode"] == "segment_phenotype_paramsearch":
+        (
+            config,
+            nuclei_diameters,
+            cell_diameters,
+            flow_thresholds,
+            cell_probs,
+            paramsearch_outputs
+        ) = initialize_segment_phenotype_paramsearch(config)
+        
+        PHENOTYPE_PROCESS_OUTPUTS.update(paramsearch_outputs)
+        PHENOTYPE_PROCESS_OUTPUT_MAPPINGS.update({
+            "segment_phenotype_paramsearch": None,
+            "summarize_segment_phenotype_paramsearch": None
+        })
+        
+        PHENOTYPE_PROCESS_WILDCARDS.update({
+            "nuclei_diameter": nuclei_diameters,
+            "cell_diameter": cell_diameters,
+            "flow_threshold": flow_thresholds,
+            "cellprob_threshold": cell_probs
+        })
+        
+        PHENOTYPE_PROCESS_OUTPUTS_MAPPED = map_outputs(
+            PHENOTYPE_PROCESS_OUTPUTS,
+            PHENOTYPE_PROCESS_OUTPUT_MAPPINGS
+        )
+        PHENOTYPE_PROCESS_TARGETS = outputs_to_targets(
+            PHENOTYPE_PROCESS_OUTPUTS_MAPPED,
+            PHENOTYPE_PROCESS_WILDCARDS
+        )
+        PHENOTYPE_PROCESS_TARGETS_ALL = sum(PHENOTYPE_PROCESS_TARGETS.values(), [])
 
+    include: "rules/phenotype_process.smk"
     ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
 
 

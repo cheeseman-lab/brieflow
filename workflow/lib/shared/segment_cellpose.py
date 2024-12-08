@@ -196,6 +196,7 @@ def estimate_diameters(
     model_nuclei = Cellpose(model_type="nuclei", gpu=gpu)
     diam_nuclear, _ = model_nuclei.sz.eval(rgb, channels=[3, 0])
     diam_nuclear = np.maximum(5.0, diam_nuclear)
+    diam_nuclear = float(diam_nuclear)
     print(f"Estimated nuclear diameter: {diam_nuclear:.1f} pixels")
 
     # Find optimal cell diameter
@@ -203,9 +204,9 @@ def estimate_diameters(
     model_cyto = Cellpose(model_type=cyto_model, gpu=gpu)
     diam_cell, _ = model_cyto.sz.eval(rgb, channels=channels)
     diam_cell = np.maximum(5.0, diam_cell)  
+    diam_cell = float(diam_cell)
     print(f"Estimated cell diameter: {diam_cell:.1f} pixels")
-    diam_cell = 0
-    
+        
     return diam_nuclear, diam_cell
 
 

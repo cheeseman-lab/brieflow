@@ -111,7 +111,10 @@ rule segment_sbs:
         nuclei_diameter=config["sbs_process"]["nuclei_diameter"],
         cell_diameter=config["sbs_process"]["cell_diameter"],
         cyto_model=config["sbs_process"]["cyto_model"],
+        flow_threshold=config["sbs_process"]["flow_threshold"],
+        cellprob_threshold=config["sbs_process"]["cellprob_threshold"],
         return_counts=True,
+        gpu=config["sbs_process"]["gpu"],
     script:
         "../scripts/shared/segment_cellpose.py"
 
@@ -255,6 +258,103 @@ rule eval_mapping:
     script:
         "../scripts/sbs_process/eval_mapping.py"
 
+
+if config['sbs_process']['mode'] == 'segment_sbs_paramsearch':
+    rule segment_sbs_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            SBS_PROCESS_OUTPUTS["apply_ic_field_sbs"],
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["segment_sbs_paramsearch"]
+        params:
+            dapi_index=config["sbs_process"]["dapi_index"],
+            cyto_index=config["sbs_process"]["cyto_index"], 
+            nuclei_diameter=lambda wildcards: float(wildcards.nuclei_diameter),
+            cell_diameter=lambda wildcards: float(wildcards.cell_diameter),
+            cyto_model=config["sbs_process"]["cyto_model"],
+            flow_threshold=lambda wildcards: float(wildcards.flow_threshold),
+            cellprob_threshold=lambda wildcards: float(wildcards.cellprob_threshold),
+            return_counts=True,
+            gpu=config["sbs_process"]["gpu"],
+
+        script:
+            "../scripts/shared/segment_cellpose.py"
+
+    rule summarize_segment_sbs_paramsearch:
+        conda:
+            "../envs/sbs_process.yml" 
+        input:
+            lambda wildcards: output_to_input(
+                SBS_PROCESS_OUTPUTS["segment_sbs_paramsearch"][2::3],
+                {"well": SBS_WELLS, "tile": SBS_TILES,
+                    "nuclei_diameter": SBS_PROCESS_WILDCARDS["nuclei_diameter"],
+                    "cell_diameter": SBS_PROCESS_WILDCARDS["cell_diameter"],
+                    "flow_threshold": SBS_PROCESS_WILDCARDS["flow_threshold"],
+                    "cellprob_threshold": SBS_PROCESS_WILDCARDS["cellprob_threshold"]},
+                wildcards,
+            )
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["summarize_segment_sbs_paramsearch"]
+        script:
+            "../scripts/shared/paramsearch_combine_dfs.py"
+
+
+if config['sbs_process']['mode'] == 'mapping_sbs_paramsearch':
+    rule extract_bases_sbs_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            peaks=SBS_PROCESS_OUTPUTS["find_peaks"],
+            max_filtered=SBS_PROCESS_OUTPUTS["max_filter"],
+            segmentation=SBS_PROCESS_OUTPUTS["segment"][1]
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["extract_bases_sbs_paramsearch"]
+        params:
+            threshold_peaks=lambda wildcards: float(wildcards.threshold_peaks),
+            bases=config["sbs_process"]["bases"]
+        script:
+            "../scripts/sbs_process/extract_bases.py"
+
+    rule call_reads_sbs_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            bases=SBS_PROCESS_OUTPUTS_MAPPED["extract_bases_sbs_paramsearch"],
+            peaks=SBS_PROCESS_OUTPUTS["find_peaks"]
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["call_reads_sbs_paramsearch"]
+        script:
+            "../scripts/sbs_process/call_reads.py"
+
+    rule call_cells_sbs_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            SBS_PROCESS_OUTPUTS_MAPPED["call_cells_sbs_paramsearch"]
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["call_cells_sbs_paramsearch"]
+        params:
+            df_design_path=config["sbs_process"]["df_design_path"],
+            q_min=lambda wildcards: float(wildcards.q_min)
+        script:
+            "../scripts/sbs_process/call_cells.py"
+
+    rule summarize_mapping_sbs_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            lambda wildcards: output_to_input(
+                SBS_PROCESS_OUTPUTS["call_cells_sbs_paramsearch"],
+                {"well": SBS_WELLS, "tile": SBS_TILES,
+                 "threshold_peaks": SBS_PROCESS_WILDCARDS["threshold_peaks"],
+                 "q_min": SBS_PROCESS_WILDCARDS["q_min"]},
+                wildcards
+            )
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["summarize_mapping_sbs_paramsearch"]
+        script:
+            "../scripts/shared/paramsearch_combine_dfs.py"
 
 # rule for all sbs processing steps
 rule all_sbs_process:

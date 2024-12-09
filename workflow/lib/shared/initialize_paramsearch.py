@@ -85,8 +85,8 @@ def initialize_segment_phenotype_paramsearch(config):
     if 'paramsearch' not in config['phenotype_process']:
         base_nuclei = config['phenotype_process']['nuclei_diameter']
         base_cell = config['phenotype_process']['cell_diameter']
-        nuclei_diameters = [base_nuclei - 2, base_nuclei, base_nuclei + 2]
-        cell_diameters = [base_cell - 2, base_cell, base_cell + 2]
+        nuclei_diameters = [base_nuclei - 5, base_nuclei, base_nuclei + 5]
+        cell_diameters = [base_cell - 5, base_cell, base_cell + 5]
         flow_thresholds = [0.2, 0.4, 0.6]
         cell_probs = [-4, -2, 0, 2, 4]
     else:

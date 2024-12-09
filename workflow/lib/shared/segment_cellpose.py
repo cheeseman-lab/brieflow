@@ -253,8 +253,6 @@ def segment_cellpose_rgb(
         rgb, 
         channels=[3, 0], 
         diameter=nuclei_diameter,
-        flow_threshold=flow_threshold,
-        cellprob_threshold=cellprob_threshold,
         **kwargs
     )
     

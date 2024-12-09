@@ -29,6 +29,7 @@ rule segment_phenotype:
         cell_diameter=config["phenotype_process"]["cell_diameter"],
         cyto_model=config["phenotype_process"]["cyto_model"],
         return_counts=True,
+        gpu=config["phenotype_process"]["gpu"],
     script:
         "../scripts/shared/segment_cellpose.py"
 
@@ -163,6 +164,7 @@ if config['phenotype_process']['mode'] == 'segment_phenotype_paramsearch':
             flow_threshold=lambda wildcards: float(wildcards.flow_threshold),
             cellprob_threshold=lambda wildcards: float(wildcards.cellprob_threshold),
             return_counts=True,
+            gpu=config["phenotype_process"]["gpu"],
         script:
             "../scripts/shared/segment_cellpose.py"
 

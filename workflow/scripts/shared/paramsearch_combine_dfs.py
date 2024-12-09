@@ -8,22 +8,30 @@ def get_file(filepath):
     try:
         # Extract parameters from filename
         path = Path(filepath)
-        params = path.stem.split('__')[1].split('_')
+        prefix, params_part = path.stem.split('__')
         
-        # Extract nuclei and cell diameters using nd and cd prefixes
-        nuclei_diameter = float([p for p in params if 'nd' in p][0].replace('nd', ''))
-        cell_diameter = float([p for p in params if 'cd' in p][0].replace('cd', ''))
-        flow_threshold = float([p for p in params if 'ft' in p][0].replace('ft', ''))
-        cellprob_threshold = float([p for p in params if 'cp' in p][0].replace('cp', ''))
+        # Extract well and tile from prefix
+        prefix_parts = prefix.split('_')
+        well = next(p.replace('W', '') for p in prefix_parts if p.startswith('W'))
+        tile = next(p.replace('T', '') for p in prefix_parts if p.startswith('T'))
+        
+        # Extract other parameters from the second part
+        params = params_part.split('_')
+        nuclei_diameter = float(next(p.replace('nd', '') for p in params if p.startswith('nd')))
+        cell_diameter = float(next(p.replace('cd', '') for p in params if p.startswith('cd')))
+        flow_threshold = float(next(p.replace('ft', '') for p in params if p.startswith('ft')))
+        cellprob_threshold = float(next(p.replace('cp', '') for p in params if p.startswith('cp')))
         
         # Read the data
         df = pd.read_csv(filepath, sep="\t")
         
         # Add parameter columns before the rest of the columns
-        df.insert(0, 'nuclei_diameter', nuclei_diameter)
-        df.insert(1, 'cell_diameter', cell_diameter)
-        df.insert(2, 'flow_threshold', flow_threshold)
-        df.insert(3, 'cellprob_threshold', cellprob_threshold)                
+        df.insert(0, 'well', well)
+        df.insert(1, 'tile', tile)
+        df.insert(2, 'nuclei_diameter', nuclei_diameter)
+        df.insert(3, 'cell_diameter', cell_diameter)
+        df.insert(4, 'flow_threshold', flow_threshold)
+        df.insert(5, 'cellprob_threshold', cellprob_threshold)                
         return df
     except pd.errors.EmptyDataError:
         pass

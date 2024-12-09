@@ -20,10 +20,11 @@ source ~/.bashrc
 conda activate brieflow_workflows
 
 # Run only the preprocess rules
-snakemake --use-conda --executor slurm \
+snakemake --executor slurm --use-conda \
     --workflow-profile "$PROFILE_FILE_PATH" \
     --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
     --configfile "$CONFIG_FILE_PATH" \
+    --latency-wait 60 \
     --until all_sbs_process all_phenotype_process
 
     

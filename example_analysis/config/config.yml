@@ -45,7 +45,7 @@ sbs_process:
   df_design_path: config/pool10_design.tsv
   flow_threshold: 0.4
   gpu: false
-  mode: mapping_sbs_paramsearch
+  mode: segment_sbs_paramsearch
   nuclei_diameter: 8.740387444736633
   q_min: 0
   segmentation_cycle_index: -1

@@ -307,7 +307,7 @@ if config['sbs_process']['mode'] == 'mapping_sbs_paramsearch':
         input:
             peaks=SBS_PROCESS_OUTPUTS["find_peaks"],
             max_filtered=SBS_PROCESS_OUTPUTS["max_filter"],
-            segmentation=SBS_PROCESS_OUTPUTS["segment"][1]
+            segmentation=SBS_PROCESS_OUTPUTS["segment_sbs"][1]
         output:
             SBS_PROCESS_OUTPUTS_MAPPED["extract_bases_sbs_paramsearch"]
         params:

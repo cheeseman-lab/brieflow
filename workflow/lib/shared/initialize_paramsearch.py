@@ -60,24 +60,3 @@ def initialize_segment_phenotype_paramsearch(config):
     
     return config
 
-
-def initialize_mapping_sbs_paramsearch(config):
-    """Initialize parameter search for sbs mapping by setting up config structure.
-
-    Args:
-        config (dict): Configuration dictionary.
-
-    Returns:
-        dict: Updated configuration dictionary.
-    """
-    if config['sbs_process'].get('mode') != 'mapping_sbs_paramsearch':
-        return config
-        
-    if 'paramsearch' not in config['sbs_process']:
-        # Set default parameter search ranges if not specified
-        config['sbs_process']['paramsearch'] = {
-            'threshold_peaks': [200, 300, 400],
-            'q_min': [0.7, 0.8, 0.9, 1]
-        }
-    
-    return config

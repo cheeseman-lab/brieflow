@@ -42,8 +42,6 @@ if "sbs_process" in config:
     # Initialize parameter search configurations if needed
     if config["sbs_process"]["mode"] == "segment_sbs_paramsearch":
         config = initialize_segment_sbs_paramsearch(config)
-    elif config["sbs_process"]["mode"] == "mapping_sbs_paramsearch":
-        config = initialize_mapping_sbs_paramsearch(config)
         
     # Include target and rule files
     include: "targets/sbs_process.smk"

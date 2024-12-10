@@ -300,62 +300,6 @@ if config['sbs_process']['mode'] == 'segment_sbs_paramsearch':
             "../scripts/shared/paramsearch_combine_dfs.py"
 
 
-if config['sbs_process']['mode'] == 'mapping_sbs_paramsearch':
-    rule extract_bases_sbs_paramsearch:
-        conda:
-            "../envs/sbs_process.yml"
-        input:
-            peaks=SBS_PROCESS_OUTPUTS["find_peaks"],
-            max_filtered=SBS_PROCESS_OUTPUTS["max_filter"],
-            segmentation=SBS_PROCESS_OUTPUTS["segment_sbs"][1]
-        output:
-            SBS_PROCESS_OUTPUTS_MAPPED["extract_bases_sbs_paramsearch"]
-        params:
-            threshold_peaks=lambda wildcards: float(wildcards.threshold_peaks),
-            bases=config["sbs_process"]["bases"]
-        script:
-            "../scripts/sbs_process/extract_bases.py"
-
-    rule call_reads_sbs_paramsearch:
-        conda:
-            "../envs/sbs_process.yml"
-        input:
-            bases=SBS_PROCESS_OUTPUTS_MAPPED["extract_bases_sbs_paramsearch"],
-            peaks=SBS_PROCESS_OUTPUTS["find_peaks"]
-        output:
-            SBS_PROCESS_OUTPUTS_MAPPED["call_reads_sbs_paramsearch"]
-        script:
-            "../scripts/sbs_process/call_reads.py"
-
-    rule call_cells_sbs_paramsearch:
-        conda:
-            "../envs/sbs_process.yml"
-        input:
-            SBS_PROCESS_OUTPUTS_MAPPED["call_cells_sbs_paramsearch"]
-        output:
-            SBS_PROCESS_OUTPUTS_MAPPED["call_cells_sbs_paramsearch"]
-        params:
-            df_design_path=config["sbs_process"]["df_design_path"],
-            q_min=lambda wildcards: float(wildcards.q_min)
-        script:
-            "../scripts/sbs_process/call_cells.py"
-
-    rule summarize_mapping_sbs_paramsearch:
-        conda:
-            "../envs/sbs_process.yml"
-        input:
-            lambda wildcards: output_to_input(
-                SBS_PROCESS_OUTPUTS["call_cells_sbs_paramsearch"],
-                {"well": SBS_WELLS, "tile": SBS_TILES,
-                 "threshold_peaks": SBS_PROCESS_WILDCARDS["threshold_peaks"],
-                 "q_min": SBS_PROCESS_WILDCARDS["q_min"]},
-                wildcards
-            )
-        output:
-            SBS_PROCESS_OUTPUTS_MAPPED["summarize_mapping_sbs_paramsearch"]
-        script:
-            "../scripts/shared/paramsearch_combine_dfs.py"
-
 # rule for all sbs processing steps
 rule all_sbs_process:
     input:

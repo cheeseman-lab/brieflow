@@ -26,7 +26,7 @@ phenotype_process:
   flow_threshold: 0.4
   foci_channel: 2
   gpu: false
-  mode: phenotype_paramsearch
+  mode: segment_phenotype_paramsearch
   nuclei_diameter: 41.30545956583848
 preprocess:
   phenotype_samples_fp: config/phenotype_samples.tsv
@@ -45,7 +45,7 @@ sbs_process:
   df_design_path: config/pool10_design.tsv
   flow_threshold: 0.4
   gpu: false
-  mode: sbs_paramsearch
+  mode: mapping_sbs_paramsearch
   nuclei_diameter: 8.740387444736633
   q_min: 0
   segmentation_cycle_index: -1

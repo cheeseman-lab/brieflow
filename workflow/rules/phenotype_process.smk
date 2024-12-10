@@ -28,6 +28,8 @@ rule segment_phenotype:
         nuclei_diameter=config["phenotype_process"]["nuclei_diameter"],
         cell_diameter=config["phenotype_process"]["cell_diameter"],
         cyto_model=config["phenotype_process"]["cyto_model"],
+        flow_threshold=config["phenotype_process"]["flow_threshold"],
+        cellprob_threshold=config["phenotype_process"]["cellprob_threshold"],
         return_counts=True,
         gpu=config["phenotype_process"]["gpu"],
     script:

@@ -16,7 +16,7 @@ rule extract_metadata_sbs:
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
-        z_interval=None,
+        z_interval=config["preprocess"]["sbs_z_interval"],
         tile=lambda wildcards: wildcards.tile,
     script:
         "../scripts/preprocess/extract_tile_metadata.py"
@@ -53,7 +53,7 @@ rule extract_metadata_phenotype:
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:
-        z_interval=4,
+        z_interval=config["preprocess"]["phenotype_z_interval"],
         tile=lambda wildcards: wildcards.tile,
     script:
         "../scripts/preprocess/extract_tile_metadata.py"
@@ -91,7 +91,7 @@ rule convert_sbs:
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
     params:
-        channel_order_flip=True,
+        channel_order_flip=config["preprocess"]["sbs_channel_order_flip"],
     script:
         "../scripts/preprocess/nd2_to_tiff.py"
 
@@ -109,7 +109,7 @@ rule convert_phenotype:
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
     params:
-        channel_order_flip=True,
+        channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
     script:
         "../scripts/preprocess/nd2_to_tiff.py"
 

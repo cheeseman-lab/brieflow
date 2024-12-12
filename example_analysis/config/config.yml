@@ -49,4 +49,4 @@ sbs_process:
   nuclei_diameter: 8.740387444736633
   q_min: 0
   segmentation_cycle_index: -1
-  threshold_peaks: 315
+  threshold_peaks: 400

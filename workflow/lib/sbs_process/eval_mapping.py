@@ -5,6 +5,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from matplotlib.lines import Line2D
 
 from lib.shared.eval import plot_plate_heatmap
 
@@ -31,83 +32,114 @@ def plot_mapping_vs_threshold(
             Keyword arguments passed to sns.lineplot()
 
     Returns:
-        pandas.DataFrame: Summary table of thresholds and associated mapping rates, number of spots mapped
-        used for plotting.
+        pandas.DataFrame: Summary table of thresholds and associated mapping rates, for cell-associated reads only.
         matplotlib.figure.Figure: The figure object containing the plot.
     """
-    # Exclude spots not in cells
-    df_passed = df_reads.copy().query("cell > 0")
+    # Create figure with two subplots side by side
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
 
-    # Map reads
-    df_passed.loc[:, "mapped"] = df_passed["barcode"].isin(barcodes)
+    # Left plot (all reads)
+    df_all = df_reads.copy()
+    df_all.loc[:, "mapped"] = df_all["barcode"].isin(barcodes)
 
-    # Define thresholds range
-    if df_reads[threshold_var].max() < 100:
-        thresholds = (
-            np.array(
-                range(0, int(np.quantile(df_passed[threshold_var], q=0.99) * 1000))
+    # Right plot (cell-associated reads only)
+    df_cells = df_reads.copy().query("cell > 0")
+    df_cells.loc[:, "mapped"] = df_cells["barcode"].isin(barcodes)
+
+    # Process data and create plots for both
+    for df, ax, title in [(df_all, ax1, "All Reads"), 
+                         (df_cells, ax2, "Cell-Associated Reads Only")]:
+        
+        # Define thresholds
+        if df_reads[threshold_var].max() < 100:
+            thresholds = (
+                np.array(range(0, int(np.quantile(df[threshold_var], q=0.99) * 1000)))
+                / 1000
             )
-            / 1000
-        )
-    else:
-        thresholds = list(
-            range(0, int(np.quantile(df_passed[threshold_var], q=0.99)), 10)
-        )
+        else:
+            thresholds = list(
+                range(0, int(np.quantile(df[threshold_var], q=0.99)), 10)
+            )
 
-    # Iterate over thresholds
-    mapping_rate = []
-    spots_mapped = []
-    for threshold in thresholds:
-        df_thresholded = df_passed.query(f"{threshold_var} > @threshold")
-        spots_mapped.append(df_thresholded[df_thresholded["mapped"]].shape[0])
-        mapping_rate.append(
-            df_thresholded[df_thresholded["mapped"]].shape[0] / df_thresholded.shape[0]
-        )
+        # Calculate metrics
+        mapping_rate = []
+        spots_mapped = []
+        cells_mapped = []
+        for threshold in thresholds:
+            df_thresholded = df.query(f"{threshold_var} > @threshold")
+            mapped_reads = df_thresholded[df_thresholded["mapped"]]
+            spots_mapped.append(mapped_reads.shape[0])
+            cells_mapped.append(len(mapped_reads.groupby(["well", "tile", "cell"])))
+            mapping_rate.append(
+                mapped_reads.shape[0] / df_thresholded.shape[0]
+            )
 
-    # Create DataFrame for summary
-    df_summary = pd.DataFrame(
-        {
+        # Create summary DataFrame
+        df_summary = pd.DataFrame({
             f"{threshold_var}_threshold": thresholds,
             "mapping_rate": mapping_rate,
             "mapped_spots": spots_mapped,
-        }
-    )
+            "mapped_cells": cells_mapped,
+        })
 
-    # Create a new figure if ax is not provided
-    if ax is None:
-        fig, ax = plt.subplots()
-    else:
-        fig = ax.figure
+        # Main axis plot
+        sns.lineplot(
+            data=df_summary,
+            x=f"{threshold_var}_threshold",
+            y="mapping_rate",
+            ax=ax,
+            **kwargs,
+        )
+        
+        # Secondary axis
+        ax_right = ax.twinx()
+        
+        sns.lineplot(
+            data=df_summary,
+            x=f"{threshold_var}_threshold",
+            y="mapped_spots",
+            ax=ax_right,
+            color="coral",
+            **kwargs,
+        )
+        
+        sns.lineplot(
+            data=df_summary,
+            x=f"{threshold_var}_threshold",
+            y="mapped_cells",
+            ax=ax_right,
+            color="coral",
+            linestyle=":",
+            **kwargs,
+        )
+        
+        # Labels and titles
+        ax.set_ylabel("Fraction of Reads\nMatching Expected Barcodes", fontsize=12)
+        ax.set_xlabel(f"{threshold_var.replace('_', ' ').title()} Threshold Cutoff", fontsize=12)
+        ax.set_title(f"Read Mapping Quality vs Threshold\n({title})", fontsize=14)
+        ax_right.set_ylabel("Number of Mapped Features", fontsize=12)
 
-    # Plot on the main axis
-    sns.lineplot(
-        data=df_summary,
-        x=f"{threshold_var}_threshold",
-        y="mapping_rate",
-        ax=ax,
-        **kwargs,
-    )
-    ax.set_ylabel("mapping rate", fontsize=18)
-    ax.set_xlabel(f"{threshold_var} threshold", fontsize=18)
+    # Create shared legend below plots
+    legend_elements = [
+        Line2D([0], [0], color='C0', label='Mapping Rate:\nFraction of reads with valid barcodes'),
+        Line2D([0], [0], color='coral', label='Total Mapped Spots:\nNumber of reads with valid barcodes'),
+        Line2D([0], [0], color='coral', linestyle=':', 
+               label='Unique Mapped Cells:\nNumber of cells with ≥1 mapped read')
+    ]
+    
+    # Add legend below the plots
+    fig.legend(handles=legend_elements, 
+              loc='center',
+              bbox_to_anchor=(0.5, 0.02),
+              ncol=3,
+              fontsize=9)
 
-    # Plot on the secondary axis
-    ax_right = ax.twinx()
-    sns.lineplot(
-        data=df_summary,
-        x=f"{threshold_var}_threshold",
-        y="mapped_spots",
-        ax=ax_right,
-        color="coral",
-        **kwargs,
-    )
-    ax_right.set_ylabel("mapped spots", fontsize=18)
-    ax_right.legend(["mapped spots"], loc="upper right")
-
-    # Main axis legend
-    ax.legend(["mapping rate"], loc="upper left")
+    # Adjust layout to prevent overlap
+    plt.tight_layout()
+    # Adjust bottom margin to accommodate legend
+    plt.subplots_adjust(bottom=0.15)
 
     return df_summary, fig
-
 
 def plot_read_mapping_heatmap(
     df_reads,
@@ -267,12 +299,6 @@ def plot_cell_mapping_heatmap(
         return None
 
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-import matplotlib.ticker as ticker
-
-
 def plot_reads_per_cell_histogram(df, x_cutoff=40):
     """Plot a histogram of the number of reads per cell.
 
@@ -381,9 +407,6 @@ def plot_gene_symbol_histogram(df, x_cutoff=40):
     fig.tight_layout()
 
     return outliers, fig
-
-
-import pandas as pd
 
 
 def mapping_overview(sbs_info, cells):

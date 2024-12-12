@@ -11,6 +11,7 @@ dependencies:
   - pandas
   - numpy
   - pyyaml
+  - nd2
   - scikit-image
   - joblib
   - cellpose # TODO: pin version if reproducbility is important (version may change segmentations)

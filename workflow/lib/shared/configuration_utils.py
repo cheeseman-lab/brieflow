@@ -1,5 +1,8 @@
 """Shared utilties for configuring Brieflow process parameters."""
 
+import math
+
+from microfilm.microplot import Micropanel
 import numpy as np
 import matplotlib
 import skimage.morphology
@@ -17,6 +20,36 @@ CONFIG_FILE_HEADER = """
 
 # Parameters:
 """
+
+
+def create_micropanel(microimages, num_cols=2, figscaling=6, add_channel_label=True):
+    """Creates a Micropanel from a list of Microimages.
+
+    Dynamically arranges microimages into a grid based on the specified number of columns.
+
+    Args:
+        microimages (list): A list of Microimage objects to be displayed in the panel.
+        num_cols (int, optional): Number of columns in the grid. Defaults to 2.
+        figscaling (int, optional): Scaling factor for the figure size. Defaults to 4.
+        add_channel_label (bool, optional): If True, adds channel labels to the microimages. Defaults to True
+
+    Returns:
+        Micropanel: A Micropanel object with microimages arranged in a grid.
+    """
+    # Calculate grid dimensions
+    num_images = len(microimages)
+    num_rows = math.ceil(num_images / num_cols)
+
+    # Create panel with dynamic rows
+    panel = Micropanel(rows=num_rows, cols=num_cols, figscaling=figscaling)
+
+    # Add all microimages to the panel
+    for i, microimage in enumerate(microimages):
+        row = i // num_cols
+        col = i % num_cols
+        panel.add_element([row, col], microimage)
+
+    return panel
 
 
 def random_cmap(alpha=0.5, num_colors=256):

@@ -136,7 +136,7 @@ if config['sbs_process']['mode'] == 'segment_sbs_paramsearch':
                 {"well": "{well}", "tile": "{tile}"},
                 f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_cells",
                 "tiff"),
-            SBS_PROCESS_FP / "paramsearch" / "images" / get_filename(
+            SBS_PROCESS_FP / "paramsearch" / "tsvs" / get_filename(
                 {"well": "{well}", "tile": "{tile}"},
                 f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_segmentation_stats",
                 "tsv")

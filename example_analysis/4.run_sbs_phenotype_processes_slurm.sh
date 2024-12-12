@@ -19,13 +19,6 @@ mkdir -p slurm_output/rule
 source ~/.bashrc
 conda activate brieflow_workflows
 
-# Unlock
-snakemake --unlock --use-conda \
-    --workflow-profile "$PROFILE_FILE_PATH" \
-    --snakefile "${BRIEFLOW_PATH}workflow/Snakefile" \
-    --configfile "$CONFIG_FILE_PATH" \
-    --latency-wait 60
-
 # Run only the preprocess rules
 snakemake --executor slurm --use-conda \
     --workflow-profile "$PROFILE_FILE_PATH" \

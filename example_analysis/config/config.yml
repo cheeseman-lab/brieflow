@@ -13,7 +13,7 @@
 all:
   root_fp: analysis_root/
 phenotype_process:
-  cell_diameter: 52.744935866552545
+  cell_diameter: 52.75700564655907
   cellprob_threshold: 0
   channel_names:
   - DAPI
@@ -31,10 +31,8 @@ phenotype_process:
 preprocess:
   phenotype_channel_order_flip: true
   phenotype_samples_fp: config/phenotype_samples.tsv
-  phenotype_z_interval: null
   sbs_channel_order_flip: true
   sbs_samples_fp: config/sbs_samples.tsv
-  sbs_z_interval: null
 sbs_process:
   bases:
   - G

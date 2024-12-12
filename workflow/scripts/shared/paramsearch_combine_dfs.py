@@ -31,7 +31,9 @@ def get_file(filepath):
         df.insert(2, 'nuclei_diameter', nuclei_diameter)
         df.insert(3, 'cell_diameter', cell_diameter)
         df.insert(4, 'flow_threshold', flow_threshold)
-        df.insert(5, 'cellprob_threshold', cellprob_threshold)                
+        df.insert(5, 'cellprob_threshold', cellprob_threshold)
+        df['path'] = path
+
         return df
     except pd.errors.EmptyDataError:
         pass

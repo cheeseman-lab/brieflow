@@ -29,8 +29,12 @@ phenotype_process:
   mode: segment_phenotype_paramsearch
   nuclei_diameter: 41.30545956583848
 preprocess:
+  phenotype_channel_order_flip: true
   phenotype_samples_fp: config/phenotype_samples.tsv
+  phenotype_z_interval: null
+  sbs_channel_order_flip: true
   sbs_samples_fp: config/sbs_samples.tsv
+  sbs_z_interval: null
 sbs_process:
   bases:
   - G

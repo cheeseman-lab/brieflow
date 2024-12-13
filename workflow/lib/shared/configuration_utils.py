@@ -49,6 +49,10 @@ def create_micropanel(microimages, num_cols=2, figscaling=6, add_channel_label=T
         col = i % num_cols
         panel.add_element([row, col], microimage)
 
+    # Add channel labels to the microimages
+    if add_channel_label:
+        panel.add_channel_label()
+
     return panel
 
 

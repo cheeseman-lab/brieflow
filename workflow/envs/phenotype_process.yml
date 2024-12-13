@@ -7,4 +7,5 @@ dependencies:
   - joblib
   - cellpose # TODO: pin version if reproducbility is important (version may change segmentations)
   - pytables # need pytables defined in module env
+  - microfilm
   - mahotas

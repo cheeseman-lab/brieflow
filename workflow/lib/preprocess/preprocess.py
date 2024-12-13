@@ -6,7 +6,7 @@ import nd2
 
 
 def extract_tile_metadata(
-    tile_fp: str, tile: int, z_interval: int = 4, verbose: bool = False
+    tile_fp: str, tile: int, verbose: bool = False
 ) -> pd.DataFrame:
     """Extracts metadata from a single ND2 file for a specific tile.
 
@@ -24,6 +24,12 @@ def extract_tile_metadata(
 
     with nd2.ND2File(tile_fp) as images:
         frame_meta = images.frame_metadata(0)
+
+        if verbose:
+            print(f"File shape: {images.shape}")
+            print(f"Number of dimensions: {images.ndim}")
+            print(f"Data type: {images.dtype}")
+            print(f"Sizes (by axes): {images.sizes}")
 
         # Get position data from first channel's position information
         if frame_meta.channels and hasattr(frame_meta.channels[0], "position"):
@@ -69,10 +75,6 @@ def extract_tile_metadata(
             )
 
         df = pd.DataFrame([metadata])
-
-        # Sample z-planes if interval is specified and z_data exists
-        if z_interval and len(metadata["z_data"]) > 0:
-            df = df.iloc[::z_interval, :]
 
     return df
 

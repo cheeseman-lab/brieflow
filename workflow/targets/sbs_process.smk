@@ -125,6 +125,42 @@ SBS_PROCESS_WILDCARDS = {
     "cycle": SBS_CYCLES,
 }
 
+if config['sbs_process']['mode'] == 'segment_sbs_paramsearch':
+    SBS_PROCESS_OUTPUTS.update({
+        "segment_sbs_paramsearch": [
+            SBS_PROCESS_FP / "paramsearch" / "images" / get_filename(
+                {"well": "{well}", "tile": "{tile}"},
+                f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_nuclei",
+                "tiff"),
+            SBS_PROCESS_FP / "paramsearch" / "images" / get_filename(
+                {"well": "{well}", "tile": "{tile}"},
+                f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_cells",
+                "tiff"),
+            SBS_PROCESS_FP / "paramsearch" / "tsvs" / get_filename(
+                {"well": "{well}", "tile": "{tile}"},
+                f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_segmentation_stats",
+                "tsv")
+        ],
+        "summarize_segment_sbs_paramsearch": [
+            SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_summary.tsv",  
+            SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_grouped.tsv",  
+            SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_evaluation.txt", 
+            SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_panel.png",
+        ]
+    })
+    
+    SBS_PROCESS_OUTPUT_MAPPINGS.update({
+        "segment_sbs_paramsearch": None,
+        "summarize_segment_sbs_paramsearch": None
+    })
+    
+    SBS_PROCESS_WILDCARDS.update({
+        "nuclei_diameter": config["sbs_process"]["paramsearch"]["nuclei_diameter"],
+        "cell_diameter": config["sbs_process"]["paramsearch"]["cell_diameter"],
+        "flow_threshold": config["sbs_process"]["paramsearch"]["flow_threshold"],
+        "cellprob_threshold": config["sbs_process"]["paramsearch"]["cellprob_threshold"]
+    })
+
 SBS_PROCESS_OUTPUTS_MAPPED = map_outputs(
     SBS_PROCESS_OUTPUTS, SBS_PROCESS_OUTPUT_MAPPINGS
 )

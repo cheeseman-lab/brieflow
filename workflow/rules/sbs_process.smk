@@ -111,7 +111,10 @@ rule segment_sbs:
         nuclei_diameter=config["sbs_process"]["nuclei_diameter"],
         cell_diameter=config["sbs_process"]["cell_diameter"],
         cyto_model=config["sbs_process"]["cyto_model"],
+        flow_threshold=config["sbs_process"]["flow_threshold"],
+        cellprob_threshold=config["sbs_process"]["cellprob_threshold"],
         return_counts=True,
+        gpu=config["sbs_process"]["gpu"],
     script:
         "../scripts/shared/segment_cellpose.py"
 
@@ -254,6 +257,56 @@ rule eval_mapping:
         df_design_path=config["sbs_process"]["df_design_path"],
     script:
         "../scripts/sbs_process/eval_mapping.py"
+
+
+if config['sbs_process']['mode'] == 'segment_sbs_paramsearch':
+    rule segment_sbs_paramsearch:
+        conda:
+            "../envs/sbs_process.yml"
+        input:
+            SBS_PROCESS_OUTPUTS["apply_ic_field_sbs"],
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["segment_sbs_paramsearch"]
+        params:
+            dapi_index=config["sbs_process"]["dapi_index"],
+            cyto_index=config["sbs_process"]["cyto_index"], 
+            nuclei_diameter=lambda wildcards: float(wildcards.nuclei_diameter),
+            cell_diameter=lambda wildcards: float(wildcards.cell_diameter),
+            cyto_model=config["sbs_process"]["cyto_model"],
+            flow_threshold=lambda wildcards: float(wildcards.flow_threshold),
+            cellprob_threshold=lambda wildcards: float(wildcards.cellprob_threshold),
+            return_counts=True,
+            gpu=config["sbs_process"]["gpu"],
+
+        script:
+            "../scripts/shared/segment_cellpose.py"
+
+    rule summarize_segment_sbs_paramsearch:
+        conda:
+            "../envs/sbs_process.yml" 
+        input:
+            lambda wildcards: output_to_input(
+                SBS_PROCESS_OUTPUTS["segment_sbs_paramsearch"][2::3],
+                {"well": SBS_WELLS, "tile": SBS_TILES,
+                    "nuclei_diameter": SBS_PROCESS_WILDCARDS["nuclei_diameter"],
+                    "cell_diameter": SBS_PROCESS_WILDCARDS["cell_diameter"],
+                    "flow_threshold": SBS_PROCESS_WILDCARDS["flow_threshold"],
+                    "cellprob_threshold": SBS_PROCESS_WILDCARDS["cellprob_threshold"]},
+                wildcards,
+            )
+        output:
+            SBS_PROCESS_OUTPUTS_MAPPED["summarize_segment_sbs_paramsearch"]
+        params:
+            segmentation_process="sbs_process",
+            dapi_index=config["sbs_process"]["dapi_index"],
+            cyto_index=config["sbs_process"]["cyto_index"],
+            cell_diameter=config["sbs_process"]["cell_diameter"],
+            nuclei_diameter=config["sbs_process"]["nuclei_diameter"],
+            cellprob_threshold=config["sbs_process"]["cellprob_threshold"],
+            flow_threshold=config["sbs_process"]["flow_threshold"],
+            output_type="tsv"
+        script:
+            "../scripts/shared/eval_segmentation_paramsearch.py"
 
 
 # rule for all sbs processing steps

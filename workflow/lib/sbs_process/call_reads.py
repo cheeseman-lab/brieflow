@@ -58,7 +58,12 @@ def call_reads(
         Table of all reads with base calls resulting from SBS compensation and related metadata.
     """
     if bases_data.empty:
-        columns = [
+        # Get number of cycles from the most common value in the cycle column
+        # Default to 0 if no cycles are found
+        cycles = len(set(bases_data["cycle"])) if not bases_data.empty else 0
+
+        # Create base columns that are always present
+        base_columns = [
             "read",
             "cell",
             "i",
@@ -66,21 +71,16 @@ def call_reads(
             "tile",
             "well",
             "barcode",
-            "Q_0",
-            "Q_1",
-            "Q_2",
-            "Q_3",
-            "Q_4",
-            "Q_5",
-            "Q_6",
-            "Q_7",
-            "Q_8",
-            "Q_9",
-            "Q_10",
-            "Q_min",
-            "peak",
         ]
-        return pd.DataFrame(columns=columns)
+
+        # Dynamically generate Q-score columns based on number of cycles
+        q_columns = [f"Q_{i}" for i in range(cycles)]
+
+        # Add Q_min and peak columns
+        final_columns = base_columns + q_columns + ["Q_min", "peak"]
+
+        return pd.DataFrame(columns=final_columns)
+
     if correction_only_in_cells:
         if len(bases_data.query("cell > 0")) == 0:
             return

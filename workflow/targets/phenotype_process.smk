@@ -86,6 +86,43 @@ PHENOTYPE_PROCESS_WILDCARDS = {
     "tile": PHENOTYPE_TILES,
 }
 
+if config['phenotype_process']['mode'] == 'segment_phenotype_paramsearch':
+    PHENOTYPE_PROCESS_OUTPUTS.update({
+        "segment_phenotype_paramsearch": [
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "images" / get_filename(
+                {"well": "{well}", "tile": "{tile}"},
+                f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_nuclei",
+                "tiff"),
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "images" / get_filename(
+                {"well": "{well}", "tile": "{tile}"},
+                f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_cells",
+                "tiff"),
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "tsvs" / get_filename(
+                {"well": "{well}", "tile": "{tile}"},
+                f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_segmentation_stats",
+                "tsv")
+        ],
+        "summarize_segment_phenotype_paramsearch": [
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "summary" / "segmentation_summary.tsv",  
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "summary" / "segmentation_grouped.tsv",  
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "summary" / "segmentation_evaluation.txt", 
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "summary" / "segmentation_panel.png",
+        ]
+    })
+    
+    PHENOTYPE_PROCESS_OUTPUT_MAPPINGS.update({
+        "segment_phenotype_paramsearch": None,
+        "summarize_segment_phenotype_paramsearch": None
+    })
+    
+    PHENOTYPE_PROCESS_WILDCARDS.update({
+        "nuclei_diameter": config["phenotype_process"]["paramsearch"]["nuclei_diameter"],
+        "cell_diameter": config["phenotype_process"]["paramsearch"]["cell_diameter"],
+        "flow_threshold": config["phenotype_process"]["paramsearch"]["flow_threshold"],
+        "cellprob_threshold": config["phenotype_process"]["paramsearch"]["cellprob_threshold"]
+    })
+
+
 PHENOTYPE_PROCESS_OUTPUTS_MAPPED = map_outputs(
     PHENOTYPE_PROCESS_OUTPUTS, PHENOTYPE_PROCESS_OUTPUT_MAPPINGS
 )

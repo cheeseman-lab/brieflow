@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from lib.shared.file_utils import get_filename
+from lib.shared.initialize_paramsearch import initialize_segment_sbs_paramsearch
+from lib.shared.initialize_paramsearch import initialize_segment_phenotype_paramsearch
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
@@ -26,32 +27,36 @@ PHENOTYPE_WELLS = list(phenotype_samples_df["well"].unique())
 PHENOTYPE_TILES = list(phenotype_samples_df["tile"].unique())
 
 # TODO: unrestrict wells and tiles after testing
-SBS_WELLS = ["A1"]
+# SBS_WELLS = ["A1"]
 SBS_TILES = [1]
-# SBS_CYCLES = [1]
-PHENOTYPE_WELLS = ["A1"]
+# PHENOTYPE_WELLS = ["A1"]
 PHENOTYPE_TILES = [1]
-
 
 include: "targets/preprocess.smk"
 include: "rules/preprocess.smk"
 
-
 ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
 if "sbs_process" in config:
-
+    # Initialize parameter search configurations if needed
+    if config["sbs_process"]["mode"] == "segment_sbs_paramsearch":
+        config = initialize_segment_sbs_paramsearch(config)
+        
+    # Include target and rule files
     include: "targets/sbs_process.smk"
     include: "rules/sbs_process.smk"
-
+    
     ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
 
-
 if "phenotype_process" in config:
-
+    # Initialize parameter search configurations if needed
+    if config["phenotype_process"]["mode"] == "segment_phenotype_paramsearch":
+        config = initialize_segment_phenotype_paramsearch(config)
+        
+    # Include target and rule files
     include: "targets/phenotype_process.smk"
     include: "rules/phenotype_process.smk"
-
+    
     ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
 
 

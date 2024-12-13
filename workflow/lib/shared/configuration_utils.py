@@ -114,3 +114,40 @@ def outline_mask(arr, direction="outer", width=1):
         return arr  # Return the modified array
     else:  # If direction is neither 'outer' nor 'inner'
         raise ValueError(direction)  # Raise a ValueError
+
+
+def image_segmentation_annotations(data, nuclei, cells):
+    """Annotate outlines of nuclei and cells on image data.
+
+    This function overlays outlines of nuclei and cells on the provided image data.
+
+    Args:
+        data (numpy.ndarray): Image data with shape (channels, height, width).
+        nuclei (numpy.ndarray): Array representing nuclei outlines.
+        cells (numpy.ndarray): Array representing cells outlines.
+
+    Returns:
+        numpy.ndarray: Annotated image data with outlines of nuclei and cells.
+    """
+    # Ensure data has at least 3 dimensions
+    if data.ndim == 2:
+        data = data[None]
+
+    # Get dimensions of the image data
+    channels, height, width = data.shape
+
+    # Create an array to store annotated data
+    annotated = np.zeros((channels + 1, height, width), dtype=np.uint16)
+
+    # Generate combined mask for nuclei and cells outlines
+    mask = (outline_mask(nuclei, direction="inner") > 0) + (
+        outline_mask(cells, direction="inner") > 0
+    )
+
+    # Copy original data to annotated data
+    annotated[:channels] = data
+
+    # Add combined mask to the last channel
+    annotated[channels] = mask
+
+    return np.squeeze(annotated)

@@ -142,7 +142,10 @@ if config['sbs_process']['mode'] == 'segment_sbs_paramsearch':
                 "tsv")
         ],
         "summarize_segment_sbs_paramsearch": [
-            SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_summary.tsv"
+            SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_summary.tsv",  
+            SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_grouped.tsv",  
+            SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_evaluation.txt", 
+            SBS_PROCESS_FP / "paramsearch" / "summary" / "segmentation_panel.png",
         ]
     })
     

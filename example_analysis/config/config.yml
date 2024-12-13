@@ -13,8 +13,13 @@
 all:
   root_fp: analysis_root/
 phenotype_process:
-  cell_diameter: 53.05782348918437
+  cell_diameter: 52.75700564655907
   cellprob_threshold: 0
+  channel_cmaps:
+  - pure_blue
+  - pure_green
+  - pure_red
+  - pure_yellow
   channel_names:
   - DAPI
   - COXIV
@@ -27,7 +32,7 @@ phenotype_process:
   foci_channel: 2
   gpu: false
   mode: segment_phenotype_paramsearch
-  nuclei_diameter: 41.97813156768016
+  nuclei_diameter: 41.30545956583848
 preprocess:
   phenotype_channel_order_flip: true
   phenotype_samples_fp: config/phenotype_samples.tsv

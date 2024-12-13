@@ -103,7 +103,10 @@ if config['phenotype_process']['mode'] == 'segment_phenotype_paramsearch':
                 "tsv")
         ],
         "summarize_segment_phenotype_paramsearch": [
-            PHENOTYPE_PROCESS_FP / "paramsearch" / "summary" / "segmentation_summary.tsv"
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "summary" / "segmentation_summary.tsv",  
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "summary" / "segmentation_grouped.tsv",  
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "summary" / "segmentation_evaluation.txt", 
+            PHENOTYPE_PROCESS_FP / "paramsearch" / "summary" / "segmentation_panel.png",
         ]
     })
     

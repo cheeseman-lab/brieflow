@@ -177,16 +177,25 @@ if config['phenotype_process']['mode'] == 'segment_phenotype_paramsearch':
             lambda wildcards: output_to_input(
                 PHENOTYPE_PROCESS_OUTPUTS["segment_phenotype_paramsearch"][2::3],
                 {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES,
-                 "nuclei_diameter": PHENOTYPE_PROCESS_WILDCARDS["nuclei_diameter"],
-                 "cell_diameter": PHENOTYPE_PROCESS_WILDCARDS["cell_diameter"],
-                 "flow_threshold": PHENOTYPE_PROCESS_WILDCARDS["flow_threshold"],
-                 "cellprob_threshold": PHENOTYPE_PROCESS_WILDCARDS["cellprob_threshold"]},
+                "nuclei_diameter": PHENOTYPE_PROCESS_WILDCARDS["nuclei_diameter"],
+                "cell_diameter": PHENOTYPE_PROCESS_WILDCARDS["cell_diameter"],
+                "flow_threshold": PHENOTYPE_PROCESS_WILDCARDS["flow_threshold"],
+                "cellprob_threshold": PHENOTYPE_PROCESS_WILDCARDS["cellprob_threshold"]},
                 wildcards,
             )
         output:
             PHENOTYPE_PROCESS_OUTPUTS_MAPPED["summarize_segment_phenotype_paramsearch"]
+        params:
+            segmentation_process="phenotype_process",
+            channel_cmaps=config["phenotype_process"]["channel_cmaps"],
+            cell_diameter=config["phenotype_process"]["cell_diameter"],
+            nuclei_diameter=config["phenotype_process"]["nuclei_diameter"],
+            cellprob_threshold=config["phenotype_process"]["cellprob_threshold"],
+            flow_threshold=config["phenotype_process"]["flow_threshold"],
+            output_type="tsv"
         script:
-            "../scripts/shared/paramsearch_combine_dfs.py"
+            "../scripts/shared/eval_segmentation_paramsearch.py"
+
 
 # Rule for all phenotype processing steps
 rule all_phenotype_process:

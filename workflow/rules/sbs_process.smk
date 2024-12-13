@@ -296,8 +296,17 @@ if config['sbs_process']['mode'] == 'segment_sbs_paramsearch':
             )
         output:
             SBS_PROCESS_OUTPUTS_MAPPED["summarize_segment_sbs_paramsearch"]
+        params:
+            segmentation_process="sbs_process",
+            dapi_index=config["sbs_process"]["dapi_index"],
+            cyto_index=config["sbs_process"]["cyto_index"],
+            cell_diameter=config["sbs_process"]["cell_diameter"],
+            nuclei_diameter=config["sbs_process"]["nuclei_diameter"],
+            cellprob_threshold=config["sbs_process"]["cellprob_threshold"],
+            flow_threshold=config["sbs_process"]["flow_threshold"],
+            output_type="tsv"
         script:
-            "../scripts/shared/paramsearch_combine_dfs.py"
+            "../scripts/shared/eval_segmentation_paramsearch.py"
 
 
 # rule for all sbs processing steps

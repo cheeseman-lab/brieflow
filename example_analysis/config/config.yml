@@ -13,7 +13,7 @@
 all:
   root_fp: analysis_root/
 phenotype_process:
-  cell_diameter: 52.75700564655907
+  cell_diameter: 53.05782348918437
   cellprob_threshold: 0
   channel_names:
   - DAPI
@@ -27,7 +27,7 @@ phenotype_process:
   foci_channel: 2
   gpu: false
   mode: segment_phenotype_paramsearch
-  nuclei_diameter: 41.30545956583848
+  nuclei_diameter: 41.97813156768016
 preprocess:
   phenotype_channel_order_flip: true
   phenotype_samples_fp: config/phenotype_samples.tsv
@@ -39,7 +39,7 @@ sbs_process:
   - T
   - A
   - C
-  cell_diameter: 19.77080019204319
+  cell_diameter: 19.835095646937663
   cellprob_threshold: 0
   cyto_index: 4
   cyto_model: cyto3
@@ -48,7 +48,7 @@ sbs_process:
   flow_threshold: 0.4
   gpu: false
   mode: segment_sbs_paramsearch
-  nuclei_diameter: 8.740387444736633
+  nuclei_diameter: 9.166995688475083
   q_min: 0
   segmentation_cycle_index: -1
   threshold_peaks: 400

@@ -34,7 +34,7 @@ workflow/
 ```
 
 
-## Running Example Analyis
+## Running Example Analysis
 
 Brieflow is set up as a Snakemake workflow with user configuration between steps where necessary. 
 Thus, a user must configure parameters between workflow steps with configuration notebooks.
@@ -72,7 +72,7 @@ conda env create --file=brieflow_configuration_env.yml
 
 ### Step 2: Run example analysis in steps
 
-Follow the instructions below to configure paramers and run wokflows.
+Follow the instructions below to configure parameters and run workflows.
 All of these steps are done in the example analysis folder.
 Use the following command to enter this folder:
 `cd example_analysis`.

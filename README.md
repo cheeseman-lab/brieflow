@@ -34,21 +34,23 @@ workflow/
 ```
 
 
-## Running Example Analyis
+## Running An Analyis
 
 Brieflow is set up as a Snakemake workflow with user configuration between steps where necessary. 
 Thus, a user must configure parameters between workflow steps with configuration notebooks.
-This example analysis details the steps necessary for configuring parameters and running step workflows.
 While each step's workflow has its own Conda environment (compiled by Snakemake at runtime), the notebooks all share a configuration environment.
 
-### Step 1: Set up workflow/configuration Conda environments
+See the steps below to set up the workflow/configuration environments and run your own analysis with Brieflow.
+**Note**: The example analysis shows an analyis done with a very small subset of OPS data.
+
+### Set up workflow/configuration Conda environments
 
 The workflows share a base environment (`brieflow_workflows`) and each have their own Conda environments compiled by Snakemake at runtime (in [workflow/envs](workflow/envs)).
 All notebooks share a configuration environment (`brieflow_configuration`).
 
 *Note*: We do not include the data necessary for this example analysis in this repo as it is too large.
 
-#### Step 1a: Set up Brieflow workflows environment
+#### Set up Brieflow workflows environment
 
 Use the following commands to set up the `brieflow_workflows` Conda environment:
 
@@ -61,7 +63,7 @@ conda activate brieflow_workflows
 conda config --set channel_priority strict
 ```
 
-#### Step 1b: Set up Brieflow configuration environment
+#### Set up Brieflow configuration environment
 
 Use the following commands to set up the `brieflow_configuration` Conda environment:
 
@@ -70,30 +72,33 @@ Use the following commands to set up the `brieflow_configuration` Conda environm
 conda env create --file=brieflow_configuration_env.yml
 ```
 
-### Step 2: Run example analysis in steps
+### Run analysis in steps
 
 Follow the instructions below to configure paramers and run wokflows.
-All of these steps are done in the example analysis folder.
+All of these steps are done in the analysis folder.
 Use the following command to enter this folder:
-`cd example_analysis`.
+`cd analysis/`.
 
-#### Step 2.0: Configure preprocess params
+#### Step 0: Configure preprocess params
 
-Follow the steps in [0.configure_preprocess_params.ipynb](example_analysis/0.configure_preprocess_params.ipynb) to configure preprocess params.
+Follow the steps in [0.configure_preprocess_params.ipynb](analysis/0.configure_preprocess_params.ipynb) to configure preprocess params.
 
-#### Step 2.1: Run preprocessing workflow
+#### Step 1: Run preprocessing workflow
 
 ```sh
 conda activate brieflow_workflows
 sh 1.run_preprocessing.sh
 ```
 
-#### Step 2.2: Configure SBS/phenotype process params
+#### Step 2: Configure SBS process params
 
-1) Follow the steps in [2.configure_sbs_process_params.ipynb](example_analysis/2.configure_sbs_process_params.ipynb) to configure SBS process params.
-2) Follow the steps in [3.configure_phenotype_process_params.ipynb](example_analysis/3.configure_phenotype_process_params.ipynb) to configure phenotype process params.
+Follow the steps in [3.configure_phenotype_process_params.ipynb](analysis/3.configure_phenotype_process_params.ipynb) to configure phenotype process params.
 
-#### Step 2.3: Run SBS/phenotype process workflow
+#### Step 3: Configure phenotype process params
+
+Follow the steps in [2.configure_sbs_process_params.ipynb](analysis/2.configure_sbs_process_params.ipynb) to configure SBS process params.
+
+#### Step 4: Run SBS/phenotype process workflow
 
 ```sh
 conda activate brieflow_workflows
@@ -102,24 +107,25 @@ sh 4.run_sbs_phenotype_processes.sh
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.
 
-
-### Run entire example analysis
+### Run Entire Analysis
 
 If all parameter configurations are known for the entire Brieflow pipeline, it is possible to run the entire pipeline with the following:
 
 ```sh
-cd example_analysis
+cd analysis/
 sh run_entire_analysis.sh
 ```
+
+### Example Analysis
+
+The [example analysis](example_analysis) details an example Brieflow run with a small testing set of OPS data.
 
 
 ## Contribution Notes
 
-
 ### Dev Tools
 
 We use [ruff](https://github.com/astral-sh/ruff) for linting and formatting code.
-
 
 ### Conventions
 

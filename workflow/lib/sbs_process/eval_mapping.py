@@ -47,9 +47,10 @@ def plot_mapping_vs_threshold(
     df_cells.loc[:, "mapped"] = df_cells["barcode"].isin(barcodes)
 
     # Process data and create plots for both
-    for df, ax, title in [(df_all, ax1, "All Reads"), 
-                         (df_cells, ax2, "Cell-Associated Reads Only")]:
-        
+    for df, ax, title in [
+        (df_all, ax1, "All Reads"),
+        (df_cells, ax2, "Cell-Associated Reads Only"),
+    ]:
         # Define thresholds
         if df_reads[threshold_var].max() < 100:
             thresholds = (
@@ -57,9 +58,7 @@ def plot_mapping_vs_threshold(
                 / 1000
             )
         else:
-            thresholds = list(
-                range(0, int(np.quantile(df[threshold_var], q=0.99)), 10)
-            )
+            thresholds = list(range(0, int(np.quantile(df[threshold_var], q=0.99)), 10))
 
         # Calculate metrics
         mapping_rate = []
@@ -70,17 +69,17 @@ def plot_mapping_vs_threshold(
             mapped_reads = df_thresholded[df_thresholded["mapped"]]
             spots_mapped.append(mapped_reads.shape[0])
             cells_mapped.append(len(mapped_reads.groupby(["well", "tile", "cell"])))
-            mapping_rate.append(
-                mapped_reads.shape[0] / df_thresholded.shape[0]
-            )
+            mapping_rate.append(mapped_reads.shape[0] / df_thresholded.shape[0])
 
         # Create summary DataFrame
-        df_summary = pd.DataFrame({
-            f"{threshold_var}_threshold": thresholds,
-            "mapping_rate": mapping_rate,
-            "mapped_spots": spots_mapped,
-            "mapped_cells": cells_mapped,
-        })
+        df_summary = pd.DataFrame(
+            {
+                f"{threshold_var}_threshold": thresholds,
+                "mapping_rate": mapping_rate,
+                "mapped_spots": spots_mapped,
+                "mapped_cells": cells_mapped,
+            }
+        )
 
         # Main axis plot
         sns.lineplot(
@@ -90,10 +89,10 @@ def plot_mapping_vs_threshold(
             ax=ax,
             **kwargs,
         )
-        
+
         # Secondary axis
         ax_right = ax.twinx()
-        
+
         sns.lineplot(
             data=df_summary,
             x=f"{threshold_var}_threshold",
@@ -102,7 +101,7 @@ def plot_mapping_vs_threshold(
             color="coral",
             **kwargs,
         )
-        
+
         sns.lineplot(
             data=df_summary,
             x=f"{threshold_var}_threshold",
@@ -112,27 +111,46 @@ def plot_mapping_vs_threshold(
             linestyle=":",
             **kwargs,
         )
-        
+
         # Labels and titles
         ax.set_ylabel("Fraction of Reads\nMatching Expected Barcodes", fontsize=12)
-        ax.set_xlabel(f"{threshold_var.replace('_', ' ').title()} Threshold Cutoff", fontsize=12)
+        ax.set_xlabel(
+            f"{threshold_var.replace('_', ' ').title()} Threshold Cutoff", fontsize=12
+        )
         ax.set_title(f"Read Mapping Quality vs Threshold\n({title})", fontsize=14)
         ax_right.set_ylabel("Number of Mapped Features", fontsize=12)
 
     # Create shared legend below plots
     legend_elements = [
-        Line2D([0], [0], color='C0', label='Mapping Rate:\nFraction of reads with valid barcodes'),
-        Line2D([0], [0], color='coral', label='Total Mapped Spots:\nNumber of reads with valid barcodes'),
-        Line2D([0], [0], color='coral', linestyle=':', 
-               label='Unique Mapped Cells:\nNumber of cells with ≥1 mapped read')
+        Line2D(
+            [0],
+            [0],
+            color="C0",
+            label="Mapping Rate:\nFraction of reads with valid barcodes",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color="coral",
+            label="Total Mapped Spots:\nNumber of reads with valid barcodes",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color="coral",
+            linestyle=":",
+            label="Unique Mapped Cells:\nNumber of cells with ≥1 mapped read",
+        ),
     ]
-    
+
     # Add legend below the plots
-    fig.legend(handles=legend_elements, 
-              loc='center',
-              bbox_to_anchor=(0.5, 0.02),
-              ncol=3,
-              fontsize=9)
+    fig.legend(
+        handles=legend_elements,
+        loc="center",
+        bbox_to_anchor=(0.5, 0.02),
+        ncol=3,
+        fontsize=9,
+    )
 
     # Adjust layout to prevent overlap
     plt.tight_layout()
@@ -140,6 +158,7 @@ def plot_mapping_vs_threshold(
     plt.subplots_adjust(bottom=0.15)
 
     return df_summary, fig
+
 
 def plot_read_mapping_heatmap(
     df_reads,

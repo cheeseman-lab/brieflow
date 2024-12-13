@@ -61,7 +61,7 @@ def call_reads(
         # Get number of cycles from the most common value in the cycle column
         # Default to 0 if no cycles are found
         cycles = len(set(bases_data["cycle"])) if not bases_data.empty else 0
-        
+
         # Create base columns that are always present
         base_columns = [
             "read",
@@ -72,15 +72,15 @@ def call_reads(
             "well",
             "barcode",
         ]
-        
+
         # Dynamically generate Q-score columns based on number of cycles
         q_columns = [f"Q_{i}" for i in range(cycles)]
-        
+
         # Add Q_min and peak columns
         final_columns = base_columns + q_columns + ["Q_min", "peak"]
-        
+
         return pd.DataFrame(columns=final_columns)
-    
+
     if correction_only_in_cells:
         if len(bases_data.query("cell > 0")) == 0:
             return

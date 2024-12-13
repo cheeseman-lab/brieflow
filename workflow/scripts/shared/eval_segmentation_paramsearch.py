@@ -9,31 +9,39 @@ def get_file(filepath):
     try:
         # Extract parameters from filename
         path = Path(filepath)
-        prefix, params_part = path.stem.split('__')
-        
+        prefix, params_part = path.stem.split("__")
+
         # Extract well and tile from prefix
-        prefix_parts = prefix.split('_')
-        well = next(p.replace('W', '') for p in prefix_parts if p.startswith('W'))
-        tile = next(p.replace('T', '') for p in prefix_parts if p.startswith('T'))
-        
+        prefix_parts = prefix.split("_")
+        well = next(p.replace("W", "") for p in prefix_parts if p.startswith("W"))
+        tile = next(p.replace("T", "") for p in prefix_parts if p.startswith("T"))
+
         # Extract other parameters from the second part
-        params = params_part.split('_')
-        nuclei_diameter = float(next(p.replace('nd', '') for p in params if p.startswith('nd')))
-        cell_diameter = float(next(p.replace('cd', '') for p in params if p.startswith('cd')))
-        flow_threshold = float(next(p.replace('ft', '') for p in params if p.startswith('ft')))
-        cellprob_threshold = float(next(p.replace('cp', '') for p in params if p.startswith('cp')))
-        
+        params = params_part.split("_")
+        nuclei_diameter = float(
+            next(p.replace("nd", "") for p in params if p.startswith("nd"))
+        )
+        cell_diameter = float(
+            next(p.replace("cd", "") for p in params if p.startswith("cd"))
+        )
+        flow_threshold = float(
+            next(p.replace("ft", "") for p in params if p.startswith("ft"))
+        )
+        cellprob_threshold = float(
+            next(p.replace("cp", "") for p in params if p.startswith("cp"))
+        )
+
         # Read the data
         df = pd.read_csv(filepath, sep="\t")
-        
+
         # Add parameter columns before the rest of the columns
-        df.insert(0, 'well', well)
-        df.insert(1, 'tile', tile)
-        df.insert(2, 'nuclei_diameter', nuclei_diameter)
-        df.insert(3, 'cell_diameter', cell_diameter)
-        df.insert(4, 'flow_threshold', flow_threshold)
-        df.insert(5, 'cellprob_threshold', cellprob_threshold)
-        df['path'] = path
+        df.insert(0, "well", well)
+        df.insert(1, "tile", tile)
+        df.insert(2, "nuclei_diameter", nuclei_diameter)
+        df.insert(3, "cell_diameter", cell_diameter)
+        df.insert(4, "flow_threshold", flow_threshold)
+        df.insert(5, "cellprob_threshold", cellprob_threshold)
+        df["path"] = path
 
         return df
     except pd.errors.EmptyDataError:
@@ -56,8 +64,8 @@ threads = snakemake.threads
 # Set process-specific parameters
 if segmentation_process == "sbs_process":
     prepare_cellpose_kwargs = {
-        'dapi_index': snakemake.params.dapi_index,
-        'cyto_index': snakemake.params.cyto_index,
+        "dapi_index": snakemake.params.dapi_index,
+        "cyto_index": snakemake.params.cyto_index,
     }
     channel_cmaps = None
 elif segmentation_process == "phenotype_process":
@@ -67,7 +75,9 @@ else:
     raise ValueError(f"Unsupported segmentation process: {segmentation_process}")
 
 # Load and concatenate the data
-arr_segmentation_paramsearch = Parallel(n_jobs=threads)(delayed(get_file)(file) for file in input_files)
+arr_segmentation_paramsearch = Parallel(n_jobs=threads)(
+    delayed(get_file)(file) for file in input_files
+)
 df_segmentation_paramsearch = pd.concat(arr_segmentation_paramsearch)
 
 # Evaluate segmentation parameters
@@ -79,7 +89,7 @@ grouped_stats, summary_text, seg_panel = evaluate_segmentation_paramsearch(
     default_cellprob_threshold=default_cellprob_threshold,
     default_flow_threshold=default_flow_threshold,
     channel_cmaps=channel_cmaps,
-    prepare_cellpose_kwargs=prepare_cellpose_kwargs
+    prepare_cellpose_kwargs=prepare_cellpose_kwargs,
 )
 
 # Save the data based on output_type
@@ -88,13 +98,13 @@ if output_type == "hdf":
     grouped_stats.to_hdf(output_grouped, "x", mode="w")
 elif output_type == "tsv":
     df_segmentation_paramsearch.to_csv(output_full, sep="\t", index=False)
-    grouped_stats.to_csv(output_grouped, sep='\t')
-    
+    grouped_stats.to_csv(output_grouped, sep="\t")
+
 else:
     raise ValueError(f"Unsupported output type: {output_type}")
 
 # Save the summary text
-with open(output_summary, 'w') as f:
+with open(output_summary, "w") as f:
     f.write(summary_text)
 
 # Save the segmentation panel

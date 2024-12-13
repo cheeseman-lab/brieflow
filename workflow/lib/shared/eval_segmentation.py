@@ -95,15 +95,17 @@ def plot_cell_density_heatmap(df_cells, shape="square", plate="6W", **kwargs):
 
     return df_summary, fig
 
-def evaluate_segmentation_paramsearch(df,
-                                      segmentation_process="sbs_process",
-                                      default_cell_diameter=None,
-                                      default_nuclei_diameter=None,
-                                      default_cellprob_threshold=None,
-                                      default_flow_threshold=None,
-                                      channel_cmaps=None,
-                                      prepare_cellpose_kwargs=None,
-                              ):
+
+def evaluate_segmentation_paramsearch(
+    df,
+    segmentation_process="sbs_process",
+    default_cell_diameter=None,
+    default_nuclei_diameter=None,
+    default_cellprob_threshold=None,
+    default_flow_threshold=None,
+    channel_cmaps=None,
+    prepare_cellpose_kwargs=None,
+):
     """Calculate parameter optimization metrics and visualize segmentation results.
 
     Processes segmentation results to identify optimal parameters and compare against defaults.
@@ -136,7 +138,7 @@ def evaluate_segmentation_paramsearch(df,
         str: Formatted summary text containing performance metrics for optimal and default parameters
         Micropanel: Visualization comparing optimal and default segmentation results (if defaults provided)
     """
-    
+
     def paths_segmentation_paramsearch(base_path):
         """Generate paths for nuclei, cell, and aligned image files from a stats path.
 
@@ -154,93 +156,127 @@ def evaluate_segmentation_paramsearch(df,
         """
         # Convert Path to string if needed
         base_path = str(base_path)
-        
+
         # Replace /tsvs/ with /images/
         base_path = base_path.replace("/tsvs/", "/images/")
 
         # Remove extension "_segmentation_stats.tsv"
         prefix = base_path.replace("_segmentation_stats.tsv", "")
-        
+
         # Create paths for nuclei and cells
         nuclei_path = f"{prefix}_nuclei.tiff"
         cells_path = f"{prefix}_cells.tiff"
 
         # Get aligned image path by replacing /paramsearch/tsvs/ with /
         aligned_path = base_path.replace("/paramsearch/", "/")
-        aligned_path = aligned_path.split("__paramsearch")[0] + "__illumination_corrected.tiff"
-        
+        aligned_path = (
+            aligned_path.split("__paramsearch")[0] + "__illumination_corrected.tiff"
+        )
+
         return nuclei_path, cells_path, aligned_path
-        
-    param_cols = ['nuclei_diameter', 'cell_diameter', 'flow_threshold', 'cellprob_threshold']
-    
-    df['cell_retention'] = df['final_cells'] / df['after_edge_removal_cells'] 
-    df['nuclei_retention'] = df['final_nuclei'] / df['after_edge_removal_nuclei']
-    
-    metrics = [
-        'initial_nuclei',
-        'initial_cells',
-        'final_cells',
-        'final_nuclei',
-        'cell_retention',
-        'nuclei_retention'
+
+    param_cols = [
+        "nuclei_diameter",
+        "cell_diameter",
+        "flow_threshold",
+        "cellprob_threshold",
     ]
-    
-    grouped_stats = df.groupby(param_cols)[metrics].agg({
-        'initial_nuclei': ['mean'],
-        'initial_cells': ['mean'],
-        'final_cells': ['mean'],
-        'final_nuclei': ['mean'],
-        'cell_retention': ['mean'],
-        'nuclei_retention': ['mean']
-    }).round(2)
-    
-    grouped_stats.columns = [f"{col[0]}_{col[1]}" for col in grouped_stats.columns]
-    grouped_stats['measurement_count'] = df.groupby(param_cols).size()
-    
-    grouped_stats['combined_score'] = (
-        grouped_stats['cell_retention_mean'] * 
-        grouped_stats['nuclei_retention_mean'] * 
-        grouped_stats['final_cells_mean'] 
+
+    df["cell_retention"] = df["final_cells"] / df["after_edge_removal_cells"]
+    df["nuclei_retention"] = df["final_nuclei"] / df["after_edge_removal_nuclei"]
+
+    metrics = [
+        "initial_nuclei",
+        "initial_cells",
+        "final_cells",
+        "final_nuclei",
+        "cell_retention",
+        "nuclei_retention",
+    ]
+
+    grouped_stats = (
+        df.groupby(param_cols)[metrics]
+        .agg(
+            {
+                "initial_nuclei": ["mean"],
+                "initial_cells": ["mean"],
+                "final_cells": ["mean"],
+                "final_nuclei": ["mean"],
+                "cell_retention": ["mean"],
+                "nuclei_retention": ["mean"],
+            }
+        )
+        .round(2)
     )
-    
-    grouped_stats = grouped_stats.sort_values('combined_score', ascending=False)
+
+    grouped_stats.columns = [f"{col[0]}_{col[1]}" for col in grouped_stats.columns]
+    grouped_stats["measurement_count"] = df.groupby(param_cols).size()
+
+    grouped_stats["combined_score"] = (
+        grouped_stats["cell_retention_mean"]
+        * grouped_stats["nuclei_retention_mean"]
+        * grouped_stats["final_cells_mean"]
+    )
+
+    grouped_stats = grouped_stats.sort_values("combined_score", ascending=False)
     best_params = grouped_stats.index[0]
     best_stats = grouped_stats.iloc[0]
 
     # Generate summary text
     summary_lines = []
     summary_lines.append("=== Segmentation Parameter Optimization Summary ===")
-    
+
     summary_lines.append("\nOptimal Parameters:")
     summary_lines.append(f"• Nuclei Diameter: {best_params[0]:.2f}")
     summary_lines.append(f"• Cell Diameter: {best_params[1]:.2f}")
     summary_lines.append(f"• Flow Threshold: {best_params[2]:.2f}")
     summary_lines.append(f"• Cell Probability Threshold: {best_params[3]:.2f}")
-    
+
     summary_lines.append("\nPerformance Metrics:")
-    summary_lines.append(f"• Cell Retention: {best_stats['cell_retention_mean']*100:.1f}%")
-    summary_lines.append(f"• Nuclei Retention: {best_stats['nuclei_retention_mean']*100:.1f}%")
+    summary_lines.append(
+        f"• Cell Retention: {best_stats['cell_retention_mean']*100:.1f}%"
+    )
+    summary_lines.append(
+        f"• Nuclei Retention: {best_stats['nuclei_retention_mean']*100:.1f}%"
+    )
     summary_lines.append(f"• Final Cells (avg): {best_stats['final_cells_mean']:.0f}")
     summary_lines.append(f"• Final Nuclei (avg): {best_stats['final_nuclei_mean']:.0f}")
     summary_lines.append(f"• Number of measurements: {best_stats['measurement_count']}")
     summary_lines.append(f"• Combined Score: {best_stats['combined_score']:.1f}")
 
     if default_cell_diameter is not None:
-        default_params = (default_nuclei_diameter, default_cell_diameter, default_flow_threshold, default_cellprob_threshold)
+        default_params = (
+            default_nuclei_diameter,
+            default_cell_diameter,
+            default_flow_threshold,
+            default_cellprob_threshold,
+        )
         default_stats = grouped_stats.loc[default_params]
-        
+
         summary_lines.append("\nDefault Parameters:")
         summary_lines.append(f"• Nuclei Diameter: {default_nuclei_diameter:.2f}")
         summary_lines.append(f"• Cell Diameter: {default_cell_diameter:.2f}")
         summary_lines.append(f"• Flow Threshold: {default_flow_threshold:.2f}")
-        summary_lines.append(f"• Cell Probability Threshold: {default_cellprob_threshold:.2f}")
-        
+        summary_lines.append(
+            f"• Cell Probability Threshold: {default_cellprob_threshold:.2f}"
+        )
+
         summary_lines.append("\nPerformance Metrics:")
-        summary_lines.append(f"• Cell Retention: {default_stats['cell_retention_mean']*100:.1f}%")
-        summary_lines.append(f"• Nuclei Retention: {default_stats['nuclei_retention_mean']*100:.1f}%")
-        summary_lines.append(f"• Final Cells (avg): {default_stats['final_cells_mean']:.0f}")
-        summary_lines.append(f"• Final Nuclei (avg): {default_stats['final_nuclei_mean']:.0f}")
-        summary_lines.append(f"• Number of measurements: {default_stats['measurement_count']}")
+        summary_lines.append(
+            f"• Cell Retention: {default_stats['cell_retention_mean']*100:.1f}%"
+        )
+        summary_lines.append(
+            f"• Nuclei Retention: {default_stats['nuclei_retention_mean']*100:.1f}%"
+        )
+        summary_lines.append(
+            f"• Final Cells (avg): {default_stats['final_cells_mean']:.0f}"
+        )
+        summary_lines.append(
+            f"• Final Nuclei (avg): {default_stats['final_nuclei_mean']:.0f}"
+        )
+        summary_lines.append(
+            f"• Number of measurements: {default_stats['measurement_count']}"
+        )
         summary_lines.append(f"• Combined Score: {default_stats['combined_score']:.1f}")
 
     summary_text = "\n".join(summary_lines)
@@ -248,59 +284,84 @@ def evaluate_segmentation_paramsearch(df,
 
     # Get a row with optimal parameters
     optimal_example = df[
-        (df['nuclei_diameter'] == best_params[0]) &
-        (df['cell_diameter'] == best_params[1]) &
-        (df['flow_threshold'] == best_params[2]) &
-        (df['cellprob_threshold'] == best_params[3])
+        (df["nuclei_diameter"] == best_params[0])
+        & (df["cell_diameter"] == best_params[1])
+        & (df["flow_threshold"] == best_params[2])
+        & (df["cellprob_threshold"] == best_params[3])
     ].iloc[0]
-    
-    optimal_nuclei_path, optimal_cells_path, corrected_full_path = paths_segmentation_paramsearch(optimal_example['path'])
-    
+
+    optimal_nuclei_path, optimal_cells_path, corrected_full_path = (
+        paths_segmentation_paramsearch(optimal_example["path"])
+    )
+
     if default_cell_diameter is not None:
         # Get a row with default parameters
         default_example = df[
-            (df['nuclei_diameter'] == default_nuclei_diameter) &
-            (df['cell_diameter'] == default_cell_diameter) &
-            (df['flow_threshold'] == default_flow_threshold) &
-            (df['cellprob_threshold'] == default_cellprob_threshold)
+            (df["nuclei_diameter"] == default_nuclei_diameter)
+            & (df["cell_diameter"] == default_cell_diameter)
+            & (df["flow_threshold"] == default_flow_threshold)
+            & (df["cellprob_threshold"] == default_cellprob_threshold)
         ].iloc[0]
-        
-        default_nuclei_path, default_cells_path, _ = paths_segmentation_paramsearch(default_example['path'])
-        
+
+        default_nuclei_path, default_cells_path, _ = paths_segmentation_paramsearch(
+            default_example["path"]
+        )
+
         # Create visualization
         optimal_nuclei = imread(optimal_nuclei_path)
-        optimal_cells = imread(optimal_cells_path)            
+        optimal_cells = imread(optimal_cells_path)
         default_nuclei = imread(default_nuclei_path)
         default_cells = imread(default_cells_path)
         corrected_image_data = imread(corrected_full_path)
 
         if segmentation_process == "phenotype_process":
-
-            annotated_optimal = image_segmentation_annotations(corrected_image_data, optimal_nuclei, optimal_cells)
-            annotated_default = image_segmentation_annotations(corrected_image_data, default_nuclei, default_cells)
-
+            annotated_optimal = image_segmentation_annotations(
+                corrected_image_data, optimal_nuclei, optimal_cells
+            )
+            annotated_default = image_segmentation_annotations(
+                corrected_image_data, default_nuclei, default_cells
+            )
 
             seg_microimages = [
-                Microimage(annotated_optimal, channel_names="Optimal", cmaps=channel_cmaps + ["pure_cyan"]),
-                Microimage(annotated_default, channel_names="Default", cmaps=channel_cmaps + ["pure_cyan"]),
+                Microimage(
+                    annotated_optimal,
+                    channel_names="Optimal",
+                    cmaps=channel_cmaps + ["pure_cyan"],
+                ),
+                Microimage(
+                    annotated_default,
+                    channel_names="Default",
+                    cmaps=channel_cmaps + ["pure_cyan"],
+                ),
             ]
             seg_panel = create_micropanel(seg_microimages, add_channel_label=True)
             plt.show()
 
         elif segmentation_process == "sbs_process":
             cellpose_rgb = prepare_cellpose(
-                corrected_image_data,
-                **prepare_cellpose_kwargs
+                corrected_image_data, **prepare_cellpose_kwargs
             )
 
-            annotated_optimal = image_segmentation_annotations(cellpose_rgb[1:], optimal_nuclei, optimal_cells)
-            annotated_default = image_segmentation_annotations(cellpose_rgb[1:], default_nuclei, default_cells)
+            annotated_optimal = image_segmentation_annotations(
+                cellpose_rgb[1:], optimal_nuclei, optimal_cells
+            )
+            annotated_default = image_segmentation_annotations(
+                cellpose_rgb[1:], default_nuclei, default_cells
+            )
 
             seg_microimages = [
-                Microimage(annotated_optimal, channel_names="Optimal", cmaps=["pure_blue", "pure_red", "pure_cyan"]),
-                Microimage(annotated_default, channel_names="Default", cmaps=["pure_blue", "pure_red", "pure_cyan"]),
+                Microimage(
+                    annotated_optimal,
+                    channel_names="Optimal",
+                    cmaps=["pure_blue", "pure_red", "pure_cyan"],
+                ),
+                Microimage(
+                    annotated_default,
+                    channel_names="Default",
+                    cmaps=["pure_blue", "pure_red", "pure_cyan"],
+                ),
             ]
             seg_panel = create_micropanel(seg_microimages, add_channel_label=True)
             plt.show()
-    
+
     return grouped_stats, summary_text, seg_panel

@@ -223,26 +223,21 @@ def evaluate_segmentation_paramsearch(
     best_stats = grouped_stats.iloc[0]
 
     # Generate summary text
-    summary_lines = []
-    summary_lines.append("=== Segmentation Parameter Optimization Summary ===")
+    base_summary = f"""=== Segmentation Parameter Optimization Summary ===
 
-    summary_lines.append("\nOptimal Parameters:")
-    summary_lines.append(f"• Nuclei Diameter: {best_params[0]:.2f}")
-    summary_lines.append(f"• Cell Diameter: {best_params[1]:.2f}")
-    summary_lines.append(f"• Flow Threshold: {best_params[2]:.2f}")
-    summary_lines.append(f"• Cell Probability Threshold: {best_params[3]:.2f}")
+    Optimal Parameters:
+    - Nuclei Diameter: {best_params[0]:.2f}
+    - Cell Diameter: {best_params[1]:.2f}
+    - Flow Threshold: {best_params[2]:.2f}
+    - Cell Probability Threshold: {best_params[3]:.2f}
 
-    summary_lines.append("\nPerformance Metrics:")
-    summary_lines.append(
-        f"• Cell Retention: {best_stats['cell_retention_mean']*100:.1f}%"
-    )
-    summary_lines.append(
-        f"• Nuclei Retention: {best_stats['nuclei_retention_mean']*100:.1f}%"
-    )
-    summary_lines.append(f"• Final Cells (avg): {best_stats['final_cells_mean']:.0f}")
-    summary_lines.append(f"• Final Nuclei (avg): {best_stats['final_nuclei_mean']:.0f}")
-    summary_lines.append(f"• Number of measurements: {best_stats['measurement_count']}")
-    summary_lines.append(f"• Combined Score: {best_stats['combined_score']:.1f}")
+    Performance Metrics:
+    - Cell Retention: {best_stats['cell_retention_mean']*100:.1f}%
+    - Nuclei Retention: {best_stats['nuclei_retention_mean']*100:.1f}%
+    - Final Cells (avg): {best_stats['final_cells_mean']:.0f}
+    - Final Nuclei (avg): {best_stats['final_nuclei_mean']:.0f}
+    - Number of measurements: {best_stats['measurement_count']}
+    - Combined Score: {best_stats['combined_score']:.1f}"""
 
     if default_cell_diameter is not None:
         default_params = (
@@ -252,36 +247,27 @@ def evaluate_segmentation_paramsearch(
             default_cellprob_threshold,
         )
         default_stats = grouped_stats.loc[default_params]
+        
+        default_summary = f"""
+    Default Parameters:
+    - Nuclei Diameter: {default_nuclei_diameter:.2f}
+    - Cell Diameter: {default_cell_diameter:.2f}
+    - Flow Threshold: {default_flow_threshold:.2f}
+    - Cell Probability Threshold: {default_cellprob_threshold:.2f}
 
-        summary_lines.append("\nDefault Parameters:")
-        summary_lines.append(f"• Nuclei Diameter: {default_nuclei_diameter:.2f}")
-        summary_lines.append(f"• Cell Diameter: {default_cell_diameter:.2f}")
-        summary_lines.append(f"• Flow Threshold: {default_flow_threshold:.2f}")
-        summary_lines.append(
-            f"• Cell Probability Threshold: {default_cellprob_threshold:.2f}"
-        )
+    Performance Metrics:
+    - Cell Retention: {default_stats['cell_retention_mean']*100:.1f}%
+    - Nuclei Retention: {default_stats['nuclei_retention_mean']*100:.1f}%
+    - Final Cells (avg): {default_stats['final_cells_mean']:.0f}
+    - Final Nuclei (avg): {default_stats['final_nuclei_mean']:.0f}
+    - Number of measurements: {default_stats['measurement_count']}
+    - Combined Score: {default_stats['combined_score']:.1f}"""
+        
+        summary_text = base_summary + default_summary
+    else:
+        summary_text = base_summary
 
-        summary_lines.append("\nPerformance Metrics:")
-        summary_lines.append(
-            f"• Cell Retention: {default_stats['cell_retention_mean']*100:.1f}%"
-        )
-        summary_lines.append(
-            f"• Nuclei Retention: {default_stats['nuclei_retention_mean']*100:.1f}%"
-        )
-        summary_lines.append(
-            f"• Final Cells (avg): {default_stats['final_cells_mean']:.0f}"
-        )
-        summary_lines.append(
-            f"• Final Nuclei (avg): {default_stats['final_nuclei_mean']:.0f}"
-        )
-        summary_lines.append(
-            f"• Number of measurements: {default_stats['measurement_count']}"
-        )
-        summary_lines.append(f"• Combined Score: {default_stats['combined_score']:.1f}")
-
-    summary_text = "\n".join(summary_lines)
     print(summary_text)
-
     # Get a row with optimal parameters
     optimal_example = df[
         (df["nuclei_diameter"] == best_params[0])

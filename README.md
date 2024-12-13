@@ -26,12 +26,19 @@ The Brieflow project structure is as follows:
 ```
 workflow/
 ├── envs/ - Environment YAML files that describe dependencies for different workflows.
-├── lib/ - Brieflow library code used for performing Brieflow processing. 
+├── lib/ - Brieflow library code used for performing Brieflow processing. Organized into workflow-specific, shared, and external code.
 ├── rules/ - Snakemake rule files for each process. Used to organize sub-processses within each process with inputs, outputs, parameters, and script file location.
-├── scripts/ - Python script files for sub-processes. Called by processes.
-├── targets/ - Snakemake files used to define inputs and their mappings for each process.
+├── scripts/ - Python script files for sub-processes called by processes. Organized into workflow-specific and shared code.
+├── targets/ - Snakemake files used to define inputs and their mappings for each process. 
 └── Snakefile - Main Snakefile used to call processes.
 ```
+
+Brieflow runs as follows:
+- A user configure parameters in Jupyter notebooks to use the Brieflow library code correctly for their data.
+- A user runs the main Snakefile with bash scripts (locally or on an HPC).
+- The main Snakefile calls process-specific snakemake files with rules for each sub-process.
+- Each sub-process rule calls a script.
+- Scripts use the Brieflow library code to transform the input files defined in targets into the output files defined in targets.
 
 
 ## Running An Analyis

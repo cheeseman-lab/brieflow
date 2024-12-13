@@ -72,6 +72,16 @@ Use the following commands to set up the `brieflow_configuration` Conda environm
 conda env create --file=brieflow_configuration_env.yml
 ```
 
+### HPC Integrations
+
+The steps for running workflows currently include local and Slurm integration.
+To use the Slurm integration for Brieflow configure the Slurm resources in [analysis/slurm/config.yaml](analysis/slurm/config.yaml).
+The `slurm_partition` and `slurm_account` in `default-resources` need to be configured while the other resource requirements have suggested values.
+These can be adjusted as necessary.
+
+**Note**: Other Snakemake HPC integrations can be found in the [Snakemake plugin catalog](https://snakemake.github.io/snakemake-plugin-catalog/index.html#snakemake-plugin-catalog).
+Only the `slurm` plugin has been tested.
+
 ### Analysis Steps
 
 Follow the instructions below to configure paramers and run wokflows.
@@ -85,9 +95,14 @@ Follow the steps in [0.configure_preprocess_params.ipynb](analysis/0.configure_p
 
 #### Step 1: Run preprocessing workflow
 
+**Local**:
 ```sh
 conda activate brieflow_workflows
 sh 1.run_preprocessing.sh
+```
+**Slurm**:
+```sh
+sh 1.run_preprocessing_slurm.sh
 ```
 
 #### Step 2: Configure SBS process params
@@ -100,9 +115,14 @@ Follow the steps in [2.configure_sbs_process_params.ipynb](analysis/2.configure_
 
 #### Step 4: Run SBS/phenotype process workflow
 
+**Local**:
 ```sh
 conda activate brieflow_workflows
 sh 4.run_sbs_phenotype_processes.sh
+```
+**Slurm**:
+```sh
+sh 4.run_sbs_phenotype_processes_slurm.sh
 ```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.

@@ -67,12 +67,12 @@ else:
     raise ValueError(f"Unsupported segmentation process: {segmentation_process}")
 
 # Load and concatenate the data
-arr_reads = Parallel(n_jobs=threads)(delayed(get_file)(file) for file in input_files)
-df_reads = pd.concat(arr_reads)
+arr_segmentation_paramsearch = Parallel(n_jobs=threads)(delayed(get_file)(file) for file in input_files)
+df_segmentation_paramsearch = pd.concat(arr_segmentation_paramsearch)
 
 # Evaluate segmentation parameters
 grouped_stats, summary_text, seg_panel = evaluate_segmentation_paramsearch(
-    df_reads,
+    df_segmentation_paramsearch,
     segmentation_process=segmentation_process,
     default_cell_diameter=default_cell_diameter,
     default_nuclei_diameter=default_nuclei_diameter,
@@ -82,19 +82,20 @@ grouped_stats, summary_text, seg_panel = evaluate_segmentation_paramsearch(
     prepare_cellpose_kwargs=prepare_cellpose_kwargs
 )
 
-# Save the concatenated data based on output_type
+# Save the data based on output_type
 if output_type == "hdf":
-    df_reads.to_hdf(output_full, "x", mode="w")
+    df_segmentation_paramsearch.to_hdf(output_full, "x", mode="w")
+    grouped_stats.to_hdf(output_grouped, "x", mode="w")
 elif output_type == "tsv":
-    df_reads.to_csv(output_full, sep="\t", index=False)
+    df_segmentation_paramsearch.to_csv(output_full, sep="\t", index=False)
+    grouped_stats.to_csv(output_grouped, sep='\t')
+    
 else:
     raise ValueError(f"Unsupported output type: {output_type}")
 
-# Save the parameter evaluation outputs
-grouped_stats.to_csv(output_grouped, sep='\t')
+# Save the summary text
 with open(output_summary, 'w') as f:
     f.write(summary_text)
 
-# Save the visualization panel if it was created
-if seg_panel is not None:
-    seg_panel.savefig(output_panel)
+# Save the segmentation panel
+seg_panel.savefig(output_panel)

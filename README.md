@@ -151,6 +151,10 @@ The `data/` folder used for this example analysis can be downloaded from [Google
 
 ## Contribution Notes
 
+Brieflow is still actively under development and we welcome community use/development. 
+File a [GitHub issue](https://github.com/cheeseman-lab/brieflow/issues) to share comments and issues.
+File a GitHub PR to contribute to Brieflow as detailed in the [pull request template](.github/pull_request_template.md).
+
 ### Dev Tools
 
 We use [ruff](https://github.com/astral-sh/ruff) for linting and formatting code.

@@ -176,13 +176,13 @@ def estimate_diameters(
         cyto_index (int): Index of cytoplasmic channel
         channels (list): Channel indices for diameter estimation [cytoplasm, nuclei]
         cyto_model (str): Cellpose model type to use
+        cellpose_kwargs (dict): Additional keyword arguments for Cellpose
         gpu (bool): Whether to use GPU
         logscale (bool): Whether to apply log scaling to image
         
     Returns:
         tuple: Estimated diameters for (nuclei, cells)
     """
-
     # Prepare RGB image
     log_kwargs = cellpose_kwargs.pop(
         "log_kwargs", dict()
@@ -229,12 +229,15 @@ def segment_cellpose_rgb(
         rgb (numpy.ndarray): RGB image.
         nuclei_diameter (int): Diameter of nuclei for segmentation.
         cell_diameter (int): Diameter of cells for segmentation.
-        gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
         cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
         logscale (bool, optional): Whether to apply log scaling to the cytoplasmic channel. Default is True.
         remove_edges (bool, optional): Whether to remove nuclei and cells touching the image edges. Default is True.
         return_counts (bool, optional): Whether to return counts of nuclei and cells before reconciliation. Default is False.
+        flow_threshold (float, optional): Flow threshold for cell segmentation. Default is 0.4.
+        cellprob_threshold (float, optional): Cell probability threshold for cell segmentation. Default is 0.
+        gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
+        **kwargs: Additional keyword arguments.
 
     Returns:
         tuple: A tuple containing:

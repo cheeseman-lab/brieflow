@@ -160,9 +160,10 @@ The `data/` folder used for this example analysis can be downloaded from [Google
 
 ## Contribution Notes
 
-Brieflow is still actively under development and we welcome community use/development. 
-File a [GitHub issue](https://github.com/cheeseman-lab/brieflow/issues) to share comments and issues.
-File a GitHub PR to contribute to Brieflow as detailed in the [pull request template](.github/pull_request_template.md).
+- Brieflow is still actively under development and we welcome community use/development. 
+- File a [GitHub issue](https://github.com/cheeseman-lab/brieflow/issues) to share comments and issues.
+- File a GitHub PR to contribute to Brieflow as detailed in the [pull request template](.github/pull_request_template.md).
+Read about how to [contribute to a project](https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project) to understand forks, branches, and PRs.
 
 ### Dev Tools
 

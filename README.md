@@ -41,14 +41,11 @@ Thus, a user must configure parameters between workflow steps with configuration
 While each step's workflow has its own Conda environment (compiled by Snakemake at runtime), the notebooks all share a configuration environment.
 
 See the steps below to set up the workflow/configuration environments and run your own analysis with Brieflow.
-**Note**: The example analysis shows an analyis done with a very small subset of OPS data.
 
 ### Set up workflow/configuration Conda environments
 
 The workflows share a base environment (`brieflow_workflows`) and each have their own Conda environments compiled by Snakemake at runtime (in [workflow/envs](workflow/envs)).
 All notebooks share a configuration environment (`brieflow_configuration`).
-
-*Note*: We do not include the data necessary for this example analysis in this repo as it is too large.
 
 #### Set up Brieflow workflows environment
 
@@ -139,7 +136,8 @@ sh run_entire_analysis.sh
 ### Example Analysis
 
 The [example analysis](example_analysis) details an example Brieflow run with a small testing set of OPS data.
-
+We do not include the data necessary for this example analysis in this repo as it is too large.
+The `data/` folder used for this example analysis can be downloaded from [Google Drive](https://drive.google.com/file/d/18r_RzNzeYWAAg93GNe5j-gwL8dGtH3Jf/view?usp=sharing) and should be placed at `example_analysis/data`.
 
 ## Contribution Notes
 

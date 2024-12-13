@@ -72,7 +72,7 @@ Use the following commands to set up the `brieflow_configuration` Conda environm
 conda env create --file=brieflow_configuration_env.yml
 ```
 
-### Run analysis in steps
+### Analysis Steps
 
 Follow the instructions below to configure paramers and run wokflows.
 All of these steps are done in the analysis folder.

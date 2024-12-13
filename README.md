@@ -49,6 +49,8 @@ git clone https://github.com/cheeseman-lab/brieflow.git
 
 See the steps below to set up the workflow/configuration environments and run your own analysis with Brieflow.
 
+**Note:** We will soon release documentation on how to set up an analysis repo for working with Brieflow!
+
 ### Set up workflow/configuration Conda environments
 
 The workflows share a base environment (`brieflow_workflows`) and each have their own Conda environments compiled by Snakemake at runtime (in [workflow/envs](workflow/envs)).

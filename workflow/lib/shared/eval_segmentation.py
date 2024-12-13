@@ -152,6 +152,9 @@ def evaluate_segmentation_paramsearch(df,
             str: Path to cell mask TIFF file (_cells.tiff)
             str: Path to illumination-corrected TIFF file (__illumination_corrected.tiff)
         """
+        # Convert Path to string if needed
+        base_path = str(base_path)
+        
         # Replace /tsvs/ with /images/
         base_path = base_path.replace("/tsvs/", "/images/")
 

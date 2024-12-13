@@ -62,6 +62,13 @@ set-resources:
         mem_mb: 20000
     combine_sbs_info:
         mem_mb: 20000
+    segment_sbs_paramsearch:
+        # slurm_partition: "'nvidia-2080ti-20'"
+        mem_mb: 3000
+        cpus_per_task: 4
+        # slurm_extra: "'--gres=gpu:1'"
+    summarize_segment_sbs_paramsearch:
+        mem_mb: 20000
     # phenotype_process
     apply_ic_field_phenotype:
         mem_mb: 1000
@@ -77,11 +84,18 @@ set-resources:
     merge_phenotype_info:
         mem_mb: 20000
     extract_phenotype_cp:
-        mem_mb: 200
+        mem_mb: 500
     merge_phenotype_cp:
         mem_mb: 20000
     eval_segmentation_phenotype:
         mem_mb: 2000
     eval_features:
         mem_mb: 2000
+    segment_phenotype_paramsearch:
+        # slurm_partition: "'nvidia-2080ti-20'"
+        mem_mb: 3000
+        cpus_per_task: 4
+        # slurm_extra: "'--gres=gpu:1'"
+    summarize_segment_phenotype_paramsearch:
+        mem_mb: 20000
     

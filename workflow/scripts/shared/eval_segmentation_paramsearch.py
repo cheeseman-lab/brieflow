@@ -56,8 +56,8 @@ threads = snakemake.threads
 # Set process-specific parameters
 if segmentation_process == "sbs_process":
     prepare_cellpose_kwargs = {
-        "DAPI_INDEX": snakemake.params.dapi_index,
-        "CYTO_INDEX": snakemake.params.cyto_index,
+        'dapi_index': snakemake.params.dapi_index,
+        'cyto_index': snakemake.params.cyto_index,
     }
     channel_cmaps = None
 elif segmentation_process == "phenotype_process":

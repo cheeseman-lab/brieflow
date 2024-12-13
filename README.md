@@ -46,7 +46,6 @@ We currently recommend creating a cloned version of Brieflow for each screen ana
 cd screen_analysis_dir/
 git clone https://github.com/cheeseman-lab/brieflow.git
 ```
-If large changes to Brieflow code are expected for a particular screen analysis, we recommend changing the names of the workflow/configuration environments to be screen-specific so development of this code does not affect other Brieflow runs.
 
 See the steps below to set up the workflow/configuration environments and run your own analysis with Brieflow.
 
@@ -55,8 +54,8 @@ See the steps below to set up the workflow/configuration environments and run yo
 The workflows share a base environment (`brieflow_workflows`) and each have their own Conda environments compiled by Snakemake at runtime (in [workflow/envs](workflow/envs)).
 All notebooks share a configuration environment (`brieflow_configuration`).
 
-**Note:** Change the name of the workflow/configuration environments in [brieflow_workflows_env.yml](brieflow_workflows_env.yml) and [brieflow_configuration.yml](brieflow_configuration.yml) to be screen-specific if Brieflow development is expected for a screen analysis.
-This will prevent these changes from affecting Brieflow runs for other screens.
+**Note:** If large changes to Brieflow code are expected for a particular screen analysis, we recommend changing the names of the workflow/configuration environments to be screen-specific so development of this code does not affect other Brieflow runs.
+Change the name of the workflow and configuration environments in [brieflow_workflows_env.yml](brieflow_workflows_env.yml) and [brieflow_configuration.yml](brieflow_configuration.yml).
 
 #### Set up Brieflow workflows environment
 

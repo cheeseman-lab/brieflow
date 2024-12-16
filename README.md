@@ -121,7 +121,8 @@ sbatch 1.run_preprocessing_slurm.sh
 ```
 
 ***Note**: For testing purposes, users may only have generated sbs or phenotype images.
-If this is the case, and one of the `SBS_SAMPLES_DF_FP`/`PHENOTYPE_SAMPLES_DF_FP` are empty, then this will impede any further analysis of the missing files.
+If either of the dataframes defining the file paths and metadata for sbs/phenotype samples (located at `SBS_SAMPLES_DF_FP`/`PHENOTYPE_SAMPLES_DF_FP`) are empty, then no preprocessing steps will be run for the respective missing data type.
+Use an empty dataframe for the sbs/phenotype samples to skip preprocessing for a particular data type.
 
 #### Step 2: Configure SBS process params
 

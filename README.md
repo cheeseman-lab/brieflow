@@ -120,7 +120,8 @@ sh 1.run_preprocessing.sh
 sbatch 1.run_preprocessing_slurm.sh
 ```
 
-***Note**: For testing purposes, users may only have generated sbs or phenotype images. If this is the case, and one of the `SBS_SAMPLES_DF_FP`/`PHENOTYPE_SAMPLES_DF_FP` are empty, then this will impede any further analysis of the missing files.
+***Note**: For testing purposes, users may only have generated sbs or phenotype images.
+If this is the case, and one of the `SBS_SAMPLES_DF_FP`/`PHENOTYPE_SAMPLES_DF_FP` are empty, then this will impede any further analysis of the missing files.
 
 #### Step 2: Configure SBS process params
 
@@ -145,7 +146,8 @@ sbatch 4.run_sbs_phenotype_processes_slurm.sh
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.
 
-***Note**: Many users will want to only run SBS or phenotype processing, independently. By varying the tags in the .sh files (`--until all_sbs_process` or `--until all_phenotype_process`), the analysis will only run only the analysis of interest.
+***Note**: Many users will want to only run SBS or phenotype processing, independently.
+By varying the tags in the .sh files (`--until all_sbs_process` or `--until all_phenotype_process`), the analysis will only run only the analysis of interest.
 
 ### Run Entire Analysis
 

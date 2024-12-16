@@ -117,16 +117,21 @@ sh 1.run_preprocessing.sh
 ```
 **Slurm**:
 ```sh
-sh 1.run_preprocessing_slurm.sh
+sbatch 1.run_preprocessing_slurm.sh
 ```
+
+***Note**: For testing purposes, users may only have generated sbs or phenotype images.
+If either of the dataframes defining the file paths and metadata for sbs/phenotype samples (located at `SBS_SAMPLES_DF_FP`/`PHENOTYPE_SAMPLES_DF_FP`) are empty, then no preprocessing steps will be run for the respective missing data type.
+Use an empty dataframe for the sbs/phenotype samples to skip preprocessing for a particular data type.
 
 #### Step 2: Configure SBS process params
 
-Follow the steps in [3.configure_phenotype_process_params.ipynb](analysis/3.configure_phenotype_process_params.ipynb) to configure phenotype process params.
+Follow the steps in [2.configure_sbs_process_params.ipynb](analysis/2.configure_sbs_process_params.ipynb) to configure SBS process params.
+
 
 #### Step 3: Configure phenotype process params
 
-Follow the steps in [2.configure_sbs_process_params.ipynb](analysis/2.configure_sbs_process_params.ipynb) to configure SBS process params.
+Follow the steps in  [3.configure_phenotype_process_params.ipynb](analysis/3.configure_phenotype_process_params.ipynb) to configure phenotype process params.
 
 #### Step 4: Run SBS/phenotype process workflow
 
@@ -137,18 +142,25 @@ sh 4.run_sbs_phenotype_processes.sh
 ```
 **Slurm**:
 ```sh
-sh 4.run_sbs_phenotype_processes_slurm.sh
+sbatch 4.run_sbs_phenotype_processes_slurm.sh
 ```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.
+
+***Note**: Many users will want to only run SBS or phenotype processing, independently.
+It is possible to restrict the SBS/phenotype processing with the following:
+1) If either of the sample dataframes defined in [0.configure_preprocess_params.ipynb](analysis/0.configure_preprocess_params.ipynb) are empty then no samples will be processed.
+Ex if the dataframe defined at `SBS_SAMPLES_DF_FP` (see notebook) is empty, no SBS processing will occur.
+2) By varying the tags in the `4.run_sbs_phenotype_processing` sh files (`--until all_sbs_process` or `--until all_phenotype_process`), the analysis will only run only the analysis of interest.
 
 ### Run Entire Analysis
 
 If all parameter configurations are known for the entire Brieflow pipeline, it is possible to run the entire pipeline with the following:
 
 ```sh
-cd analysis/
+conda activate brieflow_workflows
 sh run_entire_analysis.sh
+sbatch run_entire_analysis.sh
 ```
 
 ### Example Analysis

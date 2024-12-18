@@ -45,7 +45,7 @@ def create_samples_df(images_fp, sample_pattern, metadata):
     samples_data = []
 
     # Iterate over files and extract information
-    for image_fp in images_fp.iterdir():
+    for image_fp in images_fp.rglob("*"):  # Recursively matches all files in subdirs
         match = re.search(sample_pattern, image_fp.name)
         if match:
             # Find sample path and metadata

@@ -1,7 +1,10 @@
 """Shared utilties for configuring Brieflow process parameters."""
 
+import re
 import math
+from pathlib import Path
 
+import pandas as pd
 from microfilm.microplot import Micropanel
 import numpy as np
 import matplotlib
@@ -20,6 +23,54 @@ CONFIG_FILE_HEADER = """
 
 # Parameters:
 """
+
+
+def create_samples_df(images_fp, sample_pattern, metadata):
+    """Generate samples dataframe from a directory of images.
+
+    Samples dataframe includes path to images and image metadata extracted from the file names.
+
+    Args:
+        images_fp (Path): Path to the directory containing images.
+        sample_pattern (str): Regular expression pattern to extract metadata from image file names.
+        metadata (list): List of metadata keys to extract from the file names.
+
+    Returns:
+        Samples DataFrame: DataFrame containing sample metadata and file paths.
+    """
+    if images_fp is None:
+        print("No image directory provided, returning an empty sample DataFrame!")
+        return pd.DataFrame(columns=["sample_fp"])
+
+    samples_data = []
+
+    # Iterate over files and extract information
+    for image_fp in images_fp.rglob("*"):  # Recursively matches all files in subdirs
+        match = re.search(sample_pattern, image_fp.name)
+        if match:
+            # Find sample path and metadata
+            sample_data = {"sample_fp": str(image_fp)}
+            sample_metadata = {
+                key: match.group(i + 1) for i, key in enumerate(metadata)
+            }
+
+            # Convert numeric metadta values to integers where applicable
+            for key, value in sample_metadata.items():
+                if value.isdigit():
+                    sample_metadata[key] = int(value)
+
+            # Update sample data with metadata
+            sample_data.update(sample_metadata)
+
+            # Append sample data to list
+            samples_data.append(sample_data)
+
+    # Create a DataFrame and sort by metadata
+    samples_df = pd.DataFrame(samples_data)
+    samples_df = samples_df.sort_values(by=metadata)
+    samples_df = samples_df.reset_index(drop=True)
+
+    return samples_df
 
 
 def create_micropanel(microimages, num_cols=2, figscaling=6, add_channel_label=True):

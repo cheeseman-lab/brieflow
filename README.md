@@ -59,6 +59,8 @@ See the steps below to set up the workflow/configuration environments and run yo
 
 ### Set up workflow/configuration Conda environments
 
+**Configuring and running Brieflow requires two separate environments!**
+
 The workflows share a base environment (`brieflow_workflows`) and each have their own Conda environments compiled by Snakemake at runtime (in [workflow/envs](workflow/envs)).
 All notebooks share a configuration environment (`brieflow_configuration`).
 
@@ -121,8 +123,8 @@ sbatch 1.run_preprocessing_slurm.sh
 ```
 
 ***Note**: For testing purposes, users may only have generated sbs or phenotype images.
-If either of the dataframes defining the file paths and metadata for sbs/phenotype samples (located at `SBS_SAMPLES_DF_FP`/`PHENOTYPE_SAMPLES_DF_FP`) are empty, then no preprocessing steps will be run for the respective missing data type.
-Use an empty dataframe for the sbs/phenotype samples to skip preprocessing for a particular data type.
+It is possible to test only SBS/phenotype preprocessing in this notebook.
+See notebook instructions for more details.
 
 #### Step 2: Configure SBS process params
 
@@ -150,7 +152,7 @@ sbatch 4.run_sbs_phenotype_processes_slurm.sh
 ***Note**: Many users will want to only run SBS or phenotype processing, independently.
 It is possible to restrict the SBS/phenotype processing with the following:
 1) If either of the sample dataframes defined in [0.configure_preprocess_params.ipynb](analysis/0.configure_preprocess_params.ipynb) are empty then no samples will be processed.
-Ex if the dataframe defined at `SBS_SAMPLES_DF_FP` (see notebook) is empty, no SBS processing will occur.
+See the notebook for more details.
 2) By varying the tags in the `4.run_sbs_phenotype_processing` sh files (`--until all_sbs_process` or `--until all_phenotype_process`), the analysis will only run only the analysis of interest.
 
 ### Run Entire Analysis
@@ -167,7 +169,7 @@ sbatch run_entire_analysis.sh
 
 The [example analysis](example_analysis) details an example Brieflow run with a small testing set of OPS data.
 We do not include the data necessary for this example analysis in this repo as it is too large.
-The `data/` folder used for this example analysis can be downloaded from [Google Drive](https://drive.google.com/file/d/18r_RzNzeYWAAg93GNe5j-gwL8dGtH3Jf/view?usp=sharing) and should be placed at `example_analysis/data`.
+The `data/` folder used for this example analysis can be downloaded from [Google Drive](https://drive.google.com/file/d/1FJohXpH8Ce70aoYjz0J6pQTbbRWm13na/view?usp=drive_link) and should be placed at `example_analysis/data`.
 
 ## Contribution Notes
 

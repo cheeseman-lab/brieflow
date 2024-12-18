@@ -59,6 +59,8 @@ See the steps below to set up the workflow/configuration environments and run yo
 
 ### Set up workflow/configuration Conda environments
 
+**Configuring and running Brieflow requires two separate environments!**
+
 The workflows share a base environment (`brieflow_workflows`) and each have their own Conda environments compiled by Snakemake at runtime (in [workflow/envs](workflow/envs)).
 All notebooks share a configuration environment (`brieflow_configuration`).
 

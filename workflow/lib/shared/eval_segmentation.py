@@ -247,7 +247,7 @@ def evaluate_segmentation_paramsearch(
             default_cellprob_threshold,
         )
         default_stats = grouped_stats.loc[default_params]
-        
+
         default_summary = f"""
     Default Parameters:
     - Nuclei Diameter: {default_nuclei_diameter:.2f}
@@ -262,7 +262,7 @@ def evaluate_segmentation_paramsearch(
     - Final Nuclei (avg): {default_stats['final_nuclei_mean']:.0f}
     - Number of measurements: {default_stats['measurement_count']}
     - Combined Score: {default_stats['combined_score']:.1f}"""
-        
+
         summary_text = base_summary + default_summary
     else:
         summary_text = base_summary

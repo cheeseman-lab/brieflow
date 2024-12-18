@@ -5,11 +5,17 @@ from typing import List, Union
 
 
 def get_sample_fps(
-    samples_df: pd.DataFrame, 
-    well: str = None, 
-    tile: int = None, 
+    samples_df: pd.DataFrame,
+    well: str = None,
+    tile: int = None,
     cycle: int = None,
-    channel_order: List[str] = ["DAPI", "GFP", "CY3", "CY5", "AF750"]  # Define default order
+    channel_order: List[str] = [
+        "DAPI",
+        "GFP",
+        "CY3",
+        "CY5",
+        "AF750",
+    ],  # Define default order
 ) -> Union[str, List[str]]:
     """Filters the samples DataFrame and ensures consistent channel order.
 
@@ -33,14 +39,14 @@ def get_sample_fps(
 
     if cycle is not None:
         filtered_df = filtered_df[filtered_df["cycle"] == int(cycle)]
-    
+
     # If we have a channel column, return list of files in specified order
     if "channel" in filtered_df.columns:
         # Create dictionary mapping channel to file path
         channel_to_file = dict(zip(filtered_df["channel"], filtered_df["sample_fp"]))
-        
+
         # Return files in specified order
         return [channel_to_file[channel] for channel in channel_order]
-    
+
     # Otherwise return single file path (original behavior)
     return filtered_df["sample_fp"].iloc[0]

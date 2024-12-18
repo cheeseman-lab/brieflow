@@ -12,6 +12,7 @@ rule extract_metadata_sbs:
             well=wildcards.well,
             tile=wildcards.tile,
             cycle=wildcards.cycle,
+            channel_order=config["preprocess"]["sbs_channel_order"]
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
@@ -48,6 +49,7 @@ rule extract_metadata_phenotype:
             phenotype_samples_df,
             well=wildcards.well,
             tile=wildcards.tile,
+            channel_order=config["preprocess"]["phenotype_channel_order"]
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
@@ -85,6 +87,7 @@ rule convert_sbs:
             well=wildcards.well,
             cycle=wildcards.cycle,
             tile=wildcards.tile,
+            channel_order=config["preprocess"]["sbs_channel_order"]
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
@@ -103,6 +106,7 @@ rule convert_phenotype:
             phenotype_samples_df,
             well=wildcards.well,
             tile=wildcards.tile,
+            channel_order=config["preprocess"]["phenotype_channel_order"]
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],

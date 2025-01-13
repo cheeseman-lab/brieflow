@@ -10,11 +10,11 @@ Please check back for updates!
 Terms mentioned throughout the code and documentation include:
 - **Brieflow library**: Code in [workflow/lib](workflow/lib) used to perform Brieflow processing.
 Used with Snakemake to run Brieflow steps.
-- **Process/Workflow**: Used synonymously to refer to larger steps of the Brieflow pipeline.
+- **Module**: Used synonymously to refer to larger steps of the Brieflow pipeline.
 Example processes/workflows: `preprocessing`, `sbs_process`, `phenotype_process`
-- **Sub-process**: Refers to a smaller step within a process.
-Sub-processes use scripts and Brieflow library code to complete tasks.
-Example sub-processes in the preprocessing process: `extract_metadata_sbs`, `convert_sbs`, `calculate_ic_sbs`.
+- **Process**: Refers to a smaller step within a process.
+Processes use scripts and Brieflow library code to complete tasks.
+Example processes in the preprocessing module: `extract_metadata_sbs`, `convert_sbs`, `calculate_ic_sbs`.
 
 
 ## Project Structure
@@ -25,26 +25,26 @@ The Brieflow project structure is as follows:
 
 ```
 workflow/
-├── envs/ - Environment YAML files that describe dependencies for different workflows.
-├── lib/ - Brieflow library code used for performing Brieflow processing. Organized into workflow-specific, shared, and external code.
-├── rules/ - Snakemake rule files for each process. Used to organize sub-processses within each process with inputs, outputs, parameters, and script file location.
-├── scripts/ - Python script files for sub-processes called by processes. Organized into workflow-specific and shared code.
-├── targets/ - Snakemake files used to define inputs and their mappings for each process. 
-└── Snakefile - Main Snakefile used to call processes.
+├── envs/ - Environment YAML files that describe dependencies for different modules.
+├── lib/ - Brieflow library code used for performing Brieflow processing. Organized into module-specific, shared, and external code.
+├── rules/ - Snakemake rule files for each module. Used to organize processses within each module with inputs, outputs, parameters, and script file location.
+├── scripts/ - Python script files for processes called by modules. Organized into module-specific and shared code.
+├── targets/ - Snakemake files used to define inputs and their mappings for each module. 
+└── Snakefile - Main Snakefile used to call modules.
 ```
 
 Brieflow runs as follows:
 - A user configure parameters in Jupyter notebooks to use the Brieflow library code correctly for their data.
 - A user runs the main Snakefile with bash scripts (locally or on an HPC).
-- The main Snakefile calls process-specific snakemake files with rules for each sub-process.
-- Each sub-process rule calls a script.
+- The main Snakefile calls module-specific snakemake files with rules for each process.
+- Each process rule calls a script.
 - Scripts use the Brieflow library code to transform the input files defined in targets into the output files defined in targets.
 
 ## Running Example Analysis
 
 Brieflow is set up as a Snakemake workflow with user configuration between steps where necessary. 
-Thus, a user must configure parameters between workflow steps with configuration notebooks.
-While each step's workflow has its own Conda environment (compiled by Snakemake at runtime), the notebooks all share a configuration environment.
+Thus, a user must configure parameters between module steps with configuration notebooks.
+While each step's module has its own Conda environment (compiled by Snakemake at runtime), the notebooks all share a configuration environment.
 
 We currently recommend creating a cloned version of Brieflow for each screen analysis with:
 ```sh
@@ -61,7 +61,7 @@ See the steps below to set up the workflow/configuration environments and run yo
 
 **Configuring and running Brieflow requires two separate environments!**
 
-The workflows share a base environment (`brieflow_workflows`) and each have their own Conda environments compiled by Snakemake at runtime (in [workflow/envs](workflow/envs)).
+The modules share a base environment (`brieflow_workflows`) and each have their own Conda environments compiled by Snakemake at runtime (in [workflow/envs](workflow/envs)).
 All notebooks share a configuration environment (`brieflow_configuration`).
 
 **Note:** If large changes to Brieflow code are expected for a particular screen analysis, we recommend changing the names of the workflow/configuration environments to be screen-specific so development of this code does not affect other Brieflow runs.
@@ -110,7 +110,7 @@ Use the following command to enter this folder:
 
 Follow the steps in [0.configure_preprocess_params.ipynb](analysis/0.configure_preprocess_params.ipynb) to configure preprocess params.
 
-#### Step 1: Run preprocessing workflow
+#### Step 1: Run preprocessing module
 
 **Local**:
 ```sh
@@ -135,7 +135,7 @@ Follow the steps in [2.configure_sbs_process_params.ipynb](analysis/2.configure_
 
 Follow the steps in  [3.configure_phenotype_process_params.ipynb](analysis/3.configure_phenotype_process_params.ipynb) to configure phenotype process params.
 
-#### Step 4: Run SBS/phenotype process workflow
+#### Step 4: Run SBS/phenotype process module
 
 **Local**:
 ```sh

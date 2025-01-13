@@ -101,7 +101,7 @@ Only the `slurm` plugin has been tested.
 
 ### Analysis Steps
 
-Follow the instructions below to configure parameters and run workflows.
+Follow the instructions below to configure parameters and run modules.
 All of these steps are done in the example analysis folder.
 Use the following command to enter this folder:
 `cd analysis/`.

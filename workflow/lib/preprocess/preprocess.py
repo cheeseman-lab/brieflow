@@ -37,16 +37,18 @@ def extract_tile_metadata(
         if frame_meta.channels and hasattr(frame_meta.channels[0], "position"):
             stage_pos = frame_meta.channels[0].position.stagePositionUm
             metadata = {
-                "x_data": [stage_pos.x],
-                "y_data": [stage_pos.y],
-                "z_data": [stage_pos.z],
+                "x_pos": stage_pos.x,
+                "y_pos": stage_pos.y,
+                "z_pos": stage_pos.z,
                 "pfs_offset": frame_meta.channels[0].position.pfsOffset,
+                "width": images.sizes["X"],
+                "height": images.sizes["Y"],
             }
         else:
             metadata = {
-                "x_data": [],
-                "y_data": [],
-                "z_data": [],
+                "x_pos": None,
+                "y_pos": None,
+                "z_pos": None,
                 "pfs_offset": None,
             }
 

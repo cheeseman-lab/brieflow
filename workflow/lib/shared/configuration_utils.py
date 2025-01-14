@@ -2,12 +2,12 @@
 
 import re
 import math
-from pathlib import Path
 
 import pandas as pd
 from microfilm.microplot import Micropanel
 import numpy as np
 import matplotlib
+import matplotlib.pyplot as plt
 import skimage.morphology
 
 CONFIG_FILE_HEADER = """
@@ -203,3 +203,87 @@ def image_segmentation_annotations(data, nuclei, cells):
     annotated[channels] = mask
 
     return np.squeeze(annotated)
+
+
+def plot_combined_tile_grid(ph_test_metadata, sbs_test_metadata):
+    """Plots a combined grid of X-Y positions for PH and SBS datasets with annotations.
+
+    Note: Plot sizing is hard coded with arbitrary values that will not work for ND2 images with different sizes.
+
+    Args:
+        ph_test_metadata (pd.DataFrame): DataFrame containing PH metadata with columns:
+            'x_pos', 'y_pos', 'tile', and other relevant fields.
+        sbs_test_metadata (pd.DataFrame): DataFrame containing SBS metadata with columns:
+            'x_pos', 'y_pos', 'tile', and other relevant fields.
+
+    Returns:
+        matplotlib.figure.Figure: The figure object containing the plot.
+    """
+    # Create figure
+    fig = plt.figure(figsize=(30, 24))
+
+    # Scatter plot for PH data
+    plt.scatter(
+        ph_test_metadata["x_pos"],
+        ph_test_metadata["y_pos"],
+        s=450,
+        c="white",
+        marker="s",
+        edgecolors="black",
+        linewidths=1,
+        alpha=0.7,
+        label="PH",
+    )
+
+    # Label each PH point with the 'tile' variable
+    for i, txt in enumerate(ph_test_metadata["tile"]):
+        plt.annotate(
+            txt,
+            (ph_test_metadata["x_pos"].iloc[i], ph_test_metadata["y_pos"].iloc[i]),
+            textcoords="offset points",
+            xytext=(0, 3),
+            ha="center",
+            fontsize=12,
+            color="black",
+        )
+
+    # Scatter plot for SBS data
+    plt.scatter(
+        sbs_test_metadata["x_pos"],
+        sbs_test_metadata["y_pos"],
+        s=1800,
+        c="red",
+        marker="s",
+        edgecolors="black",
+        linewidths=1,
+        alpha=0.5,
+        label="SBS",
+    )
+
+    # Label each SBS point with the 'tile' variable
+    for i, txt in enumerate(sbs_test_metadata["tile"]):
+        plt.annotate(
+            txt,
+            (sbs_test_metadata["x_pos"].iloc[i], sbs_test_metadata["y_pos"].iloc[i]),
+            textcoords="offset points",
+            xytext=(0, -7),
+            ha="center",
+            fontsize=12,
+            color="red",
+        )
+
+    # Set labels and title
+    plt.xlabel("X Position", fontsize=30)
+    plt.ylabel("Y Position", fontsize=30)
+    plt.title(
+        "Combined Grid Plot of X-Y Positions with Field of View Labels, SBS & PH",
+        fontsize=30,
+    )
+
+    # Add legend
+    plt.legend(fontsize=30)
+
+    # Adjust layout
+    plt.tight_layout()
+
+    return fig

@@ -41,8 +41,6 @@ def extract_tile_metadata(
                 "y_pos": stage_pos.y,
                 "z_pos": stage_pos.z,
                 "pfs_offset": frame_meta.channels[0].position.pfsOffset,
-                "width": images.sizes["X"],
-                "height": images.sizes["Y"],
             }
         else:
             metadata = {

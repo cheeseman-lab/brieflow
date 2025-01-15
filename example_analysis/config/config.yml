@@ -12,6 +12,22 @@
 # Parameters:
 all:
   root_fp: analysis_root/
+phenotype_process:
+  cell_diameter: 54.126926685667364
+  cellprob_threshold: 0
+  channel_names:
+  - DAPI
+  - COXIV
+  - CENPA
+  - WGA
+  cyto_index: 1
+  cyto_model: cyto3
+  dapi_index: 0
+  flow_threshold: 0.4
+  foci_channel: 2
+  gpu: false
+  mode: null
+  nuclei_diameter: 40.96498163017951
 preprocess:
   phenotype_channel_order: null
   phenotype_channel_order_flip: true
@@ -19,3 +35,22 @@ preprocess:
   sbs_channel_order: null
   sbs_channel_order_flip: true
   sbs_samples_fp: config/sbs_samples.tsv
+sbs_process:
+  bases:
+  - G
+  - T
+  - A
+  - C
+  cell_diameter: 19.86716534556202
+  cellprob_threshold: 0
+  cyto_index: 4
+  cyto_model: cyto3
+  dapi_index: 0
+  df_design_path: config/pool10_design.tsv
+  flow_threshold: 0.4
+  gpu: false
+  mode: null
+  nuclei_diameter: 9.0270333367641
+  q_min: 0
+  segmentation_cycle_index: -1
+  threshold_peaks: 400

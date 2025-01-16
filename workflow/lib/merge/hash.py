@@ -1,9 +1,6 @@
 """Utility functions for hashing cells in merge module."""
 
-import multiprocessing
 import warnings
-from joblib import Parallel, delayed
-from collections.abc import Iterable
 
 import pandas as pd
 import numpy as np

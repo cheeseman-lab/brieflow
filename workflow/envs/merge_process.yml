@@ -1,0 +1,5 @@
+name: merge_process
+channels:
+  - conda-forge
+dependencies:
+  - scipy

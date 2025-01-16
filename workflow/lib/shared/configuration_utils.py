@@ -1,4 +1,11 @@
-"""Shared utilties for configuring Brieflow process parameters."""
+"""Shared utilties for configuring Brieflow process parameters.
+
+This includes:
+- Header string for Brieflow config file.
+- Function to create the Brieflow samples dataframe with file location and metadata.
+- Functions for displaying SBS/phenotype images and segmentations.
+- Functions for viewing steps of merge process such as determining tiles to merge and seeing an example merge.
+"""
 
 import re
 import math
@@ -10,7 +17,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import skimage.morphology
 from scipy.spatial.distance import cdist
-from sklearn.linear_model import LinearRegression
+
+from lib.merge.hash import build_linear_model
 
 CONFIG_FILE_HEADER = """
 # BrieFlow configuration file
@@ -355,7 +363,7 @@ def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
             ax1.plot([X[ix[i], 0], Y[i, 0]], [X[ix[i], 1], Y[i, 1]], "k-", alpha=0.1)
 
     ax1.set_title(
-        f'Original Scale View\nPH:{alignment_vec["tile"]}, SBS:{alignment_vec["site"]}'
+        f"Original Scale View\nPH:{alignment_vec['tile']}, SBS:{alignment_vec['site']}"
     )
     ax1.legend()
 
@@ -459,20 +467,3 @@ def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
 
     plt.tight_layout()
     plt.show()
-
-
-def build_linear_model(rotation, translation):
-    """Builds a linear regression model using the provided rotation matrix and translation vector.
-
-    Args:
-        rotation (numpy.ndarray): Rotation matrix for the model.
-        translation (numpy.ndarray): Translation vector for the model.
-
-    Returns:
-        sklearn.linear_model.LinearRegression: Linear regression model with the specified rotation
-        and translation.
-    """
-    m = LinearRegression()
-    m.coef_ = rotation  # Set the rotation matrix as the model's coefficients
-    m.intercept_ = translation  # Set the translation vector as the model's intercept
-    return m  # Return the linear regression model

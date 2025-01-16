@@ -13,27 +13,21 @@
 all:
   root_fp: analysis_root/
 merge_process:
-  det_range: !!python/tuple
+  det_range:
   - 0.06
   - 0.065
   initial_sites:
-  - !!python/tuple
-    - 5
+  - - 5
     - 0
-  - !!python/tuple
-    - 141
+  - - 141
     - 32
-  - !!python/tuple
-    - 370
+  - - 370
     - 86
-  - !!python/tuple
-    - 896
+  - - 896
     - 212
-  - !!python/tuple
-    - 1163
+  - - 1163
     - 270
-  - !!python/tuple
-    - 1599
+  - - 1599
     - 376
   sbs_metdata_cycle: 1
   score: 0.1

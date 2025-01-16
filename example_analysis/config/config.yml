@@ -12,6 +12,32 @@
 # Parameters:
 all:
   root_fp: analysis_root/
+merge_process:
+  det_range: !!python/tuple
+  - 0.06
+  - 0.065
+  initial_sites:
+  - !!python/tuple
+    - 5
+    - 0
+  - !!python/tuple
+    - 141
+    - 32
+  - !!python/tuple
+    - 370
+    - 86
+  - !!python/tuple
+    - 896
+    - 212
+  - !!python/tuple
+    - 1163
+    - 270
+  - !!python/tuple
+    - 1599
+    - 376
+  sbs_metdata_cycle: 1
+  score: 0.1
+  threshold: 2
 phenotype_process:
   cell_diameter: 54.126926685667364
   cellprob_threshold: 0

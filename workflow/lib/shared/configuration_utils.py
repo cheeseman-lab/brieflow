@@ -1,14 +1,24 @@
-"""Shared utilties for configuring Brieflow process parameters."""
+"""Shared utilties for configuring Brieflow process parameters.
+
+This includes:
+- Header string for Brieflow config file.
+- Function to create the Brieflow samples dataframe with file location and metadata.
+- Functions for displaying SBS/phenotype images and segmentations.
+- Functions for viewing steps of merge process such as determining tiles to merge and seeing an example merge.
+"""
 
 import re
 import math
-from pathlib import Path
 
 import pandas as pd
 from microfilm.microplot import Micropanel
 import numpy as np
 import matplotlib
+import matplotlib.pyplot as plt
 import skimage.morphology
+from scipy.spatial.distance import cdist
+
+from lib.merge.hash import build_linear_model
 
 CONFIG_FILE_HEADER = """
 # BrieFlow configuration file
@@ -203,3 +213,257 @@ def image_segmentation_annotations(data, nuclei, cells):
     annotated[channels] = mask
 
     return np.squeeze(annotated)
+
+
+def plot_combined_tile_grid(ph_test_metadata, sbs_test_metadata):
+    """Plots a combined grid of X-Y positions for PH and SBS datasets with annotations.
+
+    Note: Plot sizing is hard coded with arbitrary values that will not work for ND2 images with different sizes.
+
+    Args:
+        ph_test_metadata (pd.DataFrame): DataFrame containing PH metadata with columns:
+            'x_pos', 'y_pos', 'tile', and other relevant fields.
+        sbs_test_metadata (pd.DataFrame): DataFrame containing SBS metadata with columns:
+            'x_pos', 'y_pos', 'tile', and other relevant fields.
+
+    Returns:
+        matplotlib.figure.Figure: The figure object containing the plot.
+    """
+    # Create figure
+    fig = plt.figure(figsize=(30, 24))
+
+    # Scatter plot for PH data
+    plt.scatter(
+        ph_test_metadata["x_pos"],
+        ph_test_metadata["y_pos"],
+        s=450,
+        c="white",
+        marker="s",
+        edgecolors="black",
+        linewidths=1,
+        alpha=0.7,
+        label="PH",
+    )
+
+    # Label each PH point with the 'tile' variable
+    for i, txt in enumerate(ph_test_metadata["tile"]):
+        plt.annotate(
+            txt,
+            (ph_test_metadata["x_pos"].iloc[i], ph_test_metadata["y_pos"].iloc[i]),
+            textcoords="offset points",
+            xytext=(0, 3),
+            ha="center",
+            fontsize=12,
+            color="black",
+        )
+
+    # Scatter plot for SBS data
+    plt.scatter(
+        sbs_test_metadata["x_pos"],
+        sbs_test_metadata["y_pos"],
+        s=1800,
+        c="red",
+        marker="s",
+        edgecolors="black",
+        linewidths=1,
+        alpha=0.5,
+        label="SBS",
+    )
+
+    # Label each SBS point with the 'tile' variable
+    for i, txt in enumerate(sbs_test_metadata["tile"]):
+        plt.annotate(
+            txt,
+            (sbs_test_metadata["x_pos"].iloc[i], sbs_test_metadata["y_pos"].iloc[i]),
+            textcoords="offset points",
+            xytext=(0, -7),
+            ha="center",
+            fontsize=12,
+            color="red",
+        )
+
+    # Set labels and title
+    plt.xlabel("X Position", fontsize=30)
+    plt.ylabel("Y Position", fontsize=30)
+    plt.title(
+        "Combined Grid Plot of X-Y Positions with Field of View Labels, SBS & PH",
+        fontsize=30,
+    )
+
+    # Add legend
+    plt.legend(fontsize=30)
+
+    # Adjust layout
+    plt.tight_layout()
+
+    return fig
+
+
+def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
+    """Visualizes the merge process for a single tile-site pair.
+
+    Args:
+        df_ph (pandas.DataFrame): Phenotype data with 'i', 'j' columns.
+        df_sbs (pandas.DataFrame): SBS data with 'i', 'j' columns.
+        alignment_vec (dict): Contains 'rotation' and 'translation' for alignment.
+        threshold (float, optional): Distance threshold for matching points. Defaults to 2.
+    """
+    # Create figure with three subplots
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 10))
+
+    # Filter for specific tile and site
+    df_ph_filtered = df_ph[df_ph["tile"] == alignment_vec["tile"]]
+    df_sbs_filtered = df_sbs[df_sbs["tile"] == alignment_vec["site"]]
+
+    # Get coordinates
+    X = df_ph_filtered[["i", "j"]].values
+    Y = df_sbs_filtered[["i", "j"]].values
+
+    # Build model and predict
+    model = build_linear_model(alignment_vec["rotation"], alignment_vec["translation"])
+    Y_pred = model.predict(X)
+
+    # Calculate distances
+    distances = cdist(Y, Y_pred, metric="sqeuclidean")
+    ix = distances.argmin(axis=1)
+    filt = np.sqrt(distances.min(axis=1)) < threshold
+
+    # Filter out Y_pred based on filt
+    Y_pred = Y_pred[ix[filt]]
+
+    # Calculate statistics
+    n_ph = len(X)
+    n_sbs = len(Y)
+    n_matched = len(Y_pred)
+
+    # Plot 1: Original Scale
+    ax1.scatter(
+        X[:, 0], X[:, 1], c="blue", s=20, alpha=0.5, label=f"Phenotype ({n_ph} points)"
+    )
+    ax1.scatter(
+        Y_pred[:, 0],
+        Y_pred[:, 1],
+        c="red",
+        s=20,
+        alpha=0.5,
+        label=f"Aligned SBS ({n_matched}) points)",
+    )
+    ax1.scatter(
+        Y[:, 0],
+        Y[:, 1],
+        c="green",
+        s=20,
+        alpha=0.5,
+        label=f"Original SBS ({n_sbs} points)",
+    )
+
+    # Draw lines between matched points that pass threshold
+    for i in range(len(Y)):
+        if filt[i]:
+            ax1.plot([X[ix[i], 0], Y[i, 0]], [X[ix[i], 1], Y[i, 1]], "k-", alpha=0.1)
+
+    ax1.set_title(
+        f"Original Scale View\nPH:{alignment_vec['tile']}, SBS:{alignment_vec['site']}"
+    )
+    ax1.legend()
+
+    # Plot 2: Scale PH values to SBS axis
+    X_norm = (X - X.min(axis=0)) / (X.max(axis=0) - X.min(axis=0))
+
+    # Get the range and minimum of aligned SBS points (Y_pred)
+    Y_pred_range = Y_pred.max(axis=0) - Y_pred.min(axis=0)
+    Y_pred_min = Y_pred.min(axis=0)
+
+    # Scale and translate phenotype points to align with SBS field
+    X_scaled = (X_norm * Y_pred_range) + Y_pred_min
+
+    ax2.scatter(
+        Y[:, 0],
+        Y[:, 1],
+        c="lightgray",
+        s=20,
+        alpha=0.1,
+        label=f"SBS Field ({n_sbs} points)",
+    )
+    ax2.scatter(
+        Y_pred[:, 0],
+        Y_pred[:, 1],
+        c="red",
+        s=20,
+        alpha=0.25,
+        label=f"Aligned SBS ({n_matched} points)",
+    )
+    ax2.scatter(
+        X_scaled[:, 0],
+        X_scaled[:, 1],
+        c="blue",
+        s=20,
+        alpha=0.25,
+        label=f"Phenotype ({n_ph} points)",
+    )
+
+    ax2.set_title("Normalized Scale For PH Points Relative to SBS")
+    ax2.legend()
+
+    # Plot 3: Scale PH values to SBS axis
+    X_norm = (X - X.min(axis=0)) / (X.max(axis=0) - X.min(axis=0))
+    # Get the range and minimum of aligned SBS points (Y_pred)
+    Y_pred_range = Y_pred.max(axis=0) - Y_pred.min(axis=0)
+    Y_pred_min = Y_pred.min(axis=0)
+    # Scale and translate phenotype points to align with SBS field
+    X_scaled = (X_norm * Y_pred_range) + Y_pred_min
+    # Find unmatched phenotype points
+    matched_ph_ix = np.unique(ix[filt])
+    unmatched_ph_mask = ~np.isin(np.arange(len(X)), matched_ph_ix)
+    # Plot SBS field and aligned points
+    ax3.scatter(
+        Y[:, 0],
+        Y[:, 1],
+        c="lightgray",
+        s=20,
+        alpha=0.1,
+        label=f"SBS Field ({n_sbs} points)",
+    )
+    ax3.scatter(
+        Y_pred[:, 0],
+        Y_pred[:, 1],
+        c="red",
+        s=20,
+        alpha=0.25,
+        label=f"Aligned SBS ({n_matched} points)",
+    )
+    # Plot matched phenotype points in blue
+    ax3.scatter(
+        X_scaled[~unmatched_ph_mask][:, 0],
+        X_scaled[~unmatched_ph_mask][:, 1],
+        c="blue",
+        s=20,
+        alpha=0.25,
+        label=f"Matched Phenotype ({n_matched} points)",
+    )
+    # Plot unmatched phenotype points in yellow with star marker
+    ax3.scatter(
+        X_scaled[unmatched_ph_mask][:, 0],
+        X_scaled[unmatched_ph_mask][:, 1],
+        marker="*",
+        c="yellow",
+        s=100,
+        alpha=1,
+        label=f"Unmatched Phenotype ({sum(unmatched_ph_mask)} points)",
+    )
+    # Optionally add labels for unmatched points
+    for i in np.where(unmatched_ph_mask)[0]:
+        ax3.annotate(
+            f"Cell {i}",
+            (X_scaled[i, 0], X_scaled[i, 1]),
+            xytext=(10, 10),
+            textcoords="offset points",
+            bbox=dict(boxstyle="round", fc="white", alpha=0.7),
+        )
+    ax3.set_title(
+        "Normalized Scale For PH Points Relative to SBS (with unmatched points)"
+    )
+    ax3.legend()
+
+    plt.tight_layout()
+    plt.show()

@@ -9,61 +9,7 @@ import pandas as pd
 import numpy as np
 from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
-from sklearn.linear_model import RANSACRegressor
-
-
-def gb_apply_parallel(df, cols, func, n_jobs=None, backend="loky"):
-    """Apply a function to groups of a DataFrame in parallel.
-
-    Args:
-        df (pd.DataFrame): Input DataFrame.
-        cols (str or list): Column(s) to group by.
-        func (callable): Function to apply to each group.
-        n_jobs (int, optional): Number of parallel jobs. If None, uses (CPU count - 1). Defaults to None.
-        backend (str, optional): Joblib parallel backend. Defaults to 'loky'.
-
-    Returns:
-        pd.DataFrame or pd.Series: Results of applying func to each group, combined into a single DataFrame or Series.
-    """
-    # Ensure cols is a list
-    if isinstance(cols, str):
-        cols = [cols]
-
-    # Set number of jobs if not specified
-    if n_jobs is None:
-        n_jobs = multiprocessing.cpu_count() - 1
-
-    # Group the DataFrame
-    grouped = df.groupby(cols)
-    names, work = zip(*grouped)
-
-    # Apply function in parallel
-    results = Parallel(n_jobs=n_jobs, backend=backend)(delayed(func)(w) for w in work)
-
-    # Process results based on their type
-    if isinstance(results[0], pd.DataFrame):
-        # For DataFrame results
-        arr = []
-        for labels, df in zip(names, results):
-            if not isinstance(labels, Iterable):
-                labels = [labels]
-            if df is not None:
-                (df.assign(**{c: l for c, l in zip(cols, labels)}).pipe(arr.append))
-        results = pd.concat(arr)
-    elif isinstance(results[0], pd.Series):
-        # For Series results
-        if len(cols) == 1:
-            results = pd.concat(results, axis=1).T.assign(**{cols[0]: names})
-        else:
-            labels = zip(*names)
-            results = pd.concat(results, axis=1).T.assign(
-                **{c: l for c, l in zip(cols, labels)}
-            )
-    elif isinstance(results[0], dict):
-        # For dict results
-        results = pd.DataFrame(results, index=pd.Index(names, name=cols)).reset_index()
-
-    return results
+from sklearn.linear_model import RANSACRegressor, LinearRegression
 
 
 def find_triangles(df):
@@ -338,3 +284,20 @@ def nearest_neighbors(V_0, V_1):
     ix_0 = np.arange(V_0.shape[0])  # Indices of V_0
     ix_1 = Y.argmin(axis=1)  # Indices of nearest neighbors in V_1
     return ix_0, ix_1, distances  # Return indices and distances
+
+
+def build_linear_model(rotation, translation):
+    """Builds a linear regression model using the provided rotation matrix and translation vector.
+
+    Args:
+        rotation (numpy.ndarray): Rotation matrix for the model.
+        translation (numpy.ndarray): Translation vector for the model.
+
+    Returns:
+        sklearn.linear_model.LinearRegression: Linear regression model with the specified rotation
+        and translation.
+    """
+    m = LinearRegression()
+    m.coef_ = rotation  # Set the rotation matrix as the model's coefficients
+    m.intercept_ = translation  # Set the translation vector as the model's intercept
+    return m  # Return the linear regression model

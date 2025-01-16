@@ -4,4 +4,4 @@
 snakemake --use-conda --cores all \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
-    --allowed-rules fast_alignment
+    --force fast_alignment

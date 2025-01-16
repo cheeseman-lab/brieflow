@@ -1,4 +1,8 @@
-"""Helper functions for evaluating the alignment from the merge process steps."""
+"""Helper functions for evaluating the alignment from the merge process steps.
+
+This includes:
+- Plotting alignment quality from intial site alignment.
+"""
 
 import matplotlib.pyplot as plt
 
@@ -26,11 +30,6 @@ def plot_alignment_quality(
 
     # Construct filtering condition
     gate = "{0} <= determinant <= {1} & score > {2}".format(*det_range, score)
-
-    # Plot scatter points
-    scatter = ax.scatter(
-        df_align["determinant"], df_align["score"], c="blue", alpha=0.6
-    )
 
     # Add labels for each point
     for idx, row in df_align.iterrows():
@@ -79,7 +78,7 @@ def plot_alignment_quality(
     passing = df_align.query(gate).shape[0]
     total = df_align.shape[0]
     stats_text = (
-        f"Passing alignments: {passing}/{total}\n" f"({passing/total*100:.1f}%)"
+        f"Passing alignments: {passing}/{total}\n({passing / total * 100:.1f}%)"
     )
     ax.text(
         0.95,

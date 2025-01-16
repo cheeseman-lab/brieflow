@@ -12,6 +12,40 @@ from scipy.spatial.distance import cdist
 from sklearn.linear_model import RANSACRegressor, LinearRegression
 
 
+def hash_process_info(process_info_df):
+    """Generate hashed Delaunay triangulation for process info at screen level.
+
+    1) Preprocess table of `i, j` coordinates (typically nuclear centroids) to ensure at least 4 valid cells per tile.
+    2) Computes a Delaunay triangulation of the input points.
+
+    Args:
+        process_info_df (pandas.DataFrame): Table of points with columns `i`, `j`, and tile of cell.
+
+    Returns:
+        pandas.DataFrame: Table containing a hashed Delaunay triangulation, with one row per simplex (triangle).
+    """
+    # Ensure that i and j are not null, at least 4 cells per tile
+    process_info_df = process_info_df[
+        process_info_df["i"].notnull() & process_info_df["j"].notnull()
+    ]
+    process_info_df = process_info_df.groupby(["well", "tile"]).filter(
+        lambda x: len(x) > 3
+    )
+
+    # Group the DataFrame by "tile" and apply find_triangles sequentially
+    process_info_hash = []
+
+    for tile, group in process_info_df.groupby("tile"):
+        result = find_triangles(group)
+        result = result.assign(tile=tile)  # Add the tile column back to the result
+        process_info_hash.append(result)
+
+    # Concatenate all the results into a single DataFrame
+    process_info_hash = pd.concat(process_info_hash, ignore_index=True)
+
+    return process_info_hash
+
+
 def find_triangles(df):
     """Generates a hashed Delaunay triangulation for input points.
 

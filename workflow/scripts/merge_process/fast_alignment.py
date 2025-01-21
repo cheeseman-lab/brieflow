@@ -2,9 +2,6 @@ import pandas as pd
 
 from lib.merge.hash import hash_process_info, multistep_alignment
 
-print(snakemake.input)
-print("Done!")
-
 
 # Load dfs with metadata on well level
 phenotype_metadata = pd.read_hdf(snakemake.input[0])
@@ -17,11 +14,8 @@ print(phenotype_metadata, sbs_metadata, phenotype_info, sbs_info)
 
 # Derive fast alignment per well
 well_alignments = []
-
 wells = phenotype_metadata["well"].unique().tolist()
-print(wells)
 for well in wells:
-    print(f"Processing well {well}...")
     # Load well subsets of data
     well_phenotype_metadata = phenotype_metadata[phenotype_metadata["well"] == well]
     well_sbs_metadata = sbs_metadata[sbs_metadata["well"] == well]
@@ -38,10 +32,9 @@ for well in wells:
 
     # Hash phenotype and sbs info
     phenotype_info_hash = hash_process_info(well_phenotype_info)
-    print("Hashed phenotype info!")
-    sbs_info_hash = hash_process_info(well_sbs_info)
-    print("Hashed SBS info!")
+    sbs_info_hash = hash_process_info(well_sbs_info).rename(columns={"tile": "site"})
 
+    # Perform multistep alignment for well
     well_alignment = multistep_alignment(
         phenotype_info_hash,
         sbs_info_hash,
@@ -52,7 +45,13 @@ for well in wells:
         initial_sites=snakemake.params.initial_sites,
         n_jobs=snakemake.threads,
     )
-    well_alignments.append(well_alignment)
-    print("Well alignment completed!")
 
-well_alignments.to_hdf(snakemake.output[0], "x", mode="w")
+    # Add well to alignment data
+    well_alignment["well"] = well
+
+    # Add well alignment data to compiled data
+    well_alignments.append(well_alignment)
+
+# Compile and save well alignments
+fast_alignment = pd.concat(well_alignments, ignore_index=True)
+fast_alignment.to_hdf(snakemake.output[0], "x", mode="w")

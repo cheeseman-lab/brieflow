@@ -7,6 +7,7 @@ These include:
 """
 
 import warnings
+import multiprocessing
 from collections.abc import Iterable
 
 import pandas as pd
@@ -37,16 +38,10 @@ def hash_process_info(process_info_df):
         lambda x: len(x) > 3
     )
 
-    # Group the DataFrame by "tile" and apply find_triangles sequentially
-    process_info_hash = []
-
-    for tile, group in process_info_df.groupby("tile"):
-        result = find_triangles(group)
-        result = result.assign(tile=tile)  # Add the tile column back to the result
-        process_info_hash.append(result)
-
-    # Concatenate all the results into a single DataFrame
-    process_info_hash = pd.concat(process_info_hash, ignore_index=True)
+    # Find triangles across well with parallel processing
+    process_info_hash = process_info_df.pipe(
+        gb_apply_parallel, ["tile"], find_triangles
+    )
 
     return process_info_hash
 
@@ -384,8 +379,6 @@ def multistep_alignment(
     """
     # If n_jobs is not provided, set it to one less than the number of CPU cores
     if n_jobs is None:
-        import multiprocessing
-
         n_jobs = multiprocessing.cpu_count() - 1
 
     # Define a function to work on individual (tile,site) pairs
@@ -546,8 +539,6 @@ def gb_apply_parallel(df, cols, func, n_jobs=None, backend="loky"):
 
     # Set number of jobs if not specified
     if n_jobs is None:
-        import multiprocessing
-
         n_jobs = multiprocessing.cpu_count() - 1
 
     # Group the DataFrame

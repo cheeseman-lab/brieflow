@@ -51,6 +51,7 @@ phenotype_process:
 preprocess:
   phenotype_channel_order: null
   phenotype_channel_order_flip: true
+  phenotype_round_order: null
   phenotype_samples_fp: config/phenotype_samples.tsv
   sbs_channel_order: null
   sbs_channel_order_flip: true

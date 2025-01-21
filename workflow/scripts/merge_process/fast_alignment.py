@@ -1,37 +1,58 @@
 import pandas as pd
 
-from lib.shared.file_utils import parse_filename
-from lib.merge.hash import hash_process_info
+from lib.merge.hash import hash_process_info, multistep_alignment
 
 print(snakemake.input)
-print(snakemake.input.phenotype_metadata)
-print(snakemake.input.sbs_metadata)
 print("Done!")
 
 
 # Load dfs with metadata on well level
-phenotype_metadata = pd.read_csv(snakemake.input.phenotype_metadata, sep="\t")
-sbs_metadata = pd.read_csv(snakemake.input.sbs_metadata, sep="\t")
+phenotype_metadata = pd.read_hdf(snakemake.input[0])
+sbs_metadata = pd.read_hdf(snakemake.input[1])
 # Load phentoype/sbs info on plate level
-phenotype_info = pd.read_hdf(snakemake.input.phenotype_info, sep="\t")
-sbs_info = pd.read_hdf(snakemake.input.sbs_info, sep="\t")
+phenotype_info = pd.read_hdf(snakemake.input[2])
+sbs_info = pd.read_hdf(snakemake.input[3])
 
-# Derive alignment hashes
-phenotype_info_hash = hash_process_info(phenotype_info)
-sbs_info_hash = hash_process_info(sbs_info)
-
-# Read XY coordinates for phenotype and SBS
-phenotype_xy = phenotype_metadata.rename(
-    columns={"field_of_view": "tile", "x_data": "x", "y_data": "y"}
-).set_index("tile")[["x", "y"]]
-
-sbs_xy = sbs_metadata.rename(
-    columns={"field_of_view": "tile", "x_data": "x", "y_data": "y"}
-).set_index("tile")[["x", "y"]]
+print(phenotype_metadata, sbs_metadata, phenotype_info, sbs_info)
 
 # Derive fast alignment per well
-well_fast_alignments = []
+well_alignments = []
 
-for index, phenotype_metadata_fp in enumerate(snakemake.input.phenotype_metadata):
-    # get well of metadata file
-    well = parse_filename(phenotype_metadata_fp)[0]
+wells = phenotype_metadata["well"].unique().tolist()
+print(wells)
+for well in wells:
+    print(f"Processing well {well}...")
+    # Load well subsets of data
+    well_phenotype_metadata = phenotype_metadata[phenotype_metadata["well"] == well]
+    well_sbs_metadata = sbs_metadata[sbs_metadata["well"] == well]
+    well_phenotype_info = phenotype_info[phenotype_info["well"] == well]
+    well_sbs_info = sbs_info[sbs_info["well"] == well]
+
+    # Format XY coordinates for phenotype and SBS
+    phenotype_xy = well_phenotype_metadata.rename(
+        columns={"x_pos": "x", "y_pos": "y"}
+    ).set_index("tile")[["x", "y"]]
+    sbs_xy = well_sbs_metadata.rename(columns={"x_pos": "x", "y_pos": "y"}).set_index(
+        "tile"
+    )[["x", "y"]]
+
+    # Hash phenotype and sbs info
+    phenotype_info_hash = hash_process_info(well_phenotype_info)
+    print("Hashed phenotype info!")
+    sbs_info_hash = hash_process_info(well_sbs_info)
+    print("Hashed SBS info!")
+
+    well_alignment = multistep_alignment(
+        phenotype_info_hash,
+        sbs_info_hash,
+        phenotype_xy,
+        sbs_xy,
+        det_range=snakemake.params.det_range,
+        score=snakemake.params.score,
+        initial_sites=snakemake.params.initial_sites,
+        n_jobs=snakemake.threads,
+    )
+    well_alignments.append(well_alignment)
+    print("Well alignment completed!")
+
+well_alignments.to_hdf(snakemake.output[0], "x", mode="w")

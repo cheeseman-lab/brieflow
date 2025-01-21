@@ -4,4 +4,6 @@ channels:
 dependencies:
   - scipy
   - scikit-learn
+  - joblib
+  - pytables # need pytables defined in module env
   - pandas

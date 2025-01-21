@@ -6,20 +6,24 @@ rule fast_alignment:
         "../envs/merge_process.yml"
     input:
         # metadata file with image locations
-        phenotype_metadata = lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
-            {"well": PHENOTYPE_WELLS},
-            wildcards,
-        ),
-        sbs_metadata = lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["combine_metadata_sbs"],
-            {"well": SBS_WELLS, "cycle": config["merge_process"]["sbs_metdata_cycle"]},
-            wildcards,
-        ),
-        # phenotype and info files with cell locations
-        phenotype_info = PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"],
-        sbs_info = SBS_PROCESS_OUTPUTS["combine_sbs_info"],
+        #PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/combined_metadata__phenotype.hdf",
+        # lambda wildcards: output_to_input(
+        #     PREPROCESS_OUTPUTS["combine_metadata_sbs"],
+        #     {"cycle": config["merge_process"]["sbs_metdata_cycle"]},
+        #     wildcards,
+        # ),
+        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/combined_metadata__sbs.hdf",
+        # phenotype and sbs info files with cell locations
+        #PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/phenotype_info.hdf5",
+        #SBS_PROCESS_OUTPUTS["combine_sbs_info"],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/sbs_info.hdf5"
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["fast_alignment"],
+    params:
+        det_range=config["merge_process"]["det_range"],
+        score=config["merge_process"]["score"],
+        initial_sites=config["merge_process"]["initial_sites"]
     script:
         "../scripts/merge_process/fast_alignment.py"

@@ -1,12 +1,20 @@
-"""Utility functions for hashing cells in merge module."""
+"""Utility functions for hashing cells in merge module.
+
+These include:
+- Preprocessing cell location dataframes for hashing.
+- Generating hashed Delaunay triangulation for cells.
+- Performing initial and multistep alignment.
+"""
 
 import warnings
+from collections.abc import Iterable
 
 import pandas as pd
 import numpy as np
 from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
 from sklearn.linear_model import RANSACRegressor, LinearRegression
+from joblib import Parallel, delayed
 
 
 def hash_process_info(process_info_df):
@@ -332,3 +340,384 @@ def build_linear_model(rotation, translation):
     m.coef_ = rotation  # Set the rotation matrix as the model's coefficients
     m.intercept_ = translation  # Set the translation vector as the model's intercept
     return m  # Return the linear regression model
+
+
+def multistep_alignment(
+    df_0,
+    df_1,
+    df_info_0,
+    df_info_1,
+    det_range=(1.125, 1.186),
+    score=0.1,
+    initial_sites=8,
+    batch_size=180,
+    n_jobs=None,
+):
+    """Find tiles of two different acquisitions with matching Delaunay triangulations within the same well.
+
+    Cells must not have moved significantly between acquisitions, and segmentations should be approximately equivalent.
+
+    Args:
+        df_0 (pandas.DataFrame): Hashed Delaunay triangulation for all tiles of dataset 0. Produced by
+            concatenating outputs of `find_triangles` from individual tiles of a single well. Expects a `tile` column.
+        df_1 (pandas.DataFrame): Hashed Delaunay triangulation for all sites of dataset 1. Produced by
+            concatenating outputs of `find_triangles` from individual sites of a single well. Expects a `site` column.
+        df_info_0 (pandas.DataFrame): Table of global coordinates for each tile acquisition to match tiles
+            of `df_0`. Expects `tile` as index and two columns of coordinates.
+        df_info_1 (pandas.DataFrame): Table of global coordinates for each site acquisition to match sites
+            of `df_1`. Expects `site` as index and two columns of coordinates.
+        det_range (tuple, optional): Range of acceptable values for the determinant of the rotation matrix
+            when evaluating an alignment of a tile-site pair. The determinant measures scaling consistency
+            within microscope acquisition settings. Defaults to (1.125, 1.186).
+        score (float, optional): Threshold score value for filtering valid matches from spurious ones.
+            Used for initial alignment. Defaults to 0.1.
+        initial_sites (int | list[tuple], optional): If int, the number of sites to sample from `df_1` for initial
+            brute force matching to build a global alignment model. If a list of 2-tuples, represents known
+            (tile, site) matches to start building the model. Defaults to 8.
+        batch_size (int, optional): Number of (tile, site) matches to evaluate per batch during global
+            alignment model updates. Defaults to 180.
+        n_jobs (int, optional): Number of parallel jobs to deploy using joblib. Defaults to None.
+
+    Returns:
+        pandas.DataFrame: Table of possible (tile, site) matches with corresponding rotation and translation
+        transformations. All tested matches are included; query based on `score` and `determinant` to filter valid matches.
+    """
+    # If n_jobs is not provided, set it to one less than the number of CPU cores
+    if n_jobs is None:
+        import multiprocessing
+
+        n_jobs = multiprocessing.cpu_count() - 1
+
+    # Define a function to work on individual (tile,site) pairs
+    def work_on(df_t, df_s):
+        rotation, translation, score = evaluate_match(df_t, df_s)
+        determinant = None if rotation is None else np.linalg.det(rotation)
+        result = pd.Series(
+            {
+                "rotation": rotation,
+                "translation": translation,
+                "score": score,
+                "determinant": determinant,
+            }
+        )
+        return result
+
+    # If initial_sites is provided as a list of known matches, use it directly
+    if isinstance(initial_sites, list):
+        arr = []
+        for tile, site in initial_sites:
+            result = work_on(df_0.query("tile==@tile"), df_1.query("site==@site"))
+            result.at["site"] = site
+            result.at["tile"] = tile
+            arr.append(result)
+        df_initial = pd.DataFrame(arr)
+    else:
+        # Otherwise, sample initial_sites number of sites randomly from df_1
+        sites = (
+            pd.Series(df_info_1.index)
+            .sample(initial_sites, replace=False, random_state=0)
+            .pipe(list)
+        )
+        # Use brute force to find initial pairs of matches between tiles and sites
+        df_initial = brute_force_pairs(
+            df_0, df_1.query("site == @sites"), n_jobs=n_jobs
+        )
+
+    # Unpack det_range tuple into d0 and d1
+    d0, d1 = det_range
+
+    # Define the gate condition for filtering matches based on determinant and score
+    gate = "@d0 <= determinant <= @d1 & score > @score"
+
+    # Initialize alignments list with the initial matches
+    alignments = [df_initial.query(gate)]
+
+    # Main loop for iterating until convergence
+    while True:
+        # Concatenate alignments and remove duplicates
+        df_align = pd.concat(alignments, sort=True).drop_duplicates(["tile", "site"])
+
+        # Extract tested and matched pairs
+        tested = df_align.reset_index()[["tile", "site"]].values
+        matches = df_align.query(gate).reset_index()[["tile", "site"]].values
+
+        # Prioritize candidate pairs based on certain criteria
+        candidates = prioritize(df_info_0, df_info_1, matches)
+        candidates = remove_overlap(candidates, tested)
+
+        print("matches so far: {0} / {1}".format(len(matches), df_align.shape[0]))
+
+        # Prepare data for parallel processing
+        work = []
+        d_0 = dict(list(df_0.groupby("tile")))
+        d_1 = dict(list(df_1.groupby("site")))
+        for ix_0, ix_1 in candidates[:batch_size]:
+            if ix_0 in d_0 and ix_1 in d_1:  # Only process if both keys exist
+                work.append([d_0[ix_0], d_1[ix_1]])
+            else:
+                print(f"Skipping tile {ix_0}, site {ix_1} - not found in data")
+
+        if not work:  # If no valid pairs found, end alignment
+            print("No valid pairs to process")
+            break
+
+        # Perform parallel processing of work
+        df_align_new = pd.concat(
+            Parallel(n_jobs=n_jobs)(delayed(work_on)(*w) for w in work), axis=1
+        ).T.assign(
+            tile=[t for t, _ in candidates[: len(work)]],
+            site=[s for _, s in candidates[: len(work)]],
+        )
+
+        # Append new alignments to the list
+        alignments += [df_align_new]
+
+        if len(df_align_new.query(gate)) == 0:
+            break
+
+    return df_align
+
+
+def brute_force_pairs(df_0, df_1, n_jobs=-2):
+    """Evaluate all pairs of tiles (sites) between two DataFrames to find the best matches.
+
+    Args:
+        df_0 (pandas.DataFrame): DataFrame containing the first set of tiles (sites).
+        df_1 (pandas.DataFrame): DataFrame containing the second set of tiles (sites).
+        n_jobs (int, optional): Number of jobs to run in parallel. Defaults to -2, which
+            uses all but one core.
+
+    Returns:
+        pandas.DataFrame: DataFrame containing the results of the matching process, sorted by score.
+    """
+    work = df_1.groupby("site")
+
+    arr = []
+    for site, df_s in work:
+
+        def work_on(df_t):
+            rotation, translation, score = evaluate_match(
+                df_t, df_s
+            )  # Evaluate match for each tile pair
+            determinant = (
+                None if rotation is None else np.linalg.det(rotation)
+            )  # Calculate determinant if rotation is not None
+            result = pd.Series(
+                {
+                    "rotation": rotation,
+                    "translation": translation,
+                    "score": score,
+                    "determinant": determinant,
+                }
+            )  # Create a result series
+            return result
+
+        (
+            df_0.pipe(
+                gb_apply_parallel, "tile", work_on, n_jobs=n_jobs
+            )  # Apply work_on function in parallel
+            .assign(site=site)  # Assign site to the results
+            .pipe(arr.append)  # Append results to the list
+        )
+
+    return (
+        pd.concat(arr)
+        .reset_index()  # Concatenate all results and reset index
+        .sort_values("score", ascending=False)
+    )  # Sort results by score in descending order
+
+
+def gb_apply_parallel(df, cols, func, n_jobs=None, backend="loky"):
+    """Apply a function to groups of a DataFrame in parallel.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame.
+        cols (str or list): Column(s) to group by.
+        func (callable): Function to apply to each group.
+        n_jobs (int, optional): Number of parallel jobs. If None, uses (CPU count - 1). Defaults to None.
+        backend (str, optional): Joblib parallel backend. Defaults to 'loky'.
+
+    Returns:
+        pd.DataFrame or pd.Series: Results of applying func to each group, combined into a single DataFrame or Series.
+    """
+    # Ensure cols is a list
+    if isinstance(cols, str):
+        cols = [cols]
+
+    # Set number of jobs if not specified
+    if n_jobs is None:
+        import multiprocessing
+
+        n_jobs = multiprocessing.cpu_count() - 1
+
+    # Group the DataFrame
+    grouped = df.groupby(cols)
+    names, work = zip(*grouped)
+
+    # Apply function in parallel
+    results = Parallel(n_jobs=n_jobs, backend=backend)(delayed(func)(w) for w in work)
+
+    # Process results based on their type
+    if isinstance(results[0], pd.DataFrame):
+        # For DataFrame results
+        arr = []
+        for labels, df in zip(names, results):
+            if not isinstance(labels, Iterable):
+                labels = [labels]
+            if df is not None:
+                (df.assign(**{c: l for c, l in zip(cols, labels)}).pipe(arr.append))
+        results = pd.concat(arr)
+    elif isinstance(results[0], pd.Series):
+        # For Series results
+        if len(cols) == 1:
+            results = pd.concat(results, axis=1).T.assign(**{cols[0]: names})
+        else:
+            labels = zip(*names)
+            results = pd.concat(results, axis=1).T.assign(
+                **{c: l for c, l in zip(cols, labels)}
+            )
+    elif isinstance(results[0], dict):
+        # For dict results
+        results = pd.DataFrame(results, index=pd.Index(names, name=cols)).reset_index()
+
+    return results
+
+
+def merge_sbs_phenotype(df_0_, df_1_, model, threshold=2):
+    """Perform fine alignment of one (tile, site) match found using `multistep_alignment`.
+
+    Args:
+        df_0_ (pandas.DataFrame): Table of coordinates to align (e.g., nuclei centroids)
+            for one tile of dataset 0. Expects `i` and `j` columns.
+        df_1_ (pandas.DataFrame): Table of coordinates to align (e.g., nuclei centroids)
+            for one site of dataset 1 that was identified as a match
+            to the tile in df_0_ using `multistep_alignment`. Expects
+            `i` and `j` columns.
+        model (sklearn.linear_model.LinearRegression): Linear alignment model suggested
+            to be passed in, functioning between tile of df_0_ and site of df_1_.
+            Produced using `build_linear_model` with the rotation and translation
+            matrix determined in `multistep_alignment`.
+        threshold (float, optional): Maximum Euclidean distance allowed between matching
+            points. Defaults to 2.
+
+    Returns:
+        pandas.DataFrame: Table of merged identities of cell labels from df_0_ and df_1_.
+        Returns empty DataFrame with correct columns if input is empty.
+    """
+    # Final columns for the merged DataFrame
+    cols_final = [
+        "well",
+        "tile",
+        "cell_0",
+        "i_0",
+        "j_0",
+        "site",
+        "cell_1",
+        "i_1",
+        "j_1",
+        "distance",
+    ]
+
+    # Check if either dataframe is None or empty
+    if (
+        df_0_ is None
+        or df_1_ is None
+        or (hasattr(df_0_, "empty") and df_0_.empty)
+        or (hasattr(df_1_, "empty") and df_1_.empty)
+    ):
+        # Return empty DataFrame with correct columns
+        return pd.DataFrame(columns=cols_final)
+
+    # Extract coordinates from the DataFrames
+    X = df_0_[["i", "j"]].values  # Coordinates from dataset 0
+    Y = df_1_[["i", "j"]].values  # Coordinates from dataset 1
+
+    # Predict coordinates for dataset 0 using the alignment model
+    Y_pred = model.predict(X)
+
+    # Calculate squared Euclidean distances between predicted coordinates and dataset 1 coordinates
+    distances = cdist(Y, Y_pred, metric="sqeuclidean")
+
+    # Find the index of the nearest neighbor in Y_pred for each point in Y
+    ix = distances.argmin(axis=1)
+
+    # Filter matches based on the threshold distance
+    filt = np.sqrt(distances.min(axis=1)) < threshold
+
+    # Define new column names for merging
+    columns_0 = {"tile": "tile", "cell": "cell_0", "i": "i_0", "j": "j_0"}
+    columns_1 = {"site": "site", "cell": "cell_1", "i": "i_1", "j": "j_1"}
+
+    # Prepare the target DataFrame with matched coordinates from dataset 0
+    target = df_0_.iloc[ix[filt]].reset_index(drop=True).rename(columns=columns_0)
+
+    # Merge DataFrames and calculate distances
+    return (
+        df_1_[filt]
+        .reset_index(drop=True)[  # Filtered rows from dataset 1
+            list(columns_1.keys())
+        ]  # Select columns for dataset 1
+        .rename(columns=columns_1)  # Rename columns for dataset 1
+        .pipe(
+            lambda x: pd.concat([target, x], axis=1)
+        )  # Concatenate with target DataFrame
+        .assign(distance=np.sqrt(distances.min(axis=1))[filt])[
+            cols_final
+        ]  # Assign distance column  # Select final columns
+    )
+
+
+def prioritize(df_info_0, df_info_1, matches):
+    """Produce an Nx2 array of tile (site) identifiers predicted to match within a search radius based on existing matches.
+
+    Args:
+        df_info_0 (pandas.DataFrame): DataFrame containing tile (site) information for the first set.
+        df_info_1 (pandas.DataFrame): DataFrame containing tile (site) information for the second set.
+        matches (numpy.ndarray): Nx2 array of tile (site) identifiers representing existing matches.
+
+    Returns:
+        list of tuple: List of predicted matching tile (site) identifiers.
+    """
+    a = df_info_0.loc[
+        matches[:, 0]
+    ].values  # Get coordinates of matching tiles from the first set
+    b = df_info_1.loc[
+        matches[:, 1]
+    ].values  # Get coordinates of matching tiles from the second set
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        model = RANSACRegressor()
+        model.fit(a, b)  # Fit the RANSAC model to the matching coordinates
+
+    # Predict coordinates for the first set and calculate distances to the second set
+    predicted = model.predict(df_info_0.values)
+    distances = cdist(predicted, df_info_1.values, metric="sqeuclidean")
+    ix = np.argsort(distances.flatten())  # Sort distances to find the closest matches
+    ix_0, ix_1 = np.unravel_index(
+        ix, distances.shape
+    )  # Get indices of the closest matches
+
+    candidates = list(
+        zip(df_info_0.index[ix_0], df_info_1.index[ix_1])
+    )  # Create list of candidate matches
+
+    return remove_overlap(candidates, matches)  # Remove overlapping matches
+
+
+def remove_overlap(xs, ys):
+    """Remove overlapping pairs from a list of candidates based on an existing set of matches.
+
+    Args:
+        xs (list of tuple): List of candidate pairs.
+        ys (list of tuple): List of existing matches.
+
+    Returns:
+        list of tuple: List of candidate pairs with overlaps removed.
+    """
+    ys = set(
+        map(tuple, ys)
+    )  # Convert existing matches to a set of tuples for fast lookup
+    return [
+        tuple(x) for x in xs if tuple(x) not in ys
+    ]  # Return candidates that are not in existing matches

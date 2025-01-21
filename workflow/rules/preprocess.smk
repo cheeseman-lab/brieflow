@@ -17,25 +17,24 @@ rule extract_metadata_sbs:
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
+        well=lambda wildcards: wildcards.well,
         tile=lambda wildcards: wildcards.tile,
     script:
         "../scripts/preprocess/extract_tile_metadata.py"
 
 
-# Extract metadata for SBS images
+# Combine metadata for SBS images on well level
 rule combine_metadata_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-            {"tile": SBS_TILES},
+            {"well": SBS_WELLS, "tile": SBS_TILES},
             wildcards,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
-    params:
-        output_type="tsv",
     script:
         "../scripts/shared/combine_dfs.py"
 
@@ -54,25 +53,24 @@ rule extract_metadata_phenotype:
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:
+        well=lambda wildcards: wildcards.well,
         tile=lambda wildcards: wildcards.tile,
     script:
         "../scripts/preprocess/extract_tile_metadata.py"
 
 
-# Extract metadata for SBS images
+# Comine metadata for phenotype images on well level
 rule combine_metadata_phenotype:
     conda:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-            {"tile": PHENOTYPE_TILES},
+            {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES},
             wildcards,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
-    params:
-        output_type="tsv",
     script:
         "../scripts/shared/combine_dfs.py"
 

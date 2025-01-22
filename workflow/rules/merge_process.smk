@@ -5,7 +5,9 @@ from lib.shared.target_utils import output_to_input
 rule fast_alignment:
     conda:
         "../envs/merge_process.yml"
+    # TODO: remove threads after testing
     threads: 32
+    # TODO: use target inputs/outputs
     input:
         # metadata file with image locations
         #PREPROCESS_OUTPUTS["combine_metadata_phenotype"],

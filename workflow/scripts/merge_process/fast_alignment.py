@@ -1,6 +1,6 @@
 import pandas as pd
 
-from lib.merge.hash import hash_process_info, multistep_alignment
+from lib.merge.hash import hash_cell_locations, multistep_alignment
 
 
 # Load dfs with metadata on well level
@@ -31,8 +31,8 @@ for well in wells:
     )[["x", "y"]]
 
     # Hash phenotype and sbs info
-    phenotype_info_hash = hash_process_info(well_phenotype_info)
-    sbs_info_hash = hash_process_info(well_sbs_info).rename(columns={"tile": "site"})
+    phenotype_info_hash = hash_cell_locations(well_phenotype_info)
+    sbs_info_hash = hash_cell_locations(well_sbs_info).rename(columns={"tile": "site"})
 
     # Perform multistep alignment for well
     well_alignment = multistep_alignment(

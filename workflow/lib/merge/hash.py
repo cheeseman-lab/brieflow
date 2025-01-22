@@ -18,32 +18,32 @@ from sklearn.linear_model import RANSACRegressor, LinearRegression
 from joblib import Parallel, delayed
 
 
-def hash_process_info(process_info_df):
+def hash_cell_locations(cell_locations_df):
     """Generate hashed Delaunay triangulation for process info at screen level.
 
     1) Preprocess table of `i, j` coordinates (typically nuclear centroids) to ensure at least 4 valid cells per tile.
     2) Computes a Delaunay triangulation of the input points.
 
     Args:
-        process_info_df (pandas.DataFrame): Table of points with columns `i`, `j`, and tile of cell.
+        cell_locations_df (pandas.DataFrame): Table of points with columns `i`, `j`, and tile of cell.
 
     Returns:
         pandas.DataFrame: Table containing a hashed Delaunay triangulation, with one row per simplex (triangle).
     """
     # Ensure that i and j are not null, at least 4 cells per tile
-    process_info_df = process_info_df[
-        process_info_df["i"].notnull() & process_info_df["j"].notnull()
+    cell_locations_df = cell_locations_df[
+        cell_locations_df["i"].notnull() & cell_locations_df["j"].notnull()
     ]
-    process_info_df = process_info_df.groupby(["well", "tile"]).filter(
+    cell_locations_df = cell_locations_df.groupby(["well", "tile"]).filter(
         lambda x: len(x) > 3
     )
 
     # Find triangles across well with parallel processing
-    process_info_hash = process_info_df.pipe(
+    cell_locations_hash = cell_locations_df.pipe(
         gb_apply_parallel, ["tile"], find_triangles
     )
 
-    return process_info_hash
+    return cell_locations_hash
 
 
 def find_triangles(df):

@@ -46,19 +46,19 @@ def hash_cell_locations(cell_locations_df):
     return cell_locations_hash
 
 
-def find_triangles(df):
+def find_triangles(cell_locations_df):
     """Generates a hashed Delaunay triangulation for input points.
 
     Processes a table of `i, j` coordinates (typically nuclear centroids) and computes a Delaunay triangulation of the input points. Each tile/site is processed independently. The triangulations for all tiles/sites within a single well are concatenated and used as input to `multistep_alignment`.
 
     Args:
-        df (pandas.DataFrame): Table of points with columns `i` and `j`.
+        cell_locations_df (pandas.DataFrame): Table of points with columns `i` and `j`.
 
     Returns:
         pandas.DataFrame: Table containing a hashed Delaunay triangulation, with one row per simplex (triangle).
     """
     # Extract the coordinates from the dataframe and compute the Delaunay triangulation
-    v, c = get_vectors(df[["i", "j"]].values)
+    v, c = get_vectors(cell_locations_df[["i", "j"]].values)
 
     # Create a dataframe from the vectors and rename the columns with a prefix 'V_'
     df_vectors = pd.DataFrame(v).rename(columns="V_{0}".format)
@@ -184,14 +184,14 @@ def nine_edge_hash(dt, i):
     return segments, vector
 
 
-def initial_alignment(df_0, df_1, initial_sites=8):
+def initial_alignment(well_triangles_0, well_triangles_1, initial_sites=8):
     """Identifies matching tiles from two acquisitions with similar Delaunay triangulations within the same well.
 
     Matches tiles from two datasets based on Delaunay triangulations, assuming minimal cell movement between acquisitions and equivalent segmentations.
 
     Args:
-        df_0 (pandas.DataFrame): Hashed Delaunay triangulation for all tiles in dataset 0. Produced by concatenating outputs of `find_triangles` for individual tiles of a single well. Must include a `tile` column.
-        df_1 (pandas.DataFrame): Hashed Delaunay triangulation for all sites in dataset 1. Produced by concatenating outputs of `find_triangles` for individual sites of a single well. Must include a `site` column.
+        well_triangles_0 (pandas.DataFrame): Hashed Delaunay triangulation for all tiles in dataset 0. Produced by concatenating outputs of `find_triangles` for individual tiles of a single well. Must include a `tile` column.
+        well_triangles_1 (pandas.DataFrame): Hashed Delaunay triangulation for all sites in dataset 1. Produced by concatenating outputs of `find_triangles` for individual sites of a single well. Must include a `site` column.
         initial_sites (int | list[tuple[int, int]], optional): If an integer, specifies the number of sites sampled from `df_1` for initial brute-force matching of tiles to build the alignment model. If a list of 2-tuples, represents known (tile, site) matches to initialize the alignment model. At least 5 pairs are recommended.
 
     Returns:
@@ -214,7 +214,9 @@ def initial_alignment(df_0, df_1, initial_sites=8):
 
     arr = []
     for tile, site in initial_sites:
-        result = work_on(df_0.query("tile==@tile"), df_1.query("site==@site"))
+        result = work_on(
+            well_triangles_0.query("tile==@tile"), well_triangles_1.query("site==@site")
+        )
         result.at["site"] = site
         result.at["tile"] = tile
         arr.append(result)
@@ -223,14 +225,16 @@ def initial_alignment(df_0, df_1, initial_sites=8):
     return df_initial
 
 
-def evaluate_match(df_0, df_1, threshold_triangle=0.3, threshold_point=2):
+def evaluate_match(
+    vec_centers_0, vec_centers_1, threshold_triangle=0.3, threshold_point=2
+):
     """Evaluates the match between two sets of vectors and centers.
 
     Computes the transformation parameters (rotation and translation) and evaluates the quality of the match between two datasets based on their vectors and centers.
 
     Args:
-        df_0 (pandas.DataFrame): DataFrame containing the first set of vectors and centers.
-        df_1 (pandas.DataFrame): DataFrame containing the second set of vectors and centers.
+        vec_centers_0 (pandas.DataFrame): DataFrame containing the first set of vectors and centers.
+        vec_centers_1 (pandas.DataFrame): DataFrame containing the second set of vectors and centers.
         threshold_triangle (float, optional): Threshold for matching triangles. Defaults to 0.3.
         threshold_point (float, optional): Threshold for matching points. Defaults to 2.
 
@@ -240,8 +244,12 @@ def evaluate_match(df_0, df_1, threshold_triangle=0.3, threshold_point=2):
             - numpy.ndarray: Translation vector of the transformation.
             - float: Score of the transformation based on the matching points.
     """
-    V_0, c_0 = get_vc(df_0)  # Extract vectors and centers from the first DataFrame
-    V_1, c_1 = get_vc(df_1)  # Extract vectors and centers from the second DataFrame
+    V_0, c_0 = get_vc(
+        vec_centers_0
+    )  # Extract vectors and centers from the first DataFrame
+    V_1, c_1 = get_vc(
+        vec_centers_1
+    )  # Extract vectors and centers from the second DataFrame
 
     i0, i1, distances = nearest_neighbors(
         V_0, V_1
@@ -275,11 +283,11 @@ def evaluate_match(df_0, df_1, threshold_triangle=0.3, threshold_point=2):
     return rotation, translation, score  # Return rotation, translation, and score
 
 
-def get_vc(df, normalize=True):
+def get_vc(vec_centers, normalize=True):
     """Extracts vectors and centers from the DataFrame, with optional normalization of vectors.
 
     Args:
-        df (pandas.DataFrame): DataFrame containing vectors and centers.
+        vec_centers (pandas.DataFrame): DataFrame containing vectors and centers.
         normalize (bool, optional): Whether to normalize the vectors. Defaults to True.
 
     Returns:
@@ -288,12 +296,12 @@ def get_vc(df, normalize=True):
             - numpy.ndarray: Array of centers.
     """
     V, c = (
-        df.filter(like="V").values,
-        df.filter(like="c").values,
+        vec_centers.filter(like="V").values,
+        vec_centers.filter(like="c").values,
     )  # Extract vectors and centers
     if normalize:
         V = (
-            V / df["magnitude"].values[:, None]
+            V / vec_centers["magnitude"].values[:, None]
         )  # Normalize the vectors by their magnitudes
     return V, c  # Return vectors and centers
 
@@ -338,10 +346,10 @@ def build_linear_model(rotation, translation):
 
 
 def multistep_alignment(
-    df_0,
-    df_1,
-    df_info_0,
-    df_info_1,
+    well_triangles_0,
+    well_triangles_1,
+    well_locations_0,
+    well_locations_1,
     det_range=(1.125, 1.186),
     score=0.1,
     initial_sites=8,
@@ -353,20 +361,20 @@ def multistep_alignment(
     Cells must not have moved significantly between acquisitions, and segmentations should be approximately equivalent.
 
     Args:
-        df_0 (pandas.DataFrame): Hashed Delaunay triangulation for all tiles of dataset 0. Produced by
+        well_triangles_0 (pandas.DataFrame): Hashed Delaunay triangulation for all tiles of dataset 0. Produced by
             concatenating outputs of `find_triangles` from individual tiles of a single well. Expects a `tile` column.
-        df_1 (pandas.DataFrame): Hashed Delaunay triangulation for all sites of dataset 1. Produced by
+        well_triangles_1 (pandas.DataFrame): Hashed Delaunay triangulation for all sites of dataset 1. Produced by
             concatenating outputs of `find_triangles` from individual sites of a single well. Expects a `site` column.
-        df_info_0 (pandas.DataFrame): Table of global coordinates for each tile acquisition to match tiles
-            of `df_0`. Expects `tile` as index and two columns of coordinates.
-        df_info_1 (pandas.DataFrame): Table of global coordinates for each site acquisition to match sites
-            of `df_1`. Expects `site` as index and two columns of coordinates.
+        well_locations_0 (pandas.DataFrame): Table of global coordinates for each tile acquisition to match tiles
+            of `well_triangles_0`. Expects `tile` as index and two columns of coordinates.
+        well_locations_1 (pandas.DataFrame): Table of global coordinates for each site acquisition to match sites
+            of `well_triangles_1`. Expects `site` as index and two columns of coordinates.
         det_range (tuple, optional): Range of acceptable values for the determinant of the rotation matrix
             when evaluating an alignment of a tile-site pair. The determinant measures scaling consistency
             within microscope acquisition settings. Defaults to (1.125, 1.186).
         score (float, optional): Threshold score value for filtering valid matches from spurious ones.
             Used for initial alignment. Defaults to 0.1.
-        initial_sites (int | list[tuple], optional): If int, the number of sites to sample from `df_1` for initial
+        initial_sites (int | list[tuple], optional): If int, the number of sites to sample from `well_triangles_1` for initial
             brute force matching to build a global alignment model. If a list of 2-tuples, represents known
             (tile, site) matches to start building the model. Defaults to 8.
         batch_size (int, optional): Number of (tile, site) matches to evaluate per batch during global
@@ -382,8 +390,8 @@ def multistep_alignment(
         n_jobs = multiprocessing.cpu_count() - 1
 
     # Define a function to work on individual (tile,site) pairs
-    def work_on(df_t, df_s):
-        rotation, translation, score = evaluate_match(df_t, df_s)
+    def work_on(tiles_df, sites_df):
+        rotation, translation, score = evaluate_match(tiles_df, sites_df)
         determinant = None if rotation is None else np.linalg.det(rotation)
         result = pd.Series(
             {
@@ -399,21 +407,24 @@ def multistep_alignment(
     if isinstance(initial_sites, list):
         arr = []
         for tile, site in initial_sites:
-            result = work_on(df_0.query("tile==@tile"), df_1.query("site==@site"))
+            result = work_on(
+                well_triangles_0.query("tile==@tile"),
+                well_triangles_1.query("site==@site"),
+            )
             result.at["site"] = site
             result.at["tile"] = tile
             arr.append(result)
         df_initial = pd.DataFrame(arr)
     else:
-        # Otherwise, sample initial_sites number of sites randomly from df_1
+        # Otherwise, sample initial_sites number of sites randomly from well_triangles_1
         sites = (
-            pd.Series(df_info_1.index)
+            pd.Series(well_locations_1.index)
             .sample(initial_sites, replace=False, random_state=0)
             .pipe(list)
         )
         # Use brute force to find initial pairs of matches between tiles and sites
         df_initial = brute_force_pairs(
-            df_0, df_1.query("site == @sites"), n_jobs=n_jobs
+            well_triangles_0, well_triangles_1.query("site == @sites"), n_jobs=n_jobs
         )
 
     # Unpack det_range tuple into d0 and d1
@@ -435,15 +446,15 @@ def multistep_alignment(
         matches = df_align.query(gate).reset_index()[["tile", "site"]].values
 
         # Prioritize candidate pairs based on certain criteria
-        candidates = prioritize(df_info_0, df_info_1, matches)
+        candidates = prioritize(well_locations_0, well_locations_1, matches)
         candidates = remove_overlap(candidates, tested)
 
         print("matches so far: {0} / {1}".format(len(matches), df_align.shape[0]))
 
         # Prepare data for parallel processing
         work = []
-        d_0 = dict(list(df_0.groupby("tile")))
-        d_1 = dict(list(df_1.groupby("site")))
+        d_0 = dict(list(well_triangles_0.groupby("tile")))
+        d_1 = dict(list(well_triangles_1.groupby("site")))
         for ix_0, ix_1 in candidates[:batch_size]:
             if ix_0 in d_0 and ix_1 in d_1:  # Only process if both keys exist
                 work.append([d_0[ix_0], d_1[ix_1]])
@@ -471,19 +482,19 @@ def multistep_alignment(
     return df_align
 
 
-def brute_force_pairs(df_0, df_1, n_jobs=-2):
+def brute_force_pairs(tiles_df_0, tiles_df_1, n_jobs=-2):
     """Evaluate all pairs of tiles (sites) between two DataFrames to find the best matches.
 
     Args:
-        df_0 (pandas.DataFrame): DataFrame containing the first set of tiles (sites).
-        df_1 (pandas.DataFrame): DataFrame containing the second set of tiles (sites).
+        tiles_df_0 (pandas.DataFrame): DataFrame containing the first set of tiles (sites).
+        tiles_df_1 (pandas.DataFrame): DataFrame containing the second set of tiles (sites).
         n_jobs (int, optional): Number of jobs to run in parallel. Defaults to -2, which
             uses all but one core.
 
     Returns:
         pandas.DataFrame: DataFrame containing the results of the matching process, sorted by score.
     """
-    work = df_1.groupby("site")
+    work = tiles_df_1.groupby("site")
 
     arr = []
     for site, df_s in work:
@@ -506,7 +517,7 @@ def brute_force_pairs(df_0, df_1, n_jobs=-2):
             return result
 
         (
-            df_0.pipe(
+            tiles_df_0.pipe(
                 gb_apply_parallel, "tile", work_on, n_jobs=n_jobs
             )  # Apply work_on function in parallel
             .assign(site=site)  # Assign site to the results
@@ -574,105 +585,21 @@ def gb_apply_parallel(df, cols, func, n_jobs=None, backend="loky"):
     return results
 
 
-def merge_sbs_phenotype(df_0_, df_1_, model, threshold=2):
-    """Perform fine alignment of one (tile, site) match found using `multistep_alignment`.
-
-    Args:
-        df_0_ (pandas.DataFrame): Table of coordinates to align (e.g., nuclei centroids)
-            for one tile of dataset 0. Expects `i` and `j` columns.
-        df_1_ (pandas.DataFrame): Table of coordinates to align (e.g., nuclei centroids)
-            for one site of dataset 1 that was identified as a match
-            to the tile in df_0_ using `multistep_alignment`. Expects
-            `i` and `j` columns.
-        model (sklearn.linear_model.LinearRegression): Linear alignment model suggested
-            to be passed in, functioning between tile of df_0_ and site of df_1_.
-            Produced using `build_linear_model` with the rotation and translation
-            matrix determined in `multistep_alignment`.
-        threshold (float, optional): Maximum Euclidean distance allowed between matching
-            points. Defaults to 2.
-
-    Returns:
-        pandas.DataFrame: Table of merged identities of cell labels from df_0_ and df_1_.
-        Returns empty DataFrame with correct columns if input is empty.
-    """
-    # Final columns for the merged DataFrame
-    cols_final = [
-        "well",
-        "tile",
-        "cell_0",
-        "i_0",
-        "j_0",
-        "site",
-        "cell_1",
-        "i_1",
-        "j_1",
-        "distance",
-    ]
-
-    # Check if either dataframe is None or empty
-    if (
-        df_0_ is None
-        or df_1_ is None
-        or (hasattr(df_0_, "empty") and df_0_.empty)
-        or (hasattr(df_1_, "empty") and df_1_.empty)
-    ):
-        # Return empty DataFrame with correct columns
-        return pd.DataFrame(columns=cols_final)
-
-    # Extract coordinates from the DataFrames
-    X = df_0_[["i", "j"]].values  # Coordinates from dataset 0
-    Y = df_1_[["i", "j"]].values  # Coordinates from dataset 1
-
-    # Predict coordinates for dataset 0 using the alignment model
-    Y_pred = model.predict(X)
-
-    # Calculate squared Euclidean distances between predicted coordinates and dataset 1 coordinates
-    distances = cdist(Y, Y_pred, metric="sqeuclidean")
-
-    # Find the index of the nearest neighbor in Y_pred for each point in Y
-    ix = distances.argmin(axis=1)
-
-    # Filter matches based on the threshold distance
-    filt = np.sqrt(distances.min(axis=1)) < threshold
-
-    # Define new column names for merging
-    columns_0 = {"tile": "tile", "cell": "cell_0", "i": "i_0", "j": "j_0"}
-    columns_1 = {"site": "site", "cell": "cell_1", "i": "i_1", "j": "j_1"}
-
-    # Prepare the target DataFrame with matched coordinates from dataset 0
-    target = df_0_.iloc[ix[filt]].reset_index(drop=True).rename(columns=columns_0)
-
-    # Merge DataFrames and calculate distances
-    return (
-        df_1_[filt]
-        .reset_index(drop=True)[  # Filtered rows from dataset 1
-            list(columns_1.keys())
-        ]  # Select columns for dataset 1
-        .rename(columns=columns_1)  # Rename columns for dataset 1
-        .pipe(
-            lambda x: pd.concat([target, x], axis=1)
-        )  # Concatenate with target DataFrame
-        .assign(distance=np.sqrt(distances.min(axis=1))[filt])[
-            cols_final
-        ]  # Assign distance column  # Select final columns
-    )
-
-
-def prioritize(df_info_0, df_info_1, matches):
+def prioritize(well_locations_0, well_locations_1, matches):
     """Produce an Nx2 array of tile (site) identifiers predicted to match within a search radius based on existing matches.
 
     Args:
-        df_info_0 (pandas.DataFrame): DataFrame containing tile (site) information for the first set.
-        df_info_1 (pandas.DataFrame): DataFrame containing tile (site) information for the second set.
+        well_locations_0 (pandas.DataFrame): DataFrame containing tile (site) information for the first set.
+        well_locations_1 (pandas.DataFrame): DataFrame containing tile (site) information for the second set.
         matches (numpy.ndarray): Nx2 array of tile (site) identifiers representing existing matches.
 
     Returns:
         list of tuple: List of predicted matching tile (site) identifiers.
     """
-    a = df_info_0.loc[
+    a = well_locations_0.loc[
         matches[:, 0]
     ].values  # Get coordinates of matching tiles from the first set
-    b = df_info_1.loc[
+    b = well_locations_1.loc[
         matches[:, 1]
     ].values  # Get coordinates of matching tiles from the second set
 
@@ -682,15 +609,15 @@ def prioritize(df_info_0, df_info_1, matches):
         model.fit(a, b)  # Fit the RANSAC model to the matching coordinates
 
     # Predict coordinates for the first set and calculate distances to the second set
-    predicted = model.predict(df_info_0.values)
-    distances = cdist(predicted, df_info_1.values, metric="sqeuclidean")
+    predicted = model.predict(well_locations_0.values)
+    distances = cdist(predicted, well_locations_1.values, metric="sqeuclidean")
     ix = np.argsort(distances.flatten())  # Sort distances to find the closest matches
     ix_0, ix_1 = np.unravel_index(
         ix, distances.shape
     )  # Get indices of the closest matches
 
     candidates = list(
-        zip(df_info_0.index[ix_0], df_info_1.index[ix_1])
+        zip(well_locations_0.index[ix_0], well_locations_1.index[ix_1])
     )  # Create list of candidate matches
 
     return remove_overlap(candidates, matches)  # Remove overlapping matches

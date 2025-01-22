@@ -10,8 +10,6 @@ sbs_metadata = pd.read_hdf(snakemake.input[1])
 phenotype_info = pd.read_hdf(snakemake.input[2])
 sbs_info = pd.read_hdf(snakemake.input[3])
 
-print(phenotype_metadata, sbs_metadata, phenotype_info, sbs_info)
-
 # Derive fast alignment per well
 well_alignments = []
 wells = phenotype_metadata["well"].unique().tolist()

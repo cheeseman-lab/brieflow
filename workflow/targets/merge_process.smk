@@ -8,10 +8,14 @@ MERGE_PROCESS_OUTPUTS = {
     "fast_alignment": [
         MERGE_PROCESS_FP / "hdfs" / get_filename({}, "fast_alignment", "hdf5"),
     ],
+    "merge": [
+        MERGE_PROCESS_FP / "hdfs" / get_filename({}, "merge", "hdf5"),
+    ],
 }
 
 MERGE_PROCESS_OUTPUT_MAPPINGS = {
     "fast_alignment": None,
+    "merge": None,
 }
 
 MERGE_PROCESS_WILDCARDS = {}

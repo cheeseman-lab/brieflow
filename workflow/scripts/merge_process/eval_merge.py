@@ -61,5 +61,3 @@ fig = plot_cell_positions(
     color="red",
 )
 fig.savefig(snakemake.output[6])
-
-# TODO: Add all output targets

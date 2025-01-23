@@ -22,7 +22,7 @@ def plot_plate_heatmap(
             dimensions of the smallest square that fits the number of sites. '6W_ph' and '6W_sbs' use a common
             6 well tile map from a Nikon Ti2/Elements set-up with 20X and 10X objectives, respectively. Alternatively,
             a list can be passed containing the number of sites in each row of a tile layout. This is mapped into a
-            centered shape within a rectangle. Unused corners of this rectangle are plotted as NaN. The summation of
+            centered shape within a rectangle. Unused corners of this rectangle are plotted as nan. The summation of
             this list should equal the total number of sites. Defaults to 'square'.
         plate (str):
             Plate type for plot_plate_heatmap. Options are {'6W', '24W', '96W'}.
@@ -42,7 +42,7 @@ def plot_plate_heatmap(
     if shape == "square":
         r = c = int(np.ceil(np.sqrt(tiles)))
         grid = np.empty(r * c)
-        grid[:] = np.NaN
+        grid[:] = np.nan
         grid[:tiles] = range(tiles)
         grid = grid.reshape(r, c)
     else:
@@ -124,7 +124,7 @@ def plot_plate_heatmap(
 
         r, c = len(rows), max(rows)
         grid = np.empty((r, c))
-        grid[:] = np.NaN
+        grid[:] = np.nan
 
         next_site = 0
         for row, row_sites in enumerate(rows):

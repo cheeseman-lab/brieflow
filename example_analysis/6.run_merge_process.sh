@@ -5,4 +5,4 @@
 snakemake --use-conda --cores all \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
-    --force format_merge
+    --force clean_merge -n

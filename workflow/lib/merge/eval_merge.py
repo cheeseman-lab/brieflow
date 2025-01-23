@@ -80,11 +80,11 @@ def plot_sbs_ph_matching_heatmap(
     if return_summary and return_plot:
         # Plot heatmap
         axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
-        return df_summary, axes
+        return df_summary, axes[0]
     elif return_plot:
         # Plot heatmap
         axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
-        return axes
+        return axes[0]
     elif return_summary:
         return df_summary
     else:

@@ -237,19 +237,22 @@ def nd2_to_tiff_well(
     files: Union[str, List[str], Path, List[Path]],
     position: int = 0,
     channel_order_flip: bool = False,
+    return_tiles: bool = False,
     verbose: bool = False,
-) -> np.ndarray:
-    """Extracts a specific position/FOV from one or multiple ND2 files.
-    Handles Z-stacks by computing maximum intensity projection.
+) -> Union[np.ndarray, Tuple[np.ndarray, int]]:
+    """Extracts a specific position/FOV from one or multiple ND2 files. Handles Z-stacks by computing maximum intensity projection.
     
     Args:
         files: Path(s) to the ND2 file(s). Can be a single path or list of paths.
         position: Position/field of view to extract. Defaults to 0.
         channel_order_flip: If True, flips the channel order. Defaults to False.
+        return_tiles: If True, returns the number of tiles. Defaults to False.
         verbose: If True, prints dimension information. Defaults to False.
 
     Returns:
-        np.ndarray: Image data as a multidimensional numpy array in CYX format.
+        Union[np.ndarray, Tuple[np.ndarray, int]]: Image data as a multidimensional 
+            numpy array in CYX format. If return_tiles is True, also returns the 
+            number of tiles as a tuple.
     """
     # Convert input to list of Path objects
     if isinstance(files, (str, Path)):
@@ -267,6 +270,9 @@ def nd2_to_tiff_well(
         try:
             if verbose:
                 print(f"File dimensions: {nd2_obj.sizes}")
+
+            # Get and save 'P' data from the ND2 file
+            tiles = nd2_obj.sizes['P']
             
             # Check if we have Z dimension
             if 'Z' in nd2_obj.sizes:
@@ -333,5 +339,8 @@ def nd2_to_tiff_well(
     if verbose:
         print(f"Final dimensions (CYX): {result.shape}")
         print(f"Array size in bytes: {result.nbytes}")
-
-    return result.astype(np.uint16)
+    
+    if return_tiles:
+        return result.astype(np.uint16), tiles
+    else:
+        return result.astype(np.uint16)

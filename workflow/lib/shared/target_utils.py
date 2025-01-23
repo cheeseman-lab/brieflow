@@ -80,3 +80,46 @@ def output_to_input(output_path, wildcard_values, wildcards):
     all_wildcards = {**wildcards, **wildcard_values}
     # Expand the output template with the merged wildcards
     return expand(output_path, **all_wildcards)
+
+
+def get_valid_combinations(df):
+    """Get valid combinations of cycles and channels from a DataFrame.
+    
+    Args:
+        df (pd.DataFrame): DataFrame containing columns 'cycle' and 'channel'.
+
+    Returns:
+        list: List of dictionaries with valid combinations of cycles and channels.
+    """
+    # Group by cycle and get channels that exist for each cycle
+    cycle_channels = df.groupby("cycle")["channel"].unique().to_dict()
+    valid_combinations = []
+    for cycle, channels in cycle_channels.items():
+        for channel in channels:
+            valid_combinations.append({"cycle": cycle, "channel": channel})
+    return valid_combinations
+
+
+def outputs_to_targets_with_combinations(outputs, valid_combinations, wells):
+    """Generate targets for valid combinations.
+    
+    Args:
+        outputs (list): List of output path templates.
+        valid_combinations (list): List of dictionaries with valid combinations of wildcards.
+        wells (list): List of well identifiers.
+    
+    Returns:
+        list: List of fully resolved target paths.
+    """
+    targets = []
+    for output_template in outputs:
+        for well in wells:
+            for combo in valid_combinations:
+                kwargs = {"well": well}
+                if "cycle" in combo:  # For SBS
+                    kwargs["cycle"] = combo["cycle"]
+                kwargs["channel"] = combo["channel"]
+                
+                filepath = str(output_template).format(**kwargs)
+                targets.append(filepath)
+    return targets

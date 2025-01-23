@@ -9,6 +9,7 @@ def get_sample_fps(
     well: str = None,
     tile: int = None,
     cycle: int = None,
+    channel: str = None,
     round_order: List[int] = None,
     channel_order: List[str] = None,
 ) -> Union[str, List[str]]:
@@ -35,6 +36,9 @@ def get_sample_fps(
 
     if cycle is not None:
         filtered_df = filtered_df[filtered_df["cycle"] == int(cycle)]
+
+    if channel is not None:
+        filtered_df = filtered_df[filtered_df["channel"] == channel]
 
     if round_order is not None:
         # Filter to only include specified rounds

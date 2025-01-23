@@ -130,10 +130,9 @@ See notebook instructions for more details.
 
 Follow the steps in [2.configure_sbs_process_params.ipynb](analysis/2.configure_sbs_process_params.ipynb) to configure SBS process params.
 
-
 #### Step 3: Configure phenotype process params
 
-Follow the steps in  [3.configure_phenotype_process_params.ipynb](analysis/3.configure_phenotype_process_params.ipynb) to configure phenotype process params.
+Follow the steps in [3.configure_phenotype_process_params.ipynb](analysis/3.configure_phenotype_process_params.ipynb) to configure phenotype process params.
 
 #### Step 4: Run SBS/phenotype process module
 
@@ -145,6 +144,22 @@ sh 4.run_sbs_phenotype_processes.sh
 **Slurm**:
 ```sh
 sbatch 4.run_sbs_phenotype_processes_slurm.sh
+```
+
+#### Step 5: Configure merge process params
+
+Follow the steps in [5.configure_merge_params.ipynb](analysis/5.configure_merge_params.ipynb) to configure merge process params.
+
+#### Step 6: Run merge process
+
+**Local**:
+```sh
+conda activate brieflow_workflows
+sh 6.run_merge_process.sh
+```
+**Slurm**:
+```sh
+sbatch 4.run_merge_process_slurm.sh
 ```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.

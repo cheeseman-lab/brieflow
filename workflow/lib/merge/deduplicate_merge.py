@@ -1,3 +1,19 @@
+"""Functions for the deduplication step in the merge process.
+
+This module provides utility functions to clean and deduplicate cell mappings
+during the integration of phenotype and SBS datasets. It includes methods to
+remove duplicate mappings and evaluate the effectiveness of the merging process.
+
+Functions:
+    deduplicate_cells: Removes duplicate cell mappings by selecting the best matches
+        for phenotype and SBS cells based on quality metrics.
+    check_matching_rates: Evaluates the fraction of original cells that remain after
+        the deduplication and merging process.
+
+These functions are useful in processing optical pooled screening data by ensuring
+high-quality cell matching and tracking the merging efficiency.
+"""
+
 import pandas as pd
 
 

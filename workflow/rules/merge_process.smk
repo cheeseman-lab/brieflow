@@ -146,22 +146,24 @@ rule deduplicate_merge:
         "../scripts/merge_process/deduplicate_merge.py"
 
 
-# # Final merge with all feature data
-# rule final_merge:
-#     conda:
-#         "../envs/merge_process.yml"
-#     # TODO: remove threads after testing
-#     threads: 32
-#     # TODO: use target inputs/outputs
-#     input:
-#         # formatted merge data
-#         MERGE_PROCESS_OUTPUTS["deduplicate_merge"],
-#         # full phentoype information
-#         PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][0],
-#     output:
-#         MERGE_PROCESS_OUTPUTS_MAPPED["final_merge"],
-#     script:
-#         "../scripts/merge_process/final_merge.py"
+# Final merge with all feature data
+rule final_merge:
+    conda:
+        "../envs/merge_process.yml"
+    # TODO: remove threads after testing
+    threads: 32
+    # TODO: use target inputs/outputs
+    input:
+        # formatted merge data
+        # MERGE_PROCESS_OUTPUTS["deduplicate_merge"],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_deduplicated.hdf5",
+        # full phentoype information
+        # PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][0],
+        "",
+    output:
+        MERGE_PROCESS_OUTPUTS_MAPPED["final_merge"],
+    script:
+        "../scripts/merge_process/final_merge.py"
 
 
 # Rule for all merge processing steps

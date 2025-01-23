@@ -1,3 +1,22 @@
+"""Functions for the format step in the merge process.
+
+This module provides utility functions for formatting and preparing cell data
+during the integration of phenotype and SBS datasets. It includes methods to
+calculate spatial distances, identify single gene mappings, and compute
+channel-specific statistics.
+
+Functions:
+    fov_distance: Computes the distance of each cell from the center of the
+        field of view to aid in spatial analysis.
+    identify_single_gene_mappings: Identifies whether a cell is associated
+        with a single gene based on gene symbol columns.
+    calculate_channel_mins: Calculates the minimum values across all
+        channel columns to assist in downstream analysis.
+
+These functions support the formatting of data for subsequent deduplication
+and analysis in the merging pipeline.
+"""
+
 import pandas as pd
 import numpy as np
 

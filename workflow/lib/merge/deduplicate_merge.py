@@ -74,13 +74,11 @@ def check_matching_rates(orig_data, merged_data, modality="sbs", return_stats=Fa
         rename_dict = {"cell": "cell_1", "tile": "site"}
     else:
         merge_cols = ["well", "tile", "cell_0"]
-        rename_dict = {"cell": "cell_0"}
+        rename_dict = {"label": "cell_0"}
 
     # Prepare and merge data
-    checking_df = (
-        orig_data.rename(columns=rename_dict)
-        .drop(columns=["i", "j"])
-        .merge(merged_data, how="left", on=merge_cols)
+    checking_df = orig_data.rename(columns=rename_dict).merge(
+        merged_data, how="left", on=merge_cols
     )
 
     # Calculate matching rates per well

@@ -16,16 +16,25 @@ MERGE_PROCESS_OUTPUTS = {
     ],
     "eval_merge": [
         MERGE_PROCESS_FP / "eval" / "cell_mapping_stats.tsv",
-        MERGE_PROCESS_FP / "eval" / "sbs_to_ph_matching_rates.tsv",  # sbs matching
+        MERGE_PROCESS_FP / "eval" / "sbs_to_ph_matching_rates.tsv",
         MERGE_PROCESS_FP / "eval" / "sbs_to_ph_matching_rates.png",
-        MERGE_PROCESS_FP / "eval" / "ph_to_sbs_matching_rates.tsv",  # ph matching
+        MERGE_PROCESS_FP / "eval" / "ph_to_sbs_matching_rates.tsv",
         MERGE_PROCESS_FP / "eval" / "ph_to_sbs_matching_rates.png",
-        MERGE_PROCESS_FP / "eval" / "all_cells_by_channel_min.png",  # all cells
-        MERGE_PROCESS_FP / "eval" / "cells_with_channel_min_0.png",  # channel min 0
+        MERGE_PROCESS_FP / "eval" / "all_cells_by_channel_min.png",
+        MERGE_PROCESS_FP / "eval" / "cells_with_channel_min_0.png",
     ],
     "clean_merge": [
         MERGE_PROCESS_FP / "eval" / "channel_min_histogram.png",
         MERGE_PROCESS_FP / "hdfs" / "merge_cleaned.hdf5",
+    ],
+    "deduplicate_merge": [
+        MERGE_PROCESS_FP / "eval" / "deduplication_stats.tsv",
+        MERGE_PROCESS_FP / "hdfs" / "merge_deduplicated.hdf5",
+        MERGE_PROCESS_FP / "eval" / "final_sbs_matching_rates.tsv",
+        MERGE_PROCESS_FP / "eval" / "final_phenotype_matching_rates.tsv",
+    ],
+    "final_merge": [
+        MERGE_PROCESS_FP / "hdfs" / "merge_final.hdf5",
     ],
 }
 
@@ -35,6 +44,8 @@ MERGE_PROCESS_OUTPUT_MAPPINGS = {
     "format_merge": None,
     "eval_merge": None,
     "clean_merge": None,
+    "deduplicate_merge": None,
+    "final_merge": None,
 }
 
 MERGE_PROCESS_WILDCARDS = {}

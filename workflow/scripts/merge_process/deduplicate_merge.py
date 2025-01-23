@@ -12,7 +12,7 @@ phenotype_min_cp = pd.read_hdf(snakemake.input[2])
 merge_deduplicated, deduplication_stats = deduplicate_cells(
     merge_cleaned, mapped_single_gene=False, return_stats=True
 )
-deduplication_stats.to_csv(snakemake.output[0], index=False)
+deduplication_stats.to_csv(snakemake.output[0], sep="\t", index=False)
 merge_deduplicated.to_hdf(snakemake.output[1], "x", mode="w")
 
 # Identify single gene mappings in SBS
@@ -23,8 +23,8 @@ sbs_cells["mapped_single_gene"] = sbs_cells.apply(
 sbs_rates = check_matching_rates(
     sbs_cells, merge_deduplicated, modality="sbs", return_stats=True
 )
-sbs_rates.to_csv(snakemake.output[2], index=False)
+sbs_rates.to_csv(snakemake.output[2], sep="\t", index=False)
 phenotype_rates = check_matching_rates(
     phenotype_min_cp, merge_deduplicated, modality="phenotype", return_stats=True
 )
-phenotype_rates.to_csv(merge_deduplicated.output[3], index=False)
+phenotype_rates.to_csv(snakemake.output[3], sep="\t", index=False)

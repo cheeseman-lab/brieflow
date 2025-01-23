@@ -69,9 +69,11 @@ rule format_merge:
         # merge data
         MERGE_PROCESS_OUTPUTS["merge"],
         # cell information from SBS
-        SBS_PROCESS_OUTPUTS["combine_cells"],
+        # SBS_PROCESS_OUTPUTS["combine_cells"],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/cells.hdf5",
         # min phentoype information
-        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
+        # PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/phenotype_cp_min.hdf5",
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["format_merge"],
     script:
@@ -98,58 +100,58 @@ rule eval_merge:
         "../scripts/merge_process/eval_merge.py"
 
 
-# Clean merge data
-rule clean_merge:
-    conda:
-        "../envs/merge_process.yml"
-    # TODO: remove threads after testing
-    threads: 32
-    # TODO: use target inputs/outputs
-    input:
-        # formatted merge data
-        MERGE_PROCESS_OUTPUTS["format_merge"],
-    output:
-        MERGE_PROCESS_OUTPUTS_MAPPED["clean_merge"],
-    script:
-        "../scripts/merge_process/clean_merge.py"
+# # Clean merge data
+# rule clean_merge:
+#     conda:
+#         "../envs/merge_process.yml"
+#     # TODO: remove threads after testing
+#     threads: 32
+#     # TODO: use target inputs/outputs
+#     input:
+#         # formatted merge data
+#         MERGE_PROCESS_OUTPUTS["format_merge"],
+#     output:
+#         MERGE_PROCESS_OUTPUTS_MAPPED["clean_merge"],
+#     script:
+#         "../scripts/merge_process/clean_merge.py"
 
 
-# Deduplicate merge data
-rule deduplicate_merge:
-    conda:
-        "../envs/merge_process.yml"
-    # TODO: remove threads after testing
-    threads: 32
-    # TODO: use target inputs/outputs
-    input:
-        # formatted merge data
-        MERGE_PROCESS_OUTPUTS["clean_merge"],
-        # cell information from SBS
-        SBS_PROCESS_OUTPUTS["combine_cells"],
-        # min phentoype information
-        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
-    output:
-        MERGE_PROCESS_OUTPUTS_MAPPED["deduplicate_merge"],
-    script:
-        "../scripts/merge_process/deduplicate_merge.py"
+# # Deduplicate merge data
+# rule deduplicate_merge:
+#     conda:
+#         "../envs/merge_process.yml"
+#     # TODO: remove threads after testing
+#     threads: 32
+#     # TODO: use target inputs/outputs
+#     input:
+#         # formatted merge data
+#         MERGE_PROCESS_OUTPUTS["clean_merge"],
+#         # cell information from SBS
+#         SBS_PROCESS_OUTPUTS["combine_cells"],
+#         # min phentoype information
+#         PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
+#     output:
+#         MERGE_PROCESS_OUTPUTS_MAPPED["deduplicate_merge"],
+#     script:
+#         "../scripts/merge_process/deduplicate_merge.py"
 
 
-# Final merge with all feature data
-rule final_merge:
-    conda:
-        "../envs/merge_process.yml"
-    # TODO: remove threads after testing
-    threads: 32
-    # TODO: use target inputs/outputs
-    input:
-        # formatted merge data
-        MERGE_PROCESS_OUTPUTS["deduplicate_merge"],
-        # full phentoype information
-        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][0],
-    output:
-        MERGE_PROCESS_OUTPUTS_MAPPED["final_merge"],
-    script:
-        "../scripts/merge_process/final_merge.py"
+# # Final merge with all feature data
+# rule final_merge:
+#     conda:
+#         "../envs/merge_process.yml"
+#     # TODO: remove threads after testing
+#     threads: 32
+#     # TODO: use target inputs/outputs
+#     input:
+#         # formatted merge data
+#         MERGE_PROCESS_OUTPUTS["deduplicate_merge"],
+#         # full phentoype information
+#         PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][0],
+#     output:
+#         MERGE_PROCESS_OUTPUTS_MAPPED["final_merge"],
+#     script:
+#         "../scripts/merge_process/final_merge.py"
 
 
 # Rule for all merge processing steps

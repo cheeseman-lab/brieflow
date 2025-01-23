@@ -112,7 +112,8 @@ rule clean_merge:
     # TODO: use target inputs/outputs
     input:
         # formatted merge data
-        MERGE_PROCESS_OUTPUTS["format_merge"],
+        # MERGE_PROCESS_OUTPUTS["format_merge"],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_formatted.hdf5",
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["clean_merge"],
     params:

@@ -23,6 +23,10 @@ MERGE_PROCESS_OUTPUTS = {
         MERGE_PROCESS_FP / "eval" / "all_cells_by_channel_min.png",  # all cells
         MERGE_PROCESS_FP / "eval" / "cells_with_channel_min_0.png",  # channel min 0
     ],
+    "clean_merge": [
+        MERGE_PROCESS_FP / "eval" / "channel_min_histogram.png",
+        MERGE_PROCESS_FP / "hdfs" / "merge_cleaned.hdf5",
+    ],
 }
 
 MERGE_PROCESS_OUTPUT_MAPPINGS = {
@@ -30,6 +34,7 @@ MERGE_PROCESS_OUTPUT_MAPPINGS = {
     "merge": None,
     "format_merge": None,
     "eval_merge": None,
+    "clean_merge": None,
 }
 
 MERGE_PROCESS_WILDCARDS = {}

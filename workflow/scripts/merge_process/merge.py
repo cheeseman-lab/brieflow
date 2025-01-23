@@ -2,8 +2,6 @@ import pandas as pd
 
 from lib.merge.merge import merge_triangle_hash
 
-print(snakemake.input)
-
 # Load phenotype and sbs info with cell locations
 phenotype_info = pd.read_hdf(snakemake.input[0])
 sbs_info = pd.read_hdf(snakemake.input[1])
@@ -18,15 +16,6 @@ fast_alignment_filtered = fast_alignment[
     & (fast_alignment["score"] > snakemake.params.score)
 ]
 
-# print(fast_alignment_filtered.shape)
-# print(fast_alignment_filtered)
-
-# # Determine wells, tiles, and sites for merging
-# wells = fast_alignment["well"].unique().tolist()
-# phenotype_tiles = fast_alignment["tile"].unique().tolist()
-# sbs_sites = fast_alignment["site"].unique().tolist()
-# print(len(wells), len(phenotype_tiles), len(sbs_sites))
-
 # Merge cells across all wells
 merge_data = []
 for index, alignment_row in fast_alignment_filtered.iterrows():
@@ -34,9 +23,6 @@ for index, alignment_row in fast_alignment_filtered.iterrows():
     well = alignment_row["well"]
     phenotype_tile = alignment_row["tile"]
     sbs_site = alignment_row["site"]
-
-    print(index)
-    print(well, phenotype_tile, sbs_site)
 
     # Filter phenotype and sbs info to the relevant well and tile for merging
     phenotype_info_filtered = phenotype_info[

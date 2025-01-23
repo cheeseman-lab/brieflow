@@ -56,3 +56,29 @@ rule merge:
         threshold=config["merge_process"]["threshold"],
     script:
         "../scripts/merge_process/merge.py"
+
+
+# Complete merge process
+rule format_merge:
+    conda:
+        "../envs/merge_process.yml"
+    # TODO: remove threads after testing
+    threads: 32
+    # TODO: use target inputs/outputs
+    input:
+        # merge data
+        MERGE_PROCESS_OUTPUTS["merge"],
+        # cell information from SBS
+        SBS_PROCESS_OUTPUTS["combine_cells"],
+        # min phentoype information
+        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
+    output:
+        MERGE_PROCESS_OUTPUTS_MAPPED["format_merge"],
+    script:
+        "../scripts/merge_process/format_merge.py"
+
+
+# Rule for all merge processing steps
+rule all_merge_process:
+    input:
+        MERGE_PROCESS_TARGETS_ALL,

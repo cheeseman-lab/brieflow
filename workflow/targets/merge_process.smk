@@ -11,11 +11,15 @@ MERGE_PROCESS_OUTPUTS = {
     "merge": [
         MERGE_PROCESS_FP / "hdfs" / get_filename({}, "merge", "hdf5"),
     ],
+    "format_merge": [
+        MERGE_PROCESS_FP / "hdfs" / get_filename({}, "merge_formatted", "hdf5"),
+    ],
 }
 
 MERGE_PROCESS_OUTPUT_MAPPINGS = {
     "fast_alignment": None,
     "merge": None,
+    "format_merge": None,
 }
 
 MERGE_PROCESS_WILDCARDS = {}

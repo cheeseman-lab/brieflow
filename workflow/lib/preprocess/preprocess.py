@@ -83,10 +83,7 @@ def extract_tile_metadata(
     return df
 
 
-def extract_well_metadata(
-    well_fp: str,
-    verbose: bool = False
-) -> pd.DataFrame:
+def extract_well_metadata(well_fp: str, verbose: bool = False) -> pd.DataFrame:
     """Extracts metadata from an ND2 file containing multiple fields of view.
 
     Args:
@@ -110,14 +107,14 @@ def extract_well_metadata(
             print(f"Sizes (by axes): {images.sizes}")
 
         # Get number of positions (using 'P' instead of 'V')
-        num_positions = images.sizes.get('P', 1)  
-        
+        num_positions = images.sizes.get("P", 1)
+
         if verbose:
             print(f"Number of positions: {num_positions}")
-        
+
         for pos_idx in range(num_positions):
             frame_meta = images.frame_metadata(pos_idx)
-            
+
             # Extract position data if available
             if frame_meta.channels and hasattr(frame_meta.channels[0], "position"):
                 stage_pos = frame_meta.channels[0].position.stagePositionUm
@@ -136,24 +133,32 @@ def extract_well_metadata(
                 }
 
             # Add basic metadata
-            metadata.update({
-                "tile": pos_idx,  # Using position index as tile number
-                "filename": well_fp,
-                "channels": images.sizes.get('C', 1),  # Get channel count from sizes
-            })
+            metadata.update(
+                {
+                    "tile": pos_idx,  # Using position index as tile number
+                    "filename": well_fp,
+                    "channels": images.sizes.get(
+                        "C", 1
+                    ),  # Get channel count from sizes
+                }
+            )
 
             # Get pixel calibration if available
             if frame_meta.channels and hasattr(frame_meta.channels[0], "volume"):
                 x_cal, y_cal, _ = frame_meta.channels[0].volume.axesCalibration
-                metadata.update({
-                    "pixel_size_x": x_cal,
-                    "pixel_size_y": y_cal,
-                })
+                metadata.update(
+                    {
+                        "pixel_size_x": x_cal,
+                        "pixel_size_y": y_cal,
+                    }
+                )
             else:
-                metadata.update({
-                    "pixel_size_x": None,
-                    "pixel_size_y": None,
-                })
+                metadata.update(
+                    {
+                        "pixel_size_x": None,
+                        "pixel_size_y": None,
+                    }
+                )
 
             metadata_rows.append(metadata)
 
@@ -241,7 +246,7 @@ def nd2_to_tiff_well(
     verbose: bool = False,
 ) -> Union[np.ndarray, Tuple[np.ndarray, int]]:
     """Extracts a specific position/FOV from one or multiple ND2 files. Handles Z-stacks by computing maximum intensity projection.
-    
+
     Args:
         files: Path(s) to the ND2 file(s). Can be a single path or list of paths.
         position: Position/field of view to extract. Defaults to 0.
@@ -250,8 +255,8 @@ def nd2_to_tiff_well(
         verbose: If True, prints dimension information. Defaults to False.
 
     Returns:
-        Union[np.ndarray, Tuple[np.ndarray, int]]: Image data as a multidimensional 
-            numpy array in CYX format. If return_tiles is True, also returns the 
+        Union[np.ndarray, Tuple[np.ndarray, int]]: Image data as a multidimensional
+            numpy array in CYX format. If return_tiles is True, also returns the
             number of tiles as a tuple.
     """
     # Convert input to list of Path objects
@@ -259,62 +264,64 @@ def nd2_to_tiff_well(
         files = [Path(files)]
     else:
         files = [Path(f) for f in files]
-    
+
     image_arrays = []
-    
+
     for file in files:
         if verbose:
             print(f"\nProcessing file: {file}")
-        
+
         nd2_obj = nd2.ND2File(str(file))
         try:
             if verbose:
                 print(f"File dimensions: {nd2_obj.sizes}")
 
             # Get and save 'P' data from the ND2 file
-            tiles = nd2_obj.sizes['P']
-            
+            tiles = nd2_obj.sizes["P"]
+
             # Check if we have Z dimension
-            if 'Z' in nd2_obj.sizes:
+            if "Z" in nd2_obj.sizes:
                 if verbose:
                     print(f"Z-stack detected with {nd2_obj.sizes['Z']} planes")
-                
+
                 # Get all Z planes for this position
                 z_planes = []
-                for z in range(nd2_obj.sizes['Z']):
+                for z in range(nd2_obj.sizes["Z"]):
                     # Convert position and Z coordinates to sequence index
-                    coords = {'P': position, 'Z': z}
-                    seq_idx = nd2_obj._seq_index_from_coords([coords[dim] for dim in nd2_obj.sizes if dim in coords])
+                    coords = {"P": position, "Z": z}
+                    seq_idx = nd2_obj._seq_index_from_coords(
+                        [coords[dim] for dim in nd2_obj.sizes if dim in coords]
+                    )
                     z_planes.append(nd2_obj.read_frame(seq_idx))
-                
+
                 # Stack Z planes and take max projection
                 img_data = np.stack(z_planes, axis=0)
 
                 if verbose:
                     print(f"Z-stack shape: {img_data.shape}")
-    
+
                 # Compute max intensity projection
                 img_data = np.max(img_data, axis=0)
             else:
                 # No Z dimension, just read the position directly
                 img_data = nd2_obj.read_frame(position)
-            
+
             # Convert to uint16 and make a copy
             img_data = np.array(img_data, dtype=np.uint16, copy=True)
-            
+
             if verbose:
                 print(f"Frame shape after Z processing: {img_data.shape}")
-            
+
             # If the image is 2D, add a channel dimension
             if img_data.ndim == 2:
                 img_data = np.expand_dims(img_data, axis=0)
-            
+
             # Flip channel order if needed
             if channel_order_flip and img_data.ndim > 2:
                 img_data = np.flip(img_data, axis=0)
-            
+
             image_arrays.append(img_data)
-            
+
         except Exception as e:
             warnings.warn(f"Error processing {file}: {str(e)}")
             raise
@@ -324,22 +331,22 @@ def nd2_to_tiff_well(
             except OSError:
                 pass
             gc.collect()
-    
+
     if len(files) == 1:
         result = image_arrays[0]
     else:
         try:
             # Now all arrays should be 3D (CYX), so we can concatenate along channel axis
             result = np.concatenate(image_arrays, axis=0)
-                
+
         except ValueError as e:
             shapes = [arr.shape for arr in image_arrays]
             raise ValueError(f"Cannot concatenate arrays with shapes {shapes}") from e
-    
+
     if verbose:
         print(f"Final dimensions (CYX): {result.shape}")
         print(f"Array size in bytes: {result.nbytes}")
-    
+
     if return_tiles:
         return result.astype(np.uint16), tiles
     else:

@@ -84,7 +84,7 @@ def output_to_input(output_path, wildcard_values, wildcards):
 
 def get_valid_combinations(df):
     """Get valid combinations of cycles and channels from a DataFrame.
-    
+
     Args:
         df (pd.DataFrame): DataFrame containing columns 'cycle' and 'channel'.
 
@@ -100,14 +100,17 @@ def get_valid_combinations(df):
     return valid_combinations
 
 
-def outputs_to_targets_with_combinations(outputs, valid_combinations, wells):
+def outputs_to_targets_with_combinations(
+    outputs, valid_combinations, wells, tiles=None
+):
     """Generate targets for valid combinations.
-    
+
     Args:
         outputs (list): List of output path templates.
         valid_combinations (list): List of dictionaries with valid combinations of wildcards.
         wells (list): List of well identifiers.
-    
+        tiles (list, optional): List of tile identifiers. Defaults to None.
+
     Returns:
         list: List of fully resolved target paths.
     """
@@ -116,10 +119,16 @@ def outputs_to_targets_with_combinations(outputs, valid_combinations, wells):
         for well in wells:
             for combo in valid_combinations:
                 kwargs = {"well": well}
-                if "cycle" in combo:  # For SBS
+                if "cycle" in combo:
                     kwargs["cycle"] = combo["cycle"]
                 kwargs["channel"] = combo["channel"]
-                
-                filepath = str(output_template).format(**kwargs)
-                targets.append(filepath)
+
+                if tiles:
+                    for tile in tiles:
+                        kwargs["tile"] = tile
+                        filepath = str(output_template).format(**kwargs)
+                        targets.append(filepath)
+                else:
+                    filepath = str(output_template).format(**kwargs)
+                    targets.append(filepath)
     return targets

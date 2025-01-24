@@ -23,22 +23,24 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     # Well info
     well = data_location.get("well")
     well_str = f"W{well}" if well else ""
-    
+
     # Tile info
     tile = data_location.get("tile")
     tile_str = f"_T{tile}" if tile else ""
-    
+
     # Cycle info
     cycle = data_location.get("cycle")
     cycle_str = f"_C{cycle}" if cycle else ""
-    
+
     # Channel info
     channel = data_location.get("channel")
     channel_str = f"_CH{channel}" if channel else ""
-    
+
     # Construct the filename by combining the components with info_type and file type
     if any([well, tile, cycle, channel]):
-        filename = f"{well_str}{tile_str}{cycle_str}{channel_str}__{info_type}.{file_type}"
+        filename = (
+            f"{well_str}{tile_str}{cycle_str}{channel_str}__{info_type}.{file_type}"
+        )
     else:
         filename = f"{info_type}.{file_type}"
     return filename

@@ -90,6 +90,7 @@ rule clean_merge:
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["clean_merge"],
     params:
+        channel_min_cutoff=0,
         misaligned_wells=None,
         misaligned_tiles=None,
     script:

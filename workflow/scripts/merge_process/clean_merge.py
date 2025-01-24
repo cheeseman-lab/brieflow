@@ -6,7 +6,9 @@ from lib.merge.eval_merge import plot_channel_histogram
 merge_formatted = pd.read_hdf(snakemake.input[0])
 
 # Cleaned merged dataset
-merge_cleaned = merge_formatted.query("channels_min>0")
+merge_cleaned = merge_formatted.query(
+    "channels_min > @snakemake.params.channel_min_cutoff"
+)
 
 # If misaligned wells/tiles specified, exclude them
 if (

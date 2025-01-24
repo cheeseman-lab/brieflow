@@ -33,12 +33,13 @@ def deduplicate_cells(df, mapped_single_gene=False, return_stats=False):
         If `return_stats` is True, returns a tuple of the deduplicated DataFrame and a statistics DataFrame.
     """
     # Step 1: For each phenotype cell, keep best SBS match
-    # Sort by mapping quality and distance to prioritize better matches
+    # Sort by mapping quality and distance to center of well to prioritize better matches
     df_sbs_deduped = df.sort_values(
         ["mapped_single_gene", "fov_distance_1"], ascending=[False, True]
     ).drop_duplicates(["well", "tile", "cell_0"], keep="first")
 
     # Step 2: For each remaining SBS cell, keep best phenotype match
+    # Sort by distance to center of well to prioritize better matches
     df_final = df_sbs_deduped.sort_values(
         "fov_distance_0", ascending=True
     ).drop_duplicates(["well", "site", "cell_1"], keep="first")

@@ -91,38 +91,13 @@ def plot_sbs_ph_matching_heatmap(
         return None
 
 
-def plot_cell_positions(df, title, color=None, hue="channels_min"):
-    """Generates a cell position plot.
-
-    Args:
-        df: DataFrame containing cell position data with 'i_0' and 'j_0' columns.
-        title: Title of the plot.
-        color: Fixed color for all points. Defaults to None.
-        hue: Column name for color variation. Defaults to 'channels_min'.
-
-    Returns:
-        The generated matplotlib figure object.
-    """
-    fig = plt.figure(figsize=(20, 20))
-
-    # If color is specified, override hue
-    if color is not None:
-        sns.scatterplot(data=df, x="i_0", y="j_0", color=color, alpha=0.5)
-    else:
-        sns.scatterplot(data=df, x="i_0", y="j_0", hue=hue, alpha=0.5)
-
-    plt.title(title)
-    plt.xlabel("i_0")
-    plt.ylabel("j_0")
-    return fig
-
-
-def plot_channel_histogram(df_before, df_after):
-    """Generates a histogram of channel values with density normalization and consistent bin edges.
+def plot_channel_histogram(df_before, df_after, channel_min_cutoff=0):
+    """Generates a histogram of channel values with raw counts and consistent bin edges.
 
     Args:
         df_before: DataFrame containing channel values before cleaning.
         df_after: DataFrame containing channel values after cleaning.
+        channel_min_cutoff: Threshold value to mark with a red vertical line. Defaults to 0.
 
     Returns:
         The generated matplotlib figure object.
@@ -132,13 +107,12 @@ def plot_channel_histogram(df_before, df_after):
     # Calculate bin edges based on the full range of data
     min_val = min(df_before["channels_min"].min(), df_after["channels_min"].min())
     max_val = max(df_before["channels_min"].max(), df_after["channels_min"].max())
-    bins = np.linspace(min_val, max_val, 51)  # 51 edges makes 50 bins
+    bins = np.linspace(min_val, max_val, 201)  # 201 edges make 200 bins
 
-    # Plot normalized histograms with consistent bins
+    # Plot histograms with raw counts instead of density
     plt.hist(
         df_before["channels_min"].dropna(),
         bins=bins,
-        density=True,
         color="blue",
         alpha=0.5,
         label="Before clean",
@@ -146,14 +120,16 @@ def plot_channel_histogram(df_before, df_after):
     plt.hist(
         df_after["channels_min"].dropna(),
         bins=bins,
-        density=True,
         color="orange",
         alpha=0.5,
         label="After clean",
     )
 
+    # Add vertical line for channel_min_cutoff
+    plt.axvline(channel_min_cutoff, color="red", linestyle="--", label="Cutoff")
+
     plt.title("Histogram of channels_min Values")
     plt.xlabel("channels_min")
-    plt.ylabel("Density")
+    plt.ylabel("Count")
     plt.legend()
     return fig

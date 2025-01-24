@@ -1,6 +1,9 @@
 import pandas as pd
 
 
+from lib.shared.file_utils import get_filename
+
+
 def load_hdf_subset(merge_final_fp, n_rows=20000, population_feature="gene_symbol_0"):
     """
     Load a fixed number of random rows from an HDF file without loading entire file into memory.
@@ -62,5 +65,28 @@ def clean_cell_data(df, population_feature, filter_single_gene=False):
     return clean_df
 
 
-def add_filenames():
-    return None
+def add_filenames(merge_data, root_fp):
+    """Adds an image file path column to the given DataFrame.
+
+    This function generates file paths based on the 'well' and 'tile' columns
+    in the DataFrame and adds them as a new column named 'image_path'.
+
+    Args:
+        merge_data (pd.DataFrame): DataFrame containing 'well' and 'tile' columns.
+        root_fp (Path): Root file path to construct the image file paths.
+
+    Returns:
+        pd.DataFrame: The updated DataFrame with an added 'image_path' column.
+    """
+    merge_data["image_path"] = merge_data.apply(
+        lambda row: str(
+            root_fp
+            / "preprocess"
+            / "images"
+            / "phenotype"
+            / get_filename({"well": row["well"], "tile": row["tile"]}, "image", "tiff")
+        ),
+        axis=1,
+    )
+
+    return merge_data

@@ -60,3 +60,7 @@ def clean_cell_data(df, population_feature, filter_single_gene=False):
             print(f"WARNING: {multi_gene_cells} cells have multiple gene assignments")
 
     return clean_df
+
+
+def add_filenames():
+    return None

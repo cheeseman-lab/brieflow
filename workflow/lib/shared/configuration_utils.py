@@ -35,15 +35,18 @@ CONFIG_FILE_HEADER = """
 """
 
 
-def create_samples_df(images_fp, sample_pattern, metadata):
+def create_samples_df(images_fp, sample_pattern, metadata, path_pattern=None, path_metadata=None):
     """Generate samples dataframe from a directory of images.
 
-    Samples dataframe includes path to images and image metadata extracted from the file names.
+    Samples dataframe includes path to images and image metadata extracted from both 
+    file paths and file names.
 
     Args:
         images_fp (Path): Path to the directory containing images.
         sample_pattern (str): Regular expression pattern to extract metadata from image file names.
         metadata (list): List of metadata keys to extract from the file names.
+        path_pattern (str, optional): Regular expression pattern to extract metadata from file paths.
+        path_metadata (list, optional): List of metadata keys to extract from the file paths.
 
     Returns:
         Samples DataFrame: DataFrame containing sample metadata and file paths.
@@ -51,35 +54,47 @@ def create_samples_df(images_fp, sample_pattern, metadata):
     if images_fp is None:
         print("No image directory provided, returning an empty sample DataFrame!")
         return pd.DataFrame(columns=["sample_fp"])
-
+    
     samples_data = []
-
-    # Iterate over files and extract information
-    for image_fp in images_fp.rglob("*"):  # Recursively matches all files in subdirs
-        match = re.search(sample_pattern, image_fp.name)
-        if match:
+    
+    # First find all files that match the path pattern
+    for image_fp in images_fp.rglob("*"):
+        # Skip if path pattern is provided and path doesn't match
+        if path_pattern:
+            path_match = re.search(path_pattern, str(image_fp))
+            if not path_match:
+                continue
+                
+        # Now check the filename pattern
+        filename_match = re.search(sample_pattern, image_fp.name)
+        if filename_match:
             # Find sample path and metadata
             sample_data = {"sample_fp": str(image_fp)}
+            
+            # Extract metadata from filename
             sample_metadata = {
-                key: match.group(i + 1) for i, key in enumerate(metadata)
+                key: filename_match.group(i + 1) for i, key in enumerate(metadata)
             }
-
-            # Convert numeric metadta values to integers where applicable
+            # Extract metadata from path if patterns provided
+            if path_pattern and path_metadata:
+                path_metadata_values = {
+                    key: path_match.group(i + 1) for i, key in enumerate(path_metadata)
+                }
+                sample_metadata.update(path_metadata_values)
+            # Convert numeric metadata values to integers where applicable
             for key, value in sample_metadata.items():
                 if value.isdigit():
                     sample_metadata[key] = int(value)
-
             # Update sample data with metadata
             sample_data.update(sample_metadata)
-
             # Append sample data to list
             samples_data.append(sample_data)
-
-    # Create a DataFrame and sort by metadata
+            
+    # Create a DataFrame and sort by all metadata
     samples_df = pd.DataFrame(samples_data)
-    samples_df = samples_df.sort_values(by=metadata)
+    all_metadata = metadata + (path_metadata if path_metadata else [])
+    samples_df = samples_df.sort_values(by=all_metadata)
     samples_df = samples_df.reset_index(drop=True)
-
     return samples_df
 
 

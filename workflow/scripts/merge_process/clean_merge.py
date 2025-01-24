@@ -23,5 +23,3 @@ fig.savefig(snakemake.output[0])
 
 # Save cleaned merge data
 merge_cleaned.to_hdf(snakemake.output[1], "x", mode="w")
-
-# TODO: Add all output targets

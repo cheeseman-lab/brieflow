@@ -5,24 +5,17 @@ from lib.shared.target_utils import output_to_input
 rule fast_alignment:
     conda:
         "../envs/merge_process.yml"
-    # TODO: remove threads after testing
-    threads: 32
-    # TODO: use target inputs/outputs
     input:
-        # metadata file with image locations
-        #PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/combined_metadata__phenotype.hdf",
-        # lambda wildcards: output_to_input(
-        #     PREPROCESS_OUTPUTS["combine_metadata_sbs"],
-        #     {"cycle": config["merge_process"]["sbs_metdata_cycle"]},
-        #     wildcards,
-        # ),
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/combined_metadata__sbs.hdf",
+        # metadata files with image locations
+        PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["combine_metadata_sbs"],
+            {"cycle": config["merge_process"]["sbs_metdata_cycle"]},
+            wildcards,
+        ),
         # phenotype and sbs info files with cell locations
-        #PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/phenotype_info.hdf5",
-        #SBS_PROCESS_OUTPUTS["combine_sbs_info"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/sbs_info.hdf5",
+        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"],
+        SBS_PROCESS_OUTPUTS["combine_sbs_info"],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["fast_alignment"],
     params:
@@ -37,15 +30,10 @@ rule fast_alignment:
 rule merge:
     conda:
         "../envs/merge_process.yml"
-    # TODO: remove threads after testing
-    threads: 32
-    # TODO: use target inputs/outputs
     input:
         # phenotype and sbs info files with cell locations
-        #PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/phenotype_info.hdf5",
-        #SBS_PROCESS_OUTPUTS["combine_sbs_info"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/sbs_info.hdf5",
+        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"],
+        SBS_PROCESS_OUTPUTS["combine_sbs_info"],
         # fast alignment data
         MERGE_PROCESS_OUTPUTS["fast_alignment"],
     output:
@@ -62,18 +50,13 @@ rule merge:
 rule format_merge:
     conda:
         "../envs/merge_process.yml"
-    # TODO: remove threads after testing
-    threads: 32
-    # TODO: use target inputs/outputs
     input:
         # merge data
         MERGE_PROCESS_OUTPUTS["merge"],
         # cell information from SBS
-        # SBS_PROCESS_OUTPUTS["combine_cells"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/cells.hdf5",
+        SBS_PROCESS_OUTPUTS["combine_cells"],
         # min phentoype information
-        # PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/phenotype_cp_min.hdf5",
+        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["format_merge"],
     script:
@@ -84,19 +67,13 @@ rule format_merge:
 rule eval_merge:
     conda:
         "../envs/merge_process.yml"
-    # TODO: remove threads after testing
-    threads: 32
-    # TODO: use target inputs/outputs
     input:
         # formatted merge data
-        # MERGE_PROCESS_OUTPUTS["format_merge"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_formatted.hdf5",
+        MERGE_PROCESS_OUTPUTS["format_merge"],
         # cell information from SBS
-        # SBS_PROCESS_OUTPUTS["combine_cells"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/cells.hdf5",
+        SBS_PROCESS_OUTPUTS["combine_cells"],
         # min phentoype information
-        # PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/phenotype_cp_min.hdf5",
+        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["eval_merge"],
     script:
@@ -107,13 +84,9 @@ rule eval_merge:
 rule clean_merge:
     conda:
         "../envs/merge_process.yml"
-    # TODO: remove threads after testing
-    threads: 32
-    # TODO: use target inputs/outputs
     input:
         # formatted merge data
-        # MERGE_PROCESS_OUTPUTS["format_merge"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_formatted.hdf5",
+        MERGE_PROCESS_OUTPUTS["format_merge"],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["clean_merge"],
     params:
@@ -127,19 +100,13 @@ rule clean_merge:
 rule deduplicate_merge:
     conda:
         "../envs/merge_process.yml"
-    # TODO: remove threads after testing
-    threads: 32
-    # TODO: use target inputs/outputs
     input:
         # cleaned merge data
-        # MERGE_PROCESS_OUTPUTS["clean_merge"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_cleaned.hdf5",
+        MERGE_PROCESS_OUTPUTS["clean_merge"],
         # cell information from SBS
-        # SBS_PROCESS_OUTPUTS["combine_cells"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/cells.hdf5",
+        SBS_PROCESS_OUTPUTS["combine_cells"],
         # min phentoype information
-        # PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/phenotype_cp_min.hdf5",
+        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["deduplicate_merge"],
     script:
@@ -150,16 +117,11 @@ rule deduplicate_merge:
 rule final_merge:
     conda:
         "../envs/merge_process.yml"
-    # TODO: remove threads after testing
-    threads: 32
-    # TODO: use target inputs/outputs
     input:
         # formatted merge data
-        # MERGE_PROCESS_OUTPUTS["deduplicate_merge"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_deduplicated.hdf5",
+        MERGE_PROCESS_OUTPUTS["deduplicate_merge"],
         # full phentoype information
-        # PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][0],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/cp_phenotype.hdf5",
+        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][0],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["final_merge"],
     script:

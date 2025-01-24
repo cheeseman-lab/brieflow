@@ -159,6 +159,7 @@ rule final_merge:
         "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_deduplicated.hdf5",
         # full phentoype information
         # PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][0],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/denali_data/cp_phenotype.hdf5",
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["final_merge"],
     script:

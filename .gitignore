@@ -15,3 +15,6 @@ test_file_differences.ipynb
 
 # slurm outputs
 example_analysis/slurm_output/
+
+# denali data for testing merge
+example_analysis/denali_data/

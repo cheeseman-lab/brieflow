@@ -18,7 +18,7 @@ PREPROCESS_OUTPUTS = {
         / "metadata"
         / "sbs"
         / get_filename(
-            {"well": "{well}", "cycle": "{cycle}"}, "combined_metadata", "tsv"
+            {"cycle": "{cycle}"}, "combined_metadata", "hdf5"
         ),
     ],
     "extract_metadata_phenotype": [
@@ -31,7 +31,7 @@ PREPROCESS_OUTPUTS = {
         PREPROCESS_FP
         / "metadata"
         / "phenotype"
-        / get_filename({"well": "{well}"}, "combined_metadata", "tsv"),
+        / get_filename({}, "combined_metadata", "hdf5"),
     ],
     "convert_sbs": [
         PREPROCESS_FP

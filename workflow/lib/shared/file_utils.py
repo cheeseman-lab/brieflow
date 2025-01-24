@@ -2,10 +2,6 @@
 
 import logging
 
-import numpy as np
-
-from tifffile import imread
-
 log = logging.getLogger(__name__)
 
 
@@ -20,23 +16,20 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     Returns:
         str: Structured filename.
     """
-    # Well info
-    well = data_location.get("well")
-    well_str = f"W{well}" if well else ""
+    parts = []
 
-    # Tile info
-    tile = data_location.get("tile")
-    tile_str = f"_T{tile}" if tile else ""
+    if "well" in data_location:
+        parts.append(f"W{data_location['well']}")
+    if "tile" in data_location:
+        parts.append(f"T{data_location['tile']}")
+    if "cycle" in data_location:
+        parts.append(f"C{data_location['cycle']}")
 
-    # Cycle info
-    cycle = data_location.get("cycle")
-    cycle_str = f"_C{cycle}" if cycle else ""
+    prefix = "_".join(parts)
+    filename = (
+        f"{prefix}__{info_type}.{file_type}" if prefix else f"{info_type}.{file_type}"
+    )
 
-    # Construct filename by combining components with info_type and file_type
-    if well or tile or cycle:
-        filename = f"{well_str}{tile_str}{cycle_str}__{info_type}.{file_type}"
-    else:
-        filename = f"{info_type}.{file_type}"
     return filename
 
 

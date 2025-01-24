@@ -159,7 +159,8 @@ sh 6.run_merge_process.sh
 ```
 **Slurm**:
 ```sh
-sbatch 4.run_merge_process_slurm.sh
+# TODO: Add and test this file
+sbatch 6.run_merge_process_slurm.sh
 ```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.

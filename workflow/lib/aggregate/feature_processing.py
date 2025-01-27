@@ -200,3 +200,99 @@ def grouped_standardization(
     )
 
     return df_out.reset_index()
+
+
+def collapse_to_sgrna(
+    df,
+    method="median",
+    target_features=None,
+    index_features=["gene_symbol_0", "sgRNA_0"],
+    control_prefix="sg_nt",
+    min_count=None,
+):
+    """
+    Collapse cell-level data to sgRNA-level summaries.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe with cell-level data
+    method : str
+        Method for collapsing ('median' only currently supported)
+    target_features : list, optional
+        Features to collapse. If None, uses all numeric columns
+    index_features : list
+        Columns that identify sgRNAs
+    control_prefix : str
+        Prefix identifying control sgRNAs
+    min_count : int, optional
+        Minimum number of cells required per sgRNA
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with sgRNA-level summaries
+    """
+    if target_features is None:
+        target_features = [col for col in df.columns if col not in index_features]
+
+    if method == "median":
+        df_out = df.groupby(index_features)[target_features].median().reset_index()
+        df_out["sgrna_count"] = (
+            df.groupby(index_features)
+            .size()
+            .reset_index(name="sgrna_count")["sgrna_count"]
+        )
+
+        if min_count is not None:
+            df_out = df_out.query("sgrna_count >= @min_count")
+    else:
+        raise ValueError("Only method='median' is currently supported")
+
+    control_mask = df_out["gene_symbol_0"].str.startswith(control_prefix)
+    unique_controls = df_out.loc[control_mask, "gene_symbol_0"].unique()
+    if len(unique_controls) == 1:
+        print("Multiple control guides not found. Renaming to ensure uniqueness.")
+        control_mask = df_out["gene_symbol_0"].str.startswith(control_prefix)
+        for idx, row_idx in enumerate(df_out[control_mask].index, 1):
+            df_out.loc[row_idx, "gene_symbol_0"] = f"{control_prefix}_{idx}"
+
+    return df_out
+
+
+def collapse_to_gene(
+    df, target_features=None, index_features=["gene_symbol_0"], min_count=None
+):
+    """
+    Collapse sgRNA-level data to gene-level summaries.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe with sgRNA-level data
+    target_features : list, optional
+        Features to collapse. If None, uses all numeric columns
+    index_features : list
+        Columns that identify genes
+    min_count : int, optional
+        Minimum number of sgRNAs required per gene
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with gene-level summaries
+    """
+    if target_features is None:
+        target_features = [col for col in df.columns if col not in index_features]
+
+    df_out = df.groupby(index_features)[target_features].median().reset_index()
+
+    if "sgrna_count" in df.columns:
+        df_out["gene_count"] = (
+            df.groupby(index_features)["sgrna_count"].sum().reset_index(drop=True)
+        )
+
+    if min_count is not None:
+        df_out = df_out.query("gene_count >= @min_count")
+
+    return df_out

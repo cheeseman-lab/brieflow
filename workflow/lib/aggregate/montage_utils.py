@@ -22,10 +22,7 @@ def create_mitotic_cell_montage(
 
     Args:
         df (pd.DataFrame): DataFrame with cell data
-        output_dir (str): Directory to save montages
-        output_prefix (str): Prefix for output filenames
-        channels (dict): Dictionary mapping channel names to filename column names
-                        e.g. {'DAPI': 'filename_DAPI', 'GFP': 'filename_GFP'}
+        channels (list): List with channel names
         num_cells (int): Number of cells to include
         cell_size (int): Size of cell bounds box
         shape (tuple): Shape of montage grid (rows, cols)
@@ -67,43 +64,20 @@ def create_mitotic_cell_montage(
     )
 
     # TODO: finish testing
-    return grid_view(
-        filenames=df_subset["image_path"],
+    cell_grid = grid_view(
+        filenames=df_subset["image_path"].tolist(),
         bounds=df_subset["bounds"].tolist(),
         padding=0,
     )
 
-    # Store montages
+    # compile montages for each channel
     montages = {}
 
-    # Create montages for each channel
-    for channel_name, channel_info in channels.items():
-        # Parse the channel dict
-        if isinstance(channel_info, dict):
-            filename = channel_info["filename"]
-            if filename != "filename":
-                filename = f"filename_{filename}"
-            channel_idx = channel_info.get("channel")
-        else:
-            filename = channel_info
-            channel_idx = None
+    for index, channel in enumerate(channels):
+        channel_montage = create_montage(cell_grid[:, index, :, :], shape=shape)
+        montages[channel] = channel_montage
 
-        # Create grid
-        cell_grid = grid_view(
-            files=df_subset[filename].tolist(),
-            bounds=df_subset["bounds"].tolist(),
-            padding=0,
-        )
-
-        # Create montage
-        montage = create_montage(cell_grid, shape=shape)
-        montages[channel_name] = montage
-
-        # Select channel if specified in channel_info
-        if channel_idx is not None:
-            montage = montage[channel_idx]
-
-        return montage
+    return montages
 
 
 def add_rect_bounds(df, width=10, ij="ij", bounds_col="bounds"):
@@ -153,31 +127,18 @@ def grid_view(filenames, bounds, padding=40, with_mask=False):
         np.ndarray (optional): Stacked mask array if with_mask is True.
     """
     padding = int(padding)
-    sub_images = []
+    image_cells = []
 
     for filename, bound_set in zip(filenames, bounds):
         image = imread(filename)
-        for i_min, j_min, i_max, j_max in bound_set:
-            # Apply padding to the bounding box
-            i_min_p, j_min_p = max(0, i_min - padding), max(0, j_min - padding)
-            i_max_p, j_max_p = (
-                min(image.shape[0], i_max + padding),
-                min(image.shape[1], j_max + padding),
-            )
+        # Apply padding to the bounding box
 
-            # Extract sub-image with padding
-            sub_image = image[i_min_p:i_max_p, j_min_p:j_max_p].copy()
-            sub_images.append(sub_image)
+        # Extract sub-image with padding
+        # image_cell = image[0, i_min:i_max, j_min:j_max].copy()
+        image_cell = subimage(image, bound_set, pad=padding)
+        image_cells.append(image_cell)
 
-    if with_mask:
-        masks = [
-            np.full((i_max_p - i_min_p, j_max_p - j_min_p), idx + 1, dtype=np.uint16)
-            for idx, bound_set in enumerate(bounds)
-            for i_min_p, j_min_p, i_max_p, j_max_p in bound_set
-        ]
-        return np.stack(sub_images), np.stack(masks)
-
-    return np.stack(sub_images)
+    return np.stack(image_cells)
 
 
 def create_montage(arr, shape=None):

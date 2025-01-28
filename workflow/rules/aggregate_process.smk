@@ -8,5 +8,7 @@ rule clean_and_transform:
     input:
         # final merge data
         MERGE_PROCESS_OUTPUTS["final_merge"],
+    params:
+        transformations_fp=config["aggregate_process"]["transformations_fp"],
     script:
         "../scripts/aggregate_process/clean_and_transform.py"

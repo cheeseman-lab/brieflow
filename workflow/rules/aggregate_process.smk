@@ -15,6 +15,7 @@ rule clean_and_transform:
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["clean_and_transform"],
     params:
+        population_feature=config["aggregate_process"]["population_feature"],
         transformations_fp=config["aggregate_process"]["transformations_fp"],
         channels=config["phenotype_process"]["channel_names"],
     script:

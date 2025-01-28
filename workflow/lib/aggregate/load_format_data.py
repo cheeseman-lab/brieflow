@@ -1,3 +1,16 @@
+"""This module provides functions for loading and formatting data during aggregation.
+
+Functions include:
+- Loading a subset of data from HDF files for efficient processing.
+- Cleaning cell data by removing unassigned or multi-gene cells.
+- Adding image file paths to a DataFrame for downstream analysis.
+
+Functions:
+    - load_hdf_subset: Load a fixed number of random rows from an HDF file.
+    - clean_cell_data: Clean cell data by filtering for valid and optionally single-gene cells.
+    - add_filenames: Add image file paths to a DataFrame based on well and tile information.
+"""
+
 import pandas as pd
 
 
@@ -5,22 +18,15 @@ from lib.shared.file_utils import get_filename
 
 
 def load_hdf_subset(merge_final_fp, n_rows=20000, population_feature="gene_symbol_0"):
-    """
-    Load a fixed number of random rows from an HDF file without loading entire file into memory.
+    """Load a fixed number of random rows from an HDF file without loading entire file into memory.
 
-    Parameters
-    ----------
-    merge_final_fp : str
-        Path to HDF file
-    n_rows : int
-        Number of rows to get
-    population_feature : str
-        Column name containing population identifiers
+    Args:
+        merge_final_fp (str): Path to HDF file.
+        n_rows (int): Number of rows to get.
+        population_feature (str): Column name containing population identifiers.
 
-    Returns
-    -------
-    pd.DataFrame
-        Subset of the data with combined blocks
+    Returns:
+        pd.DataFrame: Subset of the data with combined blocks.
     """
     print(f"Reading first {n_rows:,} rows from {merge_final_fp}")
 
@@ -37,16 +43,15 @@ def load_hdf_subset(merge_final_fp, n_rows=20000, population_feature="gene_symbo
 
 
 def clean_cell_data(df, population_feature, filter_single_gene=False):
-    """
-    Clean cell data by removing cells without perturbation assignments and optionally filtering for single-gene cells.
+    """Clean cell data by removing cells without perturbation assignments and optionally filtering for single-gene cells.
 
     Args:
-        df (pd.DataFrame): Raw dataframe containing cell measurements
-        population_feature (str): Column name containing perturbation assignments
-        filter_single_gene (bool): If True, only keep cells with mapped_single_gene=True
+        df (pd.DataFrame): Raw dataframe containing cell measurements.
+        population_feature (str): Column name containing perturbation assignments.
+        filter_single_gene (bool): If True, only keep cells with mapped_single_gene=True.
 
     Returns:
-        pd.DataFrame: Cleaned dataframe
+        pd.DataFrame: Cleaned dataframe.
     """
     # Remove cells without perturbation assignments
     clean_df = df[df[population_feature].notna()].copy()

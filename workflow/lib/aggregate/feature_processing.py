@@ -1,25 +1,34 @@
+"""This module provides functions for processing and aggregating features during data analysis.
+
+Functions include:
+- Applying transformations to features using a flexible transformation dictionary.
+- Suggesting parameters for feature analysis based on input data.
+- Standardizing features using robust z-scores grouped by specified categories.
+- Collapsing cell-level data to sgRNA-level and gene-level summaries with customizable options.
+
+Functions:
+    - feature_transform: Apply transformations to features based on a transformation dictionary.
+    - suggest_parameters: Suggest feature analysis parameters from input data.
+    - grouped_standardization: Perform robust z-score standardization grouped by specified features.
+    - collapse_to_sgrna: Aggregate cell-level data to sgRNA-level summaries.
+    - collapse_to_gene: Aggregate sgRNA-level data to gene-level summaries.
+"""
+
 import numpy as np
 import pandas as pd
 
 
 def feature_transform(df, transformation_dict, channels):
-    """
-    Apply transformations to features based on a transformation dictionary.
+    """Apply transformations to features based on a transformation dictionary.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe containing features to transform
-    transformation_dict : pd.DataFrame
-        DataFrame containing 'feature' and 'transformation' columns specifying
-        which transformations to apply to which features
-    channels : list
-        List of channel names to use when expanding feature templates
+    Args:
+        df (pd.DataFrame): Input dataframe containing features to transform.
+        transformation_dict (pd.DataFrame): DataFrame containing 'feature' and 'transformation' columns specifying
+            which transformations to apply to which features.
+        channels (list): List of channel names to use when expanding feature templates.
 
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with transformed features
+    Returns:
+        pd.DataFrame: DataFrame with transformed features.
     """
 
     def apply_transformation(feature, transformation):
@@ -62,21 +71,15 @@ def feature_transform(df, transformation_dict, channels):
 
 
 def suggest_parameters(df, population_feature):
+    """Suggest parameters based on input dataframe.
+
+    Args:
+        df (pd.DataFrame): Input dataframe.
+        population_feature (str): Column name containing population identifiers.
+
+    Returns:
+        None
     """
-    Suggest parameters based on input dataframe.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe
-    population_feature : str
-        Column name containing population identifiers
-
-    Returns
-    -------
-    None
-    """
-
     # Look for potential control prefixes
     unique_populations = df[population_feature].unique()
     potential_controls = [
@@ -131,32 +134,20 @@ def grouped_standardization(
     target_features=None,
     drop_features=False,
 ):
-    """
-    Standardize features using robust z-scores, calculated per group using control populations.
+    """Standardize features using robust z-scores, calculated per group using control populations.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe
-    population_feature : str
-        Column name containing population identifiers
-    control_prefix : str
-        Prefix identifying control populations
-    group_columns : list
-        Columns to group by for standardization
-    index_columns : list
-        Columns that uniquely identify cells
-    cat_columns : list
-        Categorical columns to preserve
-    target_features : list, optional
-        Features to standardize. If None, will standardize all numeric columns
-    drop_features : bool
-        Whether to drop untransformed features
+    Args:
+        df (pd.DataFrame): Input dataframe.
+        population_feature (str): Column name containing population identifiers.
+        control_prefix (str): Prefix identifying control populations.
+        group_columns (list): Columns to group by for standardization.
+        index_columns (list): Columns that uniquely identify cells.
+        cat_columns (list): Categorical columns to preserve.
+        target_features (list, optional): Features to standardize. If None, will standardize all numeric columns.
+        drop_features (bool): Whether to drop untransformed features.
 
-    Returns
-    -------
-    pd.DataFrame
-        Standardized dataframe
+    Returns:
+        pd.DataFrame: Standardized dataframe.
     """
     df_out = df.copy().drop_duplicates(subset=group_columns + index_columns)
 
@@ -210,28 +201,18 @@ def collapse_to_sgrna(
     control_prefix="sg_nt",
     min_count=None,
 ):
-    """
-    Collapse cell-level data to sgRNA-level summaries.
+    """Collapse cell-level data to sgRNA-level summaries.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe with cell-level data
-    method : str
-        Method for collapsing ('median' only currently supported)
-    target_features : list, optional
-        Features to collapse. If None, uses all numeric columns
-    index_features : list
-        Columns that identify sgRNAs
-    control_prefix : str
-        Prefix identifying control sgRNAs
-    min_count : int, optional
-        Minimum number of cells required per sgRNA
+    Args:
+        df (pd.DataFrame): Input dataframe with cell-level data.
+        method (str): Method for collapsing ('median' only currently supported).
+        target_features (list, optional): Features to collapse. If None, uses all numeric columns.
+        index_features (list): Columns that identify sgRNAs.
+        control_prefix (str): Prefix identifying control sgRNAs.
+        min_count (int, optional): Minimum number of cells required per sgRNA.
 
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with sgRNA-level summaries
+    Returns:
+        pd.DataFrame: DataFrame with sgRNA-level summaries.
     """
     if target_features is None:
         target_features = [col for col in df.columns if col not in index_features]
@@ -263,24 +244,16 @@ def collapse_to_sgrna(
 def collapse_to_gene(
     df, target_features=None, index_features=["gene_symbol_0"], min_count=None
 ):
-    """
-    Collapse sgRNA-level data to gene-level summaries.
+    """Collapse sgRNA-level data to gene-level summaries.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe with sgRNA-level data
-    target_features : list, optional
-        Features to collapse. If None, uses all numeric columns
-    index_features : list
-        Columns that identify genes
-    min_count : int, optional
-        Minimum number of sgRNAs required per gene
+    Args:
+        df (pd.DataFrame): Input dataframe with sgRNA-level data.
+        target_features (list, optional): Features to collapse. If None, uses all numeric columns.
+        index_features (list): Columns that identify genes.
+        min_count (int, optional): Minimum number of sgRNAs required per gene.
 
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with gene-level summaries
+    Returns:
+        pd.DataFrame: DataFrame with gene-level summaries.
     """
     if target_features is None:
         target_features = [col for col in df.columns if col not in index_features]

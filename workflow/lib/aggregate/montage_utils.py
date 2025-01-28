@@ -1,3 +1,18 @@
+"""This module provides functions for creating montages of cells from imaging data.
+
+Functions include:
+- Generating montages of mitotic cells with customizable parameters such as size, shape, and channel selection.
+- Adding rectangular bounds to a DataFrame for defining cell regions.
+- Creating grid views of sub-images based on TIFF image bounding boxes.
+- Tiling arrays to produce montages with flexible grid configurations.
+
+Functions:
+    - create_mitotic_cell_montage: Create a montage of cells from a DataFrame with flexible selection and layout options.
+    - add_rect_bounds: Add rectangular bounds to a DataFrame for defining regions of interest.
+    - grid_view: Generate grid views of sub-images from TIFF images using bounding boxes.
+    - create_montage: Tile ND arrays into a montage with specified dimensions.
+"""
+
 from itertools import product
 
 import numpy as np
@@ -16,26 +31,24 @@ def create_mitotic_cell_montage(
     selection_params=None,
     coordinate_cols=None,
 ):
-    """
-    Create a montage of cells from DataFrame with flexible parameters.
-    Designed to save data directly, for use with interactive visualization.
+    """Create a montage of cells from DataFrame with flexible parameters.
 
     Args:
-        df (pd.DataFrame): DataFrame with cell data
-        channels (list): List with channel names
-        num_cells (int): Number of cells to include
-        cell_size (int): Size of cell bounds box
-        shape (tuple): Shape of montage grid (rows, cols)
-        selection_params (dict): Parameters for cell selection
-                        {
-                            'method': 'random' | 'sorted' | 'head',
-                            'sort_by': column name if method='sorted',
-                            'ascending': True/False if method='sorted'
-                        }
-        coordinate_cols (list): Names of coordinate columns for bounds, defaults to ['i_0', 'j_0']
+        df (pd.DataFrame): DataFrame with cell data.
+        channels (list): List with channel names.
+        num_cells (int): Number of cells to include.
+        cell_size (int): Size of cell bounds box.
+        shape (tuple): Shape of montage grid (rows, cols).
+        selection_params (dict): Parameters for cell selection.
+            {
+                'method': 'random' | 'sorted' | 'head',
+                'sort_by': column name if method='sorted',
+                'ascending': True/False if method='sorted'
+            }
+        coordinate_cols (list): Names of coordinate columns for bounds, defaults to ['i_0', 'j_0'].
 
     Returns:
-        dict: Dictionary mapping channels to their montage arrays
+        dict: Dictionary mapping channels to their montage arrays.
     """
     if coordinate_cols is None:
         coordinate_cols = ["i_0", "j_0"]
@@ -63,7 +76,7 @@ def create_mitotic_cell_montage(
         bounds_col="bounds",
     )
 
-    # TODO: finish testing
+    # Create grid veiw for all channels
     cell_grid = grid_view(
         filenames=df_subset["image_path"].tolist(),
         bounds=df_subset["bounds"].tolist(),
@@ -81,26 +94,25 @@ def create_mitotic_cell_montage(
 
 
 def add_rect_bounds(df, width=10, ij="ij", bounds_col="bounds"):
-    """
-    Add rectangular bounds to a DataFrame.
+    """Add rectangular bounds to a DataFrame.
 
     Args:
-    df (pandas.DataFrame): DataFrame containing the data.
-    width (int, optional): Width of the rectangular bounds. Defaults to 10.
-    ij (str or tuple, optional): Column name or tuple of column names representing the
-        coordinates in the DataFrame. Defaults to 'ij'.
-    bounds_col (str, optional): Name of the column to store the bounds. Defaults to 'bounds'.
+        df (pandas.DataFrame): DataFrame containing the data.
+        width (int, optional): Width of the rectangular bounds. Defaults to 10.
+        ij (str or tuple, optional): Column name or tuple of column names representing the
+            coordinates in the DataFrame. Defaults to 'ij'.
+        bounds_col (str, optional): Name of the column to store the bounds. Defaults to 'bounds'.
 
     Returns:
-    pandas.DataFrame: DataFrame with the rectangular bounds added.
+        pandas.DataFrame: DataFrame with the rectangular bounds added.
 
     Notes:
-    - This function computes rectangular bounds around coordinates in the DataFrame.
-    - It iterates over the 'ij' column (or columns) to extract the coordinates.
-    - For each coordinate, it computes the bounds as (i - width, j - width, i + width, j + width).
-    - The bounds are stored in a list 'arr'.
-    - The DataFrame is then assigned a new column named 'bounds_col' with the computed bounds.
-    - The modified DataFrame is returned.
+        - This function computes rectangular bounds around coordinates in the DataFrame.
+        - It iterates over the 'ij' column (or columns) to extract the coordinates.
+        - For each coordinate, it computes the bounds as (i - width, j - width, i + width, j + width).
+        - The bounds are stored in a list 'arr'.
+        - The DataFrame is then assigned a new column named 'bounds_col' with the computed bounds.
+        - The modified DataFrame is returned.
     """
     arr = []
 
@@ -113,8 +125,7 @@ def add_rect_bounds(df, width=10, ij="ij", bounds_col="bounds"):
 
 
 def grid_view(filenames, bounds, padding=40, with_mask=False):
-    """
-    Generates a grid view of sub-images from a list of TIFF images based on given bounding boxes.
+    """Generates a grid view of sub-images from a list of TIFF images based on given bounding boxes.
 
     Args:
         filenames (list): List of paths to TIFF image files.
@@ -142,8 +153,7 @@ def grid_view(filenames, bounds, padding=40, with_mask=False):
 
 
 def create_montage(arr, shape=None):
-    """
-    Tile ND arrays in last two dimensions to create a montage.
+    """Tile ND arrays in last two dimensions to create a montage.
 
     Args:
         arr (list of np.ndarray): List of arrays to be tiled.

@@ -1,25 +1,30 @@
+"""This module provides functions for visualizing and analyzing cell populations.
+
+Functions include:
+- Plotting the distribution of mitotic cells using histograms and scatter plots.
+- Splitting cell populations into mitotic and interphase groups based on feature thresholds.
+
+Functions:
+    - plot_mitotic_distribution_hist: Plot histogram of a feature and calculate the percentage of mitotic cells.
+    - plot_mitotic_distribution_scatter: Plot a scatter plot of two features with threshold cutoffs.
+    - split_mitotic_simple: Split cells into mitotic and interphase populations based on thresholds.
+
+"""
+
 import matplotlib.pyplot as plt
 
 
 def plot_mitotic_distribution_hist(df, threshold_variable, threshold_value, bins=100):
-    """
-    Plot distribution of the threshold variable and calculate percent of mitotic cells.
+    """Plot distribution of the threshold variable and calculate percent of mitotic cells.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe containing cell measurements
-    threshold_variable : str
-        Column name for mitotic cell identification
-    threshold_value : float
-        Threshold value for separating mitotic cells
-    bins : int
-        Number of bins for histogram
+    Args:
+        df (pd.DataFrame): Input dataframe containing cell measurements.
+        threshold_variable (str): Column name for mitotic cell identification.
+        threshold_value (float): Threshold value for separating mitotic cells.
+        bins (int): Number of bins for histogram.
 
-    Returns
-    -------
-    float
-        Percentage of cells classified as mitotic
+    Returns:
+        float: Percentage of cells classified as mitotic.
     """
     # Create plot
     plt.figure(figsize=(10, 6))
@@ -53,27 +58,18 @@ def plot_mitotic_distribution_scatter(
     threshold_y,
     alpha=0.5,
 ):
-    """
-    Plot scatter plot of two variables with two threshold cutoffs.
+    """Plot scatter plot of two variables with two threshold cutoffs.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe containing cell measurements
-    threshold_variable_x : str
-        Column name for x-axis variable
-    threshold_variable_y : str
-        Column name for y-axis variable
-    threshold_x : float
-        Threshold value for x-axis
-    threshold_y : float
-        Threshold value for y-axis
-    alpha : float
-        Transparency of points
+    Args:
+        df (pd.DataFrame): Input dataframe containing cell measurements.
+        threshold_variable_x (str): Column name for x-axis variable.
+        threshold_variable_y (str): Column name for y-axis variable.
+        threshold_x (float): Threshold value for x-axis.
+        threshold_y (float): Threshold value for y-axis.
+        alpha (float): Transparency of points.
 
-    Returns
-    -------
-    None
+    Returns:
+        None
     """
     # Create plot
     plt.figure(figsize=(10, 6))
@@ -107,21 +103,15 @@ def plot_mitotic_distribution_scatter(
 
 
 def split_mitotic_simple(df, conditions):
-    """
-    Split cells into mitotic and interphase populations based on feature thresholds.
+    """Split cells into mitotic and interphase populations based on feature thresholds.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe
-    conditions : dict
-        Dictionary mapping feature names to (threshold, direction) tuples
-        where direction is 'greater' or 'less'
+    Args:
+        df (pd.DataFrame): Input dataframe.
+        conditions (dict): Dictionary mapping feature names to (threshold, direction) tuples
+            where direction is 'greater' or 'less'.
 
-    Returns
-    -------
-    tuple
-        (mitotic_df, interphase_df) pair of DataFrames
+    Returns:
+        tuple: (mitotic_df, interphase_df) pair of DataFrames.
     """
     mitotic_df = df.copy()
 

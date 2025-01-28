@@ -26,6 +26,7 @@ aggregate_process:
     nucleus_dapi_median:
     - 7
     - greater
+  transformations_fp: config/transformations.tsv
 all:
   root_fp: analysis_root/
 merge_process:

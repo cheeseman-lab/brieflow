@@ -23,7 +23,7 @@ from lib.external.cp_emulator import subimage
 
 
 def create_mitotic_cell_montage(
-    df,
+    cell_data,
     channels,
     num_cells=30,
     cell_size=40,
@@ -34,7 +34,7 @@ def create_mitotic_cell_montage(
     """Create a montage of cells from DataFrame with flexible parameters.
 
     Args:
-        df (pd.DataFrame): DataFrame with cell data.
+        cell_data (pd.DataFrame): DataFrame with cell data.
         channels (list): List with channel names.
         num_cells (int): Number of cells to include.
         cell_size (int): Size of cell bounds box.
@@ -57,29 +57,29 @@ def create_mitotic_cell_montage(
         selection_params = {"method": "head"}
 
     # Select cells based on parameters
-    df_subset = df.copy()
+    cell_data_subset = cell_data.copy()
     if selection_params["method"] == "random":
-        df_subset = df_subset.sample(n=num_cells)
+        cell_data_subset = cell_data_subset.sample(n=num_cells, random_state=0)
     elif selection_params["method"] == "sorted":
-        df_subset = df_subset.sort_values(
+        cell_data_subset = cell_data_subset.sort_values(
             selection_params["sort_by"],
             ascending=selection_params.get("ascending", True),
         ).head(num_cells)
     else:
-        df_subset = df_subset.head(num_cells)
+        cell_data_subset = cell_data_subset.head(num_cells)
 
     # Add bounds
-    df_subset = df_subset.pipe(
+    cell_data_subset = cell_data_subset.pipe(
         add_rect_bounds,
         width=cell_size,
         ij=coordinate_cols,
         bounds_col="bounds",
     )
 
-    # Create grid veiw for all channels
+    # Create grid view for all channels
     cell_grid = grid_view(
-        filenames=df_subset["image_path"].tolist(),
-        bounds=df_subset["bounds"].tolist(),
+        filenames=cell_data_subset["image_path"].tolist(),
+        bounds=cell_data_subset["bounds"].tolist(),
         padding=0,
     )
 
@@ -93,11 +93,11 @@ def create_mitotic_cell_montage(
     return montages
 
 
-def add_rect_bounds(df, width=10, ij="ij", bounds_col="bounds"):
+def add_rect_bounds(cell_data, width=10, ij="ij", bounds_col="bounds"):
     """Add rectangular bounds to a DataFrame.
 
     Args:
-        df (pandas.DataFrame): DataFrame containing the data.
+        cell_data (pandas.DataFrame): DataFrame containing the data.
         width (int, optional): Width of the rectangular bounds. Defaults to 10.
         ij (str or tuple, optional): Column name or tuple of column names representing the
             coordinates in the DataFrame. Defaults to 'ij'.
@@ -117,11 +117,11 @@ def add_rect_bounds(df, width=10, ij="ij", bounds_col="bounds"):
     arr = []
 
     # Iterate over the DataFrame to compute rectangular bounds
-    for i, j in df[list(ij)].values.astype(int):
+    for i, j in cell_data[list(ij)].values.astype(int):
         arr.append((i - width, j - width, i + width, j + width))
 
     # Assign the computed bounds to a new column in the DataFrame
-    return df.assign(**{bounds_col: arr})
+    return cell_data.assign(**{bounds_col: arr})
 
 
 def grid_view(filenames, bounds, padding=40, with_mask=False):

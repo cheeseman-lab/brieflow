@@ -42,11 +42,11 @@ def load_hdf_subset(merge_final_fp, n_rows=20000, population_feature="gene_symbo
     return df
 
 
-def clean_cell_data(df, population_feature, filter_single_gene=False):
+def clean_cell_data(cell_measurements, population_feature, filter_single_gene=False):
     """Clean cell data by removing cells without perturbation assignments and optionally filtering for single-gene cells.
 
     Args:
-        df (pd.DataFrame): Raw dataframe containing cell measurements.
+        cell_measurements (pd.DataFrame): Raw dataframe containing cell measurements.
         population_feature (str): Column name containing perturbation assignments.
         filter_single_gene (bool): If True, only keep cells with mapped_single_gene=True.
 
@@ -54,20 +54,28 @@ def clean_cell_data(df, population_feature, filter_single_gene=False):
         pd.DataFrame: Cleaned dataframe.
     """
     # Remove cells without perturbation assignments
-    clean_df = df[df[population_feature].notna()].copy()
-    print(f"Found {len(clean_df)} cells with assigned perturbations")
+    clean_cell_measurements = cell_measurements[
+        cell_measurements[population_feature].notna()
+    ].copy()
+    print(f"Found {len(clean_cell_measurements)} cells with assigned perturbations")
 
     if filter_single_gene:
         # Filter for single-gene cells if requested
-        clean_df = clean_df[clean_df["mapped_single_gene"] == True]
-        print(f"Kept {len(clean_df)} cells with single gene assignments")
+        clean_cell_measurements = clean_cell_measurements[
+            clean_cell_measurements["mapped_single_gene"] == True
+        ]
+        print(f"Kept {len(clean_cell_measurements)} cells with single gene assignments")
     else:
         # Warn about multi-gene cells if not filtering
-        multi_gene_cells = len(clean_df[clean_df["mapped_single_gene"] == False])
+        multi_gene_cells = len(
+            clean_cell_measurements[
+                clean_cell_measurements["mapped_single_gene"] == False
+            ]
+        )
         if multi_gene_cells > 0:
             print(f"WARNING: {multi_gene_cells} cells have multiple gene assignments")
 
-    return clean_df
+    return clean_cell_measurements
 
 
 def add_filenames(merge_data, root_fp):

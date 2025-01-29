@@ -59,6 +59,88 @@ rule split_phases:
         "../scripts/aggregate_process/split_phases.py"
 
 
+# Process mitotic gene data
+rule process_mitotic_gene_data:
+    conda:
+        "../envs/aggregate_process.yml"
+    input:
+        # mitotic data
+        # AGGREGATE_PROCESS_OUTPUTS["split_phases"][0]
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/mitotic_data.hdf5",
+    output:
+        AGGREGATE_PROCESS_OUTPUTS_MAPPED["process_mitotic_gene_data"],
+    params:
+        standardize_data=True,
+        feature_start=config["aggregate_process"]["feature_start"],
+        population_feature=config["aggregate_process"]["population_feature"],
+        control_prefix=config["aggregate_process"]["control_prefix"],
+        group_columns=config["aggregate_process"]["group_columns"],
+        index_columns=config["aggregate_process"]["index_columns"],
+        cat_columns=config["aggregate_process"]["cat_columns"],
+    script:
+        "../scripts/aggregate_process/process_gene_data.py"
+
+
+# Process interphase gene data
+rule process_interphase_gene_data:
+    conda:
+        "../envs/aggregate_process.yml"
+    input:
+        # interphase data
+        # AGGREGATE_PROCESS_OUTPUTS["split_phases"][1]
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/interphase_data.hdf5",
+    output:
+        AGGREGATE_PROCESS_OUTPUTS_MAPPED["process_interphase_gene_data"],
+    params:
+        standardize_data=True,
+        feature_start=config["aggregate_process"]["feature_start"],
+        population_feature=config["aggregate_process"]["population_feature"],
+        control_prefix=config["aggregate_process"]["control_prefix"],
+        group_columns=config["aggregate_process"]["group_columns"],
+        index_columns=config["aggregate_process"]["index_columns"],
+        cat_columns=config["aggregate_process"]["cat_columns"],
+    script:
+        "../scripts/aggregate_process/process_gene_data.py"
+
+
+# Process all gene data
+rule process_all_gene_data:
+    conda:
+        "../envs/aggregate_process.yml"
+    input:
+        # all standardized data
+        # AGGREGATE_PROCESS_OUTPUTS["standardize_features"]
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/standardized_data.hdf5",
+    output:
+        AGGREGATE_PROCESS_OUTPUTS_MAPPED["process_all_gene_data"],
+    params:
+        standardize_data=False,
+        feature_start=config["aggregate_process"]["feature_start"],
+        population_feature=config["aggregate_process"]["population_feature"],
+        control_prefix=config["aggregate_process"]["control_prefix"],
+        group_columns=config["aggregate_process"]["group_columns"],
+        index_columns=config["aggregate_process"]["index_columns"],
+        cat_columns=config["aggregate_process"]["cat_columns"],
+    script:
+        "../scripts/aggregate_process/process_gene_data.py"
+
+
+# Prepare mitotic montage data
+rule prepare_mitotic_montage_data:
+    conda:
+        "../envs/aggregate_process.yml"
+    input:
+        # all standardized data
+        # AGGREGATE_PROCESS_OUTPUTS["split_phases"][0]
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/mitotic_data.hdf5",
+    output:
+        AGGREGATE_PROCESS_OUTPUTS_MAPPED["prepare_mitotic_montage_data"],
+    params:
+        root_fp=config["all"]["root_fp"],
+    script:
+        "../scripts/aggregate_process/prepare_montage_data.py"
+
+
 # Rule for all aggregate processing steps
 rule all_aggregate_process:
     input:

@@ -15,6 +15,15 @@ AGGREGATE_PROCESS_OUTPUTS = {
         AGGREGATE_PROCESS_FP / "hdfs" / "mitotic_data.hdf5",
         AGGREGATE_PROCESS_FP / "hdfs" / "interphase_data.hdf5",
     ],
+    "process_mitotic_gene_data": [
+        AGGREGATE_PROCESS_FP / "tsvs" / "mitotic_gene_data.tsv",
+    ],
+    "process_interphase_gene_data": [
+        AGGREGATE_PROCESS_FP / "tsvs" / "interphase_gene_data.tsv",
+    ],
+    "process_all_gene_data": [
+        AGGREGATE_PROCESS_FP / "tsvs" / "all_gene_data.tsv",
+    ],
 }
 
 AGGREGATE_PROCESS_OUTPUT_MAPPINGS = {

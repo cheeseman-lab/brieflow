@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=test_aggregate_slurm
-#SBATCH --output=test_aggregate_slurm-%j.out
-#SBATCH --error=test_aggregate_slurm-%j.err
+#SBATCH --output=test_aggregate_slurm.out
+#SBATCH --error=test_aggregate_slurm.err
 #SBATCH --time=01:00:00
 #SBATCH --partition=20
 #SBATCH --ntasks=1

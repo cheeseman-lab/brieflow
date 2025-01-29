@@ -5,4 +5,4 @@
 snakemake --use-conda --cores all \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
-    --force split_phases
+    --force process_mitotic_gene_data process_interphase_gene_data process_all_gene_data

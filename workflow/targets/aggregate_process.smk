@@ -70,7 +70,7 @@ NON_MONTAGE_TARGETS = outputs_to_targets(
 # determine combinations of genes, sgrna, and channel combinations from pool design file
 # get each gene/sgrna combination that has a dialout value of 0 or 1
 df_design = pd.read_csv(config["sbs_process"]["df_design_path"], sep="\t")
-df_barcodes = (
+montage_combinations = (
     df_design.query("dialout == [0, 1]")
     .drop_duplicates("sgRNA")[["gene_symbol", "sgRNA"]]
     .rename(columns={"gene_symbol": "gene_symbol_0", "sgRNA": "sgRNA_0"})
@@ -78,17 +78,18 @@ df_barcodes = (
 )
 channels = config["phenotype_process"]["channel_names"]
 # explode channels across each gene/sgrna combination
-df_barcodes = (
-    df_barcodes.assign(key=1)
+montage_combinations = (
+    montage_combinations.assign(key=1)
     .merge(pd.DataFrame({"channel": channels, "key": 1}), on="key")
     .drop("key", axis=1)
 )
-df_barcodes = df_barcodes.head(10)
+# TODO: remove this header line to run all combinations
+montage_combinations = montage_combinations.head(20)
 
 MONTAGE_WILDCARDS = {
-    "gene": df_barcodes["gene_symbol_0"].to_list(),
-    "sgrna": df_barcodes["sgRNA_0"].to_list(),
-    "channel": df_barcodes["channel"].to_list(),
+    "gene": montage_combinations["gene_symbol_0"].to_list(),
+    "sgrna": montage_combinations["sgRNA_0"].to_list(),
+    "channel": montage_combinations["channel"].to_list(),
 }
 MONTAGE_OUTPUTS = {
     rule_name: templates
@@ -98,9 +99,10 @@ MONTAGE_OUTPUTS = {
 MONTAGE_TARGETS = outputs_to_targets(
     MONTAGE_OUTPUTS, MONTAGE_WILDCARDS, expansion_method="zip"
 )
-print(MONTAGE_TARGETS)
 
 # Combine all preprocessing targets
-AGGREGATE_PROCESS_TARGETS_ALL = sum(NON_MONTAGE_TARGETS.values(), []) + sum(
-    MONTAGE_TARGETS.values(), []
-)
+# TODO: use all targets
+# AGGREGATE_PROCESS_TARGETS_ALL = sum(NON_MONTAGE_TARGETS.values(), []) + sum(
+#     MONTAGE_TARGETS.values(), []
+# )
+AGGREGATE_PROCESS_TARGETS_ALL = sum(MONTAGE_TARGETS.values(), [])

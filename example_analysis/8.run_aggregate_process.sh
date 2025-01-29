@@ -5,4 +5,4 @@
 snakemake --use-conda --cores all \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
-    --force generate_mitotic_montage -n
+    --force all_aggregate_process -n

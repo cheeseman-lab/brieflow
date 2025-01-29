@@ -61,50 +61,8 @@ def outputs_to_targets(outputs, wildcards, expansion_method="product"):
     expanded_targets = {}
     for rule_name, path_templates in outputs.items():
         if expansion_method == "zip":
-            print(rule_name)
-            print(path_templates)
-            print(wildcards)
             expanded_targets[rule_name] = [
-                expand(
-                    str(path_template),
-                    zip,
-                    gene=[
-                        "RGPD5",
-                        "RGPD5",
-                        "RGPD5",
-                        "RGPD5",
-                        "RGPD5",
-                        "RGPD5",
-                        "RGPD5",
-                        "RGPD5",
-                        "RGPD5",
-                        "RGPD5",
-                    ],
-                    sgrna=[
-                        "ACGGTGATGCCAAACTAGAG",
-                        "ACGGTGATGCCAAACTAGAG",
-                        "ACGGTGATGCCAAACTAGAG",
-                        "ACGGTGATGCCAAACTAGAG",
-                        "GAAATTATCTGACAAAGACC",
-                        "GAAATTATCTGACAAAGACC",
-                        "GAAATTATCTGACAAAGACC",
-                        "GAAATTATCTGACAAAGACC",
-                        "CACCTCGATGGACAGAAGAT",
-                        "CACCTCGATGGACAGAAGAT",
-                    ],
-                    channel=[
-                        "DAPI",
-                        "COXIV",
-                        "CENPA",
-                        "WGA",
-                        "DAPI",
-                        "COXIV",
-                        "CENPA",
-                        "WGA",
-                        "DAPI",
-                        "COXIV",
-                    ],
-                )
+                expand(str(path_template), zip, **wildcards)
                 for path_template in path_templates
             ]
         else:  # Default to product expansion

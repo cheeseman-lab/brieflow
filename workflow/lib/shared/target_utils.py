@@ -47,21 +47,71 @@ def map_outputs(outputs, output_type_mappings):
     return mapped_outputs
 
 
-def outputs_to_targets(outputs, wildcards):
+def outputs_to_targets(outputs, wildcards, expansion_method="product"):
     """Expand output templates into full paths by applying the specified wildcards.
 
     Args:
         outputs (dict): Dictionary of output path templates with placeholders (e.g., PREPROCESS_OUTPUTS).
         wildcards (dict): Dictionary of wildcard values to apply (e.g., {"well": ["A1", "A2"], "cycle": [1, 2]}).
+        expansion_method (str): Method of expansion, either 'product' (default) or 'zip'.
 
     Returns:
         dict: Dictionary of expanded output paths, where each rule maps to a list of fully resolved paths.
     """
     expanded_targets = {}
     for rule_name, path_templates in outputs.items():
-        expanded_targets[rule_name] = [
-            expand(str(path_template), **wildcards) for path_template in path_templates
-        ]
+        if expansion_method == "zip":
+            print(rule_name)
+            print(path_templates)
+            print(wildcards)
+            expanded_targets[rule_name] = [
+                expand(
+                    str(path_template),
+                    zip,
+                    gene=[
+                        "RGPD5",
+                        "RGPD5",
+                        "RGPD5",
+                        "RGPD5",
+                        "RGPD5",
+                        "RGPD5",
+                        "RGPD5",
+                        "RGPD5",
+                        "RGPD5",
+                        "RGPD5",
+                    ],
+                    sgrna=[
+                        "ACGGTGATGCCAAACTAGAG",
+                        "ACGGTGATGCCAAACTAGAG",
+                        "ACGGTGATGCCAAACTAGAG",
+                        "ACGGTGATGCCAAACTAGAG",
+                        "GAAATTATCTGACAAAGACC",
+                        "GAAATTATCTGACAAAGACC",
+                        "GAAATTATCTGACAAAGACC",
+                        "GAAATTATCTGACAAAGACC",
+                        "CACCTCGATGGACAGAAGAT",
+                        "CACCTCGATGGACAGAAGAT",
+                    ],
+                    channel=[
+                        "DAPI",
+                        "COXIV",
+                        "CENPA",
+                        "WGA",
+                        "DAPI",
+                        "COXIV",
+                        "CENPA",
+                        "WGA",
+                        "DAPI",
+                        "COXIV",
+                    ],
+                )
+                for path_template in path_templates
+            ]
+        else:  # Default to product expansion
+            expanded_targets[rule_name] = [
+                expand(str(path_template), **wildcards)
+                for path_template in path_templates
+            ]
     return expanded_targets
 
 

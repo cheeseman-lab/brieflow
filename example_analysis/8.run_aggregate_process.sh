@@ -5,4 +5,4 @@
 snakemake --use-conda --cores all \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
-    --force prepare_mitotic_montage_data prepare_interphase_montage_data
+    --force generate_mitotic_montage -n

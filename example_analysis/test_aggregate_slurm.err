@@ -1,0 +1,44 @@
+Assuming unrestricted shared filesystem usage.
+host: c3b11
+Building DAG of jobs...
+Your conda installation is not configured to use strict channel priorities. This is however important for having robust and correct environments (for details, see https://conda-forge.org/docs/user/tipsandtricks.html). Please consider to configure strict priorities by executing 'conda config --set channel_priority strict'.
+Using shell: /usr/bin/bash
+Provided cores: 4
+Rules claiming more threads will be scaled down.
+Job stats:
+job                                count
+-------------------------------  -------
+prepare_interphase_montage_data        1
+prepare_mitotic_montage_data           1
+total                                  2
+
+Select jobs to execute...
+Execute 2 jobs...
+
+[Wed Jan 29 15:13:05 2025]
+localrule prepare_mitotic_montage_data:
+    input: /lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/mitotic_data.hdf5
+    output: analysis_root/aggregate_process/hdfs/mitotic_montage_data.hdf5
+    jobid: 0
+    reason: Forced execution
+    resources: tmpdir=/tmp
+
+[Wed Jan 29 15:13:05 2025]
+localrule prepare_interphase_montage_data:
+    input: /lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/interphase_data.hdf5
+    output: analysis_root/aggregate_process/hdfs/interphase_montage_data.hdf5
+    jobid: 1
+    reason: Forced execution
+    resources: tmpdir=/tmp
+
+Activating conda environment: .snakemake/conda/988da1a2636fdf242e23b5507378bbd7_
+Activating conda environment: .snakemake/conda/988da1a2636fdf242e23b5507378bbd7_
+Activating conda environment: .snakemake/conda/988da1a2636fdf242e23b5507378bbd7_
+Activating conda environment: .snakemake/conda/988da1a2636fdf242e23b5507378bbd7_
+[Wed Jan 29 15:13:30 2025]
+Finished job 0.
+1 of 2 steps (50%) done
+[Wed Jan 29 15:18:10 2025]
+Finished job 1.
+2 of 2 steps (100%) done
+Complete log: .snakemake/log/2025-01-29T151301.913362.snakemake.log

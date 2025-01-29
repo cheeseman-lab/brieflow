@@ -8,6 +8,13 @@ AGGREGATE_PROCESS_OUTPUTS = {
     "clean_and_transform": [
         AGGREGATE_PROCESS_FP / "hdfs" / "transformed_data.hdf5",
     ],
+    "standardize_features": [
+        AGGREGATE_PROCESS_FP / "hdfs" / "standardized_data.hdf5",
+    ],
+    "split_phases": [
+        AGGREGATE_PROCESS_FP / "hdfs" / "mitotic_data.hdf5",
+        AGGREGATE_PROCESS_FP / "hdfs" / "interphase_data.hdf5",
+    ],
 }
 
 AGGREGATE_PROCESS_OUTPUT_MAPPINGS = {

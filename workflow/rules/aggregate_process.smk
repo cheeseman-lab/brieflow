@@ -173,6 +173,22 @@ rule generate_mitotic_montage:
         "../scripts/aggregate_process/generate_montage.py"
 
 
+# Create interphase montages data
+rule generate_interphase_montage:
+    conda:
+        "../envs/aggregate_process.yml"
+    input:
+        # mitotic montage data
+        # AGGREGATE_PROCESS_OUTPUTS["prepare_interphase_montage_data"]
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/interphase_montage_data.hdf5",
+    output:
+        AGGREGATE_PROCESS_OUTPUTS_MAPPED["generate_interphase_montage"],
+    params:
+        channels=config["phenotype_process"]["channel_names"],
+    script:
+        "../scripts/aggregate_process/generate_montage.py"
+
+
 # Rule for all aggregate processing steps
 rule all_aggregate_process:
     input:

@@ -36,7 +36,17 @@ AGGREGATE_PROCESS_OUTPUTS = {
         / "mitotic_montages"
         / get_filename(
             {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
-            "mitotic_montage",
+            "montage",
+            "tiff",
+        ),
+    ],
+    "generate_interphase_montage": [
+        AGGREGATE_PROCESS_FP
+        / "tiffs"
+        / "interphase_montages"
+        / get_filename(
+            {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
+            "montage",
             "tiff",
         ),
     ],

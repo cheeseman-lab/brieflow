@@ -5,3 +5,6 @@ dependencies:
   - pytables # need pytables defined in module env
   - pandas
   - matplotlib
+  - scipy
+  - mahotas
+  - scikit-image

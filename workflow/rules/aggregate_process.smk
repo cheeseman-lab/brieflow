@@ -207,7 +207,7 @@ rule eval_aggregate:
         population_feature=config["aggregate_process"]["population_feature"],
         channels=config["phenotype_process"]["channel_names"],
     script:
-        "../scripts/aggregate_process/generate_montage.py"
+        "../scripts/aggregate_process/eval_aggregate.py"
 
 
 # Rule for all aggregate processing steps

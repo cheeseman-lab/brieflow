@@ -3,27 +3,67 @@
 import pandas as pd
 import numpy as np
 from scipy.spatial.distance import cdist
+from sklearn.linear_model import LinearRegression
 
 
-def merge_sbs_phenotype(df_0_, df_1_, model, threshold=2):
+def merge_triangle_hash(hash_df_0, hash_df_1, alignment, threshold=2):
+    """Merges two DataFrames using triangle hashing after images at different magnifications have been hashed together.
+
+    Args:
+        hash_df_0 (pandas.DataFrame): The first DataFrame.
+        hash_df_1 (pandas.DataFrame): The second DataFrame.
+        alignment (dict): Alignment parameters containing rotation and translation.
+        threshold (int): The threshold value. Defaults to 2.
+
+    Returns:
+        pandas.DataFrame: The merged DataFrame.
+    """
+    # Rename 'tile' column to 'site' in hash_df_1
+    hash_df_1 = hash_df_1.rename(columns={"tile": "site"})
+
+    # Build linear model
+    model = build_linear_model(alignment["rotation"], alignment["translation"])
+
+    # Merge dataframes using triangle hashing
+    return merge_sbs_phenotype(hash_df_0, hash_df_1, model, threshold=threshold)
+
+
+def build_linear_model(rotation, translation):
+    """Builds a linear regression model using the provided rotation matrix and translation vector.
+
+    Args:
+        rotation (numpy.ndarray): Rotation matrix for the model.
+        translation (numpy.ndarray): Translation vector for the model.
+
+    Returns:
+        sklearn.linear_model.LinearRegression: Linear regression model with the specified rotation
+        and translation.
+    """
+    m = LinearRegression()
+    m.coef_ = rotation  # Set the rotation matrix as the model's coefficients
+    m.intercept_ = translation  # Set the translation vector as the model's intercept
+    return m  # Return the linear regression model
+
+
+def merge_sbs_phenotype(cell_locations_0, cell_locations_1, model, threshold=2):
     """Perform fine alignment of one (tile, site) match found using `multistep_alignment`.
 
     Args:
-        df_0_ (pandas.DataFrame): Table of coordinates to align (e.g., nuclei centroids)
+        cell_locations_0 (pandas.DataFrame): Table of coordinates to align (e.g., nuclei centroids)
             for one tile of dataset 0. Expects `i` and `j` columns.
-        df_1_ (pandas.DataFrame): Table of coordinates to align (e.g., nuclei centroids)
+        cell_locations_1 (pandas.DataFrame): Table of coordinates to align (e.g., nuclei centroids)
             for one site of dataset 1 that was identified as a match
-            to the tile in df_0_ using `multistep_alignment`. Expects
+            to the tile in cell_locations_0 using `multistep_alignment`. Expects
             `i` and `j` columns.
         model (sklearn.linear_model.LinearRegression): Linear alignment model suggested
-            to be passed in, functioning between tile of df_0_ and site of df_1_.
+            to be passed in, functioning between tile of cell_locations_0 and site of cell_locations_1.
             Produced using `build_linear_model` with the rotation and translation
             matrix determined in `multistep_alignment`.
         threshold (float, optional): Maximum Euclidean distance allowed between matching
             points. Defaults to 2.
 
     Returns:
-        pandas.DataFrame: Table of merged identities of cell labels from df_0_ and df_1_.
+        pandas.DataFrame: Table of merged identities of cell labels from cell_locations_0 and cell_locations_1.
         Returns empty DataFrame with correct columns if input is empty.
     """
     # Final columns for the merged DataFrame
@@ -42,17 +82,17 @@ def merge_sbs_phenotype(df_0_, df_1_, model, threshold=2):
 
     # Check if either dataframe is None or empty
     if (
-        df_0_ is None
-        or df_1_ is None
-        or (hasattr(df_0_, "empty") and df_0_.empty)
-        or (hasattr(df_1_, "empty") and df_1_.empty)
+        cell_locations_0 is None
+        or cell_locations_1 is None
+        or (hasattr(cell_locations_0, "empty") and cell_locations_0.empty)
+        or (hasattr(cell_locations_1, "empty") and cell_locations_1.empty)
     ):
         # Return empty DataFrame with correct columns
         return pd.DataFrame(columns=cols_final)
 
     # Extract coordinates from the DataFrames
-    X = df_0_[["i", "j"]].values  # Coordinates from dataset 0
-    Y = df_1_[["i", "j"]].values  # Coordinates from dataset 1
+    X = cell_locations_0[["i", "j"]].values  # Coordinates from dataset 0
+    Y = cell_locations_1[["i", "j"]].values  # Coordinates from dataset 1
 
     # Predict coordinates for dataset 0 using the alignment model
     Y_pred = model.predict(X)
@@ -71,11 +111,13 @@ def merge_sbs_phenotype(df_0_, df_1_, model, threshold=2):
     columns_1 = {"site": "site", "cell": "cell_1", "i": "i_1", "j": "j_1"}
 
     # Prepare the target DataFrame with matched coordinates from dataset 0
-    target = df_0_.iloc[ix[filt]].reset_index(drop=True).rename(columns=columns_0)
+    target = (
+        cell_locations_0.iloc[ix[filt]].reset_index(drop=True).rename(columns=columns_0)
+    )
 
     # Merge DataFrames and calculate distances
     return (
-        df_1_[filt]
+        cell_locations_1[filt]
         .reset_index(drop=True)[  # Filtered rows from dataset 1
             list(columns_1.keys())
         ]  # Select columns for dataset 1

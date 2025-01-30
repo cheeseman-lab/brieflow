@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import skimage.morphology
 from scipy.spatial.distance import cdist
 
-from lib.merge.hash import build_linear_model
+from lib.merge.merge import build_linear_model
 
 CONFIG_FILE_HEADER = """
 # BrieFlow configuration file

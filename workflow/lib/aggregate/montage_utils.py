@@ -22,7 +22,7 @@ from tifffile import imread
 from lib.external.cp_emulator import subimage
 
 
-def create_mitotic_cell_montage(
+def create_cell_montage(
     cell_data,
     channels,
     num_cells=30,
@@ -124,18 +124,16 @@ def add_rect_bounds(cell_data, width=10, ij="ij", bounds_col="bounds"):
     return cell_data.assign(**{bounds_col: arr})
 
 
-def grid_view(filenames, bounds, padding=40, with_mask=False):
+def grid_view(filenames, bounds, padding=40):
     """Generates a grid view of sub-images from a list of TIFF images based on given bounding boxes.
 
     Args:
         filenames (list): List of paths to TIFF image files.
         bounds (list): List of bounding boxes [(i_min, j_min, i_max, j_max), ...] for each file.
         padding (int): Padding to add around each image. Default is 40.
-        with_mask (bool): If True, generates a mask image. Default is False.
 
     Returns:
         np.ndarray: Stacked sub-image array.
-        np.ndarray (optional): Stacked mask array if with_mask is True.
     """
     padding = int(padding)
     image_cells = []

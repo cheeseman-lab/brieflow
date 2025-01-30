@@ -93,8 +93,6 @@ montage_combinations = (
     .merge(pd.DataFrame({"channel": channels, "key": 1}), on="key")
     .drop("key", axis=1)
 )
-# TODO: remove this header line to run all combinations
-montage_combinations = montage_combinations.head(20)
 
 MONTAGE_WILDCARDS = {
     "gene": montage_combinations["gene_symbol_0"].to_list(),
@@ -111,8 +109,6 @@ MONTAGE_TARGETS = outputs_to_targets(
 )
 
 # Combine all preprocessing targets
-# TODO: use all targets
-# AGGREGATE_PROCESS_TARGETS_ALL = sum(NON_MONTAGE_TARGETS.values(), []) + sum(
-#     MONTAGE_TARGETS.values(), []
-# )
-AGGREGATE_PROCESS_TARGETS_ALL = sum(MONTAGE_TARGETS.values(), [])
+AGGREGATE_PROCESS_TARGETS_ALL = sum(NON_MONTAGE_TARGETS.values(), []) + sum(
+    MONTAGE_TARGETS.values(), []
+)

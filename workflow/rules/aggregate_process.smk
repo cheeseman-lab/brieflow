@@ -157,6 +157,12 @@ rule prepare_interphase_montage_data:
         "../scripts/aggregate_process/prepare_montage_data.py"
 
 
+# TODO: Optimize montages generation to operate faster! We should try to:
+# 1. Restrict montage generation attempts to those that we have data for
+# 2. Save each channel montage for a gene/sgrna pair during one rule call
+# 3. Possibly parallelize across a rule so that we only need to load cell data once
+
+
 # Create mitotic montages data
 rule generate_mitotic_montage:
     conda:

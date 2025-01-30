@@ -28,7 +28,7 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
         parts.append(f"G-{data_location['gene']}")
     if "sgrna" in data_location:
         parts.append(f"SG-{data_location['sgrna']}")
-    if "sgrna" in data_location:
+    if "channel" in data_location:
         parts.append(f"CH-{data_location['channel']}")
 
     prefix = "_".join(parts)

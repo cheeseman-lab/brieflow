@@ -17,10 +17,6 @@ cell_data = cell_data[
 if cell_data.empty:
     imwrite(snakemake.output[0], np.zeros((1, 1), dtype=np.uint8))
 else:
-    print(
-        f"Creating montage for {snakemake.wildcards.gene},{snakemake.wildcards.sgrna}"
-    )
-
     # TODO: Remove when done with testing on Denali data
     # redirects actual paths to paths of Denali data
     def update_file_path(row):

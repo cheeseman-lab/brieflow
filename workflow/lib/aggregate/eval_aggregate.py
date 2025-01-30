@@ -1,43 +1,49 @@
+"""Helper functions for evaluating the results of the evaluation step in the aggregate module.
+
+This module includes functions for generating visualizations and testing data integrity.
+It provides the following functionalities:
+- Visualization of feature distributions across datasets with violin plots.
+- Detection and reporting of missing values, including NA, null, blank, and infinite values.
+"""
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def plot_feature_distributions(dfs, features, remove_clean=False):
-    """
-    Create violin plots with jittered points for feature distributions across different datasets.
-    Uses log scale for clean and transformed data, and linear scale for standardized data.
-    Points are colored based on control vs non-control status.
+def plot_feature_distributions(combined_cell_data, features, remove_clean=False):
+    """Create violin plots with jittered points for feature distributions across different datasets.
 
-    Parameters:
-    -----------
-    dfs : dict
-        Dictionary of dataframes with keys as dataset names (e.g., "clean", "transformed")
-    features : list
-        List of feature names to plot
-    remove_clean : bool
-        Whether to remove clean data from the plot
+    Uses a log scale for clean and transformed data and a linear scale for standardized data.
+    Points are colored based on control vs. non-control status.
+
+    Args:
+        combined_cell_data (dict): Dictionary of dataframes with keys as dataset names (e.g., "clean", "transformed").
+        features (list): List of feature names to plot.
+        remove_clean (bool): Whether to remove clean data from the plot.
 
     Returns:
-    --------
-    fig : matplotlib.figure.Figure
-        The generated figure containing the violin plots
+        matplotlib.figure.Figure: The generated figure containing the violin plots.
     """
     # Prepare data for plotting
     plot_data = []
 
     # Remove clean data if requested
     if remove_clean:
-        dfs = {key: df for key, df in dfs.items() if key != "clean"}
+        combined_cell_data = {
+            key: combined_cell_data
+            for key, combined_cell_data in combined_cell_data.items()
+            if key != "clean"
+        }
 
-    for dataset_name, df in dfs.items():
+    for dataset_name, cell_data in combined_cell_data.items():
         for feature in features:
             feature_data = pd.DataFrame(
                 {
                     "Dataset": dataset_name,
-                    "Well": df["well"],
-                    "Value": df[feature],
+                    "Well": cell_data["well"],
+                    "Value": cell_data[feature],
                     "Feature": feature,
                 }
             )
@@ -118,29 +124,24 @@ def plot_feature_distributions(dfs, features, remove_clean=False):
     return fig
 
 
-def test_missing_values(df, name):
-    """
-    Test for missing values in a dataframe, including NA, null, blank, and infinite values.
+def test_missing_values(gene_data, name):
+    """Test for missing values in a dataframe, including NA, null, blank, and infinite values.
+
     Returns results in a format suitable for CSV export.
 
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        DataFrame to test
-    name : str
-        Name of the dataset for printing
+    Args:
+        gene_data (pandas.DataFrame): DataFrame to test.
+        name (str): Name of the dataset for printing.
 
     Returns:
-    --------
-    pd.DataFrame
-        DataFrame containing detailed missing value information
+        pandas.DataFrame: DataFrame containing detailed missing value information.
     """
     # Check for various types of missing or problematic values
     missing = pd.DataFrame(
         {
-            "null_na": df.isna().sum(),  # Catches np.nan, None, pd.NA
-            "empty_string": df.astype(str).eq("").sum(),  # Empty strings
-            "infinite": df.isin([np.inf, -np.inf]).sum(),  # Infinite values
+            "null_na": gene_data.isna().sum(),  # Catches np.nan, None, pd.NA
+            "empty_string": gene_data.astype(str).eq("").sum(),  # Empty strings
+            "infinite": gene_data.isin([np.inf, -np.inf]).sum(),  # Infinite values
         }
     )
 
@@ -148,7 +149,7 @@ def test_missing_values(df, name):
     missing["total_issues"] = missing.sum(axis=1)
 
     # Calculate percentages
-    missing["percentage"] = (missing["total_issues"] / len(df) * 100).round(2)
+    missing["percentage"] = (missing["total_issues"] / len(gene_data) * 100).round(2)
 
     # Add dataset name
     missing["dataset"] = name

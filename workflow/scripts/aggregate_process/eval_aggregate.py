@@ -7,7 +7,7 @@ print("Loading subsets of processed datasets...")
 cleaned_data = load_hdf_subset(snakemake.input[0], n_rows=50000)
 transformed_data = load_hdf_subset(snakemake.input[1], n_rows=50000)
 standardized_data = load_hdf_subset(snakemake.input[2], n_rows=50000)
-cell_data = {
+combined_cell_data = {
     "cleaned": cleaned_data,
     "transformed": transformed_data,
     "standardized": standardized_data,
@@ -21,13 +21,13 @@ print("Creating feature distribution plots...")
 
 cell_features = ["cell_{}_mean".format(channel) for channel in channels]
 cell_features_fig = plot_feature_distributions(
-    cell_data, cell_features, remove_clean=True
+    combined_cell_data, cell_features, remove_clean=True
 )
 cell_features_fig.savefig(snakemake.output[0])
 
 nucleus_features = ["nucleus_{}_mean".format(channel) for channel in channels]
 nucleus_features_fig = plot_feature_distributions(
-    cell_data, nucleus_features, remove_clean=True
+    combined_cell_data, nucleus_features, remove_clean=True
 )
 nucleus_features_fig.savefig(snakemake.output[1])
 

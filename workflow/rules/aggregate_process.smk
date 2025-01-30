@@ -195,6 +195,37 @@ rule generate_interphase_montage:
         "../scripts/aggregate_process/generate_montage.py"
 
 
+rule eval_aggregate:
+    conda:
+        "../envs/aggregate_process.yml"
+    input:
+        # final merge data
+        # MERGE_PROCESS_OUTPUTS["final_merge"],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_final.hdf5",
+        # transformed data
+        # AGGREGATE_PROCESS_OUTPUTS["clean_and_transform"],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/transformed_data.hdf5",
+        # standardized data
+        # AGGREGATE_PROCESS_OUTPUTS["standardize_features"],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/standardized_data.hdf5",
+        # processed mitotic data
+        # AGGREGATE_PROCESS_OUTPUTS["process_mitotic_gene_data"]
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/mitotic_gene_data.tsv",
+        # processed interphase data
+        # AGGREGATE_PROCESS_OUTPUTS["process_interphase_gene_data"]
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/interphase_gene_data.tsv",
+        # all processed gene data
+        # AGGREGATE_PROCESS_OUTPUTS["process_all_gene_data"],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/all_gene_data.tsv",
+    output:
+        AGGREGATE_PROCESS_OUTPUTS_MAPPED["eval_aggregate"],
+    params:
+        population_feature=config["aggregate_process"]["population_feature"],
+        channels=config["phenotype_process"]["channel_names"],
+    script:
+        "../scripts/aggregate_process/generate_montage.py"
+
+
 # Rule for all aggregate processing steps
 rule all_aggregate_process:
     input:

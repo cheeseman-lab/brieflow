@@ -50,6 +50,13 @@ AGGREGATE_PROCESS_OUTPUTS = {
             "tiff",
         ),
     ],
+    "eval_aggregate": [
+        AGGREGATE_PROCESS_FP / "eval" / "cell_feature_violins.png",
+        AGGREGATE_PROCESS_FP / "eval" / "nuclear_feature_violins.png",
+        AGGREGATE_PROCESS_FP / "eval" / "mitotic_missing.tsv",
+        AGGREGATE_PROCESS_FP / "eval" / "interphase_missing.tsv",
+        AGGREGATE_PROCESS_FP / "eval" / "all_missing.tsv",
+    ],
 }
 
 AGGREGATE_PROCESS_OUTPUT_MAPPINGS = {

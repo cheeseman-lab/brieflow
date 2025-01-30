@@ -5,10 +5,9 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 AGGREGATE_PROCESS_FP = ROOT_FP / "aggregate_process"
 
 AGGREGATE_PROCESS_OUTPUTS = {
-    "clean_and_transform": [
+    "clean_transform_standardize": [
+        AGGREGATE_PROCESS_FP / "hdfs" / "cleaned_data.hdf5",
         AGGREGATE_PROCESS_FP / "hdfs" / "transformed_data.hdf5",
-    ],
-    "standardize_features": [
         AGGREGATE_PROCESS_FP / "hdfs" / "standardized_data.hdf5",
     ],
     "split_phases": [

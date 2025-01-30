@@ -4,8 +4,8 @@ from lib.shared.target_utils import output_to_input
 # TODO: remove threads references here
 
 
-# Clean and transform merged data
-rule clean_and_transform:
+# Clean, transform, and standardize merged data
+rule clean_transform_standardize:
     conda:
         "../envs/aggregate_process.yml"
     input:
@@ -13,34 +13,18 @@ rule clean_and_transform:
         # MERGE_PROCESS_OUTPUTS["final_merge"],
         "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_final.hdf5",
     output:
-        AGGREGATE_PROCESS_OUTPUTS_MAPPED["clean_and_transform"],
+        AGGREGATE_PROCESS_OUTPUTS_MAPPED["clean_transform_standardize"],
     params:
         population_feature=config["aggregate_process"]["population_feature"],
         transformations_fp=config["aggregate_process"]["transformations_fp"],
         channels=config["phenotype_process"]["channel_names"],
-    script:
-        "../scripts/aggregate_process/clean_and_transform.py"
-
-
-# Standardize features
-rule standardize_features:
-    conda:
-        "../envs/aggregate_process.yml"
-    input:
-        # final merge data
-        # AGGREGATE_PROCESS_OUTPUTS["clean_and_transform"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/transformed_data.hdf5",
-    output:
-        AGGREGATE_PROCESS_OUTPUTS_MAPPED["standardize_features"],
-    params:
         feature_start=config["aggregate_process"]["feature_start"],
-        population_feature=config["aggregate_process"]["population_feature"],
         control_prefix=config["aggregate_process"]["control_prefix"],
         group_columns=config["aggregate_process"]["group_columns"],
         index_columns=config["aggregate_process"]["index_columns"],
         cat_columns=config["aggregate_process"]["cat_columns"],
     script:
-        "../scripts/aggregate_process/standardize_features.py"
+        "../scripts/aggregate_process/clean_transform_standardize.py"
 
 
 # Split mitotic and interphase data
@@ -49,7 +33,7 @@ rule split_phases:
         "../envs/aggregate_process.yml"
     input:
         # standardized data
-        # AGGREGATE_PROCESS_OUTPUTS["standardize_features"],
+        # AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][2],
         "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/standardized_data.hdf5",
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["split_phases"],
@@ -109,7 +93,7 @@ rule process_all_gene_data:
         "../envs/aggregate_process.yml"
     input:
         # all standardized data
-        # AGGREGATE_PROCESS_OUTPUTS["standardize_features"]
+        # AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][2]
         "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/standardized_data.hdf5",
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["process_all_gene_data"],
@@ -130,7 +114,7 @@ rule prepare_mitotic_montage_data:
     conda:
         "../envs/aggregate_process.yml"
     input:
-        # all standardized data
+        # mitotic standardized data
         # AGGREGATE_PROCESS_OUTPUTS["split_phases"][0]
         "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/mitotic_data.hdf5",
     output:
@@ -146,7 +130,7 @@ rule prepare_interphase_montage_data:
     conda:
         "../envs/aggregate_process.yml"
     input:
-        # all standardized data
+        # interphase standardized data
         # AGGREGATE_PROCESS_OUTPUTS["split_phases"][1]
         "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/interphase_data.hdf5",
     output:
@@ -199,14 +183,14 @@ rule eval_aggregate:
     conda:
         "../envs/aggregate_process.yml"
     input:
-        # final merge data
-        # MERGE_PROCESS_OUTPUTS["final_merge"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_final.hdf5",
+        # cleaned data
+        # AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][0],
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/cleaned_data.hdf5",
         # transformed data
-        # AGGREGATE_PROCESS_OUTPUTS["clean_and_transform"],
+        # AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][1],
         "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/transformed_data.hdf5",
         # standardized data
-        # AGGREGATE_PROCESS_OUTPUTS["standardize_features"],
+        # AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][2],
         "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/standardized_data.hdf5",
         # processed mitotic data
         # AGGREGATE_PROCESS_OUTPUTS["process_mitotic_gene_data"]

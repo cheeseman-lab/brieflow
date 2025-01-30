@@ -13,9 +13,6 @@ combined_cell_data = {
     "standardized": standardized_data,
 }
 
-# TODO: once done with Denali testing, use default channels from snakemake, don't force lowercase
-channels = [channel.lower() for channel in snakemake.params["channels"]]
-
 # create feature distribution plots for cell and nucleus features
 print("Creating feature distribution plots...")
 

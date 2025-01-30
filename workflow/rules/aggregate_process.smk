@@ -1,8 +1,5 @@
 from lib.shared.target_utils import output_to_input
 
-# TODO: update input paths to reflect dynamic target paths
-# TODO: remove threads references here
-
 
 # Clean, transform, and standardize merged data
 rule clean_transform_standardize:
@@ -10,8 +7,7 @@ rule clean_transform_standardize:
         "../envs/aggregate_process.yml"
     input:
         # final merge data
-        # MERGE_PROCESS_OUTPUTS["final_merge"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge_process/hdfs/merge_final.hdf5",
+        MERGE_PROCESS_OUTPUTS["final_merge"],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["clean_transform_standardize"],
     params:
@@ -33,8 +29,7 @@ rule split_phases:
         "../envs/aggregate_process.yml"
     input:
         # standardized data
-        # AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][2],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/standardized_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][2],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["split_phases"],
     params:
@@ -49,8 +44,7 @@ rule process_mitotic_gene_data:
         "../envs/aggregate_process.yml"
     input:
         # mitotic data
-        # AGGREGATE_PROCESS_OUTPUTS["split_phases"][0]
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/mitotic_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["split_phases"][0],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["process_mitotic_gene_data"],
     params:
@@ -71,8 +65,7 @@ rule process_interphase_gene_data:
         "../envs/aggregate_process.yml"
     input:
         # interphase data
-        # AGGREGATE_PROCESS_OUTPUTS["split_phases"][1]
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/interphase_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["split_phases"][1],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["process_interphase_gene_data"],
     params:
@@ -93,8 +86,7 @@ rule process_all_gene_data:
         "../envs/aggregate_process.yml"
     input:
         # all standardized data
-        # AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][2]
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/standardized_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][2],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["process_all_gene_data"],
     params:
@@ -115,8 +107,7 @@ rule prepare_mitotic_montage_data:
         "../envs/aggregate_process.yml"
     input:
         # mitotic standardized data
-        # AGGREGATE_PROCESS_OUTPUTS["split_phases"][0]
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/mitotic_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["split_phases"][0],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["prepare_mitotic_montage_data"],
     params:
@@ -131,8 +122,7 @@ rule prepare_interphase_montage_data:
         "../envs/aggregate_process.yml"
     input:
         # interphase standardized data
-        # AGGREGATE_PROCESS_OUTPUTS["split_phases"][1]
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/interphase_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["split_phases"][1],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["prepare_interphase_montage_data"],
     params:
@@ -141,7 +131,7 @@ rule prepare_interphase_montage_data:
         "../scripts/aggregate_process/prepare_montage_data.py"
 
 
-# TODO: Optimize montages generation to operate faster! We should try to:
+# TODO: Optimize montage generation to operate faster! We should try to:
 # 1. Restrict montage generation attempts to those that we have data for
 # 2. Save each channel montage for a gene/sgrna pair during one rule call
 # 3. Possibly parallelize across a rule so that we only need to load cell data once
@@ -153,8 +143,7 @@ rule generate_mitotic_montage:
         "../envs/aggregate_process.yml"
     input:
         # mitotic montage data
-        # AGGREGATE_PROCESS_OUTPUTS["prepare_mitotic_montage_data"]
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/mitotic_montage_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["prepare_mitotic_montage_data"],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["generate_mitotic_montage"],
     params:
@@ -169,8 +158,7 @@ rule generate_interphase_montage:
         "../envs/aggregate_process.yml"
     input:
         # mitotic montage data
-        # AGGREGATE_PROCESS_OUTPUTS["prepare_interphase_montage_data"]
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/interphase_montage_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["prepare_interphase_montage_data"],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["generate_interphase_montage"],
     params:
@@ -184,23 +172,17 @@ rule eval_aggregate:
         "../envs/aggregate_process.yml"
     input:
         # cleaned data
-        # AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][0],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/cleaned_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][0],
         # transformed data
-        # AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][1],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/transformed_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][1],
         # standardized data
-        # AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][2],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/hdfs/standardized_data.hdf5",
+        AGGREGATE_PROCESS_OUTPUTS["clean_transform_standardize"][2],
         # processed mitotic data
-        # AGGREGATE_PROCESS_OUTPUTS["process_mitotic_gene_data"]
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/mitotic_gene_data.tsv",
+        AGGREGATE_PROCESS_OUTPUTS["process_mitotic_gene_data"],
         # processed interphase data
-        # AGGREGATE_PROCESS_OUTPUTS["process_interphase_gene_data"]
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/interphase_gene_data.tsv",
+        AGGREGATE_PROCESS_OUTPUTS["process_interphase_gene_data"],
         # all processed gene data
-        # AGGREGATE_PROCESS_OUTPUTS["process_all_gene_data"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/all_gene_data.tsv",
+        AGGREGATE_PROCESS_OUTPUTS["process_all_gene_data"],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["eval_aggregate"],
     params:

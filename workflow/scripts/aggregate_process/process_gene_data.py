@@ -1,10 +1,7 @@
 import pandas as pd
 
-from lib.aggregate.feature_processing import (
-    grouped_standardization,
-    collapse_to_sgrna,
-    collapse_to_gene,
-)
+from lib.aggregate.feature_processing import grouped_standardization
+from lib.aggregate.collapse_data import collapse_to_sgrna, collapse_to_gene
 
 # load cell data
 cell_data = pd.read_hdf(snakemake.input[0])

@@ -9,7 +9,9 @@ merged_final = pd.read_hdf(snakemake.input[0])
 
 # clean merged data
 cleaned_data = clean_cell_data(
-    merged_final, snakemake.params["population_feature"], filter_single_gene=False
+    merged_final,
+    snakemake.params["population_feature"],
+    filter_single_gene=snakemake.params["filter_single_gene"],
 )
 del merged_final
 cleaned_data.to_hdf(snakemake.output[0], key="data", mode="w")

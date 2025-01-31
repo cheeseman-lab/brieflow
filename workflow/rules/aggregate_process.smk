@@ -12,6 +12,7 @@ rule clean_transform_standardize:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["clean_transform_standardize"],
     params:
         population_feature=config["aggregate_process"]["population_feature"],
+        filter_single_gene=config["aggregate_process"]["filter_single_gene"],
         transformations_fp=config["aggregate_process"]["transformations_fp"],
         channels=config["phenotype_process"]["channel_names"],
         feature_start=config["aggregate_process"]["feature_start"],

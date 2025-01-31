@@ -1,12 +1,14 @@
 """This module provides functions for creating montages of cells from imaging data.
 
 Functions include:
+- Adding image file paths to a DataFrame for downstream analysis.
 - Generating montages of mitotic cells with customizable parameters such as size, shape, and channel selection.
 - Adding rectangular bounds to a DataFrame for defining cell regions.
 - Creating grid views of sub-images based on TIFF image bounding boxes.
 - Tiling arrays to produce montages with flexible grid configurations.
 
 Functions:
+    - add_filenames: Add image file paths to a DataFrame based on well and tile information.
     - create_mitotic_cell_montage: Create a montage of cells from a DataFrame with flexible selection and layout options.
     - add_rect_bounds: Add rectangular bounds to a DataFrame for defining regions of interest.
     - grid_view: Generate grid views of sub-images from TIFF images using bounding boxes.
@@ -18,8 +20,53 @@ from itertools import product
 import numpy as np
 from tifffile import imread
 
-
+from lib.shared.file_utils import get_filename
 from lib.external.cp_emulator import subimage
+
+
+def add_filenames(merge_data, root_fp, montage_subset=False):
+    """Adds an image file path column to the given DataFrame.
+
+    This function generates file paths based on the 'well' and 'tile' columns
+    in the DataFrame and adds them as a new column named 'image_path'.
+
+    Args:
+        merge_data (pd.DataFrame): DataFrame containing 'well' and 'tile' columns.
+        root_fp (Path): Root file path to construct the image file paths.
+        montage_subset (bool): For montages only return a subset of the DataFrame.
+
+    Returns:
+        pd.DataFrame: The updated DataFrame with an added 'image_path' column.
+    """
+    merge_data = merge_data.copy()
+
+    merge_data["image_path"] = merge_data.apply(
+        lambda row: str(
+            root_fp
+            / "preprocess"
+            / "images"
+            / "phenotype"
+            / get_filename({"well": row["well"], "tile": row["tile"]}, "image", "tiff")
+        ),
+        axis=1,
+    )
+
+    # Subset to only data that is required for montage generation
+    if montage_subset:
+        essential_columns = [
+            "gene_symbol_0",
+            "sgRNA_0",
+            "well",
+            "tile",
+            "i_0",
+            "j_0",
+            "image_path",
+        ]
+
+        # Only keep columns we need
+        merge_data = merge_data[essential_columns]
+
+    return merge_data
 
 
 def create_cell_montage(

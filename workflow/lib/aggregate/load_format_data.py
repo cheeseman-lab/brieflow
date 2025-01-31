@@ -3,18 +3,13 @@
 Functions include:
 - Loading a subset of data from HDF files for efficient processing.
 - Cleaning cell data by removing unassigned or multi-gene cells.
-- Adding image file paths to a DataFrame for downstream analysis.
 
 Functions:
     - load_hdf_subset: Load a fixed number of random rows from an HDF file.
     - clean_cell_data: Clean cell data by filtering for valid and optionally single-gene cells.
-    - add_filenames: Add image file paths to a DataFrame based on well and tile information.
 """
 
 import pandas as pd
-
-
-from lib.shared.file_utils import get_filename
 
 
 def load_hdf_subset(merge_final_fp, n_rows=20000, population_feature="gene_symbol_0"):
@@ -76,48 +71,3 @@ def clean_cell_data(cell_measurements, population_feature, filter_single_gene=Fa
             print(f"WARNING: {multi_gene_cells} cells have multiple gene assignments")
 
     return clean_cell_measurements
-
-
-def add_filenames(merge_data, root_fp, montage_subset=False):
-    """Adds an image file path column to the given DataFrame.
-
-    This function generates file paths based on the 'well' and 'tile' columns
-    in the DataFrame and adds them as a new column named 'image_path'.
-
-    Args:
-        merge_data (pd.DataFrame): DataFrame containing 'well' and 'tile' columns.
-        root_fp (Path): Root file path to construct the image file paths.
-        montage_subset (bool): For montages only return a subset of the DataFrame.
-
-    Returns:
-        pd.DataFrame: The updated DataFrame with an added 'image_path' column.
-    """
-    merge_data = merge_data.copy()
-
-    merge_data["image_path"] = merge_data.apply(
-        lambda row: str(
-            root_fp
-            / "preprocess"
-            / "images"
-            / "phenotype"
-            / get_filename({"well": row["well"], "tile": row["tile"]}, "image", "tiff")
-        ),
-        axis=1,
-    )
-
-    # Subset to only data that is required for montage generation
-    if montage_subset:
-        essential_columns = [
-            "gene_symbol_0",
-            "sgRNA_0",
-            "well",
-            "tile",
-            "i_0",
-            "j_0",
-            "image_path",
-        ]
-
-        # Only keep columns we need
-        merge_data = merge_data[essential_columns]
-
-    return merge_data

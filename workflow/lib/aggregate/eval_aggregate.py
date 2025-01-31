@@ -2,9 +2,12 @@
 
 This module includes functions for generating visualizations and testing data integrity.
 It provides the following functionalities:
+- Suggesting parameters for feature analysis based on input data.
 - Visualization of feature distributions across datasets with violin plots.
 - Detection and reporting of missing values, including NA, null, blank, and infinite values.
 """
+
+import re
 
 import pandas as pd
 import numpy as np
@@ -12,9 +15,70 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
+def suggest_parameters(dataframe, population_feature):
+    """Suggest parameters based on input dataframe.
+
+    Args:
+        dataframe (pd.DataFrame): Input dataframe.
+        population_feature (str): Column name containing population identifiers.
+
+    Returns:
+        None
+    """
+    # Look for potential control prefixes
+    unique_populations = dataframe[population_feature].unique()
+    control_patterns = [
+        # Match at start of string
+        r"^nt[\s_-]",
+        r"^non[\s_-]?targeting",
+        r"^control",
+        r"^ctrl",
+        r"^neg[\s_-]",
+    ]
+
+    potential_controls = [
+        pop
+        for pop in unique_populations
+        if any(re.match(pattern, pop.lower()) for pattern in control_patterns)
+    ]
+
+    # Find first feature-like column
+    numeric_cols = dataframe.select_dtypes(include=[np.number]).columns
+    potential_features = [
+        col
+        for col in numeric_cols
+        if any(
+            pattern in col.lower()
+            for pattern in ["mean", "median", "std", "intensity", "area"]
+        )
+    ]
+
+    # Identify metadata-like columns
+    potential_metadata = dataframe.select_dtypes(include=["object"]).columns.tolist()
+
+    print("Suggested Parameters:")
+    print("-" * 50)
+
+    if potential_controls:
+        print("\nPotential control prefixes found:")
+        for ctrl in potential_controls:
+            print(f"  - '{ctrl}'")
+    else:
+        print("\nNo obvious control prefixes found. Please check your data.")
+
+    if potential_features:
+        print(f"\nFirst few feature columns detected:")
+        for feat in potential_features[:5]:
+            print(f"  - '{feat}'")
+
+    print("\nMetadata columns detected:")
+    print(f"  - Categorical: {', '.join(potential_metadata[:5])}")
+
+
 def plot_feature_distributions(combined_cell_data, features, remove_clean=False):
     """Create violin plots with jittered points for feature distributions across different datasets.
 
+    Plots demonstrate the distribution of features across datasets and wells to compare data distributions and ensure proper transformation/standardization.
     Uses a log scale for clean and transformed data and a linear scale for standardized data.
     Points are colored based on control vs. non-control status.
 

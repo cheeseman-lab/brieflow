@@ -2,13 +2,11 @@
 
 Functions include:
 - Applying transformations to features using a flexible transformation dictionary.
-- Suggesting parameters for feature analysis based on input data.
 - Standardizing features using robust z-scores grouped by specified categories.
 - Collapsing cell-level data to sgRNA-level and gene-level summaries with customizable options.
 
 Functions:
     - feature_transform: Apply transformations to features based on a transformation dictionary.
-    - suggest_parameters: Suggest feature analysis parameters from input data.
     - grouped_standardization: Perform robust z-score standardization grouped by specified features.
     - collapse_to_sgrna: Aggregate cell-level data to sgRNA-level summaries.
     - collapse_to_gene: Aggregate sgRNA-level data to gene-level summaries.
@@ -70,60 +68,6 @@ def feature_transform(dataframe, transformation_dict, channels):
                             )
 
     return dataframe
-
-
-def suggest_parameters(dataframe, population_feature):
-    """Suggest parameters based on input dataframe.
-
-    Args:
-        dataframe (pd.DataFrame): Input dataframe.
-        population_feature (str): Column name containing population identifiers.
-
-    Returns:
-        None
-    """
-    # Look for potential control prefixes
-    unique_populations = dataframe[population_feature].unique()
-    potential_controls = [
-        pop
-        for pop in unique_populations
-        if any(
-            control in pop.lower()
-            for control in ["nt", "non-targeting", "control", "ctrl", "neg"]
-        )
-    ]
-
-    # Find first feature-like column
-    numeric_cols = dataframe.select_dtypes(include=[np.number]).columns
-    potential_features = [
-        col
-        for col in numeric_cols
-        if any(
-            pattern in col.lower()
-            for pattern in ["mean", "median", "std", "intensity", "area"]
-        )
-    ]
-
-    # Identify metadata-like columns
-    potential_metadata = dataframe.select_dtypes(include=["object"]).columns.tolist()
-
-    print("Suggested Parameters:")
-    print("-" * 50)
-
-    if potential_controls:
-        print("\nPotential control prefixes found:")
-        for ctrl in potential_controls:
-            print(f"  - '{ctrl}'")
-    else:
-        print("\nNo obvious control prefixes found. Please check your data.")
-
-    if potential_features:
-        print(f"\nFirst few feature columns detected:")
-        for feat in potential_features[:5]:
-            print(f"  - '{feat}'")
-
-    print("\nMetadata columns detected:")
-    print(f"  - Categorical: {', '.join(potential_metadata[:5])}")
 
 
 def grouped_standardization(

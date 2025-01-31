@@ -163,6 +163,23 @@ sh 6.run_merge_process.sh
 sbatch 6.run_merge_process_slurm.sh
 ```
 
+#### Step 7: Configure aggregate process params
+
+Follow the steps in [7.configure_aggregate_params.ipynb](analysis/7.configure_aggregate_params.ipynb) to configure aggregate process params.
+
+#### Step 8: Run aggregate process
+
+**Local**:
+```sh
+conda activate brieflow_workflows
+sh 8.run_aggregate_process.sh
+```
+**Slurm**:
+```sh
+# TODO: Add and test this file
+sbatch 8.run_aggregate_process_slurm.sh
+```
+
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.
 
 ***Note**: Many users will want to only run SBS or phenotype processing, independently.

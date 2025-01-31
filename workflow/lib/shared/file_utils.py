@@ -4,6 +4,17 @@ import logging
 
 log = logging.getLogger(__name__)
 
+# Mapping of metadata keys to filename prefixes and data types
+FILENAME_METADATA_MAPPING = {
+    "plate": ["P-", str],
+    "well": ["W-", str],
+    "tile": ["T-", int],
+    "cycle": ["C-", int],
+    "gene": ["G-", str],
+    "sgrna": ["SG-", str],
+    "channel": ["CH-", str],
+}
+
 
 def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     """Generate a structured filename based on data location, information type, and file type.
@@ -18,12 +29,12 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     """
     parts = []
 
-    if "well" in data_location:
-        parts.append(f"W{data_location['well']}")
-    if "tile" in data_location:
-        parts.append(f"T{data_location['tile']}")
-    if "cycle" in data_location:
-        parts.append(f"C{data_location['cycle']}")
+    for metadata_key, metadata_value in data_location.items():
+        if metadata_key in FILENAME_METADATA_MAPPING:
+            prefix, _ = FILENAME_METADATA_MAPPING[metadata_key]
+            parts.append(f"{prefix}{metadata_value}")
+        else:
+            print(f"Unknown metadata key: {metadata_key}")
 
     prefix = "_".join(parts)
     filename = (
@@ -37,11 +48,11 @@ def parse_filename(filename: str) -> tuple:
     """Parse a structured filename to extract data location, information type, and file type.
 
     Args:
-        filename (str): Structured filename, e.g., 'WA1_T02_C03__cell_features.tsv'.
+        filename (str): Structured filename, e.g., 'W_A1_T02_C03__cell_features.tsv'.
 
     Returns:
         tuple: A tuple containing:
-            - data_location (dict): Dictionary with keys 'well', 'tile', 'cycle' as applicable.
+            - data_location (dict): Dictionary with keys like 'well', 'tile', 'cycle' as applicable.
             - info_type (str): The type of information (e.g., 'cell_features').
             - file_type (str): The file extension/type (e.g., 'tsv').
     """
@@ -53,22 +64,18 @@ def parse_filename(filename: str) -> tuple:
     data_location = {}
     info_type = None
 
-    # Parse data location part (e.g., 'WA1_T02_C03')
+    # Parse data location part
     if len(parts) == 2:
         location_part, info_type = parts
         elements = location_part.split("_")
 
         for element in elements:
-            if element.startswith("W"):
-                data_location["well"] = element[1:]  # remove 'W'
-            elif element.startswith("T"):
-                data_location["tile"] = int(
-                    element[1:]
-                )  # remove 'T' and convert to int
-            elif element.startswith("C"):
-                data_location["cycle"] = int(
-                    element[1:]
-                )  # remove 'C' and convert to int
+            for key, (prefix, data_type) in FILENAME_METADATA_MAPPING.items():
+                if element.startswith(prefix):
+                    # Extract and convert the value based on the data type
+                    value = element[len(prefix) :]
+                    data_location[key] = data_type(value)
+                    break  # Stop checking other prefixes for this element
     else:
         # If no location part, the first part is the info_type
         info_type = parts[0]

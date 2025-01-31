@@ -35,10 +35,12 @@ CONFIG_FILE_HEADER = """
 """
 
 
-def create_samples_df(images_fp, sample_pattern, metadata, path_pattern=None, path_metadata=None):
+def create_samples_df(
+    images_fp, sample_pattern, metadata, path_pattern=None, path_metadata=None
+):
     """Generate samples dataframe from a directory of images.
 
-    Samples dataframe includes path to images and image metadata extracted from both 
+    Samples dataframe includes path to images and image metadata extracted from both
     file paths and file names.
 
     Args:
@@ -54,9 +56,9 @@ def create_samples_df(images_fp, sample_pattern, metadata, path_pattern=None, pa
     if images_fp is None:
         print("No image directory provided, returning an empty sample DataFrame!")
         return pd.DataFrame(columns=["sample_fp"])
-    
+
     samples_data = []
-    
+
     # First find all files that match the path pattern
     for image_fp in images_fp.rglob("*"):
         # Skip if path pattern is provided and path doesn't match
@@ -64,13 +66,13 @@ def create_samples_df(images_fp, sample_pattern, metadata, path_pattern=None, pa
             path_match = re.search(path_pattern, str(image_fp))
             if not path_match:
                 continue
-                
+
         # Now check the filename pattern
         filename_match = re.search(sample_pattern, image_fp.name)
         if filename_match:
             # Find sample path and metadata
             sample_data = {"sample_fp": str(image_fp)}
-            
+
             # Extract metadata from filename
             sample_metadata = {
                 key: filename_match.group(i + 1) for i, key in enumerate(metadata)
@@ -89,7 +91,7 @@ def create_samples_df(images_fp, sample_pattern, metadata, path_pattern=None, pa
             sample_data.update(sample_metadata)
             # Append sample data to list
             samples_data.append(sample_data)
-            
+
     # Create a DataFrame and sort by all metadata
     samples_df = pd.DataFrame(samples_data)
     all_metadata = metadata + (path_metadata if path_metadata else [])

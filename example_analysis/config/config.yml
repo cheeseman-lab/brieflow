@@ -50,6 +50,8 @@ merge_process:
   sbs_metdata_cycle: 1
   score: 0.1
   threshold: 2
+cluster_process:
+  cutoff: 0
 phenotype_process:
   cell_diameter: 54.126926685667364
   cellprob_threshold: 0

@@ -51,46 +51,56 @@ include: "rules/preprocess.smk"
 
 ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
-if "sbs_process" in config and len(SBS_SAMPLE_FPS) > 0:
-    # Initialize parameter search configurations if needed
-    if config["sbs_process"]["mode"] == "segment_sbs_paramsearch":
-        config = initialize_segment_sbs_paramsearch(config)
+# if "sbs_process" in config and len(SBS_SAMPLE_FPS) > 0:
+#     # Initialize parameter search configurations if needed
+#     if config["sbs_process"]["mode"] == "segment_sbs_paramsearch":
+#         config = initialize_segment_sbs_paramsearch(config)
+
+#     # Include target and rule files
+#     include: "targets/sbs_process.smk"
+#     include: "rules/sbs_process.smk"
+
+#     ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
+
+
+# if "phenotype_process" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
+#     # Initialize parameter search configurations if needed
+#     if config["phenotype_process"]["mode"] == "segment_phenotype_paramsearch":
+#         config = initialize_segment_phenotype_paramsearch(config)
+
+#     # Include target and rule files
+#     include: "targets/phenotype_process.smk"
+#     include: "rules/phenotype_process.smk"
+
+#     ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
+
+
+# if "merge_process" in config:
+
+#     # Include target and rule files
+#     include: "targets/merge_process.smk"
+#     include: "rules/merge_process.smk"
+
+#     ALL_TARGETS += MERGE_PROCESS_TARGETS_ALL
+
+
+# if "aggregate_process" in config:
+
+#     # Include target and rule files
+#     include: "targets/aggregate_process.smk"
+#     include: "rules/aggregate_process.smk"
+
+#     ALL_TARGETS += AGGREGATE_PROCESS_TARGETS_ALL
+
+
+if "cluster_process" in config:
+    print("test")
 
     # Include target and rule files
-    include: "targets/sbs_process.smk"
-    include: "rules/sbs_process.smk"
+    include: "targets/cluster_process.smk"
+    include: "rules/cluster_process.smk"
 
-    ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
-
-
-if "phenotype_process" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
-    # Initialize parameter search configurations if needed
-    if config["phenotype_process"]["mode"] == "segment_phenotype_paramsearch":
-        config = initialize_segment_phenotype_paramsearch(config)
-
-    # Include target and rule files
-    include: "targets/phenotype_process.smk"
-    include: "rules/phenotype_process.smk"
-
-    ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
-
-
-if "merge_process" in config:
-
-    # Include target and rule files
-    include: "targets/merge_process.smk"
-    include: "rules/merge_process.smk"
-
-    ALL_TARGETS += MERGE_PROCESS_TARGETS_ALL
-
-
-if "aggregate_process" in config:
-
-    # Include target and rule files
-    include: "targets/aggregate_process.smk"
-    include: "rules/aggregate_process.smk"
-
-    ALL_TARGETS += AGGREGATE_PROCESS_TARGETS_ALL
+    ALL_TARGETS += CLUSTER_PROCESS_TARGETS_ALL
 
 
 # Define the target files for the workflow

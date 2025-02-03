@@ -1,0 +1,6 @@
+name: cluster_process
+channels:
+  - conda-forge
+dependencies:
+  - pytables # need pytables defined in module env
+  - pandas

@@ -32,12 +32,14 @@ all:
   root_fp: analysis_root/
 cluster_process:
   correlation_threshold: 0.99
+  corum_data_fp: config/corum_data.tsv
   leiden_resolution: 5.0
   min_cell_cutoffs:
     all: 3
     interphase: 3
     mitotic: 0
   min_unique_values: 5
+  string_data_fp: config/string_data.tsv
   uniprot_data_fp: config/uniprot_data.tsv
   variance_threshold: 0.001
 merge_process:

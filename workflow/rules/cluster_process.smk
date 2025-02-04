@@ -30,11 +30,7 @@ rule phate_leiden_clustering:
         "../envs/cluster_process.yml"
     input:
         # cluster dataset
-        lambda wildcards: output_to_input(
-            CLUSTER_PROCESS_OUTPUTS["generate_dataset"],
-            {"channel_combo": CHANNEL_COMBOS, "dataset": DATASETS},
-            wildcards,
-        ),
+        CLUSTER_PROCESS_OUTPUTS["generate_dataset"],
     output:
         CLUSTER_PROCESS_OUTPUTS_MAPPED["phate_leiden_clustering"],
     params:
@@ -43,26 +39,46 @@ rule phate_leiden_clustering:
         min_unique_values=config["cluster_process"]["min_unique_values"],
         control_prefix=config["aggregate_process"]["control_prefix"],
         leiden_resolution=config["cluster_process"]["leiden_resolution"],
+        population_feature=config["aggregate_process"]["population_feature"],
         uniprot_data_fp=config["cluster_process"]["uniprot_data_fp"],
     script:
         "../scripts/cluster_process/phate_leiden_clustering.py"
 
 
-# perform phate embedding and leiden clustering
-# rule analyze_clusters:
-#     conda:
-#         "../envs/cluster_process.yml"
-#     input:
-#         # phate leiden clusters with uniprot data
-#         lambda wildcards: output_to_input(
-#             CLUSTER_PROCESS_OUTPUTS["phate_leiden_clustering"],
-#             {"channel_combo": CHANNEL_COMBOS, "dataset": DATASETS},
-#             wildcards,
-#         ),
-#     output:
-#         CLUSTER_PROCESS_OUTPUTS_MAPPED["analyze_clusters"],
-#     script:
-#         "../scripts/cluster_process/analyze_clusters.py"
+# analyze clusters with uniprot data
+rule analyze_clusters:
+    conda:
+        "../envs/cluster_process.yml"
+    input:
+        # phate leiden clusters with uniprot data
+        CLUSTER_PROCESS_OUTPUTS["phate_leiden_clustering"][2],
+        # cleaned gene data
+        CLUSTER_PROCESS_OUTPUTS["generate_dataset"],
+    output:
+        CLUSTER_PROCESS_OUTPUTS_MAPPED["analyze_clusters"],
+    params:
+        population_feature=config["aggregate_process"]["population_feature"],
+        string_data_fp=config["cluster_process"]["string_data_fp"],
+        corum_data_fp=config["cluster_process"]["corum_data_fp"],
+    script:
+        "../scripts/cluster_process/analyze_clusters.py"
+
+
+# evaluate clustering
+rule cluster_eval:
+    conda:
+        "../envs/cluster_process.yml"
+    input:
+        # all global metric files from analyze clusters
+        lambda wildcards: output_to_input(
+            CLUSTER_PROCESS_OUTPUTS["analyze_clusters"][1],
+            {"channel_combo": CHANNEL_COMBOS, "dataset": DATASETS},
+            wildcards,
+        ),
+    output:
+        CLUSTER_PROCESS_OUTPUTS_MAPPED["cluster_eval"],
+    script:
+        "../scripts/cluster_process/cluster_eval.py"
 
 
 # Rule for all cluster processing steps

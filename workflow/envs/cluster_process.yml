@@ -10,3 +10,4 @@ dependencies:
   - python-igraph
   - leidenalg
   - phate
+  - statsmodels

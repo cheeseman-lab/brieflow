@@ -35,6 +35,9 @@ CLUSTER_PROCESS_OUTPUTS = {
         / "tsvs"
         / get_filename({"dataset": "{dataset}"}, "global_metrics", "tsv"),
     ],
+    "cluster_eval": [
+        CLUSTER_PROCESS_FP / "tsvs" / "clustering_summary.tsv",
+    ],
 }
 
 CLUSTER_PROCESS_OUTPUT_MAPPINGS = {
@@ -44,12 +47,12 @@ CLUSTER_PROCESS_OUTPUT_MAPPINGS = {
 
 CHANNEL_COMBOS = [
     # ["dapi", "coxiv", "cenpa", "wga"],
-    # ["dapi", "coxiv"],
+    ["dapi", "coxiv"],
     ["dapi", "cenpa"],
     # ["dapi", "wga"],
 ]
 CHANNEL_COMBOS = ["_".join(combo) for combo in CHANNEL_COMBOS]
-DATASETS = ["mitotic"]  # , "interphase", "all"]
+DATASETS = ["mitotic", "interphase"]  # , "all"]
 
 CLUSTER_PROCESS_WILDCARDS = {
     "channel_combo": CHANNEL_COMBOS,

@@ -5,7 +5,7 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 CLUSTER_PROCESS_FP = ROOT_FP / "cluster_process"
 
 CLUSTER_PROCESS_OUTPUTS = {
-    "generate_cluster_datasets": [
+    "generate_dataset": [
         CLUSTER_PROCESS_FP
         / "{channel_combo}"
         / "datasets"
@@ -14,7 +14,7 @@ CLUSTER_PROCESS_OUTPUTS = {
 }
 
 CLUSTER_PROCESS_OUTPUT_MAPPINGS = {
-    "generate_cluster_datasets": None,
+    "generate_dataset": None,
 }
 
 CHANNEL_COMBOS = [
@@ -38,6 +38,5 @@ CLUSTER_PROCESS_OUTPUTS_MAPPED = map_outputs(
 CLUSTER_PROCESS_TARGETS = outputs_to_targets(
     CLUSTER_PROCESS_OUTPUTS, CLUSTER_PROCESS_WILDCARDS
 )
-print(CLUSTER_PROCESS_TARGETS)
 
 CLUSTER_PROCESS_TARGETS_ALL = sum(CLUSTER_PROCESS_TARGETS.values(), [])

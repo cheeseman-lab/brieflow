@@ -13,7 +13,7 @@ leiden_resolution = 5.0
 
 
 # Generate cluster datasets
-rule generate_cluster_datasets:
+rule generate_dataset:
     conda:
         "../envs/cluster_process.yml"
     input:
@@ -25,14 +25,14 @@ rule generate_cluster_datasets:
         "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/interphase_gene_data.tsv",
         "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/all_gene_data.tsv",
     output:
-        CLUSTER_PROCESS_OUTPUTS_MAPPED["generate_cluster_datasets"],
+        CLUSTER_PROCESS_OUTPUTS_MAPPED["generate_dataset"],
     params:
         dataset=lambda wildcards: wildcards.dataset,
         channel_combo=lambda wildcards: wildcards.channel_combo,
         all_channels=config["phenotype_process"]["channel_names"],
         min_cell_cutoffs=config["cluster_process"]["min_cell_cutoffs"],
     script:
-        "../scripts/cluster_process/generate_cluster_datasets.py"
+        "../scripts/cluster_process/generate_dataset.py"
 
 
 # Rule for all cluster processing steps

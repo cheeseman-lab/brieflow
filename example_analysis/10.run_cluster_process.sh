@@ -4,4 +4,4 @@
 snakemake --use-conda --cores all \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
-    --until generate_cluster_datasets
+    --until generate_dataset

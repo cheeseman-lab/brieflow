@@ -16,13 +16,13 @@ aggregate_process:
   - sgRNA_0
   control_prefix: nontargeting
   feature_start: nucleus_dapi_mean
+  filter_single_gene: false
   group_columns:
   - well
   index_columns:
   - tile
   - cell_0
   population_feature: gene_symbol_0
-  filter_single_gene: false
   threshold_conditions:
     nucleus_dapi_median:
     - 7
@@ -30,6 +30,11 @@ aggregate_process:
   transformations_fp: config/transformations.tsv
 all:
   root_fp: analysis_root/
+cluster_process:
+  min_cell_cutoffs:
+    all: 3
+    interphase: 3
+    mitotic: 0
 merge_process:
   det_range:
   - 0.06
@@ -50,16 +55,14 @@ merge_process:
   sbs_metdata_cycle: 1
   score: 0.1
   threshold: 2
-cluster_process:
-  cutoff: 0
 phenotype_process:
   cell_diameter: 54.126926685667364
   cellprob_threshold: 0
   channel_names:
-  - DAPI
-  - COXIV
-  - CENPA
-  - WGA
+  - dapi
+  - coxiv
+  - cenpa
+  - wga
   cyto_index: 1
   cyto_model: cyto3
   dapi_index: 0

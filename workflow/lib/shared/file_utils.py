@@ -13,6 +13,7 @@ FILENAME_METADATA_MAPPING = {
     "gene": ["G-", str],
     "sgrna": ["SG-", str],
     "channel": ["CH-", str],
+    "dataset": ["DT-", str],
 }
 
 

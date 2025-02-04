@@ -1,6 +1,6 @@
 import pandas as pd
 
-from lib.cluster.generate_datasets import (
+from lib.cluster.generate_dataset import (
     clean_and_validate,
     split_channels,
     remove_low_number_genes,
@@ -16,7 +16,6 @@ elif snakemake.params.dataset == "all":
     gene_data = pd.read_csv(snakemake.input[2], sep="\t")
 else:
     raise ValueError("Unknown dataset")
-print(gene_data.shape)
 
 # clean and validate gene data
 validated_data = clean_and_validate(gene_data)

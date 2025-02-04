@@ -4,4 +4,4 @@
 snakemake --use-conda --cores all \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
-    --until generate_dataset
+    --until phate_leiden_clustering

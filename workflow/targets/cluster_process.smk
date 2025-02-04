@@ -11,10 +11,25 @@ CLUSTER_PROCESS_OUTPUTS = {
         / "datasets"
         / get_filename({"dataset": "{dataset}"}, "clean_gene_data", "tsv"),
     ],
+    "phate_leiden_clustering": [
+        CLUSTER_PROCESS_FP
+        / "{channel_combo}"
+        / "plots"
+        / get_filename({"dataset": "{dataset}"}, "pca_variance_plot", "png"),
+        CLUSTER_PROCESS_FP
+        / "{channel_combo}"
+        / "tsvs"
+        / get_filename({"dataset": "{dataset}"}, "phate_leiden_clustering", "tsv"),
+        CLUSTER_PROCESS_FP
+        / "{channel_combo}"
+        / "plots"
+        / get_filename({"dataset": "{dataset}"}, "phate_leiden_clustering", "pdf"),
+    ],
 }
 
 CLUSTER_PROCESS_OUTPUT_MAPPINGS = {
     "generate_dataset": None,
+    "phate_leiden_clustering": None,
 }
 
 CHANNEL_COMBOS = [
@@ -23,11 +38,11 @@ CHANNEL_COMBOS = [
     ["dapi", "cenpa"],
     # ["dapi", "wga"],
 ]
-CHANNEL_COMBO_STRINGS = ["_".join(combo) for combo in CHANNEL_COMBOS]
+CHANNEL_COMBOS = ["_".join(combo) for combo in CHANNEL_COMBOS]
 DATASETS = ["mitotic"]  # , "interphase", "all"]
 
 CLUSTER_PROCESS_WILDCARDS = {
-    "channel_combo": CHANNEL_COMBO_STRINGS,
+    "channel_combo": CHANNEL_COMBOS,
     "dataset": DATASETS,
 }
 

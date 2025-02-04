@@ -31,10 +31,14 @@ aggregate_process:
 all:
   root_fp: analysis_root/
 cluster_process:
+  correlation_threshold: 0.99
+  leiden_resolution: 5.0
   min_cell_cutoffs:
     all: 3
     interphase: 3
     mitotic: 0
+  min_unique_values: 5
+  variance_threshold: 0.001
 merge_process:
   det_range:
   - 0.06

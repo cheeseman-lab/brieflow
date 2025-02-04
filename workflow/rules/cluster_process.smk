@@ -1,14 +1,3 @@
-control_prefix = "nontargeting"
-cutoffs = {"mitotic": 0, "interphase": 3, "all": 3}
-channels = ["dapi", "coxiv", "cenpa", "wga"]
-channel_pairs = ["all", ("dapi", "coxiv"), ("dapi", "cenpa"), ("dapi", "wga")]
-
-# Analysis parameters
-correlation_threshold = 0.99
-variance_threshold = 0.001
-min_unique_values = 5
-leiden_resolution = 5.0
-
 # TODO: use actual input targets
 
 
@@ -33,6 +22,29 @@ rule generate_dataset:
         min_cell_cutoffs=config["cluster_process"]["min_cell_cutoffs"],
     script:
         "../scripts/cluster_process/generate_dataset.py"
+
+
+# perform phate embedding and leiden clustering
+rule phate_leiden_clustering:
+    conda:
+        "../envs/cluster_process.yml"
+    input:
+        # cluster dataset
+        lambda wildcards: output_to_input(
+            CLUSTER_PROCESS_OUTPUTS["generate_dataset"],
+            {"channel_combo": CHANNEL_COMBOS, "dataset": DATASETS},
+            wildcards,
+        ),
+    output:
+        CLUSTER_PROCESS_OUTPUTS_MAPPED["phate_leiden_clustering"],
+    params:
+        correlation_threshold=config["cluster_process"]["correlation_threshold"],
+        variance_threshold=config["cluster_process"]["variance_threshold"],
+        min_unique_values=config["cluster_process"]["min_unique_values"],
+        control_prefix=config["aggregate_process"]["control_prefix"],
+        leiden_resolution=config["cluster_process"]["leiden_resolution"],
+    script:
+        "../scripts/cluster_process/phate_leiden_clustering.py"
 
 
 # Rule for all cluster processing steps

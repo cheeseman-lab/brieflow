@@ -94,7 +94,6 @@ ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
 
 if "cluster_process" in config:
-    print("test")
 
     # Include target and rule files
     include: "targets/cluster_process.smk"

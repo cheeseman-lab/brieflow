@@ -512,3 +512,55 @@ def dimensionality_reduction(
         ax.figure.savefig(save_plot_path, dpi=300, bbox_inches="tight")
 
     return ax
+
+
+def merge_phate_uniprot(df_phate, uniprot_data_fp):
+    """
+    Merge PHATE clustering results with UniProt data
+
+    Parameters:
+    -----------
+    df_phate : pandas.DataFrame
+        DataFrame with PHATE coordinates and cluster assignments
+    uniprot_data_fp : str
+        Path to UniProt data file
+
+    Returns:
+    --------
+    pandas.DataFrame
+        Merged DataFrame with UniProt data
+
+    """
+    # Make a copy to avoid modifying the original
+    df_phate = df_phate.copy()
+
+    # If gene_symbol_0 is in the index, reset it to become a column
+    if df_phate.index.name == "gene_symbol_0":
+        df_phate = df_phate.reset_index()
+    # If we still don't have gene_symbol_0 as a column, create it from the index
+    elif "gene_symbol_0" not in df_phate.columns:
+        df_phate["gene_symbol_0"] = df_phate.index
+        df_phate = df_phate.reset_index(drop=True)
+
+    # Load UniProt data
+    uniprot_df = pd.read_csv(uniprot_data_fp, sep="\t")
+
+    # Split gene names and explode
+    uniprot_df["gene_names"] = uniprot_df["Gene Names"].str.split()
+    uniprot_df = uniprot_df.explode("gene_names")
+    uniprot_df.rename(columns={"Function [CC]": "Function"}, inplace=True)
+
+    # Merge with PHATE data
+    result = pd.merge(
+        df_phate,
+        uniprot_df.rename(columns={"gene_names": "gene_symbol_0"}),
+        on="gene_symbol_0",
+        how="left",
+    )
+
+    # Remove duplicate columns
+    for col in result.columns:
+        if result[col].dtype == "object":
+            result[col] = result[col].str.replace(";", "")
+
+    return result

@@ -18,12 +18,22 @@ CLUSTER_PROCESS_OUTPUTS = {
         / get_filename({"dataset": "{dataset}"}, "pca_variance_plot", "png"),
         CLUSTER_PROCESS_FP
         / "{channel_combo}"
-        / "tsvs"
-        / get_filename({"dataset": "{dataset}"}, "phate_leiden_clustering", "tsv"),
-        CLUSTER_PROCESS_FP
-        / "{channel_combo}"
         / "plots"
         / get_filename({"dataset": "{dataset}"}, "phate_leiden_clustering", "pdf"),
+        CLUSTER_PROCESS_FP
+        / "{channel_combo}"
+        / "tsvs"
+        / get_filename({"dataset": "{dataset}"}, "phate_leiden_uniprot", "tsv"),
+    ],
+    "analyze_clusters": [
+        CLUSTER_PROCESS_FP
+        / "{channel_combo}"
+        / "tsvs"
+        / get_filename({"dataset": "{dataset}"}, "cluster_gene_table", "tsv"),
+        CLUSTER_PROCESS_FP
+        / "{channel_combo}"
+        / "tsvs"
+        / get_filename({"dataset": "{dataset}"}, "global_metrics", "tsv"),
     ],
 }
 

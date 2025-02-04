@@ -38,6 +38,7 @@ cluster_process:
     interphase: 3
     mitotic: 0
   min_unique_values: 5
+  uniprot_data_fp: config/uniprot_data.tsv
   variance_threshold: 0.001
 merge_process:
   det_range:

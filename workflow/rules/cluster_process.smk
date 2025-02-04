@@ -43,8 +43,26 @@ rule phate_leiden_clustering:
         min_unique_values=config["cluster_process"]["min_unique_values"],
         control_prefix=config["aggregate_process"]["control_prefix"],
         leiden_resolution=config["cluster_process"]["leiden_resolution"],
+        uniprot_data_fp=config["cluster_process"]["uniprot_data_fp"],
     script:
         "../scripts/cluster_process/phate_leiden_clustering.py"
+
+
+# perform phate embedding and leiden clustering
+# rule analyze_clusters:
+#     conda:
+#         "../envs/cluster_process.yml"
+#     input:
+#         # phate leiden clusters with uniprot data
+#         lambda wildcards: output_to_input(
+#             CLUSTER_PROCESS_OUTPUTS["phate_leiden_clustering"],
+#             {"channel_combo": CHANNEL_COMBOS, "dataset": DATASETS},
+#             wildcards,
+#         ),
+#     output:
+#         CLUSTER_PROCESS_OUTPUTS_MAPPED["analyze_clusters"],
+#     script:
+#         "../scripts/cluster_process/analyze_clusters.py"
 
 
 # Rule for all cluster processing steps

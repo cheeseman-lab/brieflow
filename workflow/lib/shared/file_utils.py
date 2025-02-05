@@ -1,6 +1,7 @@
 """Utility functions for handling and filtering sample file paths in the BrieFlow pipeline."""
 
 import logging
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -45,24 +46,30 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     return filename
 
 
-def parse_filename(filename: str) -> tuple:
-    """Parse a structured filename to extract data location, information type, and file type.
+def parse_filename(file_path: str) -> tuple:
+    """Parse a structured filename from a file path to extract data location, information type, and file type.
 
     Args:
-        filename (str): Structured filename, e.g., 'W_A1_T02_C03__cell_features.tsv'.
+        file_path (str): Full file path or filename, e.g., '/path/to/W_A1_T02_C03__cell_features.tsv'.
 
     Returns:
         tuple: A tuple containing:
-            - data_location (dict): Dictionary with keys like 'well', 'tile', 'cycle' as applicable.
+            - metadata (dict): Dictionary with keys like 'well', 'tile', 'cycle' as applicable.
             - info_type (str): The type of information (e.g., 'cell_features').
             - file_type (str): The file extension/type (e.g., 'tsv').
     """
-    # Split the filename into main parts
-    base, file_type = filename.rsplit(".", 1)
-    parts = base.split("__")
+    # Convert the input to a Path object
+    path = Path(file_path)
 
-    # Initialize data_location dictionary and variables
-    data_location = {}
+    # Extract the filename and file extension
+    filename = path.stem
+    file_type = path.suffix.lstrip(".")
+
+    # Split the filename into main parts
+    parts = filename.split("__")
+
+    # Initialize metadata dictionary and info_type variable
+    metadata = {}
     info_type = None
 
     # Parse data location part
@@ -75,10 +82,10 @@ def parse_filename(filename: str) -> tuple:
                 if element.startswith(prefix):
                     # Extract and convert the value based on the data type
                     value = element[len(prefix) :]
-                    data_location[key] = data_type(value)
+                    metadata[key] = data_type(value)
                     break  # Stop checking other prefixes for this element
     else:
         # If no location part, the first part is the info_type
         info_type = parts[0]
 
-    return data_location, info_type, file_type
+    return metadata, info_type, file_type

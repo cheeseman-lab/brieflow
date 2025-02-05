@@ -36,7 +36,7 @@ CLUSTER_PROCESS_OUTPUTS = {
         / get_filename({"dataset": "{dataset}"}, "global_metrics", "tsv"),
     ],
     "cluster_eval": [
-        CLUSTER_PROCESS_FP / "tsvs" / "clustering_summary.tsv",
+        CLUSTER_PROCESS_FP / "tsvs" / "aggregated_cluster_metrics.tsv",
     ],
 }
 

@@ -162,9 +162,7 @@ def normalize_to_controls(df, control_prefix="sg_nt"):
     return df_norm
 
 
-def perform_pca_analysis(
-    df, variance_threshold=0.95, save_plot_path=None, random_state=42
-):
+def perform_pca_analysis(df, variance_threshold=0.95, random_state=42):
     """
     Perform PCA analysis and create explained variance plot.
     Expects gene_symbol_0 to be the index.
@@ -172,14 +170,14 @@ def perform_pca_analysis(
     Args:
         df (pd.DataFrame): Data with gene symbols as index
         variance_threshold (float): Cumulative variance threshold (default 0.95)
-        save_plot_path (str): Path to save variance plot (optional)
         random_state (int): Random seed for reproducibility
 
     Returns:
-        tuple: (pca_df, n_components, pca_object)
+        tuple: (pca_df, n_components, pca_object, fig)
             - pca_df: DataFrame with PCA transformed data (gene symbols as index)
             - n_components: Number of components needed to reach variance threshold
             - pca_object: Fitted PCA object
+            - fig: Figure object for explained variance plot
     """
     # Initialize and fit PCA
     pca = PCA(random_state=random_state)
@@ -198,24 +196,20 @@ def perform_pca_analysis(
     n_components = np.argwhere(cumsum >= variance_threshold)[0][0] + 1
 
     # Create variance plot
-    plt.figure(figsize=(10, 6))
-    plt.plot(cumsum, "-")
-    plt.axhline(
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(cumsum, "-")
+    ax.axhline(
         variance_threshold,
         linestyle="--",
         color="red",
         label=f"{variance_threshold*100}% Threshold",
     )
-    plt.axvline(n_components, linestyle="--", color="blue", label=f"n={n_components}")
-    plt.ylabel("Cumulative fraction of variance explained")
-    plt.xlabel("Number of principal components included")
-    plt.title("PCA Explained Variance Ratio")
-    plt.grid(True)
-    plt.legend()
-
-    if save_plot_path:
-        plt.savefig(save_plot_path, bbox_inches="tight", dpi=300)
-    plt.close()  # Close the figure to free memory
+    ax.axvline(n_components, linestyle="--", color="blue", label=f"n={n_components}")
+    ax.set_ylabel("Cumulative fraction of variance explained")
+    ax.set_xlabel("Number of principal components included")
+    ax.set_title("PCA Explained Variance Ratio")
+    ax.grid(True)
+    ax.legend()
 
     print(
         f"Number of components needed for {variance_threshold*100}% variance: {n_components}"
@@ -227,7 +221,7 @@ def perform_pca_analysis(
 
     print(f"Shape of PCA transformed and reduced data: {pca_df_threshold.shape}")
 
-    return pca_df_threshold, n_components, pca
+    return pca_df_threshold, n_components, pca, fig
 
 
 def phate_leiden_pipeline(df, resolution=1.0, phate_kwargs=None):

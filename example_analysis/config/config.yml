@@ -31,9 +31,16 @@ aggregate_process:
 all:
   root_fp: analysis_root/
 cluster_process:
+  channel_combos:
+  - - dapi
+    - coxiv
+    - cenpa
+    - wga
+  - - dapi
+    - cenpa
   correlation_threshold: 0.99
   corum_data_fp: config/corum_data.tsv
-  leiden_resolution: 5.0
+  leiden_resolution: 15
   min_cell_cutoffs:
     all: 3
     interphase: 3

@@ -1,0 +1,10 @@
+name: merge_process
+channels:
+  - conda-forge
+dependencies:
+  - scipy
+  - scikit-learn
+  - joblib
+  - pytables # need pytables defined in module env
+  - pandas
+  - seaborn

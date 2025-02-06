@@ -47,21 +47,29 @@ def map_outputs(outputs, output_type_mappings):
     return mapped_outputs
 
 
-def outputs_to_targets(outputs, wildcards):
+def outputs_to_targets(outputs, wildcards, expansion_method="product"):
     """Expand output templates into full paths by applying the specified wildcards.
 
     Args:
         outputs (dict): Dictionary of output path templates with placeholders (e.g., PREPROCESS_OUTPUTS).
         wildcards (dict): Dictionary of wildcard values to apply (e.g., {"well": ["A1", "A2"], "cycle": [1, 2]}).
+        expansion_method (str): Method of expansion, either 'product' (default) or 'zip'.
 
     Returns:
         dict: Dictionary of expanded output paths, where each rule maps to a list of fully resolved paths.
     """
     expanded_targets = {}
     for rule_name, path_templates in outputs.items():
-        expanded_targets[rule_name] = [
-            expand(str(path_template), **wildcards) for path_template in path_templates
-        ]
+        if expansion_method == "zip":
+            expanded_targets[rule_name] = [
+                expand(str(path_template), zip, **wildcards)
+                for path_template in path_templates
+            ]
+        else:  # Default to product expansion
+            expanded_targets[rule_name] = [
+                expand(str(path_template), **wildcards)
+                for path_template in path_templates
+            ]
     return expanded_targets
 
 

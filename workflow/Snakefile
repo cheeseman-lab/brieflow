@@ -38,10 +38,10 @@ else:
 
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
-# SBS_WELLS = []
+SBS_WELLS = ["A1", "A2"]
 # SBS_TILES = []
 # SBS_CYLES = []
-# PHENOTYPE_WELLS = ["A1"]
+PHENOTYPE_WELLS = ["A1", "A2"]
 # PHENOTYPE_TILES = [1]
 
 
@@ -73,6 +73,24 @@ if "phenotype_process" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
     include: "rules/phenotype_process.smk"
 
     ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
+
+
+if "merge_process" in config:
+
+    # Include target and rule files
+    include: "targets/merge_process.smk"
+    include: "rules/merge_process.smk"
+
+    ALL_TARGETS += MERGE_PROCESS_TARGETS_ALL
+
+
+if "aggregate_process" in config:
+
+    # Include target and rule files
+    include: "targets/aggregate_process.smk"
+    include: "rules/aggregate_process.smk"
+
+    ALL_TARGETS += AGGREGATE_PROCESS_TARGETS_ALL
 
 
 # Define the target files for the workflow

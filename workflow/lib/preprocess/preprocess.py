@@ -10,12 +10,13 @@ from pathlib import Path
 
 
 def extract_tile_metadata(
-    tile_fp: str, tile: int, verbose: bool = False
+    tile_fp: str, well: str, tile: int, verbose: bool = False
 ) -> pd.DataFrame:
     """Extracts metadata from a single ND2 file for a specific tile.
 
     Args:
         tile_fp (str): File path pointing to the ND2 file for the tile.
+        well (str): Well to associate with this metadata.
         tile (int): Tile number to associate with this metadata.
         z_interval (int, optional): If set, samples z-planes at this interval to ensure metadata is one line per position. Defaults to 4.
         verbose (bool, optional): If True, prints metadata information. Defaults to False.
@@ -55,6 +56,7 @@ def extract_tile_metadata(
         # Add basic metadata
         metadata.update(
             {
+                "well": well,
                 "tile": tile,
                 "filename": tile_fp,
                 "channels": frame_meta.contents.channelCount,

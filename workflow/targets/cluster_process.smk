@@ -51,9 +51,10 @@ CLUSTER_PROCESS_OUTPUT_MAPPINGS = {
 CHANNEL_COMBOS = [
     "_".join(combo) for combo in config["cluster_process"]["channel_combos"]
 ]
+DATASETS = config["cluster_process"]["dataset_types"]
 CLUSTER_PROCESS_WILDCARDS = {
     "channel_combo": CHANNEL_COMBOS,
-    "dataset": config["cluster_process"]["channel_combos"],
+    "dataset": DATASETS,
 }
 
 CLUSTER_PROCESS_OUTPUTS_MAPPED = map_outputs(

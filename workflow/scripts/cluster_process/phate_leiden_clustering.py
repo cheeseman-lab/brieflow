@@ -24,10 +24,10 @@ filtered_data, removed_features = select_features(
 normalized_data = normalize_to_controls(filtered_data, snakemake.params.control_prefix)
 
 # threshold data with pca
-pca_thresholded_data, n_components, pca = perform_pca_analysis(
-    normalized_data,
-    save_plot_path=snakemake.output[0],
+pca_thresholded_data, n_components, pca, fig = perform_pca_analysis(
+    normalized_data, snakemake.params.cum_var_threshold
 )
+fig.savefig(snakemake.output[0])
 
 # perform phate leiden clustering
 phate_leiden_clustering = phate_leiden_pipeline(

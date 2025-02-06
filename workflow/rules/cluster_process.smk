@@ -38,6 +38,7 @@ rule phate_leiden_clustering:
         variance_threshold=config["cluster_process"]["variance_threshold"],
         min_unique_values=config["cluster_process"]["min_unique_values"],
         control_prefix=config["aggregate_process"]["control_prefix"],
+        cum_var_threshold=config["cluster_process"]["cum_var_threshold"],
         leiden_resolution=config["cluster_process"]["leiden_resolution"],
         population_feature=config["aggregate_process"]["population_feature"],
         uniprot_data_fp=config["cluster_process"]["uniprot_data_fp"],

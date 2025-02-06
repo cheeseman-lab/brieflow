@@ -31,6 +31,9 @@ aggregate_process:
 all:
   root_fp: analysis_root/
 cluster_process:
+  dataset_types:
+  - mitotic
+  - interphase
   channel_combos:
   - - dapi
     - coxiv

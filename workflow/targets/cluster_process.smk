@@ -43,20 +43,17 @@ CLUSTER_PROCESS_OUTPUTS = {
 CLUSTER_PROCESS_OUTPUT_MAPPINGS = {
     "generate_dataset": None,
     "phate_leiden_clustering": None,
+    "analyze_clusters": None,
+    "cluster_eval": None,
 }
 
-CHANNEL_COMBOS = [
-    # ["dapi", "coxiv", "cenpa", "wga"],
-    ["dapi", "coxiv"],
-    ["dapi", "cenpa"],
-    # ["dapi", "wga"],
-]
-CHANNEL_COMBOS = ["_".join(combo) for combo in CHANNEL_COMBOS]
-DATASETS = ["mitotic", "interphase"]  # , "all"]
 
+CHANNEL_COMBOS = [
+    "_".join(combo) for combo in config["cluster_process"]["channel_combos"]
+]
 CLUSTER_PROCESS_WILDCARDS = {
     "channel_combo": CHANNEL_COMBOS,
-    "dataset": DATASETS,
+    "dataset": config["cluster_process"]["channel_combos"],
 }
 
 CLUSTER_PROCESS_OUTPUTS_MAPPED = map_outputs(

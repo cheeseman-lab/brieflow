@@ -21,10 +21,12 @@ SBS_SAMPLE_FPS = list(sbs_samples_df["sample_fp"].unique())
 if len(SBS_SAMPLE_FPS) > 0:
     SBS_WELLS = list(sbs_samples_df["well"].unique())
     SBS_TILES = range(config["preprocess"]["sbs_tiles"])
+    SBS_CYCLES = sorted(list(sbs_samples_df["cycle"].unique()))
     SBS_VALID_COMBINATIONS = get_valid_combinations(sbs_samples_df)
 else:
     SBS_WELLS = []
     SBS_TILES = []
+    SBS_CYCLES = []
     SBS_VALID_COMBINATIONS = []
 
 
@@ -43,10 +45,10 @@ else:
 
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
-SBS_WELLS = ["A1"]
-# SBS_TILES = []
+SBS_WELLS = ["A1", "A2"]
+# SBS_TILES = [1]
 # SBS_CYLES = []
-PHENOTYPE_WELLS = ["A1"]
+PHENOTYPE_WELLS = ["A1", "A2"]
 # PHENOTYPE_TILES = [1]
 
 include: "targets/preprocess_well.smk"
@@ -55,28 +57,28 @@ include: "rules/preprocess_well.smk"
 
 ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
-# if "sbs_process" in config and len(SBS_SAMPLE_FPS) > 0:
-#     # Initialize parameter search configurations if needed
-#     if config["sbs_process"]["mode"] == "segment_sbs_paramsearch":
-#         config = initialize_segment_sbs_paramsearch(config)
+if "sbs_process" in config and len(SBS_SAMPLE_FPS) > 0:
+    # Initialize parameter search configurations if needed
+    if config["sbs_process"]["mode"] == "segment_sbs_paramsearch":
+        config = initialize_segment_sbs_paramsearch(config)
 
-#     # Include target and rule files
-#     include: "targets/sbs_process.smk"
-#     include: "rules/sbs_process.smk"
+    # Include target and rule files
+    include: "targets/sbs_process.smk"
+    include: "rules/sbs_process.smk"
 
-#     ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
+    ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
 
 
-# if "phenotype_process" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
-#     # Initialize parameter search configurations if needed
-#     if config["phenotype_process"]["mode"] == "segment_phenotype_paramsearch":
-#         config = initialize_segment_phenotype_paramsearch(config)
+if "phenotype_process" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
+    # Initialize parameter search configurations if needed
+    if config["phenotype_process"]["mode"] == "segment_phenotype_paramsearch":
+        config = initialize_segment_phenotype_paramsearch(config)
 
-#     # Include target and rule files
-#     include: "targets/phenotype_process.smk"
-#     include: "rules/phenotype_process.smk"
+    # Include target and rule files
+    include: "targets/phenotype_process.smk"
+    include: "rules/phenotype_process.smk"
 
-#     ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
+    ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
 
 
 # Define the target files for the workflow

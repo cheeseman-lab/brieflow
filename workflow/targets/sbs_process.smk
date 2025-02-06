@@ -5,7 +5,7 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 SBS_PROCESS_FP = ROOT_FP / "sbs_process"
 
 SBS_PROCESS_OUTPUTS = {
-    "align": [
+    "align_sbs": [
         SBS_PROCESS_FP
         / "images"
         / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
@@ -101,7 +101,7 @@ SBS_PROCESS_OUTPUTS = {
 }
 
 SBS_PROCESS_OUTPUT_MAPPINGS = {
-    "align": None,
+    "align_sbs": None,
     "log_filter": None,
     "compute_standard_deviation": None,
     "find_peaks": None,

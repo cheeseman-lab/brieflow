@@ -9,7 +9,7 @@ default-resources:
     tasks: 1
     cpus_per_task: 1
     runtime: 120
-    slurm_extra: "'--output=slurm_output/rule/%j.out'"
+    slurm_extra: "'--output=slurm/slurm_output/rule/%j.out'"
 jobs: 100
 
 set-resources:
@@ -23,9 +23,9 @@ set-resources:
     convert_ph:
         mem_mb: 500
     calculate_ic_sbs:
-        mem_mb: 10000
+        mem_mb: 50000
     calculate_ic_phenotype:
-        mem_mb: 10000
+        mem_mb: 400000
     combine_metadata_sbs:
         mem_mb: 10000
     combine_metadata_phenotype:

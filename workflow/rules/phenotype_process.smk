@@ -13,13 +13,29 @@ rule apply_ic_field_phenotype:
     script:
         "../scripts/phenotype_process/apply_ic_field_phenotype.py"
 
+# Align phenotype images
+rule align_phenotype:
+    conda:
+        "../envs/phenotype_process.yml"
+    input:
+        PHENOTYPE_PROCESS_OUTPUTS["apply_ic_field_phenotype"]
+    output:
+        PHENOTYPE_PROCESS_OUTPUTS_MAPPED["align_phenotype"]
+    params:
+        align=config["phenotype_process"]["align"],
+        target=lambda wildcards: config["phenotype_process"]["target"] if config["phenotype_process"]["align"] else None,
+        source=lambda wildcards: config["phenotype_process"]["source"] if config["phenotype_process"]["align"] else None,
+        riders=lambda wildcards: config["phenotype_process"]["riders"] if config["phenotype_process"]["align"] else None,
+        remove_channel=lambda wildcards: config["phenotype_process"]["remove_channel"] if config["phenotype_process"]["align"] else None,
+    script:
+        "../scripts/phenotype_process/align_phenotype.py"
 
 # Segments cells and nuclei using pre-defined methods
 rule segment_phenotype:
     conda:
         "../envs/phenotype_process.yml"
     input:
-        PHENOTYPE_PROCESS_OUTPUTS["apply_ic_field_phenotype"],
+        PHENOTYPE_PROCESS_OUTPUTS["align_phenotype"],
     output:
         PHENOTYPE_PROCESS_OUTPUTS_MAPPED["segment_phenotype"],
     params:
@@ -85,7 +101,7 @@ rule extract_phenotype_cp:
     conda:
         "../envs/phenotype_process.yml"
     input:
-        PHENOTYPE_PROCESS_OUTPUTS["apply_ic_field_phenotype"],
+        PHENOTYPE_PROCESS_OUTPUTS["align_phenotype"],
         # nuclei segmentation map
         PHENOTYPE_PROCESS_OUTPUTS["segment_phenotype"][0],
         # cells segmentation map
@@ -154,7 +170,7 @@ if config['phenotype_process']['mode'] == 'segment_phenotype_paramsearch':
         conda:
             "../envs/phenotype_process.yml"
         input:
-            PHENOTYPE_PROCESS_OUTPUTS["apply_ic_field_phenotype"]
+            PHENOTYPE_PROCESS_OUTPUTS["align_phenotype"]
         output:
             PHENOTYPE_PROCESS_OUTPUTS_MAPPED["segment_phenotype_paramsearch"]
         params:

@@ -1,6 +1,7 @@
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets, outputs_to_targets_with_combinations
 
+
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
 PREPROCESS_OUTPUTS = {
@@ -12,11 +13,25 @@ PREPROCESS_OUTPUTS = {
             {"well": "{well}", "cycle": "{cycle}", "channel": "{channel}"}, "metadata", "tsv"
         ),
     ],
+    "combine_metadata_sbs": [
+        PREPROCESS_FP
+        / "metadata"
+        / "sbs"
+        / get_filename(
+            {"cycle": "{cycle}", "channel": "{channel}"}, "combined_metadata", "hdf5"
+        ),
+    ],
     "extract_metadata_phenotype": [
         PREPROCESS_FP
         / "metadata"
         / "phenotype"
         / get_filename({"well": "{well}", "channel": "{channel}"}, "metadata", "tsv"),
+    ],
+    "combine_metadata_phenotype": [
+        PREPROCESS_FP
+        / "metadata"
+        / "phenotype"
+        / get_filename({"channel": "{channel}"}, "combined_metadata", "hdf5"),
     ],
     "convert_sbs": [
         PREPROCESS_FP
@@ -47,12 +62,14 @@ PREPROCESS_OUTPUTS = {
 }
 
 PREPROCESS_OUTPUT_MAPPINGS = {
-    "extract_metadata_sbs": None,
-    "extract_metadata_phenotype": None,
+    "extract_metadata_sbs": temp,
+    "combine_metadata_sbs": None,
+    "extract_metadata_phenotype": temp,
+    "combine_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,
     "calculate_ic_sbs": None,
-    "calculate_ic_phenotype": None,    
+    "calculate_ic_phenotype": None,
 }
 
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
@@ -82,6 +99,11 @@ PREPROCESS_TARGETS_SBS = (
     ) +
     outputs_to_targets_with_combinations(
         PREPROCESS_OUTPUTS["calculate_ic_sbs"],
+        SBS_VALID_COMBINATIONS,
+        SBS_WELLS
+    ) +
+    outputs_to_targets_with_combinations(
+        PREPROCESS_OUTPUTS["combine_metadata_sbs"],
         SBS_VALID_COMBINATIONS,
         SBS_WELLS
     )
@@ -114,8 +136,14 @@ PREPROCESS_TARGETS_PHENOTYPE = (
         PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
         [{"channel": ch} for ch in PHENOTYPE_CHANNELS],
         PHENOTYPE_WELLS
+    ) +
+    outputs_to_targets_with_combinations(
+        PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+        [{"channel": ch} for ch in PHENOTYPE_CHANNELS],
+        PHENOTYPE_WELLS
     )
 )
+
 
 # Combine all preprocessing targets
 PREPROCESS_TARGETS_ALL = PREPROCESS_TARGETS_SBS + PREPROCESS_TARGETS_PHENOTYPE

@@ -14,8 +14,27 @@ rule extract_metadata_sbs:
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
+    params:
+        well=lambda wildcards: wildcards.well,
     script:
         "../scripts/preprocess/extract_well_metadata.py"
+
+
+# Combine metadata for SBS images on well level
+rule combine_metadata_sbs:
+    conda:
+        "../envs/preprocess.yml"
+    input:
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+            {"well": SBS_WELLS, "tile": SBS_TILES},
+            wildcards,
+        ),
+    output:
+        PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
+    script:
+        "../scripts/shared/combine_dfs.py"
+
 
 # Extract metadata for phenotype images
 rule extract_metadata_phenotype:
@@ -29,10 +48,27 @@ rule extract_metadata_phenotype:
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
+    params:
+        well=lambda wildcards: wildcards.well,
     script:
         "../scripts/preprocess/extract_well_metadata.py"
 
+# Comine metadata for phenotype images on well level
+rule combine_metadata_phenotype:
+    conda:
+        "../envs/preprocess.yml"
+    input:
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
+            {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES},
+            wildcards,
+        ),
+    output:
+        PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
+    script:
+        "../scripts/shared/combine_dfs.py"
 
+        
 # Convert SBS ND2 files to TIFF
 rule convert_sbs:
     conda:

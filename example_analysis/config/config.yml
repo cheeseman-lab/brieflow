@@ -10,24 +10,6 @@
 #   Paths are resolved relative to the directory the workflow is run from
 
 # Parameters:
-aggregate_process:
-  cat_columns:
-  - gene_symbol_0
-  - sgRNA_0
-  control_prefix: nontargeting
-  feature_start: nucleus_dapi_mean
-  group_columns:
-  - well
-  index_columns:
-  - tile
-  - cell_0
-  population_feature: gene_symbol_0
-  filter_single_gene: false
-  threshold_conditions:
-    nucleus_dapi_median:
-    - 7
-    - greater
-  transformations_fp: config/transformations.tsv
 all:
   root_fp: analysis_root/
 phenotype_process:

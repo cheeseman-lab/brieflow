@@ -85,11 +85,14 @@ def extract_tile_metadata(
     return df
 
 
-def extract_well_metadata(well_fp: str, verbose: bool = False) -> pd.DataFrame:
+def extract_well_metadata(
+        well_fp: str, well: str, verbose: bool = False
+) -> pd.DataFrame:
     """Extracts metadata from an ND2 file containing multiple fields of view.
 
     Args:
         well_fp (str): File path pointing to the ND2 file for the well.
+        well (str): Well to associate with this metadata.
         verbose (bool, optional): If True, prints metadata information. Defaults to False.
 
     Returns:
@@ -121,16 +124,16 @@ def extract_well_metadata(well_fp: str, verbose: bool = False) -> pd.DataFrame:
             if frame_meta.channels and hasattr(frame_meta.channels[0], "position"):
                 stage_pos = frame_meta.channels[0].position.stagePositionUm
                 metadata = {
-                    "x_data": stage_pos.x,
-                    "y_data": stage_pos.y,
-                    "z_data": stage_pos.z,
+                    "x_pos": stage_pos.x,
+                    "y_pos": stage_pos.y,
+                    "z_pos": stage_pos.z,
                     "pfs_offset": frame_meta.channels[0].position.pfsOffset,
                 }
             else:
                 metadata = {
-                    "x_data": None,
-                    "y_data": None,
-                    "z_data": None,
+                    "x_pos": None,
+                    "y_pos": None,
+                    "z_pos": None,
                     "pfs_offset": None,
                 }
 
@@ -138,6 +141,7 @@ def extract_well_metadata(well_fp: str, verbose: bool = False) -> pd.DataFrame:
             metadata.update(
                 {
                     "tile": pos_idx,  # Using position index as tile number
+                    "well": well,
                     "filename": well_fp,
                     "channels": images.sizes.get(
                         "C", 1

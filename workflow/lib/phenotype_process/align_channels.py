@@ -63,13 +63,13 @@ def align_phenotype_channels(
         aligned = apply_offsets(data_, full_offsets)
 
     # Handle channel removal if specified
-    if remove_channel == 'target':
+    if remove_channel == "target":
         channel_order = list(range(data.shape[-3]))
         channel_order.remove(source)
         channel_order.insert(target + 1, source)
         aligned = aligned[..., channel_order, :, :]
         aligned = remove_channels(aligned, target)
-    elif remove_channel == 'source':
+    elif remove_channel == "source":
         aligned = remove_channels(aligned, source)
 
     return aligned

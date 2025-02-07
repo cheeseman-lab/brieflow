@@ -10,11 +10,13 @@ aligned_image_data_segmentation_cycle = aligned_image_data[
 
 # load ic field
 if snakemake.params.keep_extras:
-   ic_field_dapi = imread(snakemake.input[1])
-   ic_field_full = imread(snakemake.input[2])
-   ic_field = combine_ic_images([ic_field_dapi, ic_field_full], [snakemake.params.dapi_index, None])
+    ic_field_dapi = imread(snakemake.input[1])
+    ic_field_full = imread(snakemake.input[2])
+    ic_field = combine_ic_images(
+        [ic_field_dapi, ic_field_full], [snakemake.params.dapi_index, None]
+    )
 else:
-   ic_field = imread(snakemake.input[2])
+    ic_field = imread(snakemake.input[2])
 
 # apply illumination correction field
 corrected_image_data = apply_ic_field(

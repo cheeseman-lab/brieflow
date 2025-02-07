@@ -7,7 +7,13 @@ areas with noise, and perform various transformations to enhance image data qual
 
 import numpy as np
 
-from lib.shared.align import apply_window, normalize_by_percentile, calculate_offsets, apply_offsets, filter_percentiles
+from lib.shared.align import (
+    apply_window,
+    normalize_by_percentile,
+    calculate_offsets,
+    apply_offsets,
+    filter_percentiles,
+)
 
 
 def align_cycles(

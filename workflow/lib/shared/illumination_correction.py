@@ -308,11 +308,11 @@ def subtract_background(
 
 def combine_ic_images(images, indices):
     """Combine illumination correction images using specified indices.
-    
+
     Args:
         images: List of IC images [dapi_image, full_image]
         indices: List of indices [dapi_index, None] where None means use all non-DAPI indices
-        
+
     Returns:
         Combined IC image with DAPI channel from first image
     """
@@ -327,5 +327,5 @@ def combine_ic_images(images, indices):
 
     # Combine the images with the dapi_img as the first channel
     combined_img = np.concatenate([dapi_img[np.newaxis], full_img], axis=0)
-        
+
     return combined_img

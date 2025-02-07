@@ -86,9 +86,9 @@ def extract_tile_metadata(
 
 
 def extract_well_metadata(
-        well_fp: str, well: str, verbose: bool = False
+    well_fp: str, well: str, verbose: bool = False
 ) -> pd.DataFrame:
-    """Extracts metadata from an ND2 file containing multiple fields of view.
+    """Extracts metadata from an ND2 file containing multiple fields of view. Only captures unique XY positions, avoiding Z-stack duplicates.
 
     Args:
         well_fp (str): File path pointing to the ND2 file for the well.
@@ -96,28 +96,30 @@ def extract_well_metadata(
         verbose (bool, optional): If True, prints metadata information. Defaults to False.
 
     Returns:
-        pd.DataFrame: Extracted metadata for all fields of view in the well.
+        pd.DataFrame: Extracted metadata for unique positions in the well.
+
     """
     metadata_rows = []
-
     if verbose:
         print(f"Processing well file: {well_fp}")
 
     with nd2.ND2File(well_fp) as images:
-        # Get basic file info
         if verbose:
             print(f"File shape: {images.shape}")
             print(f"Number of dimensions: {images.ndim}")
             print(f"Data type: {images.dtype}")
             print(f"Sizes (by axes): {images.sizes}")
 
-        # Get number of positions (using 'P' instead of 'V')
+        # Get number of unique XY positions
         num_positions = images.sizes.get("P", 1)
+        z_planes = images.sizes.get("Z", 1)
 
         if verbose:
             print(f"Number of positions: {num_positions}")
+            print(f"Number of Z planes: {z_planes}")
 
-        for pos_idx in range(num_positions):
+        # Only process one frame per unique XY position
+        for pos_idx in range(0, num_positions * z_planes, z_planes):
             frame_meta = images.frame_metadata(pos_idx)
 
             # Extract position data if available
@@ -140,18 +142,16 @@ def extract_well_metadata(
             # Add basic metadata
             metadata.update(
                 {
-                    "tile": pos_idx,  # Using position index as tile number
+                    "tile": pos_idx // z_planes,  # Adjust tile number based on z_planes
                     "well": well,
                     "filename": well_fp,
-                    "channels": images.sizes.get(
-                        "C", 1
-                    ),  # Get channel count from sizes
+                    "channels": images.sizes.get("C", 1),
                 }
             )
 
             # Get pixel calibration if available
             if frame_meta.channels and hasattr(frame_meta.channels[0], "volume"):
-                x_cal, y_cal, _ = frame_meta.channels[0].volume.axesCalibration
+                x_cal, y_cal, *_ = frame_meta.channels[0].volume.axesCalibration
                 metadata.update(
                     {
                         "pixel_size_x": x_cal,

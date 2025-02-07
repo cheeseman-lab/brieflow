@@ -7,12 +7,9 @@ rule generate_dataset:
         "../envs/cluster_process.yml"
     input:
         # final gene datasets
-        # AGGREGATE_PROCESS_OUTPUTS["process_mitotic_gene_data"],
-        # AGGREGATE_PROCESS_OUTPUTS["process_interphase_gene_data"],
-        # AGGREGATE_PROCESS_OUTPUTS["process_all_gene_data"],
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/mitotic_gene_data.tsv",
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/interphase_gene_data.tsv",
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/all_gene_data.tsv",
+        AGGREGATE_PROCESS_OUTPUTS["process_mitotic_gene_data"],
+        AGGREGATE_PROCESS_OUTPUTS["process_interphase_gene_data"],
+        AGGREGATE_PROCESS_OUTPUTS["process_all_gene_data"],
     output:
         CLUSTER_PROCESS_OUTPUTS_MAPPED["generate_dataset"],
     params:

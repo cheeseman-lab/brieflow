@@ -1,4 +1,4 @@
-"""Module for interpreting features during clustering module processing.
+"""Module for visualizing features during clustering module processing.
 
 This module provides functions for visualization, feature ranking, and axis transformations to help
 interpret and analyze features in clustering workflows. The functions generate scatter plots, heatmaps,

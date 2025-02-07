@@ -1,4 +1,4 @@
-"""Module for scraping external datasets for clustering analysis.
+"""Module for scraping external benchmark datasets for clustering analysis.
 
 This module contains functions to fetch data from external sources, including UniProt, CORUM,
 and STRING databases. The data retrieved is used to enhance and complement clustering results

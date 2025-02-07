@@ -6,10 +6,13 @@ rule generate_dataset:
     conda:
         "../envs/cluster_process.yml"
     input:
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/mitotic_gene_data.tsv",
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/interphase_gene_data.tsv",
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/aggregate_process/tsvs/all_gene_data.tsv",
         # final gene datasets
-        AGGREGATE_PROCESS_OUTPUTS["process_mitotic_gene_data"],
-        AGGREGATE_PROCESS_OUTPUTS["process_interphase_gene_data"],
-        AGGREGATE_PROCESS_OUTPUTS["process_all_gene_data"],
+        # AGGREGATE_PROCESS_OUTPUTS["process_mitotic_gene_data"],
+        # AGGREGATE_PROCESS_OUTPUTS["process_interphase_gene_data"],
+        # AGGREGATE_PROCESS_OUTPUTS["process_all_gene_data"],
     output:
         CLUSTER_PROCESS_OUTPUTS_MAPPED["generate_dataset"],
     params:
@@ -44,7 +47,7 @@ rule phate_leiden_clustering:
 
 
 # analyze clusters with uniprot data
-rule analyze_clusters:
+rule benchmark_clusters:
     conda:
         "../envs/cluster_process.yml"
     input:
@@ -53,13 +56,13 @@ rule analyze_clusters:
         # cleaned gene data
         CLUSTER_PROCESS_OUTPUTS["generate_dataset"],
     output:
-        CLUSTER_PROCESS_OUTPUTS_MAPPED["analyze_clusters"],
+        CLUSTER_PROCESS_OUTPUTS_MAPPED["benchmark_clusters"],
     params:
         population_feature=config["aggregate_process"]["population_feature"],
         string_data_fp=config["cluster_process"]["string_data_fp"],
         corum_data_fp=config["cluster_process"]["corum_data_fp"],
     script:
-        "../scripts/cluster_process/analyze_clusters.py"
+        "../scripts/cluster_process/benchmark_clusters.py"
 
 
 # evaluate clustering
@@ -69,7 +72,7 @@ rule cluster_eval:
     input:
         # all global metric files from analyze clusters
         lambda wildcards: output_to_input(
-            CLUSTER_PROCESS_OUTPUTS["analyze_clusters"][1],
+            CLUSTER_PROCESS_OUTPUTS["benchmark_clusters"][1],
             {"channel_combo": CHANNEL_COMBOS, "dataset": DATASETS},
             wildcards,
         ),

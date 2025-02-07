@@ -1,6 +1,6 @@
 import pandas as pd
 
-from lib.cluster.analyze_clusters import (
+from lib.cluster.benchmark_clusters import (
     create_cluster_gene_table,
     analyze_differential_features,
     process_interactions,

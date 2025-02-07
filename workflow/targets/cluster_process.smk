@@ -25,7 +25,7 @@ CLUSTER_PROCESS_OUTPUTS = {
         / "tsvs"
         / get_filename({"dataset": "{dataset}"}, "phate_leiden_uniprot", "tsv"),
     ],
-    "analyze_clusters": [
+    "benchmark_clusters": [
         CLUSTER_PROCESS_FP
         / "{channel_combo}"
         / "tsvs"
@@ -43,7 +43,7 @@ CLUSTER_PROCESS_OUTPUTS = {
 CLUSTER_PROCESS_OUTPUT_MAPPINGS = {
     "generate_dataset": None,
     "phate_leiden_clustering": None,
-    "analyze_clusters": None,
+    "benchmark_clusters": None,
     "cluster_eval": None,
 }
 

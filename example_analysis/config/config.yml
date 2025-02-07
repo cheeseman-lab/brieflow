@@ -42,6 +42,7 @@ cluster_process:
   - - dapi
     - cenpa
   correlation_threshold: 0.99
+  cum_var_threshold: 0.99
   corum_data_fp: config/corum_data.tsv
   leiden_resolution: 15
   min_cell_cutoffs:

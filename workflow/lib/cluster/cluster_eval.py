@@ -1,3 +1,14 @@
+"""Module for evaluating the clustering module.
+
+This module provides functions for analyzing and visualizing clustering metrics and cell distributions.
+It helps evaluate the quality of clustering by aggregating global metrics and plotting distributions
+of cell counts to identify outliers or thresholds for filtering.
+
+Functions:
+    - plot_cell_histogram: Plot a histogram of cell numbers with a cutoff line and return genes below the cutoff.
+    - aggregate_global_metrics: Aggregate global metrics from multiple TSV files into a unified DataFrame.
+"""
+
 from pathlib import Path
 
 import pandas as pd
@@ -7,31 +18,30 @@ import seaborn as sns
 from lib.shared.file_utils import parse_filename
 
 
-def plot_cell_histogram(df, cutoff, bins=50, figsize=(12, 6)):
-    """
-    Plot a histogram of cell numbers with a vertical cutoff line and return genes below the cutoff.
+def plot_cell_histogram(gene_cell_counts, cutoff, bins=50, figsize=(12, 6)):
+    """Plot a histogram of cell numbers with a vertical cutoff line and return genes below the cutoff.
 
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        DataFrame containing 'cell_number' and 'gene_symbol_0' columns
-    cutoff : float
-        Vertical line position and threshold for identifying genes
-    bins : int, optional
-        Number of bins for histogram (default: 50)
-    figsize : tuple, optional
-        Figure size as (width, height) (default: (12, 6))
+    Args:
+        gene_cell_counts (pandas.DataFrame): DataFrame containing 'cell_number' and 'gene_symbol_0' columns.
+        cutoff (float): Vertical line position and threshold for identifying genes.
+        bins (int, optional): Number of bins for histogram. Defaults to 50.
+        figsize (tuple, optional): Figure size as (width, height). Defaults to (12, 6).
 
     Returns:
-    --------
-    matplotlib.figure.Figure
-        The figure object of the generated plot
+        matplotlib.figure.Figure: The figure object of the generated plot.
     """
     # Create the figure
     fig, ax = plt.subplots(figsize=figsize)
 
     # Plot histogram using seaborn for better styling
-    sns.histplot(data=df, x="cell_number", bins=bins, color="skyblue", alpha=0.6, ax=ax)
+    sns.histplot(
+        data=gene_cell_counts,
+        x="cell_number",
+        bins=bins,
+        color="skyblue",
+        alpha=0.6,
+        ax=ax,
+    )
 
     # Add vertical line at cutoff
     ax.axvline(x=cutoff, color="red", linestyle="--", label=f"Cutoff: {cutoff}")
@@ -46,7 +56,9 @@ def plot_cell_histogram(df, cutoff, bins=50, figsize=(12, 6)):
     ax.grid(True, alpha=0.3)
 
     # Get genes below cutoff
-    genes_below_cutoff = df[df["cell_number"] <= cutoff]["gene_symbol_0"].tolist()
+    genes_below_cutoff = gene_cell_counts[gene_cell_counts["cell_number"] <= cutoff][
+        "gene_symbol_0"
+    ].tolist()
 
     # Print genes below cutoff
     print(f"Number of genes below cutoff: {len(genes_below_cutoff)}")

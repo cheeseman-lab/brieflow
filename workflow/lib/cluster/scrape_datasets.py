@@ -1,3 +1,15 @@
+"""Module for scraping external datasets for clustering analysis.
+
+This module contains functions to fetch data from external sources, including UniProt, CORUM,
+and STRING databases. The data retrieved is used to enhance and complement clustering results
+in the clustering module by providing information on protein functions, complexes, and interactions.
+
+Functions:
+    - get_uniprot_data: Fetch all human-reviewed UniProt data using the REST API.
+    - get_corum_data: Fetch CORUM complex data for human proteins.
+    - get_string_data: Fetch STRING interaction data for human proteins with high confidence scores.
+"""
+
 import re
 import requests
 from requests.adapters import HTTPAdapter, Retry
@@ -8,13 +20,10 @@ import pandas as pd
 
 
 def get_uniprot_data():
-    """
-    Fetch all human reviewed UniProt data using REST API
+    """Fetch all human-reviewed UniProt data using the REST API.
 
     Returns:
-    --------
-    pandas.DataFrame
-        DataFrame with UniProt data
+        pd.DataFrame: DataFrame with UniProt data.
     """
     # Define UniProt REST API query
     re_next_link = re.compile(r'<(.+)>; rel="next"')
@@ -71,8 +80,10 @@ def get_uniprot_data():
 
 
 def get_corum_data():
-    """
-    Fetch CORUM complex data for human proteins
+    """Fetch all human-reviewed UniProt data using the REST API.
+
+    Returns:
+        pd.DataFrame: DataFrame with UniProt data.
     """
     print("Fetching CORUM data...")
     url = "https://mips.helmholtz-muenchen.de/fastapi-corum/public/file/download_current_file"
@@ -90,8 +101,10 @@ def get_corum_data():
 
 
 def get_string_data():
-    """
-    Fetch STRING interaction data for human proteins
+    """Fetch CORUM complex data for human proteins.
+
+    Returns:
+        pd.DataFrame: DataFrame with CORUM complex data for human proteins.
     """
     print("Fetching STRING data...")
     url = "https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz"

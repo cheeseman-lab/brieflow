@@ -1,3 +1,22 @@
+"""Module for PHATE and Leiden clustering pipeline.
+
+This module contains functions used to perform dimensionality reduction, clustering,
+and data integration for the PHATE and Leiden clustering pipeline within the cluster
+processing workflow. The main tasks include feature selection, normalization, PCA
+analysis, PHATE dimensionality reduction, Leiden clustering, visualization, and
+merging of clustering results with external data.
+
+Functions:
+    - select_features: Select features based on correlation, variance, and unique values.
+    - normalize_to_controls: Normalize data using StandardScaler fit to control samples.
+    - perform_pca_analysis: Perform PCA analysis and generate an explained variance plot.
+    - phate_leiden_pipeline: Execute the full PHATE and Leiden clustering pipeline.
+    - run_phate: Apply PHATE dimensionality reduction to the input data.
+    - run_leiden_clustering: Run Leiden clustering on a weighted adjacency matrix.
+    - dimensionality_reduction: Create a scatter plot for dimensionality reduction results.
+    - merge_phate_uniprot: Merge PHATE clustering results with UniProt data.
+"""
+
 import random
 
 import numpy as np
@@ -14,25 +33,16 @@ import phate
 def select_features(
     df, correlation_threshold=0.9, variance_threshold=0.01, min_unique_values=5
 ):
-    """
-    Select features based on correlation, variance, and unique values.
+    """Select features based on correlation, variance, and unique values.
 
-    Parameters:
-    -----------
-    df : pd.DataFrame
-        Input DataFrame with features to be selected
-    correlation_threshold : float, default=0.9
-        Threshold for removing highly correlated features
-    variance_threshold : float, default=0.01
-        Threshold for removing low variance features
-    min_unique_values : int, default=5
-        Minimum unique values required for a feature to be kept
+    Args:
+        df (pd.DataFrame): Input DataFrame with features to be selected.
+        correlation_threshold (float): Threshold for removing highly correlated features. Defaults to 0.9.
+        variance_threshold (float): Threshold for removing low variance features. Defaults to 0.01.
+        min_unique_values (int): Minimum unique values required for a feature to be kept. Defaults to 5.
 
     Returns:
-    --------
-    tuple
-        (DataFrame with selected features, dictionary of removed features)
-
+        tuple: A tuple containing the DataFrame with selected features and a dictionary of removed features.
     """
     import numpy as np
     import pandas as pd
@@ -132,16 +142,16 @@ def select_features(
 
 
 def normalize_to_controls(df, control_prefix="sg_nt"):
-    """
-    Normalize data using StandardScaler fit to control samples.
-    Sets gene_symbol_0 as index if it isn't already.
+    """Normalize data using StandardScaler fit to control samples.
+
+    Sets `gene_symbol_0` as the index if it isn't already.
 
     Args:
-        df (pd.DataFrame): DataFrame to normalize
-        control_prefix (str): Prefix identifying control samples in index or gene_symbol_0 column
+        df (pd.DataFrame): DataFrame to normalize.
+        control_prefix (str): Prefix identifying control samples in the index or `gene_symbol_0` column.
 
     Returns:
-        pd.DataFrame: Normalized DataFrame with gene symbols as index
+        pd.DataFrame: Normalized DataFrame with gene symbols as the index.
     """
     df_copy = df.copy()
 
@@ -163,21 +173,21 @@ def normalize_to_controls(df, control_prefix="sg_nt"):
 
 
 def perform_pca_analysis(df, variance_threshold=0.95, random_state=42):
-    """
-    Perform PCA analysis and create explained variance plot.
-    Expects gene_symbol_0 to be the index.
+    """Perform PCA analysis and create an explained variance plot.
+
+    Expects `gene_symbol_0` to be the index.
 
     Args:
-        df (pd.DataFrame): Data with gene symbols as index
-        variance_threshold (float): Cumulative variance threshold (default 0.95)
-        random_state (int): Random seed for reproducibility
+        df (pd.DataFrame): Data with gene symbols as the index.
+        variance_threshold (float): Cumulative variance threshold. Defaults to 0.95.
+        random_state (int): Random seed for reproducibility.
 
     Returns:
-        tuple: (pca_df, n_components, pca_object, fig)
-            - pca_df: DataFrame with PCA transformed data (gene symbols as index)
-            - n_components: Number of components needed to reach variance threshold
-            - pca_object: Fitted PCA object
-            - fig: Figure object for explained variance plot
+        tuple: A tuple containing:
+            - pca_df (pd.DataFrame): DataFrame with PCA-transformed data (gene symbols as index).
+            - n_components (int): Number of components needed to reach the variance threshold.
+            - pca_object (PCA): Fitted PCA object.
+            - fig (matplotlib.figure.Figure): Figure object for the explained variance plot.
     """
     # Initialize and fit PCA
     pca = PCA(random_state=random_state)
@@ -225,22 +235,15 @@ def perform_pca_analysis(df, variance_threshold=0.95, random_state=42):
 
 
 def phate_leiden_pipeline(df, resolution=1.0, phate_kwargs=None):
-    """
-    Run complete PHATE and Leiden clustering pipeline.
+    """Run complete PHATE and Leiden clustering pipeline.
 
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        Input data matrix
-    resolution : float, default=1.0
-        Resolution parameter for Leiden clustering
-    phate_kwargs : dict, optional
-        Additional arguments for PHATE
+    Args:
+        df (pd.DataFrame): Input data matrix.
+        resolution (float): Resolution parameter for Leiden clustering. Defaults to 1.0.
+        phate_kwargs (dict, optional): Additional arguments for PHATE.
 
     Returns:
-    --------
-    pandas.DataFrame
-        DataFrame with PHATE coordinates and cluster assignments
+        pd.DataFrame: DataFrame with PHATE coordinates and cluster assignments.
     """
     # Default PHATE parameters
     if phate_kwargs is None:
@@ -269,8 +272,7 @@ def phate_leiden_pipeline(df, resolution=1.0, phate_kwargs=None):
 
 
 def run_phate(df, random_state=42, n_jobs=4, knn=10, metric="euclidean", **kwargs):
-    """
-    Run PHATE dimensionality reduction.
+    """Run PHATE dimensionality reduction.
 
     Parameters:
     -----------
@@ -307,22 +309,15 @@ def run_phate(df, random_state=42, n_jobs=4, knn=10, metric="euclidean", **kwarg
 
 
 def run_leiden_clustering(weights, resolution=1.0, seed=42):
-    """
-    Run Leiden clustering on a weighted adjacency matrix.
+    """Run Leiden clustering on a weighted adjacency matrix.
 
-    Parameters:
-    -----------
-    weights : numpy.ndarray
-        Weighted adjacency matrix
-    resolution : float, default=1.0
-        Resolution parameter for Leiden clustering
-    seed : int, default=42
-        Random seed for reproducibility
+    Args:
+        weights (np.ndarray): Weighted adjacency matrix.
+        resolution (float): Resolution parameter for Leiden clustering. Defaults to 1.0.
+        seed (int): Random seed for reproducibility. Defaults to 42.
 
     Returns:
-    --------
-    list
-        Cluster assignments
+        list: Cluster assignments.
     """
     # Force symmetry by averaging with transpose
     weights_symmetric = (weights + weights.T) / 2
@@ -366,10 +361,9 @@ def dimensionality_reduction(
     save_plot_path=None,
     **kwargs,
 ):
-    """
-    Create a scatter plot for dimensionality reduction results.
+    """Create a scatter plot for dimensionality reduction results.
 
-    Parameters:
+    Args:
         df (pd.DataFrame): DataFrame with the data to plot.
         x (str): Column name for x-axis data.
         y (str): Column name for y-axis data.
@@ -390,6 +384,7 @@ def dimensionality_reduction(
         ax (matplotlib.axes.Axes, optional): Axes to plot on.
         rasterized (bool): If True, use rasterized rendering.
         save_plot_path (str, optional): Path to save the plot as an image.
+        **kwargs: Additional arguments for the scatter plot.
 
     Returns:
         matplotlib.axes.Axes: The Axes object with the plot.
@@ -509,21 +504,14 @@ def dimensionality_reduction(
 
 
 def merge_phate_uniprot(df_phate, uniprot_data_fp):
-    """
-    Merge PHATE clustering results with UniProt data
+    """Merge PHATE clustering results with UniProt data.
 
-    Parameters:
-    -----------
-    df_phate : pandas.DataFrame
-        DataFrame with PHATE coordinates and cluster assignments
-    uniprot_data_fp : str
-        Path to UniProt data file
+    Args:
+        df_phate (pd.DataFrame): DataFrame with PHATE coordinates and cluster assignments.
+        uniprot_data_fp (str): Path to the UniProt data file.
 
     Returns:
-    --------
-    pandas.DataFrame
-        Merged DataFrame with UniProt data
-
+        pd.DataFrame: Merged DataFrame with UniProt data.
     """
     # Make a copy to avoid modifying the original
     df_phate = df_phate.copy()

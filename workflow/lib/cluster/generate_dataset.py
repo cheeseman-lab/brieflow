@@ -1,4 +1,31 @@
+"""Module for generating and preprocessing datasets for clustering analysis.
+
+This module provides functions to clean, filter, and validate datasets as part of the
+clustering workflow. These functions ensure that the input data is properly formatted
+and contains only valid features and relevant information for clustering processes.
+
+Functions:
+    - clean_and_validate: Clean and validate the input DataFrame by removing unnamed columns,
+      ensuring required columns are present, and renaming/reordering columns.
+    - split_channels: Filter the DataFrame to include features from specified channel pairs only.
+    - remove_low_number_genes: Remove genes with a 'cell_number' below a given threshold.
+    - remove_missing_features: Remove features containing any infinite, NaN, or blank values.
+"""
+
+
 def clean_and_validate(df):
+    """Clean and validate the input DataFrame.
+
+    This function removes unnamed columns, checks for required columns,
+    reorders columns to ensure 'gene_count' is after 'gene_symbol_0', and
+    renames 'gene_count' to 'cell_number'.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame to be cleaned and validated.
+
+    Returns:
+        pd.DataFrame: Cleaned and validated DataFrame.
+    """
     # Remove unnamed columns
     unnamed_cols = [col for col in df.columns if "Unnamed" in str(col)]
     if unnamed_cols:
@@ -20,19 +47,16 @@ def clean_and_validate(df):
 
 
 def split_channels(df, channel_combo, all_channels):
-    """
-    Filter dataframe to only include features from specified channel pair,
-    removing features from other channels.
+    """Filter dataframe to only include features from specified channel pair, removing features from other channels.
 
     Args:
-        df (pd.DataFrame): Input dataframe with features
+        df (pd.DataFrame): Input dataframe with features.
         channel_combo (list): Channels to keep.
-        all_channels (list): List of all possible channels
+        all_channels (list): List of all possible channels.
 
     Returns:
-        pd.DataFrame: Filtered dataframe with features only from specified channels
+        pd.DataFrame: Filtered dataframe with features only from specified channels.
     """
-
     # Find channels to remove (those not in channel_combo)
     channels_to_remove = [ch for ch in all_channels if ch not in channel_combo]
 
@@ -51,20 +75,14 @@ def split_channels(df, channel_combo, all_channels):
 
 
 def remove_low_number_genes(df, min_cells=10):
-    """
-    Remove genes with cell numbers below a certain threshold
+    """Remove genes with cell numbers below a certain threshold.
 
-    Parameters:
-    -----------
-    df : DataFrame
-        Input DataFrame containing 'cell_number' column
-    min_cells : int, default=10
-        Minimum number of cells required for a gene to be kept
+    Args:
+        df (pd.DataFrame): Input DataFrame containing 'cell_number' column.
+        min_cells (int, optional): Minimum number of cells required for a gene to be kept. Defaults to 10.
 
     Returns:
-    --------
-    DataFrame
-        DataFrame with genes filtered based on cell_number threshold
+        pd.DataFrame: DataFrame with genes filtered based on cell_number threshold.
     """
     # Filter genes based on cell_number
     filtered_df = df[df["cell_number"] >= min_cells]
@@ -79,18 +97,13 @@ def remove_low_number_genes(df, min_cells=10):
 
 
 def remove_missing_features(df):
-    """
-    Remove features (columns) that contain any inf, nan, or blank values
+    """Remove features (columns) that contain any inf, nan, or blank values.
 
-    Parameters:
-    -----------
-    df : DataFrame
-        Input DataFrame with features as columns
+    Args:
+        df (pd.DataFrame): Input DataFrame with features as columns.
 
     Returns:
-    --------
-    DataFrame
-        DataFrame with problematic features removed
+        pd.DataFrame: DataFrame with problematic features removed.
     """
     import numpy as np
 

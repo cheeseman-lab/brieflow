@@ -1,3 +1,15 @@
+"""Module for analyzing clusters generated during the clustering module.
+
+This module provides functions to analyze, interpret, and validate clusters. It supports creating cluster-specific
+gene tables, identifying differential features between clusters, and validating clusters against external databases
+such as STRING and CORUM. The results include both detailed cluster metrics and global metrics for performance evaluation.
+
+Functions:
+    - create_cluster_gene_table: Generate a table summarizing clusters with combined gene information and counts.
+    - analyze_differential_features: Identify and analyze differential features between clusters.
+    - process_interactions: Validate cluster data against STRING and CORUM databases, providing enrichment and interaction metrics.
+"""
+
 from itertools import combinations
 
 import pandas as pd
@@ -7,28 +19,21 @@ from statsmodels.stats.multitest import multipletests
 
 
 def create_cluster_gene_table(
-    df, cluster_col="cluster", columns_to_combine=["gene_symbol_0"]
+    phate_leiden_uniprot, cluster_col="cluster", columns_to_combine=["gene_symbol_0"]
 ):
-    """
-    Creates a table with cluster number and combined gene information.
+    """Creates a table with cluster number and combined gene information.
 
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        DataFrame with cluster assignments and gene information
-    cluster_col : str, default='cluster'
-    columns_to_combine : list, default=['gene_symbol_0']
-        Columns to combine for each cluster
+    Args:
+        phate_leiden_uniprot (pandas.DataFrame): DataFrame with cluster assignments and gene information.
+        cluster_col (str, optional): Column name representing clusters. Defaults to "cluster".
+        columns_to_combine (list, optional): List of column names to combine for each cluster. Defaults to ["gene_symbol_0"].
 
     Returns:
-    --------
-    pandas.DataFrame
-        DataFrame with cluster number, combined gene information, and gene count
-
+        pandas.DataFrame: DataFrame with cluster number, combined gene information, and gene count.
     """
     # Combine gene information for each cluster
     cluster_summary = (
-        df.groupby(cluster_col)
+        phate_leiden_uniprot.groupby(cluster_col)
         .agg(
             {
                 col: lambda x: ", ".join(
@@ -41,9 +46,9 @@ def create_cluster_gene_table(
     )
 
     # Count number of unique genes in each cluster
-    cluster_summary["gene_number"] = df.groupby(cluster_col)[columns_to_combine[0]].agg(
-        lambda x: len([val for val in set(x) if pd.notna(val)])
-    )
+    cluster_summary["gene_number"] = phate_leiden_uniprot.groupby(cluster_col)[
+        columns_to_combine[0]
+    ].agg(lambda x: len([val for val in set(x) if pd.notna(val)]))
 
     # Sort by cluster number
     cluster_summary = cluster_summary.rename(columns={cluster_col: "cluster_number"})
@@ -60,25 +65,16 @@ def analyze_differential_features(
     n_top=5,
     exclude_cols=["gene_symbol_0", "cell_number"],
 ):
-    """
-    Analyze differential features between clusters
+    """Analyze differential features between clusters.
 
-    Parameters:
-    -----------
-    cluster_gene_table : pandas.DataFrame
-        DataFrame with cluster assignments and gene information
-    feature_df : pandas.DataFrame
-        DataFrame with feature values for each gene
-    n_top : int, default=5
-        Number of top features to select
-    exclude_cols : list, default=['gene_symbol_0', 'cell_number']
-        Columns to exclude from feature analysis
+    Args:
+        cluster_gene_table (pandas.DataFrame): DataFrame with cluster assignments and gene information.
+        feature_df (pandas.DataFrame): DataFrame with feature values for each gene.
+        n_top (int, optional): Number of top features to select. Defaults to 5.
+        exclude_cols (list, optional): Columns to exclude from feature analysis. Defaults to ['gene_symbol_0', 'cell_number'].
 
     Returns:
-    --------
-    tuple
-        (DataFrame with top features for each cluster, dictionary of feature analysis results)
-
+        tuple: (DataFrame with top features for each cluster, dictionary of feature analysis results)
     """
     # Get feature columns
     feature_cols = [col for col in feature_df.columns if col not in exclude_cols]
@@ -169,23 +165,15 @@ def analyze_differential_features(
 
 
 def process_interactions(df_clusters, string_data_fp, corum_data_fp):
-    """
-    Process cluster data against STRING and CORUM databases
+    """Process cluster data against STRING and CORUM databases.
 
-    Parameters:
-    -----------
-    df_clusters : pandas.DataFrame
-        DataFrame with cluster information
-    string_data_fp : str
-        File path to STRING data
-    corum_data_fp : str
-        File path to CORUM data
+    Args:
+        df_clusters (pandas.DataFrame): DataFrame with cluster information.
+        string_data_fp (str): File path to STRING data.
+        corum_data_fp (str): File path to CORUM data.
 
     Returns:
-    --------
-    tuple:
-        - DataFrame with cluster information and validation results
-        - Dictionary with global metrics for both STRING and CORUM
+        tuple: (DataFrame with cluster information and validation results, dictionary with global metrics for both STRING and CORUM)
     """
     # load string and corum data
     string_df = pd.read_csv(string_data_fp, sep="\t")

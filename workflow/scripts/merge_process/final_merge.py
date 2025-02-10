@@ -1,10 +1,10 @@
 import pandas as pd
 
 # Load deduplicated merge data
-merge_deduplicated = pd.read_hdf(snakemake.input[0])
+merge_deduplicated = pd.read_hdf(snakemake.input[1])
 
 # Load full feature data
-cp_phenotype = pd.read_hdf(snakemake.input[1])
+cp_phenotype = pd.read_hdf(snakemake.input[4])
 
 # Merge full CP data on deduplicated
 merged_final = merge_deduplicated.merge(

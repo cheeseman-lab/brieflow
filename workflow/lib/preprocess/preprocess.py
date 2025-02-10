@@ -246,7 +246,7 @@ def nd2_to_tiff(
 
 def nd2_to_tiff_well(
     files: Union[str, List[str], Path, List[Path]],
-    position: int = 0,
+    position: int,
     channel_order_flip: bool = False,
     return_tiles: bool = False,
     verbose: bool = False,
@@ -298,6 +298,7 @@ def nd2_to_tiff_well(
                     seq_idx = nd2_obj._seq_index_from_coords(
                         [coords[dim] for dim in nd2_obj.sizes if dim in coords]
                     )
+                    print()
                     z_planes.append(nd2_obj.read_frame(seq_idx))
 
                 # Stack Z planes and take max projection

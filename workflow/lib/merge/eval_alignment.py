@@ -28,6 +28,9 @@ def plot_alignment_quality(
     # Create figure and axes
     fig, ax = plt.subplots(figsize=figsize)
 
+    # Plot alignment quality
+    ax.scatter(df_align["determinant"], df_align["score"], c="b", alpha=0.5)
+
     # Construct filtering condition
     gate = "{0} <= determinant <= {1} & score > {2}".format(*det_range, score)
 

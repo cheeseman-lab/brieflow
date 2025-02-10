@@ -20,5 +20,9 @@ dependencies:
   - seaborn
   - tifffile
   - mahotas
+  - python-igraph
+  - leidenalg
+  - phate
+  - statsmodels
   - pip:
       - -e .

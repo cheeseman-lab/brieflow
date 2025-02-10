@@ -180,6 +180,23 @@ sh 8.run_aggregate_process.sh
 sbatch 8.run_aggregate_process_slurm.sh
 ```
 
+#### Step 9: Configure cluster process params
+
+Follow the steps in [9.configure_cluster_params.ipynb](analysis/9.configure_cluster_params.ipynb) to configure cluster process params.
+
+#### Step 10: Run cluster process
+
+**Local**:
+```sh
+conda activate brieflow_workflows
+sh 10.run_cluster_process.sh
+```
+**Slurm**:
+```sh
+# TODO: Add and test this file
+sbatch 10.run_cluster_process_slurm.sh
+```
+
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.
 
 ***Note**: Many users will want to only run SBS or phenotype processing, independently.

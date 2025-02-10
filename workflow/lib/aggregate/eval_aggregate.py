@@ -257,3 +257,76 @@ def test_missing_values(gene_data, name):
         print(f"\nNo missing values found in {name} dataset")
 
     return results
+
+
+def calculate_mitotic_percentage(df_mitotic, df_interphase):
+    """Calculate the percentage of mitotic cells for each gene using pre-grouped data.
+
+    Fills in zeros for missing genes in either dataset.
+
+    Args:
+        df_mitotic (DataFrame): DataFrame containing mitotic cell data (already grouped by gene).
+        df_interphase (DataFrame): DataFrame containing interphase cell data (already grouped by gene).
+
+    Returns:
+        DataFrame: Contains gene names and their mitotic percentages.
+    """
+    # Get all unique genes from both datasets
+    all_genes = sorted(
+        list(set(df_mitotic["gene_symbol_0"]) | set(df_interphase["gene_symbol_0"]))
+    )
+
+    # Create dictionaries mapping genes to their counts
+    mitotic_counts = dict(zip(df_mitotic["gene_symbol_0"], df_mitotic["cell_number"]))
+    interphase_counts = dict(
+        zip(df_interphase["gene_symbol_0"], df_interphase["cell_number"])
+    )
+
+    # Create result DataFrame with all genes, filling in zeros for missing values
+    result_df = pd.DataFrame(
+        {
+            "gene": all_genes,
+            "mitotic_cells": [mitotic_counts.get(gene, 0) for gene in all_genes],
+            "interphase_cells": [interphase_counts.get(gene, 0) for gene in all_genes],
+        }
+    )
+
+    # Report genes that were filled with zeros
+    missing_in_mitotic = set(all_genes) - set(df_mitotic["gene_symbol_0"])
+    missing_in_interphase = set(all_genes) - set(df_interphase["gene_symbol_0"])
+
+    if missing_in_mitotic or missing_in_interphase:
+        print("Note: Some genes were missing and filled with zero counts:")
+        if missing_in_mitotic:
+            print(
+                f"Genes missing in mitotic data (filled with 0): {missing_in_mitotic}"
+            )
+        if missing_in_interphase:
+            print(
+                f"Genes missing in interphase data (filled with 0): {missing_in_interphase}"
+            )
+
+    # Calculate total cells and mitotic percentage
+    result_df["total_cells"] = (
+        result_df["mitotic_cells"] + result_df["interphase_cells"]
+    )
+
+    # Handle division by zero: if total_cells is 0, set percentage to 0
+    result_df["mitotic_percentage"] = np.where(
+        result_df["total_cells"] > 0,
+        (result_df["mitotic_cells"] / result_df["total_cells"] * 100).round(2),
+        0.0,
+    )
+
+    # Sort by mitotic percentage in descending order
+    result_df = result_df.sort_values("mitotic_percentage", ascending=False)
+
+    # Reset index to remove the old index
+    result_df = result_df.reset_index(drop=True)
+
+    # Print summary statistics
+    print(f"\nProcessed {len(all_genes)} total genes")
+    print(f"Average mitotic percentage: {result_df['mitotic_percentage'].mean():.2f}%")
+    print(f"Median mitotic percentage: {result_df['mitotic_percentage'].median():.2f}%")
+
+    return result_df

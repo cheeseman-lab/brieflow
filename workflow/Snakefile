@@ -93,6 +93,15 @@ if "aggregate_process" in config:
     ALL_TARGETS += AGGREGATE_PROCESS_TARGETS_ALL
 
 
+if "cluster_process" in config:
+
+    # Include target and rule files
+    include: "targets/cluster_process.smk"
+    include: "rules/cluster_process.smk"
+
+    ALL_TARGETS += CLUSTER_PROCESS_TARGETS_ALL
+
+
 # Define the target files for the workflow
 rule all:
     input:

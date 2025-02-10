@@ -55,6 +55,7 @@ AGGREGATE_PROCESS_OUTPUTS = {
         AGGREGATE_PROCESS_FP / "eval" / "mitotic_missing.tsv",
         AGGREGATE_PROCESS_FP / "eval" / "interphase_missing.tsv",
         AGGREGATE_PROCESS_FP / "eval" / "all_missing.tsv",
+        AGGREGATE_PROCESS_FP / "eval" / "mitotic_stats.tsv",
     ],
 }
 

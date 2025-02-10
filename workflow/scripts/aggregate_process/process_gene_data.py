@@ -42,4 +42,4 @@ gene_data = collapse_to_gene(
 del sgrna_data
 
 # save gene summaries
-gene_data.to_csv(snakemake.output[0], sep="\t", index=True)
+gene_data.to_csv(snakemake.output[0], sep="\t")

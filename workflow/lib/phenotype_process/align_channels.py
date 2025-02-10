@@ -11,7 +11,7 @@ from lib.shared.align import apply_window, calculate_offsets, apply_offsets
 
 
 def align_phenotype_channels(
-    data,
+    image_data,
     target,
     source,
     riders=[],
@@ -22,7 +22,7 @@ def align_phenotype_channels(
     """Rigid alignment of phenotype channels based on target and source channels.
 
     Args:
-        data (np.ndarray): The input data containing the channels with dimensions
+        image_data (np.ndarray): The input data containing the channels with dimensions
             (STACK, CHANNEL, I, J) if stacked, or (CHANNEL, I, J) if not.
         target (int): Index of the channel that other channels will be aligned to.
         source (int): Index of the channel to align with the target.
@@ -39,11 +39,11 @@ def align_phenotype_channels(
         np.ndarray: Phenotype data aligned across specified channels.
     """
     # Handle stacked vs unstacked data
-    if data.ndim == 4:
-        data_ = data.max(axis=0)
+    if image_data.ndim == 4:
+        data_ = image_data.max(axis=0)
         stack = True
     else:
-        data_ = data.copy()
+        data_ = image_data.copy()
         stack = False
 
     # Calculate alignment offsets
@@ -58,13 +58,13 @@ def align_phenotype_channels(
 
     # Apply alignment
     if stack:
-        aligned = np.array([apply_offsets(slice_, full_offsets) for slice_ in data])
+        aligned = np.array([apply_offsets(slice_, full_offsets) for slice_ in image_data])
     else:
         aligned = apply_offsets(data_, full_offsets)
 
     # Handle channel removal if specified
     if remove_channel == "target":
-        channel_order = list(range(data.shape[-3]))
+        channel_order = list(range(image_data.shape[-3]))
         channel_order.remove(source)
         channel_order.insert(target + 1, source)
         aligned = aligned[..., channel_order, :, :]

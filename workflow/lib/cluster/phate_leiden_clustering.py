@@ -31,12 +31,15 @@ import phate
 
 
 def select_features(
-    df, correlation_threshold=0.9, variance_threshold=0.01, min_unique_values=5
+    features_data,
+    correlation_threshold=0.9,
+    variance_threshold=0.01,
+    min_unique_values=5,
 ):
     """Select features based on correlation, variance, and unique values.
 
     Args:
-        df (pd.DataFrame): Input DataFrame with features to be selected.
+        features_data (pd.DataFrame): Input DataFrame with features to be selected.
         correlation_threshold (float): Threshold for removing highly correlated features. Defaults to 0.9.
         variance_threshold (float): Threshold for removing low variance features. Defaults to 0.01.
         min_unique_values (int): Minimum unique values required for a feature to be kept. Defaults to 5.
@@ -48,17 +51,17 @@ def select_features(
     import pandas as pd
 
     # Make a copy and handle initial column filtering
-    df = df.copy()
-    if "cell_number" in df.columns:
-        df = df.drop(columns=["cell_number"])
+    features_data = features_data.copy()
+    if "cell_number" in features_data.columns:
+        features_data = features_data.drop(columns=["cell_number"])
 
     # Store information about removed features
     removed_features = {"correlated": [], "low_variance": [], "few_unique_values": []}
 
     # Get numeric columns only, excluding gene_symbol_0
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    numeric_cols = features_data.select_dtypes(include=[np.number]).columns
     feature_cols = [col for col in numeric_cols if col != "gene_symbol_0"]
-    df_numeric = df[feature_cols]
+    df_numeric = features_data[feature_cols]
 
     # Calculate correlation matrix once
     correlation_matrix = df_numeric.corr().abs()
@@ -138,22 +141,22 @@ def select_features(
     # Create final DataFrame with remaining numeric columns AND gene_symbol_0
     final_columns = ["gene_symbol_0"] + df_numeric.columns.tolist()
 
-    return df[final_columns], removed_features
+    return features_data[final_columns], removed_features
 
 
-def normalize_to_controls(df, control_prefix="sg_nt"):
+def normalize_to_controls(features_data, control_prefix="sg_nt"):
     """Normalize data using StandardScaler fit to control samples.
 
     Sets `gene_symbol_0` as the index if it isn't already.
 
     Args:
-        df (pd.DataFrame): DataFrame to normalize.
+        features_data (pd.DataFrame): DataFrame to normalize.
         control_prefix (str): Prefix identifying control samples in the index or `gene_symbol_0` column.
 
     Returns:
         pd.DataFrame: Normalized DataFrame with gene symbols as the index.
     """
-    df_copy = df.copy()
+    df_copy = features_data.copy()
 
     # Handle cases where gene_symbol_0 might be a column or already the index
     if "gene_symbol_0" in df_copy.columns:
@@ -172,13 +175,13 @@ def normalize_to_controls(df, control_prefix="sg_nt"):
     return df_norm
 
 
-def perform_pca_analysis(df, variance_threshold=0.95, random_state=42):
+def perform_pca_analysis(gene_data, variance_threshold=0.95, random_state=42):
     """Perform PCA analysis and create an explained variance plot.
 
     Expects `gene_symbol_0` to be the index.
 
     Args:
-        df (pd.DataFrame): Data with gene symbols as the index.
+        gene_data (pd.DataFrame): Data with gene symbols as the index.
         variance_threshold (float): Cumulative variance threshold. Defaults to 0.95.
         random_state (int): Random seed for reproducibility.
 
@@ -191,14 +194,14 @@ def perform_pca_analysis(df, variance_threshold=0.95, random_state=42):
     """
     # Initialize and fit PCA
     pca = PCA(random_state=random_state)
-    pca_transformed = pca.fit_transform(df)
+    pca_transformed = pca.fit_transform(gene_data)
 
     # Create DataFrame with PCA results
     n_components_total = pca_transformed.shape[1]
     pca_df = pd.DataFrame(
         pca_transformed,
         columns=[f"pca_{n}" for n in range(n_components_total)],
-        index=df.index,
+        index=gene_data.index,
     )
 
     # Find number of components needed for threshold
@@ -224,7 +227,7 @@ def perform_pca_analysis(df, variance_threshold=0.95, random_state=42):
     print(
         f"Number of components needed for {variance_threshold*100}% variance: {n_components}"
     )
-    print(f"Shape of input data: {df.shape}")
+    print(f"Shape of input data: {gene_data.shape}")
 
     # Create threshold-limited version
     pca_df_threshold = pca_df[[f"pca_{i}" for i in range(n_components)]]
@@ -234,11 +237,11 @@ def perform_pca_analysis(df, variance_threshold=0.95, random_state=42):
     return pca_df_threshold, n_components, pca, fig
 
 
-def phate_leiden_pipeline(df, resolution=1.0, phate_kwargs=None):
+def phate_leiden_pipeline(feature_selected_data, resolution=1.0, phate_kwargs=None):
     """Run complete PHATE and Leiden clustering pipeline.
 
     Args:
-        df (pd.DataFrame): Input data matrix.
+        feature_selected_data (pd.DataFrame): Input data matrix.
         resolution (float): Resolution parameter for Leiden clustering. Defaults to 1.0.
         phate_kwargs (dict, optional): Additional arguments for PHATE.
 
@@ -250,7 +253,7 @@ def phate_leiden_pipeline(df, resolution=1.0, phate_kwargs=None):
         phate_kwargs = {}
 
     # Run PHATE
-    df_phate, p = run_phate(df, **phate_kwargs)
+    df_phate, p = run_phate(feature_selected_data, **phate_kwargs)
 
     # Get weights from PHATE
     weights = np.asarray(p.graph.diff_op.todense())
@@ -271,12 +274,19 @@ def phate_leiden_pipeline(df, resolution=1.0, phate_kwargs=None):
     return df_phate
 
 
-def run_phate(df, random_state=42, n_jobs=4, knn=10, metric="euclidean", **kwargs):
+def run_phate(
+    feature_selected_data,
+    random_state=42,
+    n_jobs=4,
+    knn=10,
+    metric="euclidean",
+    **kwargs,
+):
     """Run PHATE dimensionality reduction.
 
     Parameters:
     -----------
-    df : pandas.DataFrame
+    feature_selected_data : pandas.DataFrame
         Input data matrix
     random_state : int, default=42
         Random seed for reproducibility
@@ -300,10 +310,12 @@ def run_phate(df, random_state=42, n_jobs=4, knn=10, metric="euclidean", **kwarg
     )
 
     # Transform data
-    X_phate = p.fit_transform(df.values)
+    X_phate = p.fit_transform(feature_selected_data.values)
 
     # Create output DataFrame
-    df_phate = pd.DataFrame(X_phate, index=df.index, columns=["PHATE_0", "PHATE_1"])
+    df_phate = pd.DataFrame(
+        X_phate, index=feature_selected_data.index, columns=["PHATE_0", "PHATE_1"]
+    )
 
     return df_phate, p
 
@@ -339,7 +351,7 @@ def run_leiden_clustering(weights, resolution=1.0, seed=42):
 
 
 def dimensionality_reduction(
-    df,
+    cluster_data,
     x="X",
     y="Y",
     default_kwargs={"color": "lightgray", "alpha": 0.5},
@@ -364,7 +376,7 @@ def dimensionality_reduction(
     """Create a scatter plot for dimensionality reduction results.
 
     Args:
-        df (pd.DataFrame): DataFrame with the data to plot.
+        cluster_data (pd.DataFrame): DataFrame with the data to plot.
         x (str): Column name for x-axis data.
         y (str): Column name for y-axis data.
         default_kwargs (dict): Default arguments for the scatter plot.
@@ -389,7 +401,7 @@ def dimensionality_reduction(
     Returns:
         matplotlib.axes.Axes: The Axes object with the plot.
     """
-    df_ = df.copy()
+    df_ = cluster_data.copy()
 
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(7, 7))

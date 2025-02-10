@@ -2,7 +2,7 @@ from lib.shared.target_utils import output_to_input
 
 
 # Align images from each sequencing round
-rule align:
+rule align_sbs:
     conda:
         "../envs/sbs_process.yml"
     input:
@@ -12,10 +12,11 @@ rule align:
             wildcards,
         ),
     output:
-        SBS_PROCESS_OUTPUTS_MAPPED["align"],
+        SBS_PROCESS_OUTPUTS_MAPPED["align_sbs"],
     params:
-        method="sbs_mean",
+        method=config["sbs_process"]["alignment_method"],
         upsample_factor=1,
+        keep_extras=config["sbs_process"]["keep_extras"],
     script:
         "../scripts/sbs_process/align_cycles.py"
 
@@ -25,7 +26,7 @@ rule log_filter:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_OUTPUTS["align"],
+        SBS_PROCESS_OUTPUTS["align_sbs"],
     output:
         SBS_PROCESS_OUTPUTS_MAPPED["log_filter"],
     params:
@@ -80,7 +81,13 @@ rule apply_ic_field_sbs:
     conda:
         "../envs/sbs_process.yml"
     input:
-        SBS_PROCESS_OUTPUTS["align"],
+        SBS_PROCESS_OUTPUTS["align_sbs"],
+        # illumination correction field from first cycle
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["calculate_ic_sbs"],
+            {"cycle": SBS_CYCLES[0]},
+            wildcards,
+        ),
         # illumination correction field from cycle of interest
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
@@ -90,9 +97,9 @@ rule apply_ic_field_sbs:
     output:
         SBS_PROCESS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
-        segmentation_cycle_index=SBS_CYCLES[
-            config["sbs_process"]["segmentation_cycle_index"]
-        ],
+        segmentation_cycle_index=config["sbs_process"]["segmentation_cycle_index"],
+        keep_extras=config["sbs_process"]["keep_extras"],
+        dapi_index=config["sbs_process"]["dapi_index"],
     script:
         "../scripts/sbs_process/apply_ic_field_sbs.py"
 

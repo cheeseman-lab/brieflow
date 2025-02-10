@@ -16,6 +16,13 @@ PHENOTYPE_PROCESS_OUTPUTS = {
             {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
         ),
     ],
+    "align_phenotype": [
+        PHENOTYPE_PROCESS_FP
+        / "images"
+        / get_filename(
+            {"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
+        ),
+    ],
     "segment_phenotype": [
         PHENOTYPE_PROCESS_FP
         / "images"
@@ -71,6 +78,7 @@ PHENOTYPE_PROCESS_OUTPUTS = {
 
 PHENOTYPE_PROCESS_OUTPUT_MAPPINGS = {
     "apply_ic_field_phenotype": None,
+    "align_phenotype": None,
     "segment_phenotype": None,
     "identify_cytoplasm": None,
     "extract_phenotype_info": None,

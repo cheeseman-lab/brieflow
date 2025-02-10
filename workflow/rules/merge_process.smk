@@ -7,13 +7,17 @@ rule fast_alignment:
         "../envs/merge_process.yml"
     input:
         # metadata files with image locations
-        PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["combine_metadata_sbs"],
-            {"cycle": config["merge_process"]["sbs_metdata_cycle"]},
+            PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+            {} if config["merge_process"]["ph_metadata_channel"] is None else {"channel": config["merge_process"]["ph_metadata_channel"]},
             wildcards,
         ),
-        # phenotype and sbs info files with cell locations
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["combine_metadata_sbs"],
+            {"cycle": config["merge_process"]["sbs_metadata_cycle"], 
+             **({} if config["merge_process"]["sbs_metadata_channel"] is None else {"channel": config["merge_process"]["sbs_metadata_channel"]})},
+            wildcards,
+        ),
         PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"],
         SBS_PROCESS_OUTPUTS["combine_sbs_info"],
     output:
@@ -24,7 +28,6 @@ rule fast_alignment:
         initial_sites=config["merge_process"]["initial_sites"],
     script:
         "../scripts/merge_process/fast_alignment.py"
-
 
 # Complete merge process
 rule merge:
@@ -103,7 +106,7 @@ rule deduplicate_merge:
         "../envs/merge_process.yml"
     input:
         # cleaned merge data
-        MERGE_PROCESS_OUTPUTS["clean_merge"],
+        MERGE_PROCESS_OUTPUTS["clean_merge"][1],
         # cell information from SBS
         SBS_PROCESS_OUTPUTS["combine_cells"],
         # min phentoype information
@@ -120,7 +123,7 @@ rule final_merge:
         "../envs/merge_process.yml"
     input:
         # formatted merge data
-        MERGE_PROCESS_OUTPUTS["deduplicate_merge"],
+        MERGE_PROCESS_OUTPUTS["deduplicate_merge"][1],
         # full phentoype information
         PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][0],
     output:

@@ -10,6 +10,8 @@
 #   Paths are resolved relative to the directory the workflow is run from
 
 # Parameters:
+all:
+  root_fp: analysis_root/
 aggregate_process:
   cat_columns:
   - gene_symbol_0
@@ -74,6 +76,7 @@ merge_process:
   score: 0.1
   threshold: 2
 phenotype_process:
+  align: false
   cell_diameter: 54.126926685667364
   cellprob_threshold: 0
   channel_names:
@@ -98,12 +101,13 @@ preprocess:
   sbs_channel_order_flip: true
   sbs_samples_fp: config/sbs_samples.tsv
 sbs_process:
+  alignment_method: DAPI
   bases:
   - G
   - T
   - A
   - C
-  cell_diameter: 19.86716534556202
+  cell_diameter: 19.835095646937663
   cellprob_threshold: 0
   cyto_index: 4
   cyto_model: cyto3
@@ -111,8 +115,9 @@ sbs_process:
   df_design_path: config/pool10_design.tsv
   flow_threshold: 0.4
   gpu: false
+  keep_extras: false
   mode: null
   nuclei_diameter: 9.0270333367641
   q_min: 0
-  segmentation_cycle_index: -1
+  segmentation_cycle_index: 10
   threshold_peaks: 400

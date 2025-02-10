@@ -133,3 +133,29 @@ def plot_channel_histogram(df_before, df_after, channel_min_cutoff=0):
     plt.ylabel("Count")
     plt.legend()
     return fig
+
+
+def plot_cell_positions(df_merge, title, color=None, hue="channels_min"):
+    """Generates a scatter plot of cell positions in the i_0, j_0 coordinate space.
+
+    Args:
+        df_merge: DataFrame containing cell position data with i_0, j_0 columns.
+        title: Plot title.
+        color: Fixed color for all points. If specified, overrides hue.
+        hue: Column name for color variation. Defaults to 'channels_min'.
+
+    Returns:
+        The generated matplotlib figure object.
+    """
+    fig = plt.figure(figsize=(20, 20))
+
+    # Plot scatter with either fixed color or hue-based coloring
+    if color is not None:
+        sns.scatterplot(data=df_merge, x="i_0", y="j_0", color=color, alpha=0.5)
+    else:
+        sns.scatterplot(data=df_merge, x="i_0", y="j_0", hue=hue, alpha=0.5)
+
+    plt.title(title)
+    plt.xlabel("i_0")
+    plt.ylabel("j_0")
+    return fig

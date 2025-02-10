@@ -106,7 +106,7 @@ rule deduplicate_merge:
         "../envs/merge_process.yml"
     input:
         # cleaned merge data
-        MERGE_PROCESS_OUTPUTS["clean_merge"],
+        MERGE_PROCESS_OUTPUTS["clean_merge"][1],
         # cell information from SBS
         SBS_PROCESS_OUTPUTS["combine_cells"],
         # min phentoype information
@@ -123,7 +123,7 @@ rule final_merge:
         "../envs/merge_process.yml"
     input:
         # formatted merge data
-        MERGE_PROCESS_OUTPUTS["deduplicate_merge"],
+        MERGE_PROCESS_OUTPUTS["deduplicate_merge"][1],
         # full phentoype information
         PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][0],
     output:

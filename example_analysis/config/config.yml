@@ -16,13 +16,13 @@ aggregate_process:
   - sgRNA_0
   control_prefix: nontargeting
   feature_start: nucleus_dapi_mean
+  filter_single_gene: false
   group_columns:
   - well
   index_columns:
   - tile
   - cell_0
   population_feature: gene_symbol_0
-  filter_single_gene: false
   threshold_conditions:
     nucleus_dapi_median:
     - 7
@@ -30,6 +30,29 @@ aggregate_process:
   transformations_fp: config/transformations.tsv
 all:
   root_fp: analysis_root/
+cluster_process:
+  dataset_types:
+  - mitotic
+  - interphase
+  channel_combos:
+  - - dapi
+    - coxiv
+    - cenpa
+    - wga
+  - - dapi
+    - cenpa
+  correlation_threshold: 0.99
+  cum_var_threshold: 0.99
+  corum_data_fp: config/corum_data.tsv
+  leiden_resolution: 15
+  min_cell_cutoffs:
+    all: 3
+    interphase: 3
+    mitotic: 0
+  min_unique_values: 5
+  string_data_fp: config/string_data.tsv
+  uniprot_data_fp: config/uniprot_data.tsv
+  variance_threshold: 0.001
 merge_process:
   det_range:
   - 0.06
@@ -54,10 +77,10 @@ phenotype_process:
   cell_diameter: 54.126926685667364
   cellprob_threshold: 0
   channel_names:
-  - DAPI
-  - COXIV
-  - CENPA
-  - WGA
+  - dapi
+  - coxiv
+  - cenpa
+  - wga
   cyto_index: 1
   cyto_model: cyto3
   dapi_index: 0

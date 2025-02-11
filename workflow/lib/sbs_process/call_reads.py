@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 # constants for calling reads
-from lib.sbs_process.constants import (
+from lib.sbs.constants import (
     WELL,
     TILE,
     CELL,

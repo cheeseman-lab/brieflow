@@ -59,16 +59,16 @@ include: "rules/preprocess.smk"
 
 ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
-if "sbs_process" in config and len(SBS_SAMPLE_FPS) > 0:
+if "sbs" in config and len(SBS_SAMPLE_FPS) > 0:
     # Initialize parameter search configurations if needed
-    if config["sbs_process"]["mode"] == "segment_sbs_paramsearch":
+    if config["sbs"]["mode"] == "segment_sbs_paramsearch":
         config = initialize_segment_sbs_paramsearch(config)
 
     # Include target and rule files
-    include: "targets/sbs_process.smk"
-    include: "rules/sbs_process.smk"
+    include: "targets/sbs.smk"
+    include: "rules/sbs.smk"
 
-    ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
+    ALL_TARGETS += SBS_TARGETS_ALL
 
 
 if "phenotype_process" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:

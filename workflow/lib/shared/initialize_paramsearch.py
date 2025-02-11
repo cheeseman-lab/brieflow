@@ -1,12 +1,5 @@
 """Initialize parameter searches."""
 
-from snakemake.utils import Paramspace
-import pandas as pd
-from itertools import product
-from pathlib import Path
-
-from lib.shared.file_utils import get_filename
-
 
 def initialize_segment_sbs_paramsearch(config):
     """Initialize parameter search for sbs segmentation by setting up config structure.
@@ -17,7 +10,7 @@ def initialize_segment_sbs_paramsearch(config):
     Returns:
         dict: Updated configuration dictionary.
     """
-    if config["sbsmode") != "segment_sbs_paramsearch":
+    if config["sbs"].get("mode") != "segment_sbs_paramsearch":
         return config
 
     if "paramsearch" not in config["sbs"]:

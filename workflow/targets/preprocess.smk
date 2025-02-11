@@ -38,7 +38,13 @@ PREPROCESS_OUTPUTS = {
         / "metadata"
         / "phenotype"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "metadata", "tsv"
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "tile": "{tile}",
+            },
+            "metadata",
+            "tsv",
         ),
     ],
     "combine_metadata_phenotype": [
@@ -88,7 +94,11 @@ PREPROCESS_OUTPUTS = {
         / "ic_fields"
         / "sbs"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "cycle": "{cycle}"},
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "cycle": "{cycle}",
+            },
             "ic_field",
             "tiff",
         ),
@@ -97,7 +107,14 @@ PREPROCESS_OUTPUTS = {
         PREPROCESS_FP
         / "ic_fields"
         / "phenotype"
-        / get_filename({"plate": "{plate}", "well": "{well}"}, "ic_field", "tiff"),
+        / get_filename(
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+            },
+            "ic_field",
+            "tiff",
+        ),
     ],
 }
 

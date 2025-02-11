@@ -8,7 +8,12 @@ from pathlib import Path
 
 
 def extract_tile_metadata(
-    tile_fp: str, plate: int, well: str, tile: int, verbose: bool = False
+    tile_fp: str,
+    plate: int,
+    well: str,
+    tile: int,
+    cycle: int = None,
+    verbose: bool = False,
 ) -> pd.DataFrame:
     """Extracts metadata from a single ND2 file for a specific tile.
 
@@ -17,6 +22,7 @@ def extract_tile_metadata(
         plate (int): Plate number to associate with this metadata.
         well (str): Well to associate with this metadata.
         tile (int): Tile number to associate with this metadata.
+        cycle (int, optional): Cycle number to associate with this metadata. Defaults to None.
         z_interval (int, optional): If set, samples z-planes at this interval to ensure metadata is one line per position. Defaults to 4.
         verbose (bool, optional): If True, prints metadata information. Defaults to False.
 
@@ -58,6 +64,16 @@ def extract_tile_metadata(
                 "plate": plate,
                 "well": well,
                 "tile": tile,
+            }
+        )
+
+        # Conditionally add cycle after tile
+        if cycle is not None:
+            metadata["cycle"] = cycle
+
+        # Add remaining metadata
+        metadata.update(
+            {
                 "filename": tile_fp,
                 "channels": frame_meta.contents.channelCount,
             }

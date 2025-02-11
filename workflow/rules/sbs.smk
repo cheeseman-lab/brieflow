@@ -192,7 +192,7 @@ rule combine_reads:
     input:
         lambda wildcards: output_to_input(
             SBS_OUTPUTS["call_reads"],
-            {"well": SBS_WELLS, "tile": SBS_TILES},
+            {"tile": SBS_TILES},
             wildcards,
         ),
     output:
@@ -208,7 +208,7 @@ rule combine_cells:
     input:
         lambda wildcards: output_to_input(
             SBS_OUTPUTS["call_cells"],
-            {"well": SBS_WELLS, "tile": SBS_TILES},
+            {"tile": SBS_TILES},
             wildcards,
         ),
     output:
@@ -224,7 +224,7 @@ rule combine_sbs_info:
     input:
         lambda wildcards: output_to_input(
             SBS_OUTPUTS["extract_sbs_info"],
-            {"well": SBS_WELLS, "tile": SBS_TILES},
+            {"tile": SBS_TILES},
             wildcards,
         ),
     output:

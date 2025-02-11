@@ -23,8 +23,6 @@ df_reads = pd.concat(arr_reads)
 # Save the data based on output_type
 if output_type == "parquet":
     df_reads.to_parquet(output_file, engine="pyarrow")
-elif output_type == "hdf5":
-    df_reads.to_hdf(output_file, key="x", mode="w")
 elif output_type == "tsv":
     df_reads.to_csv(output_file, sep="\t", index=False)
 else:

@@ -13,50 +13,82 @@ PHENOTYPE_OUTPUTS = {
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "illumination_corrected",
+            "tiff",
         ),
     ],
     "align_phenotype": [
         PHENOTYPE_FP
         / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
+        ),
     ],
     "segment_phenotype": [
         PHENOTYPE_FP
         / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"
+        ),
         PHENOTYPE_FP
         / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tiff"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tiff"
+        ),
         PHENOTYPE_FP
         / "tsvs"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsv"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "segmentation_stats",
+            "tsv",
         ),
     ],
     "identify_cytoplasm": [
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "identified_cytoplasms", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "identified_cytoplasms",
+            "tiff",
         ),
     ],
     "extract_phenotype_info": [
         PHENOTYPE_FP
         / "tsvs"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "phenotype_info", "tsv"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "phenotype_info",
+            "tsv",
+        ),
     ],
     "merge_phenotype_info": [
-        PHENOTYPE_FP / "hdfs" / get_filename({}, "phenotype_info", "hdf5"),
+        PHENOTYPE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_info", "parquet"
+        ),
     ],
     "extract_phenotype_cp": [
         PHENOTYPE_FP
         / "tsvs"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "phenotype_cp", "tsv"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "phenotype_cp",
+            "tsv",
+        ),
     ],
     "merge_phenotype_cp": [
-        PHENOTYPE_FP / "hdfs" / get_filename({}, "phenotype_cp", "hdf5"),
-        PHENOTYPE_FP / "hdfs" / get_filename({}, "phenotype_cp_min", "hdf5"),
+        PHENOTYPE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_cp", "parquet"
+        ),
+        PHENOTYPE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_cp_min", "parquet"
+        ),
     ],
     "eval_segmentation_phenotype": [
         PHENOTYPE_FP / "eval" / "segmentation" / "segmentation_overview.tsv",

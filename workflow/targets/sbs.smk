@@ -8,78 +8,114 @@ SBS_OUTPUTS = {
     "align_sbs": [
         SBS_FP
         / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "aligned", "tiff"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
+        ),
     ],
     "log_filter": [
         SBS_FP
         / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "log_filtered", "tiff"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "log_filtered",
+            "tiff",
+        ),
     ],
     "compute_standard_deviation": [
         SBS_FP
         / "images"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "standard_deviation", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "standard_deviation",
+            "tiff",
         ),
     ],
     "find_peaks": [
         SBS_FP
         / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "peaks", "tiff"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "peaks", "tiff"
+        ),
     ],
     "max_filter": [
         SBS_FP
         / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "max_filtered", "tiff"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "max_filtered",
+            "tiff",
+        ),
     ],
     "apply_ic_field_sbs": [
         SBS_FP
         / "images"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "illumination_corrected", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "illumination_corrected",
+            "tiff",
         ),
     ],
     "segment_sbs": [
         SBS_FP
         / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"
+        ),
         SBS_FP
         / "images"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tiff"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tiff"
+        ),
         SBS_FP
         / "tsvs"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}"}, "segmentation_stats", "tsv"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "segmentation_stats",
+            "tsv",
         ),
     ],
     "extract_bases": [
         SBS_FP
         / "tsvs"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "bases", "tsv"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "bases", "tsv"
+        ),
     ],
     "call_reads": [
         SBS_FP
         / "tsvs"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "reads", "tsv"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "reads", "tsv"
+        ),
     ],
     "call_cells": [
         SBS_FP
         / "tsvs"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "cells", "tsv"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tsv"
+        ),
     ],
     "extract_sbs_info": [
         SBS_FP
         / "tsvs"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "sbs_info", "tsv"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "sbs_info", "tsv"
+        ),
     ],
     "combine_reads": [
-        SBS_FP / "hdfs" / get_filename({}, "reads", "hdf5"),
+        SBS_FP
+        / "parquets"
+        / get_filename({"plate": "{plate}", "well": "{well}"}, "reads", "parquet"),
     ],
     "combine_cells": [
-        SBS_FP / "hdfs" / get_filename({}, "cells", "hdf5"),
+        SBS_FP
+        / "parquets"
+        / get_filename({"plate": "{plate}", "well": "{well}"}, "cells", "parquet"),
     ],
     "combine_sbs_info": [
-        SBS_FP / "hdfs" / get_filename({}, "sbs_info", "hdf5"),
+        SBS_FP
+        / "parquets"
+        / get_filename({"plate": "{plate}", "well": "{well}"}, "sbs_info", "parquet"),
     ],
     "eval_segmentation_sbs": [
         SBS_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
@@ -120,6 +156,7 @@ SBS_OUTPUT_MAPPINGS = {
 }
 
 SBS_WILDCARDS = {
+    "plate": SBS_PLATES,
     "well": SBS_WELLS,
     "tile": SBS_TILES,
     "cycle": SBS_CYCLES,
@@ -133,7 +170,7 @@ if config["sbs"]["mode"] == "segment_sbs_paramsearch":
                 / "paramsearch"
                 / "images"
                 / get_filename(
-                    {"well": "{well}", "tile": "{tile}"},
+                    {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
                     f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_nuclei",
                     "tiff",
                 ),
@@ -141,7 +178,7 @@ if config["sbs"]["mode"] == "segment_sbs_paramsearch":
                 / "paramsearch"
                 / "images"
                 / get_filename(
-                    {"well": "{well}", "tile": "{tile}"},
+                    {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
                     f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_cells",
                     "tiff",
                 ),
@@ -149,7 +186,7 @@ if config["sbs"]["mode"] == "segment_sbs_paramsearch":
                 / "paramsearch"
                 / "tsvs"
                 / get_filename(
-                    {"well": "{well}", "tile": "{tile}"},
+                    {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
                     f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_segmentation_stats",
                     "tsv",
                 ),

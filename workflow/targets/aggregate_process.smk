@@ -93,7 +93,7 @@ montage_combinations = (
     .rename(columns={"gene_symbol": "gene_symbol_0", "sgRNA": "sgRNA_0"})
     .drop_duplicates()
 )
-channels = config["phenotype_process"]["channel_names"]
+channels = config["phenotype"]["channel_names"]
 # explode channels across each gene/sgrna combination
 montage_combinations = (
     montage_combinations.assign(key=1)

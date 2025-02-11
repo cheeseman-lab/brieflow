@@ -68,7 +68,7 @@ if segmentation_process == "sbs":
         "cyto_index": snakemake.params.cyto_index,
     }
     channel_cmaps = None
-elif segmentation_process == "phenotype_process":
+elif segmentation_process == "phenotype":
     channel_cmaps = snakemake.params.channel_cmaps
     prepare_cellpose_kwargs = None
 else:

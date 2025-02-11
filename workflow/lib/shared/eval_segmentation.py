@@ -117,7 +117,7 @@ def evaluate_segmentation_paramsearch(
             initial_nuclei, initial_cells, final_cells, final_nuclei,
             after_edge_removal_cells, after_edge_removal_nuclei, path
         segmentation_process (str, optional): Process type to evaluate.
-            Must be either "sbs" or "phenotype_process". Defaults to "sbs".
+            Must be either "sbs" or "phenotype". Defaults to "sbs".
         default_cell_diameter (float, optional): Reference cell diameter for comparison.
             If None, only optimal parameters are shown. Defaults to None.
         default_nuclei_diameter (float, optional): Reference nuclei diameter.
@@ -127,7 +127,7 @@ def evaluate_segmentation_paramsearch(
         default_flow_threshold (float, optional): Reference flow threshold.
             Required if default_cell_diameter is provided. Defaults to None.
         channel_cmaps (list of str, optional): List of colormap names for each channel.
-            Only used when segmentation_process is "phenotype_process".
+            Only used when segmentation_process is "phenotype".
         prepare_cellpose_kwargs (dict, optional): Keywords for prepare_cellpose function.
             Only used when segmentation_process is "sbs".
 
@@ -300,7 +300,7 @@ def evaluate_segmentation_paramsearch(
         default_cells = imread(default_cells_path)
         corrected_image_data = imread(corrected_full_path)
 
-        if segmentation_process == "phenotype_process":
+        if segmentation_process == "phenotype":
             annotated_optimal = image_segmentation_annotations(
                 corrected_image_data, optimal_nuclei, optimal_cells
             )

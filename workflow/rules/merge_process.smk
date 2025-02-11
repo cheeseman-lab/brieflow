@@ -9,17 +9,27 @@ rule fast_alignment:
         # metadata files with image locations
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
-            {} if config["merge_process"]["ph_metadata_channel"] is None else {"channel": config["merge_process"]["ph_metadata_channel"]},
+            (
+                {}
+                if config["merge_process"]["ph_metadata_channel"] is None
+                else {"channel": config["merge_process"]["ph_metadata_channel"]}
+            ),
             wildcards,
         ),
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["combine_metadata_sbs"],
-            {"cycle": config["merge_process"]["sbs_metadata_cycle"], 
-             **({} if config["merge_process"]["sbs_metadata_channel"] is None else {"channel": config["merge_process"]["sbs_metadata_channel"]})},
+            {
+                "cycle": config["merge_process"]["sbs_metadata_cycle"],
+                **(
+                    {}
+                    if config["merge_process"]["sbs_metadata_channel"] is None
+                    else {"channel": config["merge_process"]["sbs_metadata_channel"]}
+                ),
+            },
             wildcards,
         ),
-        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"],
-        SBS_PROCESS_OUTPUTS["combine_sbs_info"],
+        PHENOTYPE_OUTPUTS["merge_phenotype_info"],
+        SBS_OUTPUTS["combine_sbs_info"],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["fast_alignment"],
     params:
@@ -29,14 +39,15 @@ rule fast_alignment:
     script:
         "../scripts/merge_process/fast_alignment.py"
 
+
 # Complete merge process
 rule merge:
     conda:
         "../envs/merge_process.yml"
     input:
         # phenotype and sbs info files with cell locations
-        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_info"],
-        SBS_PROCESS_OUTPUTS["combine_sbs_info"],
+        PHENOTYPE_OUTPUTS["merge_phenotype_info"],
+        SBS_OUTPUTS["combine_sbs_info"],
         # fast alignment data
         MERGE_PROCESS_OUTPUTS["fast_alignment"],
     output:
@@ -57,9 +68,9 @@ rule format_merge:
         # merge data
         MERGE_PROCESS_OUTPUTS["merge"],
         # cell information from SBS
-        SBS_PROCESS_OUTPUTS["combine_cells"],
+        SBS_OUTPUTS["combine_cells"],
         # min phentoype information
-        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
+        PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["format_merge"],
     script:
@@ -74,9 +85,9 @@ rule eval_merge:
         # formatted merge data
         MERGE_PROCESS_OUTPUTS["format_merge"],
         # cell information from SBS
-        SBS_PROCESS_OUTPUTS["combine_cells"],
+        SBS_OUTPUTS["combine_cells"],
         # min phentoype information
-        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
+        PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["eval_merge"],
     script:
@@ -108,9 +119,9 @@ rule deduplicate_merge:
         # cleaned merge data
         MERGE_PROCESS_OUTPUTS["clean_merge"][1],
         # cell information from SBS
-        SBS_PROCESS_OUTPUTS["combine_cells"],
+        SBS_OUTPUTS["combine_cells"],
         # min phentoype information
-        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][1],
+        PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["deduplicate_merge"],
     script:
@@ -125,7 +136,7 @@ rule final_merge:
         # formatted merge data
         MERGE_PROCESS_OUTPUTS["deduplicate_merge"][1],
         # full phentoype information
-        PHENOTYPE_PROCESS_OUTPUTS["merge_phenotype_cp"][0],
+        PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0],
     output:
         MERGE_PROCESS_OUTPUTS_MAPPED["final_merge"],
     script:

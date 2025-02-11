@@ -74,7 +74,7 @@ set-resources:
     summarize_segment_sbs_paramsearch:
         mem_mb: 2000
 
-    # phenotype_process
+    # phenotype
     apply_ic_field_phenotype:
         mem_mb: 2000
     align_phenotype:

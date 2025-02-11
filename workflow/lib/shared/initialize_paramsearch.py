@@ -37,15 +37,15 @@ def initialize_segment_phenotype_paramsearch(config):
     Returns:
         dict: Updated configuration dictionary.
     """
-    if config["phenotype_process"].get("mode") != "segment_phenotype_paramsearch":
+    if config["phenotype"].get("mode") != "segment_phenotype_paramsearch":
         return config
 
-    if "paramsearch" not in config["phenotype_process"]:
+    if "paramsearch" not in config["phenotype"]:
         # Set default parameter search ranges if not specified
-        base_nuclei = config["phenotype_process"]["nuclei_diameter"]
-        base_cell = config["phenotype_process"]["cell_diameter"]
+        base_nuclei = config["phenotype"]["nuclei_diameter"]
+        base_cell = config["phenotype"]["cell_diameter"]
 
-        config["phenotype_process"]["paramsearch"] = {
+        config["phenotype"]["paramsearch"] = {
             "nuclei_diameter": [base_nuclei - 5, base_nuclei, base_nuclei + 5],
             "cell_diameter": [base_cell - 5, base_cell, base_cell + 5],
             "flow_threshold": [0.2, 0.4, 0.6],

@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH --job-name=sbs_phenotype_process   # Job name
+#SBATCH --job-name=sbs_phenotype   # Job name
 #SBATCH --partition=20                   # Partition name
 #SBATCH --ntasks=1                       # Run a single task
 #SBATCH --cpus-per-task=1               # Single CPU for the controller job
 #SBATCH --mem=10G                        # Memory for the controller job
 #SBATCH --time=72:00:00                 # Time limit (hrs:min:sec)
-#SBATCH --output=slurm/slurm_output/main/sbs_phenotype_process-%j.out  # Standard output log
+#SBATCH --output=slurm/slurm_output/main/sbs_phenotype-%j.out  # Standard output log
 
 # Start timing
 start_time=$(date +%s)
@@ -26,4 +26,4 @@ snakemake --executor slurm --use-conda \
 # End timing and calculate duration
 end_time=$(date +%s)
 duration=$((end_time - start_time))
-echo "Total runtime: $((duration / 3600))h $(((duration % 3600) / 60))m $((duration % 60))s" >> slurm/slurm_output/main/sbs_phenotype_process-$SLURM_JOB_ID.out
+echo "Total runtime: $((duration / 3600))h $(((duration % 3600) / 60))m $((duration % 60))s" >> slurm/slurm_output/main/sbs_phenotype-$SLURM_JOB_ID.out

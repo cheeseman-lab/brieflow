@@ -4,4 +4,4 @@
 snakemake --use-conda --cores all \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
-    --until combine_metadata_phenotype
+    --until all_preprocess

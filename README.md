@@ -12,7 +12,7 @@ Terms mentioned throughout the code and documentation include:
 Used with Snakemake to run Brieflow steps.
 - **Module**: Used synonymously to refer to larger steps of the Brieflow pipeline.
 Example processes/workflows: `preprocessing`, `sbs_process`, `phenotype_process`
-- **Process**: Refers to a smaller step within a process.
+- **Process**: Refers to a smaller step within a module.
 Processes use scripts and Brieflow library code to complete tasks.
 Example processes in the preprocessing module: `extract_metadata_sbs`, `convert_sbs`, `calculate_ic_sbs`.
 

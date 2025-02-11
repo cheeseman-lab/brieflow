@@ -17,10 +17,13 @@ PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
 SBS_SAMPLE_FPS = list(sbs_samples_df["sample_fp"].unique())
 if len(SBS_SAMPLE_FPS) > 0:
+    SBS_PLATES = list(sbs_samples_df["plate"].unique())
     SBS_WELLS = list(sbs_samples_df["well"].unique())
     SBS_TILES = list(sbs_samples_df["tile"].unique())
-    SBS_CYCLES = sorted(list(sbs_samples_df["cycle"].unique()))
+    SBS_CYCLES = list(sbs_samples_df["cycle"].unique())
 else:
+    print("No SBS samples found!")
+    SBS_PLATES = []
     SBS_WELLS = []
     SBS_TILES = []
     SBS_CYCLES = []
@@ -29,20 +32,25 @@ else:
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
 PHENOTYPE_SAMPLE_FPS = list(phenotype_samples_df["sample_fp"].unique())
 if len(PHENOTYPE_SAMPLE_FPS) > 0:
+    PHENOTYPE_PLATES = list(phenotype_samples_df["plate"].unique())
     PHENOTYPE_WELLS = list(phenotype_samples_df["well"].unique())
     PHENOTYPE_TILES = list(phenotype_samples_df["tile"].unique())
 else:
+    print("No phenotype samples found!")
+    PHENOTYPE_PLATES = []
     PHENOTYPE_WELLS = []
     PHENOTYPE_TILES = []
 
 
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
-SBS_WELLS = ["A1", "A2"]
-# SBS_TILES = []
-# SBS_CYLES = []
-PHENOTYPE_WELLS = ["A1", "A2"]
-# PHENOTYPE_TILES = [1]
+SBS_PLATES = [1, 2]
+SBS_WELLS = ["A1"]
+SBS_TILES = [1]
+SBS_CYLES = []
+PHENOTYPE_PLATES = [1, 2]
+PHENOTYPE_WELLS = ["A1"]
+PHENOTYPE_TILES = [1]
 
 
 include: "targets/preprocess.smk"

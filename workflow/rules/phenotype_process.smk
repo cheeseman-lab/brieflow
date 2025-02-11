@@ -23,10 +23,10 @@ rule align_phenotype:
         PHENOTYPE_PROCESS_OUTPUTS_MAPPED["align_phenotype"]
     params:
         align=config["phenotype_process"]["align"],
-        target=lambda wildcards: config["phenotype_process"]["target"] if config["phenotype_process"]["align"] else None,
-        source=lambda wildcards: config["phenotype_process"]["source"] if config["phenotype_process"]["align"] else None,
-        riders=lambda wildcards: config["phenotype_process"]["riders"] if config["phenotype_process"]["align"] else None,
-        remove_channel=lambda wildcards: config["phenotype_process"]["remove_channel"] if config["phenotype_process"]["align"] else None,
+        target=config["phenotype_process"]["target"] if config["phenotype_process"]["align"] else None,
+        source=config["phenotype_process"]["source"] if config["phenotype_process"]["align"] else None,
+        riders=config["phenotype_process"]["riders"] if config["phenotype_process"]["align"] else None,
+        remove_channel=config["phenotype_process"]["remove_channel"] if config["phenotype_process"]["align"] else None,
     script:
         "../scripts/phenotype_process/align_phenotype.py"
 

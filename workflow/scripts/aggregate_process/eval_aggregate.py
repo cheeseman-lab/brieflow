@@ -1,7 +1,11 @@
 import pandas as pd
 
 from lib.aggregate.load_format_data import load_hdf_subset
-from lib.aggregate.eval_aggregate import plot_feature_distributions, test_missing_values
+from lib.aggregate.eval_aggregate import (
+    plot_feature_distributions,
+    test_missing_values,
+    calculate_mitotic_percentage,
+)
 
 print("Loading subsets of processed datasets...")
 cleaned_data = load_hdf_subset(snakemake.input[0], n_rows=50000)
@@ -43,3 +47,7 @@ interphase_missing.to_csv(snakemake.output[3], sep="\t", index=False)
 all_gene_data = pd.read_csv(snakemake.input[5], sep="\t")
 all_missing = test_missing_values(all_gene_data, "all")
 all_missing.to_csv(snakemake.output[4], sep="\t", index=False)
+
+# calculate mitotic percentages
+mitotic_stats = calculate_mitotic_percentage(mitotic_gene_data, interphase_gene_data)
+mitotic_stats.to_csv(snakemake.output[5], sep="\t", index=False)

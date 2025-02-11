@@ -10,7 +10,14 @@ PREPROCESS_OUTPUTS = {
         / "metadata"
         / "sbs"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}, "metadata", "tsv"
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "tile": "{tile}",
+                "cycle": "{cycle}",
+            },
+            "metadata",
+            "tsv",
         ),
     ],
     "combine_metadata_sbs": [
@@ -18,47 +25,61 @@ PREPROCESS_OUTPUTS = {
         / "metadata"
         / "sbs"
         / get_filename(
-            {"cycle": "{cycle}"}, "combined_metadata", "hdf5"
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+            },
+            "combined_metadata",
+            "hdf5",
         ),
     ],
     "extract_metadata_phenotype": [
         PREPROCESS_FP
         / "metadata"
         / "phenotype"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "metadata", "tsv"),
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "metadata", "tsv"
+        ),
     ],
     "combine_metadata_phenotype": [
         PREPROCESS_FP
         / "metadata"
         / "phenotype"
-        / get_filename({}, "combined_metadata", "hdf5"),
-    ],
-    "convert_sbs": [
-        PREPROCESS_FP
-        / "images"
-        / "sbs"
         / get_filename(
-            {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}, "image", "tiff"
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+            },
+            "combined_metadata",
+            "hdf5",
         ),
     ],
-    "convert_phenotype": [
-        PREPROCESS_FP
-        / "images"
-        / "phenotype"
-        / get_filename({"well": "{well}", "tile": "{tile}"}, "image", "tiff"),
-    ],
-    "calculate_ic_sbs": [
-        PREPROCESS_FP
-        / "ic_fields"
-        / "sbs"
-        / get_filename({"well": "{well}", "cycle": "{cycle}"}, "ic_field", "tiff"),
-    ],
-    "calculate_ic_phenotype": [
-        PREPROCESS_FP
-        / "ic_fields"
-        / "phenotype"
-        / get_filename({"well": "{well}"}, "ic_field", "tiff"),
-    ],
+    #     "convert_sbs": [
+    #         PREPROCESS_FP
+    #         / "images"
+    #         / "sbs"
+    #         / get_filename(
+    #             {"well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}, "image", "tiff"
+    #         ),
+    #     ],
+    #     "convert_phenotype": [
+    #         PREPROCESS_FP
+    #         / "images"
+    #         / "phenotype"
+    #         / get_filename({"well": "{well}", "tile": "{tile}"}, "image", "tiff"),
+    #     ],
+    #     "calculate_ic_sbs": [
+    #         PREPROCESS_FP
+    #         / "ic_fields"
+    #         / "sbs"
+    #         / get_filename({"well": "{well}", "cycle": "{cycle}"}, "ic_field", "tiff"),
+    #     ],
+    #     "calculate_ic_phenotype": [
+    #         PREPROCESS_FP
+    #         / "ic_fields"
+    #         / "phenotype"
+    #         / get_filename({"well": "{well}"}, "ic_field", "tiff"),
+    #     ],
 }
 
 PREPROCESS_OUTPUT_MAPPINGS = {
@@ -76,6 +97,7 @@ PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MA
 
 # Generate SBS preprocessing targets
 SBS_WILDCARDS = {
+    "plate": SBS_PLATES,
     "well": SBS_WELLS,
     "tile": SBS_TILES,
     "cycle": SBS_CYCLES,
@@ -92,6 +114,7 @@ PREPROCESS_TARGETS_SBS = outputs_to_targets(
 
 # Generate phenotype preprocessing targets
 PHENOTYPE_WILDCARDS = {
+    "plate": PHENOTYPE_PLATES,
     "well": PHENOTYPE_WELLS,
     "tile": PHENOTYPE_TILES,
 }

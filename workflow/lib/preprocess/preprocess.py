@@ -3,19 +3,18 @@
 import pandas as pd
 import numpy as np
 import nd2
-import gc
-import warnings
-from typing import Union, List, Dict, Tuple
+from typing import Union, List
 from pathlib import Path
 
 
 def extract_tile_metadata(
-    tile_fp: str, well: str, tile: int, verbose: bool = False
+    tile_fp: str, plate: int, well: str, tile: int, verbose: bool = False
 ) -> pd.DataFrame:
     """Extracts metadata from a single ND2 file for a specific tile.
 
     Args:
         tile_fp (str): File path pointing to the ND2 file for the tile.
+        plate (int): Plate number to associate with this metadata.
         well (str): Well to associate with this metadata.
         tile (int): Tile number to associate with this metadata.
         z_interval (int, optional): If set, samples z-planes at this interval to ensure metadata is one line per position. Defaults to 4.
@@ -56,6 +55,7 @@ def extract_tile_metadata(
         # Add basic metadata
         metadata.update(
             {
+                "plate": plate,
                 "well": well,
                 "tile": tile,
                 "filename": tile_fp,

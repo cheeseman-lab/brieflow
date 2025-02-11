@@ -30,7 +30,7 @@ PREPROCESS_OUTPUTS = {
                 "well": "{well}",
             },
             "combined_metadata",
-            "hdf5",
+            "parquet",
         ),
     ],
     "extract_metadata_phenotype": [
@@ -57,7 +57,7 @@ PREPROCESS_OUTPUTS = {
                 "well": "{well}",
             },
             "combined_metadata",
-            "hdf5",
+            "parquet",
         ),
     ],
     "convert_sbs": [

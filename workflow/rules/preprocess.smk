@@ -21,6 +21,7 @@ rule extract_metadata_sbs:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
         tile=lambda wildcards: wildcards.tile,
+        cycle=lambda wildcards: wildcards.cycle,
     script:
         "../scripts/preprocess/extract_tile_metadata.py"
 

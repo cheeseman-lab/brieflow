@@ -4,4 +4,5 @@
 snakemake --use-conda --cores all \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
-    --until all_sbs all_phenotype
+    --rerun-triggers mtime \
+    --until all_sbs -n

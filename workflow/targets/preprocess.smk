@@ -125,8 +125,8 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "combine_metadata_phenotype": protected,
     "convert_sbs": None,
     "convert_phenotype": None,
-    "calculate_ic_sbs": None,
-    "calculate_ic_phenotype": None,
+    "calculate_ic_sbs": protected,
+    "calculate_ic_phenotype": protected,
 }
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 

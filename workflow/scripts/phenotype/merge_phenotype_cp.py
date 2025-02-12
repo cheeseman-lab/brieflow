@@ -15,7 +15,7 @@ arr_reads = Parallel(n_jobs=snakemake.threads)(
     delayed(get_file)(file) for file in snakemake.input
 )
 phenotype_cp = pd.concat(arr_reads)
-phenotype_cp.to_hdf(snakemake.output[0], "x", mode="w")
+phenotype_cp.to_parquet(snakemake.output[0])
 
 
 # Create subset of features
@@ -29,6 +29,7 @@ channel_min_features = [
 ]
 # Final features
 phenotype_cp_min_features = [
+    "plate",
     "well",
     "tile",
     "label",
@@ -39,4 +40,4 @@ phenotype_cp_min_features.extend(bounds_features + channel_min_features)
 
 # Save subset of features
 phenotype_cp_min = phenotype_cp[phenotype_cp_min_features]
-phenotype_cp_min.to_hdf(snakemake.output[1], "x", mode="w")
+phenotype_cp_min.to_parquet(snakemake.output[1])

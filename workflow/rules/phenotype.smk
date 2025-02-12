@@ -6,8 +6,18 @@ rule apply_ic_field_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        PREPROCESS_OUTPUTS["convert_phenotype"],
-        PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["convert_phenotype"],
+            {},
+            wildcards,
+            ancient_output=True,
+        ),
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
+            {},
+            wildcards,
+            ancient_output=True,
+        ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["apply_ic_field_phenotype"],
     script:
@@ -141,35 +151,43 @@ rule merge_phenotype_cp:
         "../scripts/phenotype/merge_phenotype_cp.py"
 
 
-# # Evaluate segmentation results
-# rule eval_segmentation_phenotype:
-#     conda:
-#         "../envs/phenotype.yml"
-#     input:
-#         # path to segmentation stats for well/tile
-#         segmentation_stats_paths=lambda wildcards: output_to_input(
-#             PHENOTYPE_OUTPUTS["segment_phenotype"][2],
-#             {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES},
-#             wildcards,
-#         ),
-#         # path to hdf with combined cell data
-#         cells_path=PHENOTYPE_OUTPUTS["merge_phenotype_info"][0],
-#     output:
-#         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
-#     script:
-#         "../scripts/shared/eval_segmentation.py"
+# Evaluate segmentation results
+rule eval_segmentation_phenotype:
+    conda:
+        "../envs/phenotype.yml"
+    input:
+        # path to segmentation stats for well/tile
+        segmentation_stats_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["segment_phenotype"][2],
+            {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES},
+            wildcards,
+        ),
+        # paths to combined cell data
+        cells_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["merge_phenotype_info"][0],
+            {"well": PHENOTYPE_WELLS},
+            wildcards,
+        ),
+    output:
+        PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
+    script:
+        "../scripts/shared/eval_segmentation.py"
 
 
-# rule eval_features:
-#     conda:
-#         "../envs/phenotype.yml"
-#     input:
-#         # use minimum phenotype CellProfiler features for evaluation
-#         PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
-#     output:
-#         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],
-#     script:
-#         "../scripts/phenotype/eval_features.py"
+rule eval_features:
+    conda:
+        "../envs/phenotype.yml"
+    input:
+        # use minimum phenotype CellProfiler features for evaluation
+        cells_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
+            {"well": PHENOTYPE_WELLS},
+            wildcards,
+        ),
+    output:
+        PHENOTYPE_OUTPUTS_MAPPED["eval_features"],
+    script:
+        "../scripts/phenotype/eval_features.py"
 
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup

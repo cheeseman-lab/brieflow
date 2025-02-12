@@ -201,56 +201,57 @@ SBS_WILDCARDS = {
     "cycle": SBS_CYCLES,
 }
 
-if config["sbs"]["mode"] == "segment_sbs_paramsearch":
-    SBS_OUTPUTS.update(
-        {
-            "segment_sbs_paramsearch": [
-                SBS_FP
-                / "paramsearch"
-                / "images"
-                / get_filename(
-                    {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-                    f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_nuclei",
-                    "tiff",
-                ),
-                SBS_FP
-                / "paramsearch"
-                / "images"
-                / get_filename(
-                    {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-                    f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_cells",
-                    "tiff",
-                ),
-                SBS_FP
-                / "paramsearch"
-                / "tsvs"
-                / get_filename(
-                    {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-                    f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_segmentation_stats",
-                    "tsv",
-                ),
-            ],
-            "summarize_segment_sbs_paramsearch": [
-                SBS_FP / "paramsearch" / "summary" / "segmentation_summary.tsv",
-                SBS_FP / "paramsearch" / "summary" / "segmentation_grouped.tsv",
-                SBS_FP / "paramsearch" / "summary" / "segmentation_evaluation.txt",
-                SBS_FP / "paramsearch" / "summary" / "segmentation_panel.png",
-            ],
-        }
-    )
+# TODO: test and implement segmentation paramsearch for updated brieflow setup
+# if config["sbs"]["mode"] == "segment_sbs_paramsearch":
+#     SBS_OUTPUTS.update(
+#         {
+#             "segment_sbs_paramsearch": [
+#                 SBS_FP
+#                 / "paramsearch"
+#                 / "images"
+#                 / get_filename(
+#                     {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+#                     f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_nuclei",
+#                     "tiff",
+#                 ),
+#                 SBS_FP
+#                 / "paramsearch"
+#                 / "images"
+#                 / get_filename(
+#                     {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+#                     f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_cells",
+#                     "tiff",
+#                 ),
+#                 SBS_FP
+#                 / "paramsearch"
+#                 / "tsvs"
+#                 / get_filename(
+#                     {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+#                     f"paramsearch_nd{'{nuclei_diameter}'}_cd{'{cell_diameter}'}_ft{'{flow_threshold}'}_cp{'{cellprob_threshold}'}_segmentation_stats",
+#                     "tsv",
+#                 ),
+#             ],
+#             "summarize_segment_sbs_paramsearch": [
+#                 SBS_FP / "paramsearch" / "summary" / "segmentation_summary.tsv",
+#                 SBS_FP / "paramsearch" / "summary" / "segmentation_grouped.tsv",
+#                 SBS_FP / "paramsearch" / "summary" / "segmentation_evaluation.txt",
+#                 SBS_FP / "paramsearch" / "summary" / "segmentation_panel.png",
+#             ],
+#         }
+#     )
 
-    SBS_OUTPUT_MAPPINGS.update(
-        {"segment_sbs_paramsearch": None, "summarize_segment_sbs_paramsearch": None}
-    )
+#     SBS_OUTPUT_MAPPINGS.update(
+#         {"segment_sbs_paramsearch": None, "summarize_segment_sbs_paramsearch": None}
+#     )
 
-    SBS_WILDCARDS.update(
-        {
-            "nuclei_diameter": config["sbs"]["paramsearch"]["nuclei_diameter"],
-            "cell_diameter": config["sbs"]["paramsearch"]["cell_diameter"],
-            "flow_threshold": config["sbs"]["paramsearch"]["flow_threshold"],
-            "cellprob_threshold": config["sbs"]["paramsearch"]["cellprob_threshold"],
-        }
-    )
+#     SBS_WILDCARDS.update(
+#         {
+#             "nuclei_diameter": config["sbs"]["paramsearch"]["nuclei_diameter"],
+#             "cell_diameter": config["sbs"]["paramsearch"]["cell_diameter"],
+#             "flow_threshold": config["sbs"]["paramsearch"]["flow_threshold"],
+#             "cellprob_threshold": config["sbs"]["paramsearch"]["cellprob_threshold"],
+#         }
+#     )
 
 SBS_OUTPUTS_MAPPED = map_outputs(SBS_OUTPUTS, SBS_OUTPUT_MAPPINGS)
 

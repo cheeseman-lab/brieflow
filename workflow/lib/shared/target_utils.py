@@ -1,6 +1,6 @@
 """Helper functions for using Snakemake outputs and targets for use with Brieflow."""
 
-from snakemake.io import expand
+from snakemake.io import expand, temp
 
 
 def map_outputs(outputs, output_type_mappings):
@@ -47,12 +47,13 @@ def map_outputs(outputs, output_type_mappings):
     return mapped_outputs
 
 
-def outputs_to_targets(outputs, wildcards, expansion_method="product"):
+def outputs_to_targets(outputs, wildcards, output_mappings, expansion_method="product"):
     """Expand output templates into full paths by applying the specified wildcards.
 
     Args:
         outputs (dict): Dictionary of output path templates with placeholders (e.g., PREPROCESS_OUTPUTS).
         wildcards (dict): Dictionary of wildcard values to apply (e.g., {"well": ["A1", "A2"], "cycle": [1, 2]}).
+        output_mappings (dict): Mapping of output rules to Snakemake output types (e.g., temp, protected).
         expansion_method (str): Method of expansion, either 'product' (default) or 'zip'.
 
     Returns:
@@ -60,6 +61,10 @@ def outputs_to_targets(outputs, wildcards, expansion_method="product"):
     """
     expanded_targets = {}
     for rule_name, path_templates in outputs.items():
+        # skip temporary outputs
+        if output_mappings[rule_name] == temp:
+            continue
+
         if expansion_method == "zip":
             expanded_targets[rule_name] = [
                 expand(str(path_template), zip, **wildcards)

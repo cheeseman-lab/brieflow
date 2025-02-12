@@ -90,20 +90,20 @@ PHENOTYPE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "phenotype_cp_min", "parquet"
         ),
     ],
-    "eval_segmentation_phenotype": [
-        PHENOTYPE_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
-        PHENOTYPE_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
-        PHENOTYPE_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
-    ],
-    # create heatmap tsv and png for each evaluated feature
-    "eval_features": [
-        PHENOTYPE_FP / "eval" / "features" / f"{feature}_heatmap.tsv"
-        for feature in eval_features
-    ]
-    + [
-        PHENOTYPE_FP / "eval" / "features" / f"{feature}_heatmap.png"
-        for feature in eval_features
-    ],
+    # "eval_segmentation_phenotype": [
+    #     PHENOTYPE_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
+    #     PHENOTYPE_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
+    #     PHENOTYPE_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
+    # ],
+    # # create heatmap tsv and png for each evaluated feature
+    # "eval_features": [
+    #     PHENOTYPE_FP / "eval" / "features" / f"{feature}_heatmap.tsv"
+    #     for feature in eval_features
+    # ]
+    # + [
+    #     PHENOTYPE_FP / "eval" / "features" / f"{feature}_heatmap.png"
+    #     for feature in eval_features
+    # ],
 }
 
 PHENOTYPE_OUTPUT_MAPPINGS = {

@@ -22,7 +22,7 @@ snakemake --executor slurm --use-conda \
     --configfile "config/config.yml" \
     --latency-wait 60 \
     --rerun-triggers mtime \
-    --until all_preprocess -n
+    --until all_preprocess
 
 # End timing and calculate duration
 end_time=$(date +%s)

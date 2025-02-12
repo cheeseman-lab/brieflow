@@ -44,12 +44,12 @@ else:
 
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
-SBS_PLATES = [1, 2]
-SBS_WELLS = ["A1", "A2"]
-SBS_TILES = [1, 2]
-PHENOTYPE_PLATES = [1, 2]
-PHENOTYPE_WELLS = ["A1", "A2"]
-PHENOTYPE_TILES = [1, 2]
+# SBS_PLATES = [1, 2]
+# SBS_WELLS = ["A1", "A2"]
+# SBS_TILES = [1, 2]
+# PHENOTYPE_PLATES = [1, 2]
+# PHENOTYPE_WELLS = ["A1", "A2"]
+# PHENOTYPE_TILES = [1, 2]
 
 
 include: "targets/preprocess.smk"

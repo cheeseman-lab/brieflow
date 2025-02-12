@@ -9,6 +9,7 @@ __pycache__/
 # files for example analysis that are too large to store with git
 example_analysis/data/
 example_analysis/analysis_root/
+example_analysis/analysis_root_test/
 
 # test notebooks
 test_file_differences.ipynb

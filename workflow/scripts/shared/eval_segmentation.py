@@ -15,7 +15,10 @@ segmentation_overview_df.to_csv(snakemake.output[0], sep="\t", index=False)
 
 
 # load cell data
-cells = pd.read_hdf(snakemake.input.cells_path)
+cells = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.cells_paths], ignore_index=True
+)
+print(cells)
 
 # plot cell density heatmap
 cell_density_summary, fig = plot_cell_density_heatmap(cells, shape="square", plate="6W")

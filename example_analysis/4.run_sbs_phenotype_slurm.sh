@@ -21,6 +21,7 @@ snakemake --executor slurm --use-conda \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
     --latency-wait 30 \
+    --rerun-triggers mtime \
     --until all_sbs all_phenotype
 
 # End timing and calculate duration

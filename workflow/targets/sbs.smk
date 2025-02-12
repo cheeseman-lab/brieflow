@@ -12,40 +12,40 @@ SBS_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
         ),
     ],
-    # "log_filter": [
-    #     SBS_FP
-    #     / "images"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-    #         "log_filtered",
-    #         "tiff",
-    #     ),
-    # ],
-    # "compute_standard_deviation": [
-    #     SBS_FP
-    #     / "images"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-    #         "standard_deviation",
-    #         "tiff",
-    #     ),
-    # ],
-    # "find_peaks": [
-    #     SBS_FP
-    #     / "images"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "peaks", "tiff"
-    #     ),
-    # ],
-    # "max_filter": [
-    #     SBS_FP
-    #     / "images"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-    #         "max_filtered",
-    #         "tiff",
-    #     ),
-    # ],
+    "log_filter": [
+        SBS_FP
+        / "images"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "log_filtered",
+            "tiff",
+        ),
+    ],
+    "compute_standard_deviation": [
+        SBS_FP
+        / "images"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "standard_deviation",
+            "tiff",
+        ),
+    ],
+    "find_peaks": [
+        SBS_FP
+        / "images"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "peaks", "tiff"
+        ),
+    ],
+    "max_filter": [
+        SBS_FP
+        / "images"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "max_filtered",
+            "tiff",
+        ),
+    ],
     "apply_ic_field_sbs": [
         SBS_FP
         / "images"
@@ -55,73 +55,82 @@ SBS_OUTPUTS = {
             "tiff",
         ),
     ],
-    # "segment_sbs": [
-    #     SBS_FP
-    #     / "images"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"
-    #     ),
-    #     SBS_FP
-    #     / "images"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tiff"
-    #     ),
-    #     SBS_FP
-    #     / "tsvs"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-    #         "segmentation_stats",
-    #         "tsv",
-    #     ),
-    # ],
-    # "extract_bases": [
-    #     SBS_FP
-    #     / "tsvs"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "bases", "tsv"
-    #     ),
-    # ],
-    # "call_reads": [
-    #     SBS_FP
-    #     / "tsvs"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "reads", "tsv"
-    #     ),
-    # ],
-    # "call_cells": [
-    #     SBS_FP
-    #     / "tsvs"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tsv"
-    #     ),
-    # ],
-    # "extract_sbs_info": [
-    #     SBS_FP
-    #     / "tsvs"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "sbs_info", "tsv"
-    #     ),
-    # ],
-    # "combine_reads": [
-    #     SBS_FP
-    #     / "parquets"
-    #     / get_filename({"plate": "{plate}", "well": "{well}"}, "reads", "parquet"),
-    # ],
-    # "combine_cells": [
-    #     SBS_FP
-    #     / "parquets"
-    #     / get_filename({"plate": "{plate}", "well": "{well}"}, "cells", "parquet"),
-    # ],
-    # "combine_sbs_info": [
-    #     SBS_FP
-    #     / "parquets"
-    #     / get_filename({"plate": "{plate}", "well": "{well}"}, "sbs_info", "parquet"),
-    # ],
-    # "eval_segmentation_sbs": [
-    #     SBS_FP / "eval" / "segmentation" / "segmentation_overview.tsv",
-    #     SBS_FP / "eval" / "segmentation" / "cell_density_heatmap.tsv",
-    #     SBS_FP / "eval" / "segmentation" / "cell_density_heatmap.png",
-    # ],
+    "segment_sbs": [
+        SBS_FP
+        / "images"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"
+        ),
+        SBS_FP
+        / "images"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tiff"
+        ),
+        SBS_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "segmentation_stats",
+            "tsv",
+        ),
+    ],
+    "extract_bases": [
+        SBS_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "bases", "tsv"
+        ),
+    ],
+    "call_reads": [
+        SBS_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "reads", "tsv"
+        ),
+    ],
+    "call_cells": [
+        SBS_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tsv"
+        ),
+    ],
+    "extract_sbs_info": [
+        SBS_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "sbs_info", "tsv"
+        ),
+    ],
+    "combine_reads": [
+        SBS_FP
+        / "parquets"
+        / get_filename({"plate": "{plate}", "well": "{well}"}, "reads", "parquet"),
+    ],
+    "combine_cells": [
+        SBS_FP
+        / "parquets"
+        / get_filename({"plate": "{plate}", "well": "{well}"}, "cells", "parquet"),
+    ],
+    "combine_sbs_info": [
+        SBS_FP
+        / "parquets"
+        / get_filename({"plate": "{plate}", "well": "{well}"}, "sbs_info", "parquet"),
+    ],
+    "eval_segmentation_sbs": [
+        SBS_FP
+        / "eval"
+        / "segmentation"
+        / get_filename({"plate": "{plate}"}, "segmentation_overview", "tsv"),
+        SBS_FP
+        / "eval"
+        / "segmentation"
+        / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "tsv"),
+        SBS_FP
+        / "eval"
+        / "segmentation"
+        / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "png"),
+    ],
     # "eval_mapping": [
     #     SBS_FP / "eval" / "mapping" / "mapping_vs_threshold_peak.png",
     #     SBS_FP / "eval" / "mapping" / "mapping_vs_threshold_qmin.png",

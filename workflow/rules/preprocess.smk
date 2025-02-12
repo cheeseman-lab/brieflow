@@ -9,16 +9,19 @@ rule extract_metadata_sbs:
     input:
         lambda wildcards: get_sample_fps(
             sbs_samples_df,
+            plate=wildcards.plate,
             well=wildcards.well,
             tile=wildcards.tile,
             cycle=wildcards.cycle,
-            channel_order=config["preprocess"]["sbs_channel_order"]
+            channel_order=config["preprocess"]["sbs_channel_order"],
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
+        plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
         tile=lambda wildcards: wildcards.tile,
+        cycle=lambda wildcards: wildcards.cycle,
     script:
         "../scripts/preprocess/extract_tile_metadata.py"
 
@@ -30,7 +33,7 @@ rule combine_metadata_sbs:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-            {"well": SBS_WELLS, "tile": SBS_TILES},
+            {"tile": SBS_TILES, "cycle": SBS_CYCLES},
             wildcards,
         ),
     output:
@@ -46,13 +49,15 @@ rule extract_metadata_phenotype:
     input:
         lambda wildcards: get_sample_fps(
             phenotype_samples_df,
+            plate=wildcards.plate,
             well=wildcards.well,
             tile=wildcards.tile,
-            channel_order=config["preprocess"]["phenotype_channel_order"]
+            channel_order=config["preprocess"]["phenotype_channel_order"],
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:
+        plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
         tile=lambda wildcards: wildcards.tile,
     script:
@@ -66,7 +71,7 @@ rule combine_metadata_phenotype:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-            {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES},
+            {"tile": PHENOTYPE_TILES},
             wildcards,
         ),
     output:
@@ -82,10 +87,11 @@ rule convert_sbs:
     input:
         lambda wildcards: get_sample_fps(
             sbs_samples_df,
+            plate=wildcards.plate,
             well=wildcards.well,
             cycle=wildcards.cycle,
             tile=wildcards.tile,
-            channel_order=config["preprocess"]["sbs_channel_order"]
+            channel_order=config["preprocess"]["sbs_channel_order"],
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
@@ -102,9 +108,10 @@ rule convert_phenotype:
     input:
         lambda wildcards: get_sample_fps(
             phenotype_samples_df,
+            plate=wildcards.plate,
             well=wildcards.well,
             tile=wildcards.tile,
-            channel_order=config["preprocess"]["phenotype_channel_order"]
+            channel_order=config["preprocess"]["phenotype_channel_order"],
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],

@@ -35,68 +35,52 @@ CONFIG_FILE_HEADER = """
 """
 
 
-def create_samples_df(
-    images_fp, sample_pattern, metadata, path_pattern=None, path_metadata=None
-):
+def create_samples_df(images_fp, sample_pattern, metadata, metadata_order_type):
     """Generate samples dataframe from a directory of images.
 
-    Samples dataframe includes path to images and image metadata extracted from both
-    file paths and file names.
+    Samples dataframe includes path to images and image metadata extracted from file names.
+    The function reorders columns, changes column types, and sorts the DataFrame.
 
     Args:
         images_fp (Path): Path to the directory containing images.
         sample_pattern (str): Regular expression pattern to extract metadata from image file names.
         metadata (list): List of metadata keys to extract from the file names.
-        path_pattern (str, optional): Regular expression pattern to extract metadata from file paths.
-        path_metadata (list, optional): List of metadata keys to extract from the file paths.
+        metadata_order_type (dict): Dictionary specifying the order and data types of metadata columns.
 
     Returns:
-        Samples DataFrame: DataFrame containing sample metadata and file paths.
+        DataFrame: DataFrame containing sample metadata and file paths.
     """
     if images_fp is None:
         print("No image directory provided, returning an empty sample DataFrame!")
-        return pd.DataFrame(columns=["sample_fp"])
+        return pd.DataFrame(columns=["sample_fp"] + metadata)
 
     samples_data = []
+    sample_regex = re.compile(sample_pattern)
 
-    # First find all files that match the path pattern
+    # Find and extract metadata from matching files
     for image_fp in images_fp.rglob("*"):
-        # Skip if path pattern is provided and path doesn't match
-        if path_pattern:
-            path_match = re.search(path_pattern, str(image_fp))
-            if not path_match:
-                continue
+        match = sample_regex.search(str(image_fp))
+        if match:
+            samples_data.append(
+                {"sample_fp": str(image_fp), **dict(zip(metadata, match.groups()))}
+            )
 
-        # Now check the filename pattern
-        filename_match = re.search(sample_pattern, image_fp.name)
-        if filename_match:
-            # Find sample path and metadata
-            sample_data = {"sample_fp": str(image_fp)}
-
-            # Extract metadata from filename
-            sample_metadata = {
-                key: filename_match.group(i + 1) for i, key in enumerate(metadata)
-            }
-            # Extract metadata from path if patterns provided
-            if path_pattern and path_metadata:
-                path_metadata_values = {
-                    key: path_match.group(i + 1) for i, key in enumerate(path_metadata)
-                }
-                sample_metadata.update(path_metadata_values)
-            # Convert numeric metadata values to integers where applicable
-            for key, value in sample_metadata.items():
-                if value.isdigit():
-                    sample_metadata[key] = int(value)
-            # Update sample data with metadata
-            sample_data.update(sample_metadata)
-            # Append sample data to list
-            samples_data.append(sample_data)
-
-    # Create a DataFrame and sort by all metadata
+    # Create DataFrame
     samples_df = pd.DataFrame(samples_data)
-    all_metadata = metadata + (path_metadata if path_metadata else [])
-    samples_df = samples_df.sort_values(by=all_metadata)
-    samples_df = samples_df.reset_index(drop=True)
+
+    # Convert column types according to metadata_order_type
+    for column, column_type in metadata_order_type.items():
+        if column in samples_df.columns:
+            samples_df[column] = samples_df[column].astype(column_type)
+
+    # Reorder columns
+    column_order = ["sample_fp"] + list(metadata_order_type.keys())
+    samples_df = samples_df[column_order]
+
+    # Sort DataFrame by metadata columns
+    sort_columns = list(metadata_order_type.keys())
+    samples_df = samples_df.sort_values(by=sort_columns)
+
     return samples_df
 
 

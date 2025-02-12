@@ -120,15 +120,14 @@ PREPROCESS_OUTPUTS = {
 
 PREPROCESS_OUTPUT_MAPPINGS = {
     "extract_metadata_sbs": temp,
-    "combine_metadata_sbs": None,
+    "combine_metadata_sbs": protected,
     "extract_metadata_phenotype": temp,
-    "combine_metadata_phenotype": None,
+    "combine_metadata_phenotype": protected,
     "convert_sbs": None,
     "convert_phenotype": None,
     "calculate_ic_sbs": None,
     "calculate_ic_phenotype": None,
 }
-
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 
 # Generate SBS preprocessing targets
@@ -144,8 +143,7 @@ PREPROCESS_OUTPUTS_SBS = {
     if "sbs" in rule_name
 }
 PREPROCESS_TARGETS_SBS = outputs_to_targets(
-    PREPROCESS_OUTPUTS_SBS,
-    SBS_WILDCARDS,
+    PREPROCESS_OUTPUTS_SBS, SBS_WILDCARDS, PREPROCESS_OUTPUT_MAPPINGS
 )
 
 # Generate phenotype preprocessing targets
@@ -160,10 +158,8 @@ PREPROCESS_OUTPUTS_PHENOTYPE = {
     if "phenotype" in rule_name
 }
 PREPROCESS_TARGETS_PHENOTYPE = outputs_to_targets(
-    PREPROCESS_OUTPUTS_PHENOTYPE,
-    PHENOTYPE_WILDCARDS,
+    PREPROCESS_OUTPUTS_PHENOTYPE, PHENOTYPE_WILDCARDS, PREPROCESS_OUTPUT_MAPPINGS
 )
-
 # Combine all preprocessing targets
 PREPROCESS_TARGETS_ALL = sum(PREPROCESS_TARGETS_SBS.values(), []) + sum(
     PREPROCESS_TARGETS_PHENOTYPE.values(), []

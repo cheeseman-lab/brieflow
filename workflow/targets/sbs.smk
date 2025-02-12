@@ -182,7 +182,7 @@ SBS_OUTPUT_MAPPINGS = {
     "find_peaks": temp,
     "max_filter": temp,
     "apply_ic_field_sbs": temp,
-    "segment_sbs": temp,
+    "segment_sbs": None,
     "extract_bases": temp,
     "call_reads": temp,
     "call_cells": temp,

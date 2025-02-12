@@ -11,7 +11,7 @@
 
 # Parameters:
 all:
-  root_fp: analysis_root_test/
+  root_fp: analysis_root/
 phenotype:
   align: false
   cell_diameter: 53.05782348918437

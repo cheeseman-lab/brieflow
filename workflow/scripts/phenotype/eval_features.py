@@ -5,7 +5,7 @@ from lib.phenotype.eval_features import plot_feature_heatmap
 
 # Load SBS processing files
 phenotype_cp_min = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input[0]], ignore_index=True
+    [pd.read_parquet(p) for p in snakemake.input], ignore_index=True
 )
 
 # Generate and save feature heatmaps

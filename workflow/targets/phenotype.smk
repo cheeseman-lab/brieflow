@@ -122,29 +122,17 @@ PHENOTYPE_OUTPUTS = {
 }
 
 PHENOTYPE_OUTPUT_MAPPINGS = {
-    "apply_ic_field_phenotype": None,
+    "apply_ic_field_phenotype": temp,
     "align_phenotype": None,
     "segment_phenotype": None,
-    "identify_cytoplasm": None,
-    "extract_phenotype_info": None,
-    "merge_phenotype_info": None,
-    "extract_phenotype_cp": None,
-    "merge_phenotype_cp": None,
-    "eval_segmentation_phenotype": None,
-    "eval_features": None,
+    "identify_cytoplasm": temp,
+    "extract_phenotype_info": temp,
+    "merge_phenotype_info": protected,
+    "extract_phenotype_cp": temp,
+    "merge_phenotype_cp": protected,
+    "eval_segmentation_phenotype": protected,
+    "eval_features": protected,
 }
-# PHENOTYPE_OUTPUT_MAPPINGS = {
-#     "apply_ic_field_phenotype": temp,
-#     "align_phenotype": None,
-#     "segment_phenotype": None,
-#     "identify_cytoplasm": temp,
-#     "extract_phenotype_info": temp,
-#     "merge_phenotype_info": protected,
-#     "extract_phenotype_cp": temp,
-#     "merge_phenotype_cp": protected,
-#     "eval_segmentation_phenotype": protected,
-#     "eval_features": protected,
-# }
 
 PHENOTYPE_WILDCARDS = {
     "plate": PHENOTYPE_PLATES,

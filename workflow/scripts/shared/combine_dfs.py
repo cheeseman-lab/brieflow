@@ -19,6 +19,7 @@ threads = snakemake.threads
 # Load, concatenate, and save the data
 arr_reads = Parallel(n_jobs=threads)(delayed(get_file)(file) for file in input_files)
 df_reads = pd.concat(arr_reads)
+df_reads.reset_index(drop=True, inplace=True)
 
 # Save the data based on output_type
 if output_type == "parquet":

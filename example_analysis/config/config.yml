@@ -20,3 +20,24 @@ preprocess:
   sbs_channel_order: null
   sbs_channel_order_flip: true
   sbs_samples_fp: config/sbs_samples.tsv
+sbs:
+  alignment_method: DAPI
+  bases:
+  - G
+  - T
+  - A
+  - C
+  cell_diameter: 19.835095646937663
+  cellprob_threshold: 0
+  cyto_index: 4
+  cyto_model: cyto3
+  dapi_index: 0
+  df_design_path: config/pool10_design.tsv
+  flow_threshold: 0.4
+  gpu: false
+  keep_extras: false
+  mode: null
+  nuclei_diameter: 9.166995688475083
+  q_min: 0
+  segmentation_cycle_index: 10
+  threshold_peaks: 400

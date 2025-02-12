@@ -131,37 +131,67 @@ SBS_OUTPUTS = {
         / "segmentation"
         / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "png"),
     ],
-    # "eval_mapping": [
-    #     SBS_FP / "eval" / "mapping" / "mapping_vs_threshold_peak.png",
-    #     SBS_FP / "eval" / "mapping" / "mapping_vs_threshold_qmin.png",
-    #     SBS_FP / "eval" / "mapping" / "read_mapping_heatmap.png",
-    #     SBS_FP / "eval" / "mapping" / "cell_mapping_heatmap_one.tsv",
-    #     SBS_FP / "eval" / "mapping" / "cell_mapping_heatmap_one.png",
-    #     SBS_FP / "eval" / "mapping" / "cell_mapping_heatmap_any.tsv",
-    #     SBS_FP / "eval" / "mapping" / "cell_mapping_heatmap_any.png",
-    #     SBS_FP / "eval" / "mapping" / "reads_per_cell_histogram.png",
-    #     SBS_FP / "eval" / "mapping" / "gene_symbol_histogram.png",
-    #     SBS_FP / "eval" / "mapping" / "mapping_overview.tsv",
-    # ],
+    "eval_mapping": [
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "mapping_vs_threshold_peak", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "mapping_vs_threshold_qmin", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "read_mapping_heatmap", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_one", "tsv"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_one", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_any", "tsv"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_any", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "reads_per_cell_histogram", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "gene_symbol_histogram", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "mapping_overview", "tsv"),
+    ],
 }
 
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": None,
-    "log_filter": None,
-    "compute_standard_deviation": None,
-    "find_peaks": None,
-    "max_filter": None,
-    "apply_ic_field_sbs": None,
-    "segment_sbs": None,
-    "extract_bases": None,
-    "call_reads": None,
-    "call_cells": None,
-    "extract_sbs_info": None,
-    "combine_reads": None,
-    "combine_cells": None,
-    "combine_sbs_info": None,
-    "eval_segmentation_sbs": None,
-    "eval_mapping": None,
+    "align_sbs": temp,
+    "log_filter": temp,
+    "compute_standard_deviation": temp,
+    "find_peaks": temp,
+    "max_filter": temp,
+    "apply_ic_field_sbs": temp,
+    "segment_sbs": temp,
+    "extract_bases": temp,
+    "call_reads": temp,
+    "call_cells": temp,
+    "extract_sbs_info": temp,
+    "combine_reads": protected,
+    "combine_cells": protected,
+    "combine_sbs_info": protected,
+    "eval_segmentation_sbs": protected,
+    "eval_mapping": protected,
 }
 
 SBS_WILDCARDS = {

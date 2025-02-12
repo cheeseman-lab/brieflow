@@ -248,7 +248,7 @@ rule eval_segmentation_sbs:
         ),
         # path to combined cell data
         cells_paths=lambda wildcards: output_to_input(
-            SBS_OUTPUTS["combine_cells"][0],
+            SBS_OUTPUTS["combine_cells"],
             {"well": SBS_WELLS},
             wildcards,
         ),
@@ -258,23 +258,35 @@ rule eval_segmentation_sbs:
         "../scripts/shared/eval_segmentation.py"
 
 
-# rule eval_mapping:
-#     conda:
-#         "../envs/sbs.yml"
-#     input:
-#         SBS_OUTPUTS["combine_reads"],
-#         SBS_OUTPUTS["combine_cells"],
-#         SBS_OUTPUTS["combine_sbs_info"],
-#     output:
-#         SBS_OUTPUTS_MAPPED["eval_mapping"],
-#     params:
-#         df_design_path=config["sbs"]["df_design_path"],
-#     script:
-#         "../scripts/sbs/eval_mapping.py"
+rule eval_mapping:
+    conda:
+        "../envs/sbs.yml"
+    input:
+        reads_paths=lambda wildcards: output_to_input(
+            SBS_OUTPUTS["combine_reads"],
+            {"well": SBS_WELLS},
+            wildcards,
+        ),
+        cells_paths=lambda wildcards: output_to_input(
+            SBS_OUTPUTS["combine_cells"],
+            {"well": SBS_WELLS},
+            wildcards,
+        ),
+        sbs_info_paths=lambda wildcards: output_to_input(
+            SBS_OUTPUTS["combine_sbs_info"],
+            {"well": SBS_WELLS},
+            wildcards,
+        ),
+    output:
+        SBS_OUTPUTS_MAPPED["eval_mapping"],
+    params:
+        df_design_path=config["sbs"]["df_design_path"],
+    script:
+        "../scripts/sbs/eval_mapping.py"
 
 
+# TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
-
 #     rule segment_sbs_paramsearch:
 #         conda:
 #             "../envs/sbs.yml"

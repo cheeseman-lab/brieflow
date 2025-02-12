@@ -17,9 +17,15 @@ df_pool["prefix"] = df_pool.apply(lambda x: x.sgRNA[: x.prefix_length], axis=1)
 barcodes = df_pool["prefix"]
 
 # Load SBS processing files
-reads = pd.read_hdf(snakemake.input[0])
-cells = pd.read_hdf(snakemake.input[1])
-sbs_info = pd.read_hdf(snakemake.input[2])
+reads = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.reads_paths], ignore_index=True
+)
+cells = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.cells_paths], ignore_index=True
+)
+sbs_info = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.sbs_info_paths], ignore_index=True
+)
 
 _, fig = plot_mapping_vs_threshold(reads, barcodes, "peak")
 fig.savefig(snakemake.output[0])

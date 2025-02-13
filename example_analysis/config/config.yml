@@ -12,6 +12,28 @@
 # Parameters:
 all:
   root_fp: analysis_root/
+merge:
+  det_range:
+  - 0.06
+  - 0.065
+  initial_sites:
+  - - 5
+    - 0
+  - - 141
+    - 32
+  - - 370
+    - 86
+  - - 896
+    - 212
+  - - 1163
+    - 270
+  - - 1599
+    - 376
+  ph_metadata_channel: null
+  sbs_metadata_channel: null
+  sbs_metadata_cycle: 1
+  score: 0.1
+  threshold: 2
 phenotype:
   align: false
   cell_diameter: 53.05782348918437

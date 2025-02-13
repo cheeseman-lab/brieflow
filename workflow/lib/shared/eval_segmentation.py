@@ -98,7 +98,7 @@ def plot_cell_density_heatmap(df_cells, shape="square", plate="6W", **kwargs):
 
 def evaluate_segmentation_paramsearch(
     df,
-    segmentation_process="sbs_process",
+    segmentation_process="sbs",
     default_cell_diameter=None,
     default_nuclei_diameter=None,
     default_cellprob_threshold=None,
@@ -117,7 +117,7 @@ def evaluate_segmentation_paramsearch(
             initial_nuclei, initial_cells, final_cells, final_nuclei,
             after_edge_removal_cells, after_edge_removal_nuclei, path
         segmentation_process (str, optional): Process type to evaluate.
-            Must be either "sbs_process" or "phenotype_process". Defaults to "sbs_process".
+            Must be either "sbs" or "phenotype". Defaults to "sbs".
         default_cell_diameter (float, optional): Reference cell diameter for comparison.
             If None, only optimal parameters are shown. Defaults to None.
         default_nuclei_diameter (float, optional): Reference nuclei diameter.
@@ -127,9 +127,9 @@ def evaluate_segmentation_paramsearch(
         default_flow_threshold (float, optional): Reference flow threshold.
             Required if default_cell_diameter is provided. Defaults to None.
         channel_cmaps (list of str, optional): List of colormap names for each channel.
-            Only used when segmentation_process is "phenotype_process".
+            Only used when segmentation_process is "phenotype".
         prepare_cellpose_kwargs (dict, optional): Keywords for prepare_cellpose function.
-            Only used when segmentation_process is "sbs_process".
+            Only used when segmentation_process is "sbs".
 
     Returns:
         pandas.DataFrame: Statistics grouped by parameter combinations, containing columns:
@@ -300,7 +300,7 @@ def evaluate_segmentation_paramsearch(
         default_cells = imread(default_cells_path)
         corrected_image_data = imread(corrected_full_path)
 
-        if segmentation_process == "phenotype_process":
+        if segmentation_process == "phenotype":
             annotated_optimal = image_segmentation_annotations(
                 corrected_image_data, optimal_nuclei, optimal_cells
             )
@@ -323,7 +323,7 @@ def evaluate_segmentation_paramsearch(
             seg_panel = create_micropanel(seg_microimages, add_channel_label=True)
             plt.show()
 
-        elif segmentation_process == "sbs_process":
+        elif segmentation_process == "sbs":
             cellpose_rgb = prepare_cellpose(
                 corrected_image_data, **prepare_cellpose_kwargs
             )

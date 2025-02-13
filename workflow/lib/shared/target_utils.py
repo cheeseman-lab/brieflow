@@ -1,6 +1,6 @@
 """Helper functions for using Snakemake outputs and targets for use with Brieflow."""
 
-from snakemake.io import expand, temp
+from snakemake.io import expand, temp, ancient
 
 
 def map_outputs(outputs, output_type_mappings):
@@ -78,13 +78,14 @@ def outputs_to_targets(outputs, wildcards, output_mappings, expansion_method="pr
     return expanded_targets
 
 
-def output_to_input(output_path, wildcard_values, wildcards):
+def output_to_input(output_path, wildcard_values, wildcards, ancient_output=False):
     """Resolves an output template into input paths by applying wildcards and additional mappings.
 
     Args:
         output_path (str or pathlib.Path): A single output path template containing placeholders (e.g., "{well}", "{tile}").
         wildcard_values (dict): Additional wildcard mappings to apply (e.g., {"tile": [1, 2]}).
         wildcards (dict): Wildcard values provided by Snakemake (e.g., {"well": "A1", "cycle": 1}).
+        ancient_output (bool, optional): Whether to wrap output paths with snakemake's ancient() function. Defaults to False.
 
     Returns:
         list: A list of resolved input paths with placeholders replaced by wildcard values.
@@ -92,7 +93,13 @@ def output_to_input(output_path, wildcard_values, wildcards):
     # Merge wildcards with wildcard_values
     all_wildcards = {**wildcards, **wildcard_values}
     # Expand the output template with the merged wildcards
-    return expand(output_path, **all_wildcards)
+    inputs = expand(output_path, **all_wildcards)
+
+    # Prevent rerunning if ancient
+    if ancient_output:
+        inputs = [ancient(path) for path in inputs]
+
+    return inputs
 
 
 def get_valid_combinations(df):

@@ -102,7 +102,10 @@ MERGE_OUTPUT_MAPPINGS = {
     "final_merge": None,
 }
 
-MERGE_WILDCARDS = {}
+MERGE_WILDCARDS = {
+    "plate": MERGE_PLATES,
+    "well": MERGE_WELLS,
+}
 
 MERGE_OUTPUTS_MAPPED = map_outputs(MERGE_OUTPUTS, MERGE_OUTPUT_MAPPINGS)
 

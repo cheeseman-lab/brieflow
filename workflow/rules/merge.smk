@@ -34,8 +34,8 @@ rule fast_alignment:
         det_range=config["merge"]["det_range"],
         score=config["merge"]["score"],
         initial_sites=config["merge"]["initial_sites"],
-        plate=wildcards.plate,
-        well=wildcards.well,
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: wildcards.well,
     script:
         "../scripts/merge/fast_alignment.py"
 
@@ -77,20 +77,20 @@ rule format_merge:
         "../scripts/merge/format_merge.py"
 
 
-# Format merge data
+# Evaluate merge
 rule eval_merge:
     conda:
         "../envs/merge.yml"
     input:
         # formatted merge data
         format_merge_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["format_merge"],
+            MERGE_OUTPUTS["format_merge"],
             {"well": PHENOTYPE_WELLS},
             wildcards,
         ),
         # cell information from SBS
         combine_cells_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["combine_cells"],
+            SBS_OUTPUTS["combine_cells"],
             {"well": PHENOTYPE_WELLS},
             wildcards,
         ),

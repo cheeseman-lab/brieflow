@@ -44,12 +44,10 @@ else:
 
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
-SBS_PLATES = [1, 2]
-SBS_WELLS = ["A1", "A2"]
-SBS_TILES = [1, 2]
-PHENOTYPE_PLATES = [1, 2]
-PHENOTYPE_WELLS = ["A1", "A2"]
-PHENOTYPE_TILES = [1, 2]
+# SBS_PLATES = [1, 2]
+# SBS_WELLS = ["A1"]
+# PHENOTYPE_PLATES = [1]
+# PHENOTYPE_WELLS = ["A1"]
 
 
 include: "targets/preprocess.smk"
@@ -83,6 +81,20 @@ if "phenotype" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
 
 
 if "merge" in config:
+    # check if SBS and PHENOTYPE plates match
+    if set(SBS_PLATES) == set(PHENOTYPE_PLATES):
+        MERGE_PLATES = SBS_PLATES
+    else:
+        raise ValueError(
+            "SBS_PLATES and PHENOTYPE_PLATES do not match. Merging requires identical plate sets."
+        )
+    # check if SBS and PHENOTYPE wells match
+    if set(SBS_WELLS) == set(PHENOTYPE_WELLS):
+        MERGE_WELLS = SBS_WELLS
+    else:
+        raise ValueError(
+            "SBS_WELLS and PHENOTYPE_WELLS do not match. Merging requires identical well sets."
+        )
 
     # Include target and rule files
     include: "targets/merge.smk"

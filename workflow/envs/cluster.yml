@@ -1,4 +1,4 @@
-name: cluster_process
+name: cluster
 channels:
   - conda-forge
   - bioconda

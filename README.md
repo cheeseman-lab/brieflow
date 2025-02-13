@@ -189,12 +189,12 @@ Follow the steps in [9.configure_cluster_params.ipynb](analysis/9.configure_clus
 **Local**:
 ```sh
 conda activate brieflow_workflows
-sh 10.run_cluster_process.sh
+sh 10.run_cluster.sh
 ```
 **Slurm**:
 ```sh
 # TODO: Add and test this file
-sbatch 10.run_cluster_process_slurm.sh
+sbatch 10.run_cluster_slurm.sh
 ```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.

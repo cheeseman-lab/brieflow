@@ -7,7 +7,7 @@ rule clean_transform_standardize:
         "../envs/aggregate_process.yml"
     input:
         # final merge data
-        MERGE_PROCESS_OUTPUTS["final_merge"],
+        MERGE_OUTPUTS["final_merge"],
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["clean_transform_standardize"],
     params:

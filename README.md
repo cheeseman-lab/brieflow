@@ -155,12 +155,12 @@ Follow the steps in [5.configure_merge_params.ipynb](analysis/5.configure_merge_
 **Local**:
 ```sh
 conda activate brieflow_workflows
-sh 6.run_merge_process.sh
+sh 6.run_merge.sh
 ```
 **Slurm**:
 ```sh
 # TODO: Add and test this file
-sbatch 6.run_merge_process_slurm.sh
+sbatch 6.run_merge_slurm.sh
 ```
 
 #### Step 7: Configure aggregate process params

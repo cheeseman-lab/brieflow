@@ -104,7 +104,7 @@ set-resources:
     summarize_segment_phenotype_paramsearch:
         mem_mb: 2000
 
-    # merge_process
+    # merge
     fast_alignment:
         mem_mb: 10000
         cpus_per_task: 4

@@ -1,4 +1,4 @@
-name: merge_process
+name: merge
 channels:
   - conda-forge
 dependencies:

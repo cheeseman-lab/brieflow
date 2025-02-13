@@ -58,7 +58,9 @@ def align_phenotype_channels(
 
     # Apply alignment
     if stack:
-        aligned = np.array([apply_offsets(slice_, full_offsets) for slice_ in image_data])
+        aligned = np.array(
+            [apply_offsets(slice_, full_offsets) for slice_ in image_data]
+        )
     else:
         aligned = apply_offsets(data_, full_offsets)
 

@@ -121,13 +121,14 @@ def get_valid_combinations(df):
 
 
 def outputs_to_targets_with_combinations(
-    outputs, valid_combinations, wells, tiles=None
+    outputs, valid_combinations, plates, wells, tiles=None
 ):
     """Generate targets for valid combinations.
 
     Args:
         outputs (list): List of output path templates.
         valid_combinations (list): List of dictionaries with valid combinations of wildcards.
+        plates (list): List of plate identifiers.
         wells (list): List of well identifiers.
         tiles (list, optional): List of tile identifiers. Defaults to None.
 
@@ -136,19 +137,23 @@ def outputs_to_targets_with_combinations(
     """
     targets = []
     for output_template in outputs:
-        for well in wells:
-            for combo in valid_combinations:
-                kwargs = {"well": well}
-                if "cycle" in combo:
-                    kwargs["cycle"] = combo["cycle"]
-                kwargs["channel"] = combo["channel"]
+        for plate in plates:
+            for well in wells:
+                for combo in valid_combinations:
+                    kwargs = {
+                        "plate": plate,
+                        "well": well
+                    }
+                    if "cycle" in combo:
+                        kwargs["cycle"] = combo["cycle"]
+                    kwargs["channel"] = combo["channel"]
 
-                if tiles:
-                    for tile in tiles:
-                        kwargs["tile"] = tile
+                    if tiles:
+                        for tile in tiles:
+                            kwargs["tile"] = tile
+                            filepath = str(output_template).format(**kwargs)
+                            targets.append(filepath)
+                    else:
                         filepath = str(output_template).format(**kwargs)
                         targets.append(filepath)
-                else:
-                    filepath = str(output_template).format(**kwargs)
-                    targets.append(filepath)
     return targets

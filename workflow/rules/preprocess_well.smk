@@ -8,13 +8,15 @@ rule extract_metadata_sbs:
     input:
         lambda wildcards: get_sample_fps(
             sbs_samples_df,
+            plate=wildcards.plate,
             well=wildcards.well,
             cycle=wildcards.cycle,
-            channel=wildcards.channel,
+            channel_order=config["preprocess"]["sbs_channel_order"],
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
+        plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
     script:
         "../scripts/preprocess/extract_well_metadata.py"
@@ -27,7 +29,7 @@ rule combine_metadata_sbs:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-            {"well": SBS_WELLS, "tile": SBS_TILES},
+            {"well": SBS_WELLS, "cycle": SBS_CYCLES},
             wildcards,
         ),
     output:
@@ -43,24 +45,27 @@ rule extract_metadata_phenotype:
     input:
         lambda wildcards: get_sample_fps(
             phenotype_samples_df,
+            plate=wildcards.plate,
             well=wildcards.well,
-            channel=wildcards.channel,
+            channel_order=config["preprocess"]["phenotype_channel_order"],
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:
+        plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
     script:
         "../scripts/preprocess/extract_well_metadata.py"
 
-# Comine metadata for phenotype images on well level
+
+# Combine metadata for phenotype images on well level
 rule combine_metadata_phenotype:
     conda:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-            {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES},
+            {"well": PHENOTYPE_WELLS},
             wildcards,
         ),
     output:
@@ -68,7 +73,7 @@ rule combine_metadata_phenotype:
     script:
         "../scripts/shared/combine_dfs.py"
 
-        
+
 # Convert SBS ND2 files to TIFF
 rule convert_sbs:
     conda:
@@ -76,14 +81,14 @@ rule convert_sbs:
     input:
         lambda wildcards: get_sample_fps(
             sbs_samples_df,
+            plate=wildcards.plate,
             well=wildcards.well,
             cycle=wildcards.cycle,
-            channel_order=config["preprocess"]["sbs_channel_order"] if int(wildcards.cycle) > 1 else None
+            channel_order=config["preprocess"]["sbs_channel_order"],
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
     params:
-        tile=lambda wildcards: int(wildcards.tile),
         channel_order_flip=config["preprocess"]["sbs_channel_order_flip"],
     script:
         "../scripts/preprocess/nd2_to_tiff_well.py"
@@ -96,13 +101,13 @@ rule convert_phenotype:
     input:
         lambda wildcards: get_sample_fps(
             phenotype_samples_df,
+            plate=wildcards.plate,
             well=wildcards.well,
-            channel_order=config["preprocess"]["phenotype_channel_order"]
+            channel_order=config["preprocess"]["phenotype_channel_order"],
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
     params:
-        tile=lambda wildcards: int(wildcards.tile),
         channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
     script:
         "../scripts/preprocess/nd2_to_tiff_well.py"
@@ -115,7 +120,7 @@ rule calculate_ic_sbs:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["convert_sbs"],
-            {"tile": SBS_TILES},
+            {"well": SBS_WELLS},
             wildcards,
         ),
     output:
@@ -133,7 +138,7 @@ rule calculate_ic_phenotype:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["convert_phenotype"],
-            {"tile": PHENOTYPE_TILES},
+            {"well": PHENOTYPE_WELLS},
             wildcards,
         ),
     output:

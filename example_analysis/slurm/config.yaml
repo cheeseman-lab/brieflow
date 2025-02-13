@@ -31,7 +31,7 @@ set-resources:
     calculate_ic_phenotype:
         mem_mb: 400000
 
-    # sbs_process
+    # sbs
     align_sbs:
         mem_mb: 2000
     log_filter:
@@ -74,7 +74,7 @@ set-resources:
     summarize_segment_sbs_paramsearch:
         mem_mb: 2000
 
-    # phenotype_process
+    # phenotype
     apply_ic_field_phenotype:
         mem_mb: 2000
     align_phenotype:

@@ -24,7 +24,7 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     Args:
         data_location (dict): Dictionary containing location info like well, tile, and cycle.
         info_type (str): Type of information (e.g., 'cell_features', 'sbs_reads').
-        file_type (str): File extension/type (e.g., 'tsv', 'hdf5', 'tiff').
+        file_type (str): File extension/type (e.g., 'tsv', 'parquet', 'tiff').
 
     Returns:
         str: Structured filename.

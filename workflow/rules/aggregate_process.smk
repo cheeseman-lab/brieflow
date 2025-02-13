@@ -14,7 +14,7 @@ rule clean_transform_standardize:
         population_feature=config["aggregate_process"]["population_feature"],
         filter_single_gene=config["aggregate_process"]["filter_single_gene"],
         transformations_fp=config["aggregate_process"]["transformations_fp"],
-        channels=config["phenotype_process"]["channel_names"],
+        channels=config["phenotype"]["channel_names"],
         feature_start=config["aggregate_process"]["feature_start"],
         control_prefix=config["aggregate_process"]["control_prefix"],
         group_columns=config["aggregate_process"]["group_columns"],
@@ -148,7 +148,7 @@ rule generate_mitotic_montage:
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["generate_mitotic_montage"],
     params:
-        channels=config["phenotype_process"]["channel_names"],
+        channels=config["phenotype"]["channel_names"],
     script:
         "../scripts/aggregate_process/generate_montage.py"
 
@@ -163,7 +163,7 @@ rule generate_interphase_montage:
     output:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["generate_interphase_montage"],
     params:
-        channels=config["phenotype_process"]["channel_names"],
+        channels=config["phenotype"]["channel_names"],
     script:
         "../scripts/aggregate_process/generate_montage.py"
 
@@ -188,7 +188,7 @@ rule eval_aggregate:
         AGGREGATE_PROCESS_OUTPUTS_MAPPED["eval_aggregate"],
     params:
         population_feature=config["aggregate_process"]["population_feature"],
-        channels=config["phenotype_process"]["channel_names"],
+        channels=config["phenotype"]["channel_names"],
     script:
         "../scripts/aggregate_process/eval_aggregate.py"
 

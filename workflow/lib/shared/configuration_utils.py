@@ -81,6 +81,9 @@ def create_samples_df(images_fp, sample_pattern, metadata, metadata_order_type):
     sort_columns = list(metadata_order_type.keys())
     samples_df = samples_df.sort_values(by=sort_columns)
 
+    # Reset index
+    samples_df.reset_index(drop=True, inplace=True)
+
     return samples_df
 
 

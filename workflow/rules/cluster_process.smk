@@ -12,7 +12,7 @@ rule generate_dataset:
     params:
         dataset=lambda wildcards: wildcards.dataset,
         channel_combo=lambda wildcards: wildcards.channel_combo,
-        all_channels=config["phenotype_process"]["channel_names"],
+        all_channels=config["phenotype"]["channel_names"],
         min_cell_cutoffs=config["cluster_process"]["min_cell_cutoffs"],
     script:
         "../scripts/cluster_process/generate_dataset.py"

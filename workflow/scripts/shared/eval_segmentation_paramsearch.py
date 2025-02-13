@@ -62,13 +62,13 @@ default_cellprob_threshold = snakemake.params.cellprob_threshold
 default_flow_threshold = snakemake.params.flow_threshold
 threads = snakemake.threads
 # Set process-specific parameters
-if segmentation_process == "sbs_process":
+if segmentation_process == "sbs":
     prepare_cellpose_kwargs = {
         "dapi_index": snakemake.params.dapi_index,
         "cyto_index": snakemake.params.cyto_index,
     }
     channel_cmaps = None
-elif segmentation_process == "phenotype_process":
+elif segmentation_process == "phenotype":
     channel_cmaps = snakemake.params.channel_cmaps
     prepare_cellpose_kwargs = None
 else:

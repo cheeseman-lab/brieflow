@@ -3,8 +3,10 @@
 import pandas as pd
 import numpy as np
 import nd2
-from typing import Union, List
+from typing import Union, List, Tuple
 from pathlib import Path
+import warnings
+import gc
 
 
 def extract_tile_metadata(
@@ -102,13 +104,19 @@ def extract_tile_metadata(
 
 
 def extract_well_metadata(
-    well_fp: str, well: str, verbose: bool = False
+    well_fp: str, 
+    plate: int,
+    well: str,
+    cycle: int = None,
+    verbose: bool = False
 ) -> pd.DataFrame:
     """Extracts metadata from an ND2 file containing multiple fields of view. Only captures unique XY positions, avoiding Z-stack duplicates.
 
     Args:
         well_fp (str): File path pointing to the ND2 file for the well.
+        plate (int): Plate number to associate with this metadata.
         well (str): Well to associate with this metadata.
+        cycle (int, optional): Cycle number to associate with this metadata. Defaults to None.
         verbose (bool, optional): If True, prints metadata information. Defaults to False.
 
     Returns:
@@ -158,8 +166,10 @@ def extract_well_metadata(
             # Add basic metadata
             metadata.update(
                 {
-                    "tile": pos_idx // z_planes,  # Adjust tile number based on z_planes
+                    "plate": plate,
                     "well": well,
+                    "tile": pos_idx // z_planes,  # Adjust tile number based on z_planes
+                    "cycle": cycle,
                     "filename": well_fp,
                     "channels": images.sizes.get("C", 1),
                 }

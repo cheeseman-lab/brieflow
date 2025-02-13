@@ -6,13 +6,33 @@ AGGREGATE_FP = ROOT_FP / "aggregate"
 
 AGGREGATE_OUTPUTS = {
     "clean_transform_standardize": [
-        AGGREGATE_FP / "hdfs" / "cleaned_data.hdf5",
-        AGGREGATE_FP / "hdfs" / "transformed_data.hdf5",
-        AGGREGATE_FP / "hdfs" / "standardized_data.hdf5",
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "cleaned_data", "parquet"
+        ),
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "transformed_data", "parquet"
+        ),
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "standardized_data", "parquet"
+        ),
     ],
     "split_phases": [
-        AGGREGATE_FP / "hdfs" / "mitotic_data.hdf5",
-        AGGREGATE_FP / "hdfs" / "interphase_data.hdf5",
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "mitotic_data", "parquet"
+        ),
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "interphase_data", "parquet"
+        ),
     ],
     "process_mitotic_gene_data": [
         AGGREGATE_FP / "tsvs" / "mitotic_gene_data.tsv",
@@ -24,10 +44,10 @@ AGGREGATE_OUTPUTS = {
         AGGREGATE_FP / "tsvs" / "all_gene_data.tsv",
     ],
     "prepare_mitotic_montage_data": [
-        AGGREGATE_FP / "hdfs" / "mitotic_montage_data.hdf5",
+        AGGREGATE_FP / "parquets" / "mitotic_montage_data.parquet",
     ],
     "prepare_interphase_montage_data": [
-        AGGREGATE_FP / "hdfs" / "interphase_montage_data.hdf5",
+        AGGREGATE_FP / "parquets" / "interphase_montage_data.parquet",
     ],
     "generate_mitotic_montage": [
         AGGREGATE_FP
@@ -78,8 +98,7 @@ NON_MONTAGE_OUTPUTS = {
     if "generate" not in rule_name
 }
 NON_MONTAGE_TARGETS = outputs_to_targets(
-    NON_MONTAGE_OUTPUTS,
-    {},
+    NON_MONTAGE_OUTPUTS, {}, AGGREGATE_OUTPUT_MAPPINGS
 )
 
 # determine combinations of genes, sgrna, and channel combinations from pool design file
@@ -110,7 +129,10 @@ MONTAGE_OUTPUTS = {
     if "generate" in rule_name
 }
 MONTAGE_TARGETS = outputs_to_targets(
-    MONTAGE_OUTPUTS, MONTAGE_WILDCARDS, expansion_method="zip"
+    MONTAGE_OUTPUTS,
+    MONTAGE_WILDCARDS,
+    AGGREGATE_OUTPUT_MAPPINGS,
+    expansion_method="zip",
 )
 
 # Combine all preprocessing targets

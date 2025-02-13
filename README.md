@@ -172,12 +172,12 @@ Follow the steps in [7.configure_aggregate_params.ipynb](analysis/7.configure_ag
 **Local**:
 ```sh
 conda activate brieflow_workflows
-sh 8.run_aggregate_process.sh
+sh 8.run_aggregate.sh
 ```
 **Slurm**:
 ```sh
 # TODO: Add and test this file
-sbatch 8.run_aggregate_process_slurm.sh
+sbatch 8.run_aggregate_slurm.sh
 ```
 
 #### Step 9: Configure cluster process params

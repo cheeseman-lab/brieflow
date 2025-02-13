@@ -2,35 +2,35 @@ from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 
-AGGREGATE_PROCESS_FP = ROOT_FP / "aggregate_process"
+AGGREGATE_FP = ROOT_FP / "aggregate"
 
-AGGREGATE_PROCESS_OUTPUTS = {
+AGGREGATE_OUTPUTS = {
     "clean_transform_standardize": [
-        AGGREGATE_PROCESS_FP / "hdfs" / "cleaned_data.hdf5",
-        AGGREGATE_PROCESS_FP / "hdfs" / "transformed_data.hdf5",
-        AGGREGATE_PROCESS_FP / "hdfs" / "standardized_data.hdf5",
+        AGGREGATE_FP / "hdfs" / "cleaned_data.hdf5",
+        AGGREGATE_FP / "hdfs" / "transformed_data.hdf5",
+        AGGREGATE_FP / "hdfs" / "standardized_data.hdf5",
     ],
     "split_phases": [
-        AGGREGATE_PROCESS_FP / "hdfs" / "mitotic_data.hdf5",
-        AGGREGATE_PROCESS_FP / "hdfs" / "interphase_data.hdf5",
+        AGGREGATE_FP / "hdfs" / "mitotic_data.hdf5",
+        AGGREGATE_FP / "hdfs" / "interphase_data.hdf5",
     ],
     "process_mitotic_gene_data": [
-        AGGREGATE_PROCESS_FP / "tsvs" / "mitotic_gene_data.tsv",
+        AGGREGATE_FP / "tsvs" / "mitotic_gene_data.tsv",
     ],
     "process_interphase_gene_data": [
-        AGGREGATE_PROCESS_FP / "tsvs" / "interphase_gene_data.tsv",
+        AGGREGATE_FP / "tsvs" / "interphase_gene_data.tsv",
     ],
     "process_all_gene_data": [
-        AGGREGATE_PROCESS_FP / "tsvs" / "all_gene_data.tsv",
+        AGGREGATE_FP / "tsvs" / "all_gene_data.tsv",
     ],
     "prepare_mitotic_montage_data": [
-        AGGREGATE_PROCESS_FP / "hdfs" / "mitotic_montage_data.hdf5",
+        AGGREGATE_FP / "hdfs" / "mitotic_montage_data.hdf5",
     ],
     "prepare_interphase_montage_data": [
-        AGGREGATE_PROCESS_FP / "hdfs" / "interphase_montage_data.hdf5",
+        AGGREGATE_FP / "hdfs" / "interphase_montage_data.hdf5",
     ],
     "generate_mitotic_montage": [
-        AGGREGATE_PROCESS_FP
+        AGGREGATE_FP
         / "tiffs"
         / "mitotic_montages"
         / get_filename(
@@ -40,7 +40,7 @@ AGGREGATE_PROCESS_OUTPUTS = {
         ),
     ],
     "generate_interphase_montage": [
-        AGGREGATE_PROCESS_FP
+        AGGREGATE_FP
         / "tiffs"
         / "interphase_montages"
         / get_filename(
@@ -50,16 +50,16 @@ AGGREGATE_PROCESS_OUTPUTS = {
         ),
     ],
     "eval_aggregate": [
-        AGGREGATE_PROCESS_FP / "eval" / "cell_feature_violins.png",
-        AGGREGATE_PROCESS_FP / "eval" / "nuclear_feature_violins.png",
-        AGGREGATE_PROCESS_FP / "eval" / "mitotic_missing.tsv",
-        AGGREGATE_PROCESS_FP / "eval" / "interphase_missing.tsv",
-        AGGREGATE_PROCESS_FP / "eval" / "all_missing.tsv",
-        AGGREGATE_PROCESS_FP / "eval" / "mitotic_stats.tsv",
+        AGGREGATE_FP / "eval" / "cell_feature_violins.png",
+        AGGREGATE_FP / "eval" / "nuclear_feature_violins.png",
+        AGGREGATE_FP / "eval" / "mitotic_missing.tsv",
+        AGGREGATE_FP / "eval" / "interphase_missing.tsv",
+        AGGREGATE_FP / "eval" / "all_missing.tsv",
+        AGGREGATE_FP / "eval" / "mitotic_stats.tsv",
     ],
 }
 
-AGGREGATE_PROCESS_OUTPUT_MAPPINGS = {
+AGGREGATE_OUTPUT_MAPPINGS = {
     "clean_and_transform": None,
     "standardize_features": None,
     "split_phases": None,
@@ -70,13 +70,11 @@ AGGREGATE_PROCESS_OUTPUT_MAPPINGS = {
     "generate_mitotic_montage": None,
 }
 
-AGGREGATE_PROCESS_OUTPUTS_MAPPED = map_outputs(
-    AGGREGATE_PROCESS_OUTPUTS, AGGREGATE_PROCESS_OUTPUT_MAPPINGS
-)
+AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
 
 NON_MONTAGE_OUTPUTS = {
     rule_name: templates
-    for rule_name, templates in AGGREGATE_PROCESS_OUTPUTS.items()
+    for rule_name, templates in AGGREGATE_OUTPUTS.items()
     if "generate" not in rule_name
 }
 NON_MONTAGE_TARGETS = outputs_to_targets(
@@ -108,7 +106,7 @@ MONTAGE_WILDCARDS = {
 }
 MONTAGE_OUTPUTS = {
     rule_name: templates
-    for rule_name, templates in AGGREGATE_PROCESS_OUTPUTS.items()
+    for rule_name, templates in AGGREGATE_OUTPUTS.items()
     if "generate" in rule_name
 }
 MONTAGE_TARGETS = outputs_to_targets(
@@ -116,6 +114,6 @@ MONTAGE_TARGETS = outputs_to_targets(
 )
 
 # Combine all preprocessing targets
-AGGREGATE_PROCESS_TARGETS_ALL = sum(NON_MONTAGE_TARGETS.values(), []) + sum(
+AGGREGATE_TARGETS_ALL = sum(NON_MONTAGE_TARGETS.values(), []) + sum(
     MONTAGE_TARGETS.values(), []
 )

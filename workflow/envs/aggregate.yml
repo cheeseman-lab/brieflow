@@ -1,4 +1,4 @@
-name: aggregate_process
+name: aggregate
 channels:
   - conda-forge
 dependencies:

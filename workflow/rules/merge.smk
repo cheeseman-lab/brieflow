@@ -18,14 +18,11 @@ rule fast_alignment:
         ),
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["combine_metadata_sbs"],
-            {
-                "cycle": config["merge"]["sbs_metadata_cycle"],
-                **(
-                    {}
-                    if config["merge"]["sbs_metadata_channel"] is None
-                    else {"channel": config["merge"]["sbs_metadata_channel"]}
-                ),
-            },
+            (
+                {}
+                if config["merge"]["sbs_metadata_channel"] is None
+                else {"channel": config["merge"]["sbs_metadata_channel"]}
+            ),
             wildcards,
         ),
         PHENOTYPE_OUTPUTS["merge_phenotype_info"],
@@ -33,9 +30,12 @@ rule fast_alignment:
     output:
         MERGE_OUTPUTS_MAPPED["fast_alignment"],
     params:
+        sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
         det_range=config["merge"]["det_range"],
         score=config["merge"]["score"],
         initial_sites=config["merge"]["initial_sites"],
+        plate=wildcards.plate,
+        well=wildcards.well,
     script:
         "../scripts/merge/fast_alignment.py"
 
@@ -83,11 +83,23 @@ rule eval_merge:
         "../envs/merge.yml"
     input:
         # formatted merge data
-        MERGE_OUTPUTS["format_merge"],
+        format_merge_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["format_merge"],
+            {"well": PHENOTYPE_WELLS},
+            wildcards,
+        ),
         # cell information from SBS
-        SBS_OUTPUTS["combine_cells"],
+        combine_cells_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["combine_cells"],
+            {"well": PHENOTYPE_WELLS},
+            wildcards,
+        ),
         # min phentoype information
-        PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
+        min_phenotype_cp_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
+            {"well": PHENOTYPE_WELLS},
+            wildcards,
+        ),
     output:
         MERGE_OUTPUTS_MAPPED["eval_merge"],
     script:

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from lib.shared.target_utils import get_valid_combinations
+from lib.shared.target_utils import get_sbs_combinations, get_phenotype_combinations
 from lib.shared.initialize_paramsearch import initialize_segment_sbs_paramsearch
 from lib.shared.initialize_paramsearch import initialize_segment_phenotype_paramsearch
 
@@ -17,46 +17,24 @@ PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 
 # Load sbs samples if they exist
 sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
-SBS_SAMPLE_FPS = list(sbs_samples_df["sample_fp"].unique())
-if len(SBS_SAMPLE_FPS) > 0:
-    SBS_PLATES = list(sbs_samples_df["plate"].unique())
-    SBS_WELLS = list(sbs_samples_df["well"].unique())
-    SBS_TILES = range(config["preprocess"]["sbs_tiles"])
-    SBS_CYCLES = sorted(list(sbs_samples_df["cycle"].unique()))
-    SBS_VALID_COMBINATIONS = get_valid_combinations(sbs_samples_df)
+if len(sbs_samples_df) > 0:
+    SBS_TILES = [1, 2]  # TODO: unrestrict: range(config["preprocess"]["sbs_tiles"])
+    SBS_VALID_COMBINATIONS = get_sbs_combinations(sbs_samples_df)
 else:
     print("No SBS samples found!")
-    SBS_PLATES = []
-    SBS_WELLS = []
     SBS_TILES = []
-    SBS_CYCLES = []
     SBS_VALID_COMBINATIONS = []
-
 
 # Load phenotype samples if they exist
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
-PHENOTYPE_SAMPLE_FPS = list(phenotype_samples_df["sample_fp"].unique())
-if len(PHENOTYPE_SAMPLE_FPS) > 0:
-    PHENOTYPE_PLATES = list(phenotype_samples_df["plate"].unique())
-    PHENOTYPE_WELLS = list(phenotype_samples_df["well"].unique())
-    PHENOTYPE_TILES = range(config["preprocess"]["phenotype_tiles"])
-    PHENOTYPE_CHANNELS = list(phenotype_samples_df["channel"].unique())
+if len(phenotype_samples_df) > 0:
+    PHENOTYPE_TILES = [1, 2]  # TODO: unrestrict: range(config["preprocess"]["phenotype_tiles"])
+    PHENOTYPE_VALID_COMBINATIONS = get_phenotype_combinations(phenotype_samples_df)
 else:
     print("No phenotype samples found!")
-    PHENOTYPE_PLATES = []
-    PHENOTYPE_WELLS = []
     PHENOTYPE_TILES = []
-    PHENOTYPE_CHANNELS = []
+    PHENOTYPE_VALID_COMBINATIONS = []
 
-
-# NOTE: restrict wells and tiles for testing
-# TODO: unrestrict wells and tiles after testing
-SBS_PLATES = [1, 3, 4, 5, 6, 7, 8]
-SBS_WELLS = ["A1", "A2"]
-SBS_TILES = [1, 2]
-PHENOTYPE_PLATES = [1, 3, 4, 5, 6, 7, 8]
-PHENOTYPE_WELLS = ["A1", "A2"]
-PHENOTYPE_TILES = [1, 2]
 
 include: "targets/preprocess_well.smk"
 include: "rules/preprocess_well.smk"

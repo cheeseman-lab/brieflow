@@ -1,7 +1,21 @@
 """Helper functions for using Snakemake outputs and targets for use with Brieflow."""
 
+import string
+from pathlib import Path
 from snakemake.io import expand, temp, ancient
 
+def clean_value(val):
+    """Convert numpy types to Python native types.
+    
+    Args:
+        val: Value to clean (could be numpy type or native Python type)
+        
+    Returns:
+        Native Python type (int, str, etc.)
+    """
+    if hasattr(val, 'item'):  # Check if it's a numpy type
+        return val.item()
+    return val
 
 def map_outputs(outputs, output_type_mappings):
     """Apply Snakemake output type mappings (e.g., temp, protected) to output paths.
@@ -102,58 +116,206 @@ def output_to_input(output_path, wildcard_values, wildcards, ancient_output=Fals
     return inputs
 
 
-def get_valid_combinations(df):
-    """Get valid combinations of cycles and channels from a DataFrame.
+def outputs_to_targets_with_combinations(output_templates, valid_combinations, extra_keys=None):
+    """Convert output templates to targets using valid combinations.
+    
+    Args:
+        output_templates (list): List of output template strings or Path objects
+        valid_combinations (list): List of dictionaries containing valid combinations
+        extra_keys (list): Optional list of additional keys to iterate over (e.g., tiles)
+        
+    Returns:
+        list: List of target paths with all valid combinations
+    """
+    targets = []
+    
+    # If we have any extra keys (like tiles), create cartesian product
+    if extra_keys:
+        for combo in valid_combinations:
+            for extra_val in extra_keys:
+                # Create a complete mapping including the extra value
+                mapping = {
+                    'plate': clean_value(combo['plate']),
+                    'well': combo['well'],
+                    'cycle': clean_value(combo['cycle']) if 'cycle' in combo else None,
+                    'channel': combo['channel'],
+                    'tile': extra_val
+                }
+                
+                # Apply mapping to each output template
+                for template in output_templates:
+                    template_str = str(template)
+                    template_keys = [k[1] for k in string.Formatter().parse(template_str) if k[1]]
+                    filtered_mapping = {k: v for k, v in mapping.items() 
+                                     if k in template_keys and v is not None}
+                    formatted_path = template_str.format(**filtered_mapping)
+                    targets.append(formatted_path)
+    else:
+        # No extra keys, just use the combinations directly
+        for combo in valid_combinations:
+            for template in output_templates:
+                template_str = str(template)
+                template_keys = [k[1] for k in string.Formatter().parse(template_str) if k[1]]
+                filtered_mapping = {k: clean_value(v) if k in ['plate', 'cycle'] else v 
+                                 for k, v in combo.items() 
+                                 if k in template_keys and v is not None}
+                formatted_path = template_str.format(**filtered_mapping)
+                targets.append(formatted_path)
+    
+    return targets
+
+
+def output_to_input_from_combinations(output_path, valid_combinations, wildcards, expand_values=None, ancient_output=False):
+    """Resolves an output template into input paths using valid combinations and optional expansion values.
+    
+    Args:
+        output_path (str or pathlib.Path): Output path template with placeholders
+        valid_combinations (list): List of valid combination dictionaries
+        wildcards (dict): Wildcard values provided by Snakemake
+        expand_values (dict, optional): Additional values to expand each combination with (e.g., {"tile": [1, 2]})
+        ancient_output (bool, optional): Whether to wrap output paths with ancient(). Defaults to False.
+    
+    Returns:
+        list: Resolved input paths matching the valid combinations and expansions
+    """
+    # Filter combinations to match provided wildcards
+    matching_combos = []
+    for combo in valid_combinations:
+        # Check if this combination matches all provided wildcards
+        if all(combo.get(key) == value for key, value in wildcards.items() if key in combo):
+            matching_combos.append(combo)
+    
+    # Generate expanded combinations if expand_values provided
+    if expand_values:
+        expanded_combos = []
+        for combo in matching_combos:
+            # Similar to output_to_input's expand, but with our combinations
+            expanded_values = [dict(zip(expand_values.keys(), v)) 
+                             for v in itertools.product(*expand_values.values())]
+            for exp_value in expanded_values:
+                expanded_combos.append({**combo, **exp_value})
+        matching_combos = expanded_combos
+    
+    # Generate input paths from matching combinations
+    inputs = []
+    for combo in matching_combos:
+        try:
+            path = str(output_path).format(**combo)
+            inputs.append(path)
+        except KeyError as e:
+            continue
+    
+    # Wrap with ancient() if requested
+    if ancient_output:
+        inputs = [ancient(path) for path in inputs]
+    
+    return inputs
+
+
+def get_valid_combinations(df, data_type):
+    """Get valid combinations and identify missing data for SBS or phenotype data.
 
     Args:
-        df (pd.DataFrame): DataFrame containing columns 'cycle' and 'channel'.
+        df (pd.DataFrame): DataFrame containing SBS or phenotype data.
+        data_type (str): Type of data, either "sbs" or "phenotype".
 
     Returns:
-        list: List of dictionaries with valid combinations of cycles and channels.
+        tuple: (valid_combinations, warnings)
     """
-    # Group by cycle and get channels that exist for each cycle
-    cycle_channels = df.groupby("cycle")["channel"].unique().to_dict()
+    if df is None or df.empty:
+        return [], ["Warning: No data found!"]
+    
+    warnings = []
     valid_combinations = []
-    for cycle, channels in cycle_channels.items():
-        for channel in channels:
-            valid_combinations.append({"cycle": cycle, "channel": channel})
+    
+    # Get all unique plates and wells to check for missing combinations
+    all_plates = sorted(df['plate'].unique())
+    all_wells = sorted(df['well'].unique())
+    existing_pairs = set(zip(df['plate'], df['well']))
+    
+    # Check for missing plate/well combinations first
+    for plate in all_plates:
+        for well in all_wells:
+            if (plate, well) not in existing_pairs:
+                warnings.append(f"Warning: No data found for Plate {plate}, Well {well}")
+    
+    # Process only existing pairs for valid combinations
+    for plate, well in existing_pairs:
+        well_df = df[(df['plate'] == plate) & (df['well'] == well)]
+        if well_df.empty:
+            continue
+        
+        if data_type == "sbs":
+            # SBS: Check cycle-channel combinations
+            all_cycles = sorted(df['cycle'].unique())  # All possible cycles
+            cycles_in_well = sorted(well_df['cycle'].unique())
+            
+            # Check for missing cycles
+            missing_cycles = set(all_cycles) - set(cycles_in_well)
+            if missing_cycles:
+                warnings.append(f"Warning: Plate {plate}, Well {well} is missing cycles: {sorted(missing_cycles)}")
+            
+            for cycle in cycles_in_well:
+                cycle_df = well_df[well_df['cycle'] == cycle]
+                if cycle_df.empty:
+                    continue
+                
+                for _, row in cycle_df.iterrows():
+                    valid_combinations.append({
+                        'plate': plate,
+                        'well': well,
+                        'cycle': clean_value(cycle),
+                        'channel': row['channel']
+                    })
+        
+        else:  # Phenotype data
+            # For phenotype data, check for missing channels
+            all_channels = sorted(df['channel'].unique())
+            channels_in_well = sorted(well_df['channel'].unique())
+            missing_channels = set(all_channels) - set(channels_in_well)
+            
+            if missing_channels:
+                warnings.append(f"Warning: Plate {plate}, Well {well} is missing channels: {sorted(missing_channels)}")
+            
+            for _, row in well_df.iterrows():
+                valid_combinations.append({
+                    'plate': plate,
+                    'well': well,
+                    'channel': row['channel']
+                })
+    
+    return valid_combinations, warnings
+
+
+def get_sbs_combinations(df):
+    """Get valid SBS combinations and identify missing data.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing SBS data.
+
+    Returns:
+        tuple: (valid_combinations, warnings)
+    """
+    valid_combinations, warnings = get_valid_combinations(df, "sbs")
+
+    for warning in warnings:
+        print(warning)
+
     return valid_combinations
 
 
-def outputs_to_targets_with_combinations(
-    outputs, valid_combinations, plates, wells, tiles=None
-):
-    """Generate targets for valid combinations.
+def get_phenotype_combinations(df):
+    """Get valid phenotype combinations and identify missing data.
 
     Args:
-        outputs (list): List of output path templates.
-        valid_combinations (list): List of dictionaries with valid combinations of wildcards.
-        plates (list): List of plate identifiers.
-        wells (list): List of well identifiers.
-        tiles (list, optional): List of tile identifiers. Defaults to None.
+        df (pd.DataFrame): DataFrame containing phenotype data.
 
     Returns:
-        list: List of fully resolved target paths.
+        tuple: (valid_combinations, warnings)
     """
-    targets = []
-    for output_template in outputs:
-        for plate in plates:
-            for well in wells:
-                for combo in valid_combinations:
-                    kwargs = {
-                        "plate": plate,
-                        "well": well
-                    }
-                    if "cycle" in combo:
-                        kwargs["cycle"] = combo["cycle"]
-                    kwargs["channel"] = combo["channel"]
+    valid_combinations, warnings = get_valid_combinations(df, "phenotype")
 
-                    if tiles:
-                        for tile in tiles:
-                            kwargs["tile"] = tile
-                            filepath = str(output_template).format(**kwargs)
-                            targets.append(filepath)
-                    else:
-                        filepath = str(output_template).format(**kwargs)
-                        targets.append(filepath)
-    return targets
+    for warning in warnings:
+        print(warning)
+
+    return valid_combinations

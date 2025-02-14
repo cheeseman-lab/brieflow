@@ -13,6 +13,7 @@ def get_sample_fps(
     channel: str = None,
     round_order: List[int] = None,
     channel_order: List[str] = None,
+    verbose: bool = False,
 ) -> Union[str, List[str]]:
     """Filters the samples DataFrame and ensures consistent channel and round order.
     
@@ -25,6 +26,7 @@ def get_sample_fps(
         channel (str, optional): Channel to filter by. Defaults to None.
         round_order (List[int], optional): Order of rounds to return. Defaults to None.
         channel_order (List[str], optional): Order of channels. Defaults to None.
+        verbose (bool, optional): Whether to print verbose output. Defaults to False.
     Returns:
         Union[str, List[str]]: Either a single filepath or ordered list of filepaths
     """
@@ -89,10 +91,11 @@ def get_sample_fps(
                 all_files.append(round_df["sample_fp"].iloc[0])
                 final_channel_order.append(f"Round {round_num}: {round_df['channel'].iloc[0]}")
         
-        print("\nFinal channel order:")
-        for chan in final_channel_order:
-            print(f"  {chan}")
-            
+        if verbose:
+            print("\nFinal channel order:")
+            for chan in final_channel_order:
+                print(f"  {chan}")
+                
         return all_files
 
     # If no rounds specified but we have channels and channel order

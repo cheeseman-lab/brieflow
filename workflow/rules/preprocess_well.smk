@@ -1,5 +1,6 @@
 from lib.preprocess.file_utils import get_sample_fps
-from lib.shared.target_utils import output_to_input
+from lib.shared.target_utils import output_to_input_from_combinations
+
 
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
@@ -11,7 +12,7 @@ rule extract_metadata_sbs:
             plate=wildcards.plate,
             well=wildcards.well,
             cycle=wildcards.cycle,
-            channel_order=config["preprocess"]["sbs_channel_order"],
+            channel=wildcards.channel,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
@@ -27,9 +28,9 @@ rule combine_metadata_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-            {"well": SBS_WELLS, "cycle": SBS_CYCLES},
+        lambda wildcards: output_to_input_from_combinations(
+            PREPROCESS_OUTPUTS["extract_metadata_sbs"][0],
+            SBS_VALID_COMBINATIONS,
             wildcards,
         ),
     output:
@@ -47,7 +48,7 @@ rule extract_metadata_phenotype:
             phenotype_samples_df,
             plate=wildcards.plate,
             well=wildcards.well,
-            channel_order=config["preprocess"]["phenotype_channel_order"],
+            channel=wildcards.channel,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
@@ -63,9 +64,9 @@ rule combine_metadata_phenotype:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input(
+        lambda wildcards: output_to_input_from_combinations(
             PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-            {"well": PHENOTYPE_WELLS},
+            PHENOTYPE_VALID_COMBINATIONS,
             wildcards,
         ),
     output:
@@ -84,11 +85,13 @@ rule convert_sbs:
             plate=wildcards.plate,
             well=wildcards.well,
             cycle=wildcards.cycle,
-            channel_order=config["preprocess"]["sbs_channel_order"],
+            channel_order=config["preprocess"]["sbs_channel_order"] if int(wildcards.cycle) > 1 else None
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
     params:
+        plate=lambda wildcards: wildcards.plate,
+        tile=lambda wildcards: int(wildcards.tile),
         channel_order_flip=config["preprocess"]["sbs_channel_order_flip"],
     script:
         "../scripts/preprocess/nd2_to_tiff_well.py"
@@ -103,25 +106,29 @@ rule convert_phenotype:
             phenotype_samples_df,
             plate=wildcards.plate,
             well=wildcards.well,
-            channel_order=config["preprocess"]["phenotype_channel_order"],
+            round_order=config["preprocess"]["phenotype_round_order"],
+            channel_order=config["preprocess"]["phenotype_channel_order"]
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
     params:
+        plate=lambda wildcards: wildcards.plate,
+        tile=lambda wildcards: int(wildcards.tile),
         channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
     script:
         "../scripts/preprocess/nd2_to_tiff_well.py"
-
+        
 
 # Calculate illumination correction function for SBS files
 rule calculate_ic_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input(
+        lambda wildcards: output_to_input_from_combinations(
             PREPROCESS_OUTPUTS["convert_sbs"],
-            {"well": SBS_WELLS},
+            SBS_VALID_COMBINATIONS,
             wildcards,
+            expand_values={"tile": SBS_TILES}
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_sbs"],
@@ -136,10 +143,11 @@ rule calculate_ic_phenotype:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input(
+        lambda wildcards: output_to_input_from_combinations(
             PREPROCESS_OUTPUTS["convert_phenotype"],
-            {"well": PHENOTYPE_WELLS},
+            PHENOTYPE_VALID_COMBINATIONS,
             wildcards,
+            expand_values={"tile": PHENOTYPE_TILES}
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],

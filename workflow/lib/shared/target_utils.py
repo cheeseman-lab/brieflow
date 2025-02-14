@@ -98,5 +98,6 @@ def output_to_input(output_path, wildcard_values, wildcards, ancient_output=Fals
     # Prevent rerunning if ancient
     if ancient_output:
         inputs = [ancient(path) for path in inputs]
+    print(inputs)
 
     return inputs

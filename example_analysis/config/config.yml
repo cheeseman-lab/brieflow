@@ -11,7 +11,7 @@
 
 # Parameters:
 all:
-  root_fp: analysis_root
+  root_fp: analysis_root/
 merge:
   det_range:
   - 0.06

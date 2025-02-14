@@ -10,6 +10,7 @@ __pycache__/
 example_analysis/data/
 example_analysis/analysis_root/
 example_analysis/analysis_root_test/
+example_analysis/analysis_root_backup/
 
 # test notebooks
 test_file_differences.ipynb

@@ -3,6 +3,7 @@
 import string
 from pathlib import Path
 from snakemake.io import expand, temp, ancient
+import itertools
 
 def clean_value(val):
     """Convert numpy types to Python native types.
@@ -135,9 +136,9 @@ def outputs_to_targets_with_combinations(output_templates, valid_combinations, e
             for extra_val in extra_keys:
                 # Create a complete mapping including the extra value
                 mapping = {
-                    'plate': clean_value(combo['plate']),
+                    'plate': combo['plate'],
                     'well': combo['well'],
-                    'cycle': clean_value(combo['cycle']) if 'cycle' in combo else None,
+                    'cycle': combo['cycle'] if 'cycle' in combo else None,
                     'channel': combo['channel'],
                     'tile': extra_val
                 }
@@ -156,9 +157,9 @@ def outputs_to_targets_with_combinations(output_templates, valid_combinations, e
             for template in output_templates:
                 template_str = str(template)
                 template_keys = [k[1] for k in string.Formatter().parse(template_str) if k[1]]
-                filtered_mapping = {k: clean_value(v) if k in ['plate', 'cycle'] else v 
-                                 for k, v in combo.items() 
-                                 if k in template_keys and v is not None}
+                filtered_mapping = {k: int(v) if k in ['plate', 'cycle'] and str(v).isdigit() else v 
+                                for k, v in combo.items() 
+                                if k in template_keys and v is not None}
                 formatted_path = template_str.format(**filtered_mapping)
                 targets.append(formatted_path)
     
@@ -167,29 +168,46 @@ def outputs_to_targets_with_combinations(output_templates, valid_combinations, e
 
 def output_to_input_from_combinations(output_path, valid_combinations, wildcards, expand_values=None, ancient_output=False):
     """Resolves an output template into input paths using valid combinations and optional expansion values.
-    
+
     Args:
         output_path (str or pathlib.Path): Output path template with placeholders
         valid_combinations (list): List of valid combination dictionaries
         wildcards (dict): Wildcard values provided by Snakemake
         expand_values (dict, optional): Additional values to expand each combination with (e.g., {"tile": [1, 2]})
         ancient_output (bool, optional): Whether to wrap output paths with ancient(). Defaults to False.
-    
+
     Returns:
         list: Resolved input paths matching the valid combinations and expansions
     """
-    # Filter combinations to match provided wildcards
     matching_combos = []
     for combo in valid_combinations:
-        # Check if this combination matches all provided wildcards
-        if all(combo.get(key) == value for key, value in wildcards.items() if key in combo):
+        matches_all = True
+        
+        for key, value in wildcards.items():
+            if key in combo:
+                combo_value = combo.get(key)
+                # Handle numeric comparisons
+                if key in ['plate', 'cycle']:
+                    try:
+                        if int(str(value)) != int(str(combo_value)):
+                            matches_all = False
+                            break
+                    except ValueError:
+                        matches_all = False
+                        break
+                # Handle string comparisons
+                else:
+                    if str(value) != str(combo_value):
+                        matches_all = False
+                        break
+                    
+        if matches_all:
             matching_combos.append(combo)
-    
+
     # Generate expanded combinations if expand_values provided
     if expand_values:
         expanded_combos = []
         for combo in matching_combos:
-            # Similar to output_to_input's expand, but with our combinations
             expanded_values = [dict(zip(expand_values.keys(), v)) 
                              for v in itertools.product(*expand_values.values())]
             for exp_value in expanded_values:
@@ -200,15 +218,17 @@ def output_to_input_from_combinations(output_path, valid_combinations, wildcards
     inputs = []
     for combo in matching_combos:
         try:
-            path = str(output_path).format(**combo)
-            inputs.append(path)
+            # Convert PosixPath to string explicitly
+            path = str(output_path[0] if isinstance(output_path, list) else output_path)
+            formatted_path = path.format(**combo)
+            inputs.append(str(formatted_path))  # Ensure the path is a string
         except KeyError as e:
             continue
-    
+        
     # Wrap with ancient() if requested
     if ancient_output:
         inputs = [ancient(path) for path in inputs]
-    
+        
     return inputs
 
 
@@ -264,7 +284,7 @@ def get_valid_combinations(df, data_type):
                     valid_combinations.append({
                         'plate': plate,
                         'well': well,
-                        'cycle': clean_value(cycle),
+                        'cycle': cycle,
                         'channel': row['channel']
                     })
         

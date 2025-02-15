@@ -6,7 +6,7 @@ metadata_df = extract_well_metadata(
     snakemake.input[0], 
     snakemake.params.plate,
     snakemake.params.well,
-    cycle
+    cycle,
 )
 
 # Save the extracted metadata to the output path

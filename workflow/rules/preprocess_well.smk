@@ -19,6 +19,7 @@ rule extract_metadata_sbs:
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
+        cycle=lambda wildcards: wildcards.cycle,
     script:
         "../scripts/preprocess/extract_well_metadata.py"
 
@@ -29,7 +30,7 @@ rule combine_metadata_sbs:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input_from_combinations(
-            PREPROCESS_OUTPUTS["extract_metadata_sbs"][0],
+            PREPROCESS_OUTPUTS["extract_metadata_sbs"],
             SBS_VALID_COMBINATIONS,
             wildcards,
         ),

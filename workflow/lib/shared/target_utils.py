@@ -224,6 +224,9 @@ def output_to_input_from_combinations(output_path, valid_combinations, wildcards
             inputs.append(str(formatted_path))  # Ensure the path is a string
         except KeyError as e:
             continue
+
+    # Deduplicate inputs before returning but keep order
+    inputs = list(dict.fromkeys(inputs))
         
     # Wrap with ancient() if requested
     if ancient_output:
@@ -339,3 +342,46 @@ def get_phenotype_combinations(df):
         print(warning)
 
     return valid_combinations
+
+
+def filter_outputs_by_cycle_index(outputs, index):
+    """Filter and select outputs by cycle index from sorted available cycles.
+    
+    Args:
+        outputs (list): List of output paths
+        index (int): Index to select from sorted cycles (-1 for last)
+        
+    Returns:
+        str: Selected path or empty string if not found
+    """  
+    # Extract and sort cycles
+    cycles = set()
+    for path in outputs:
+        if '_C-' in path and '__' in path:
+            cycle_str = path.split('_C-')[1].split('__')[0]
+            try:
+                cycles.add(int(cycle_str))
+            except ValueError:
+                continue
+    
+    available_cycles = sorted(list(cycles))
+    
+    if not available_cycles:
+        return str()
+        
+    # Handle negative indices
+    if index < 0:
+        index = len(available_cycles) + index
+    
+    # Validate index
+    if index < 0 or index >= len(available_cycles):
+        return str()
+        
+    # Get cycle number at requested index
+    target_cycle = available_cycles[index]
+    
+    # Filter for target cycle
+    cycle_str = f"_C-{str(target_cycle)}__"
+    filtered = list(set([path for path in outputs if cycle_str in path]))
+    
+    return str(filtered[0]) if filtered else str()

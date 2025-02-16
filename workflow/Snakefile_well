@@ -17,6 +17,7 @@ PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 
 # Load sbs samples if they exist
 sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
+SBS_SAMPLE_FPS = list(sbs_samples_df["sample_fp"].unique())
 if len(sbs_samples_df) > 0:
     SBS_TILES = [1, 2]  # TODO: unrestrict: range(config["preprocess"]["sbs_tiles"])
     SBS_VALID_COMBINATIONS = get_sbs_combinations(sbs_samples_df)
@@ -27,6 +28,9 @@ else:
 
 # Load phenotype samples if they exist
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
+# Make phenotype_samples_df empty
+phenotype_samples_df = pd.DataFrame()
+# PHENOTYPE_SAMPLE_FPS = list(phenotype_samples_df["sample_fp"].unique())
 if len(phenotype_samples_df) > 0:
     PHENOTYPE_TILES = [1, 2]  # TODO: unrestrict: range(config["preprocess"]["phenotype_tiles"])
     PHENOTYPE_VALID_COMBINATIONS = get_phenotype_combinations(phenotype_samples_df)
@@ -44,26 +48,26 @@ ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
 if "sbs" in config and len(SBS_SAMPLE_FPS) > 0:
     # Initialize parameter search configurations if needed
-    if config["sbs_process"]["mode"] == "segment_sbs_paramsearch":
+    if config["sbs"]["mode"] == "segment_sbs_paramsearch":
         config = initialize_segment_sbs_paramsearch(config)
 
     # Include target and rule files
-    include: "targets/sbs_process.smk"
-    include: "rules/sbs_process.smk"
+    include: "targets/sbs_well.smk"
+    include: "rules/sbs_well.smk"
 
-    ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
+    ALL_TARGETS += SBS_TARGETS_ALL
 
 
 if "phenotype" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
     # Initialize parameter search configurations if needed
-    if config["phenotype_process"]["mode"] == "segment_phenotype_paramsearch":
+    if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
         config = initialize_segment_phenotype_paramsearch(config)
 
     # Include target and rule files
-    include: "targets/phenotype_process.smk"
-    include: "rules/phenotype_process.smk"
+    include: "targets/phenotype.smk"
+    include: "rules/phenotype.smk"
 
-    ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
+    ALL_TARGETS += PHENOTYPE_TARGETS_ALL
 
 
 if "merge_process" in config:
@@ -82,7 +86,16 @@ if "aggregate_process" in config:
     include: "rules/aggregate_process.smk"
 
     ALL_TARGETS += AGGREGATE_PROCESS_TARGETS_ALL
-    
+
+
+if "cluster_process" in config:
+
+    # Include target and rule files
+    include: "targets/cluster_process.smk"
+    include: "rules/cluster_process.smk"
+
+    ALL_TARGETS += CLUSTER_PROCESS_TARGETS_ALL
+
 
 # Define the target files for the workflow
 rule all:

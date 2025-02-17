@@ -5,4 +5,4 @@ snakemake --use-conda --cores all \
     --snakefile "../workflow/Snakefile" \
     --configfile "config/config.yml" \
     --rerun-triggers mtime \
-    --until all_merge -n
+    --until fast_alignment -n

@@ -7,26 +7,33 @@ rule fast_alignment:
         "../envs/merge.yml"
     input:
         # metadata files with image locations
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
-            (
-                {}
-                if config["merge"]["ph_metadata_channel"] is None
-                else {"channel": config["merge"]["ph_metadata_channel"]}
-            ),
-            wildcards,
-            ancient_output=True,
-        ),
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["combine_metadata_sbs"],
-            (
-                {}
-                if config["merge"]["sbs_metadata_channel"] is None
-                else {"channel": config["merge"]["sbs_metadata_channel"]}
-            ),
-            wildcards,
-            ancient_output=True,
-        ),
+        lambda wildcards: ROOT_FP
+        / "preprocess"
+        / "metadata"
+        / "phenotype"
+        / f"P-{wildcards.plate}_W-{wildcards.well}__combined_metadata.parquet",
+        # lambda wildcards: f"/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/preprocess/metadata/sbs/P-{wildcards.plate}_W-{wildcards.well}__combined_metadata.parquet",
+        lambda wildcards: f"/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/preprocess/metadata/sbs/P-{wildcards.plate}_W-{wildcards.well}__combined_metadata.parquet",
+        # lambda wildcards: output_to_input(
+        #     PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+        #     (
+        #         {}
+        #         if config["merge"]["ph_metadata_channel"] is None
+        #         else {"channel": config["merge"]["ph_metadata_channel"]}
+        #     ),
+        #     wildcards,
+        #     ancient_output=True,
+        # ),
+        # lambda wildcards: output_to_input(
+        #     PREPROCESS_OUTPUTS["combine_metadata_sbs"],
+        #     (
+        #         {}
+        #         if config["merge"]["sbs_metadata_channel"] is None
+        #         else {"channel": config["merge"]["sbs_metadata_channel"]}
+        #     ),
+        #     wildcards,
+        #     ancient_output=True,
+        # ),
         PHENOTYPE_OUTPUTS["merge_phenotype_info"],
         SBS_OUTPUTS["combine_sbs_info"],
     output:

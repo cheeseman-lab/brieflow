@@ -4,6 +4,7 @@ These include:
 - Preprocessing cell location dataframes for hashing.
 - Generating hashed Delaunay triangulation for cells.
 - Performing initial and multistep alignment.
+- Extraction rotations from a 2D array.
 """
 
 import warnings
@@ -622,3 +623,26 @@ def remove_overlap(xs, ys):
     return [
         tuple(x) for x in xs if tuple(x) not in ys
     ]  # Return candidates that are not in existing matches
+
+
+def extract_rotation(rotations, rotation_num):
+    """Extract a specific rotation from a list or numpy array of rotations.
+
+    Args:
+        rotations (list or numpy.ndarray): List or array of rotations.
+        rotation_num (int): The rotation number to extract (1 or 2).
+
+    Returns:
+        The extracted rotation.
+
+    Raises:
+        ValueError: If rotation_num is not 1 or 2.
+    """
+    if not isinstance(rotations, (list, np.ndarray)):
+        return []
+    if rotation_num == 1:
+        return rotations[0]
+    elif rotation_num == 2:
+        return rotations[1]
+    else:
+        raise ValueError("Invalid rotation number: must be 1 or 2")

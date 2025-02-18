@@ -1,6 +1,6 @@
 import pandas as pd
 
-from lib.merge.hash import hash_cell_locations, multistep_alignment
+from lib.merge.hash import hash_cell_locations, multistep_alignment, extract_rotation
 
 
 # Load dfs with metadata on well level
@@ -42,9 +42,14 @@ well_alignment = multistep_alignment(
 # Reset index
 well_alignment.reset_index(drop=True, inplace=True)
 
+
 # Parse rotation into 2 columns
-well_alignment["rotation_1"] = well_alignment["rotation"].apply(lambda r: r[0])
-well_alignment["rotation_2"] = well_alignment["rotation"].apply(lambda r: r[1])
+well_alignment["rotation_1"] = well_alignment["rotation"].apply(
+    lambda r: extract_rotation(r, 1)
+)
+well_alignment["rotation_2"] = well_alignment["rotation"].apply(
+    lambda r: extract_rotation(r, 2)
+)
 well_alignment.drop(columns=["rotation"], inplace=True)
 
 # Add metadata to alignment data

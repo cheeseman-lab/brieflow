@@ -13,7 +13,7 @@ merge_deduplicated, deduplication_stats = deduplicate_cells(
     merge_cleaned, mapped_single_gene=False, return_stats=True
 )
 deduplication_stats.to_csv(snakemake.output[0], sep="\t", index=False)
-merge_deduplicated.to_parquet(snakemake.output[1], "x", mode="w")
+merge_deduplicated.to_parquet(snakemake.output[1])
 
 # Identify single gene mappings in SBS
 sbs_cells["mapped_single_gene"] = sbs_cells.apply(

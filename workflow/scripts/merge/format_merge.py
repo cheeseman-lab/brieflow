@@ -12,7 +12,6 @@ sbs_cells = pd.read_parquet(snakemake.input[1])
 phenotype_min_cp = pd.read_parquet(snakemake.input[2])
 
 # Add FOV distances for both imaging modalities
-print("Adding FOV distances...")
 merge_formatted = merge_data.pipe(
     fov_distance, i="i_0", j="j_0", dimensions=(2960, 2960), suffix="_0"
 )
@@ -36,7 +35,6 @@ merge_formatted = merge_formatted.merge(
 # Calculate minimum channel values for cells
 phenotype_min_cp = calculate_channel_mins(phenotype_min_cp)
 # Merge cell information from ph
-print("\nMerging cell intensity information from ph data...")
 merge_formatted = merge_formatted.merge(
     phenotype_min_cp[["tile", "label", "channels_min"]].rename(
         columns={"label": "cell_0"}

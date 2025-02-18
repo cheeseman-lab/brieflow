@@ -44,12 +44,12 @@ else:
 
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
-SBS_PLATES = [1, 2]
-SBS_WELLS = ["A1", "A2"]
-SBS_TILES = [1, 2]
-PHENOTYPE_PLATES = [1, 2]
-PHENOTYPE_WELLS = ["A1", "A2"]
-PHENOTYPE_TILES = [1, 2]
+SBS_PLATES = [1]
+SBS_WELLS = ["A1"]
+# # SBS_TILES = [1, 2]
+PHENOTYPE_PLATES = [1]
+PHENOTYPE_WELLS = ["A1"]
+# # PHENOTYPE_TILES = [1, 2]
 
 
 include: "targets/preprocess.smk"
@@ -105,13 +105,29 @@ if "merge" in config:
     ALL_TARGETS += MERGE_TARGETS_ALL
 
 
-if "aggregate" in config:
+# if "aggregate" in config:
+#     # TODO: remove after done testing (duplicated from merge)
+#     ALL_TARGETS = []
+#     # check if SBS and PHENOTYPE plates match
+#     if set(SBS_PLATES) == set(PHENOTYPE_PLATES):
+#         MERGE_PLATES = SBS_PLATES
+#     else:
+#         raise ValueError(
+#             "SBS_PLATES and PHENOTYPE_PLATES do not match. Merging requires identical plate sets."
+#         )
+#     # check if SBS and PHENOTYPE wells match
+#     if set(SBS_WELLS) == set(PHENOTYPE_WELLS):
+#         MERGE_WELLS = SBS_WELLS
+#     else:
+#         raise ValueError(
+#             "SBS_WELLS and PHENOTYPE_WELLS do not match. Merging requires identical well sets."
+#         )
 
-    # Include target and rule files
-    include: "targets/aggregate.smk"
-    include: "rules/aggregate.smk"
+#     # Include target and rule files
+#     include: "targets/aggregate.smk"
+#     include: "rules/aggregate.smk"
 
-    ALL_TARGETS += AGGREGATE_TARGETS_ALL
+#     ALL_TARGETS += AGGREGATE_TARGETS_ALL
 
 
 if "cluster" in config:

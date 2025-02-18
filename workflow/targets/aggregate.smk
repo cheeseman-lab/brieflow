@@ -80,7 +80,7 @@ AGGREGATE_OUTPUTS = {
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
-    "clean_and_transform": None,
+    "clean_transform_standardize": None,
     "standardize_features": None,
     "split_phases": None,
     "process_mitotic_gene_data": None,
@@ -92,13 +92,17 @@ AGGREGATE_OUTPUT_MAPPINGS = {
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
 
+NON_MONTAGE_WILDCARDS = {
+    "plate": MERGE_PLATES,
+    "well": MERGE_WELLS,
+}
 NON_MONTAGE_OUTPUTS = {
     rule_name: templates
     for rule_name, templates in AGGREGATE_OUTPUTS.items()
     if "generate" not in rule_name
 }
 NON_MONTAGE_TARGETS = outputs_to_targets(
-    NON_MONTAGE_OUTPUTS, {}, AGGREGATE_OUTPUT_MAPPINGS
+    NON_MONTAGE_OUTPUTS, NON_MONTAGE_WILDCARDS, AGGREGATE_OUTPUT_MAPPINGS
 )
 
 # determine combinations of genes, sgrna, and channel combinations from pool design file

@@ -7,4 +7,5 @@ dependencies:
   - joblib
   - pytables # need pytables defined in module env
   - pandas
+  - pyarrow
   - seaborn

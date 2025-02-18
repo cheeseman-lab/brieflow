@@ -7,7 +7,7 @@ from lib.merge.hash import hash_cell_locations, multistep_alignment
 phenotype_metadata = pd.read_parquet(snakemake.input[0])
 sbs_metadata = pd.read_parquet(snakemake.input[1])
 sbs_metadata = sbs_metadata[
-    sbs_metadata["cycle"] == snakemake.params.combine_metadata_sbs
+    sbs_metadata["cycle"] == snakemake.params.sbs_metadata_cycle
 ]
 # Load phentoype/sbs info on well level
 phenotype_info = pd.read_parquet(snakemake.input[2])
@@ -39,9 +39,18 @@ well_alignment = multistep_alignment(
     n_jobs=snakemake.threads,
 )
 
+# Reset index
+well_alignment.reset_index(drop=True, inplace=True)
+
+# Parse rotation into 2 columns
+well_alignment["rotation_1"] = well_alignment["rotation"].apply(lambda r: r[0])
+well_alignment["rotation_2"] = well_alignment["rotation"].apply(lambda r: r[1])
+well_alignment.drop(columns=["rotation"], inplace=True)
+
 # Add metadata to alignment data
 well_alignment["plate"] = snakemake.params.plate
 well_alignment["well"] = snakemake.params.well
+
 
 # Save alignment data
 well_alignment.to_parquet(snakemake.output[0])

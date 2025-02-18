@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 from lib.merge.merge import merge_triangle_hash
 
@@ -8,6 +9,10 @@ sbs_info = pd.read_parquet(snakemake.input[1])
 
 # Load alignment data
 fast_alignment = pd.read_parquet(snakemake.input[2])
+fast_alignment["rotation"] = fast_alignment.apply(
+    lambda row: np.array([row["rotation_1"], row["rotation_2"]]), axis=1
+)
+fast_alignment.drop(columns=["rotation_1", "rotation_2"], inplace=True)
 
 # Filter alignment data based on parameters
 fast_alignment_filtered = fast_alignment[

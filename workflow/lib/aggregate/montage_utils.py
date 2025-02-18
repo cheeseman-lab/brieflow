@@ -46,7 +46,11 @@ def add_filenames(merge_data, root_fp, montage_subset=False):
             / "preprocess"
             / "images"
             / "phenotype"
-            / get_filename({"well": row["well"], "tile": row["tile"]}, "image", "tiff")
+            / get_filename(
+                {"plate": row["plate"], "well": row["well"], "tile": row["tile"]},
+                "image",
+                "tiff",
+            )
         ),
         axis=1,
     )
@@ -56,6 +60,7 @@ def add_filenames(merge_data, root_fp, montage_subset=False):
         essential_columns = [
             "gene_symbol_0",
             "sgRNA_0",
+            "plate",
             "well",
             "tile",
             "i_0",

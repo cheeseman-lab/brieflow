@@ -1,40 +1,11 @@
 """This module provides functions for loading and formatting data during aggregation.
 
 Functions include:
-- Loading a subset of data from HDF files for efficient processing.
 - Cleaning cell data by removing unassigned or multi-gene cells.
 
 Functions:
-    - load_hdf_subset: Load a fixed number of random rows from an HDF file.
     - clean_cell_data: Clean cell data by filtering for valid and optionally single-gene cells.
 """
-
-import pandas as pd
-
-
-def load_hdf_subset(merge_final_fp, n_rows=20000, population_feature="gene_symbol_0"):
-    """Load a fixed number of random rows from an HDF file without loading entire file into memory.
-
-    Args:
-        merge_final_fp (str): Path to HDF file.
-        n_rows (int): Number of rows to get.
-        population_feature (str): Column name containing population identifiers.
-
-    Returns:
-        pd.DataFrame: Subset of the data with combined blocks.
-    """
-    print(f"Reading first {n_rows:,} rows from {merge_final_fp}")
-
-    # read the first n_rows of the file path
-    df = pd.read_hdf(merge_final_fp, stop=n_rows)
-
-    # print the number of unique populations
-    print(f"Unique populations: {df[population_feature].nunique()}")
-
-    # print the counts of the well variable
-    print(df["well"].value_counts())
-
-    return df
 
 
 def clean_cell_data(cell_measurements, population_feature, filter_single_gene=False):

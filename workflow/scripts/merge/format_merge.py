@@ -26,10 +26,18 @@ sbs_cells["mapped_single_gene"] = sbs_cells.apply(
 # Merge cell information from sbs
 merge_formatted = merge_formatted.merge(
     sbs_cells[
-        ["well", "tile", "cell", "sgRNA_0", "gene_symbol_0", "mapped_single_gene"]
+        [
+            "plate",
+            "well",
+            "tile",
+            "cell",
+            "sgRNA_0",
+            "gene_symbol_0",
+            "mapped_single_gene",
+        ]
     ].rename({"tile": "site", "cell": "cell_1"}, axis=1),
     how="left",
-    on=["well", "site", "cell_1"],
+    on=["plate", "well", "site", "cell_1"],
 )
 
 # Calculate minimum channel values for cells

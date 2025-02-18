@@ -22,61 +22,61 @@ AGGREGATE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "standardized_data", "parquet"
         ),
     ],
-    "split_phases": [
-        AGGREGATE_FP
-        / "parquets"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "mitotic_data", "parquet"
-        ),
-        AGGREGATE_FP
-        / "parquets"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "interphase_data", "parquet"
-        ),
-    ],
-    "process_mitotic_gene_data": [
-        AGGREGATE_FP / "tsvs" / "mitotic_gene_data.tsv",
-    ],
-    "process_interphase_gene_data": [
-        AGGREGATE_FP / "tsvs" / "interphase_gene_data.tsv",
-    ],
-    "process_all_gene_data": [
-        AGGREGATE_FP / "tsvs" / "all_gene_data.tsv",
-    ],
-    "prepare_mitotic_montage_data": [
-        AGGREGATE_FP / "parquets" / "mitotic_montage_data.parquet",
-    ],
-    "prepare_interphase_montage_data": [
-        AGGREGATE_FP / "parquets" / "interphase_montage_data.parquet",
-    ],
-    "generate_mitotic_montage": [
-        AGGREGATE_FP
-        / "tiffs"
-        / "mitotic_montages"
-        / get_filename(
-            {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
-            "montage",
-            "tiff",
-        ),
-    ],
-    "generate_interphase_montage": [
-        AGGREGATE_FP
-        / "tiffs"
-        / "interphase_montages"
-        / get_filename(
-            {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
-            "montage",
-            "tiff",
-        ),
-    ],
-    "eval_aggregate": [
-        AGGREGATE_FP / "eval" / "cell_feature_violins.png",
-        AGGREGATE_FP / "eval" / "nuclear_feature_violins.png",
-        AGGREGATE_FP / "eval" / "mitotic_missing.tsv",
-        AGGREGATE_FP / "eval" / "interphase_missing.tsv",
-        AGGREGATE_FP / "eval" / "all_missing.tsv",
-        AGGREGATE_FP / "eval" / "mitotic_stats.tsv",
-    ],
+    # "split_phases": [
+    #     AGGREGATE_FP
+    #     / "parquets"
+    #     / get_filename(
+    #         {"plate": "{plate}", "well": "{well}"}, "mitotic_data", "parquet"
+    #     ),
+    #     AGGREGATE_FP
+    #     / "parquets"
+    #     / get_filename(
+    #         {"plate": "{plate}", "well": "{well}"}, "interphase_data", "parquet"
+    #     ),
+    # ],
+    # "process_mitotic_gene_data": [
+    #     AGGREGATE_FP / "tsvs" / "mitotic_gene_data.tsv",
+    # ],
+    # "process_interphase_gene_data": [
+    #     AGGREGATE_FP / "tsvs" / "interphase_gene_data.tsv",
+    # ],
+    # "process_all_gene_data": [
+    #     AGGREGATE_FP / "tsvs" / "all_gene_data.tsv",
+    # ],
+    # "prepare_mitotic_montage_data": [
+    #     AGGREGATE_FP / "parquets" / "mitotic_montage_data.parquet",
+    # ],
+    # "prepare_interphase_montage_data": [
+    #     AGGREGATE_FP / "parquets" / "interphase_montage_data.parquet",
+    # ],
+    # "generate_mitotic_montage": [
+    #     AGGREGATE_FP
+    #     / "tiffs"
+    #     / "mitotic_montages"
+    #     / get_filename(
+    #         {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
+    #         "montage",
+    #         "tiff",
+    #     ),
+    # ],
+    # "generate_interphase_montage": [
+    #     AGGREGATE_FP
+    #     / "tiffs"
+    #     / "interphase_montages"
+    #     / get_filename(
+    #         {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
+    #         "montage",
+    #         "tiff",
+    #     ),
+    # ],
+    # "eval_aggregate": [
+    #     AGGREGATE_FP / "eval" / "cell_feature_violins.png",
+    #     AGGREGATE_FP / "eval" / "nuclear_feature_violins.png",
+    #     AGGREGATE_FP / "eval" / "mitotic_missing.tsv",
+    #     AGGREGATE_FP / "eval" / "interphase_missing.tsv",
+    #     AGGREGATE_FP / "eval" / "all_missing.tsv",
+    #     AGGREGATE_FP / "eval" / "mitotic_stats.tsv",
+    # ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {

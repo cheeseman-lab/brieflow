@@ -5,7 +5,7 @@ from lib.aggregate.feature_processing import feature_transform, grouped_standard
 
 
 # load final merged data
-merged_final = pd.read_hdf(snakemake.input[0])
+merged_final = pd.read_parquet(snakemake.input[0])
 
 # clean merged data
 cleaned_data = clean_cell_data(
@@ -43,4 +43,4 @@ standardized_data = grouped_standardization(
 del transformed_data
 
 # save standardized features
-standardized_data.to_hdf(snakemake.output[2], key="x", mode="w")
+standardized_data.to_parquet(snakemake.output[2])

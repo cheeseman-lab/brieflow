@@ -14,7 +14,7 @@ cleaned_data = clean_cell_data(
     filter_single_gene=snakemake.params["filter_single_gene"],
 )
 del merged_final
-cleaned_data.to_hdf(snakemake.output[0], key="data", mode="w")
+cleaned_data.to_parquet(snakemake.output[0])
 
 # transform cleaned data
 transformations = pd.read_csv(snakemake.params["transformations_fp"], sep="\t")
@@ -24,7 +24,7 @@ transformed_data = feature_transform(
     snakemake.params["channels"],
 )
 del cleaned_data
-transformed_data.to_hdf(snakemake.output[1], key="data", mode="w")
+transformed_data.to_parquet(snakemake.output[1])
 
 # determine target features
 feature_start_idx = transformed_data.columns.get_loc(snakemake.params["feature_start"])

@@ -4,7 +4,7 @@ from lib.aggregate.feature_processing import grouped_standardization
 from lib.aggregate.collapse_data import collapse_to_sgrna, collapse_to_gene
 
 # load cell data
-cell_data = pd.read_hdf(snakemake.input[0])
+cell_data = pd.concat([pd.read_parquet(p) for p in snakemake.input], ignore_index=True)
 
 # determine target features
 feature_start_idx = cell_data.columns.get_loc(snakemake.params["feature_start"])
@@ -42,4 +42,4 @@ gene_data = collapse_to_gene(
 del sgrna_data
 
 # save gene summaries
-gene_data.to_csv(snakemake.output[0], sep="\t")
+gene_data.to_csv(snakemake.output[0], sep="\t", index=False)

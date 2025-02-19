@@ -7,8 +7,9 @@ rule clean_transform_standardize:
         "../envs/aggregate.yml"
     input:
         # final merge data
+        # TODO: Update to use final merge data
         # ancient(MERGE_OUTPUTS["final_merge"]),
-        "/lab/barcheese01/rkern/brieflow/testing/test_final_merge.parquet",
+        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge/parquets/P-1_W-A1__merge_final.parquet",
     output:
         AGGREGATE_OUTPUTS_MAPPED["clean_transform_standardize"],
     params:
@@ -25,112 +26,132 @@ rule clean_transform_standardize:
         "../scripts/aggregate/clean_transform_standardize.py"
 
 
-# # Split mitotic and interphase data
-# rule split_phases:
-#     conda:
-#         "../envs/aggregate.yml"
-#     input:
-#         # standardized data
-#         AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["split_phases"],
-#     params:
-#         threshold_conditions=config["aggregate"]["threshold_conditions"],
-#     script:
-#         "../scripts/aggregate/split_phases.py"
+# Split mitotic and interphase data
+rule split_phases:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # standardized data
+        AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["split_phases"],
+    params:
+        threshold_conditions=config["aggregate"]["threshold_conditions"],
+    script:
+        "../scripts/aggregate/split_phases.py"
 
 
-# # Process mitotic gene data
-# rule process_mitotic_gene_data:
-#     conda:
-#         "../envs/aggregate.yml"
-#     input:
-#         # mitotic data
-#         AGGREGATE_OUTPUTS["split_phases"][0],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["process_mitotic_gene_data"],
-#     params:
-#         standardize_data=True,
-#         feature_start=config["aggregate"]["feature_start"],
-#         population_feature=config["aggregate"]["population_feature"],
-#         control_prefix=config["aggregate"]["control_prefix"],
-#         group_columns=config["aggregate"]["group_columns"],
-#         index_columns=config["aggregate"]["index_columns"],
-#         cat_columns=config["aggregate"]["cat_columns"],
-#     script:
-#         "../scripts/aggregate/process_gene_data.py"
+# Process mitotic gene data
+rule process_mitotic_gene_data:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # mitotic data
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["split_phases"][0],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["process_mitotic_gene_data"],
+    params:
+        standardize_data=True,
+        feature_start=config["aggregate"]["feature_start"],
+        population_feature=config["aggregate"]["population_feature"],
+        control_prefix=config["aggregate"]["control_prefix"],
+        group_columns=config["aggregate"]["group_columns"],
+        index_columns=config["aggregate"]["index_columns"],
+        cat_columns=config["aggregate"]["cat_columns"],
+    script:
+        "../scripts/aggregate/process_gene_data.py"
 
 
-# # Process interphase gene data
-# rule process_interphase_gene_data:
-#     conda:
-#         "../envs/aggregate.yml"
-#     input:
-#         # interphase data
-#         AGGREGATE_OUTPUTS["split_phases"][1],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["process_interphase_gene_data"],
-#     params:
-#         standardize_data=True,
-#         feature_start=config["aggregate"]["feature_start"],
-#         population_feature=config["aggregate"]["population_feature"],
-#         control_prefix=config["aggregate"]["control_prefix"],
-#         group_columns=config["aggregate"]["group_columns"],
-#         index_columns=config["aggregate"]["index_columns"],
-#         cat_columns=config["aggregate"]["cat_columns"],
-#     script:
-#         "../scripts/aggregate/process_gene_data.py"
+# Process interphase gene data
+rule process_interphase_gene_data:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # interphase data
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["split_phases"][1],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["process_interphase_gene_data"],
+    params:
+        standardize_data=True,
+        feature_start=config["aggregate"]["feature_start"],
+        population_feature=config["aggregate"]["population_feature"],
+        control_prefix=config["aggregate"]["control_prefix"],
+        group_columns=config["aggregate"]["group_columns"],
+        index_columns=config["aggregate"]["index_columns"],
+        cat_columns=config["aggregate"]["cat_columns"],
+    script:
+        "../scripts/aggregate/process_gene_data.py"
 
 
-# # Process all gene data
-# rule process_all_gene_data:
-#     conda:
-#         "../envs/aggregate.yml"
-#     input:
-#         # all standardized data
-#         AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["process_all_gene_data"],
-#     params:
-#         standardize_data=False,
-#         feature_start=config["aggregate"]["feature_start"],
-#         population_feature=config["aggregate"]["population_feature"],
-#         control_prefix=config["aggregate"]["control_prefix"],
-#         group_columns=config["aggregate"]["group_columns"],
-#         index_columns=config["aggregate"]["index_columns"],
-#         cat_columns=config["aggregate"]["cat_columns"],
-#     script:
-#         "../scripts/aggregate/process_gene_data.py"
+# Process all gene data
+rule process_all_gene_data:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # all standardized data
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["process_all_gene_data"],
+    params:
+        standardize_data=False,
+        feature_start=config["aggregate"]["feature_start"],
+        population_feature=config["aggregate"]["population_feature"],
+        control_prefix=config["aggregate"]["control_prefix"],
+        group_columns=config["aggregate"]["group_columns"],
+        index_columns=config["aggregate"]["index_columns"],
+        cat_columns=config["aggregate"]["cat_columns"],
+    script:
+        "../scripts/aggregate/process_gene_data.py"
 
 
-# # Prepare mitotic montage data
-# rule prepare_mitotic_montage_data:
-#     conda:
-#         "../envs/aggregate.yml"
-#     input:
-#         # mitotic standardized data
-#         AGGREGATE_OUTPUTS["split_phases"][0],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["prepare_mitotic_montage_data"],
-#     params:
-#         root_fp=config["all"]["root_fp"],
-#     script:
-#         "../scripts/aggregate/prepare_montage_data.py"
+# Prepare mitotic montage data
+rule prepare_mitotic_montage_data:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # mitotic standardized data
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["split_phases"][0],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["prepare_mitotic_montage_data"],
+    params:
+        root_fp=config["all"]["root_fp"],
+    script:
+        "../scripts/aggregate/prepare_montage_data.py"
 
 
-# # Prepare interphase montage data
-# rule prepare_interphase_montage_data:
-#     conda:
-#         "../envs/aggregate.yml"
-#     input:
-#         # interphase standardized data
-#         AGGREGATE_OUTPUTS["split_phases"][1],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["prepare_interphase_montage_data"],
-#     params:
-#         root_fp=config["all"]["root_fp"],
-#     script:
-#         "../scripts/aggregate/prepare_montage_data.py"
+# Prepare interphase montage data
+rule prepare_interphase_montage_data:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # interphase standardized data
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["split_phases"][1],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["prepare_interphase_montage_data"],
+    params:
+        root_fp=config["all"]["root_fp"],
+    script:
+        "../scripts/aggregate/prepare_montage_data.py"
 
 
 # # TODO: Optimize montage generation to operate faster! We should try to:

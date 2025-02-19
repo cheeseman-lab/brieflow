@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from lib.aggregate.load_format_data import add_filenames
+from lib.aggregate.montage_utils import add_filenames
 
 # load cell data
-cell_data = pd.read_hdf(snakemake.input[0])
+cell_data = pd.concat([pd.read_parquet(p) for p in snakemake.input], ignore_index=True)
 
 # prepare for montage
 prepared_cell_data = add_filenames(
@@ -13,4 +13,4 @@ prepared_cell_data = add_filenames(
 )
 
 # save prepared data
-prepared_cell_data.to_hdf(snakemake.output[0], key="x", mode="w")
+prepared_cell_data.to_parquet(snakemake.output[0])

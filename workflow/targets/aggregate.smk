@@ -22,33 +22,33 @@ AGGREGATE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "standardized_data", "parquet"
         ),
     ],
-    # "split_phases": [
-    #     AGGREGATE_FP
-    #     / "parquets"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}"}, "mitotic_data", "parquet"
-    #     ),
-    #     AGGREGATE_FP
-    #     / "parquets"
-    #     / get_filename(
-    #         {"plate": "{plate}", "well": "{well}"}, "interphase_data", "parquet"
-    #     ),
-    # ],
-    # "process_mitotic_gene_data": [
-    #     AGGREGATE_FP / "tsvs" / "mitotic_gene_data.tsv",
-    # ],
-    # "process_interphase_gene_data": [
-    #     AGGREGATE_FP / "tsvs" / "interphase_gene_data.tsv",
-    # ],
-    # "process_all_gene_data": [
-    #     AGGREGATE_FP / "tsvs" / "all_gene_data.tsv",
-    # ],
-    # "prepare_mitotic_montage_data": [
-    #     AGGREGATE_FP / "parquets" / "mitotic_montage_data.parquet",
-    # ],
-    # "prepare_interphase_montage_data": [
-    #     AGGREGATE_FP / "parquets" / "interphase_montage_data.parquet",
-    # ],
+    "split_phases": [
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "mitotic_data", "parquet"
+        ),
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "interphase_data", "parquet"
+        ),
+    ],
+    "process_mitotic_gene_data": [
+        AGGREGATE_FP / "tsvs" / "mitotic_gene_data.tsv",
+    ],
+    "process_interphase_gene_data": [
+        AGGREGATE_FP / "tsvs" / "interphase_gene_data.tsv",
+    ],
+    "process_all_gene_data": [
+        AGGREGATE_FP / "tsvs" / "all_gene_data.tsv",
+    ],
+    "prepare_mitotic_montage_data": [
+        AGGREGATE_FP / "parquets" / "mitotic_montage_data.parquet",
+    ],
+    "prepare_interphase_montage_data": [
+        AGGREGATE_FP / "parquets" / "interphase_montage_data.parquet",
+    ],
     # "generate_mitotic_montage": [
     #     AGGREGATE_FP
     #     / "tiffs"
@@ -84,10 +84,13 @@ AGGREGATE_OUTPUT_MAPPINGS = {
     "standardize_features": None,
     "split_phases": None,
     "process_mitotic_gene_data": None,
+    "process_interphase_gene_data": None,
     "process_all_gene_data": None,
     "prepare_mitotic_montage_data": None,
     "prepare_interphase_montage_data": None,
     "generate_mitotic_montage": None,
+    "generate_interphase_montage": None,
+    "eval_aggregate": None,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)

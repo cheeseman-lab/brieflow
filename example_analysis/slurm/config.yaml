@@ -144,3 +144,13 @@ set-resources:
         mem_mb: 2000
     eval_aggregate:
         mem_mb: 500000
+
+    # cluster
+    generate_dataset:
+        mem_mb: 2000
+    phate_leiden_clustering:
+        mem_mb: 2000
+    benchmark_clusters:
+        mem_mb: 2000
+    cluster_eval:
+        mem_mb: 2000

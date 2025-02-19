@@ -69,14 +69,14 @@ AGGREGATE_OUTPUTS = {
     #         "tiff",
     #     ),
     # ],
-    # "eval_aggregate": [
-    #     AGGREGATE_FP / "eval" / "cell_feature_violins.png",
-    #     AGGREGATE_FP / "eval" / "nuclear_feature_violins.png",
-    #     AGGREGATE_FP / "eval" / "mitotic_missing.tsv",
-    #     AGGREGATE_FP / "eval" / "interphase_missing.tsv",
-    #     AGGREGATE_FP / "eval" / "all_missing.tsv",
-    #     AGGREGATE_FP / "eval" / "mitotic_stats.tsv",
-    # ],
+    "eval_aggregate": [
+        AGGREGATE_FP / "eval" / "cell_feature_violins.png",
+        AGGREGATE_FP / "eval" / "nuclear_feature_violins.png",
+        AGGREGATE_FP / "eval" / "mitotic_missing.tsv",
+        AGGREGATE_FP / "eval" / "interphase_missing.tsv",
+        AGGREGATE_FP / "eval" / "all_missing.tsv",
+        AGGREGATE_FP / "eval" / "mitotic_stats.tsv",
+    ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {

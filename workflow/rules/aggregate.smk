@@ -7,9 +7,7 @@ rule clean_transform_standardize:
         "../envs/aggregate.yml"
     input:
         # final merge data
-        # TODO: Update to use final merge data
-        # ancient(MERGE_OUTPUTS["final_merge"]),
-        "/lab/barcheese01/rkern/brieflow/example_analysis/analysis_root/merge/parquets/P-1_W-A1__merge_final.parquet",
+        ancient(MERGE_OUTPUTS["final_merge"]),
     output:
         AGGREGATE_OUTPUTS_MAPPED["clean_transform_standardize"],
     params:
@@ -154,10 +152,10 @@ rule prepare_interphase_montage_data:
         "../scripts/aggregate/prepare_montage_data.py"
 
 
-# # TODO: Optimize montage generation to operate faster! We should try to:
-# # 1. Restrict montage generation attempts to those that we have data for
-# # 2. Save each channel montage for a gene/sgrna pair during one rule call
-# # 3. Possibly parallelize across a rule so that we only need to load cell data once
+# TODO: Optimize montage generation to operate faster! We should try to:
+# 1. Restrict montage generation attempts to those that we have data for
+# 2. Save each channel montage for a gene/sgrna pair during one rule call
+# 3. Possibly parallelize across a rule so that we only need to load cell data once
 
 
 # # Create mitotic montages data
@@ -190,29 +188,40 @@ rule prepare_interphase_montage_data:
 #         "../scripts/aggregate/generate_montage.py"
 
 
-# rule eval_aggregate:
-#     conda:
-#         "../envs/aggregate.yml"
-#     input:
-#         # cleaned data
-#         AGGREGATE_OUTPUTS["clean_transform_standardize"][0],
-#         # transformed data
-#         AGGREGATE_OUTPUTS["clean_transform_standardize"][1],
-#         # standardized data
-#         AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
-#         # processed mitotic data
-#         AGGREGATE_OUTPUTS["process_mitotic_gene_data"],
-#         # processed interphase data
-#         AGGREGATE_OUTPUTS["process_interphase_gene_data"],
-#         # all processed gene data
-#         AGGREGATE_OUTPUTS["process_all_gene_data"],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
-#     params:
-#         population_feature=config["aggregate"]["population_feature"],
-#         channels=config["phenotype"]["channel_names"],
-#     script:
-#         "../scripts/aggregate/eval_aggregate.py"
+rule eval_aggregate:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # cleaned data
+        cleaned_data_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["clean_transform_standardize"][0],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+        # transformed data
+        transformed_data_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["clean_transform_standardize"][1],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+        # standardized data
+        standardized_data_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+        # processed mitotic data
+        mitotic_gene_data=AGGREGATE_OUTPUTS["process_mitotic_gene_data"],
+        # processed interphase data
+        interphase_gene_data=AGGREGATE_OUTPUTS["process_interphase_gene_data"],
+        # all processed gene data
+        all_gene_data=AGGREGATE_OUTPUTS["process_all_gene_data"],
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
+    params:
+        channels=config["phenotype"]["channel_names"],
+    script:
+        "../scripts/aggregate/eval_aggregate.py"
 
 
 # Rule for all aggregate processing steps

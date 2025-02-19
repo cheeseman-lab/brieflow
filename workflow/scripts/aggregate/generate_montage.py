@@ -5,7 +5,7 @@ from tifffile import imwrite
 from lib.aggregate.montage_utils import create_cell_montage
 
 # read cell data
-cell_data = pd.read_hdf(snakemake.input[0])
+cell_data = pd.read_parquet(snakemake.input[0])
 
 # subset data to inly include target gene and sgrna combination
 cell_data = cell_data[

@@ -108,6 +108,7 @@ include: "rules/preprocess.smk"
 if "aggregate" in config:
     # TODO: remove after done testing (duplicated from merge)
     ALL_TARGETS = []
+
     # check if SBS and PHENOTYPE plates match
     if set(SBS_PLATES) == set(PHENOTYPE_PLATES):
         MERGE_PLATES = SBS_PLATES
@@ -115,7 +116,7 @@ if "aggregate" in config:
         raise ValueError(
             "SBS_PLATES and PHENOTYPE_PLATES do not match. Merging requires identical plate sets."
         )
-    # check if SBS and PHENOTYPE wells match
+        # check if SBS and PHENOTYPE wells match
     if set(SBS_WELLS) == set(PHENOTYPE_WELLS):
         MERGE_WELLS = SBS_WELLS
     else:
@@ -123,6 +124,7 @@ if "aggregate" in config:
             "SBS_WELLS and PHENOTYPE_WELLS do not match. Merging requires identical well sets."
         )
 
+    include: "targets/merge.smk"
     # Include target and rule files
     include: "targets/aggregate.smk"
     include: "rules/aggregate.smk"

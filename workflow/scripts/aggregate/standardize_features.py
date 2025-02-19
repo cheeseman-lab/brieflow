@@ -13,11 +13,11 @@ target_features = transformed_data.columns[feature_start_idx:].tolist()
 # standardize data
 standardized_data = grouped_standardization(
     transformed_data,
-    population_feature=snakemake.params["population_feature"],
-    control_prefix=snakemake.params["control_prefix"],
-    group_columns=snakemake.params["group_columns"],
-    index_columns=snakemake.params["index_columns"],
-    cat_columns=snakemake.params["cat_columns"],
+    population_feature=snakemake.params.population_feature,
+    control_prefix=snakemake.params.control_prefix,
+    group_columns=snakemake.params.group_columns,
+    index_columns=snakemake.params.index_columns,
+    cat_columns=snakemake.params.cat_columns,
     target_features=target_features,
     drop_features=False,
 )

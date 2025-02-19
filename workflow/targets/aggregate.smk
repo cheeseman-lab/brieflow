@@ -49,26 +49,27 @@ AGGREGATE_OUTPUTS = {
     "prepare_interphase_montage_data": [
         AGGREGATE_FP / "parquets" / "interphase_montage_data.parquet",
     ],
-    # "generate_mitotic_montage": [
-    #     AGGREGATE_FP
-    #     / "tiffs"
-    #     / "mitotic_montages"
-    #     / get_filename(
-    #         {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
-    #         "montage",
-    #         "tiff",
-    #     ),
-    # ],
-    # "generate_interphase_montage": [
-    #     AGGREGATE_FP
-    #     / "tiffs"
-    #     / "interphase_montages"
-    #     / get_filename(
-    #         {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
-    #         "montage",
-    #         "tiff",
-    #     ),
-    # ],
+    "generate_mitotic_montage": [
+        AGGREGATE_FP
+        / "tiffs"
+        / "mitotic_montages"
+        / get_filename(
+            {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
+            "montage",
+            "tiff",
+        ),
+    ],
+    "generate_interphase_montage": [
+        AGGREGATE_FP
+        / "tiffs"
+        / "interphase_montages"
+        / "{gene}"
+        / get_filename(
+            {"sgrna": "{sgrna}", "channel": "{channel}"},
+            "montage",
+            "tiff",
+        ),
+    ],
     "eval_aggregate": [
         AGGREGATE_FP / "eval" / "cell_feature_violins.png",
         AGGREGATE_FP / "eval" / "nuclear_feature_violins.png",
@@ -81,13 +82,12 @@ AGGREGATE_OUTPUTS = {
 
 AGGREGATE_OUTPUT_MAPPINGS = {
     "clean_transform_standardize": None,
-    "standardize_features": None,
     "split_phases": None,
     "process_mitotic_gene_data": None,
     "process_interphase_gene_data": None,
     "process_all_gene_data": None,
-    "prepare_mitotic_montage_data": None,
-    "prepare_interphase_montage_data": None,
+    "prepare_mitotic_montage_data": temp,
+    "prepare_interphase_montage_data": temp,
     "generate_mitotic_montage": None,
     "generate_interphase_montage": None,
     "eval_aggregate": None,
@@ -124,6 +124,9 @@ montage_combinations = (
     .merge(pd.DataFrame({"channel": channels, "key": 1}), on="key")
     .drop("key", axis=1)
 )
+# TODO: remove montage limit
+montage_combinations = montage_combinations.head(100)
+print(montage_combinations)
 
 MONTAGE_WILDCARDS = {
     "gene": montage_combinations["gene_symbol_0"].to_list(),

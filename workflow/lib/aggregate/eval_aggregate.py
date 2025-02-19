@@ -164,7 +164,7 @@ def plot_feature_distributions(combined_cell_data, features, remove_clean=False)
                 ax=ax2,
                 inner=None,
                 cut=0,
-                scale="width",
+                density_norm="width",
                 split=False,
                 alpha=0.5,
             )

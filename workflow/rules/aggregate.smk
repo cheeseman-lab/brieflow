@@ -158,34 +158,34 @@ rule prepare_interphase_montage_data:
 # 3. Possibly parallelize across a rule so that we only need to load cell data once
 
 
-# # Create mitotic montages data
-# rule generate_mitotic_montage:
-#     conda:
-#         "../envs/aggregate.yml"
-#     input:
-#         # mitotic montage data
-#         AGGREGATE_OUTPUTS["prepare_mitotic_montage_data"],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["generate_mitotic_montage"],
-#     params:
-#         channels=config["phenotype"]["channel_names"],
-#     script:
-#         "../scripts/aggregate/generate_montage.py"
+# Create mitotic montages data
+rule generate_mitotic_montage:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # mitotic montage data
+        AGGREGATE_OUTPUTS["prepare_mitotic_montage_data"],
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["generate_mitotic_montage"],
+    params:
+        channels=config["phenotype"]["channel_names"],
+    script:
+        "../scripts/aggregate/generate_montage.py"
 
 
-# # Create interphase montages data
-# rule generate_interphase_montage:
-#     conda:
-#         "../envs/aggregate.yml"
-#     input:
-#         # mitotic montage data
-#         AGGREGATE_OUTPUTS["prepare_interphase_montage_data"],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["generate_interphase_montage"],
-#     params:
-#         channels=config["phenotype"]["channel_names"],
-#     script:
-#         "../scripts/aggregate/generate_montage.py"
+# Create interphase montages data
+rule generate_interphase_montage:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # mitotic montage data
+        AGGREGATE_OUTPUTS["prepare_interphase_montage_data"],
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["generate_interphase_montage"],
+    params:
+        channels=config["phenotype"]["channel_names"],
+    script:
+        "../scripts/aggregate/generate_montage.py"
 
 
 rule eval_aggregate:

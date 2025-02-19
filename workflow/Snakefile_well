@@ -28,9 +28,7 @@ else:
 
 # Load phenotype samples if they exist
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
-# Make phenotype_samples_df empty
-phenotype_samples_df = pd.DataFrame()
-# PHENOTYPE_SAMPLE_FPS = list(phenotype_samples_df["sample_fp"].unique())
+PHENOTYPE_SAMPLE_FPS = list(phenotype_samples_df["sample_fp"].unique())
 if len(phenotype_samples_df) > 0:
     PHENOTYPE_TILES = [1, 2]  # TODO: unrestrict: range(config["preprocess"]["phenotype_tiles"])
     PHENOTYPE_VALID_COMBINATIONS = get_phenotype_combinations(phenotype_samples_df)
@@ -64,8 +62,8 @@ if "phenotype" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
         config = initialize_segment_phenotype_paramsearch(config)
 
     # Include target and rule files
-    include: "targets/phenotype.smk"
-    include: "rules/phenotype.smk"
+    include: "targets/phenotype_well.smk"
+    include: "rules/phenotype_well.smk"
 
     ALL_TARGETS += PHENOTYPE_TARGETS_ALL
 

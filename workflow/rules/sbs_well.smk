@@ -1,5 +1,5 @@
-from lib.shared.target_utils import output_to_input, output_to_input_from_combinations, filter_outputs_by_cycle_index
-
+from lib.shared.target_utils import output_to_input, output_to_input_from_combinations
+from lib.shared.rule_utils import filter_outputs_by_cycle_index
 
 # Align images from each sequencing round
 rule align_sbs:
@@ -244,58 +244,53 @@ rule combine_sbs_info:
         "../scripts/shared/combine_dfs.py"
 
 
-# rule eval_segmentation_sbs:
-#     conda:
-#         "../envs/sbs.yml"
-#     input:
-#         # path to segmentation stats for well/tile
-#         segmentation_stats_paths=lambda wildcards: output_to_input_from_combinations(
-#             SBS_OUTPUTS["segment_sbs"][2],
-#             [combo for combo in SBS_VALID_COMBINATIONS 
-#              if combo.get('plate') == wildcards.plate],
-#             wildcards,
-#             expand_values={"tile": SBS_TILES}
-#         ),
-#         # path to combined cell data
-#         cells_paths=lambda wildcards: output_to_input_from_combinations(
-#             SBS_OUTPUTS["combine_cells"],
-#             [combo for combo in SBS_VALID_COMBINATIONS 
-#              if combo.get('plate') == wildcards.plate],
-#             wildcards
-#         ),
-#     output:
-#         SBS_OUTPUTS_MAPPED["eval_segmentation_sbs"],
-#     script:
-#         "../scripts/shared/eval_segmentation.py"
+rule eval_segmentation_sbs:
+    conda:
+        "../envs/sbs.yml"
+    input:
+        segmentation_stats_paths=lambda wildcards: (
+            output_to_input_from_combinations(
+                SBS_OUTPUTS["segment_sbs"][2],
+                SBS_VALID_COMBINATIONS,
+                wildcards,
+                expand_values={"tile": SBS_TILES}
+            )
+        ),
+        cells_paths=lambda wildcards: output_to_input_from_combinations(
+            SBS_OUTPUTS["combine_cells"],
+            SBS_VALID_COMBINATIONS,
+            wildcards
+        ),
+    output:
+        SBS_OUTPUTS_MAPPED["eval_segmentation_sbs"],
+    script:
+        "../scripts/shared/eval_segmentation.py"
 
-# rule eval_mapping:
-#     conda:
-#         "../envs/sbs.yml"
-#     input:
-#         reads_paths=lambda wildcards: output_to_input_from_combinations(
-#             SBS_OUTPUTS["combine_reads"],
-#             [combo for combo in SBS_VALID_COMBINATIONS 
-#              if combo.get('plate') == wildcards.plate],
-#             wildcards
-#         ),
-#         cells_paths=lambda wildcards: output_to_input_from_combinations(
-#             SBS_OUTPUTS["combine_cells"],
-#             [combo for combo in SBS_VALID_COMBINATIONS 
-#              if combo.get('plate') == wildcards.plate],
-#             wildcards
-#         ),
-#         sbs_info_paths=lambda wildcards: output_to_input_from_combinations(
-#             SBS_OUTPUTS["combine_sbs_info"],
-#             [combo for combo in SBS_VALID_COMBINATIONS 
-#              if combo.get('plate') == wildcards.plate],
-#             wildcards
-#         ),
-#     output:
-#         SBS_OUTPUTS_MAPPED["eval_mapping"],
-#     params:
-#         df_design_path=config["sbs"]["df_design_path"],
-#     script:
-#         "../scripts/sbs/eval_mapping.py"
+rule eval_mapping:
+    conda:
+        "../envs/sbs.yml"
+    input:
+        reads_paths=lambda wildcards: output_to_input_from_combinations(
+            SBS_OUTPUTS["combine_reads"],
+            SBS_VALID_COMBINATIONS,
+            wildcards
+        ),
+        cells_paths=lambda wildcards: output_to_input_from_combinations(
+            SBS_OUTPUTS["combine_cells"],
+            SBS_VALID_COMBINATIONS,
+            wildcards
+        ),
+        sbs_info_paths=lambda wildcards: output_to_input_from_combinations(
+            SBS_OUTPUTS["combine_sbs_info"],
+            SBS_VALID_COMBINATIONS,
+            wildcards
+        ),
+    output:
+        SBS_OUTPUTS_MAPPED["eval_mapping"],
+    params:
+        df_design_path=config["sbs"]["df_design_path"],
+    script:
+        "../scripts/sbs/eval_mapping.py"
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["sbs"]["mode"] == "segment_sbs_paramsearch":

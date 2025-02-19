@@ -117,81 +117,81 @@ SBS_OUTPUTS = {
         / "parquets"
         / get_filename({"plate": "{plate}", "well": "{well}"}, "sbs_info", "parquet"),
     ],
-    # "eval_segmentation_sbs": [
-    #     SBS_FP
-    #     / "eval"
-    #     / "segmentation"
-    #     / get_filename({"plate": "{plate}"}, "segmentation_overview", "tsv"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "segmentation"
-    #     / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "tsv"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "segmentation"
-    #     / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "png"),
-    # ],
-    # "eval_mapping": [
-    #     SBS_FP
-    #     / "eval"
-    #     / "mapping"
-    #     / get_filename({"plate": "{plate}"}, "mapping_vs_threshold_peak", "png"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "mapping"
-    #     / get_filename({"plate": "{plate}"}, "mapping_vs_threshold_qmin", "png"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "mapping"
-    #     / get_filename({"plate": "{plate}"}, "read_mapping_heatmap", "png"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "mapping"
-    #     / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_one", "tsv"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "mapping"
-    #     / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_one", "png"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "mapping"
-    #     / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_any", "tsv"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "mapping"
-    #     / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_any", "png"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "mapping"
-    #     / get_filename({"plate": "{plate}"}, "reads_per_cell_histogram", "png"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "mapping"
-    #     / get_filename({"plate": "{plate}"}, "gene_symbol_histogram", "png"),
-    #     SBS_FP
-    #     / "eval"
-    #     / "mapping"
-    #     / get_filename({"plate": "{plate}"}, "mapping_overview", "tsv"),
-    # ],
+    "eval_segmentation_sbs": [
+        SBS_FP
+        / "eval"
+        / "segmentation"
+        / get_filename({"plate": "{plate}"}, "segmentation_overview", "tsv"),
+        SBS_FP
+        / "eval"
+        / "segmentation"
+        / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "tsv"),
+        SBS_FP
+        / "eval"
+        / "segmentation"
+        / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "png"),
+    ],
+    "eval_mapping": [
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "mapping_vs_threshold_peak", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "mapping_vs_threshold_qmin", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "read_mapping_heatmap", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_one", "tsv"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_one", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_any", "tsv"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_any", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "reads_per_cell_histogram", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "gene_symbol_histogram", "png"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "mapping_overview", "tsv"),
+    ],
 }
 
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": temp,
-    "log_filter": temp,
-    "compute_standard_deviation": temp,
-    "find_peaks": temp,
-    "max_filter": temp,
-    "apply_ic_field_sbs": temp,
+    "align_sbs": None,
+    "log_filter": None,
+    "compute_standard_deviation": None,
+    "find_peaks": None,
+    "max_filter": None,
+    "apply_ic_field_sbs": None,
     "segment_sbs": None,
-    "extract_bases": temp,
-    "call_reads": temp,
-    "call_cells": temp,
-    "extract_sbs_info": temp,
-    "combine_reads": protected,
-    "combine_cells": protected,
-    "combine_sbs_info": protected,
-    "eval_segmentation_sbs": protected,
-    "eval_mapping": protected,
+    "extract_bases": None,
+    "call_reads": None,
+    "call_cells": None,
+    "extract_sbs_info": None,
+    "combine_reads": None,
+    "combine_cells": None,
+    "combine_sbs_info": None,
+    "eval_segmentation_sbs": None,
+    "eval_mapping": None,
 }
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
@@ -316,13 +316,13 @@ SBS_TARGETS_ALL = (
     outputs_to_targets_with_combinations(
         SBS_OUTPUTS["combine_sbs_info"],
         SBS_VALID_COMBINATIONS
-    ) 
-    # outputs_to_targets_with_combinations(
-    #     SBS_OUTPUTS["eval_segmentation_sbs"],
-    #     [{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]
-    # ) +
-    # outputs_to_targets_with_combinations(
-    #     SBS_OUTPUTS["eval_mapping"],
-    #     [{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]
-    # )
+    ) +
+    outputs_to_targets_with_combinations(
+        SBS_OUTPUTS["eval_segmentation_sbs"],
+        [{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]
+    ) +
+    outputs_to_targets_with_combinations(
+        SBS_OUTPUTS["eval_mapping"],
+        [{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]
+    )
 )

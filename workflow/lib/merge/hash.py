@@ -387,29 +387,17 @@ def multistep_alignment(
         )
         return result
 
-    # If initial_sites is provided as a list of known matches, use it directly
-    if isinstance(initial_sites, list):
-        arr = []
-        for tile, site in initial_sites:
-            result = work_on(
-                well_triangles_0.query("tile==@tile"),
-                well_triangles_1.query("site==@site"),
-            )
-            result.at["site"] = site
-            result.at["tile"] = tile
-            arr.append(result)
-        df_initial = pd.DataFrame(arr)
-    else:
-        # Otherwise, sample initial_sites number of sites randomly from well_triangles_1
-        sites = (
-            pd.Series(well_locations_1.index)
-            .sample(initial_sites, replace=False, random_state=0)
-            .pipe(list)
+    # use initial_sites directly to determine initial matches
+    arr = []
+    for tile, site in initial_sites:
+        result = work_on(
+            well_triangles_0.query("tile==@tile"),
+            well_triangles_1.query("site==@site"),
         )
-        # Use brute force to find initial pairs of matches between tiles and sites
-        df_initial = brute_force_pairs(
-            well_triangles_0, well_triangles_1.query("site == @sites"), n_jobs=n_jobs
-        )
+        result.at["site"] = site
+        result.at["tile"] = tile
+        arr.append(result)
+    df_initial = pd.DataFrame(arr)
 
     # Unpack det_range tuple into d0 and d1
     d0, d1 = det_range
@@ -464,55 +452,6 @@ def multistep_alignment(
             break
 
     return df_align
-
-
-def brute_force_pairs(tiles_df_0, tiles_df_1, n_jobs=-2):
-    """Evaluate all pairs of tiles (sites) between two DataFrames to find the best matches.
-
-    Args:
-        tiles_df_0 (pandas.DataFrame): DataFrame containing the first set of tiles (sites).
-        tiles_df_1 (pandas.DataFrame): DataFrame containing the second set of tiles (sites).
-        n_jobs (int, optional): Number of jobs to run in parallel. Defaults to -2, which
-            uses all but one core.
-
-    Returns:
-        pandas.DataFrame: DataFrame containing the results of the matching process, sorted by score.
-    """
-    work = tiles_df_1.groupby("site")
-
-    arr = []
-    for site, df_s in work:
-
-        def work_on(df_t):
-            rotation, translation, score = evaluate_match(
-                df_t, df_s
-            )  # Evaluate match for each tile pair
-            determinant = (
-                None if rotation is None else np.linalg.det(rotation)
-            )  # Calculate determinant if rotation is not None
-            result = pd.Series(
-                {
-                    "rotation": rotation,
-                    "translation": translation,
-                    "score": score,
-                    "determinant": determinant,
-                }
-            )  # Create a result series
-            return result
-
-        (
-            tiles_df_0.pipe(
-                gb_apply_parallel, "tile", work_on, n_jobs=n_jobs
-            )  # Apply work_on function in parallel
-            .assign(site=site)  # Assign site to the results
-            .pipe(arr.append)  # Append results to the list
-        )
-
-    return (
-        pd.concat(arr)
-        .reset_index()  # Concatenate all results and reset index
-        .sort_values("score", ascending=False)
-    )  # Sort results by score in descending order
 
 
 def gb_apply_parallel(df, cols, func, n_jobs=None, backend="loky"):

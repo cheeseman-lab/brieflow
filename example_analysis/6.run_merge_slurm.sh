@@ -21,7 +21,7 @@ snakemake --executor slurm --use-conda \
     --configfile "config/config.yml" \
     --latency-wait 60 \
     --rerun-triggers mtime \
-    --until all_merge -n
+    --until all_merge
 
 # End timing and calculate duration
 end_time=$(date +%s)

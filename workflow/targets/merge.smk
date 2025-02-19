@@ -97,8 +97,8 @@ MERGE_OUTPUT_MAPPINGS = {
     "merge": temp,
     "format_merge": temp,
     "eval_merge": None,
-    "clean_merge": temp,
-    "deduplicate_merge": temp,
+    "clean_merge": None,
+    "deduplicate_merge": None,
     "final_merge": protected,
 }
 

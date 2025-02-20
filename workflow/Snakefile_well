@@ -19,7 +19,7 @@ PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
 SBS_SAMPLE_FPS = list(sbs_samples_df["sample_fp"].unique())
 if len(sbs_samples_df) > 0:
-    SBS_TILES = [1, 2]  # TODO: unrestrict: range(config["preprocess"]["sbs_tiles"])
+    SBS_TILES = range(1,3) # range(config["preprocess"]["sbs_tiles"])
     SBS_VALID_COMBINATIONS = get_sbs_combinations(sbs_samples_df)
 else:
     print("No SBS samples found!")
@@ -30,7 +30,7 @@ else:
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
 PHENOTYPE_SAMPLE_FPS = list(phenotype_samples_df["sample_fp"].unique())
 if len(phenotype_samples_df) > 0:
-    PHENOTYPE_TILES = [1, 2]  # TODO: unrestrict: range(config["preprocess"]["phenotype_tiles"])
+    PHENOTYPE_TILES = range(1,3) # range(config["preprocess"]["phenotype_tiles"])
     PHENOTYPE_VALID_COMBINATIONS = get_phenotype_combinations(phenotype_samples_df)
 else:
     print("No phenotype samples found!")

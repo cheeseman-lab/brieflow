@@ -1,5 +1,5 @@
 from lib.preprocess.file_utils import get_sample_fps
-from lib.shared.target_utils import output_to_input
+from lib.shared.target_utils import output_to_input_from_combinations
 
 
 # Extract metadata for SBS images
@@ -31,10 +31,11 @@ rule combine_metadata_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-            {"tile": SBS_TILES, "cycle": SBS_CYCLES},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards,
+            expand_values={"tile": SBS_TILES},
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
@@ -69,10 +70,11 @@ rule combine_metadata_phenotype:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-            {"tile": PHENOTYPE_TILES},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
+            expand_values={"tile": PHENOTYPE_TILES},
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
@@ -126,10 +128,11 @@ rule calculate_ic_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_sbs"],
-            {"tile": SBS_TILES},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PREPROCESS_OUTPUTS["convert_sbs"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards,
+            expand_values={"tile": SBS_TILES}
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_sbs"],
@@ -144,10 +147,11 @@ rule calculate_ic_phenotype:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_phenotype"],
-            {"tile": PHENOTYPE_TILES},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PREPROCESS_OUTPUTS["convert_phenotype"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
+            expand_values={"tile": PHENOTYPE_TILES}
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],

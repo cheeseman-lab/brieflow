@@ -139,7 +139,7 @@ def outputs_to_targets_with_combinations(output_templates, valid_combinations, e
                     'plate': combo['plate'],
                     'well': combo['well'],
                     'cycle': combo['cycle'] if 'cycle' in combo else None,
-                    'channel': combo['channel'],
+                    'channel': combo['channel'] if 'channel' in combo else None,
                     'tile': extra_val
                 }
                 
@@ -283,29 +283,50 @@ def get_valid_combinations(df, data_type):
                 if cycle_df.empty:
                     continue
                 
-                for _, row in cycle_df.iterrows():
-                    valid_combinations.append({
-                        'plate': plate,
-                        'well': well,
-                        'cycle': cycle,
-                        'channel': row['channel']
-                    })
-        
-        else:  # Phenotype data
-            # For phenotype data, check for missing channels
-            all_channels = sorted(df['channel'].unique())
-            channels_in_well = sorted(well_df['channel'].unique())
-            missing_channels = set(all_channels) - set(channels_in_well)
-            
-            if missing_channels:
-                warnings.append(f"Warning: Plate {plate}, Well {well} is missing channels: {sorted(missing_channels)}")
-            
-            for _, row in well_df.iterrows():
-                valid_combinations.append({
+                # Base combination dict
+                base_combo = {
                     'plate': plate,
                     'well': well,
-                    'channel': row['channel']
-                })
+                    'cycle': cycle
+                }
+                
+                # Add channel if it exists for this specific cycle
+                if 'channel' in df.columns:
+                    channels_in_cycle = cycle_df['channel'].unique()
+                    if len(channels_in_cycle) > 0:
+                        for channel in channels_in_cycle:
+                            combo = base_combo.copy()
+                            combo['channel'] = channel
+                            valid_combinations.append(combo)
+                    else:
+                        # If no channels for this cycle, just add the cycle info
+                        valid_combinations.append(base_combo)
+                else:
+                    valid_combinations.append(base_combo)
+        
+        else:  # Phenotype data
+            # Base combination dict
+            base_combo = {
+                'plate': plate,
+                'well': well
+            }
+            
+            # For phenotype data, check for missing channels only if channels are present
+            if 'channel' in df.columns:
+                all_channels = sorted(df['channel'].unique())
+                channels_in_well = sorted(well_df['channel'].unique())
+                missing_channels = set(all_channels) - set(channels_in_well)
+                
+                if missing_channels:
+                    warnings.append(f"Warning: Plate {plate}, Well {well} is missing channels: {sorted(missing_channels)}")
+                
+                for _, row in well_df.iterrows():
+                    combo = base_combo.copy()
+                    combo['channel'] = row['channel']
+                    valid_combinations.append(combo)
+            else:
+                # No channels, just add plate and well
+                valid_combinations.append(base_combo)
     
     return valid_combinations, warnings
 

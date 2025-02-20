@@ -194,13 +194,6 @@ SBS_OUTPUT_MAPPINGS = {
     "eval_mapping": protected,
 }
 
-SBS_WILDCARDS = {
-    "plate": SBS_PLATES,
-    "well": SBS_WELLS,
-    "tile": SBS_TILES,
-    "cycle": SBS_CYCLES,
-}
-
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
 #     SBS_OUTPUTS.update(
@@ -255,6 +248,81 @@ SBS_WILDCARDS = {
 
 SBS_OUTPUTS_MAPPED = map_outputs(SBS_OUTPUTS, SBS_OUTPUT_MAPPINGS)
 
-SBS_TARGETS = outputs_to_targets(SBS_OUTPUTS, SBS_WILDCARDS, SBS_OUTPUT_MAPPINGS)
-
-SBS_TARGETS_ALL = sum(SBS_TARGETS.values(), [])
+SBS_TARGETS_ALL = (
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["align_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["log_filter"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["compute_standard_deviation"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["find_peaks"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["max_filter"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["apply_ic_field_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["segment_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["extract_bases"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["call_reads"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["call_cells"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["extract_sbs_info"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    # Targets that don't need tiles
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["combine_reads"],
+        valid_combinations=SBS_VALID_COMBINATIONS
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["combine_cells"],
+        valid_combinations=SBS_VALID_COMBINATIONS
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["combine_sbs_info"],
+        valid_combinations=SBS_VALID_COMBINATIONS
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["eval_segmentation_sbs"],
+        valid_combinations=[{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=SBS_OUTPUTS["eval_mapping"],
+        valid_combinations=[{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]
+    )
+)

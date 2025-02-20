@@ -1,4 +1,4 @@
-from lib.shared.target_utils import output_to_input, output_to_input_from_combinations
+from lib.shared.target_utils import output_to_input_from_combinations
 from lib.shared.rule_utils import filter_outputs_by_cycle_index
 
 # Align images from each sequencing round
@@ -7,9 +7,9 @@ rule align_sbs:
         "../envs/sbs.yml"
     input:
         lambda wildcards: output_to_input_from_combinations(
-            PREPROCESS_OUTPUTS["convert_sbs"],
-            SBS_VALID_COMBINATIONS,
-            wildcards,
+            output_path=PREPROCESS_OUTPUTS["convert_sbs"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards,
             expand_values={"tile": [wildcards.tile]}, 
             ancient_output=True,
         ),
@@ -84,25 +84,23 @@ rule apply_ic_field_sbs:
         "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["align_sbs"],
-        # dapi illumination correction field from first cycle
         lambda wildcards: filter_outputs_by_cycle_index(
             output_to_input_from_combinations(
-                PREPROCESS_OUTPUTS["calculate_ic_sbs"],
-                SBS_VALID_COMBINATIONS,
-                wildcards,
+                output_path=PREPROCESS_OUTPUTS["calculate_ic_sbs"],
+                valid_combinations=SBS_VALID_COMBINATIONS,
+                wildcars=wildcards,
                 ancient_output=True,
             ),
-            index=0  # First cycle
+            index=0
         ),
-        # illumination correction field from segmentation cycle
         lambda wildcards: filter_outputs_by_cycle_index(
             output_to_input_from_combinations(
-                PREPROCESS_OUTPUTS["calculate_ic_sbs"],
-                SBS_VALID_COMBINATIONS,
-                wildcards,
+                output_path=PREPROCESS_OUTPUTS["calculate_ic_sbs"],
+                valid_combinations=SBS_VALID_COMBINATIONS,
+                wildcars=wildcards,
                 ancient_output=True,
             ),
-            index=-1  # Last cycle
+            index=config["sbs"]["segmentation_cycle_index"]
         ),
     output:
         SBS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
@@ -201,9 +199,9 @@ rule combine_reads:
         "../envs/sbs.yml"
     input:
         lambda wildcards: output_to_input_from_combinations(
-            SBS_OUTPUTS["call_reads"],
-            SBS_VALID_COMBINATIONS,
-            wildcards,
+            output_path=SBS_OUTPUTS["call_reads"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards,
             expand_values={"tile": SBS_TILES}
         ),
     output:
@@ -217,10 +215,11 @@ rule combine_cells:
     conda:
         "../envs/sbs.yml"
     input:
-        lambda wildcards: output_to_input(
-            SBS_OUTPUTS["call_cells"],
-            {"tile": SBS_TILES},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=SBS_OUTPUTS["call_cells"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards,
+            expand_values={"tile": SBS_TILES}
         ),
     output:
         SBS_OUTPUTS_MAPPED["combine_cells"],
@@ -233,10 +232,11 @@ rule combine_sbs_info:
     conda:
         "../envs/sbs.yml"
     input:
-        lambda wildcards: output_to_input(
-            SBS_OUTPUTS["extract_sbs_info"],
-            {"tile": SBS_TILES},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=SBS_OUTPUTS["extract_sbs_info"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards,
+            expand_values={"tile": SBS_TILES}
         ),
     output:
         SBS_OUTPUTS_MAPPED["combine_sbs_info"],
@@ -248,18 +248,16 @@ rule eval_segmentation_sbs:
     conda:
         "../envs/sbs.yml"
     input:
-        segmentation_stats_paths=lambda wildcards: (
-            output_to_input_from_combinations(
-                SBS_OUTPUTS["segment_sbs"][2],
-                SBS_VALID_COMBINATIONS,
-                wildcards,
-                expand_values={"tile": SBS_TILES}
-            )
+        segmentation_stats_paths=lambda wildcards: output_to_input_from_combinations(
+            output_path=SBS_OUTPUTS["segment_sbs"][2],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards,
+            expand_values={"tile": SBS_TILES}
         ),
         cells_paths=lambda wildcards: output_to_input_from_combinations(
-            SBS_OUTPUTS["combine_cells"],
-            SBS_VALID_COMBINATIONS,
-            wildcards
+            output_path=SBS_OUTPUTS["combine_cells"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards
         ),
     output:
         SBS_OUTPUTS_MAPPED["eval_segmentation_sbs"],
@@ -271,19 +269,19 @@ rule eval_mapping:
         "../envs/sbs.yml"
     input:
         reads_paths=lambda wildcards: output_to_input_from_combinations(
-            SBS_OUTPUTS["combine_reads"],
-            SBS_VALID_COMBINATIONS,
-            wildcards
+            output_path=SBS_OUTPUTS["combine_reads"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards
         ),
         cells_paths=lambda wildcards: output_to_input_from_combinations(
-            SBS_OUTPUTS["combine_cells"],
-            SBS_VALID_COMBINATIONS,
-            wildcards
+            output_path=SBS_OUTPUTS["combine_cells"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards
         ),
         sbs_info_paths=lambda wildcards: output_to_input_from_combinations(
-            SBS_OUTPUTS["combine_sbs_info"],
-            SBS_VALID_COMBINATIONS,
-            wildcards
+            output_path=SBS_OUTPUTS["combine_sbs_info"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards
         ),
     output:
         SBS_OUTPUTS_MAPPED["eval_mapping"],

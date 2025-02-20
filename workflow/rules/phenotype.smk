@@ -1,4 +1,5 @@
-from lib.shared.target_utils import output_to_input
+from lib.shared.target_utils import output_to_input, output_to_input_from_combinations
+from lib.shared.rule_utils import get_alignment_params
 
 
 # Apply illumination correction field
@@ -6,16 +7,11 @@ rule apply_ic_field_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_phenotype"],
-            {},
-            wildcards,
-            ancient_output=True,
-        ),
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
-            {},
-            wildcards,
+        PREPROCESS_OUTPUTS["convert_phenotype"],
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
             ancient_output=True,
         ),
     output:
@@ -29,19 +25,11 @@ rule align_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        PHENOTYPE_OUTPUTS["apply_ic_field_phenotype"],
+        PHENOTYPE_OUTPUTS["apply_ic_field_phenotype"]
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"],
+        PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"]
     params:
-        align=config["phenotype"]["align"],
-        target=config["phenotype"]["target"] if config["phenotype"]["align"] else None,
-        source=config["phenotype"]["source"] if config["phenotype"]["align"] else None,
-        riders=config["phenotype"]["riders"] if config["phenotype"]["align"] else None,
-        remove_channel=(
-            config["phenotype"]["remove_channel"]
-            if config["phenotype"]["align"]
-            else None
-        ),
+        config=lambda wildcards: get_alignment_params(wildcards, config)
     script:
         "../scripts/phenotype/align_phenotype.py"
 
@@ -96,15 +84,15 @@ rule extract_phenotype_info:
         "../scripts/shared/extract_phenotype_minimal.py"
 
 
-# Combine phenotype info results from different tiles
 rule merge_phenotype_info:
     conda:
         "../envs/phenotype.yml"
     input:
-        lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["extract_phenotype_info"],
-            {"tile": PHENOTYPE_TILES},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PHENOTYPE_OUTPUTS["extract_phenotype_info"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
+            expand_values={"tile": PHENOTYPE_TILES}
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_info"],
@@ -133,15 +121,15 @@ rule extract_phenotype_cp:
         "../scripts/phenotype/extract_phenotype_cp_multichannel.py"
 
 
-# Combine phenotype results from different tiles
 rule merge_phenotype_cp:
     conda:
         "../envs/phenotype.yml"
     input:
-        lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
-            {"tile": PHENOTYPE_TILES},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
+            expand_values={"tile": PHENOTYPE_TILES}
         ),
     params:
         channel_names=config["phenotype"]["channel_names"],
@@ -151,44 +139,40 @@ rule merge_phenotype_cp:
         "../scripts/phenotype/merge_phenotype_cp.py"
 
 
-# Evaluate segmentation results
+# Evaluation rules need to use valid combinations
 rule eval_segmentation_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        # path to segmentation stats for well/tile
-        segmentation_stats_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["segment_phenotype"][2],
-            {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PHENOTYPE_OUTPUTS["segment_phenotype"][2],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
+            expand_values={"tile": PHENOTYPE_TILES}
         ),
-        # paths to combined cell data
-        cells_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype_info"][0],
-            {"well": PHENOTYPE_WELLS},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PHENOTYPE_OUTPUTS["merge_phenotype_info"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
     script:
         "../scripts/shared/eval_segmentation.py"
 
-
 rule eval_features:
     conda:
         "../envs/phenotype.yml"
     input:
-        # use minimum phenotype CellProfiler features for evaluation
-        cells_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
-            {"well": PHENOTYPE_WELLS},
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],
     script:
         "../scripts/phenotype/eval_features.py"
-
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":

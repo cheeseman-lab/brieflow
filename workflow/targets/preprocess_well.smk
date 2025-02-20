@@ -55,14 +55,14 @@ PREPROCESS_OUTPUTS = {
 }
 
 PREPROCESS_OUTPUT_MAPPINGS = {
-    "extract_metadata_sbs": None,
-    "combine_metadata_sbs": None,
-    "extract_metadata_phenotype": None,
-    "combine_metadata_phenotype": None,
+    "extract_metadata_sbs": temp,
+    "combine_metadata_sbs": protected,
+    "extract_metadata_phenotype": temp,
+    "combine_metadata_phenotype": protected,
     "convert_sbs": None,
     "convert_phenotype": None,
-    "calculate_ic_sbs": None,
-    "calculate_ic_phenotype": None,
+    "calculate_ic_sbs": protected,
+    "calculate_ic_phenotype": protected,
 }
 
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
@@ -70,42 +70,42 @@ PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MA
 # Generate SBS preprocessing targets
 PREPROCESS_TARGETS_SBS = (
     outputs_to_targets_with_combinations(
-        PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-        SBS_VALID_COMBINATIONS
+        output_templates=PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
     ) +
     outputs_to_targets_with_combinations(
-        PREPROCESS_OUTPUTS["combine_metadata_sbs"],
-        SBS_VALID_COMBINATIONS
+        output_templates=PREPROCESS_OUTPUTS["combine_metadata_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS
     ) +
     outputs_to_targets_with_combinations(
-        PREPROCESS_OUTPUTS["convert_sbs"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=PREPROCESS_OUTPUTS["convert_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        PREPROCESS_OUTPUTS["calculate_ic_sbs"],
-        SBS_VALID_COMBINATIONS
+        output_templates=PREPROCESS_OUTPUTS["calculate_ic_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS
     )
 )
 
 # Generate phenotype preprocessing targets
 PREPROCESS_TARGETS_PHENOTYPE = (
     outputs_to_targets_with_combinations(
-        PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-        PHENOTYPE_VALID_COMBINATIONS
+        output_templates=PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
     ) +
     outputs_to_targets_with_combinations(
-        PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
-        PHENOTYPE_VALID_COMBINATIONS
+        output_templates=PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS
     ) +
     outputs_to_targets_with_combinations(
-        PREPROCESS_OUTPUTS["convert_phenotype"],
-        PHENOTYPE_VALID_COMBINATIONS,
-        PHENOTYPE_TILES
+        output_templates=PREPROCESS_OUTPUTS["convert_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        extra_keys=PHENOTYPE_TILES
     ) +
     outputs_to_targets_with_combinations(
-        PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
-        PHENOTYPE_VALID_COMBINATIONS
+        output_templates=PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS
     ) 
 )
 

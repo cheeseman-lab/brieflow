@@ -8,11 +8,10 @@ rule apply_ic_field_phenotype:
         "../envs/phenotype.yml"
     input:
         PREPROCESS_OUTPUTS["convert_phenotype"],
-        # 
         lambda wildcards: output_to_input_from_combinations(
-            PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
-            PHENOTYPE_VALID_COMBINATIONS,
-            wildcards,
+            output_path=PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
             ancient_output=True,
         ),
     output:
@@ -90,9 +89,9 @@ rule merge_phenotype_info:
         "../envs/phenotype.yml"
     input:
         lambda wildcards: output_to_input_from_combinations(
-            PHENOTYPE_OUTPUTS["extract_phenotype_info"],
-            PHENOTYPE_VALID_COMBINATIONS,
-            wildcards,
+            output_path=PHENOTYPE_OUTPUTS["extract_phenotype_info"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
             expand_values={"tile": PHENOTYPE_TILES}
         ),
     output:
@@ -127,9 +126,9 @@ rule merge_phenotype_cp:
         "../envs/phenotype.yml"
     input:
         lambda wildcards: output_to_input_from_combinations(
-            PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
-            PHENOTYPE_VALID_COMBINATIONS,
-            wildcards,
+            output_path=PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
             expand_values={"tile": PHENOTYPE_TILES}
         ),
     params:
@@ -145,16 +144,16 @@ rule eval_segmentation_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        segmentation_stats_paths=lambda wildcards: output_to_input_from_combinations(
-            PHENOTYPE_OUTPUTS["segment_phenotype"][2],
-            PHENOTYPE_VALID_COMBINATIONS,
-            wildcards,
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PHENOTYPE_OUTPUTS["segment_phenotype"][2],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
             expand_values={"tile": PHENOTYPE_TILES}
         ),
-        cells_paths=lambda wildcards: output_to_input_from_combinations(
-            PHENOTYPE_OUTPUTS["merge_phenotype_info"],
-            PHENOTYPE_VALID_COMBINATIONS,
-            wildcards
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PHENOTYPE_OUTPUTS["merge_phenotype_info"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
@@ -165,10 +164,10 @@ rule eval_features:
     conda:
         "../envs/phenotype.yml"
     input:
-        cells_paths=lambda wildcards: output_to_input_from_combinations(
-            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],  # Using the min parquet file
-            PHENOTYPE_VALID_COMBINATIONS,
-            wildcards
+        lambda wildcards: output_to_input_from_combinations(
+            output_path=PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],

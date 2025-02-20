@@ -250,79 +250,79 @@ SBS_OUTPUTS_MAPPED = map_outputs(SBS_OUTPUTS, SBS_OUTPUT_MAPPINGS)
 
 SBS_TARGETS_ALL = (
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["align_sbs"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["align_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["log_filter"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["log_filter"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["compute_standard_deviation"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["compute_standard_deviation"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["find_peaks"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["find_peaks"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["max_filter"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["max_filter"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["apply_ic_field_sbs"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["apply_ic_field_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["segment_sbs"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["segment_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["extract_bases"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["extract_bases"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["call_reads"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["call_reads"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["call_cells"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["call_cells"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["extract_sbs_info"],
-        SBS_VALID_COMBINATIONS,
-        SBS_TILES
+        output_templates=SBS_OUTPUTS["extract_sbs_info"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
     ) +
     # Targets that don't need tiles
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["combine_reads"],
-        SBS_VALID_COMBINATIONS
+        output_templates=SBS_OUTPUTS["combine_reads"],
+        valid_combinations=SBS_VALID_COMBINATIONS
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["combine_cells"],
-        SBS_VALID_COMBINATIONS
+        output_templates=SBS_OUTPUTS["combine_cells"],
+        valid_combinations=SBS_VALID_COMBINATIONS
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["combine_sbs_info"],
-        SBS_VALID_COMBINATIONS
+        output_templates=SBS_OUTPUTS["combine_sbs_info"],
+        valid_combinations=SBS_VALID_COMBINATIONS
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["eval_segmentation_sbs"],
-        [{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]
+        output_templates=SBS_OUTPUTS["eval_segmentation_sbs"],
+        valid_combinations=[{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]
     ) +
     outputs_to_targets_with_combinations(
-        SBS_OUTPUTS["eval_mapping"],
-        [{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]
+        output_templates=SBS_OUTPUTS["eval_mapping"],
+        valid_combinations=[{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]
     )
 )

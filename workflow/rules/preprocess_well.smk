@@ -30,9 +30,9 @@ rule combine_metadata_sbs:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input_from_combinations(
-            PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-            SBS_VALID_COMBINATIONS,
-            wildcards,
+            output_path=PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
@@ -66,9 +66,9 @@ rule combine_metadata_phenotype:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input_from_combinations(
-            PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-            PHENOTYPE_VALID_COMBINATIONS,
-            wildcards,
+            output_path=PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
@@ -126,9 +126,9 @@ rule calculate_ic_sbs:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input_from_combinations(
-            PREPROCESS_OUTPUTS["convert_sbs"],
-            SBS_VALID_COMBINATIONS,
-            wildcards,
+            output_path=PREPROCESS_OUTPUTS["convert_sbs"],
+            valid_combinations=SBS_VALID_COMBINATIONS,
+            wildcards=wildcards,
             expand_values={"tile": SBS_TILES}
         ),
     output:
@@ -145,9 +145,9 @@ rule calculate_ic_phenotype:
         "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input_from_combinations(
-            PREPROCESS_OUTPUTS["convert_phenotype"],
-            PHENOTYPE_VALID_COMBINATIONS,
-            wildcards,
+            output_path=PREPROCESS_OUTPUTS["convert_phenotype"],
+            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+            wildcards=wildcards,
             expand_values={"tile": PHENOTYPE_TILES}
         ),
     output:

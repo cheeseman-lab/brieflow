@@ -134,11 +134,6 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "eval_features": protected,
 }
 
-PHENOTYPE_WILDCARDS = {
-    "plate": PHENOTYPE_PLATES,
-    "well": PHENOTYPE_WELLS,
-    "tile": PHENOTYPE_TILES,
-}
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
@@ -203,8 +198,54 @@ PHENOTYPE_WILDCARDS = {
 
 PHENOTYPE_OUTPUTS_MAPPED = map_outputs(PHENOTYPE_OUTPUTS, PHENOTYPE_OUTPUT_MAPPINGS)
 
-PHENOTYPE_TARGETS = outputs_to_targets(
-    PHENOTYPE_OUTPUTS, PHENOTYPE_WILDCARDS, PHENOTYPE_OUTPUT_MAPPINGS
+PHENOTYPE_TARGETS_ALL = (
+    # Targets that need tiles
+    outputs_to_targets_with_combinations(
+        output_templates=PHENOTYPE_OUTPUTS["apply_ic_field_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        extra_keys=PHENOTYPE_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PHENOTYPE_OUTPUTS["align_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        extra_keys=PHENOTYPE_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PHENOTYPE_OUTPUTS["segment_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        extra_keys=PHENOTYPE_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PHENOTYPE_OUTPUTS["identify_cytoplasm"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        extra_keys=PHENOTYPE_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PHENOTYPE_OUTPUTS["extract_phenotype_info"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        extra_keys=PHENOTYPE_TILES
+    ) +
+    # Targets that don't need tiles
+    outputs_to_targets_with_combinations(
+        output_templates=PHENOTYPE_OUTPUTS["merge_phenotype_info"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        extra_keys=PHENOTYPE_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PHENOTYPE_OUTPUTS["merge_phenotype_cp"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS
+    ) +
+    # Evaluation targets (plate level only)
+    outputs_to_targets_with_combinations(
+        output_templates=PHENOTYPE_OUTPUTS["eval_segmentation_phenotype"],
+        valid_combinations=[{"plate": combo["plate"]} for combo in PHENOTYPE_VALID_COMBINATIONS]
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PHENOTYPE_OUTPUTS["eval_features"],
+        valid_combinations=[{"plate": combo["plate"]} for combo in PHENOTYPE_VALID_COMBINATIONS]
+    )
 )
-
-PHENOTYPE_TARGETS_ALL = sum(PHENOTYPE_TARGETS.values(), [])

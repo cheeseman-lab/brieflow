@@ -15,6 +15,7 @@ import sys
 
 import numpy as np
 import pandas as pd
+from collections import defaultdict
 
 from cellpose.models import Cellpose
 from skimage.util import img_as_ubyte
@@ -386,6 +387,25 @@ def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
     nucleus_map = get_unique_label_map(
         regionprops(nuclei_eroded, intensity_image=cells)
     )
+
+    # Always get the multiple nuclei mapping for analysis
+    cell_map_multiple = get_unique_label_map(
+        regionprops(cells, intensity_image=nuclei_eroded), 
+        keep_multiple=True
+    )
+    
+    # Count cells with multiple nuclei
+    nuclei_per_cell = defaultdict(int)
+    for cell_label, nuclei_labels in cell_map_multiple.items():
+        nuclei_per_cell[len(nuclei_labels)] += 1
+    
+    # Print statistics
+    print("\nNuclei per cell statistics:")
+    print("--------------------------")
+    for num_nuclei, count in sorted(nuclei_per_cell.items()):
+        print(f"Cells with {num_nuclei} nuclei: {count}")
+    print("--------------------------\n")
+
     if how == "contained_in_cells":
         cell_map = get_unique_label_map(
             regionprops(cells, intensity_image=nuclei_eroded), keep_multiple=True

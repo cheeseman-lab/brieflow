@@ -1,5 +1,5 @@
 from lib.shared.file_utils import get_filename
-from lib.shared.target_utils import map_outputs, outputs_to_targets
+from lib.shared.target_utils import map_outputs, outputs_to_targets_with_combinations
 
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
@@ -128,39 +128,52 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "calculate_ic_sbs": protected,
     "calculate_ic_phenotype": protected,
 }
+
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 
 # Generate SBS preprocessing targets
-SBS_WILDCARDS = {
-    "plate": SBS_PLATES,
-    "well": SBS_WELLS,
-    "tile": SBS_TILES,
-    "cycle": SBS_CYCLES,
-}
-PREPROCESS_OUTPUTS_SBS = {
-    rule_name: templates
-    for rule_name, templates in PREPROCESS_OUTPUTS.items()
-    if "sbs" in rule_name
-}
-PREPROCESS_TARGETS_SBS = outputs_to_targets(
-    PREPROCESS_OUTPUTS_SBS, SBS_WILDCARDS, PREPROCESS_OUTPUT_MAPPINGS
+PREPROCESS_TARGETS_SBS = (
+    outputs_to_targets_with_combinations(
+        output_templates=PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PREPROCESS_OUTPUTS["combine_metadata_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PREPROCESS_OUTPUTS["convert_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS,
+        extra_keys=SBS_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PREPROCESS_OUTPUTS["calculate_ic_sbs"],
+        valid_combinations=SBS_VALID_COMBINATIONS
+    )
 )
 
 # Generate phenotype preprocessing targets
-PHENOTYPE_WILDCARDS = {
-    "plate": PHENOTYPE_PLATES,
-    "well": PHENOTYPE_WELLS,
-    "tile": PHENOTYPE_TILES,
-}
-PREPROCESS_OUTPUTS_PHENOTYPE = {
-    rule_name: templates
-    for rule_name, templates in PREPROCESS_OUTPUTS.items()
-    if "phenotype" in rule_name
-}
-PREPROCESS_TARGETS_PHENOTYPE = outputs_to_targets(
-    PREPROCESS_OUTPUTS_PHENOTYPE, PHENOTYPE_WILDCARDS, PREPROCESS_OUTPUT_MAPPINGS
+PREPROCESS_TARGETS_PHENOTYPE = (
+    outputs_to_targets_with_combinations(
+        output_templates=PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        extra_keys=PHENOTYPE_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PREPROCESS_OUTPUTS["convert_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        extra_keys=PHENOTYPE_TILES
+    ) +
+    outputs_to_targets_with_combinations(
+        output_templates=PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
+        valid_combinations=PHENOTYPE_VALID_COMBINATIONS
+    ) 
 )
+
 # Combine all preprocessing targets
-PREPROCESS_TARGETS_ALL = sum(PREPROCESS_TARGETS_SBS.values(), []) + sum(
-    PREPROCESS_TARGETS_PHENOTYPE.values(), []
-)
+PREPROCESS_TARGETS_ALL = PREPROCESS_TARGETS_SBS + PREPROCESS_TARGETS_PHENOTYPE

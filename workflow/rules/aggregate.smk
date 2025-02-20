@@ -1,4 +1,5 @@
 from lib.shared.target_utils import output_to_input
+from lib.shared.file_utils import parse_filename, get_filename
 
 
 # Clean, transform, and standardize merged data
@@ -168,26 +169,49 @@ checkpoint prepare_mitotic_montage_data:
             wildcards,
         ),
     output:
-        directory(AGGREGATE_FP / "tsvs" / "mitotic_montage_data"),
+        directory(AGGREGATE_FP / "montages" / "mitotic_montage_data"),
     params:
         root_fp=config["all"]["root_fp"],
     script:
         "../scripts/aggregate/prepare_montage_data.py"
 
 
-def get_mitotic_montage_inputs(wildcards):
-    checkpoint_output = Path(
-        checkpoints.prepare_mitotic_montage_data.get(**wildcards).output[0]
+def get_montage_inputs(montage_data_checkpoint):
+    output_file_template = (
+        AGGREGATE_FP
+        / "montages"
+        / "mitotic_montages"
+        / get_filename(
+            {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
+            "montage",
+            "tiff",
+        )
     )
 
-    # Get actual existing files
-    tsv_files = list(checkpoint_output.glob("*.tsv"))
+    # Resolve the checkpoint output directory using .get()
+    checkpoint_output = Path(montage_data_checkpoint.get().output[0])
 
-    # Extract the gene_sgrna parts and make output paths
+    # Get actual existing files
+    montage_data_files = list(checkpoint_output.glob("*.tsv"))
+
+    # Get the list of channels from config
+    channels = config["phenotype"]["channel_names"]
+
+    # Extract the gene_sgrna parts and make output paths for each channel
     output_files = []
-    for tsv_file in tsv_files:
-        output_name = tsv_file.stem + ".tiff"
-        output_files.append(output_name)
+    for montage_data_file in montage_data_files:
+        # parse gene, sgrna from filename
+        print(montage_data_file)
+        file_metadata = parse_filename(montage_data_file)[0]
+        gene = file_metadata["gene"]
+        sgrna = file_metadata["sgrna"]
+
+        for channel in channels:
+            output_file = str(output_file_template).format(
+                gene=gene, sgrna=sgrna, channel=channel
+            )
+            print(output_file)
+            output_files.append(output_file)
 
     return output_files
 
@@ -197,9 +221,22 @@ rule generate_mitotic_montage:
     conda:
         "../envs/aggregate.yml"
     input:
-        AGGREGATE_FP / "tsvs" / "mitotic_montage_data" / "{gene}_{sgrna}.tsv",
+        AGGREGATE_FP
+        / "montages"
+        / "mitotic_montage_data"
+        / get_filename(
+            {"gene": "{gene}", "sgrna": "{sgrna}"},
+            "montage_data",
+            "tsv",
+        ),
     output:
-        "{gene}_{sgrna}.tiff",
+        expand(
+            AGGREGATE_FP
+            / "montages"
+            / "mitotic_montages"
+            / "{{gene}}_{{sgrna}}_{channel}.tiff",
+            channel=config["phenotype"]["channel_names"],
+        ),
     params:
         channels=config["phenotype"]["channel_names"],
     script:
@@ -209,9 +246,11 @@ rule generate_mitotic_montage:
 # Aggregate all montages
 rule all_mitotic_montages:
     input:
-        get_mitotic_montage_inputs,
+        lambda wildcards: get_montage_inputs(
+            checkpoints.prepare_mitotic_montage_data,
+        ),
     output:
-        touch(AGGREGATE_FP / "mitotic_montages_complete.flag"),
+        touch(AGGREGATE_FP / "montages" / "mitotic_montages_complete.flag"),
 
 
 # Rule for all aggregate processing steps

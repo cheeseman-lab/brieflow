@@ -10,7 +10,6 @@ print(montage_data)
 
 # create cell montage
 montage = create_cell_montage(montage_data, snakemake.params.channels)
-print(montage)
 
 # save montage
 imwrite(snakemake.output[0], montage["DAPI"])

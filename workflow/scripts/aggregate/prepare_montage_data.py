@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 
 from lib.aggregate.montage_utils import add_filenames
+from lib.shared.file_utils import get_filename
 
 # Create output directory
 output_dir = Path(snakemake.output[0])
@@ -34,5 +35,11 @@ for _, row in gene_sgrna_combos.iterrows():
     ]
 
     # Save to TSV
-    output_file = output_dir / f"{gene}_{sgrna}.tsv"
-    subset.to_csv(output_file, sep="\t", index=False)
+    save_path = output_dir / get_filename(
+        {"gene": gene, "sgrna": sgrna},
+        "montage_data",
+        "tsv",
+    )
+
+    print(save_path)
+    subset.to_csv(save_path, sep="\t", index=False)

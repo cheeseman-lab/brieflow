@@ -144,13 +144,13 @@ rule eval_segmentation_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        lambda wildcards: output_to_input_from_combinations(
+        segmentation_stats_paths=lambda wildcards: output_to_input_from_combinations(
             output_path=PHENOTYPE_OUTPUTS["segment_phenotype"][2],
             valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
             wildcards=wildcards,
             expand_values={"tile": PHENOTYPE_TILES}
         ),
-        lambda wildcards: output_to_input_from_combinations(
+        cells_paths=lambda wildcards: output_to_input_from_combinations(
             output_path=PHENOTYPE_OUTPUTS["merge_phenotype_info"],
             valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
             wildcards=wildcards,

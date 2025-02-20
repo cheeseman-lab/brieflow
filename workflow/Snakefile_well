@@ -50,8 +50,8 @@ if "sbs" in config and len(SBS_SAMPLE_FPS) > 0:
         config = initialize_segment_sbs_paramsearch(config)
 
     # Include target and rule files
-    include: "targets/sbs_well.smk"
-    include: "rules/sbs_well.smk"
+    include: "targets/sbs.smk"
+    include: "rules/sbs.smk"
 
     ALL_TARGETS += SBS_TARGETS_ALL
 
@@ -62,8 +62,8 @@ if "phenotype" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
         config = initialize_segment_phenotype_paramsearch(config)
 
     # Include target and rule files
-    include: "targets/phenotype_well.smk"
-    include: "rules/phenotype_well.smk"
+    include: "targets/phenotype.smk"
+    include: "rules/phenotype.smk"
 
     ALL_TARGETS += PHENOTYPE_TARGETS_ALL
 

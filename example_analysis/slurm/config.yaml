@@ -149,8 +149,8 @@ set-resources:
     generate_dataset:
         mem_mb: 2000
     phate_leiden_clustering:
-        mem_mb: 2000
+        mem_mb: 10000
     benchmark_clusters:
-        mem_mb: 2000
+        mem_mb: 10000
     cluster_eval:
-        mem_mb: 2000
+        mem_mb: 10000

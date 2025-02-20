@@ -1,11 +1,11 @@
 """This module provides functions for loading and formatting data during aggregation.
 
 Functions include:
-- Loading a subset of data from HDF files for efficient processing.
+- Loading a subset of data from parquet files for efficient processing.
 - Cleaning cell data by removing unassigned or multi-gene cells.
 
 Functions:
-    - load_hdf_subset: Load a fixed number of random rows from an HDF file.
+    - load_parquet_subset: Load a fixed number of random rows from a parquet file.
     - clean_cell_data: Clean cell data by filtering for valid and optionally single-gene cells.
 """
 

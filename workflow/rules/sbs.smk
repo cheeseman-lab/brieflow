@@ -83,7 +83,9 @@ rule apply_ic_field_sbs:
     conda:
         "../envs/sbs.yml"
     input:
+        # aligned image
         SBS_OUTPUTS["align_sbs"],
+        # illumination correction field for dapi
         lambda wildcards: filter_outputs_by_cycle_index(
             output_to_input_from_combinations(
                 output_path=PREPROCESS_OUTPUTS["calculate_ic_sbs"],
@@ -93,6 +95,7 @@ rule apply_ic_field_sbs:
             ),
             index=0
         ),
+        # illumination correction field for segmentation cycle
         lambda wildcards: filter_outputs_by_cycle_index(
             output_to_input_from_combinations(
                 output_path=PREPROCESS_OUTPUTS["calculate_ic_sbs"],
@@ -244,6 +247,7 @@ rule combine_sbs_info:
         "../scripts/shared/combine_dfs.py"
 
 
+# Rule for evaluating segmentation
 rule eval_segmentation_sbs:
     conda:
         "../envs/sbs.yml"
@@ -265,6 +269,7 @@ rule eval_segmentation_sbs:
         "../scripts/shared/eval_segmentation.py"
 
 
+# Rule for evaluating mapping
 rule eval_mapping:
     conda:
         "../envs/sbs.yml"
@@ -345,7 +350,7 @@ rule eval_mapping:
 #             "../scripts/shared/eval_segmentation_paramsearch.py"
 
 
-# rule for all sbs processing steps
+# Rule for all sbs processing steps
 rule all_sbs:
     input:
         SBS_TARGETS_ALL,

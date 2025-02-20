@@ -84,6 +84,7 @@ rule extract_phenotype_info:
         "../scripts/shared/extract_phenotype_minimal.py"
 
 
+# Merge minimal phenotype information from all tiles
 rule merge_phenotype_info:
     conda:
         "../envs/phenotype.yml"
@@ -121,6 +122,7 @@ rule extract_phenotype_cp:
         "../scripts/phenotype/extract_phenotype_cp_multichannel.py"
 
 
+# Merge full phenotype information from all tiles
 rule merge_phenotype_cp:
     conda:
         "../envs/phenotype.yml"
@@ -144,12 +146,14 @@ rule eval_segmentation_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
+        # segmentation map
         segmentation_stats_paths=lambda wildcards: output_to_input_from_combinations(
             output_path=PHENOTYPE_OUTPUTS["segment_phenotype"][2],
             valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
             wildcards=wildcards,
             expand_values={"tile": PHENOTYPE_TILES}
         ),
+        # minimal phenotype info
         cells_paths=lambda wildcards: output_to_input_from_combinations(
             output_path=PHENOTYPE_OUTPUTS["merge_phenotype_info"],
             valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
@@ -160,6 +164,8 @@ rule eval_segmentation_phenotype:
     script:
         "../scripts/shared/eval_segmentation.py"
 
+
+# Evaluate features extracted from CellProfiler
 rule eval_features:
     conda:
         "../envs/phenotype.yml"

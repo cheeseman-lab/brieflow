@@ -317,6 +317,7 @@ SBS_TARGETS_ALL = (
         output_templates=SBS_OUTPUTS["combine_sbs_info"],
         valid_combinations=SBS_VALID_COMBINATIONS
     ) +
+    # Evaluation targets (plate level only)
     outputs_to_targets_with_combinations(
         output_templates=SBS_OUTPUTS["eval_segmentation_sbs"],
         valid_combinations=[{"plate": combo["plate"]} for combo in SBS_VALID_COMBINATIONS]

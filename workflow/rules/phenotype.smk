@@ -141,7 +141,7 @@ rule merge_phenotype_cp:
         "../scripts/phenotype/merge_phenotype_cp.py"
 
 
-# Evaluation rules need to use valid combinations
+# Evaluate segmentation results
 rule eval_segmentation_phenotype:
     conda:
         "../envs/phenotype.yml"
@@ -179,6 +179,7 @@ rule eval_features:
         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],
     script:
         "../scripts/phenotype/eval_features.py"
+
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":

@@ -114,80 +114,6 @@ rule process_all_gene_data:
         "../scripts/aggregate/process_gene_data.py"
 
 
-# Prepare mitotic montage data
-rule prepare_mitotic_montage_data:
-    conda:
-        "../envs/aggregate.yml"
-    input:
-        # mitotic standardized data
-        lambda wildcards: output_to_input(
-            AGGREGATE_OUTPUTS["split_phases"][0],
-            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
-            wildcards,
-        ),
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["prepare_mitotic_montage_data"],
-    params:
-        root_fp=config["all"]["root_fp"],
-    script:
-        "../scripts/aggregate/prepare_montage_data.py"
-
-
-# Prepare interphase montage data
-rule prepare_interphase_montage_data:
-    conda:
-        "../envs/aggregate.yml"
-    input:
-        # interphase standardized data
-        lambda wildcards: output_to_input(
-            AGGREGATE_OUTPUTS["split_phases"][1],
-            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
-            wildcards,
-        ),
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["prepare_interphase_montage_data"],
-    params:
-        root_fp=config["all"]["root_fp"],
-    script:
-        "../scripts/aggregate/prepare_montage_data.py"
-
-
-# TODO: Optimize montage generation to operate faster! We should try to:
-# 1. Restrict montage generation attempts to those that we have data for
-# 2. Save each channel montage for a gene/sgrna pair during one rule call
-# 3. Possibly parallelize across a rule so that we only need to load cell data once
-
-
-# Create mitotic montages data
-rule generate_mitotic_montage:
-    conda:
-        "../envs/aggregate.yml"
-    input:
-        # mitotic montage data
-        AGGREGATE_OUTPUTS["prepare_mitotic_montage_data"],
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["generate_mitotic_montage"],
-    params:
-        channels=config["phenotype"]["channel_names"],
-    script:
-        "../scripts/aggregate/generate_montage.py"
-
-
-# Create interphase montages data
-rule generate_interphase_montage:
-    conda:
-        "../envs/aggregate.yml"
-    input:
-        # mitotic montage data
-        AGGREGATE_OUTPUTS["prepare_interphase_montage_data"],
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["generate_interphase_montage"],
-    params:
-        channels=config["phenotype"]["channel_names"],
-    script:
-        "../scripts/aggregate/generate_montage.py"
-
-
 rule eval_aggregate:
     conda:
         "../envs/aggregate.yml"
@@ -222,6 +148,70 @@ rule eval_aggregate:
         channels=config["phenotype"]["channel_names"],
     script:
         "../scripts/aggregate/eval_aggregate.py"
+
+
+# TODO: Optimize montage generation to operate faster! We should try to:
+# 1. Restrict montage generation attempts to those that we have data for
+# 2. Save each channel montage for a gene/sgrna pair during one rule call
+# 3. Possibly parallelize across a rule so that we only need to load cell data once
+
+
+# Prepare mitotic montage data - now a checkpoint
+checkpoint prepare_mitotic_montage_data:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # mitotic standardized data
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["split_phases"][0],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+    output:
+        directory(AGGREGATE_FP / "tsvs" / "mitotic_montage_data"),
+    params:
+        root_fp=config["all"]["root_fp"],
+    script:
+        "../scripts/aggregate/prepare_montage_data.py"
+
+
+def get_mitotic_montage_inputs(wildcards):
+    checkpoint_output = Path(
+        checkpoints.prepare_mitotic_montage_data.get(**wildcards).output[0]
+    )
+
+    # Get actual existing files
+    tsv_files = list(checkpoint_output.glob("*.tsv"))
+
+    # Extract the gene_sgrna parts and make output paths
+    output_files = []
+    for tsv_file in tsv_files:
+        output_name = tsv_file.stem + ".tiff"
+        output_files.append(output_name)
+
+    return output_files
+
+
+# Create mitotic montages data
+rule generate_mitotic_montage:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        AGGREGATE_FP / "tsvs" / "mitotic_montage_data" / "{gene}_{sgrna}.tsv",
+    output:
+        "{gene}_{sgrna}.tiff",
+    params:
+        channels=config["phenotype"]["channel_names"],
+    script:
+        "../scripts/aggregate/generate_montage.py"
+
+
+# Aggregate all montages
+rule all_mitotic_montages:
+    input:
+        get_mitotic_montage_inputs,
+    output:
+        touch(AGGREGATE_FP / "mitotic_montages_complete.flag"),
 
 
 # Rule for all aggregate processing steps

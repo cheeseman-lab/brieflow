@@ -1,16 +1,38 @@
 from pathlib import Path
-
 import pandas as pd
 
 from lib.aggregate.montage_utils import add_filenames
 
-# load cell data
+# Create output directory
+output_dir = Path(snakemake.output[0])
+output_dir.mkdir(parents=True, exist_ok=True)
+
+# Load cell data
+print("loading cell data...")
 cell_data = pd.concat([pd.read_parquet(p) for p in snakemake.input], ignore_index=True)
 
-# prepare for montage
+# Prepare for montage
+print("preparing cell data...")
 prepared_cell_data = add_filenames(
-    cell_data, Path(snakemake.params[0]), montage_subset=True
+    cell_data, Path(snakemake.params.root_fp), montage_subset=True
 )
+prepared_cell_data = prepared_cell_data.head(10)
 
-# save prepared data
-prepared_cell_data.to_parquet(snakemake.output[0])
+# Get combos of gene and sgrna
+gene_sgrna_combos = prepared_cell_data[["gene_symbol_0", "sgRNA_0"]].drop_duplicates()
+
+# Save one file per gene/sgRNA combo
+print("saving data...")
+for _, row in gene_sgrna_combos.iterrows():
+    gene = row["gene_symbol_0"]
+    sgrna = row["sgRNA_0"]
+
+    # Filter data for this gene/sgRNA combo
+    subset = prepared_cell_data[
+        (prepared_cell_data["gene_symbol_0"] == gene)
+        & (prepared_cell_data["sgRNA_0"] == sgrna)
+    ]
+
+    # Save to TSV
+    output_file = output_dir / f"{gene}_{sgrna}.tsv"
+    subset.to_csv(output_file, sep="\t", index=False)

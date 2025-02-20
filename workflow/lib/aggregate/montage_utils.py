@@ -80,7 +80,7 @@ def create_cell_montage(
     num_cells=30,
     cell_size=40,
     shape=(3, 10),
-    selection_params=None,
+    selection_params={"method": "head"},
     coordinate_cols=None,
 ):
     """Create a montage of cells from DataFrame with flexible parameters.
@@ -110,7 +110,9 @@ def create_cell_montage(
 
     # Select cells based on parameters
     cell_data_subset = cell_data.copy()
-    if selection_params["method"] == "random":
+    if selection_params["method"] == "head":
+        cell_data_subset = cell_data_subset.head(num_cells)
+    elif selection_params["method"] == "random":
         cell_data_subset = cell_data_subset.sample(n=num_cells, random_state=0)
     elif selection_params["method"] == "sorted":
         cell_data_subset = cell_data_subset.sort_values(
@@ -118,7 +120,7 @@ def create_cell_montage(
             ascending=selection_params.get("ascending", True),
         ).head(num_cells)
     else:
-        cell_data_subset = cell_data_subset.head(num_cells)
+        raise ValueError("Invalid selection method.")
 
     # Add bounds
     cell_data_subset = cell_data_subset.pipe(

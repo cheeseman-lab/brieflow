@@ -43,33 +43,33 @@ AGGREGATE_OUTPUTS = {
     "process_all_gene_data": [
         AGGREGATE_FP / "tsvs" / "all_gene_data.tsv",
     ],
-    "prepare_mitotic_montage_data": [
-        AGGREGATE_FP / "parquets" / "mitotic_montage_data.parquet",
-    ],
-    "prepare_interphase_montage_data": [
-        AGGREGATE_FP / "parquets" / "interphase_montage_data.parquet",
-    ],
-    "generate_mitotic_montage": [
-        AGGREGATE_FP
-        / "tiffs"
-        / "mitotic_montages"
-        / get_filename(
-            {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
-            "montage",
-            "tiff",
-        ),
-    ],
-    "generate_interphase_montage": [
-        AGGREGATE_FP
-        / "tiffs"
-        / "interphase_montages"
-        / "{gene}"
-        / get_filename(
-            {"sgrna": "{sgrna}", "channel": "{channel}"},
-            "montage",
-            "tiff",
-        ),
-    ],
+    # "prepare_mitotic_montage_data": [
+    #     AGGREGATE_FP / "tsvs" / "mitotic_montage" / "{gene}_{sgrna}.tsv",
+    # ],
+    # "prepare_interphase_montage_data": [
+    #     AGGREGATE_FP / "parquets" / "interphase_montage_data.parquet",
+    # ],
+    # "generate_mitotic_montage": [
+    #     AGGREGATE_FPs
+    #     / "tiffs"
+    #     / "mitotic_montages"
+    #     / get_filename(
+    #         {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
+    #         "montage",
+    #         "tiff",
+    #     ),
+    # ],
+    # "generate_interphase_montage": [
+    #     AGGREGATE_FP
+    #     / "tiffs"
+    #     / "interphase_montages"
+    #     / "{gene}"
+    #     / get_filename(
+    #         {"sgrna": "{sgrna}", "channel": "{channel}"},
+    #         "montage",
+    #         "tiff",
+    #     ),
+    # ],
     "eval_aggregate": [
         AGGREGATE_FP / "eval" / "cell_feature_violins.png",
         AGGREGATE_FP / "eval" / "nuclear_feature_violins.png",
@@ -86,8 +86,8 @@ AGGREGATE_OUTPUT_MAPPINGS = {
     "process_mitotic_gene_data": None,
     "process_interphase_gene_data": None,
     "process_all_gene_data": None,
-    "prepare_mitotic_montage_data": temp,
-    "prepare_interphase_montage_data": temp,
+    "prepare_mitotic_montage_data": None,
+    "prepare_interphase_montage_data": None,
     "generate_mitotic_montage": None,
     "generate_interphase_montage": None,
     "eval_aggregate": None,
@@ -144,7 +144,6 @@ MONTAGE_TARGETS = outputs_to_targets(
     AGGREGATE_OUTPUT_MAPPINGS,
     expansion_method="zip",
 )
-
 # Combine all preprocessing targets
 AGGREGATE_TARGETS_ALL = sum(NON_MONTAGE_TARGETS.values(), []) + sum(
     MONTAGE_TARGETS.values(), []

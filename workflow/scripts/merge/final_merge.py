@@ -10,7 +10,7 @@ cp_phenotype = pd.read_parquet(snakemake.input[1])
 merged_final = merge_deduplicated.merge(
     cp_phenotype.rename(columns={"label": "cell_0"}),
     how="left",
-    on=["tile", "cell_0"],
+    on=["plate", "well", "tile", "cell_0"],
 )
 
 # Save final merged dataset

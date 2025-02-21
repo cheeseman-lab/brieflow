@@ -68,6 +68,7 @@ def merge_sbs_phenotype(cell_locations_0, cell_locations_1, model, threshold=2):
     """
     # Final columns for the merged DataFrame
     cols_final = [
+        "plate",
         "well",
         "tile",
         "cell_0",

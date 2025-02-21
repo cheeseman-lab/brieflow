@@ -20,3 +20,4 @@ example_analysis/slurm/slurm_output/
 
 # denali data for testing merge
 example_analysis/denali_data/
+testing/

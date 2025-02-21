@@ -4,9 +4,9 @@ rule generate_dataset:
         "../envs/cluster.yml"
     input:
         # final gene datasets
-        AGGREGATE_OUTPUTS["process_mitotic_gene_data"],
-        AGGREGATE_OUTPUTS["process_interphase_gene_data"],
-        AGGREGATE_OUTPUTS["process_all_gene_data"],
+        ancient(AGGREGATE_OUTPUTS["process_mitotic_gene_data"]),
+        ancient(AGGREGATE_OUTPUTS["process_interphase_gene_data"]),
+        ancient(AGGREGATE_OUTPUTS["process_all_gene_data"]),
     output:
         CLUSTER_OUTPUTS_MAPPED["generate_dataset"],
     params:

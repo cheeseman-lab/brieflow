@@ -8,4 +8,9 @@
 #     --rulegraph | dot -Gdpi=100 -Tpng -o "../images/brieflow_rulegraph.png"
 
 # Run Snakemake with the specified Snakefile and config file
-snakemake  --use-conda --cores all --snakefile "../workflow/Snakefile" --configfile "config/config.yml"
+snakemake --use-conda --cores all \
+    --snakefile "../workflow/Snakefile" \
+    --configfile "config/config.yml" \
+    --latency-wait 60 \
+    --rerun-triggers mtime \
+    --until all

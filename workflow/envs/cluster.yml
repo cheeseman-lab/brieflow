@@ -5,6 +5,7 @@ channels:
 dependencies:
   - pytables # need pytables defined in module env
   - pandas
+  - pyarrow
   - scikit-learn
   - seaborn
   - python-igraph

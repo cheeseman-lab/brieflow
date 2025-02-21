@@ -90,7 +90,7 @@ def remove_low_number_genes(gene_data, min_cells=10):
     # Print summary
     print("\nGene Filtering Summary:")
     print(f"Original genes: {len(gene_data)}")
-    print(f"Genes with < {min_cells} cells: {len(df) - len(filtered_df)}")
+    print(f"Genes with < {min_cells} cells: {len(gene_data) - len(filtered_df)}")
     print(f"Remaining genes: {len(filtered_df)}")
 
     return filtered_df

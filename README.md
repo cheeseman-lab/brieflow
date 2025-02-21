@@ -159,7 +159,6 @@ sh 6.run_merge.sh
 ```
 **Slurm**:
 ```sh
-# TODO: Add and test this file
 sbatch 6.run_merge_slurm.sh
 ```
 
@@ -176,7 +175,6 @@ sh 8.run_aggregate.sh
 ```
 **Slurm**:
 ```sh
-# TODO: Add and test this file
 sbatch 8.run_aggregate_slurm.sh
 ```
 
@@ -193,7 +191,6 @@ sh 10.run_cluster.sh
 ```
 **Slurm**:
 ```sh
-# TODO: Add and test this file
 sbatch 10.run_cluster_slurm.sh
 ```
 

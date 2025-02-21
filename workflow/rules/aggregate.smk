@@ -1,4 +1,4 @@
-from lib.shared.target_utils import output_to_input
+from lib.shared.target_utils import output_to_input, get_montage_inputs
 
 
 # Clean, transform, and standardize merged data
@@ -7,7 +7,7 @@ rule clean_transform_standardize:
         "../envs/aggregate.yml"
     input:
         # final merge data
-        MERGE_OUTPUTS["final_merge"],
+        ancient(MERGE_OUTPUTS["final_merge"]),
     output:
         AGGREGATE_OUTPUTS_MAPPED["clean_transform_standardize"],
     params:
@@ -45,7 +45,11 @@ rule process_mitotic_gene_data:
         "../envs/aggregate.yml"
     input:
         # mitotic data
-        AGGREGATE_OUTPUTS["split_phases"][0],
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["split_phases"][0],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
     output:
         AGGREGATE_OUTPUTS_MAPPED["process_mitotic_gene_data"],
     params:
@@ -66,7 +70,11 @@ rule process_interphase_gene_data:
         "../envs/aggregate.yml"
     input:
         # interphase data
-        AGGREGATE_OUTPUTS["split_phases"][1],
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["split_phases"][1],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
     output:
         AGGREGATE_OUTPUTS_MAPPED["process_interphase_gene_data"],
     params:
@@ -87,7 +95,11 @@ rule process_all_gene_data:
         "../envs/aggregate.yml"
     input:
         # all standardized data
-        AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
     output:
         AGGREGATE_OUTPUTS_MAPPED["process_all_gene_data"],
     params:
@@ -102,95 +114,149 @@ rule process_all_gene_data:
         "../scripts/aggregate/process_gene_data.py"
 
 
-# Prepare mitotic montage data
-rule prepare_mitotic_montage_data:
-    conda:
-        "../envs/aggregate.yml"
-    input:
-        # mitotic standardized data
-        AGGREGATE_OUTPUTS["split_phases"][0],
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["prepare_mitotic_montage_data"],
-    params:
-        root_fp=config["all"]["root_fp"],
-    script:
-        "../scripts/aggregate/prepare_montage_data.py"
-
-
-# Prepare interphase montage data
-rule prepare_interphase_montage_data:
-    conda:
-        "../envs/aggregate.yml"
-    input:
-        # interphase standardized data
-        AGGREGATE_OUTPUTS["split_phases"][1],
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["prepare_interphase_montage_data"],
-    params:
-        root_fp=config["all"]["root_fp"],
-    script:
-        "../scripts/aggregate/prepare_montage_data.py"
-
-
-# TODO: Optimize montage generation to operate faster! We should try to:
-# 1. Restrict montage generation attempts to those that we have data for
-# 2. Save each channel montage for a gene/sgrna pair during one rule call
-# 3. Possibly parallelize across a rule so that we only need to load cell data once
-
-
-# Create mitotic montages data
-rule generate_mitotic_montage:
-    conda:
-        "../envs/aggregate.yml"
-    input:
-        # mitotic montage data
-        AGGREGATE_OUTPUTS["prepare_mitotic_montage_data"],
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["generate_mitotic_montage"],
-    params:
-        channels=config["phenotype"]["channel_names"],
-    script:
-        "../scripts/aggregate/generate_montage.py"
-
-
-# Create interphase montages data
-rule generate_interphase_montage:
-    conda:
-        "../envs/aggregate.yml"
-    input:
-        # mitotic montage data
-        AGGREGATE_OUTPUTS["prepare_interphase_montage_data"],
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["generate_interphase_montage"],
-    params:
-        channels=config["phenotype"]["channel_names"],
-    script:
-        "../scripts/aggregate/generate_montage.py"
-
-
 rule eval_aggregate:
     conda:
         "../envs/aggregate.yml"
     input:
         # cleaned data
-        AGGREGATE_OUTPUTS["clean_transform_standardize"][0],
+        cleaned_data_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["clean_transform_standardize"][0],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
         # transformed data
-        AGGREGATE_OUTPUTS["clean_transform_standardize"][1],
+        transformed_data_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["clean_transform_standardize"][1],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
         # standardized data
-        AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
+        standardized_data_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
         # processed mitotic data
-        AGGREGATE_OUTPUTS["process_mitotic_gene_data"],
+        mitotic_gene_data=AGGREGATE_OUTPUTS["process_mitotic_gene_data"],
         # processed interphase data
-        AGGREGATE_OUTPUTS["process_interphase_gene_data"],
+        interphase_gene_data=AGGREGATE_OUTPUTS["process_interphase_gene_data"],
         # all processed gene data
-        AGGREGATE_OUTPUTS["process_all_gene_data"],
+        all_gene_data=AGGREGATE_OUTPUTS["process_all_gene_data"],
     output:
         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
     params:
-        population_feature=config["aggregate"]["population_feature"],
         channels=config["phenotype"]["channel_names"],
     script:
         "../scripts/aggregate/eval_aggregate.py"
+
+
+# MONTAGE CREATION
+# NOTE: Montage creation happens dynamically
+# We create a checkpoint once the montage data is prepared
+# Then we initiate montage creation based on the checkpoint
+# Then create a flag once montage creation is done
+
+
+# Prepare montage data and create a checkpoint
+checkpoint prepare_mitotic_montage_data:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # mitotic standardized data
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["split_phases"][0],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+    output:
+        directory(MONTAGE_OUTPUTS["mitotic_montage_data_dir"]),
+    params:
+        root_fp=config["all"]["root_fp"],
+    script:
+        "../scripts/aggregate/prepare_montage_data.py"
+
+
+# Generate montage
+rule generate_mitotic_montage:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        MONTAGE_OUTPUTS["mitotic_montage_data"],
+    output:
+        expand(
+            str(MONTAGE_OUTPUTS["mitotic_montage"]),
+            gene="{gene}",
+            sgrna="{sgrna}",
+            channel=config["phenotype"]["channel_names"],
+        ),
+    params:
+        channels=config["phenotype"]["channel_names"],
+    script:
+        "../scripts/aggregate/generate_montage.py"
+
+
+# Initate montage creation based on checkpoint
+# Create a flag to indicate montage creation is done
+rule initiate_mitotic_montage:
+    input:
+        lambda wildcards: get_montage_inputs(
+            checkpoints.prepare_mitotic_montage_data,
+            MONTAGE_OUTPUTS["mitotic_montage"],
+            config["phenotype"]["channel_names"],
+        ),
+    output:
+        touch(MONTAGE_OUTPUTS["mitotic_montage_flag"]),
+
+
+# Prepare montage data and create a checkpoint
+checkpoint prepare_interphase_montage_data:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        # interphase standardized data
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["split_phases"][1],
+            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
+            wildcards,
+        ),
+    output:
+        directory(MONTAGE_OUTPUTS["interphase_montage_data_dir"]),
+    params:
+        root_fp=config["all"]["root_fp"],
+    script:
+        "../scripts/aggregate/prepare_montage_data.py"
+
+
+# Generate montage
+rule generate_interphase_montage:
+    conda:
+        "../envs/aggregate.yml"
+    input:
+        MONTAGE_OUTPUTS["interphase_montage_data"],
+    output:
+        expand(
+            str(MONTAGE_OUTPUTS["interphase_montage"]),
+            gene="{gene}",
+            sgrna="{sgrna}",
+            channel=config["phenotype"]["channel_names"],
+        ),
+    params:
+        channels=config["phenotype"]["channel_names"],
+    script:
+        "../scripts/aggregate/generate_montage.py"
+
+
+# Initate montage creation based on checkpoint
+# Create a flag to indicate montage creation is done
+rule initiate_interphase_montage:
+    input:
+        lambda wildcards: get_montage_inputs(
+            checkpoints.prepare_interphase_montage_data,
+            MONTAGE_OUTPUTS["interphase_montage"],
+            config["phenotype"]["channel_names"],
+        ),
+    output:
+        touch(MONTAGE_OUTPUTS["interphase_montage_flag"]),
 
 
 # Rule for all aggregate processing steps

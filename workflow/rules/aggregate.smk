@@ -207,16 +207,7 @@ def get_montage_inputs(montage_data_checkpoint):
         sgrna = file_metadata["sgrna"]
 
         for channel in channels:
-            # output_file = str(output_file_template).format(gene=gene, sgrna=sgrna)
-            # output_file = str(
-            #     AGGREGATE_FP
-            #     / "montages"
-            #     / "mitotic_montages"
-            #     / f"G-{gene}_SG-{sgrna}_CH-{channel}__montage.tiff"
-            # )
-            output_file = (
-                AGGREGATE_FP / "montages" / "mitotic_montages" / f"{gene}_{sgrna}.tiff"
-            )
+            output_file = str(output_file_template).format(gene=gene, sgrna=sgrna)
             output_files.append(output_file)
 
     print(output_files)
@@ -237,7 +228,16 @@ rule generate_mitotic_montage:
             "tsv",
         ),
     output:
-        str(AGGREGATE_FP / "montages" / "mitotic_montages" / "{gene}_{sgrna}.tiff"),
+        str(
+            AGGREGATE_FP
+            / "montages"
+            / "mitotic_montages"
+            / get_filename(
+                {"gene": "{gene}", "sgrna": "{sgrna}"},
+                "montage",
+                "tiff",
+            )
+        ),
     params:
         channels=config["phenotype"]["channel_names"],
     script:

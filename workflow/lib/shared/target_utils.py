@@ -106,6 +106,7 @@ def output_to_input(output_path, wildcard_values, wildcards, ancient_output=Fals
     return inputs
 
 
+# TODO: move to rule_utils once this file exists
 def get_montage_inputs(montage_data_checkpoint, montage_output_template, channels):
     """Generate montage input file paths based on checkpoint data and output template.
 

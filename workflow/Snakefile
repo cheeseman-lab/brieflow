@@ -45,18 +45,18 @@ else:
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
 SBS_PLATES = [1]
-# SBS_WELLS = ["A1"]
+SBS_WELLS = ["A1"]
 # SBS_TILES = [1, 2]
 PHENOTYPE_PLATES = [1]
-# PHENOTYPE_WELLS = ["A1"]
+PHENOTYPE_WELLS = ["A1"]
 # PHENOTYPE_TILES = [1, 2]
 
 
-include: "targets/preprocess.smk"
-include: "rules/preprocess.smk"
+# include: "targets/preprocess.smk"
+# include: "rules/preprocess.smk"
 
 
-ALL_TARGETS = PREPROCESS_TARGETS_ALL
+# ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
 # if "sbs" in config and len(SBS_SAMPLE_FPS) > 0:
 #     # Initialize parameter search configurations if needed

@@ -182,7 +182,7 @@ def get_montage_inputs(montage_data_checkpoint):
         / "montages"
         / "mitotic_montages"
         / get_filename(
-            {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
+            {"gene": "{gene}", "sgrna": "{sgrna}"},
             "montage",
             "tiff",
         )
@@ -193,6 +193,7 @@ def get_montage_inputs(montage_data_checkpoint):
 
     # Get actual existing files
     montage_data_files = list(checkpoint_output.glob("*.tsv"))
+    print(montage_data_files)
 
     # Get the list of channels from config
     channels = config["phenotype"]["channel_names"]
@@ -201,18 +202,24 @@ def get_montage_inputs(montage_data_checkpoint):
     output_files = []
     for montage_data_file in montage_data_files:
         # parse gene, sgrna from filename
-        print(montage_data_file)
         file_metadata = parse_filename(montage_data_file)[0]
         gene = file_metadata["gene"]
         sgrna = file_metadata["sgrna"]
 
         for channel in channels:
-            output_file = str(output_file_template).format(
-                gene=gene, sgrna=sgrna, channel=channel
+            # output_file = str(output_file_template).format(gene=gene, sgrna=sgrna)
+            # output_file = str(
+            #     AGGREGATE_FP
+            #     / "montages"
+            #     / "mitotic_montages"
+            #     / f"G-{gene}_SG-{sgrna}_CH-{channel}__montage.tiff"
+            # )
+            output_file = (
+                AGGREGATE_FP / "montages" / "mitotic_montages" / f"{gene}_{sgrna}.tiff"
             )
-            print(output_file)
             output_files.append(output_file)
 
+    print(output_files)
     return output_files
 
 
@@ -230,13 +237,7 @@ rule generate_mitotic_montage:
             "tsv",
         ),
     output:
-        expand(
-            AGGREGATE_FP
-            / "montages"
-            / "mitotic_montages"
-            / "{{gene}}_{{sgrna}}_{channel}.tiff",
-            channel=config["phenotype"]["channel_names"],
-        ),
+        str(AGGREGATE_FP / "montages" / "mitotic_montages" / "{gene}_{sgrna}.tiff"),
     params:
         channels=config["phenotype"]["channel_names"],
     script:

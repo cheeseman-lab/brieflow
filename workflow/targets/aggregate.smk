@@ -4,6 +4,7 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 AGGREGATE_FP = ROOT_FP / "aggregate"
 
+# Define standard (non-montage) aggreagte outputs
 AGGREGATE_OUTPUTS = {
     "clean_transform_standardize": [
         AGGREGATE_FP
@@ -64,19 +65,41 @@ AGGREGATE_OUTPUT_MAPPINGS = {
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
 
-NON_MONTAGE_WILDCARDS = {
+AGGREGATE_WILDCARDS = {
     "plate": MERGE_PLATES,
     "well": MERGE_WELLS,
 }
-NON_MONTAGE_OUTPUTS = {
-    rule_name: templates
-    for rule_name, templates in AGGREGATE_OUTPUTS.items()
-    if "generate" not in rule_name
-}
-NON_MONTAGE_TARGETS = outputs_to_targets(
-    NON_MONTAGE_OUTPUTS, NON_MONTAGE_WILDCARDS, AGGREGATE_OUTPUT_MAPPINGS
+
+AGGREGATE_TARGETS = outputs_to_targets(
+    AGGREGATE_OUTPUTS, AGGREGATE_WILDCARDS, AGGREGATE_OUTPUT_MAPPINGS
 )
 
+# Define montage outputs
+# These are special because we dynamically derive outputs
+MONTAGE_OUTPUTS = {
+    "mitotic_montage_data_dir": AGGREGATE_FP / "montages" / "mitotic_montage_data",
+    "mitotic_montage_data": AGGREGATE_FP
+    / "montages"
+    / "mitotic_montage_data"
+    / get_filename(
+        {"gene": "{gene}", "sgrna": "{sgrna}"},
+        "montage_data",
+        "tsv",
+    ),
+    "mitotic_montage": AGGREGATE_FP
+    / "montages"
+    / "mitotic_montages"
+    / "{gene}"
+    / get_filename(
+        {"sgrna": "{sgrna}", "channel": "{channel}"},
+        "montage",
+        "tiff",
+    ),
+    "mitotic_montage_flag": AGGREGATE_FP
+    / "montages"
+    / "mitotic_montages_complete.flag",
+}
 
-# Combine all preprocessing targets
-AGGREGATE_TARGETS_ALL = sum(NON_MONTAGE_TARGETS.values(), [])
+AGGREGATE_TARGETS_ALL = sum(AGGREGATE_TARGETS.values(), []) + [
+    MONTAGE_OUTPUTS["mitotic_montage_flag"],
+]

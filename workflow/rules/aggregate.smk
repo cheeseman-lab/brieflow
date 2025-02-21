@@ -1,5 +1,4 @@
-from lib.shared.target_utils import output_to_input
-from lib.shared.file_utils import parse_filename, get_filename
+from lib.shared.target_utils import output_to_input, get_montage_inputs
 
 
 # Clean, transform, and standardize merged data
@@ -169,51 +168,11 @@ checkpoint prepare_mitotic_montage_data:
             wildcards,
         ),
     output:
-        directory(AGGREGATE_FP / "montages" / "mitotic_montage_data"),
+        directory(MONTAGE_OUTPUTS["mitotic_montage_data_dir"]),
     params:
         root_fp=config["all"]["root_fp"],
     script:
         "../scripts/aggregate/prepare_montage_data.py"
-
-
-def get_montage_inputs(montage_data_checkpoint):
-    output_file_template = (
-        AGGREGATE_FP
-        / "montages"
-        / "mitotic_montages"
-        / get_filename(
-            {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
-            "montage",
-            "tiff",
-        )
-    )
-
-    # Resolve the checkpoint output directory using .get()
-    checkpoint_output = Path(montage_data_checkpoint.get().output[0])
-
-    # Get actual existing files
-    montage_data_files = list(checkpoint_output.glob("*.tsv"))
-    # print(montage_data_files)
-
-    # Get the list of channels from config
-    channels = config["phenotype"]["channel_names"]
-
-    # Extract the gene_sgrna parts and make output paths for each channel
-    output_files = []
-    for montage_data_file in montage_data_files:
-        # parse gene, sgrna from filename
-        file_metadata = parse_filename(montage_data_file)[0]
-        gene = file_metadata["gene"]
-        sgrna = file_metadata["sgrna"]
-
-        for channel in channels:
-            output_file = str(output_file_template).format(
-                gene=gene, sgrna=sgrna, channel=channel
-            )
-            output_files.append(output_file)
-
-    # print(output_files)
-    return output_files
 
 
 # Create mitotic montages data
@@ -221,24 +180,12 @@ rule generate_mitotic_montage:
     conda:
         "../envs/aggregate.yml"
     input:
-        AGGREGATE_FP
-        / "montages"
-        / "mitotic_montage_data"
-        / get_filename(
-            {"gene": "{gene}", "sgrna": "{sgrna}"},
-            "montage_data",
-            "tsv",
-        ),
+        MONTAGE_OUTPUTS["mitotic_montage_data"],
     output:
         expand(
-            AGGREGATE_FP
-            / "montages"
-            / "mitotic_montages"
-            / get_filename(
-                {"gene": "{{gene}}", "sgrna": "{{sgrna}}", "channel": "{channel}"},
-                "montage",
-                "tiff",
-            ),
+            str(MONTAGE_OUTPUTS["mitotic_montage"]),
+            gene="{gene}",
+            sgrna="{sgrna}",
             channel=config["phenotype"]["channel_names"],
         ),
     params:
@@ -252,9 +199,11 @@ rule all_mitotic_montages:
     input:
         lambda wildcards: get_montage_inputs(
             checkpoints.prepare_mitotic_montage_data,
+            MONTAGE_OUTPUTS["mitotic_montage_data"],
+            config["phenotype"]["channel_names"],
         ),
     output:
-        touch(AGGREGATE_FP / "montages" / "mitotic_montages_complete.flag"),
+        touch(MONTAGE_OUTPUTS["mitotic_montage_flag"]),
 
 
 # Rule for all aggregate processing steps

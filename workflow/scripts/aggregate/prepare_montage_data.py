@@ -17,7 +17,6 @@ print("preparing cell data...")
 prepared_cell_data = add_filenames(
     cell_data, Path(snakemake.params.root_fp), montage_subset=True
 )
-prepared_cell_data = prepared_cell_data.head(10)
 
 # Get combos of gene and sgrna
 gene_sgrna_combos = prepared_cell_data[["gene_symbol_0", "sgRNA_0"]].drop_duplicates()
@@ -41,5 +40,4 @@ for _, row in gene_sgrna_combos.iterrows():
         "tsv",
     )
 
-    print(save_path)
     subset.to_csv(save_path, sep="\t", index=False)

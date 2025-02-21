@@ -137,4 +137,5 @@ def get_montage_inputs(montage_data_checkpoint, montage_output_template, channel
             )
             output_files.append(output_file)
 
+    print(output_files)
     return output_files

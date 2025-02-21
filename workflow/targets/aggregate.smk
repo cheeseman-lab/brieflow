@@ -98,8 +98,32 @@ MONTAGE_OUTPUTS = {
     "mitotic_montage_flag": AGGREGATE_FP
     / "montages"
     / "mitotic_montages_complete.flag",
+    "interphase_montage_data_dir": AGGREGATE_FP
+    / "montages"
+    / "interphase_montage_data",
+    "interphase_montage_data": AGGREGATE_FP
+    / "montages"
+    / "interphase_montage_data"
+    / get_filename(
+        {"gene": "{gene}", "sgrna": "{sgrna}"},
+        "montage_data",
+        "tsv",
+    ),
+    "interphase_montage": AGGREGATE_FP
+    / "montages"
+    / "interphase_montages"
+    / "{gene}"
+    / get_filename(
+        {"sgrna": "{sgrna}", "channel": "{channel}"},
+        "montage",
+        "tiff",
+    ),
+    "interphase_montage_flag": AGGREGATE_FP
+    / "montages"
+    / "interphase_montages_complete.flag",
 }
 
 AGGREGATE_TARGETS_ALL = sum(AGGREGATE_TARGETS.values(), []) + [
     MONTAGE_OUTPUTS["mitotic_montage_flag"],
+    MONTAGE_OUTPUTS["interphase_montage_flag"],
 ]

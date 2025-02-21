@@ -168,7 +168,10 @@ def plot_plate_heatmap(
         fig, axes = plt.subplots(nr, nc, figsize=(15, 15))
 
     # Define colorbar min and max
-    cmin, cmax = (df[metric].min(), df[metric].max())
+    if df[metric].dtype == float:
+        cmin, cmax = 0, 1
+    else:
+        cmin, cmax = df[metric].min(), df[metric].max()
 
     # Plot wells
     for ax, well in zip(axes.reshape(-1), wells):

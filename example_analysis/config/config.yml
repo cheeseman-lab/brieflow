@@ -10,8 +10,73 @@
 #   Paths are resolved relative to the directory the workflow is run from
 
 # Parameters:
+aggregate:
+  cat_columns:
+  - gene_symbol_0
+  - sgRNA_0
+  control_prefix: nontargeting
+  feature_start: nucleus_DAPI_mean
+  filter_single_gene: false
+  group_columns:
+  - plate
+  - well
+  index_columns:
+  - tile
+  - cell_0
+  population_feature: gene_symbol_0
+  threshold_conditions:
+    nucleus_DAPI_median:
+    - 7
+    - greater
+  transformations_fp: config/transformations.tsv
 all:
   root_fp: analysis_root/
+cluster:
+  channel_combos:
+  - - DAPI
+    - COXIV
+    - CENPA
+    - WGA
+  - - DAPI
+    - CENPA
+  correlation_threshold: 0.99
+  corum_data_fp: config/corum_data.tsv
+  cum_var_threshold: 0.99
+  dataset_types:
+  - mitotic
+  - interphase
+  - all
+  leiden_resolution: 15
+  min_cell_cutoffs:
+    all: 3
+    interphase: 3
+    mitotic: 0
+  min_unique_values: 5
+  string_data_fp: config/string_data.tsv
+  uniprot_data_fp: config/uniprot_data.tsv
+  variance_threshold: 0.001
+merge:
+  det_range:
+  - 0.06
+  - 0.065
+  initial_sites:
+  - - 5
+    - 0
+  - - 141
+    - 32
+  - - 370
+    - 86
+  - - 896
+    - 212
+  - - 1163
+    - 270
+  - - 1599
+    - 376
+  ph_metadata_channel: null
+  sbs_metadata_channel: null
+  sbs_metadata_cycle: 1
+  score: 0.1
+  threshold: 2
 phenotype:
   align: false
   cell_diameter: 53.05782348918437

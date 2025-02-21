@@ -7,7 +7,7 @@ __pycache__/
 .ruff_cache/
 
 # benchmark files
-config/benchmark_clusters/
+example_analysis/config/benchmark_clusters/
 
 # files for example analysis that are too large to store with git
 example_analysis/data/

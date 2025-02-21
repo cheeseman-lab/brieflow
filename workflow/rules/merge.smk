@@ -1,7 +1,5 @@
 from lib.shared.target_utils import output_to_input
 
-# TODO: Fix all ancient file rerunning issues then use output maps
-
 
 # Complete fast alignment process
 rule fast_alignment:

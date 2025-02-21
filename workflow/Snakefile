@@ -46,69 +46,43 @@ else:
 # TODO: unrestrict wells and tiles after testing
 SBS_PLATES = [1]
 SBS_WELLS = ["A1"]
-# SBS_TILES = [1, 2]
+SBS_TILES = [1, 2]
 PHENOTYPE_PLATES = [1]
 PHENOTYPE_WELLS = ["A1"]
-# PHENOTYPE_TILES = [1, 2]
+PHENOTYPE_TILES = [1, 2]
 
 
-# include: "targets/preprocess.smk"
-# include: "rules/preprocess.smk"
+include: "targets/preprocess.smk"
+include: "rules/preprocess.smk"
 
 
-# ALL_TARGETS = PREPROCESS_TARGETS_ALL
+ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
-# if "sbs" in config and len(SBS_SAMPLE_FPS) > 0:
-#     # Initialize parameter search configurations if needed
-#     if config["sbs"]["mode"] == "segment_sbs_paramsearch":
-#         config = initialize_segment_sbs_paramsearch(config)
+if "sbs" in config and len(SBS_SAMPLE_FPS) > 0:
+    # Initialize parameter search configurations if needed
+    if config["sbs"]["mode"] == "segment_sbs_paramsearch":
+        config = initialize_segment_sbs_paramsearch(config)
 
-#     # Include target and rule files
-#     include: "targets/sbs.smk"
-#     include: "rules/sbs.smk"
+    # Include target and rule files
+    include: "targets/sbs.smk"
+    include: "rules/sbs.smk"
 
-#     ALL_TARGETS += SBS_TARGETS_ALL
-
-
-# if "phenotype" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
-#     # Initialize parameter search configurations if needed
-#     if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
-#         config = initialize_segment_phenotype_paramsearch(config)
-
-#     # Include target and rule files
-#     include: "targets/phenotype.smk"
-#     include: "rules/phenotype.smk"
-
-#     ALL_TARGETS += PHENOTYPE_TARGETS_ALL
+    ALL_TARGETS += SBS_TARGETS_ALL
 
 
-# if "merge" in config:
-#     # check if SBS and PHENOTYPE plates match
-#     if set(SBS_PLATES) == set(PHENOTYPE_PLATES):
-#         MERGE_PLATES = SBS_PLATES
-#     else:
-#         raise ValueError(
-#             "SBS_PLATES and PHENOTYPE_PLATES do not match. Merging requires identical plate sets."
-#         )
-#     # check if SBS and PHENOTYPE wells match
-#     if set(SBS_WELLS) == set(PHENOTYPE_WELLS):
-#         MERGE_WELLS = SBS_WELLS
-#     else:
-#         raise ValueError(
-#             "SBS_WELLS and PHENOTYPE_WELLS do not match. Merging requires identical well sets."
-#         )
+if "phenotype" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
+    # Initialize parameter search configurations if needed
+    if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
+        config = initialize_segment_phenotype_paramsearch(config)
 
-#     # Include target and rule files
-#     include: "targets/merge.smk"
-#     include: "rules/merge.smk"
+    # Include target and rule files
+    include: "targets/phenotype.smk"
+    include: "rules/phenotype.smk"
 
-#     ALL_TARGETS += MERGE_TARGETS_ALL
+    ALL_TARGETS += PHENOTYPE_TARGETS_ALL
 
 
-if "aggregate" in config:
-    # TODO: REMOVE WHEN DONE WITH TESTING
-    ALL_TARGETS = []
-
+if "merge" in config:
     # check if SBS and PHENOTYPE plates match
     if set(SBS_PLATES) == set(PHENOTYPE_PLATES):
         MERGE_PLATES = SBS_PLATES
@@ -124,7 +98,15 @@ if "aggregate" in config:
             "SBS_WELLS and PHENOTYPE_WELLS do not match. Merging requires identical well sets."
         )
 
+    # Include target and rule files
     include: "targets/merge.smk"
+    include: "rules/merge.smk"
+
+    ALL_TARGETS += MERGE_TARGETS_ALL
+
+
+if "aggregate" in config:
+
     # Include target and rule files
     include: "targets/aggregate.smk"
     include: "rules/aggregate.smk"
@@ -132,13 +114,13 @@ if "aggregate" in config:
     ALL_TARGETS += AGGREGATE_TARGETS_ALL
 
 
-# if "cluster" in config:
+if "cluster" in config:
 
-#     # Include target and rule files
-#     include: "targets/cluster.smk"
-#     include: "rules/cluster.smk"
+    # Include target and rule files
+    include: "targets/cluster.smk"
+    include: "rules/cluster.smk"
 
-#     ALL_TARGETS += CLUSTER_TARGETS_ALL
+    ALL_TARGETS += CLUSTER_TARGETS_ALL
 
 
 # Define the target files for the workflow

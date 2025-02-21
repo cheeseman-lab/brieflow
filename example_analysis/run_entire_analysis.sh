@@ -13,4 +13,4 @@ snakemake --use-conda --cores all \
     --configfile "config/config.yml" \
     --latency-wait 60 \
     --rerun-triggers mtime \
-    --until all -n
+    --until all

@@ -22,7 +22,7 @@ snakemake --executor slurm --use-conda \
     --configfile "config/config.yml" \
     --latency-wait 30 \
     --rerun-triggers mtime \
-    --until eval_mapping
+    --until all_sbs all_phenotype
 
 # End timing and calculate duration
 end_time=$(date +%s)

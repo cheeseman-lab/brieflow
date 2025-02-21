@@ -124,17 +124,18 @@ rule segment_sbs:
     output:
         SBS_OUTPUTS_MAPPED["segment_sbs"],
     params:
+        method=config["sbs"]["segment_method"],
         dapi_index=config["sbs"]["dapi_index"],
         cyto_index=config["sbs"]["cyto_index"],
-        nuclei_diameter=config["sbs"]["nuclei_diameter"],
-        cell_diameter=config["sbs"]["cell_diameter"],
-        cyto_model=config["sbs"]["cyto_model"],
-        flow_threshold=config["sbs"]["flow_threshold"],
-        cellprob_threshold=config["sbs"]["cellprob_threshold"],
-        return_counts=True,
+        reconcile=config["sbs"]["reconcile"]
+        return_counts=config["sbs"]["return_counts"],
         gpu=config["sbs"]["gpu"],
+        # Pass the entire method-specific config sections
+        cellpose_params=config["sbs"].get("cellpose", {}),
+        stardist_params=config["sbs"].get("stardist", {}),
+        microsam_params=config["sbs"].get("microsam", {})
     script:
-        "../scripts/shared/segment_cellpose.py"
+        "../scripts/shared/segment.py"
 
 
 # Extract bases from peaks

@@ -43,17 +43,18 @@ rule segment_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"],
     params:
+        method=config["phenotype"]["segment_method"],
         dapi_index=config["phenotype"]["dapi_index"],
         cyto_index=config["phenotype"]["cyto_index"],
-        nuclei_diameter=config["phenotype"]["nuclei_diameter"],
-        cell_diameter=config["phenotype"]["cell_diameter"],
-        cyto_model=config["phenotype"]["cyto_model"],
-        flow_threshold=config["phenotype"]["flow_threshold"],
-        cellprob_threshold=config["phenotype"]["cellprob_threshold"],
-        return_counts=True,
+        reconcile=config["phenotype"]["reconcile"]
+        return_counts=config["phenotype"]["return_counts"],
         gpu=config["phenotype"]["gpu"],
+        # Pass the entire method-specific config sections
+        cellpose_params=config["phenotype"].get("cellpose", {}),
+        stardist_params=config["phenotype"].get("stardist", {}),
+        microsam_params=config["phenotype"].get("microsam", {})
     script:
-        "../scripts/shared/segment_cellpose.py"
+        "../scripts/shared/segment.py"
 
 
 # Extract cytoplasmic masks from segmented nuclei, cells

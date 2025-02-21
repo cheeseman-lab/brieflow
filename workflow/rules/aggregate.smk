@@ -182,7 +182,7 @@ def get_montage_inputs(montage_data_checkpoint):
         / "montages"
         / "mitotic_montages"
         / get_filename(
-            {"gene": "{gene}", "sgrna": "{sgrna}"},
+            {"gene": "{gene}", "sgrna": "{sgrna}", "channel": "{channel}"},
             "montage",
             "tiff",
         )
@@ -193,7 +193,7 @@ def get_montage_inputs(montage_data_checkpoint):
 
     # Get actual existing files
     montage_data_files = list(checkpoint_output.glob("*.tsv"))
-    print(montage_data_files)
+    # print(montage_data_files)
 
     # Get the list of channels from config
     channels = config["phenotype"]["channel_names"]
@@ -207,10 +207,12 @@ def get_montage_inputs(montage_data_checkpoint):
         sgrna = file_metadata["sgrna"]
 
         for channel in channels:
-            output_file = str(output_file_template).format(gene=gene, sgrna=sgrna)
+            output_file = str(output_file_template).format(
+                gene=gene, sgrna=sgrna, channel=channel
+            )
             output_files.append(output_file)
 
-    print(output_files)
+    # print(output_files)
     return output_files
 
 
@@ -228,15 +230,16 @@ rule generate_mitotic_montage:
             "tsv",
         ),
     output:
-        str(
+        expand(
             AGGREGATE_FP
             / "montages"
             / "mitotic_montages"
             / get_filename(
-                {"gene": "{gene}", "sgrna": "{sgrna}"},
+                {"gene": "{{gene}}", "sgrna": "{{sgrna}}", "channel": "{channel}"},
                 "montage",
                 "tiff",
-            )
+            ),
+            channel=config["phenotype"]["channel_names"],
         ),
     params:
         channels=config["phenotype"]["channel_names"],

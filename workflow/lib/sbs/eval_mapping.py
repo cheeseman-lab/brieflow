@@ -17,7 +17,7 @@ def plot_mapping_vs_threshold(
 
     Args:
         df_reads (pandas.DataFrame):
-            Table of extracted reads from Snake.call_reads(). Can be concatenated results from
+            Table of extracted reads from call_reads. Can be concatenated results from
             multiple tiles, wells, etc.
         barcodes (list or set of str):
             Expected barcodes from the pool library design.
@@ -174,7 +174,7 @@ def plot_read_mapping_heatmap(
     Args:
         df_reads (pandas.DataFrame):
             DataFrame of all reads output from sbs mapping pipeline, e.g., concatenated outputs for all tiles
-            and wells of Snake.call_reads().
+            and wells of call_reads.
         barcodes (list or set of str):
             Expected barcodes from the pool library design.
         shape (str, optional):
@@ -237,10 +237,10 @@ def plot_cell_mapping_heatmap(
     Args:
         df_cells (pandas.DataFrame):
             DataFrame of all cells output from sbs mapping pipeline, e.g., concatenated outputs for all tiles and wells
-            of Snake.call_cells().
+            of call_cells.
         df_sbs_info (pandas.DataFrame):
             DataFrame of all cells segmented from sbs images, e.g., concatenated outputs for all tiles and wells of
-            Snake.extract_phenotype_minimal(data_phenotype=nuclei, nuclei=nuclei), often used as sbs_cell_info rule in
+            extract_phenotype_minimal(data_phenotype=nuclei, nuclei=nuclei), often used as sbs_cell_info rule in
             Snakemake.
         barcodes (list or set of str):
             Expected barcodes from the pool library design.

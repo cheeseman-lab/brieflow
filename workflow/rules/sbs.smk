@@ -245,9 +245,6 @@ rule combine_sbs_info:
         "../scripts/shared/combine_dfs.py"
 
 
-print(SBS_OUTPUTS["segment_sbs"][2])
-
-
 rule eval_segmentation_sbs:
     conda:
         "../envs/sbs.yml"

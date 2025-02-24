@@ -102,15 +102,8 @@ MERGE_OUTPUT_MAPPINGS = {
     "final_merge": protected,
 }
 
-MERGE_WILDCARDS = {
-    "plate": MERGE_PLATES,
-    "well": MERGE_WELLS,
-}
-
 MERGE_OUTPUTS_MAPPED = map_outputs(MERGE_OUTPUTS, MERGE_OUTPUT_MAPPINGS)
 
-MERGE_TARGETS = outputs_to_targets(
-    MERGE_OUTPUTS, MERGE_WILDCARDS, MERGE_OUTPUT_MAPPINGS
+MERGE_TARGETS_ALL = outputs_to_targets(
+    MERGE_OUTPUTS, merge_wildcard_combos, MERGE_OUTPUT_MAPPINGS
 )
-
-MERGE_TARGETS_ALL = sum(MERGE_TARGETS.values(), [])

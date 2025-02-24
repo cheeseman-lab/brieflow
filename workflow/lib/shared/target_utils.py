@@ -93,7 +93,7 @@ def output_to_input(
     - Performing both expansion and subsetting.
 
     Args:
-        output (list[Path]): List of template file paths with wildcards.
+        output (str): Template file path with wildcards.
         wildcards (dict): Dictionary of fixed wildcard values.
         expansion_values (list): List of wildcard names to expand.
         metadata_combos (pd.DataFrame, optional): DataFrame containing all possible wildcard combinations.
@@ -103,9 +103,18 @@ def output_to_input(
     Returns:
         list: A list of expanded and/or filtered file paths as strings.
     """
+    # Get a single string output from a list
+    if isinstance(output, list):
+        if len(output) == 1:
+            output = output[0]
+        else:
+            raise ValueError(
+                "Expected a single string for 'output', but received a list with multiple items."
+            )
+
     if metadata_combos is None:
         # Directly expand paths when metadata_combos is not provided
-        expanded_paths = expand(str(output[0]), **wildcards, **subset_values)
+        expanded_paths = expand(str(output), **wildcards, **subset_values)
     else:
         # Filter metadata_combos based on fixed wildcards
         mask = (
@@ -118,7 +127,7 @@ def output_to_input(
 
         # Expand paths using Snakemake's expand function
         expanded_paths = [
-            expand(str(output[0]), **wildcards, **subset_values, **combo)
+            expand(str(output), **wildcards, **subset_values, **combo)
             for combo in expansion_dicts
         ]
 

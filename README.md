@@ -11,8 +11,8 @@ Terms mentioned throughout the code and documentation include:
 - **Brieflow library**: Code in [workflow/lib](workflow/lib) used to perform Brieflow processing.
 Used with Snakemake to run Brieflow steps.
 - **Module**: Used synonymously to refer to larger steps of the Brieflow pipeline.
-Example processes/workflows: `preprocessing`, `sbs_process`, `phenotype_process`
-- **Process**: Refers to a smaller step within a process.
+Example modules: `preprocessing`, `sbs`, `phenotype`.
+- **Process**: Refers to a smaller step within a module.
 Processes use scripts and Brieflow library code to complete tasks.
 Example processes in the preprocessing module: `extract_metadata_sbs`, `convert_sbs`, `calculate_ic_sbs`.
 
@@ -106,7 +106,7 @@ All of these steps are done in the example analysis folder.
 Use the following command to enter this folder:
 `cd analysis/`.
 
-#### Step 0: Configure preprocess params
+#### Step 0: Configure preprocess parameters
 
 Follow the steps in [0.configure_preprocess_params.ipynb](analysis/0.configure_preprocess_params.ipynb) to configure preprocess params.
 
@@ -126,24 +126,24 @@ sbatch 1.run_preprocessing_slurm.sh
 It is possible to test only SBS/phenotype preprocessing in this notebook.
 See notebook instructions for more details.
 
-#### Step 2: Configure SBS process params
+#### Step 2: Configure SBS parameters
 
-Follow the steps in [2.configure_sbs_process_params.ipynb](analysis/2.configure_sbs_process_params.ipynb) to configure SBS process params.
+Follow the steps in [2.configure_sbs_params.ipynb](analysis/2.configure_sbs_params.ipynb) to configure SBS module parameters.
 
-#### Step 3: Configure phenotype process params
+#### Step 3: Configure phenotype parameters
 
-Follow the steps in [3.configure_phenotype_process_params.ipynb](analysis/3.configure_phenotype_process_params.ipynb) to configure phenotype process params.
+Follow the steps in [3.configure_phenotype_params.ipynb](analysis/3.configure_phenotype_params.ipynb) to configure phenotype module parameters.
 
-#### Step 4: Run SBS/phenotype process module
+#### Step 4: Run SBS/phenotype modules
 
 **Local**:
 ```sh
 conda activate brieflow_workflows
-sh 4.run_sbs_phenotype_processes.sh
+sh 4.run_sbs_phenotype.sh
 ```
 **Slurm**:
 ```sh
-sbatch 4.run_sbs_phenotype_processes_slurm.sh
+sbatch 4.run_sbs_phenotype_slurm.sh
 ```
 
 #### Step 5: Configure merge process params
@@ -155,12 +155,11 @@ Follow the steps in [5.configure_merge_params.ipynb](analysis/5.configure_merge_
 **Local**:
 ```sh
 conda activate brieflow_workflows
-sh 6.run_merge_process.sh
+sh 6.run_merge.sh
 ```
 **Slurm**:
 ```sh
-# TODO: Add and test this file
-sbatch 6.run_merge_process_slurm.sh
+sbatch 6.run_merge_slurm.sh
 ```
 
 #### Step 7: Configure aggregate process params
@@ -172,12 +171,27 @@ Follow the steps in [7.configure_aggregate_params.ipynb](analysis/7.configure_ag
 **Local**:
 ```sh
 conda activate brieflow_workflows
-sh 8.run_aggregate_process.sh
+sh 8.run_aggregate.sh
 ```
 **Slurm**:
 ```sh
-# TODO: Add and test this file
-sbatch 8.run_aggregate_process_slurm.sh
+sbatch 8.run_aggregate_slurm.sh
+```
+
+#### Step 9: Configure cluster process params
+
+Follow the steps in [9.configure_cluster_params.ipynb](analysis/9.configure_cluster_params.ipynb) to configure cluster process params.
+
+#### Step 10: Run cluster process
+
+**Local**:
+```sh
+conda activate brieflow_workflows
+sh 10.run_cluster.sh
+```
+**Slurm**:
+```sh
+sbatch 10.run_cluster_slurm.sh
 ```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.
@@ -186,7 +200,7 @@ sbatch 8.run_aggregate_process_slurm.sh
 It is possible to restrict the SBS/phenotype processing with the following:
 1) If either of the sample dataframes defined in [0.configure_preprocess_params.ipynb](analysis/0.configure_preprocess_params.ipynb) are empty then no samples will be processed.
 See the notebook for more details.
-2) By varying the tags in the `4.run_sbs_phenotype_processing` sh files (`--until all_sbs_process` or `--until all_phenotype_process`), the analysis will only run only the analysis of interest.
+2) By varying the tags in the `4.run_sbs_phenotype` sh files (`--until all_sbs` or `--until all_phenotype`), the analysis will only run only the analysis of interest.
 
 ### Run Entire Analysis
 
@@ -221,7 +235,7 @@ We use the following conventions:
 - [One sentence per line](https://nick.groenen.me/notes/one-sentence-per-line/) convention for markdown files
 - [Google format](format) for function docstrings
 - [tsv](https://en.wikipedia.org/wiki/Tab-separated_values#:~:text=Tab%2Dseparated%20values%20(TSV),similar%20to%20comma%2Dseparated%20values.) file format for saving small dataframes that require easy readability
-- [hdf5](https://www.hdfgroup.org/solutions/hdf5/) file format for saving large dataframes
+- [parquet](https://www.databricks.com/glossary/what-is-parquet) file format for saving large dataframes
 - Data location information (well, tile, cycle, etc) + `__` + type of information (cell features, phenotype info, etc) + `.` + file type. 
 Data is stored in its respective analysis directories. 
-For example: `analysis_root/preprocess/ic_fields/sbs/A1_T1_C1__ic_field.tiff`
+For example: `analysis_root/preprocess/metadata/phenotype/P-1_W-A2_T-571__metadata.tsv`

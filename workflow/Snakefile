@@ -17,10 +17,13 @@ PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
 SBS_SAMPLE_FPS = list(sbs_samples_df["sample_fp"].unique())
 if len(SBS_SAMPLE_FPS) > 0:
+    SBS_PLATES = list(sbs_samples_df["plate"].unique())
     SBS_WELLS = list(sbs_samples_df["well"].unique())
     SBS_TILES = list(sbs_samples_df["tile"].unique())
     SBS_CYCLES = list(sbs_samples_df["cycle"].unique())
 else:
+    print("No SBS samples found!")
+    SBS_PLATES = []
     SBS_WELLS = []
     SBS_TILES = []
     SBS_CYCLES = []
@@ -29,20 +32,24 @@ else:
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
 PHENOTYPE_SAMPLE_FPS = list(phenotype_samples_df["sample_fp"].unique())
 if len(PHENOTYPE_SAMPLE_FPS) > 0:
+    PHENOTYPE_PLATES = list(phenotype_samples_df["plate"].unique())
     PHENOTYPE_WELLS = list(phenotype_samples_df["well"].unique())
     PHENOTYPE_TILES = list(phenotype_samples_df["tile"].unique())
 else:
+    print("No phenotype samples found!")
+    PHENOTYPE_PLATES = []
     PHENOTYPE_WELLS = []
     PHENOTYPE_TILES = []
 
 
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
-SBS_WELLS = ["A1", "A2"]
-# SBS_TILES = []
-# SBS_CYLES = []
-PHENOTYPE_WELLS = ["A1", "A2"]
-# PHENOTYPE_TILES = [1]
+SBS_PLATES = [1]
+SBS_WELLS = ["A1"]
+SBS_TILES = [1, 2]
+PHENOTYPE_PLATES = [1]
+PHENOTYPE_WELLS = ["A1"]
+PHENOTYPE_TILES = [1, 2]
 
 
 include: "targets/preprocess.smk"
@@ -51,46 +58,69 @@ include: "rules/preprocess.smk"
 
 ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
-if "sbs_process" in config and len(SBS_SAMPLE_FPS) > 0:
+if "sbs" in config and len(SBS_SAMPLE_FPS) > 0:
     # Initialize parameter search configurations if needed
-    if config["sbs_process"]["mode"] == "segment_sbs_paramsearch":
+    if config["sbs"]["mode"] == "segment_sbs_paramsearch":
         config = initialize_segment_sbs_paramsearch(config)
 
     # Include target and rule files
-    include: "targets/sbs_process.smk"
-    include: "rules/sbs_process.smk"
+    include: "targets/sbs.smk"
+    include: "rules/sbs.smk"
 
-    ALL_TARGETS += SBS_PROCESS_TARGETS_ALL
+    ALL_TARGETS += SBS_TARGETS_ALL
 
 
-if "phenotype_process" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
+if "phenotype" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
     # Initialize parameter search configurations if needed
-    if config["phenotype_process"]["mode"] == "segment_phenotype_paramsearch":
+    if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
         config = initialize_segment_phenotype_paramsearch(config)
 
     # Include target and rule files
-    include: "targets/phenotype_process.smk"
-    include: "rules/phenotype_process.smk"
+    include: "targets/phenotype.smk"
+    include: "rules/phenotype.smk"
 
-    ALL_TARGETS += PHENOTYPE_PROCESS_TARGETS_ALL
+    ALL_TARGETS += PHENOTYPE_TARGETS_ALL
 
 
-if "merge_process" in config:
+if "merge" in config:
+    # check if SBS and PHENOTYPE plates match
+    if set(SBS_PLATES) == set(PHENOTYPE_PLATES):
+        MERGE_PLATES = SBS_PLATES
+    else:
+        raise ValueError(
+            "SBS_PLATES and PHENOTYPE_PLATES do not match. Merging requires identical plate sets."
+        )
+    # check if SBS and PHENOTYPE wells match
+    if set(SBS_WELLS) == set(PHENOTYPE_WELLS):
+        MERGE_WELLS = SBS_WELLS
+    else:
+        raise ValueError(
+            "SBS_WELLS and PHENOTYPE_WELLS do not match. Merging requires identical well sets."
+        )
 
     # Include target and rule files
-    include: "targets/merge_process.smk"
-    include: "rules/merge_process.smk"
+    include: "targets/merge.smk"
+    include: "rules/merge.smk"
 
-    ALL_TARGETS += MERGE_PROCESS_TARGETS_ALL
+    ALL_TARGETS += MERGE_TARGETS_ALL
 
 
-if "aggregate_process" in config:
+if "aggregate" in config:
 
     # Include target and rule files
-    include: "targets/aggregate_process.smk"
-    include: "rules/aggregate_process.smk"
+    include: "targets/aggregate.smk"
+    include: "rules/aggregate.smk"
 
-    ALL_TARGETS += AGGREGATE_PROCESS_TARGETS_ALL
+    ALL_TARGETS += AGGREGATE_TARGETS_ALL
+
+
+if "cluster" in config:
+
+    # Include target and rule files
+    include: "targets/cluster.smk"
+    include: "rules/cluster.smk"
+
+    ALL_TARGETS += CLUSTER_TARGETS_ALL
 
 
 # Define the target files for the workflow

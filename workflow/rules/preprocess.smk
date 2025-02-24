@@ -1,4 +1,5 @@
 from lib.preprocess.file_utils import get_sample_fps
+
 from lib.shared.target_utils import output_to_input
 
 
@@ -26,20 +27,21 @@ rule extract_metadata_sbs:
         "../scripts/preprocess/extract_tile_metadata.py"
 
 
-# # Combine metadata for SBS images on well level
-# rule combine_metadata_sbs:
-#     conda:
-#         "../envs/preprocess.yml"
-#     input:
-#         lambda wildcards: output_to_input(
-#             PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-#             {"tile": SBS_TILES, "cycle": SBS_CYCLES},
-#             wildcards,
-#         ),
-#     output:
-#         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
-#     script:
-#         "../scripts/shared/combine_dfs.py"
+# Combine metadata for SBS images on well level
+rule combine_metadata_sbs:
+    conda:
+        "../envs/preprocess.yml"
+    input:
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+            wildcards=wildcards,
+            expansion_values=["tile", "cycle"],
+            metadata_combos=sbs_wildcard_combos,
+        ),
+    output:
+        PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
+    script:
+        "../scripts/shared/combine_dfs.py"
 
 
 # # Extract metadata for phenotype images

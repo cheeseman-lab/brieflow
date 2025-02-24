@@ -20,19 +20,19 @@ PREPROCESS_OUTPUTS = {
             "tsv",
         ),
     ],
-    # "combine_metadata_sbs": [
-    #     PREPROCESS_FP
-    #     / "metadata"
-    #     / "sbs"
-    #     / get_filename(
-    #         {
-    #             "plate": "{plate}",
-    #             "well": "{well}",
-    #         },
-    #         "combined_metadata",
-    #         "parquet",
-    #     ),
-    # ],
+    "combine_metadata_sbs": [
+        PREPROCESS_FP
+        / "metadata"
+        / "sbs"
+        / get_filename(
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+            },
+            "combined_metadata",
+            "parquet",
+        ),
+    ],
     # "extract_metadata_phenotype": [
     #     PREPROCESS_FP
     #     / "metadata"
@@ -131,33 +131,11 @@ PREPROCESS_OUTPUT_MAPPINGS = {
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 
 
-def module_outputs_to_targets(module_outputs, wildcards_df):
-    """Convert module output templates to concrete target paths using Snakemake expand."""
-    targets = []
-
-    # Extract all wildcards as separate lists for zip expansion
-    wildcard_values = {col: wildcards_df[col].tolist() for col in wildcards_df.columns}
-
-    # Process each rule's outputs
-    for rule_outputs in module_outputs.values():
-        for output in rule_outputs:
-            # Convert output to string
-            output_str = str(output)
-
-            # Use Snakemake's expand with zip for efficient path generation
-            # zip tells expand to use corresponding items from each list rather than all combinations
-            expanded_outputs = expand(output_str, zip, **wildcard_values)
-            targets.extend(expanded_outputs)
-
-    return targets
-
-
-sbs_wildcard_combos = sbs_samples_df[
-    ["plate", "well", "tile", "cycle"]
-].drop_duplicates()
-SBS_TARGETS = module_outputs_to_targets(PREPROCESS_OUTPUTS, sbs_wildcard_combos)
+SBS_TARGETS = outputs_to_targets(
+    PREPROCESS_OUTPUTS, sbs_wildcard_combos, PREPROCESS_OUTPUT_MAPPINGS
+)
+# print(SBS_TARGETS)
 PREPROCESS_TARGETS_ALL = SBS_TARGETS
-print(PREPROCESS_TARGETS_ALL)
 # # Generate SBS preprocessing targets
 # SBS_WILDCARDS = {
 #     "plate": SBS_PLATES,

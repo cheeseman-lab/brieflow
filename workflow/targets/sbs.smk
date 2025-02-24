@@ -194,13 +194,6 @@ SBS_OUTPUT_MAPPINGS = {
     "eval_mapping": protected,
 }
 
-SBS_WILDCARDS = {
-    "plate": SBS_PLATES,
-    "well": SBS_WELLS,
-    "tile": SBS_TILES,
-    "cycle": SBS_CYCLES,
-}
-
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
 #     SBS_OUTPUTS.update(
@@ -255,6 +248,7 @@ SBS_WILDCARDS = {
 
 SBS_OUTPUTS_MAPPED = map_outputs(SBS_OUTPUTS, SBS_OUTPUT_MAPPINGS)
 
-SBS_TARGETS = outputs_to_targets(SBS_OUTPUTS, SBS_WILDCARDS, SBS_OUTPUT_MAPPINGS)
-
-SBS_TARGETS_ALL = sum(SBS_TARGETS.values(), [])
+SBS_TARGETS_ALL = outputs_to_targets(
+    SBS_OUTPUTS, sbs_wildcard_combos, SBS_OUTPUT_MAPPINGS
+)
+# print(SBS_TARGETS_ALL)

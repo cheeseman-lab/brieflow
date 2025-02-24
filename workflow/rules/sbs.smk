@@ -8,8 +8,9 @@ rule align_sbs:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["convert_sbs"],
-            {"cycle": SBS_CYCLES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["cycle"],
+            metadata_combos=sbs_wildcard_combos,
             ancient_output=True,
         ),
     output:
@@ -78,23 +79,28 @@ rule max_filter:
 
 
 # Apply illumination correction field from segmentation cycle
+SBS_CYCLES = sorted(sbs_wildcard_combos["cycle"].unique(), key=int)
+
+
 rule apply_ic_field_sbs:
     conda:
         "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["align_sbs"],
-        # dapi illumination correction field from first cycle
+        # dapi illumination correction field
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
-            {"cycle": SBS_CYCLES[0]},
-            wildcards,
+            wildcards=wildcards,
+            subset_values={"cycle": SBS_CYCLES[config["sbs"]["dapi_index"]]},
             ancient_output=True,
         ),
         # illumination correction field from cycle of interest
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
-            {"cycle": SBS_CYCLES[config["sbs"]["segmentation_cycle_index"]]},
-            wildcards,
+            wildcards=wildcards,
+            subset_values={
+                "cycle": SBS_CYCLES[config["sbs"]["segmentation_cycle_index"]]
+            },
             ancient_output=True,
         ),
     output:
@@ -195,8 +201,9 @@ rule combine_reads:
     input:
         lambda wildcards: output_to_input(
             SBS_OUTPUTS["call_reads"],
-            {"tile": SBS_TILES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=sbs_wildcard_combos,
         ),
     output:
         SBS_OUTPUTS_MAPPED["combine_reads"],
@@ -211,8 +218,9 @@ rule combine_cells:
     input:
         lambda wildcards: output_to_input(
             SBS_OUTPUTS["call_cells"],
-            {"tile": SBS_TILES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=sbs_wildcard_combos,
         ),
     output:
         SBS_OUTPUTS_MAPPED["combine_cells"],
@@ -227,13 +235,17 @@ rule combine_sbs_info:
     input:
         lambda wildcards: output_to_input(
             SBS_OUTPUTS["extract_sbs_info"],
-            {"tile": SBS_TILES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=sbs_wildcard_combos,
         ),
     output:
         SBS_OUTPUTS_MAPPED["combine_sbs_info"],
     script:
         "../scripts/shared/combine_dfs.py"
+
+
+print(SBS_OUTPUTS["segment_sbs"][2])
 
 
 rule eval_segmentation_sbs:
@@ -243,14 +255,16 @@ rule eval_segmentation_sbs:
         # path to segmentation stats for well/tile
         segmentation_stats_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["segment_sbs"][2],
-            {"well": SBS_WELLS, "tile": SBS_TILES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well", "tile"],
+            metadata_combos=sbs_wildcard_combos,
         ),
         # path to combined cell data
         cells_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
-            {"well": SBS_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=sbs_wildcard_combos,
         ),
     output:
         SBS_OUTPUTS_MAPPED["eval_segmentation_sbs"],
@@ -264,18 +278,21 @@ rule eval_mapping:
     input:
         reads_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_reads"],
-            {"well": SBS_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=sbs_wildcard_combos,
         ),
         cells_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
-            {"well": SBS_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=sbs_wildcard_combos,
         ),
         sbs_info_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_sbs_info"],
-            {"well": SBS_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=sbs_wildcard_combos,
         ),
     output:
         SBS_OUTPUTS_MAPPED["eval_mapping"],

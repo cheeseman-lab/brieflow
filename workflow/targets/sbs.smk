@@ -251,4 +251,3 @@ SBS_OUTPUTS_MAPPED = map_outputs(SBS_OUTPUTS, SBS_OUTPUT_MAPPINGS)
 SBS_TARGETS_ALL = outputs_to_targets(
     SBS_OUTPUTS, sbs_wildcard_combos, SBS_OUTPUT_MAPPINGS
 )
-# print(SBS_TARGETS_ALL)

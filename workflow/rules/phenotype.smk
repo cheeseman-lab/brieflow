@@ -6,18 +6,8 @@ rule apply_ic_field_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_phenotype"],
-            {},
-            wildcards,
-            ancient_output=True,
-        ),
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
-            {},
-            wildcards,
-            ancient_output=True,
-        ),
+        ancient(PREPROCESS_OUTPUTS["convert_phenotype"]),
+        ancient(PREPROCESS_OUTPUTS["calculate_ic_phenotype"]),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["apply_ic_field_phenotype"],
     script:
@@ -103,8 +93,9 @@ rule merge_phenotype_info:
     input:
         lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["extract_phenotype_info"],
-            {"tile": PHENOTYPE_TILES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_info"],
@@ -140,8 +131,9 @@ rule merge_phenotype_cp:
     input:
         lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
-            {"tile": PHENOTYPE_TILES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     params:
         channel_names=config["phenotype"]["channel_names"],
@@ -159,14 +151,16 @@ rule eval_segmentation_phenotype:
         # path to segmentation stats for well/tile
         segmentation_stats_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["segment_phenotype"][2],
-            {"well": PHENOTYPE_WELLS, "tile": PHENOTYPE_TILES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well", "tile"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
         # paths to combined cell data
         cells_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["merge_phenotype_info"][0],
-            {"well": PHENOTYPE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
@@ -181,8 +175,9 @@ rule eval_features:
         # use minimum phenotype CellProfiler features for evaluation
         cells_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
-            {"well": PHENOTYPE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],

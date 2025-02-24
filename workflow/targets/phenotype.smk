@@ -134,12 +134,6 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "eval_features": protected,
 }
 
-PHENOTYPE_WILDCARDS = {
-    "plate": PHENOTYPE_PLATES,
-    "well": PHENOTYPE_WELLS,
-    "tile": PHENOTYPE_TILES,
-}
-
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
 #     PHENOTYPE_OUTPUTS.update(
@@ -203,8 +197,6 @@ PHENOTYPE_WILDCARDS = {
 
 PHENOTYPE_OUTPUTS_MAPPED = map_outputs(PHENOTYPE_OUTPUTS, PHENOTYPE_OUTPUT_MAPPINGS)
 
-PHENOTYPE_TARGETS = outputs_to_targets(
-    PHENOTYPE_OUTPUTS, PHENOTYPE_WILDCARDS, PHENOTYPE_OUTPUT_MAPPINGS
+PHENOTYPE_TARGETS_ALL = outputs_to_targets(
+    PHENOTYPE_OUTPUTS, phenotype_wildcard_combos, PHENOTYPE_OUTPUT_MAPPINGS
 )
-
-PHENOTYPE_TARGETS_ALL = sum(PHENOTYPE_TARGETS.values(), [])

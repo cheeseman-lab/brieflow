@@ -6,16 +6,14 @@ __pycache__/
 *.egg-info/
 .ruff_cache/
 
+# benchmark files
+example_analysis/config/benchmark_clusters/
+
 # files for example analysis that are too large to store with git
 example_analysis/data/
 example_analysis/analysis_root/
 example_analysis/analysis_root_test/
-
-# test notebooks
-test_file_differences.ipynb
+example_analysis/analysis_root_backup/
 
 # slurm outputs
 example_analysis/slurm/slurm_output/
-
-# denali data for testing merge
-example_analysis/denali_data/

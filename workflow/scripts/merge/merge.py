@@ -1,13 +1,18 @@
 import pandas as pd
+import numpy as np
 
 from lib.merge.merge import merge_triangle_hash
 
 # Load phenotype and sbs info with cell locations
-phenotype_info = pd.read_hdf(snakemake.input[0])
-sbs_info = pd.read_hdf(snakemake.input[1])
+phenotype_info = pd.read_parquet(snakemake.input[0])
+sbs_info = pd.read_parquet(snakemake.input[1])
 
 # Load alignment data
-fast_alignment = pd.read_hdf(snakemake.input[2])
+fast_alignment = pd.read_parquet(snakemake.input[2])
+fast_alignment["rotation"] = fast_alignment.apply(
+    lambda row: np.array([row["rotation_1"], row["rotation_2"]]), axis=1
+)
+fast_alignment.drop(columns=["rotation_1", "rotation_2"], inplace=True)
 
 # Filter alignment data based on parameters
 fast_alignment_filtered = fast_alignment[
@@ -16,21 +21,16 @@ fast_alignment_filtered = fast_alignment[
     & (fast_alignment["score"] > snakemake.params.score)
 ]
 
-# Merge cells across all wells
+# Merge cells across well
 merge_data = []
 for index, alignment_row in fast_alignment_filtered.iterrows():
-    # Determine wells, tiles, and sites for merging
-    well = alignment_row["well"]
+    # Determine tiles and sites for merging
     phenotype_tile = alignment_row["tile"]
     sbs_site = alignment_row["site"]
 
     # Filter phenotype and sbs info to the relevant well and tile for merging
-    phenotype_info_filtered = phenotype_info[
-        (phenotype_info["well"] == well) & (phenotype_info["tile"] == phenotype_tile)
-    ]
-    sbs_info_filtered = sbs_info[
-        (sbs_info["well"] == well) & (sbs_info["tile"] == sbs_site)
-    ]
+    phenotype_info_filtered = phenotype_info[phenotype_info["tile"] == phenotype_tile]
+    sbs_info_filtered = sbs_info[sbs_info["tile"] == sbs_site]
 
     # Merge cells for row of alignment data
     alignment_row_merge = merge_triangle_hash(
@@ -43,4 +43,4 @@ for index, alignment_row in fast_alignment_filtered.iterrows():
 
 # Compile and save merge data
 merge_data = pd.concat(merge_data, ignore_index=True)
-merge_data.to_hdf(snakemake.output[0], "x", mode="w")
+merge_data.to_parquet(snakemake.output[0])

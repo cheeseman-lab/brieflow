@@ -1,10 +1,14 @@
-name: aggregate_process
+name: cluster
 channels:
   - conda-forge
+  - bioconda
 dependencies:
   - pytables # need pytables defined in module env
   - pandas
+  - pyarrow
+  - scikit-learn
   - seaborn
-  - scipy
-  - mahotas
-  - scikit-image
+  - python-igraph
+  - leidenalg
+  - phate
+  - statsmodels

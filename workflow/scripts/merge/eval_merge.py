@@ -4,9 +4,16 @@ from lib.merge.format_merge import identify_single_gene_mappings
 from lib.merge.eval_merge import plot_sbs_ph_matching_heatmap, plot_cell_positions
 
 # Load data for evaluating merge
-merge_formatted = pd.read_hdf(snakemake.input[0])
-sbs_cells = pd.read_hdf(snakemake.input[1])
-phenotype_min_cp = pd.read_hdf(snakemake.input[2])
+merge_formatted = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.format_merge_paths], ignore_index=True
+)
+sbs_cells = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.combine_cells_paths], ignore_index=True
+)
+phenotype_min_cp = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.min_phenotype_cp_paths],
+    ignore_index=True,
+)
 
 # Identify single gene mappings in SBS
 sbs_cells["mapped_single_gene"] = sbs_cells.apply(
@@ -26,7 +33,7 @@ mapping_stats.to_csv(snakemake.output[0], sep="\t", index=False)
 
 # Evaluate minimal merge data
 merge_minimal = merge_formatted[
-    ["well", "tile", "site", "cell_0", "cell_1", "distance"]
+    ["plate", "well", "tile", "site", "cell_0", "cell_1", "distance"]
 ]
 
 # Eval SBS matching rates
@@ -39,7 +46,6 @@ sbs_summary, fig = plot_sbs_ph_matching_heatmap(
 )
 sbs_summary.to_csv(snakemake.output[1], sep="\t", index=False)
 fig.savefig(snakemake.output[2])
-
 
 # Eval phenotype matching rates
 ph_summary, fig = plot_sbs_ph_matching_heatmap(

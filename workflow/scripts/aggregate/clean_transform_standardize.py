@@ -5,7 +5,7 @@ from lib.aggregate.feature_processing import feature_transform, grouped_standard
 
 
 # load final merged data
-merged_final = pd.read_hdf(snakemake.input[0])
+merged_final = pd.read_parquet(snakemake.input[0])
 
 # clean merged data
 cleaned_data = clean_cell_data(
@@ -14,7 +14,7 @@ cleaned_data = clean_cell_data(
     filter_single_gene=snakemake.params["filter_single_gene"],
 )
 del merged_final
-cleaned_data.to_hdf(snakemake.output[0], key="data", mode="w")
+cleaned_data.to_parquet(snakemake.output[0])
 
 # transform cleaned data
 transformations = pd.read_csv(snakemake.params["transformations_fp"], sep="\t")
@@ -24,7 +24,7 @@ transformed_data = feature_transform(
     snakemake.params["channels"],
 )
 del cleaned_data
-transformed_data.to_hdf(snakemake.output[1], key="data", mode="w")
+transformed_data.to_parquet(snakemake.output[1])
 
 # determine target features
 feature_start_idx = transformed_data.columns.get_loc(snakemake.params["feature_start"])
@@ -43,4 +43,4 @@ standardized_data = grouped_standardization(
 del transformed_data
 
 # save standardized features
-standardized_data.to_hdf(snakemake.output[2], key="x", mode="w")
+standardized_data.to_parquet(snakemake.output[2])

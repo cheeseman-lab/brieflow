@@ -1,13 +1,11 @@
-name: cluster_process
+name: merge
 channels:
   - conda-forge
-  - bioconda
 dependencies:
+  - scipy
+  - scikit-learn
+  - joblib
   - pytables # need pytables defined in module env
   - pandas
-  - scikit-learn
+  - pyarrow
   - seaborn
-  - python-igraph
-  - leidenalg
-  - phate
-  - statsmodels

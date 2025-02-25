@@ -143,7 +143,7 @@ def plot_feature_distributions(combined_cell_data, features, remove_clean=False)
                 ax=ax,
                 inner=None,
                 cut=0,
-                scale="width",
+                density_norm="width",
                 split=False,
                 alpha=0.5,
             )
@@ -164,7 +164,7 @@ def plot_feature_distributions(combined_cell_data, features, remove_clean=False)
                 ax=ax2,
                 inner=None,
                 cut=0,
-                scale="width",
+                density_norm="width",
                 split=False,
                 alpha=0.5,
             )
@@ -239,7 +239,6 @@ def test_missing_values(gene_data, name):
 
     # Print summary
     if not results.empty:
-        print(f"\nMissing values in {name} dataset:")
         for _, row in results.iterrows():
             details = []
             if row["null_na"] > 0:
@@ -248,11 +247,6 @@ def test_missing_values(gene_data, name):
                 details.append(f"{row['empty_string']} empty")
             if row["infinite"] > 0:
                 details.append(f"{row['infinite']} infinite")
-
-            print(
-                f"{row['column']}: {row['total_issues']} total issues "
-                f"({row['percentage']:.2f}%) - {', '.join(details)}"
-            )
     else:
         print(f"\nNo missing values found in {name} dataset")
 
@@ -277,9 +271,9 @@ def calculate_mitotic_percentage(df_mitotic, df_interphase):
     )
 
     # Create dictionaries mapping genes to their counts
-    mitotic_counts = dict(zip(df_mitotic["gene_symbol_0"], df_mitotic["cell_number"]))
+    mitotic_counts = dict(zip(df_mitotic["gene_symbol_0"], df_mitotic["gene_count"]))
     interphase_counts = dict(
-        zip(df_interphase["gene_symbol_0"], df_interphase["cell_number"])
+        zip(df_interphase["gene_symbol_0"], df_interphase["gene_count"])
     )
 
     # Create result DataFrame with all genes, filling in zeros for missing values

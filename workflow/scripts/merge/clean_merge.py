@@ -3,7 +3,7 @@ import pandas as pd
 from lib.merge.eval_merge import plot_channel_histogram
 
 # Load formatted merge data
-merge_formatted = pd.read_hdf(snakemake.input[0])
+merge_formatted = pd.read_parquet(snakemake.input[0])
 
 # Cleaned merged dataset
 merge_cleaned = merge_formatted.query(
@@ -24,4 +24,4 @@ fig = plot_channel_histogram(merge_formatted, merge_cleaned)
 fig.savefig(snakemake.output[0])
 
 # Save cleaned merge data
-merge_cleaned.to_hdf(snakemake.output[1], "x", mode="w")
+merge_cleaned.to_parquet(snakemake.output[1])

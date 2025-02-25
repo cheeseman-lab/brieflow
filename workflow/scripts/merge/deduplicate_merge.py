@@ -4,16 +4,16 @@ from lib.merge.deduplicate_merge import deduplicate_cells, check_matching_rates
 from lib.merge.format_merge import identify_single_gene_mappings
 
 # Load data for evaluating merge
-merge_cleaned = pd.read_hdf(snakemake.input[1])
-sbs_cells = pd.read_hdf(snakemake.input[2])
-phenotype_min_cp = pd.read_hdf(snakemake.input[3])
+merge_cleaned = pd.read_parquet(snakemake.input[0])
+sbs_cells = pd.read_parquet(snakemake.input[1])
+phenotype_min_cp = pd.read_parquet(snakemake.input[2])
 
 # Deduplicate cells and save results
 merge_deduplicated, deduplication_stats = deduplicate_cells(
     merge_cleaned, mapped_single_gene=False, return_stats=True
 )
 deduplication_stats.to_csv(snakemake.output[0], sep="\t", index=False)
-merge_deduplicated.to_hdf(snakemake.output[1], "x", mode="w")
+merge_deduplicated.to_parquet(snakemake.output[1])
 
 # Identify single gene mappings in SBS
 sbs_cells["mapped_single_gene"] = sbs_cells.apply(

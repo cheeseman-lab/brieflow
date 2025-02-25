@@ -131,48 +131,24 @@ PREPROCESS_OUTPUT_MAPPINGS = {
 
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 
-# Generate SBS preprocessing targets
-PREPROCESS_TARGETS_SBS = (
-    outputs_to_targets_with_combinations(
-        output_templates=PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-        valid_combinations=SBS_VALID_COMBINATIONS,
-        extra_keys=SBS_TILES
-    ) +
-    outputs_to_targets_with_combinations(
-        output_templates=PREPROCESS_OUTPUTS["combine_metadata_sbs"],
-        valid_combinations=SBS_VALID_COMBINATIONS
-    ) +
-    outputs_to_targets_with_combinations(
-        output_templates=PREPROCESS_OUTPUTS["convert_sbs"],
-        valid_combinations=SBS_VALID_COMBINATIONS,
-        extra_keys=SBS_TILES
-    ) +
-    outputs_to_targets_with_combinations(
-        output_templates=PREPROCESS_OUTPUTS["calculate_ic_sbs"],
-        valid_combinations=SBS_VALID_COMBINATIONS
-    )
+# Generate sbs preprocessing targets
+PREPROCESS_OUTPUTS_SBS = {
+    rule_name: templates
+    for rule_name, templates in PREPROCESS_OUTPUTS.items()
+    if "sbs" in rule_name
+}
+PREPROCESS_TARGETS_SBS = outputs_to_targets(
+    PREPROCESS_OUTPUTS_SBS, sbs_wildcard_combos, PREPROCESS_OUTPUT_MAPPINGS
 )
 
 # Generate phenotype preprocessing targets
-PREPROCESS_TARGETS_PHENOTYPE = (
-    outputs_to_targets_with_combinations(
-        output_templates=PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
-        extra_keys=PHENOTYPE_TILES
-    ) +
-    outputs_to_targets_with_combinations(
-        output_templates=PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
-        valid_combinations=PHENOTYPE_VALID_COMBINATIONS
-    ) +
-    outputs_to_targets_with_combinations(
-        output_templates=PREPROCESS_OUTPUTS["convert_phenotype"],
-        valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
-        extra_keys=PHENOTYPE_TILES
-    ) +
-    outputs_to_targets_with_combinations(
-        output_templates=PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
-        valid_combinations=PHENOTYPE_VALID_COMBINATIONS
-    ) 
+PREPROCESS_OUTPUTS_PHENOTYPE = {
+    rule_name: templates
+    for rule_name, templates in PREPROCESS_OUTPUTS.items()
+    if "phenotype" in rule_name
+}
+PREPROCESS_TARGETS_PHENOTYPE = outputs_to_targets(
+    PREPROCESS_OUTPUTS_PHENOTYPE, phenotype_wildcard_combos, PREPROCESS_OUTPUT_MAPPINGS
 )
 
 # Combine all preprocessing targets

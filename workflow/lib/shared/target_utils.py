@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-from snakemake.io import expand, temp, ancient
+import pandas as pd
+from snakemake.io import expand, ancient
 
 from lib.shared.file_utils import parse_filename
 
@@ -51,59 +52,96 @@ def map_outputs(outputs, output_type_mappings):
     return mapped_outputs
 
 
-def outputs_to_targets(outputs, wildcards, output_mappings, expansion_method="product"):
-    """Expand output templates into full paths by applying the specified wildcards.
+def outputs_to_targets(module_outputs, wildcards_df, module_target_mappings):
+    """Convert module output templates to concrete target paths using Snakemake expand."""
+    targets = []
 
-    Args:
-        outputs (dict): Dictionary of output path templates with placeholders (e.g., PREPROCESS_OUTPUTS).
-        wildcards (dict): Dictionary of wildcard values to apply (e.g., {"well": ["A1", "A2"], "cycle": [1, 2]}).
-        output_mappings (dict): Mapping of output rules to Snakemake output types (e.g., temp, protected).
-        expansion_method (str): Method of expansion, either 'product' (default) or 'zip'.
+    # Extract all wildcards as separate lists for zip expansion
+    wildcard_values = {col: wildcards_df[col].tolist() for col in wildcards_df.columns}
 
-    Returns:
-        dict: Dictionary of expanded output paths, where each rule maps to a list of fully resolved paths.
-    """
-    expanded_targets = {}
-    for rule_name, path_templates in outputs.items():
-        # skip temporary outputs
-        if output_mappings[rule_name] == temp:
+    # Process each rule's outputs
+    for rule_name, rule_outputs in module_outputs.items():
+        if module_target_mappings[rule_name] == "temp":
             continue
 
-        if expansion_method == "zip":
-            expanded_targets[rule_name] = [
-                expand(str(path_template), zip, **wildcards)
-                for path_template in path_templates
-            ]
-        else:  # Default to product expansion
-            expanded_targets[rule_name] = [
-                expand(str(path_template), **wildcards)
-                for path_template in path_templates
-            ]
-    return expanded_targets
+        for output in rule_outputs:
+            # Convert output to string
+            output_str = str(output)
+
+            # Use Snakemake's expand with zip for efficient path generation
+            # Check if output_str contains any wildcard placeholders (i.e., "{")
+            if "{" in output_str and "}" in output_str:
+                expanded_outputs = expand(output_str, zip, **wildcard_values)
+                targets.extend(expanded_outputs)
+            else:
+                targets.append(output_str)
+
+    return targets
 
 
-def output_to_input(output_path, wildcard_values, wildcards, ancient_output=False):
-    """Resolves an output template into input paths by applying wildcards and additional mappings.
+def output_to_input(
+    output,
+    wildcards={},
+    expansion_values=[],
+    metadata_combos=None,
+    subset_values={},
+    ancient_output=False,
+):
+    """Generates input file paths by expanding or subsetting a filepath template.
+
+    This function allows one to retrieve file paths from a given template by:
+    - Expanding on values: Generating all possible file paths by substituting wildcards with
+      values from `metadata_combos`.
+    - Subsetting on values: Filtering paths to include only specific values in `subset_values`.
+    - Performing both expansion and subsetting.
 
     Args:
-        output_path (str or pathlib.Path): A single output path template containing placeholders (e.g., "{well}", "{tile}").
-        wildcard_values (dict): Additional wildcard mappings to apply (e.g., {"tile": [1, 2]}).
-        wildcards (dict): Wildcard values provided by Snakemake (e.g., {"well": "A1", "cycle": 1}).
-        ancient_output (bool, optional): Whether to wrap output paths with snakemake's ancient() function. Defaults to False.
+        output (str): Template file path with wildcards.
+        wildcards (dict): Dictionary of fixed wildcard values.
+        expansion_values (list): List of wildcard names to expand.
+        metadata_combos (pd.DataFrame, optional): DataFrame containing all possible wildcard combinations.
+        subset_values (dict): Dictionary of values to subset the final expanded paths.
+        ancient_output (bool, optional): If True, marks all returned paths as ancient in Snakemake.
 
     Returns:
-        list: A list of resolved input paths with placeholders replaced by wildcard values.
+        list: A list of expanded and/or filtered file paths as strings.
     """
-    # Merge wildcards with wildcard_values
-    all_wildcards = {**wildcards, **wildcard_values}
-    # Expand the output template with the merged wildcards
-    inputs = expand(output_path, **all_wildcards)
+    # Get a single string output from a list
+    if isinstance(output, list):
+        if len(output) == 1:
+            output = output[0]
+        else:
+            raise ValueError(
+                "Expected a single string for 'output', but received a list with multiple items."
+            )
 
-    # Prevent rerunning if ancient
+    if metadata_combos is None:
+        # Directly expand paths when metadata_combos is not provided
+        expanded_paths = expand(str(output), **wildcards, **subset_values)
+    else:
+        # Filter metadata_combos based on fixed wildcards
+        mask = (
+            metadata_combos[list(wildcards.keys())] == pd.Series(dict(wildcards))
+        ).all(axis=1)
+        filtered_combos = metadata_combos[mask]
+
+        # Extract relevant expansion values
+        expansion_dicts = filtered_combos[expansion_values].to_dict(orient="records")
+
+        # Expand paths using Snakemake's expand function
+        expanded_paths = [
+            expand(str(output), **wildcards, **subset_values, **combo)
+            for combo in expansion_dicts
+        ]
+
+        # Flatten nested lists of paths
+        expanded_paths = [path for sublist in expanded_paths for path in sublist]
+
+    # Mark paths as ancient if requested
     if ancient_output:
-        inputs = [ancient(path) for path in inputs]
+        expanded_paths = [ancient(path) for path in expanded_paths]
 
-    return inputs
+    return expanded_paths
 
 
 # TODO: move to rule_utils once this file exists

@@ -69,21 +69,24 @@ rule eval_merge:
         # formatted merge data
         format_merge_paths=lambda wildcards: output_to_input(
             MERGE_OUTPUTS["format_merge"],
-            {"well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
         ),
         # cell information from SBS
         combine_cells_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
-            {"well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=sbs_wildcard_combos,
             ancient_output=True,
         ),
         # min phentoype information
         min_phenotype_cp_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
-            {"well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=phenotype_wildcard_combos,
             ancient_output=True,
         ),
     output:

@@ -1,4 +1,4 @@
-import logging
+import warnings
 from pathlib import Path
 
 import pandas as pd
@@ -15,41 +15,53 @@ PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 
 # Load sbs samples if they exist
 sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
-SBS_SAMPLE_FPS = list(sbs_samples_df["sample_fp"].unique())
-if len(SBS_SAMPLE_FPS) > 0:
-    SBS_PLATES = list(sbs_samples_df["plate"].unique())
-    SBS_WELLS = list(sbs_samples_df["well"].unique())
-    SBS_TILES = list(sbs_samples_df["tile"].unique())
-    SBS_CYCLES = list(sbs_samples_df["cycle"].unique())
+if len(sbs_samples_df) > 0:
+    sbs_wildcard_combos = (
+        sbs_samples_df[["plate", "well", "tile", "cycle"]].drop_duplicates().astype(str)
+    )
 else:
     print("No SBS samples found!")
-    SBS_PLATES = []
-    SBS_WELLS = []
-    SBS_TILES = []
-    SBS_CYCLES = []
+    sbs_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"])
 
 # Load phenotype samples if they exist
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
-PHENOTYPE_SAMPLE_FPS = list(phenotype_samples_df["sample_fp"].unique())
-if len(PHENOTYPE_SAMPLE_FPS) > 0:
-    PHENOTYPE_PLATES = list(phenotype_samples_df["plate"].unique())
-    PHENOTYPE_WELLS = list(phenotype_samples_df["well"].unique())
-    PHENOTYPE_TILES = list(phenotype_samples_df["tile"].unique())
+if len(phenotype_samples_df) > 0:
+    phenotype_wildcard_combos = (
+        phenotype_samples_df[["plate", "well", "tile"]].drop_duplicates().astype(str)
+    )
 else:
     print("No phenotype samples found!")
-    PHENOTYPE_PLATES = []
-    PHENOTYPE_WELLS = []
-    PHENOTYPE_TILES = []
-
+    phenotype_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"])
 
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
-SBS_PLATES = [1]
-SBS_WELLS = ["A1"]
-SBS_TILES = [1, 2]
-PHENOTYPE_PLATES = [1]
-PHENOTYPE_WELLS = ["A1"]
-PHENOTYPE_TILES = [1, 2]
+sbs_wildcard_combos = sbs_wildcard_combos[
+    ~((sbs_wildcard_combos["plate"] == "1") & (sbs_wildcard_combos["well"] == "A2"))
+]
+sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["tile"].isin(["1", "2"])]
+phenotype_wildcard_combos = phenotype_wildcard_combos[
+    ~(
+        (phenotype_wildcard_combos["plate"] == "1")
+        & (phenotype_wildcard_combos["well"] == "A2")
+    )
+]
+phenotype_wildcard_combos = phenotype_wildcard_combos[
+    phenotype_wildcard_combos["tile"].isin(["1", "2"])
+]
+
+# Generate plate-well combinations for merge
+sbs_combos = set(zip(sbs_wildcard_combos["plate"], sbs_wildcard_combos["well"]))
+phenotype_combos = set(
+    zip(phenotype_wildcard_combos["plate"], phenotype_wildcard_combos["well"])
+)
+# Check if SBS and PHENOTYPE have the same plate-well combinations
+if sbs_combos == phenotype_combos:
+    merge_wildcard_combos = pd.DataFrame(list(sbs_combos), columns=["plate", "well"])
+else:
+    warnings.warn(
+        "SBS and PHENOTYPE do not have matching plate-well combinations. Merging requires identical sets."
+    )
+    merge_wildcard_combos = None
 
 
 include: "targets/preprocess.smk"
@@ -58,10 +70,11 @@ include: "rules/preprocess.smk"
 
 ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
-if "sbs" in config and len(SBS_SAMPLE_FPS) > 0:
-    # Initialize parameter search configurations if needed
-    if config["sbs"]["mode"] == "segment_sbs_paramsearch":
-        config = initialize_segment_sbs_paramsearch(config)
+if "sbs" in config and len(sbs_wildcard_combos) > 0:
+    # TODO: test and implement segmentation paramsearch for updated brieflow setup
+    # # Initialize parameter search configurations if needed
+    # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
+    #     config = initialize_segment_sbs_paramsearch(config)
 
     # Include target and rule files
     include: "targets/sbs.smk"
@@ -70,10 +83,11 @@ if "sbs" in config and len(SBS_SAMPLE_FPS) > 0:
     ALL_TARGETS += SBS_TARGETS_ALL
 
 
-if "phenotype" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
-    # Initialize parameter search configurations if needed
-    if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
-        config = initialize_segment_phenotype_paramsearch(config)
+if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
+    # TODO: test and implement segmentation paramsearch for updated brieflow setup
+    # # Initialize parameter search configurations if needed
+    # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
+    #     config = initialize_segment_phenotype_paramsearch(config)
 
     # Include target and rule files
     include: "targets/phenotype.smk"
@@ -83,20 +97,6 @@ if "phenotype" in config and len(PHENOTYPE_SAMPLE_FPS) > 0:
 
 
 if "merge" in config:
-    # check if SBS and PHENOTYPE plates match
-    if set(SBS_PLATES) == set(PHENOTYPE_PLATES):
-        MERGE_PLATES = SBS_PLATES
-    else:
-        raise ValueError(
-            "SBS_PLATES and PHENOTYPE_PLATES do not match. Merging requires identical plate sets."
-        )
-    # check if SBS and PHENOTYPE wells match
-    if set(SBS_WELLS) == set(PHENOTYPE_WELLS):
-        MERGE_WELLS = SBS_WELLS
-    else:
-        raise ValueError(
-            "SBS_WELLS and PHENOTYPE_WELLS do not match. Merging requires identical well sets."
-        )
 
     # Include target and rule files
     include: "targets/merge.smk"

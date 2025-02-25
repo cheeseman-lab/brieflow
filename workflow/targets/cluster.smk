@@ -1,3 +1,6 @@
+import pandas as pd
+from itertools import product
+
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
@@ -48,17 +51,14 @@ CLUSTER_OUTPUT_MAPPINGS = {
 }
 
 
-CHANNEL_COMBOS = ["_".join(combo) for combo in config["cluster"]["channel_combos"]]
-DATASETS = config["cluster"]["dataset_types"]
-CLUSTER_WILDCARDS = {
-    "channel_combo": CHANNEL_COMBOS,
-    "dataset": DATASETS,
-}
+channel_combos = ["_".join(combo) for combo in config["cluster"]["channel_combos"]]
+datasets = config["cluster"]["dataset_types"]
+cluster_wildcard_combos = pd.DataFrame(
+    product(channel_combos, datasets), columns=["channel_combo", "dataset"]
+)
 
 CLUSTER_OUTPUTS_MAPPED = map_outputs(CLUSTER_OUTPUTS, CLUSTER_OUTPUT_MAPPINGS)
 
-CLUSTER_TARGETS = outputs_to_targets(
-    CLUSTER_OUTPUTS, CLUSTER_WILDCARDS, CLUSTER_OUTPUT_MAPPINGS
+CLUSTER_TARGETS_ALL = outputs_to_targets(
+    CLUSTER_OUTPUTS, cluster_wildcard_combos, CLUSTER_OUTPUT_MAPPINGS
 )
-
-CLUSTER_TARGETS_ALL = sum(CLUSTER_TARGETS.values(), [])

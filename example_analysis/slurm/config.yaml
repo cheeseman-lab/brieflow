@@ -64,7 +64,7 @@ set-resources:
     combine_sbs_info:
         mem_mb: 20000
     eval_segmentation_sbs:
-        mem_mb: 10000
+        mem_mb: 50000
     eval_mapping:
         mem_mb: 50000
         cpus_per_task: 12

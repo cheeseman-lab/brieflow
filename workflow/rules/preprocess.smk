@@ -1,4 +1,5 @@
 from lib.preprocess.file_utils import get_sample_fps
+
 from lib.shared.target_utils import output_to_input
 
 
@@ -33,8 +34,9 @@ rule combine_metadata_sbs:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-            {"tile": SBS_TILES, "cycle": SBS_CYCLES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["tile", "cycle"],
+            metadata_combos=sbs_wildcard_combos,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
@@ -71,8 +73,9 @@ rule combine_metadata_phenotype:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-            {"tile": PHENOTYPE_TILES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
@@ -128,8 +131,9 @@ rule calculate_ic_sbs:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["convert_sbs"],
-            {"tile": SBS_TILES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=sbs_wildcard_combos,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_sbs"],
@@ -146,8 +150,9 @@ rule calculate_ic_phenotype:
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["convert_phenotype"],
-            {"tile": PHENOTYPE_TILES},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],

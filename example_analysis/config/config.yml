@@ -30,7 +30,7 @@ aggregate:
     - greater
   transformations_fp: config/transformations.tsv
 all:
-  root_fp: analysis_root_test/
+  root_fp: analysis_root_test_2/
 cluster:
   channel_combos:
   - - DAPI

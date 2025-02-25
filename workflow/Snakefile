@@ -38,10 +38,7 @@ else:
 sbs_wildcard_combos = sbs_wildcard_combos[
     ~((sbs_wildcard_combos["plate"] == "1") & (sbs_wildcard_combos["well"] == "A2"))
 ]
-sbs_wildcard_combos = sbs_wildcard_combos[
-    sbs_wildcard_combos["tile"].isin(["1", "2"])
-    & sbs_wildcard_combos["cycle"].isin(["1", "2", "3"])
-]
+sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["tile"].isin(["1", "2"])]
 phenotype_wildcard_combos = phenotype_wildcard_combos[
     ~(
         (phenotype_wildcard_combos["plate"] == "1")

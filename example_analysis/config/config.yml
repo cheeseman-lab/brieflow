@@ -121,6 +121,5 @@ sbs:
   mode: null
   nuclei_diameter: 9.166995688475083
   q_min: 0
-  # TODO: set index below to 1 after testing
-  segmentation_cycle_index: 1
+  segmentation_cycle_index: 10
   threshold_peaks: 400

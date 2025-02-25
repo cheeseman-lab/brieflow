@@ -65,13 +65,8 @@ AGGREGATE_OUTPUT_MAPPINGS = {
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
 
-AGGREGATE_WILDCARDS = {
-    "plate": MERGE_PLATES,
-    "well": MERGE_WELLS,
-}
-
 AGGREGATE_TARGETS = outputs_to_targets(
-    AGGREGATE_OUTPUTS, AGGREGATE_WILDCARDS, AGGREGATE_OUTPUT_MAPPINGS
+    AGGREGATE_OUTPUTS, merge_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS
 )
 
 # Define montage outputs
@@ -123,7 +118,7 @@ MONTAGE_OUTPUTS = {
     / "interphase_montages_complete.flag",
 }
 
-AGGREGATE_TARGETS_ALL = sum(AGGREGATE_TARGETS.values(), []) + [
+AGGREGATE_TARGETS_ALL = AGGREGATE_TARGETS + [
     MONTAGE_OUTPUTS["mitotic_montage_flag"],
     MONTAGE_OUTPUTS["interphase_montage_flag"],
 ]

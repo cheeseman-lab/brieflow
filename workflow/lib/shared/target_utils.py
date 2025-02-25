@@ -69,9 +69,12 @@ def outputs_to_targets(module_outputs, wildcards_df, module_target_mappings):
             output_str = str(output)
 
             # Use Snakemake's expand with zip for efficient path generation
-            # zip tells expand to use corresponding items from each list rather than all combinations
-            expanded_outputs = expand(output_str, zip, **wildcard_values)
-            targets.extend(expanded_outputs)
+            # Check if output_str contains any wildcard placeholders (i.e., "{")
+            if "{" in output_str and "}" in output_str:
+                expanded_outputs = expand(output_str, zip, **wildcard_values)
+                targets.extend(expanded_outputs)
+            else:
+                targets.append(output_str)
 
     return targets
 

@@ -47,8 +47,9 @@ rule process_mitotic_gene_data:
         # mitotic data
         lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS["split_phases"][0],
-            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["plate", "well"],
+            metadata_combos=merge_wildcard_combos,
         ),
     output:
         AGGREGATE_OUTPUTS_MAPPED["process_mitotic_gene_data"],
@@ -72,8 +73,9 @@ rule process_interphase_gene_data:
         # interphase data
         lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS["split_phases"][1],
-            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["plate", "well"],
+            metadata_combos=merge_wildcard_combos,
         ),
     output:
         AGGREGATE_OUTPUTS_MAPPED["process_interphase_gene_data"],
@@ -97,8 +99,9 @@ rule process_all_gene_data:
         # all standardized data
         lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
-            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["plate", "well"],
+            metadata_combos=merge_wildcard_combos,
         ),
     output:
         AGGREGATE_OUTPUTS_MAPPED["process_all_gene_data"],
@@ -121,20 +124,23 @@ rule eval_aggregate:
         # cleaned data
         cleaned_data_paths=lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS["clean_transform_standardize"][0],
-            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["plate", "well"],
+            metadata_combos=merge_wildcard_combos,
         ),
         # transformed data
         transformed_data_paths=lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS["clean_transform_standardize"][1],
-            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["plate", "well"],
+            metadata_combos=merge_wildcard_combos,
         ),
         # standardized data
         standardized_data_paths=lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
-            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["plate", "well"],
+            metadata_combos=merge_wildcard_combos,
         ),
         # processed mitotic data
         mitotic_gene_data=AGGREGATE_OUTPUTS["process_mitotic_gene_data"],
@@ -165,8 +171,9 @@ checkpoint prepare_mitotic_montage_data:
         # mitotic standardized data
         lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS["split_phases"][0],
-            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["plate", "well"],
+            metadata_combos=merge_wildcard_combos,
         ),
     output:
         directory(MONTAGE_OUTPUTS["mitotic_montage_data_dir"]),
@@ -216,8 +223,9 @@ checkpoint prepare_interphase_montage_data:
         # interphase standardized data
         lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS["split_phases"][1],
-            {"plate": MERGE_PLATES, "well": MERGE_WELLS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["plate", "well"],
+            metadata_combos=merge_wildcard_combos,
         ),
     output:
         directory(MONTAGE_OUTPUTS["interphase_montage_data_dir"]),

@@ -91,7 +91,7 @@ rule apply_ic_field_sbs:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
-            subset_values={"cycle": SBS_CYCLES[config["sbs"]["dapi_index"]]},
+            subset_values={"cycle": 0},
             ancient_output=True,
         ),
         # illumination correction field from cycle of interest

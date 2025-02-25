@@ -67,8 +67,9 @@ rule cluster_eval:
         # all global metric files from analyze clusters
         lambda wildcards: output_to_input(
             CLUSTER_OUTPUTS["benchmark_clusters"][1],
-            {"channel_combo": CHANNEL_COMBOS, "dataset": DATASETS},
-            wildcards,
+            wildcards=wildcards,
+            expansion_values=["channel_combo", "dataset"],
+            metadata_combos=cluster_wildcard_combos,
         ),
     output:
         CLUSTER_OUTPUTS_MAPPED["cluster_eval"],

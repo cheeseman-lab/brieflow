@@ -117,13 +117,13 @@ if "aggregate" in config:
     ALL_TARGETS += AGGREGATE_TARGETS_ALL
 
 
-# if "cluster" in config:
+if "cluster" in config:
 
-#     # Include target and rule files
-#     include: "targets/cluster.smk"
-#     include: "rules/cluster.smk"
+    # Include target and rule files
+    include: "targets/cluster.smk"
+    include: "rules/cluster.smk"
 
-#     ALL_TARGETS += CLUSTER_TARGETS_ALL
+    ALL_TARGETS += CLUSTER_TARGETS_ALL
 
 
 # Define the target files for the workflow

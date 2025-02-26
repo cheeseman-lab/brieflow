@@ -6,9 +6,19 @@ from lib.merge.hash import hash_cell_locations, multistep_alignment, extract_rot
 # Load dfs with metadata on well level
 phenotype_metadata = pd.read_parquet(snakemake.input[0])
 sbs_metadata = pd.read_parquet(snakemake.input[1])
-sbs_metadata = sbs_metadata[
-    sbs_metadata["cycle"] == snakemake.params.sbs_metadata_cycle
-]
+
+# Apply metadata filters if they exist
+phenotype_filters = snakemake.params.get("phenotype_metadata_filters", None)
+if phenotype_filters is not None:
+    for filter_key, filter_value in phenotype_filters.items():
+        phenotype_metadata = phenotype_metadata[
+            phenotype_metadata[filter_key] == filter_value
+        ]
+sbs_filters = snakemake.params.get("sbs_metadata_filters", None)
+if sbs_filters is not None:
+    for filter_key, filter_value in sbs_filters.items():
+        sbs_metadata = sbs_metadata[sbs_metadata[filter_key] == filter_value]
+
 # Load phentoype/sbs info on well level
 phenotype_info = pd.read_parquet(snakemake.input[2])
 sbs_info = pd.read_parquet(snakemake.input[3])

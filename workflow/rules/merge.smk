@@ -14,7 +14,7 @@ rule fast_alignment:
     output:
         MERGE_OUTPUTS_MAPPED["fast_alignment"],
     params:
-        sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
+        sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
         det_range=config["merge"]["det_range"],
         score=config["merge"]["score"],
         initial_sites=config["merge"]["initial_sites"],

@@ -36,18 +36,15 @@ else:
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
 sbs_wildcard_combos = sbs_wildcard_combos[
-    ~((sbs_wildcard_combos["plate"] == "1") & (sbs_wildcard_combos["well"] == "A2"))
+    ((sbs_wildcard_combos["plate"] == "1") & (sbs_wildcard_combos["well"] == "A1"))
 ]
-sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["tile"].isin(["1", "2"])]
+# sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["tile"].isin(["1", "2"])]
 phenotype_wildcard_combos = phenotype_wildcard_combos[
-    ~(
-        (phenotype_wildcard_combos["plate"] == "1")
-        & (phenotype_wildcard_combos["well"] == "A2")
-    )
+    ((phenotype_wildcard_combos["plate"] == "1") & (phenotype_wildcard_combos["well"] == "A1"))
 ]
-phenotype_wildcard_combos = phenotype_wildcard_combos[
-    phenotype_wildcard_combos["tile"].isin(["1", "2"])
-]
+# phenotype_wildcard_combos = phenotype_wildcard_combos[
+#     phenotype_wildcard_combos["tile"].isin(["1", "2"])
+# ]
 
 # Generate plate-well combinations for merge
 sbs_combos = set(zip(sbs_wildcard_combos["plate"], sbs_wildcard_combos["well"]))

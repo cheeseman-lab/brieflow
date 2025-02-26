@@ -91,7 +91,7 @@ rule apply_ic_field_sbs:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
-            subset_values={"cycle": 0},
+            subset_values={"cycle": 1},
             ancient_output=True,
         ),
         # illumination correction field from cycle of interest
@@ -356,3 +356,4 @@ rule eval_mapping:
 rule all_sbs:
     input:
         SBS_TARGETS_ALL,
+        

@@ -13,6 +13,7 @@ def get_sample_fps(
     channel: str = None,
     round_order: List[int] = None,
     channel_order: List[str] = None,
+    verbose: bool = False,
 ) -> Union[str, List[str]]:
     """Filters the samples DataFrame and ensures consistent channel and round order.
 
@@ -25,60 +26,91 @@ def get_sample_fps(
         channel (str, optional): Channel to filter by. Defaults to None.
         round_order (List[int], optional): Order of rounds to return. Defaults to None.
         channel_order (List[str], optional): Order of channels. Defaults to None.
+        verbose (bool, optional): Whether to print verbose output. Defaults to False.
 
     Returns:
         Union[str, List[str]]: Either a single filepath or ordered list of filepaths
     """
     filtered_df = samples_df
-
     if plate is not None:
         filtered_df = filtered_df[filtered_df["plate"] == int(plate)]
-
     if well is not None:
         filtered_df = filtered_df[filtered_df["well"] == well]
-
     if tile is not None:
         filtered_df = filtered_df[filtered_df["tile"] == int(tile)]
-
     if cycle is not None:
         filtered_df = filtered_df[filtered_df["cycle"] == int(cycle)]
-
     if channel is not None:
         filtered_df = filtered_df[filtered_df["channel"] == channel]
 
     if round_order is not None:
         # Filter to only include specified rounds
         filtered_df = filtered_df[filtered_df["round"].isin(round_order)]
+
+        # If no data after filtering, return results based on available rounds
+        if len(filtered_df) == 0:
+            print(
+                f"No data found for specified rounds {round_order}. Using available rounds."
+            )
+            filtered_df = samples_df
+            if plate is not None:
+                filtered_df = filtered_df[filtered_df["plate"] == int(plate)]
+            if well is not None:
+                filtered_df = filtered_df[filtered_df["well"] == well]
+            if tile is not None:
+                filtered_df = filtered_df[filtered_df["tile"] == int(tile)]
+            if cycle is not None:
+                filtered_df = filtered_df[filtered_df["cycle"] == int(cycle)]
+            if channel is not None:
+                filtered_df = filtered_df[filtered_df["channel"] == channel]
+
         # Create dictionary mapping round to DataFrame rows
         round_groups = {
             round_num: group for round_num, group in filtered_df.groupby("round")
         }
 
-        # Initialize list to store file paths for each round
-        round_files = []
+        # Initialize lists to store files and channels
+        all_files = []
+        final_channel_order = []
 
-        # Process each round in the specified order
-        for round_num in round_order:
-            if round_num not in round_groups:
-                raise ValueError(f"Round {round_num} not found in data")
+        # Get available rounds that exist in the data
+        available_rounds = sorted(round_groups.keys())
 
+        # Process each available round
+        for round_num in available_rounds:
             round_df = round_groups[round_num]
 
-            # If we have channels and channel order is specified
+            # If channel order is specified, get files in that order for this round
             if "channel" in round_df.columns and channel_order is not None:
+                # Create mapping of available channels to files for this round
                 channel_to_file = dict(zip(round_df["channel"], round_df["sample_fp"]))
-                round_files.extend(
-                    [channel_to_file[channel] for channel in channel_order]
-                )
+                # Add files for each requested channel if available in this round
+                for channel in channel_order:
+                    if channel in channel_to_file:
+                        all_files.append(channel_to_file[channel])
+                        final_channel_order.append(f"Round {round_num}: {channel}")
             else:
-                round_files.append(round_df["sample_fp"].iloc[0])
+                # If no channel order, just take the first file from this round
+                all_files.append(round_df["sample_fp"].iloc[0])
+                final_channel_order.append(
+                    f"Round {round_num}: {round_df['channel'].iloc[0]}"
+                )
 
-        return round_files
+        if verbose:
+            print("\nFinal channel order:")
+            for chan in final_channel_order:
+                print(f"  {chan}")
+
+        return all_files
 
     # If no rounds specified but we have channels and channel order
     if "channel" in filtered_df.columns and channel_order is not None:
         channel_to_file = dict(zip(filtered_df["channel"], filtered_df["sample_fp"]))
-        return [channel_to_file[channel] for channel in channel_order]
+        return [
+            channel_to_file[channel]
+            for channel in channel_order
+            if channel in channel_to_file
+        ]
 
     # Otherwise return single file path
     return filtered_df["sample_fp"].iloc[0]

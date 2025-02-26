@@ -1,4 +1,5 @@
 from lib.shared.target_utils import output_to_input
+from lib.shared.rule_utils import get_alignment_params
 
 
 # Apply illumination correction field
@@ -23,15 +24,7 @@ rule align_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"],
     params:
-        align=config["phenotype"]["align"],
-        target=config["phenotype"]["target"] if config["phenotype"]["align"] else None,
-        source=config["phenotype"]["source"] if config["phenotype"]["align"] else None,
-        riders=config["phenotype"]["riders"] if config["phenotype"]["align"] else None,
-        remove_channel=(
-            config["phenotype"]["remove_channel"]
-            if config["phenotype"]["align"]
-            else None
-        ),
+        config=lambda wildcards: get_alignment_params(wildcards, config)
     script:
         "../scripts/phenotype/align_phenotype.py"
 

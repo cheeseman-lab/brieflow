@@ -20,9 +20,9 @@ rule align_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        PHENOTYPE_OUTPUTS["apply_ic_field_phenotype"]
+        PHENOTYPE_OUTPUTS["apply_ic_field_phenotype"],
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"]
+        PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"],
     params:
         config=lambda wildcards: get_alignment_params(wildcards, config)
     script:

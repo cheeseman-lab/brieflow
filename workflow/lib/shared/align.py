@@ -3,7 +3,6 @@
 Uses NumPy and scikit-image to provide image
 alignment between sequencing cycles, apply percentile-based filtering, fill masked
 areas with noise, and perform various transformations to enhance image data quality.
-Also provides helper functions for parsing alignment parameters for multi-step alignment.
 """
 
 import numpy as np

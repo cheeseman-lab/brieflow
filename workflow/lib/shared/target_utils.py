@@ -7,18 +7,20 @@ from snakemake.io import expand, ancient
 
 from lib.shared.file_utils import parse_filename
 
+
 def clean_value(val):
     """Convert numpy types to Python native types.
-    
+
     Args:
         val: Value to clean (could be numpy type or native Python type)
-        
+
     Returns:
         Native Python type (int, str, etc.)
     """
-    if hasattr(val, 'item'):  # Check if it's a numpy type
+    if hasattr(val, "item"):  # Check if it's a numpy type
         return val.item()
     return val
+
 
 def map_outputs(outputs, output_type_mappings):
     """Apply Snakemake output type mappings (e.g., temp, protected) to output paths.

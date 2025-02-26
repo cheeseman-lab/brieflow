@@ -11,12 +11,12 @@ print("Alignment config:", align_config)
 
 if align_config["align"]:
     print("Aligning channels...")
-    
+
     if align_config["multi_step"]:
         # Handle multi-step alignment
         print(f"Performing {len(align_config['steps'])}-step alignment...")
         aligned_data = image_data
-        
+
         for i, step in enumerate(align_config["steps"], 1):
             print(f"Step {i}: Aligning channels...")
             print(f"Step parameters: {step}")
@@ -25,7 +25,7 @@ if align_config["align"]:
                 target=step["target"],
                 source=step["source"],
                 riders=step.get("riders", []),
-                remove_channel=step["remove_channel"]
+                remove_channel=step["remove_channel"],
             )
     else:
         # Handle single-step alignment
@@ -35,7 +35,7 @@ if align_config["align"]:
             target=align_config["target"],
             source=align_config["source"],
             riders=align_config.get("riders", []),
-            remove_channel=align_config["remove_channel"]
+            remove_channel=align_config["remove_channel"],
         )
 else:
     print("Skipping alignment...")

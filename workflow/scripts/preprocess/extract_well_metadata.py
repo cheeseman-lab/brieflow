@@ -3,7 +3,7 @@ from lib.preprocess.preprocess import extract_well_metadata
 # Extract metadata from ND2 file paths using the _extract_metadata_tile function
 cycle = getattr(snakemake.params, "cycle", None)
 metadata_df = extract_well_metadata(
-    snakemake.input[0], 
+    snakemake.input[0],
     snakemake.params.plate,
     snakemake.params.well,
     cycle,

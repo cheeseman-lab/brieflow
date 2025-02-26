@@ -104,11 +104,7 @@ def extract_tile_metadata(
 
 
 def extract_well_metadata(
-    well_fp: str, 
-    plate: int,
-    well: str,
-    cycle: int = None,
-    verbose: bool = False
+    well_fp: str, plate: int, well: str, cycle: int = None, verbose: bool = False
 ) -> pd.DataFrame:
     """Extracts metadata from an ND2 file containing multiple fields of view. Only captures unique XY positions, avoiding Z-stack duplicates.
 

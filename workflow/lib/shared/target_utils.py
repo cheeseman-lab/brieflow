@@ -132,9 +132,11 @@ def output_to_input(
         expanded_paths = expand(str(output), **wildcards, **subset_values)
     else:
         # Filter metadata_combos based on fixed wildcards
-        mask = (
-            metadata_combos[list(wildcards.keys())] == pd.Series(dict(wildcards))
-        ).all(axis=1)
+        mask = pd.Series(True, index=metadata_combos.index)
+        for key, value in wildcards.items():
+            # Convert both sides to string to ensure matching types
+            mask &= metadata_combos[key].astype(str) == str(value)
+
         filtered_combos = metadata_combos[mask]
 
         # Extract relevant expansion values
@@ -148,6 +150,9 @@ def output_to_input(
 
         # Flatten nested lists of paths
         expanded_paths = [path for sublist in expanded_paths for path in sublist]
+
+        # Remove duplicates while preserving order
+        expanded_paths = list(dict.fromkeys(expanded_paths))
 
     # Mark paths as ancient if requested
     if ancient_output:

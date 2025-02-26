@@ -1,5 +1,5 @@
-from lib.shared.target_utils import output_to_input_from_combinations
-from lib.shared.rule_utils import filter_outputs_by_cycle_index
+from lib.shared.target_utils import output_to_input
+
 
 # Align images from each sequencing round
 rule align_sbs:
@@ -91,7 +91,7 @@ rule apply_ic_field_sbs:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
-            subset_values={"cycle": SBS_CYCLES[config["sbs"]["dapi_index"]]},
+            subset_values={"cycle": 1},
             ancient_output=True,
         ),
         # illumination correction field from cycle of interest
@@ -356,3 +356,4 @@ rule eval_mapping:
 rule all_sbs:
     input:
         SBS_TARGETS_ALL,
+        

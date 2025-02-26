@@ -1,5 +1,6 @@
 from lib.preprocess.file_utils import get_sample_fps
-from lib.shared.target_utils import output_to_input_from_combinations
+
+from lib.shared.target_utils import output_to_input
 
 
 # Extract metadata for SBS images
@@ -29,10 +30,11 @@ rule combine_metadata_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input_from_combinations(
-            output_path=PREPROCESS_OUTPUTS["extract_metadata_sbs"],
-            valid_combinations=SBS_VALID_COMBINATIONS,
-            wildcards=wildcards
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["extract_metadata_sbs"],
+            wildcards=wildcards,
+            expansion_values=["cycle", "channel"],
+            metadata_combos=sbs_wildcard_combos,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
@@ -60,15 +62,16 @@ rule extract_metadata_phenotype:
         "../scripts/preprocess/extract_well_metadata.py"
 
 
-# Combine metadata for phenotype images on well level
+# Comine metadata for phenotype images on well level
 rule combine_metadata_phenotype:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input_from_combinations(
-            output_path=PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
-            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
             wildcards=wildcards,
+            expansion_values=["channel"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
@@ -91,7 +94,6 @@ rule convert_sbs:
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
     params:
-        plate=lambda wildcards: wildcards.plate,
         tile=lambda wildcards: int(wildcards.tile),
         channel_order_flip=config["preprocess"]["sbs_channel_order_flip"],
     script:
@@ -113,7 +115,6 @@ rule convert_phenotype:
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
     params:
-        plate=lambda wildcards: wildcards.plate,
         tile=lambda wildcards: int(wildcards.tile),
         channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
     script:
@@ -125,11 +126,11 @@ rule calculate_ic_sbs:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input_from_combinations(
-            output_path=PREPROCESS_OUTPUTS["convert_sbs"],
-            valid_combinations=SBS_VALID_COMBINATIONS,
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["convert_sbs"],
             wildcards=wildcards,
-            expand_values={"tile": SBS_TILES}
+            expansion_values=["tile"],
+            metadata_combos=sbs_wildcard_combos,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_sbs"],
@@ -144,11 +145,11 @@ rule calculate_ic_phenotype:
     conda:
         "../envs/preprocess.yml"
     input:
-        lambda wildcards: output_to_input_from_combinations(
-            output_path=PREPROCESS_OUTPUTS["convert_phenotype"],
-            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["convert_phenotype"],
             wildcards=wildcards,
-            expand_values={"tile": PHENOTYPE_TILES}
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],

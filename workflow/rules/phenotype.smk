@@ -1,4 +1,4 @@
-from lib.shared.target_utils import output_to_input, output_to_input_from_combinations
+from lib.shared.target_utils import output_to_input
 from lib.shared.rule_utils import get_alignment_params
 
 
@@ -79,6 +79,7 @@ rule extract_phenotype_info:
         "../scripts/shared/extract_phenotype_minimal.py"
 
 
+# Combine phenotype info results from different tiles
 rule merge_phenotype_info:
     conda:
         "../envs/phenotype.yml"
@@ -116,6 +117,7 @@ rule extract_phenotype_cp:
         "../scripts/phenotype/extract_phenotype_cp_multichannel.py"
 
 
+# Combine phenotype results from different tiles
 rule merge_phenotype_cp:
     conda:
         "../envs/phenotype.yml"
@@ -134,7 +136,7 @@ rule merge_phenotype_cp:
         "../scripts/phenotype/merge_phenotype_cp.py"
 
 
-# Evaluation rules need to use valid combinations
+# Evaluate segmentation results
 rule eval_segmentation_phenotype:
     conda:
         "../envs/phenotype.yml"
@@ -158,6 +160,7 @@ rule eval_segmentation_phenotype:
     script:
         "../scripts/shared/eval_segmentation.py"
 
+
 rule eval_features:
     conda:
         "../envs/phenotype.yml"
@@ -173,6 +176,7 @@ rule eval_features:
         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],
     script:
         "../scripts/phenotype/eval_features.py"
+
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":

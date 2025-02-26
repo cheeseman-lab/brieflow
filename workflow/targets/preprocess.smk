@@ -1,5 +1,5 @@
 from lib.shared.file_utils import get_filename
-from lib.shared.target_utils import map_outputs, outputs_to_targets_with_combinations
+from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
@@ -128,7 +128,6 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "calculate_ic_sbs": protected,
     "calculate_ic_phenotype": protected,
 }
-
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 
 # Generate sbs preprocessing targets

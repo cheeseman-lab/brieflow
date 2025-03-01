@@ -14,10 +14,8 @@ rule fast_alignment:
     output:
         MERGE_OUTPUTS_MAPPED["fast_alignment"],
     params:
-        sbs_metadata_filters={
-            "cycle": config["merge"]["sbs_metadata_cycle"],
-            **{"channel": config["merge"]["sbs_metadata_channel"]} if "sbs_metadata_channel" in config["merge"] else {}
-        },
+        sbs_metadata_filters=(lambda: {"cycle": config["merge"]["sbs_metadata_cycle"]} if "sbs_metadata_channel" not in config["merge"] 
+                            else {"cycle": config["merge"]["sbs_metadata_cycle"], "channel": config["merge"]["sbs_metadata_channel"]}),
         det_range=config["merge"]["det_range"],
         score=config["merge"]["score"],
         initial_sites=config["merge"]["initial_sites"],

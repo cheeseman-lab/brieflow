@@ -1,9 +1,6 @@
 # Brieflow
 
-Extensible pipeline tool for processing optical pooled screens data.
-
-We are actively moving code from [OpticalPooledScreens](https://github.com/cheeseman-lab/OpticalPooledScreens).
-Please check back for updates! 
+Extensible tool for processing optical pooled screens data.
 
 ## Definitions
 
@@ -40,22 +37,11 @@ Brieflow runs as follows:
 - Each process rule calls a script.
 - Scripts use the Brieflow library code to transform the input files defined in targets into the output files defined in targets.
 
-## Running Example Analysis
+## Running Brieflow
 
-Brieflow is set up as a Snakemake workflow with user configuration between steps where necessary. 
-Thus, a user must configure parameters between module steps with configuration notebooks.
-While each step's module has its own Conda environment (compiled by Snakemake at runtime), the notebooks all share a configuration environment.
-
-We currently recommend creating a cloned version of Brieflow for each screen analysis with:
-```sh
-# change directory below to reflect location of a screen analysis project
-cd screen_analysis_dir/
-git clone https://github.com/cheeseman-lab/brieflow.git
-```
-
-See the steps below to set up the workflow/configuration environments and run your own analysis with Brieflow.
-
-**Note:** We will soon release documentation on how to set up an analysis repo for working with Brieflow!
+Brieflow is usually loaded as a submodule within a Brieflow analysis.
+Each Brieflow analysis corresponds to one optical pooled screen.
+Look at [brieflow-analysis](https://github.com/cheeseman-lab/brieflow-analysis/) for instructions on using Brieflow as part of a Brieflow analysis.
 
 ### Set up workflow/configuration Conda environments
 
@@ -97,126 +83,12 @@ The `slurm_partition` and `slurm_account` in `default-resources` need to be conf
 These can be adjusted as necessary.
 
 **Note**: Other Snakemake HPC integrations can be found in the [Snakemake plugin catalog](https://snakemake.github.io/snakemake-plugin-catalog/index.html#snakemake-plugin-catalog).
-Only the `slurm` plugin has been tested.
-
-### Analysis Steps
-
-Follow the instructions below to configure parameters and run modules.
-All of these steps are done in the example analysis folder.
-Use the following command to enter this folder:
-`cd analysis/`.
-
-#### Step 0: Configure preprocess parameters
-
-Follow the steps in [0.configure_preprocess_params.ipynb](analysis/0.configure_preprocess_params.ipynb) to configure preprocess params.
-
-#### Step 1: Run preprocessing module
-
-**Local**:
-```sh
-conda activate brieflow_workflows
-sh 1.run_preprocessing.sh
-```
-**Slurm**:
-```sh
-sbatch 1.run_preprocessing_slurm.sh
-```
-
-***Note**: For testing purposes, users may only have generated sbs or phenotype images.
-It is possible to test only SBS/phenotype preprocessing in this notebook.
-See notebook instructions for more details.
-
-#### Step 2: Configure SBS parameters
-
-Follow the steps in [2.configure_sbs_params.ipynb](analysis/2.configure_sbs_params.ipynb) to configure SBS module parameters.
-
-#### Step 3: Configure phenotype parameters
-
-Follow the steps in [3.configure_phenotype_params.ipynb](analysis/3.configure_phenotype_params.ipynb) to configure phenotype module parameters.
-
-#### Step 4: Run SBS/phenotype modules
-
-**Local**:
-```sh
-conda activate brieflow_workflows
-sh 4.run_sbs_phenotype.sh
-```
-**Slurm**:
-```sh
-sbatch 4.run_sbs_phenotype_slurm.sh
-```
-
-#### Step 5: Configure merge process params
-
-Follow the steps in [5.configure_merge_params.ipynb](analysis/5.configure_merge_params.ipynb) to configure merge process params.
-
-#### Step 6: Run merge process
-
-**Local**:
-```sh
-conda activate brieflow_workflows
-sh 6.run_merge.sh
-```
-**Slurm**:
-```sh
-sbatch 6.run_merge_slurm.sh
-```
-
-#### Step 7: Configure aggregate process params
-
-Follow the steps in [7.configure_aggregate_params.ipynb](analysis/7.configure_aggregate_params.ipynb) to configure aggregate process params.
-
-#### Step 8: Run aggregate process
-
-**Local**:
-```sh
-conda activate brieflow_workflows
-sh 8.run_aggregate.sh
-```
-**Slurm**:
-```sh
-sbatch 8.run_aggregate_slurm.sh
-```
-
-#### Step 9: Configure cluster process params
-
-Follow the steps in [9.configure_cluster_params.ipynb](analysis/9.configure_cluster_params.ipynb) to configure cluster process params.
-
-#### Step 10: Run cluster process
-
-**Local**:
-```sh
-conda activate brieflow_workflows
-sh 10.run_cluster.sh
-```
-**Slurm**:
-```sh
-sbatch 10.run_cluster_slurm.sh
-```
-
-***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.
-
-***Note**: Many users will want to only run SBS or phenotype processing, independently.
-It is possible to restrict the SBS/phenotype processing with the following:
-1) If either of the sample dataframes defined in [0.configure_preprocess_params.ipynb](analysis/0.configure_preprocess_params.ipynb) are empty then no samples will be processed.
-See the notebook for more details.
-2) By varying the tags in the `4.run_sbs_phenotype` sh files (`--until all_sbs` or `--until all_phenotype`), the analysis will only run only the analysis of interest.
-
-### Run Entire Analysis
-
-If all parameter configurations are known for the entire Brieflow pipeline, it is possible to run the entire pipeline with the following:
-
-```sh
-conda activate brieflow_workflows
-sh run_entire_analysis.sh
-sbatch run_entire_analysis.sh
-```
+Only the `slurm` plugin has been tested. It is important to understand that these plugins assume that the Snakemake scheduler will operate on the head HPC node, and *only the individual jobs* are submitted to the various nodes available to the HPC. Therefore, the Snakefile should be run through bash on the head node (with `slurm` or other HPC configurations). We recommend starting a tmux session for this, especially for larger jobs.
 
 ### Example Analysis
 
-The [example analysis](example_analysis) details an example Brieflow run with a small testing set of OPS data.
+The [denali-analysis](https://github.com/cheeseman-lab/denali-analysis) details an example Brieflow run.
 We do not include the data necessary for this example analysis in this repo as it is too large.
-The `data/` folder used for this example analysis can be downloaded from [Google Drive](https://drive.google.com/file/d/1FJohXpH8Ce70aoYjz0J6pQTbbRWm13na/view?usp=drive_link) and should be placed at `example_analysis/data`.
 
 ## Contribution Notes
 

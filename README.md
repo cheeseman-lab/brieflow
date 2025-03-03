@@ -97,7 +97,7 @@ The `slurm_partition` and `slurm_account` in `default-resources` need to be conf
 These can be adjusted as necessary.
 
 **Note**: Other Snakemake HPC integrations can be found in the [Snakemake plugin catalog](https://snakemake.github.io/snakemake-plugin-catalog/index.html#snakemake-plugin-catalog).
-Only the `slurm` plugin has been tested.
+Only the `slurm` plugin has been tested. It is important to understand that these plugins assume that the Snakemake scheduler will operate on the head HPC node, and *only the individual jobs* are submitted to the various nodes available to the HPC. Therefore, the Snakefile should be run through bash on the head node (with `slurm` or other HPC configurations). We recommend starting a tmux session for this, especially for larger jobs.
 
 ### Analysis Steps
 
@@ -119,7 +119,7 @@ sh 1.run_preprocessing.sh
 ```
 **Slurm**:
 ```sh
-sbatch 1.run_preprocessing_slurm.sh
+sh 1.run_preprocessing_slurm.sh
 ```
 
 ***Note**: For testing purposes, users may only have generated sbs or phenotype images.
@@ -143,7 +143,7 @@ sh 4.run_sbs_phenotype.sh
 ```
 **Slurm**:
 ```sh
-sbatch 4.run_sbs_phenotype_slurm.sh
+sh 4.run_sbs_phenotype_slurm.sh
 ```
 
 #### Step 5: Configure merge process params
@@ -159,7 +159,7 @@ sh 6.run_merge.sh
 ```
 **Slurm**:
 ```sh
-sbatch 6.run_merge_slurm.sh
+sh 6.run_merge_slurm.sh
 ```
 
 #### Step 7: Configure aggregate process params
@@ -175,7 +175,7 @@ sh 8.run_aggregate.sh
 ```
 **Slurm**:
 ```sh
-sbatch 8.run_aggregate_slurm.sh
+sh 8.run_aggregate_slurm.sh
 ```
 
 #### Step 9: Configure cluster process params
@@ -191,7 +191,7 @@ sh 10.run_cluster.sh
 ```
 **Slurm**:
 ```sh
-sbatch 10.run_cluster_slurm.sh
+sh 10.run_cluster_slurm.sh
 ```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.

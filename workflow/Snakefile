@@ -9,16 +9,16 @@ from lib.shared.initialize_paramsearch import initialize_segment_phenotype_param
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
 
-# Get paths to the sample files dfs
+# Get paths to the sample and combo files dfs
 SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])
+SBS_COMBO_FP = Path(config["preprocess"]["sbs_combo_fp"])
 PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
+PHENOTYPE_COMBO_FP = Path(config["preprocess"]["phenotype_combo_fp"])
 
 # Load sbs samples if they exist
 sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
 if len(sbs_samples_df) > 0:
-    sbs_wildcard_combos = (
-        sbs_samples_df[["plate", "well", "tile", "cycle"]].drop_duplicates().astype(str)
-    )
+    sbs_wildcard_combos = pd.read_csv(SBS_COMBO_FP, sep="\t")
 else:
     print("No SBS samples found!")
     sbs_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"])
@@ -26,9 +26,7 @@ else:
 # Load phenotype samples if they exist
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
 if len(phenotype_samples_df) > 0:
-    phenotype_wildcard_combos = (
-        phenotype_samples_df[["plate", "well", "tile"]].drop_duplicates().astype(str)
-    )
+    phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t")
 else:
     print("No phenotype samples found!")
     phenotype_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"])
@@ -40,7 +38,10 @@ sbs_wildcard_combos = sbs_wildcard_combos[
 ]
 # sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["tile"].isin(["1", "2"])]
 phenotype_wildcard_combos = phenotype_wildcard_combos[
-    ((phenotype_wildcard_combos["plate"] == "1") & (phenotype_wildcard_combos["well"] == "A1"))
+    (
+        (phenotype_wildcard_combos["plate"] == "1")
+        & (phenotype_wildcard_combos["well"] == "A1")
+    )
 ]
 # phenotype_wildcard_combos = phenotype_wildcard_combos[
 #     phenotype_wildcard_combos["tile"].isin(["1", "2"])

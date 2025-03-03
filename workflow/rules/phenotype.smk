@@ -1,4 +1,4 @@
-from lib.shared.target_utils import output_to_input, output_to_input_from_combinations
+from lib.shared.target_utils import output_to_input
 from lib.shared.rule_utils import get_alignment_params
 
 
@@ -7,13 +7,8 @@ rule apply_ic_field_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        PREPROCESS_OUTPUTS["convert_phenotype"],
-        lambda wildcards: output_to_input_from_combinations(
-            output_path=PREPROCESS_OUTPUTS["calculate_ic_phenotype"],
-            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
-            wildcards=wildcards,
-            ancient_output=True,
-        ),
+        ancient(PREPROCESS_OUTPUTS["convert_phenotype"]),
+        ancient(PREPROCESS_OUTPUTS["calculate_ic_phenotype"]),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["apply_ic_field_phenotype"],
     script:
@@ -25,9 +20,9 @@ rule align_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        PHENOTYPE_OUTPUTS["apply_ic_field_phenotype"]
+        PHENOTYPE_OUTPUTS["apply_ic_field_phenotype"],
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"]
+        PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"],
     params:
         config=lambda wildcards: get_alignment_params(wildcards, config)
     script:
@@ -43,18 +38,17 @@ rule segment_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"],
     params:
-        method=config["phenotype"]["segment_method"],
         dapi_index=config["phenotype"]["dapi_index"],
         cyto_index=config["phenotype"]["cyto_index"],
-        reconcile=config["phenotype"]["reconcile"]
-        return_counts=config["phenotype"]["return_counts"],
+        nuclei_diameter=config["phenotype"]["nuclei_diameter"],
+        cell_diameter=config["phenotype"]["cell_diameter"],
+        cyto_model=config["phenotype"]["cyto_model"],
+        flow_threshold=config["phenotype"]["flow_threshold"],
+        cellprob_threshold=config["phenotype"]["cellprob_threshold"],
+        return_counts=True,
         gpu=config["phenotype"]["gpu"],
-        # Pass the entire method-specific config sections
-        cellpose_params=config["phenotype"].get("cellpose", {}),
-        stardist_params=config["phenotype"].get("stardist", {}),
-        microsam_params=config["phenotype"].get("microsam", {})
     script:
-        "../scripts/shared/segment.py"
+        "../scripts/shared/segment_cellpose.py"
 
 
 # Extract cytoplasmic masks from segmented nuclei, cells
@@ -85,16 +79,16 @@ rule extract_phenotype_info:
         "../scripts/shared/extract_phenotype_minimal.py"
 
 
-# Merge minimal phenotype information from all tiles
+# Combine phenotype info results from different tiles
 rule merge_phenotype_info:
     conda:
         "../envs/phenotype.yml"
     input:
-        lambda wildcards: output_to_input_from_combinations(
-            output_path=PHENOTYPE_OUTPUTS["extract_phenotype_info"],
-            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["extract_phenotype_info"],
             wildcards=wildcards,
-            expand_values={"tile": PHENOTYPE_TILES}
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_info"],
@@ -123,16 +117,16 @@ rule extract_phenotype_cp:
         "../scripts/phenotype/extract_phenotype_cp_multichannel.py"
 
 
-# Merge full phenotype information from all tiles
+# Combine phenotype results from different tiles
 rule merge_phenotype_cp:
     conda:
         "../envs/phenotype.yml"
     input:
-        lambda wildcards: output_to_input_from_combinations(
-            output_path=PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
-            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
             wildcards=wildcards,
-            expand_values={"tile": PHENOTYPE_TILES}
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     params:
         channel_names=config["phenotype"]["channel_names"],
@@ -147,18 +141,19 @@ rule eval_segmentation_phenotype:
     conda:
         "../envs/phenotype.yml"
     input:
-        # segmentation map
-        segmentation_stats_paths=lambda wildcards: output_to_input_from_combinations(
-            output_path=PHENOTYPE_OUTPUTS["segment_phenotype"][2],
-            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        # path to segmentation stats for well/tile
+        segmentation_stats_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["segment_phenotype"][2],
             wildcards=wildcards,
-            expand_values={"tile": PHENOTYPE_TILES}
+            expansion_values=["well", "tile"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
-        # minimal phenotype info
-        cells_paths=lambda wildcards: output_to_input_from_combinations(
-            output_path=PHENOTYPE_OUTPUTS["merge_phenotype_info"],
-            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        # paths to combined cell data
+        cells_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["merge_phenotype_info"][0],
             wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
@@ -166,15 +161,16 @@ rule eval_segmentation_phenotype:
         "../scripts/shared/eval_segmentation.py"
 
 
-# Evaluate features extracted from CellProfiler
 rule eval_features:
     conda:
         "../envs/phenotype.yml"
     input:
-        lambda wildcards: output_to_input_from_combinations(
-            output_path=PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
-            valid_combinations=PHENOTYPE_VALID_COMBINATIONS,
+        # use minimum phenotype CellProfiler features for evaluation
+        cells_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
             wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],

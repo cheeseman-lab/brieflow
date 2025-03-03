@@ -1,22 +1,12 @@
 """Helper functions for using Snakemake outputs and targets for use with Brieflow."""
 
-import string
 from pathlib import Path
-from snakemake.io import expand, temp, ancient
-import itertools
 
-def clean_value(val):
-    """Convert numpy types to Python native types.
-    
-    Args:
-        val: Value to clean (could be numpy type or native Python type)
-        
-    Returns:
-        Native Python type (int, str, etc.)
-    """
-    if hasattr(val, 'item'):  # Check if it's a numpy type
-        return val.item()
-    return val
+import pandas as pd
+from snakemake.io import expand, ancient
+
+from lib.shared.file_utils import parse_filename
+
 
 def map_outputs(outputs, output_type_mappings):
     """Apply Snakemake output type mappings (e.g., temp, protected) to output paths.
@@ -62,304 +52,133 @@ def map_outputs(outputs, output_type_mappings):
     return mapped_outputs
 
 
-def outputs_to_targets(outputs, wildcards, output_mappings, expansion_method="product"):
-    """Expand output templates into full paths by applying the specified wildcards.
+def outputs_to_targets(module_outputs, wildcards_df, module_target_mappings):
+    """Convert module output templates to concrete target paths using Snakemake expand."""
+    targets = []
 
-    Args:
-        outputs (dict): Dictionary of output path templates with placeholders (e.g., PREPROCESS_OUTPUTS).
-        wildcards (dict): Dictionary of wildcard values to apply (e.g., {"well": ["A1", "A2"], "cycle": [1, 2]}).
-        output_mappings (dict): Mapping of output rules to Snakemake output types (e.g., temp, protected).
-        expansion_method (str): Method of expansion, either 'product' (default) or 'zip'.
+    # Extract all wildcards as separate lists for zip expansion
+    wildcard_values = {col: wildcards_df[col].tolist() for col in wildcards_df.columns}
 
-    Returns:
-        dict: Dictionary of expanded output paths, where each rule maps to a list of fully resolved paths.
-    """
-    expanded_targets = {}
-    for rule_name, path_templates in outputs.items():
-        # skip temporary outputs
-        if output_mappings[rule_name] == temp:
+    # Process each rule's outputs
+    for rule_name, rule_outputs in module_outputs.items():
+        if module_target_mappings[rule_name] == "temp":
             continue
 
-        if expansion_method == "zip":
-            expanded_targets[rule_name] = [
-                expand(str(path_template), zip, **wildcards)
-                for path_template in path_templates
-            ]
-        else:  # Default to product expansion
-            expanded_targets[rule_name] = [
-                expand(str(path_template), **wildcards)
-                for path_template in path_templates
-            ]
-    return expanded_targets
+        for output in rule_outputs:
+            # Convert output to string
+            output_str = str(output)
 
+            # Use Snakemake's expand with zip for efficient path generation
+            # Check if output_str contains any wildcard placeholders (i.e., "{")
+            if "{" in output_str and "}" in output_str:
+                expanded_outputs = expand(output_str, zip, **wildcard_values)
+                targets.extend(expanded_outputs)
+            else:
+                targets.append(output_str)
 
-def output_to_input(output_path, wildcard_values, wildcards, ancient_output=False):
-    """Resolves an output template into input paths by applying wildcards and additional mappings.
-
-    Args:
-        output_path (str or pathlib.Path): A single output path template containing placeholders (e.g., "{well}", "{tile}").
-        wildcard_values (dict): Additional wildcard mappings to apply (e.g., {"tile": [1, 2]}).
-        wildcards (dict): Wildcard values provided by Snakemake (e.g., {"well": "A1", "cycle": 1}).
-        ancient_output (bool, optional): Whether to wrap output paths with snakemake's ancient() function. Defaults to False.
-
-    Returns:
-        list: A list of resolved input paths with placeholders replaced by wildcard values.
-    """
-    # Merge wildcards with wildcard_values
-    all_wildcards = {**wildcards, **wildcard_values}
-    # Expand the output template with the merged wildcards
-    inputs = expand(output_path, **all_wildcards)
-
-    # Prevent rerunning if ancient
-    if ancient_output:
-        inputs = [ancient(path) for path in inputs]
-
-    return inputs
-
-
-def outputs_to_targets_with_combinations(output_templates, valid_combinations, extra_keys=None):
-    """Convert output templates to targets using valid combinations.
-    
-    Args:
-        output_templates (list): List of output template strings or Path objects
-        valid_combinations (list): List of dictionaries containing valid combinations
-        extra_keys (list): Optional list of additional keys to iterate over (e.g., tiles)
-        
-    Returns:
-        list: List of target paths with all valid combinations
-    """
-    targets = []
-    
-    # If we have any extra keys (like tiles), create cartesian product
-    if extra_keys:
-        for combo in valid_combinations:
-            for extra_val in extra_keys:
-                # Create a complete mapping including the extra value
-                mapping = {
-                    'plate': combo['plate'],
-                    'well': combo['well'],
-                    'cycle': combo['cycle'] if 'cycle' in combo else None,
-                    'channel': combo['channel'] if 'channel' in combo else None,
-                    'tile': extra_val
-                }
-                
-                # Apply mapping to each output template
-                for template in output_templates:
-                    template_str = str(template)
-                    template_keys = [k[1] for k in string.Formatter().parse(template_str) if k[1]]
-                    filtered_mapping = {k: v for k, v in mapping.items() 
-                                     if k in template_keys and v is not None}
-                    formatted_path = template_str.format(**filtered_mapping)
-                    targets.append(formatted_path)
-    else:
-        # No extra keys, just use the combinations directly
-        for combo in valid_combinations:
-            for template in output_templates:
-                template_str = str(template)
-                template_keys = [k[1] for k in string.Formatter().parse(template_str) if k[1]]
-                filtered_mapping = {k: int(v) if k in ['plate', 'cycle'] and str(v).isdigit() else v 
-                                for k, v in combo.items() 
-                                if k in template_keys and v is not None}
-                formatted_path = template_str.format(**filtered_mapping)
-                targets.append(formatted_path)
-    
     return targets
 
 
-def output_to_input_from_combinations(output_path, valid_combinations, wildcards, expand_values=None, ancient_output=False):
-    """Resolves an output template into input paths using valid combinations and optional expansion values.
+def output_to_input(
+    output,
+    wildcards={},
+    expansion_values=[],
+    metadata_combos=None,
+    subset_values={},
+    ancient_output=False,
+):
+    """Generates input file paths by expanding or subsetting a filepath template.
+
+    This function allows one to retrieve file paths from a given template by:
+    - Expanding on values: Generating all possible file paths by substituting wildcards with
+      values from `metadata_combos`.
+    - Subsetting on values: Filtering paths to include only specific values in `subset_values`.
+    - Performing both expansion and subsetting.
 
     Args:
-        output_path (str or pathlib.Path): Output path template with placeholders
-        valid_combinations (list): List of valid combination dictionaries
-        wildcards (dict): Wildcard values provided by Snakemake
-        expand_values (dict, optional): Additional values to expand each combination with (e.g., {"tile": [1, 2]})
-        ancient_output (bool, optional): Whether to wrap output paths with ancient(). Defaults to False.
+        output (str): Template file path with wildcards.
+        wildcards (dict): Dictionary of fixed wildcard values.
+        expansion_values (list): List of wildcard names to expand.
+        metadata_combos (pd.DataFrame, optional): DataFrame containing all possible wildcard combinations.
+        subset_values (dict): Dictionary of values to subset the final expanded paths.
+        ancient_output (bool, optional): If True, marks all returned paths as ancient in Snakemake.
 
     Returns:
-        list: Resolved input paths matching the valid combinations and expansions
+        list: A list of expanded and/or filtered file paths as strings.
     """
-    matching_combos = []
-    for combo in valid_combinations:
-        matches_all = True
-        
+    # Get a single string output from a list
+    if isinstance(output, list):
+        if len(output) == 1:
+            output = output[0]
+        else:
+            raise ValueError(
+                "Expected a single string for 'output', but received a list with multiple items."
+            )
+
+    if metadata_combos is None:
+        # Directly expand paths when metadata_combos is not provided
+        expanded_paths = expand(str(output), **wildcards, **subset_values)
+    else:
+        # Filter metadata_combos based on fixed wildcards
+        mask = pd.Series(True, index=metadata_combos.index)
         for key, value in wildcards.items():
-            if key in combo:
-                combo_value = combo.get(key)
-                # Handle numeric comparisons
-                if key in ['plate', 'cycle']:
-                    try:
-                        if int(str(value)) != int(str(combo_value)):
-                            matches_all = False
-                            break
-                    except ValueError:
-                        matches_all = False
-                        break
-                # Handle string comparisons
-                else:
-                    if str(value) != str(combo_value):
-                        matches_all = False
-                        break
-                    
-        if matches_all:
-            matching_combos.append(combo)
+            # Convert both sides to string to ensure matching types
+            mask &= metadata_combos[key].astype(str) == str(value)
 
-    # Generate expanded combinations if expand_values provided
-    if expand_values:
-        expanded_combos = []
-        for combo in matching_combos:
-            expanded_values = [dict(zip(expand_values.keys(), v)) 
-                             for v in itertools.product(*expand_values.values())]
-            for exp_value in expanded_values:
-                expanded_combos.append({**combo, **exp_value})
-        matching_combos = expanded_combos
-    
-    # Generate input paths from matching combinations
-    inputs = []
-    for combo in matching_combos:
-        try:
-            # Convert PosixPath to string explicitly
-            path = str(output_path[0] if isinstance(output_path, list) else output_path)
-            formatted_path = path.format(**combo)
-            inputs.append(str(formatted_path))  # Ensure the path is a string
-        except KeyError as e:
-            continue
+        filtered_combos = metadata_combos[mask]
 
-    # Deduplicate inputs before returning but keep order
-    inputs = list(dict.fromkeys(inputs))
-        
-    # Wrap with ancient() if requested
+        # Extract relevant expansion values
+        expansion_dicts = filtered_combos[expansion_values].to_dict(orient="records")
+
+        # Expand paths using Snakemake's expand function
+        expanded_paths = [
+            expand(str(output), **wildcards, **subset_values, **combo)
+            for combo in expansion_dicts
+        ]
+
+        # Flatten nested lists of paths
+        expanded_paths = [path for sublist in expanded_paths for path in sublist]
+
+        # Remove duplicates while preserving order
+        expanded_paths = list(dict.fromkeys(expanded_paths))
+
+    # Mark paths as ancient if requested
     if ancient_output:
-        inputs = [ancient(path) for path in inputs]
-        
-    return inputs
+        expanded_paths = [ancient(path) for path in expanded_paths]
+
+    return expanded_paths
 
 
-def get_valid_combinations(df, data_type):
-    """Get valid combinations and identify missing data for SBS or phenotype data.
-
-    Args:
-        df (pd.DataFrame): DataFrame containing SBS or phenotype data.
-        data_type (str): Type of data, either "sbs" or "phenotype".
-
-    Returns:
-        tuple: (valid_combinations, warnings)
-    """
-    if df is None or df.empty:
-        return [], ["Warning: No data found!"]
-    
-    warnings = []
-    valid_combinations = []
-    
-    # Get all unique plates and wells to check for missing combinations
-    all_plates = sorted(df['plate'].unique())
-    all_wells = sorted(df['well'].unique())
-    existing_pairs = set(zip(df['plate'], df['well']))
-    
-    # Check for missing plate/well combinations first
-    for plate in all_plates:
-        for well in all_wells:
-            if (plate, well) not in existing_pairs:
-                warnings.append(f"Warning: No data found for Plate {plate}, Well {well}")
-    
-    # Process only existing pairs for valid combinations
-    for plate, well in existing_pairs:
-        well_df = df[(df['plate'] == plate) & (df['well'] == well)]
-        if well_df.empty:
-            continue
-        
-        if data_type == "sbs":
-            # SBS: Check cycle-channel combinations
-            all_cycles = sorted(df['cycle'].unique())  # All possible cycles
-            cycles_in_well = sorted(well_df['cycle'].unique())
-            
-            # Check for missing cycles
-            missing_cycles = set(all_cycles) - set(cycles_in_well)
-            if missing_cycles:
-                warnings.append(f"Warning: Plate {plate}, Well {well} is missing cycles: {sorted(missing_cycles)}")
-            
-            for cycle in cycles_in_well:
-                cycle_df = well_df[well_df['cycle'] == cycle]
-                if cycle_df.empty:
-                    continue
-                
-                # Base combination dict
-                base_combo = {
-                    'plate': plate,
-                    'well': well,
-                    'cycle': cycle
-                }
-                
-                # Add channel if it exists for this specific cycle
-                if 'channel' in df.columns:
-                    channels_in_cycle = cycle_df['channel'].unique()
-                    if len(channels_in_cycle) > 0:
-                        for channel in channels_in_cycle:
-                            combo = base_combo.copy()
-                            combo['channel'] = channel
-                            valid_combinations.append(combo)
-                    else:
-                        # If no channels for this cycle, just add the cycle info
-                        valid_combinations.append(base_combo)
-                else:
-                    valid_combinations.append(base_combo)
-        
-        else:  # Phenotype data
-            # Base combination dict
-            base_combo = {
-                'plate': plate,
-                'well': well
-            }
-            
-            # For phenotype data, check for missing channels only if channels are present
-            if 'channel' in df.columns:
-                all_channels = sorted(df['channel'].unique())
-                channels_in_well = sorted(well_df['channel'].unique())
-                missing_channels = set(all_channels) - set(channels_in_well)
-                
-                if missing_channels:
-                    warnings.append(f"Warning: Plate {plate}, Well {well} is missing channels: {sorted(missing_channels)}")
-                
-                for _, row in well_df.iterrows():
-                    combo = base_combo.copy()
-                    combo['channel'] = row['channel']
-                    valid_combinations.append(combo)
-            else:
-                # No channels, just add plate and well
-                valid_combinations.append(base_combo)
-    
-    return valid_combinations, warnings
-
-
-def get_sbs_combinations(df):
-    """Get valid SBS combinations and identify missing data.
+# TODO: move to rule_utils once this file exists
+def get_montage_inputs(montage_data_checkpoint, montage_output_template, channels):
+    """Generate montage input file paths based on checkpoint data and output template.
 
     Args:
-        df (pd.DataFrame): DataFrame containing SBS data.
+        montage_data_checkpoint (object): Checkpoint object containing output directory information.
+        montage_output_template (str): Template string for generating output file paths.
+        channels (list): List of channels to include in the output file paths.
 
     Returns:
-        tuple: (valid_combinations, warnings)
+        list: List of generated output file paths for each channel.
     """
-    valid_combinations, warnings = get_valid_combinations(df, "sbs")
+    # Resolve the checkpoint output directory using .get()
+    checkpoint_output = Path(montage_data_checkpoint.get().output[0])
 
-    for warning in warnings:
-        print(warning)
+    # Get actual existing files
+    montage_data_files = list(checkpoint_output.glob("*.tsv"))
 
-    return valid_combinations
+    # Extract the gene_sgrna parts and make output paths for each channel
+    output_files = []
+    for montage_data_file in montage_data_files:
+        # parse gene, sgrna from filename
+        file_metadata = parse_filename(montage_data_file)[0]
+        gene = file_metadata["gene"]
+        sgrna = file_metadata["sgrna"]
 
+        for channel in channels:
+            output_file = str(montage_output_template).format(
+                gene=gene, sgrna=sgrna, channel=channel
+            )
+            output_files.append(output_file)
 
-def get_phenotype_combinations(df):
-    """Get valid phenotype combinations and identify missing data.
-
-    Args:
-        df (pd.DataFrame): DataFrame containing phenotype data.
-
-    Returns:
-        tuple: (valid_combinations, warnings)
-    """
-    valid_combinations, warnings = get_valid_combinations(df, "phenotype")
-
-    for warning in warnings:
-        print(warning)
-
-    return valid_combinations
+    return output_files

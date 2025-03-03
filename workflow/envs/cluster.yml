@@ -1,0 +1,14 @@
+name: cluster
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - pytables # need pytables defined in module env
+  - pandas
+  - pyarrow
+  - scikit-learn
+  - seaborn
+  - python-igraph
+  - leidenalg
+  - phate
+  - statsmodels

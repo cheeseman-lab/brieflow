@@ -155,12 +155,11 @@ Follow the steps in [5.configure_merge_params.ipynb](analysis/5.configure_merge_
 **Local**:
 ```sh
 conda activate brieflow_workflows
-sh 6.run_merge_process.sh
+sh 6.run_merge.sh
 ```
 **Slurm**:
 ```sh
-# TODO: Add and test this file
-sbatch 6.run_merge_process_slurm.sh
+sbatch 6.run_merge_slurm.sh
 ```
 
 #### Step 7: Configure aggregate process params
@@ -172,12 +171,11 @@ Follow the steps in [7.configure_aggregate_params.ipynb](analysis/7.configure_ag
 **Local**:
 ```sh
 conda activate brieflow_workflows
-sh 8.run_aggregate_process.sh
+sh 8.run_aggregate.sh
 ```
 **Slurm**:
 ```sh
-# TODO: Add and test this file
-sbatch 8.run_aggregate_process_slurm.sh
+sbatch 8.run_aggregate_slurm.sh
 ```
 
 #### Step 9: Configure cluster process params
@@ -189,12 +187,11 @@ Follow the steps in [9.configure_cluster_params.ipynb](analysis/9.configure_clus
 **Local**:
 ```sh
 conda activate brieflow_workflows
-sh 10.run_cluster_process.sh
+sh 10.run_cluster.sh
 ```
 **Slurm**:
 ```sh
-# TODO: Add and test this file
-sbatch 10.run_cluster_process_slurm.sh
+sbatch 10.run_cluster_slurm.sh
 ```
 
 ***Note**: Use `brieflow_configuration` Conda environment for each configuration notebook.

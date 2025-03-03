@@ -64,7 +64,7 @@ set-resources:
     combine_sbs_info:
         mem_mb: 20000
     eval_segmentation_sbs:
-        mem_mb: 10000
+        mem_mb: 50000
     eval_mapping:
         mem_mb: 50000
         cpus_per_task: 12
@@ -104,7 +104,7 @@ set-resources:
     summarize_segment_phenotype_paramsearch:
         mem_mb: 2000
 
-    # merge_process
+    # merge
     fast_alignment:
         mem_mb: 10000
         cpus_per_task: 4
@@ -122,3 +122,35 @@ set-resources:
         cpus_per_task: 4
     final_merge:
         mem_mb: 500000
+
+    # aggregate
+    clean_transform_standardize:
+        mem_mb: 500000
+    split_phases:
+        mem_mb: 500000
+    process_mitotic_gene_data:
+        mem_mb: 100000
+    process_interphase_gene_data:
+        mem_mb: 500000
+    process_all_gene_data:
+        mem_mb: 500000
+    prepare_mitotic_montage_data:
+        mem_mb: 800000
+    prepare_interphase_montage_data:
+        mem_mb: 800000
+    generate_mitotic_montage:
+        mem_mb: 2000
+    generate_interphase_montage:
+        mem_mb: 2000
+    eval_aggregate:
+        mem_mb: 500000
+
+    # cluster
+    generate_dataset:
+        mem_mb: 2000
+    phate_leiden_clustering:
+        mem_mb: 10000
+    benchmark_clusters:
+        mem_mb: 10000
+    cluster_eval:
+        mem_mb: 10000

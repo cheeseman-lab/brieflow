@@ -1,0 +1,11 @@
+name: aggregate
+channels:
+  - conda-forge
+dependencies:
+  - pytables # need pytables defined in module env
+  - pandas
+  - pyarrow
+  - seaborn
+  - scipy
+  - mahotas
+  - scikit-image

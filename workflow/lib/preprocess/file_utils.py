@@ -1,107 +1,91 @@
-"""Utility functions for handling files during preprocessing."""
+"""Utility functions for handling and filtering sample file paths in the BrieFlow pipeline."""
 
-import pandas as pd
-from typing import List, Union
+import logging
+from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+# Mapping of metadata keys to filename prefixes and data types
+FILENAME_METADATA_MAPPING = {
+    "plate": ["P-", str],
+    "well": ["W-", str],
+    "tile": ["T-", int],
+    "cycle": ["C-", int],
+    "gene": ["G-", str],
+    "sgrna": ["SG-", str],
+    "channel": ["CH-", str],
+    "dataset": ["DT-", str],
+}
 
 
-def get_sample_fps(
-    samples_df: pd.DataFrame,
-    plate: int = None,
-    well: str = None,
-    tile: int = None,
-    cycle: int = None,
-    channel: str = None,
-    round_order: List[int] = None,
-    channel_order: List[str] = None,
-    verbose: bool = False,
-) -> Union[str, List[str]]:
-    """Filters the samples DataFrame and ensures consistent channel and round order.
-    
+def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
+    """Generate a structured filename based on data location, information type, and file type.
+
     Args:
-        samples_df (pd.DataFrame): DataFrame containing sample data.
-        plate (int, optional): Plate number to filter by. Defaults to None.
-        well (str, optional): Well identifier to filter by. Defaults to None.
-        tile (int, optional): Tile number to filter by. Defaults to None.
-        cycle (int, optional): Cycle number to filter by. Defaults to None.
-        channel (str, optional): Channel to filter by. Defaults to None.
-        round_order (List[int], optional): Order of rounds to return. Defaults to None.
-        channel_order (List[str], optional): Order of channels. Defaults to None.
-        verbose (bool, optional): Whether to print verbose output. Defaults to False.
+        data_location (dict): Dictionary containing location info like well, tile, and cycle.
+        info_type (str): Type of information (e.g., 'cell_features', 'sbs_reads').
+        file_type (str): File extension/type (e.g., 'tsv', 'parquet', 'tiff').
+
     Returns:
-        Union[str, List[str]]: Either a single filepath or ordered list of filepaths
+        str: Structured filename.
     """
-    filtered_df = samples_df
-    if plate is not None:
-        filtered_df = filtered_df[filtered_df["plate"] == int(plate)]
-    if well is not None:
-        filtered_df = filtered_df[filtered_df["well"] == well]
-    if tile is not None:
-        filtered_df = filtered_df[filtered_df["tile"] == int(tile)]
-    if cycle is not None:
-        filtered_df = filtered_df[filtered_df["cycle"] == int(cycle)]
-    if channel is not None:
-        filtered_df = filtered_df[filtered_df["channel"] == channel]
+    parts = []
 
-    if round_order is not None:
-        # Filter to only include specified rounds
-        filtered_df = filtered_df[filtered_df["round"].isin(round_order)]
-        
-        # If no data after filtering, return results based on available rounds
-        if len(filtered_df) == 0:
-            print(f"No data found for specified rounds {round_order}. Using available rounds.")
-            filtered_df = samples_df
-            if plate is not None:
-                filtered_df = filtered_df[filtered_df["plate"] == int(plate)]
-            if well is not None:
-                filtered_df = filtered_df[filtered_df["well"] == well]
-            if tile is not None:
-                filtered_df = filtered_df[filtered_df["tile"] == int(tile)]
-            if cycle is not None:
-                filtered_df = filtered_df[filtered_df["cycle"] == int(cycle)]
-            if channel is not None:
-                filtered_df = filtered_df[filtered_df["channel"] == channel]
-        
-        # Create dictionary mapping round to DataFrame rows
-        round_groups = {
-            round_num: group for round_num, group in filtered_df.groupby("round")
-        }
-        
-        # Initialize lists to store files and channels
-        all_files = []
-        final_channel_order = []
-        
-        # Get available rounds that exist in the data
-        available_rounds = sorted(round_groups.keys())
-        
-        # Process each available round
-        for round_num in available_rounds:
-            round_df = round_groups[round_num]
-            
-            # If channel order is specified, get files in that order for this round
-            if "channel" in round_df.columns and channel_order is not None:
-                # Create mapping of available channels to files for this round
-                channel_to_file = dict(zip(round_df["channel"], round_df["sample_fp"]))
-                # Add files for each requested channel if available in this round
-                for channel in channel_order:
-                    if channel in channel_to_file:
-                        all_files.append(channel_to_file[channel])
-                        final_channel_order.append(f"Round {round_num}: {channel}")
-            else:
-                # If no channel order, just take the first file from this round
-                all_files.append(round_df["sample_fp"].iloc[0])
-                final_channel_order.append(f"Round {round_num}: {round_df['channel'].iloc[0]}")
-        
-        if verbose:
-            print("\nFinal channel order:")
-            for chan in final_channel_order:
-                print(f"  {chan}")
-                
-        return all_files
+    for metadata_key, metadata_value in data_location.items():
+        if metadata_key in FILENAME_METADATA_MAPPING:
+            prefix, _ = FILENAME_METADATA_MAPPING[metadata_key]
+            parts.append(f"{prefix}{metadata_value}")
+        else:
+            print(f"Unknown metadata key: {metadata_key}")
 
-    # If no rounds specified but we have channels and channel order
-    if "channel" in filtered_df.columns and channel_order is not None:
-        channel_to_file = dict(zip(filtered_df["channel"], filtered_df["sample_fp"]))
-        return [channel_to_file[channel] for channel in channel_order if channel in channel_to_file]
+    prefix = "_".join(parts)
+    filename = (
+        f"{prefix}__{info_type}.{file_type}" if prefix else f"{info_type}.{file_type}"
+    )
 
-    # Otherwise return single file path
-    return filtered_df["sample_fp"].iloc[0]
+    return filename
+
+
+def parse_filename(file_path: str) -> tuple:
+    """Parse a structured filename from a file path to extract data location, information type, and file type.
+
+    Args:
+        file_path (str): Full file path or filename, e.g., '/path/to/W_A1_T02_C03__cell_features.tsv'.
+
+    Returns:
+        tuple: A tuple containing:
+            - metadata (dict): Dictionary with keys like 'well', 'tile', 'cycle' as applicable.
+            - info_type (str): The type of information (e.g., 'cell_features').
+            - file_type (str): The file extension/type (e.g., 'tsv').
+    """
+    # Convert the input to a Path object
+    path = Path(file_path)
+
+    # Extract the filename and file extension
+    filename = path.stem
+    file_type = path.suffix.lstrip(".")
+
+    # Split the filename into main parts
+    parts = filename.split("__")
+
+    # Initialize metadata dictionary and info_type variable
+    metadata = {}
+    info_type = None
+
+    # Parse data location part
+    if len(parts) == 2:
+        location_part, info_type = parts
+        elements = location_part.split("_")
+
+        for element in elements:
+            for key, (prefix, data_type) in FILENAME_METADATA_MAPPING.items():
+                if element.startswith(prefix):
+                    # Extract and convert the value based on the data type
+                    value = element[len(prefix) :]
+                    metadata[key] = data_type(value)
+                    break  # Stop checking other prefixes for this element
+    else:
+        # If no location part, the first part is the info_type
+        info_type = parts[0]
+
+    return metadata, info_type, file_type

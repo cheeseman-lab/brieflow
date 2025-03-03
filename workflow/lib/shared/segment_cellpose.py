@@ -390,15 +390,14 @@ def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
 
     # Always get the multiple nuclei mapping for analysis
     cell_map_multiple = get_unique_label_map(
-        regionprops(cells, intensity_image=nuclei_eroded), 
-        keep_multiple=True
+        regionprops(cells, intensity_image=nuclei_eroded), keep_multiple=True
     )
-    
+
     # Count cells with multiple nuclei
     nuclei_per_cell = defaultdict(int)
     for cell_label, nuclei_labels in cell_map_multiple.items():
         nuclei_per_cell[len(nuclei_labels)] += 1
-    
+
     # Print statistics
     print("\nNuclei per cell statistics:")
     print("--------------------------")

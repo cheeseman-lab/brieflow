@@ -1,38 +1,34 @@
 """This module provides functions for loading and formatting data during aggregation.
 
 Functions include:
-- Loading a subset of data from HDF files for efficient processing.
+- Loading a subset of data from parquet files for efficient processing.
 - Cleaning cell data by removing unassigned or multi-gene cells.
 
 Functions:
-    - load_hdf_subset: Load a fixed number of random rows from an HDF file.
+    - load_parquet_subset: Load a fixed number of random rows from a parquet file.
     - clean_cell_data: Clean cell data by filtering for valid and optionally single-gene cells.
 """
 
-import pandas as pd
+from pyarrow.parquet import ParquetFile
+import pyarrow as pa
 
 
-def load_hdf_subset(merge_final_fp, n_rows=20000, population_feature="gene_symbol_0"):
-    """Load a fixed number of random rows from an HDF file without loading entire file into memory.
+def load_parquet_subset(full_df_fp, n_rows=50000):
+    """Load a fixed number of rows from an parquet file without loading entire file into memory.
 
     Args:
-        merge_final_fp (str): Path to HDF file.
+        full_df_fp (str): Path to parquet file.
         n_rows (int): Number of rows to get.
-        population_feature (str): Column name containing population identifiers.
 
     Returns:
         pd.DataFrame: Subset of the data with combined blocks.
     """
-    print(f"Reading first {n_rows:,} rows from {merge_final_fp}")
+    print(f"Reading first {n_rows:,} rows from {full_df_fp}")
 
     # read the first n_rows of the file path
-    df = pd.read_hdf(merge_final_fp, stop=n_rows)
-
-    # print the number of unique populations
-    print(f"Unique populations: {df[population_feature].nunique()}")
-
-    # print the counts of the well variable
-    print(df["well"].value_counts())
+    df = ParquetFile(full_df_fp)
+    row_subset = next(df.iter_batches(batch_size=n_rows))
+    df = pa.Table.from_batches([row_subset]).to_pandas()
 
     return df
 

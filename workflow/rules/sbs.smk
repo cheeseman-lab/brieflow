@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input
-
+from lib.shared.rule_utils import get_segmentation_params
 
 # Align images from each sequencing round
 rule align_sbs:
@@ -122,17 +122,9 @@ rule segment_sbs:
     output:
         SBS_OUTPUTS_MAPPED["segment_sbs"],
     params:
-        dapi_index=config["sbs"]["dapi_index"],
-        cyto_index=config["sbs"]["cyto_index"],
-        nuclei_diameter=config["sbs"]["nuclei_diameter"],
-        cell_diameter=config["sbs"]["cell_diameter"],
-        cyto_model=config["sbs"]["cyto_model"],
-        flow_threshold=config["sbs"]["flow_threshold"],
-        cellprob_threshold=config["sbs"]["cellprob_threshold"],
-        return_counts=True,
-        gpu=config["sbs"]["gpu"],
+        config=lambda wildcards: get_segmentation_params("sbs", config),
     script:
-        "../scripts/shared/segment_cellpose.py"
+        "../scripts/shared/segment.py"
 
 
 # Extract bases from peaks

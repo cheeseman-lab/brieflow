@@ -44,3 +44,57 @@ def get_alignment_params(wildcards, config):
         "riders": config["phenotype"].get("riders", []),
         "remove_channel": config["phenotype"].get("remove_channel", False),
     }
+
+
+def get_segmentation_params(module, config):
+    """Get segmentation parameters for a specific module.
+    
+    Args:
+        module (str): Module name, either "sbs" or "phenotype".
+        config (dict): Configuration dictionary.
+        
+    Returns:
+        dict: Segmentation parameters for the specified module.
+    """
+    module_config = config[module]
+    
+    # Get segmentation method, default to cellpose if not specified
+    method = module_config.get("method", "cellpose")
+    
+    # Common parameters for all methods
+    params = {
+        "method": method,
+        "dapi_index": module_config.get("dapi_index"),
+        "cyto_index": module_config.get("cyto_index"),
+        "reconcile": module_config.get("reconcile", False),
+        "return_counts": module_config.get("return_counts", True),
+        "gpu": module_config.get("gpu", False),
+    }
+    
+    # Method-specific parameters
+    if method == "cellpose":
+        params.update({
+            "nuclei_diameter": module_config.get("nuclei_diameter"),
+            "cell_diameter": module_config.get("cell_diameter"),
+            "cyto_model": module_config.get("cyto_model"),
+            "flow_threshold": module_config.get("flow_threshold"),
+            "cellprob_threshold": module_config.get("cellprob_threshold"),
+        })
+    elif method == "microsam":
+        params.update({
+            "microsam_model": module_config.get("microsam_model"),
+            "points_per_side": module_config.get("points_per_side", 32),
+            "points_per_batch": module_config.get("points_per_batch", 64),
+            "stability_score_thresh": module_config.get("stability_score_thresh", 0.75),
+            "pred_iou_thresh": module_config.get("pred_iou_thresh", 0.75),
+        })
+    elif method == "stardist":
+        params.update({
+            "stardist_model": module_config.get("stardist_model"),
+            "prob_thresh": module_config.get("prob_thresh"),
+            "nms_thresh": module_config.get("nms_thresh"),
+        })
+    else:
+        raise ValueError(f"Unknown segmentation method: {method}. Choose one of: cellpose, microsam, stardist")
+    
+    return params

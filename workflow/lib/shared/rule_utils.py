@@ -74,25 +74,25 @@ def get_segmentation_params(module, config):
     # Method-specific parameters
     if method == "cellpose":
         params.update({
+            "cyto_model": module_config.get("cyto_model", "cyto3"),
             "nuclei_diameter": module_config.get("nuclei_diameter"),
             "cell_diameter": module_config.get("cell_diameter"),
-            "cyto_model": module_config.get("cyto_model"),
-            "flow_threshold": module_config.get("flow_threshold"),
-            "cellprob_threshold": module_config.get("cellprob_threshold"),
+            "flow_threshold": module_config.get("flow_threshold", 0.4),
+            "cellprob_threshold": module_config.get("cellprob_threshold", 0),
         })
     elif method == "microsam":
         params.update({
-            "microsam_model": module_config.get("microsam_model"),
+            "microsam_model": module_config.get("microsam_model", "vit_b_lm"),
             "points_per_side": module_config.get("points_per_side", 32),
-            "points_per_batch": module_config.get("points_per_batch", 64),
-            "stability_score_thresh": module_config.get("stability_score_thresh", 0.75),
-            "pred_iou_thresh": module_config.get("pred_iou_thresh", 0.75),
+            "points_per_batch": module_config.get("points_per_batch", 16),
+            "stability_score_thresh": module_config.get("stability_score_thresh", 0.95),
+            "pred_iou_thresh": module_config.get("pred_iou_thresh", 0.88),
         })
     elif method == "stardist":
         params.update({
-            "stardist_model": module_config.get("stardist_model"),
-            "prob_thresh": module_config.get("prob_thresh"),
-            "nms_thresh": module_config.get("nms_thresh"),
+            "stardist_model": module_config.get("stardist_model", "2D_versatile_fluo"),
+            "prob_thresh": module_config.get("prob_thresh", 0.479071),
+            "nms_thresh": module_config.get("nms_thresh", 0.3),
         })
     else:
         raise ValueError(f"Unknown segmentation method: {method}. Choose one of: cellpose, microsam, stardist")

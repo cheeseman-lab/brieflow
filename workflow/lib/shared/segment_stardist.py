@@ -1,4 +1,4 @@
-"""StarDist-based Image Segmentation
+"""StarDist-based Image Segmentation!
 
 This module provides functions for segmenting microscopy images using the StarDist algorithm
 (relating to SBS base calling and phenotyping -- steps 1 and 2). It includes functions for:
@@ -23,23 +23,19 @@ from skimage.segmentation import clear_border
 
 
 def segment_stardist(
-    data: np.ndarray,
-    dapi_index: int,
-    cyto_index: int,
-    model_type: str = "2D_versatile_fluo",
-    stardist_kwargs: dict = dict(
+    data,
+    dapi_index,
+    cyto_index,
+    model_type="2D_versatile_fluo",
+    stardist_kwargs=dict(
         prob_thresh=0.5,
         nms_thresh=0.4,
     ),
-    cells: bool = True,
-    reconcile: str = "consensus",
-    # logscale: bool = True,
-    return_counts: bool = False,
-    gpu: bool = False,
-) -> Union[Tuple[np.ndarray, np.ndarray, pd.DataFrame], 
-           Tuple[np.ndarray, np.ndarray], 
-           np.ndarray, 
-           Tuple[np.ndarray, pd.DataFrame]]:
+    cells=True,
+    reconcile="consensus",
+    return_counts=False,
+    gpu=False,
+):
     """Segment cells using StarDist algorithm.
     
     Args:
@@ -52,7 +48,6 @@ def segment_stardist(
         stardist_kwargs: Additional keyword arguments for StarDist segmentation
         cells: Whether to segment both nuclei and cells or just nuclei
         reconcile: Method for reconciling nuclei and cells
-        logscale: Whether to apply logarithmic transformation to image data
         return_counts: Whether to return counts of nuclei and cells
         gpu: Whether to use GPU for segmentation
     
@@ -117,9 +112,7 @@ def segment_stardist(
             return nuclei
 
 
-def prepare_channel(
-    data: np.ndarray,
-) -> np.ndarray:
+def prepare_channel(data):
     """Prepare channel data for segmentation using StarDist's normalization.
     
     Args:
@@ -134,29 +127,33 @@ def prepare_channel(
 
 
 def segment_stardist_multichannel(
-    dapi: np.ndarray,
-    cyto: np.ndarray,
-    model_type: str = "2D_versatile_fluo",
-    reconcile: str = "consensus",
-    remove_edges: bool = True,
-    return_counts: bool = False,
-    gpu: bool = False,
+    dapi,
+    cyto,
+    model_type="2D_versatile_fluo",
+    reconcile="consensus",
+    remove_edges=True,
+    return_counts=False,
+    gpu=False,
+    prob_thresh=0.479071,
+    nms_thresh=0.3,
     **kwargs
-) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, Dict]]:
+):
     """Segment nuclei and cells using the StarDist algorithm.
     
     Args:
-        dapi: DAPI channel image
-        cyto: Cytoplasmic channel image
+        dapi: DAPI channel data
+        cyto: Cytoplasmic channel data
         model_type: StarDist model type to use
         reconcile: Method for reconciling nuclei and cells
-        remove_edges: Whether to remove nuclei and cells touching image edges
+        remove_edges: Whether to remove edges from the masks
         return_counts: Whether to return counts of nuclei and cells
         gpu: Whether to use GPU for segmentation
-        **kwargs: Additional keyword arguments for StarDist segmentation
-    
+        prob_thresh: Probability threshold for segmentation
+        nms_thresh: Non-maximum suppression threshold for segmentation
+        kwargs: Additional keyword arguments for StarDist segmentation
     Returns:
-        Segmentation masks with optional counts
+        Segmented nuclei and cells masks with optional counts
+
     """
     counts = {}
     
@@ -168,13 +165,19 @@ def segment_stardist_multichannel(
         model_nuclei.config.use_gpu = True
         model_cells.config.use_gpu = True
     
-    # Segment nuclei and cells using StarDist
+    # Segment nuclei and cells using StarDist with specified parameters
     print("Performing StarDist nuclear segmentation...", file=sys.stderr)
-    nuclei, _ = model_nuclei.predict_instances(dapi, **kwargs)
+    nuclei, _ = model_nuclei.predict_instances(dapi, 
+                                             prob_thresh=prob_thresh,
+                                             nms_thresh=nms_thresh,
+                                             **kwargs)
     
     print("Performing StarDist cell segmentation...", file=sys.stderr)
-    cells, _ = model_cells.predict_instances(cyto, **kwargs)
-    
+    cells, _ = model_cells.predict_instances(cyto,
+                                           prob_thresh=prob_thresh,
+                                           nms_thresh=nms_thresh,
+                                           **kwargs)
+        
     counts["initial_nuclei"] = len(np.unique(nuclei)) - 1
     counts["initial_cells"] = len(np.unique(cells)) - 1
     
@@ -222,32 +225,38 @@ def segment_stardist_multichannel(
 
 
 def segment_stardist_nuclei(
-    dapi: np.ndarray,
-    model_type: str = "2D_versatile_fluo",
-    remove_edges: bool = True,
-    gpu: bool = False,
+    dapi,
+    model_type="2D_versatile_fluo",
+    remove_edges=True,
+    gpu=False,
+    prob_thresh=0.479071,
+    nms_thresh=0.3,
     **kwargs
-) -> np.ndarray:
+):
     """Segment nuclei using the StarDist algorithm.
     
     Args:
-        dapi: DAPI channel image
+        dapi: DAPI channel data
         model_type: StarDist model type to use
-        remove_edges: Whether to remove nuclei touching the image edges
+        remove_edges: Whether to remove edges from the masks
         gpu: Whether to use GPU for segmentation
-        **kwargs: Additional keyword arguments for StarDist segmentation
-    
+        prob_thresh: Probability threshold for segmentation
+        nms_thresh: Non-maximum suppression threshold for segmentation
+        kwargs: Additional keyword arguments for StarDist segmentation
     Returns:
-        Labeled segmentation mask of nuclei
+        Segmented nuclei masks
     """
     # Initialize StarDist model
     model = StarDist2D.from_pretrained(model_type)
     if gpu:
         model.config.use_gpu = True
     
-    # Segment nuclei
+    # Segment nuclei with specified parameters
     print("Performing StarDist segmentation...", file=sys.stderr)
-    nuclei, _ = model.predict_instances(dapi, **kwargs)
+    nuclei, _ = model.predict_instances(dapi,
+                                      prob_thresh=prob_thresh,
+                                      nms_thresh=nms_thresh,
+                                      **kwargs)
     
     print(
         f"found {len(np.unique(nuclei))} nuclei before removing edges", 
@@ -276,7 +285,6 @@ def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
     Returns:
         tuple: Tuple containing the reconciled nuclei and cells masks.
     """
-    from skimage.morphology import erosion
 
     def get_unique_label_map(regions, keep_multiple=False):
         """Get unique label map from regions.

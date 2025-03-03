@@ -38,10 +38,10 @@ elif method == "microsam":
         cyto_index=params["cyto_index"],
         model_type=params["microsam_model"],
         microsam_kwargs=dict(
-            points_per_side=params.get("points_per_side", 32),
-            points_per_batch=params.get("points_per_batch", 64),
-            stability_score_thresh=params.get("stability_score_thresh", 0.75),
-            pred_iou_thresh=params.get("pred_iou_thresh", 0.75)
+            points_per_side=params["points_per_side"],
+            points_per_batch=params["points_per_batch"],
+            stability_score_thresh=params["stability_score_thresh"],
+            pred_iou_thresh=params["pred_iou_thresh"],
         ),
         reconcile=params.get("reconcile", False),
         return_counts=params.get("return_counts", True),

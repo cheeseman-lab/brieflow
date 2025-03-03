@@ -28,8 +28,8 @@ def extract_bases(
     mask `cells`.
 
     Args:
-        peaks_data (numpy.ndarray): Peaks/local maxima score for each pixel, output of Snake.find_peaks().
-        max_filtered_data (numpy.ndarray): Base intensity at each point, output of Snake.max_filter(), expected dimensions of (CYCLE, CHANNEL, I, J).
+        peaks_data (numpy.ndarray): Peaks/local maxima score for each pixel, output of find_peaks.
+        max_filtered_data (numpy.ndarray): Base intensity at each point, output of max_filter, expected dimensions of (CYCLE, CHANNEL, I, J).
         cells_data (numpy.ndarray): Labeled segmentation mask of cell boundaries for labeling reads.
         threshold_peaks (float): Threshold for identifying candidate sequencing reads based on peaks.
         wildcards (dict): Metadata to include in output table, e.g., well, tile, etc. In Snakemake, use wildcards object.

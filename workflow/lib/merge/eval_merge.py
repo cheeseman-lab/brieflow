@@ -21,10 +21,10 @@ def plot_sbs_ph_matching_heatmap(
 
     Args:
         df_merge: DataFrame of all matched cells, e.g., concatenated outputs for all tiles and wells
-            of `Snake.merge_triangle_hash()`. Expects 'tile' and 'cell_0' columns to correspond to phenotype data and
+            of merge_triangle_hash. Expects 'tile' and 'cell_0' columns to correspond to phenotype data and
             'site', 'cell_1' columns to correspond to SBS data.
         df_info: DataFrame of all cells segmented from either phenotype or SBS images, e.g., concatenated outputs for all tiles
-            and wells of `Snake.extract_phenotype_minimal(data_phenotype=nulcei, nuclei=nuclei)`, often used as `sbs_cell_info`
+            and wells of extract_phenotype_minimal(data_phenotype=nulcei, nuclei=nuclei), often used as `sbs_cell_info`
             rule in Snakemake.
         target: Which dataset to use as the target, e.g., if target='sbs', plots the fraction of cells in each SBS tile
             that match to a phenotype cell. Should match the information stored in df_info; if df_info is a table of all

@@ -45,7 +45,7 @@ Look at [brieflow-analysis](https://github.com/cheeseman-lab/brieflow-analysis/)
 
 ### Conda Environment
 
-Use the following commands to set up the `brieflow_main_env` Conda environment:
+Use the following commands to set up the `brieflow_main_env` Conda environment (~20 min):
 
 ```sh
 # create brieflow_main_env conda environment

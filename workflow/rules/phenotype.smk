@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input
-from lib.shared.rule_utils import get_alignment_params
+from lib.shared.rule_utils import get_alignment_params, get_segmentation_params
 
 
 # Apply illumination correction field
@@ -38,17 +38,9 @@ rule segment_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"],
     params:
-        dapi_index=config["phenotype"]["dapi_index"],
-        cyto_index=config["phenotype"]["cyto_index"],
-        nuclei_diameter=config["phenotype"]["nuclei_diameter"],
-        cell_diameter=config["phenotype"]["cell_diameter"],
-        cyto_model=config["phenotype"]["cyto_model"],
-        flow_threshold=config["phenotype"]["flow_threshold"],
-        cellprob_threshold=config["phenotype"]["cellprob_threshold"],
-        return_counts=True,
-        gpu=config["phenotype"]["gpu"],
+        config=lambda wildcards: get_segmentation_params("phenotype", config),
     script:
-        "../scripts/shared/segment_cellpose.py"
+        "../scripts/shared/segment.py"
 
 
 # Extract cytoplasmic masks from segmented nuclei, cells

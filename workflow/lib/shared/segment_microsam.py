@@ -20,10 +20,11 @@ from micro_sam.instance_segmentation import (
     InstanceSegmentationWithDecoder,
     AutomaticMaskGenerator,
     get_predictor_and_decoder,
-    mask_data_to_segmentation
+    mask_data_to_segmentation,
 )
 from skimage.measure import regionprops
 from skimage.segmentation import clear_border
+
 
 def segment_microsam(
     data,
@@ -40,9 +41,9 @@ def segment_microsam(
     reconcile="consensus",
     return_counts=False,
     gpu=False,
-): 
+):
     """Segment cells using MicroSAM algorithm.
-    
+
     Args:
         data (numpy.ndarray): Multichannel image data.
         dapi_index (int): Index of DAPI channel.
@@ -53,7 +54,7 @@ def segment_microsam(
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
         return_counts (bool, optional): Whether to return counts of nuclei and cells. Default is False.
         gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
-    
+
     Returns:
         tuple or numpy.ndarray: If 'cells' is True, returns tuple of nuclei and cell segmentation masks,
         otherwise returns only nuclei segmentation mask. If return_counts is True, includes a dictionary of counts.
@@ -61,63 +62,59 @@ def segment_microsam(
     # Initialize microsam_kwargs if None
     if microsam_kwargs is None:
         microsam_kwargs = {}
-    
+
     # Prepare channels for MicroSAM
-    dapi = data[dapi_index] 
-    cyto = data[cyto_index] 
+    dapi = data[dapi_index]
+    cyto = data[cyto_index]
     counts = {}
-    
+
     # Perform cell segmentation
     if cells:
         if return_counts:
             nuclei, cells, seg_counts = segment_microsam_multichannel(
-                dapi, 
+                dapi,
                 cyto,
                 model_type=model_type,
                 reconcile=reconcile,
                 return_counts=True,
                 gpu=gpu,
-                **microsam_kwargs  
+                **microsam_kwargs,
             )
             counts.update(seg_counts)
         else:
             nuclei, cells = segment_microsam_multichannel(
-                dapi, 
+                dapi,
                 cyto,
                 model_type=model_type,
                 reconcile=reconcile,
                 gpu=gpu,
-                **microsam_kwargs  
+                **microsam_kwargs,
             )
-        
+
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
         counts["final_cells"] = len(np.unique(cells)) - 1
         counts_df = pd.DataFrame([counts])
-        
+
         print(f"Number of nuclei segmented: {counts['final_nuclei']}")
         print(f"Number of cells segmented: {counts['final_cells']}")
-        
+
         if return_counts:
             return nuclei, cells, counts_df
         else:
             return nuclei, cells
     else:
-        nuclei = segment_microsam_nuclei(
-            dapi, 
-            model_type=model_type,
-            **microsam_kwargs  
-        )
-        
+        nuclei = segment_microsam_nuclei(dapi, model_type=model_type, **microsam_kwargs)
+
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
         print(f"Number of nuclei segmented: {counts['final_nuclei']}")
-        
+
         counts_df = pd.DataFrame([counts])
-        
+
         if return_counts:
             return nuclei, counts_df
         else:
             return nuclei
-                
+
 
 def segment_microsam_multichannel(
     dapi,
@@ -133,7 +130,7 @@ def segment_microsam_multichannel(
     pred_iou_thresh=0.88,
 ):
     """Segment nuclei and cells using the MicroSAM algorithm.
-    
+
     Args:
         dapi (numpy.ndarray): DAPI channel image
         cyto (numpy.ndarray): Cytoplasmic channel image
@@ -147,87 +144,74 @@ def segment_microsam_multichannel(
         stability_score_thresh (float, optional): Threshold for stability score
         pred_iou_thresh (float, optional): Threshold for predicted IoU
         **kwargs: Additional keyword arguments for MicroSAM segmentation
-    
+
     Returns:
         Segmentation masks with optional counts
     """
     counts = {}
-    
-    # Step 1: Initialize the model 
+
+    # Step 1: Initialize the model
     predictor = util.get_sam_model(model_type=model_type)
-    
+
     # Step 2: Computation of the image embeddings for DAPI and cytoplasmic channels
     dapi_embeddings = util.precompute_image_embeddings(
-        predictor=predictor,
-        input_=dapi,
-        ndim=2
+        predictor=predictor, input_=dapi, ndim=2
     )
     cyto_embeddings = util.precompute_image_embeddings(
-        predictor=predictor,
-        input_=cyto,
-        ndim=2
+        predictor=predictor, input_=cyto, ndim=2
     )
-    
+
     # Step 3: Create automatic mask generators for nuclei and cells
     amg_nuclei = AutomaticMaskGenerator(
         predictor=predictor,
         points_per_side=points_per_side,
-        points_per_batch=points_per_batch
+        points_per_batch=points_per_batch,
     )
-    
+
     amg_cells = AutomaticMaskGenerator(
         predictor=predictor,
         points_per_side=points_per_side,
-        points_per_batch=points_per_batch
+        points_per_batch=points_per_batch,
     )
-    
+
     # Step 4: Initialize with precomputed embeddings
-    amg_nuclei.initialize(
-        image=dapi,
-        image_embeddings=dapi_embeddings
-    )
-    amg_cells.initialize(
-        image=cyto,
-        image_embeddings=cyto_embeddings
-    )
-    
+    amg_nuclei.initialize(image=dapi, image_embeddings=dapi_embeddings)
+    amg_cells.initialize(image=cyto, image_embeddings=cyto_embeddings)
+
     # Step 5: Generate automatic instance segmentations with the provided parameters
     nuclei_prediction = amg_nuclei.generate(
-        stability_score_thresh=stability_score_thresh,
-        pred_iou_thresh=pred_iou_thresh
+        stability_score_thresh=stability_score_thresh, pred_iou_thresh=pred_iou_thresh
     )
     cells_prediction = amg_cells.generate(
-        stability_score_thresh=stability_score_thresh,
-        pred_iou_thresh=pred_iou_thresh
+        stability_score_thresh=stability_score_thresh, pred_iou_thresh=pred_iou_thresh
     )
-    
+
     # Convert mask data to segmentation
     nuclei = mask_data_to_segmentation(nuclei_prediction, with_background=True)
     cells = mask_data_to_segmentation(cells_prediction, with_background=True)
-    
+
     # Track initial counts
     counts["initial_nuclei"] = len(np.unique(nuclei)) - 1
     counts["initial_cells"] = len(np.unique(cells)) - 1
-    
+
     print(
         f'found {counts["initial_nuclei"]} nuclei before removing edges',
         file=sys.stderr,
     )
     print(
-        f'found {counts["initial_cells"]} cells before removing edges', 
-        file=sys.stderr
+        f'found {counts["initial_cells"]} cells before removing edges', file=sys.stderr
     )
-    
+
     # Remove objects touching edges if specified
     if remove_edges:
         print("removing edges")
         nuclei = clear_border(nuclei)
         cells = clear_border(cells)
-    
+
     # Update counts after edge removal
     counts["after_edge_removal_nuclei"] = len(np.unique(nuclei)) - 1
     counts["after_edge_removal_cells"] = len(np.unique(cells)) - 1
-    
+
     print(
         f'found {counts["after_edge_removal_nuclei"]} nuclei before reconciling',
         file=sys.stderr,
@@ -236,26 +220,25 @@ def segment_microsam_multichannel(
         f'found {counts["after_edge_removal_cells"]} cells before reconciling',
         file=sys.stderr,
     )
-    
+
     # Reconcile nuclei and cells if specified
     if reconcile:
         print(f"reconciling masks with method how={reconcile}")
         nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
-    
+
     # Final count after reconciliation
     counts["final_cells"] = len(np.unique(cells)) - 1
-    
+
     print(
-        f'found {counts["final_cells"]} nuclei/cells after reconciling', 
-        file=sys.stderr
+        f'found {counts["final_cells"]} nuclei/cells after reconciling', file=sys.stderr
     )
-    
+
     if return_counts:
         return nuclei, cells, counts
     else:
         return nuclei, cells
-    
-    
+
+
 def segment_microsam_nuclei(
     dapi,
     model_type="vit_b_lm",
@@ -267,35 +250,32 @@ def segment_microsam_nuclei(
     pred_iou_thresh=0.88,
 ):
     """Segment nuclei using the MicroSAM algorithm.
-    
+
     Args:
         dapi (numpy.ndarray): DAPI channel image
         model_type (str, optional): MicroSAM model type to use
         remove_edges (bool, optional): Whether to remove nuclei touching the image edges
+        gpu (bool, optional): Whether to use GPU for segmentation
         points_per_side (int, optional): Number of points to sample along each side of the image
         points_per_batch (int, optional): Number of points to process in each batch
         stability_score_thresh (float, optional): Threshold for stability score
         pred_iou_thresh (float, optional): Threshold for predicted IoU
         **kwargs: Additional keyword arguments for MicroSAM segmentation
-    
+
     Returns:
         Labeled segmentation mask of nuclei
     """
     # Step 1: Initialize the model
     predictor = util.get_sam_model(model_type=model_type)
-    
+
     # Step 2: Compute image embeddings for DAPI channel
     image_embeddings = util.precompute_image_embeddings(
-        predictor=predictor,
-        input_=dapi,
-        ndim=2
+        predictor=predictor, input_=dapi, ndim=2
     )
-    
+
     # Step 3: Create automatic mask generator for nuclei
     amg_nuclei = AutomaticMaskGenerator(
-        predictor,
-        points_per_side=points_per_side,
-        points_per_batch=points_per_batch
+        predictor, points_per_side=points_per_side, points_per_batch=points_per_batch
     )
 
     # Step 4: Initialize with precomputed embeddings
@@ -305,27 +285,27 @@ def segment_microsam_nuclei(
     nuclei_masks = amg_nuclei.generate(
         stability_score_thresh=stability_score_thresh,
         pred_iou_thresh=pred_iou_thresh,
-        **kwargs
+        **kwargs,
     )
-        
+
     # Convert mask data to segmentation
     nuclei = mask_data_to_segmentation(nuclei_masks, with_background=True)
-    
+
     # Print the number of nuclei found before and after removing edges
     print(
-        f"found {len(np.unique(nuclei))} nuclei before removing edges", 
-        file=sys.stderr
+        f"found {len(np.unique(nuclei))} nuclei before removing edges", file=sys.stderr
     )
-    
+
     # Remove nuclei touching the image edges if specified
     if remove_edges:
         print("removing edges")
         nuclei = clear_border(nuclei)
-    
+
     # Print the final number of nuclei after processing
     print(f"found {len(np.unique(nuclei))} final nuclei", file=sys.stderr)
-    
+
     return nuclei
+
 
 def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
     """Reconcile nuclei and cells labels based on their overlap.
@@ -372,15 +352,14 @@ def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
 
     # Always get the multiple nuclei mapping for analysis
     cell_map_multiple = get_unique_label_map(
-        regionprops(cells, intensity_image=nuclei_eroded), 
-        keep_multiple=True
+        regionprops(cells, intensity_image=nuclei_eroded), keep_multiple=True
     )
-    
+
     # Count cells with multiple nuclei
     nuclei_per_cell = defaultdict(int)
     for cell_label, nuclei_labels in cell_map_multiple.items():
         nuclei_per_cell[len(nuclei_labels)] += 1
-    
+
     # Print statistics
     print("\nNuclei per cell statistics:")
     print("--------------------------")

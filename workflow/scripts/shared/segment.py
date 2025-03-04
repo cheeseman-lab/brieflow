@@ -14,6 +14,7 @@ method = params.get("method", "cellpose")
 if method == "cellpose":
     # Segment cells using cellpose
     from lib.shared.segment_cellpose import segment_cellpose
+
     nuclei_data, cells_data, counts_df = segment_cellpose(
         data=illumination_corrected_data,
         dapi_index=params["dapi_index"],
@@ -32,6 +33,7 @@ if method == "cellpose":
 elif method == "microsam":
     # Segment cells using MicroSAM
     from lib.shared.segment_microsam import segment_microsam
+
     nuclei_data, cells_data, counts_df = segment_microsam(
         data=illumination_corrected_data,
         dapi_index=params["dapi_index"],
@@ -50,6 +52,7 @@ elif method == "microsam":
 elif method == "stardist":
     # Segment cells using StarDist
     from lib.shared.segment_stardist import segment_stardist
+
     nuclei_data, cells_data, counts_df = segment_stardist(
         data=illumination_corrected_data,
         dapi_index=params["dapi_index"],
@@ -64,7 +67,9 @@ elif method == "stardist":
         gpu=params.get("gpu", False),
     )
 else:
-    raise ValueError(f"Unknown segmentation method: {method}. Choose one of: cellpose, microsam, stardist")
+    raise ValueError(
+        f"Unknown segmentation method: {method}. Choose one of: cellpose, microsam, stardist"
+    )
 
 # Save segmented nuclei data
 imwrite(snakemake.output[0], nuclei_data)

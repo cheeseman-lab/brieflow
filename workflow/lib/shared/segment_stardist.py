@@ -37,7 +37,7 @@ def segment_stardist(
     gpu=False,
 ):
     """Segment cells using StarDist algorithm.
-    
+
     Args:
         data: Multichannel image data
         dapi_index: Index of DAPI channel
@@ -50,7 +50,7 @@ def segment_stardist(
         reconcile: Method for reconciling nuclei and cells
         return_counts: Whether to return counts of nuclei and cells
         gpu: Whether to use GPU for segmentation
-    
+
     Returns:
         Segmentation masks with optional counts
     """
@@ -63,49 +63,46 @@ def segment_stardist(
     if cells:
         if return_counts:
             nuclei, cells, seg_counts = segment_stardist_multichannel(
-                dapi, 
+                dapi,
                 cyto,
                 model_type=model_type,
                 reconcile=reconcile,
                 return_counts=True,
                 gpu=gpu,
-                **stardist_kwargs
+                **stardist_kwargs,
             )
             counts.update(seg_counts)
         else:
             nuclei, cells = segment_stardist_multichannel(
-                dapi, 
+                dapi,
                 cyto,
                 model_type=model_type,
                 reconcile=reconcile,
                 gpu=gpu,
-                **stardist_kwargs
+                **stardist_kwargs,
             )
-        
+
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
         counts["final_cells"] = len(np.unique(cells)) - 1
         counts_df = pd.DataFrame([counts])
-        
+
         print(f"Number of nuclei segmented: {counts['final_nuclei']}")
         print(f"Number of cells segmented: {counts['final_cells']}")
-        
+
         if return_counts:
             return nuclei, cells, counts_df
         else:
             return nuclei, cells
     else:
         nuclei = segment_stardist_nuclei(
-            dapi, 
-            model_type=model_type,
-            gpu=gpu,
-            **stardist_kwargs
+            dapi, model_type=model_type, gpu=gpu, **stardist_kwargs
         )
-        
+
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
         print(f"Number of nuclei segmented: {counts['final_nuclei']}")
-        
+
         counts_df = pd.DataFrame([counts])
-        
+
         if return_counts:
             return nuclei, counts_df
         else:
@@ -114,16 +111,15 @@ def segment_stardist(
 
 def prepare_channel(data):
     """Prepare channel data for segmentation using StarDist's normalization.
-    
+
     Args:
         data: Input channel data
-        
+
     Returns:
         Processed channel data
     """
     # Use StarDist's recommended normalization
     return normalize(data, 1, 99.8, axis=None)
-
 
 
 def segment_stardist_multichannel(
@@ -136,10 +132,10 @@ def segment_stardist_multichannel(
     gpu=False,
     prob_thresh=0.479071,
     nms_thresh=0.3,
-    **kwargs
+    **kwargs,
 ):
     """Segment nuclei and cells using the StarDist algorithm.
-    
+
     Args:
         dapi: DAPI channel data
         cyto: Cytoplasmic channel data
@@ -156,48 +152,45 @@ def segment_stardist_multichannel(
 
     """
     counts = {}
-    
+
     # Initialize StarDist models for nuclei and cytoplasmic segmentation
     model_nuclei = StarDist2D.from_pretrained(model_type)
     model_cells = StarDist2D.from_pretrained(model_type)
-    
+
     if gpu:
         model_nuclei.config.use_gpu = True
         model_cells.config.use_gpu = True
-    
+
     # Segment nuclei and cells using StarDist with specified parameters
     print("Performing StarDist nuclear segmentation...", file=sys.stderr)
-    nuclei, _ = model_nuclei.predict_instances(dapi, 
-                                             prob_thresh=prob_thresh,
-                                             nms_thresh=nms_thresh,
-                                             **kwargs)
-    
+    nuclei, _ = model_nuclei.predict_instances(
+        dapi, prob_thresh=prob_thresh, nms_thresh=nms_thresh, **kwargs
+    )
+
     print("Performing StarDist cell segmentation...", file=sys.stderr)
-    cells, _ = model_cells.predict_instances(cyto,
-                                           prob_thresh=prob_thresh,
-                                           nms_thresh=nms_thresh,
-                                           **kwargs)
-        
+    cells, _ = model_cells.predict_instances(
+        cyto, prob_thresh=prob_thresh, nms_thresh=nms_thresh, **kwargs
+    )
+
     counts["initial_nuclei"] = len(np.unique(nuclei)) - 1
     counts["initial_cells"] = len(np.unique(cells)) - 1
-    
+
     print(
         f'found {counts["initial_nuclei"]} nuclei before removing edges',
         file=sys.stderr,
     )
     print(
-        f'found {counts["initial_cells"]} cells before removing edges', 
-        file=sys.stderr
+        f'found {counts["initial_cells"]} cells before removing edges', file=sys.stderr
     )
-    
+
     if remove_edges:
         print("removing edges")
         nuclei = clear_border(nuclei)
         cells = clear_border(cells)
-    
+
     counts["after_edge_removal_nuclei"] = len(np.unique(nuclei)) - 1
     counts["after_edge_removal_cells"] = len(np.unique(cells)) - 1
-    
+
     print(
         f'found {counts["after_edge_removal_nuclei"]} nuclei before reconciling',
         file=sys.stderr,
@@ -206,18 +199,17 @@ def segment_stardist_multichannel(
         f'found {counts["after_edge_removal_cells"]} cells before reconciling',
         file=sys.stderr,
     )
-    
+
     if reconcile:
         print(f"reconciling masks with method how={reconcile}")
         nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
-    
+
     counts["final_cells"] = len(np.unique(cells)) - 1
-    
+
     print(
-        f'found {counts["final_cells"]} nuclei/cells after reconciling', 
-        file=sys.stderr
+        f'found {counts["final_cells"]} nuclei/cells after reconciling', file=sys.stderr
     )
-    
+
     if return_counts:
         return nuclei, cells, counts
     else:
@@ -231,10 +223,10 @@ def segment_stardist_nuclei(
     gpu=False,
     prob_thresh=0.479071,
     nms_thresh=0.3,
-    **kwargs
+    **kwargs,
 ):
     """Segment nuclei using the StarDist algorithm.
-    
+
     Args:
         dapi: DAPI channel data
         model_type: StarDist model type to use
@@ -250,25 +242,23 @@ def segment_stardist_nuclei(
     model = StarDist2D.from_pretrained(model_type)
     if gpu:
         model.config.use_gpu = True
-    
+
     # Segment nuclei with specified parameters
     print("Performing StarDist segmentation...", file=sys.stderr)
-    nuclei, _ = model.predict_instances(dapi,
-                                      prob_thresh=prob_thresh,
-                                      nms_thresh=nms_thresh,
-                                      **kwargs)
-    
-    print(
-        f"found {len(np.unique(nuclei))} nuclei before removing edges", 
-        file=sys.stderr
+    nuclei, _ = model.predict_instances(
+        dapi, prob_thresh=prob_thresh, nms_thresh=nms_thresh, **kwargs
     )
-    
+
+    print(
+        f"found {len(np.unique(nuclei))} nuclei before removing edges", file=sys.stderr
+    )
+
     if remove_edges:
         print("removing edges")
         nuclei = clear_border(nuclei)
-    
+
     print(f"found {len(np.unique(nuclei))} final nuclei", file=sys.stderr)
-    
+
     return nuclei
 
 
@@ -316,15 +306,14 @@ def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
 
     # Always get the multiple nuclei mapping for analysis
     cell_map_multiple = get_unique_label_map(
-        regionprops(cells, intensity_image=nuclei_eroded), 
-        keep_multiple=True
+        regionprops(cells, intensity_image=nuclei_eroded), keep_multiple=True
     )
-    
+
     # Count cells with multiple nuclei
     nuclei_per_cell = defaultdict(int)
     for cell_label, nuclei_labels in cell_map_multiple.items():
         nuclei_per_cell[len(nuclei_labels)] += 1
-    
+
     # Print statistics
     print("\nNuclei per cell statistics:")
     print("--------------------------")

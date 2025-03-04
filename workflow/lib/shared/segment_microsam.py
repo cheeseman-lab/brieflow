@@ -195,11 +195,11 @@ def segment_microsam_multichannel(
     counts["initial_cells"] = len(np.unique(cells)) - 1
 
     print(
-        f'found {counts["initial_nuclei"]} nuclei before removing edges',
+        f"found {counts['initial_nuclei']} nuclei before removing edges",
         file=sys.stderr,
     )
     print(
-        f'found {counts["initial_cells"]} cells before removing edges', file=sys.stderr
+        f"found {counts['initial_cells']} cells before removing edges", file=sys.stderr
     )
 
     # Remove objects touching edges if specified
@@ -213,11 +213,11 @@ def segment_microsam_multichannel(
     counts["after_edge_removal_cells"] = len(np.unique(cells)) - 1
 
     print(
-        f'found {counts["after_edge_removal_nuclei"]} nuclei before reconciling',
+        f"found {counts['after_edge_removal_nuclei']} nuclei before reconciling",
         file=sys.stderr,
     )
     print(
-        f'found {counts["after_edge_removal_cells"]} cells before reconciling',
+        f"found {counts['after_edge_removal_cells']} cells before reconciling",
         file=sys.stderr,
     )
 
@@ -230,7 +230,7 @@ def segment_microsam_multichannel(
     counts["final_cells"] = len(np.unique(cells)) - 1
 
     print(
-        f'found {counts["final_cells"]} nuclei/cells after reconciling', file=sys.stderr
+        f"found {counts['final_cells']} nuclei/cells after reconciling", file=sys.stderr
     )
 
     if return_counts:

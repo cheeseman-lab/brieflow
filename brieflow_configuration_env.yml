@@ -15,6 +15,9 @@ dependencies:
   - scikit-image
   - joblib
   - cellpose # TODO: pin version if reproducbility is important (version may change segmentations)
+  - micro_sam
+  - tensorflow
+  - csbdeep
   - pytables
   - microfilm
   - seaborn
@@ -26,3 +29,4 @@ dependencies:
   - statsmodels
   - pip:
       - -e .
+      - stardist

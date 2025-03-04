@@ -31,18 +31,44 @@ else:
     print("No phenotype samples found!")
     phenotype_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"])
 
+# Check for plate filter
+# If plate filter is set, only process the specified plate
+plate_filter = config.get("plate_filter", None)
+if plate_filter is not None:
+    print(f"PLATE FILTER: Processing only plate {plate_filter}")
+    if len(sbs_samples_df) > 0:
+        sbs_samples_df = sbs_samples_df[
+            sbs_samples_df["plate"].astype(str) == str(plate_filter)
+        ]
+        sbs_wildcard_combos = sbs_wildcard_combos[
+            sbs_wildcard_combos["plate"].astype(str) == str(plate_filter)
+        ]
+        print(
+            f"Filtered SBS samples to {len(sbs_samples_df)} rows for plate {plate_filter}"
+        )
+    if len(phenotype_samples_df) > 0:
+        phenotype_samples_df = phenotype_samples_df[
+            phenotype_samples_df["plate"].astype(str) == str(plate_filter)
+        ]
+        phenotype_wildcard_combos = phenotype_wildcard_combos[
+            phenotype_wildcard_combos["plate"].astype(str) == str(plate_filter)
+        ]
+        print(
+            f"Filtered phenotype samples to {len(phenotype_samples_df)} rows for plate {plate_filter}"
+        )
+
 # NOTE: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
-sbs_wildcard_combos = sbs_wildcard_combos[
-    ((sbs_wildcard_combos["plate"] == "1") & (sbs_wildcard_combos["well"] == "A1"))
-]
-# sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["tile"].isin(["1", "2"])]
-phenotype_wildcard_combos = phenotype_wildcard_combos[
-    (
-        (phenotype_wildcard_combos["plate"] == "1")
-        & (phenotype_wildcard_combos["well"] == "A1")
-    )
-]
+# sbs_wildcard_combos = sbs_wildcard_combos[
+#     ((sbs_wildcard_combos["plate"] == "1") & (sbs_wildcard_combos["well"] == "A1"))
+# ]
+# # sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["tile"].isin(["1", "2"])]
+# phenotype_wildcard_combos = phenotype_wildcard_combos[
+#     (
+#         (phenotype_wildcard_combos["plate"] == "1")
+#         & (phenotype_wildcard_combos["well"] == "A1")
+#     )
+# ]
 # phenotype_wildcard_combos = phenotype_wildcard_combos[
 #     phenotype_wildcard_combos["tile"].isin(["1", "2"])
 # ]

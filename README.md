@@ -58,6 +58,7 @@ conda config --set channel_priority strict
 
 **Note:** We recommend making a custom Brieflow environment if you need other packages for Brieflow modifications.
 Simply change the name of the `brieflow_main_env` Conda environment and track your added packages in [brieflow_main_env.yml](brieflow_main_env.yml).
+For rule-specific package consider creating a separate conda environment file and using it for the particular rule as described in the [Snakemake integrated package management notes](https://snakemake.readthedocs.io/en/stable/snakefiles/deployment.html#integrated-package-management).
 
 ### HPC Integrations
 

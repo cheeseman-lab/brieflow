@@ -4,8 +4,6 @@ from lib.shared.rule_utils import get_alignment_params, get_segmentation_params
 
 # Apply illumination correction field
 rule apply_ic_field_phenotype:
-    conda:
-        "../envs/phenotype.yml"
     input:
         ancient(PREPROCESS_OUTPUTS["convert_phenotype"]),
         ancient(PREPROCESS_OUTPUTS["calculate_ic_phenotype"]),
@@ -17,22 +15,18 @@ rule apply_ic_field_phenotype:
 
 # Align phenotype images
 rule align_phenotype:
-    conda:
-        "../envs/phenotype.yml"
     input:
         PHENOTYPE_OUTPUTS["apply_ic_field_phenotype"],
     output:
         PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"],
     params:
-        config=lambda wildcards: get_alignment_params(wildcards, config)
+        config=lambda wildcards: get_alignment_params(wildcards, config),
     script:
         "../scripts/phenotype/align_phenotype.py"
 
 
 # Segments cells and nuclei using pre-defined methods
 rule segment_phenotype:
-    conda:
-        "../envs/phenotype.yml"
     input:
         PHENOTYPE_OUTPUTS["align_phenotype"],
     output:
@@ -45,8 +39,6 @@ rule segment_phenotype:
 
 # Extract cytoplasmic masks from segmented nuclei, cells
 rule identify_cytoplasm:
-    conda:
-        "../envs/phenotype.yml"
     input:
         # nuclei segmentation map
         PHENOTYPE_OUTPUTS["segment_phenotype"][0],
@@ -60,8 +52,6 @@ rule identify_cytoplasm:
 
 # Extract minimal phenotype information from segmented nuclei images
 rule extract_phenotype_info:
-    conda:
-        "../envs/phenotype.yml"
     input:
         # nuclei segmentation map
         PHENOTYPE_OUTPUTS["segment_phenotype"][0],
@@ -73,8 +63,6 @@ rule extract_phenotype_info:
 
 # Combine phenotype info results from different tiles
 rule merge_phenotype_info:
-    conda:
-        "../envs/phenotype.yml"
     input:
         lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["extract_phenotype_info"],
@@ -90,8 +78,6 @@ rule merge_phenotype_info:
 
 # Extract full phenotype information using CellProfiler from phenotype images
 rule extract_phenotype_cp:
-    conda:
-        "../envs/phenotype.yml"
     input:
         # aligned phenotype image
         PHENOTYPE_OUTPUTS["align_phenotype"],
@@ -111,8 +97,6 @@ rule extract_phenotype_cp:
 
 # Combine phenotype results from different tiles
 rule merge_phenotype_cp:
-    conda:
-        "../envs/phenotype.yml"
     input:
         lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
@@ -130,8 +114,6 @@ rule merge_phenotype_cp:
 
 # Evaluate segmentation results
 rule eval_segmentation_phenotype:
-    conda:
-        "../envs/phenotype.yml"
     input:
         # path to segmentation stats for well/tile
         segmentation_stats_paths=lambda wildcards: output_to_input(
@@ -154,8 +136,6 @@ rule eval_segmentation_phenotype:
 
 
 rule eval_features:
-    conda:
-        "../envs/phenotype.yml"
     input:
         # use minimum phenotype CellProfiler features for evaluation
         cells_paths=lambda wildcards: output_to_input(
@@ -173,8 +153,6 @@ rule eval_features:
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
 #     rule segment_phenotype_paramsearch:
-#         conda:
-#             "../envs/phenotype.yml"
 #         input:
 #             PHENOTYPE_OUTPUTS["align_phenotype"],
 #         output:
@@ -193,8 +171,6 @@ rule eval_features:
 #             "../scripts/shared/segment_cellpose.py"
 
 #     rule summarize_segment_phenotype_paramsearch:
-#         conda:
-#             "../envs/phenotype.yml"
 #         input:
 #             lambda wildcards: output_to_input(
 #                 PHENOTYPE_OUTPUTS["segment_phenotype_paramsearch"][2::3],

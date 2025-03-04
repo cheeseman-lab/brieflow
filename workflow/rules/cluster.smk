@@ -1,7 +1,5 @@
 # Generate cluster datasets
 rule generate_dataset:
-    conda:
-        "../envs/cluster.yml"
     input:
         # final gene datasets
         ancient(AGGREGATE_OUTPUTS["process_mitotic_gene_data"]),
@@ -20,8 +18,6 @@ rule generate_dataset:
 
 # perform phate embedding and leiden clustering
 rule phate_leiden_clustering:
-    conda:
-        "../envs/cluster.yml"
     input:
         # cluster dataset
         CLUSTER_OUTPUTS["generate_dataset"],
@@ -42,8 +38,6 @@ rule phate_leiden_clustering:
 
 # analyze clusters with uniprot data
 rule benchmark_clusters:
-    conda:
-        "../envs/cluster.yml"
     input:
         # phate leiden clusters with uniprot data
         CLUSTER_OUTPUTS["phate_leiden_clustering"][2],
@@ -61,8 +55,6 @@ rule benchmark_clusters:
 
 # evaluate clustering
 rule cluster_eval:
-    conda:
-        "../envs/cluster.yml"
     input:
         # all global metric files from analyze clusters
         lambda wildcards: output_to_input(

@@ -1,4 +1,4 @@
-name: brieflow_configuration
+name: brieflow_main_env
 channels:
   - conda-forge
   - bioconda
@@ -6,6 +6,8 @@ channels:
 dependencies:
   - python=3.11
   - snakemake=8
+  - snakemake-executor-plugin-slurm
+  - coincbc=2.10.12 # Pinned because need this version specifically. Should check if relevant across machines.
   - pip
   - ipykernel
   - pandas
@@ -27,6 +29,7 @@ dependencies:
   - leidenalg
   - phate
   - statsmodels
+  - joblib
   - pip:
       - -e .
       - stardist

@@ -37,43 +37,28 @@ Brieflow runs as follows:
 - Each process rule calls a script.
 - Scripts use the Brieflow library code to transform the input files defined in targets into the output files defined in targets.
 
-## Running Brieflow
+## Brieflow Setup
 
 Brieflow is usually loaded as a submodule within a Brieflow analysis.
 Each Brieflow analysis corresponds to one optical pooled screen.
 Look at [brieflow-analysis](https://github.com/cheeseman-lab/brieflow-analysis/) for instructions on using Brieflow as part of a Brieflow analysis.
 
-### Set up workflow/configuration Conda environments
+### Conda Environment
 
-**Configuring and running Brieflow requires two separate environments!**
-
-The modules share a base environment (`brieflow_workflows`) and each have their own Conda environments compiled by Snakemake at runtime (in [workflow/envs](workflow/envs)).
-All notebooks share a configuration environment (`brieflow_configuration`).
-
-**Note:** If large changes to Brieflow code are expected for a particular screen analysis, we recommend changing the names of the workflow/configuration environments to be screen-specific so development of this code does not affect other Brieflow runs.
-Change the name of the workflow and configuration environments in [brieflow_workflows_env.yml](brieflow_workflows_env.yml) and [brieflow_configuration.yml](brieflow_configuration.yml).
-
-#### Set up Brieflow workflows environment
-
-Use the following commands to set up the `brieflow_workflows` Conda environment:
+Use the following commands to set up the `brieflow_main_env` Conda environment (~20 min):
 
 ```sh
-# create brieflow_workflows conda environment
-conda env create --file=brieflow_workflows_env.yml
-# activate brieflow_workflows conda environment
-conda activate brieflow_workflows
+# create brieflow_main_env conda environment
+conda env create --file=brieflow_main_env.yml
+# activate brieflow_main_env conda environment
+conda activate brieflow_main_env
 # set conda installation to use strict channel priorities
 conda config --set channel_priority strict
 ```
 
-#### Set up Brieflow configuration environment
-
-Use the following commands to set up the `brieflow_configuration` Conda environment:
-
-```sh
-# create brieflow_configuration conda environment
-conda env create --file=brieflow_configuration_env.yml
-```
+**Note:** We recommend making a custom Brieflow environment if you need other packages for Brieflow modifications.
+Simply change the name of the `brieflow_main_env` Conda environment and track your added packages in [brieflow_main_env.yml](brieflow_main_env.yml).
+For rule-specific package consider creating a separate conda environment file and using it for the particular rule as described in the [Snakemake integrated package management notes](https://snakemake.readthedocs.io/en/stable/snakefiles/deployment.html#integrated-package-management).
 
 ### HPC Integrations
 
@@ -85,7 +70,7 @@ These can be adjusted as necessary.
 **Note**: Other Snakemake HPC integrations can be found in the [Snakemake plugin catalog](https://snakemake.github.io/snakemake-plugin-catalog/index.html#snakemake-plugin-catalog).
 Only the `slurm` plugin has been tested. It is important to understand that these plugins assume that the Snakemake scheduler will operate on the head HPC node, and *only the individual jobs* are submitted to the various nodes available to the HPC. Therefore, the Snakefile should be run through bash on the head node (with `slurm` or other HPC configurations). We recommend starting a tmux session for this, especially for larger jobs.
 
-### Example Analysis
+## Example Analysis
 
 The [denali-analysis](https://github.com/cheeseman-lab/denali-analysis) details an example Brieflow run.
 We do not include the data necessary for this example analysis in this repo as it is too large.

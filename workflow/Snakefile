@@ -43,7 +43,9 @@ if plate_filter is not None:
     print(f"PLATE FILTER: Processing only plate {plate_filter}")
 
     if len(sbs_samples_df) > 0:
-        sbs_samples_df = sbs_samples_df[sbs_samples_df["plate"] == plate_filter]
+        sbs_samples_df = sbs_samples_df[
+            sbs_samples_df["plate"].astype(str) == plate_filter
+        ]
         sbs_wildcard_combos = sbs_wildcard_combos[
             sbs_wildcard_combos["plate"] == plate_filter
         ]
@@ -52,7 +54,7 @@ if plate_filter is not None:
         )
     if len(phenotype_samples_df) > 0:
         phenotype_samples_df = phenotype_samples_df[
-            phenotype_samples_df["plate"] == plate_filter
+            phenotype_samples_df["plate"].astype(str) == plate_filter
         ]
         phenotype_wildcard_combos = phenotype_wildcard_combos[
             phenotype_wildcard_combos["plate"] == plate_filter

@@ -48,13 +48,16 @@ Look at [brieflow-analysis](https://github.com/cheeseman-lab/brieflow-analysis/)
 Use the following commands to set up the `brieflow_main_env` Conda environment:
 
 ```sh
-# create brieflow_workflows conda environment
+# create brieflow_main_env conda environment
 conda env create --file=brieflow_main_env.yml
-# activate brieflow_workflows conda environment
+# activate brieflow_main_env conda environment
 conda activate brieflow_main_env
 # set conda installation to use strict channel priorities
 conda config --set channel_priority strict
 ```
+
+**Note:** We recommend making a custom Brieflow environment if you need other packages for Brieflow modifications.
+Simply change the name of the `brieflow_main_env` Conda environment and track your added packages in [brieflow_main_env.yml](brieflow_main_env.yml).
 
 ### HPC Integrations
 

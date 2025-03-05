@@ -215,7 +215,7 @@ def perform_pca_analysis(gene_data, variance_threshold=0.95, random_state=42):
         variance_threshold,
         linestyle="--",
         color="red",
-        label=f"{variance_threshold*100}% Threshold",
+        label=f"{variance_threshold * 100}% Threshold",
     )
     ax.axvline(n_components, linestyle="--", color="blue", label=f"n={n_components}")
     ax.set_ylabel("Cumulative fraction of variance explained")
@@ -225,7 +225,7 @@ def perform_pca_analysis(gene_data, variance_threshold=0.95, random_state=42):
     ax.legend()
 
     print(
-        f"Number of components needed for {variance_threshold*100}% variance: {n_components}"
+        f"Number of components needed for {variance_threshold * 100}% variance: {n_components}"
     )
     print(f"Shape of input data: {gene_data.shape}")
 

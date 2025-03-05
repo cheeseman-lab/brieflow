@@ -37,17 +37,17 @@ def call_reads(
 
     Args:
     bases_data : pandas DataFrame
-        Table of base intensity for all candidate reads, output of Snake.extract_bases().
+        Table of base intensity for all candidate reads, output of extract_bases.
 
     peaks_data : None or numpy array, default None
-        Peaks/local maxima score for each pixel (output of Snake.find_peaks()) to be included
+        Peaks/local maxima score for each pixel (output of find_peaks) to be included
         in the df_reads table for downstream QC or other analysis. If None, does not include
         peaks scores in returned df_reads table.
 
     correction_only_in_cells : boolean, default True
         If True, restricts median correction/compensation step to account only for reads that
         are within a cell, as defined by the cell segmentation mask passed into
-        Snake.extract_bases(). Often identified spots outside of cells are not true sequencing
+        extract_bases. Often identified spots outside of cells are not true sequencing
         reads.
 
     normalize_bases_first : boolean, default True

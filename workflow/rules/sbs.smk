@@ -1,10 +1,9 @@
 from lib.shared.target_utils import output_to_input
+from lib.shared.rule_utils import get_segmentation_params
 
 
 # Align images from each sequencing round
 rule align_sbs:
-    conda:
-        "../envs/sbs.yml"
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["convert_sbs"],
@@ -25,8 +24,6 @@ rule align_sbs:
 
 # Apply Laplacian-of-Gaussian filter to all channels
 rule log_filter:
-    conda:
-        "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["align_sbs"],
     output:
@@ -39,8 +36,6 @@ rule log_filter:
 
 # Compute standard deviation of SBS reads across cycles
 rule compute_standard_deviation:
-    conda:
-        "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["log_filter"],
     output:
@@ -53,8 +48,6 @@ rule compute_standard_deviation:
 
 # Find local maxima of SBS reads across cycles
 rule find_peaks:
-    conda:
-        "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["compute_standard_deviation"],
     output:
@@ -65,8 +58,6 @@ rule find_peaks:
 
 # Dilate sequencing channels to compensate for single-pixel alignment error.
 rule max_filter:
-    conda:
-        "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["log_filter"],
     output:
@@ -83,8 +74,6 @@ SBS_CYCLES = sorted(sbs_wildcard_combos["cycle"].unique(), key=int)
 
 
 rule apply_ic_field_sbs:
-    conda:
-        "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["align_sbs"],
         # dapi illumination correction field
@@ -115,30 +104,18 @@ rule apply_ic_field_sbs:
 
 # Segments cells and nuclei using pre-defined methods
 rule segment_sbs:
-    conda:
-        "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["apply_ic_field_sbs"],
     output:
         SBS_OUTPUTS_MAPPED["segment_sbs"],
     params:
-        dapi_index=config["sbs"]["dapi_index"],
-        cyto_index=config["sbs"]["cyto_index"],
-        nuclei_diameter=config["sbs"]["nuclei_diameter"],
-        cell_diameter=config["sbs"]["cell_diameter"],
-        cyto_model=config["sbs"]["cyto_model"],
-        flow_threshold=config["sbs"]["flow_threshold"],
-        cellprob_threshold=config["sbs"]["cellprob_threshold"],
-        return_counts=True,
-        gpu=config["sbs"]["gpu"],
+        config=lambda wildcards: get_segmentation_params("sbs", config),
     script:
-        "../scripts/shared/segment_cellpose.py"
+        "../scripts/shared/segment.py"
 
 
 # Extract bases from peaks
 rule extract_bases:
-    conda:
-        "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["find_peaks"],
         SBS_OUTPUTS["max_filter"],
@@ -155,8 +132,6 @@ rule extract_bases:
 
 # Call reads
 rule call_reads:
-    conda:
-        "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["extract_bases"],
         SBS_OUTPUTS["find_peaks"],
@@ -168,8 +143,6 @@ rule call_reads:
 
 # Call cells
 rule call_cells:
-    conda:
-        "../envs/sbs.yml"
     input:
         SBS_OUTPUTS["call_reads"],
     output:
@@ -183,8 +156,6 @@ rule call_cells:
 
 # Extract minimal sbs info
 rule extract_sbs_info:
-    conda:
-        "../envs/sbs.yml"
     input:
         # use nuclei segmentation map
         SBS_OUTPUTS["segment_sbs"][0],
@@ -196,8 +167,6 @@ rule extract_sbs_info:
 
 # Rule for combining read results from different wells
 rule combine_reads:
-    conda:
-        "../envs/sbs.yml"
     input:
         lambda wildcards: output_to_input(
             SBS_OUTPUTS["call_reads"],
@@ -213,8 +182,6 @@ rule combine_reads:
 
 # Rule for combining cell results from different wells
 rule combine_cells:
-    conda:
-        "../envs/sbs.yml"
     input:
         lambda wildcards: output_to_input(
             SBS_OUTPUTS["call_cells"],
@@ -230,8 +197,6 @@ rule combine_cells:
 
 # Rule for combining sbs info results from different wells
 rule combine_sbs_info:
-    conda:
-        "../envs/sbs.yml"
     input:
         lambda wildcards: output_to_input(
             SBS_OUTPUTS["extract_sbs_info"],
@@ -246,8 +211,6 @@ rule combine_sbs_info:
 
 
 rule eval_segmentation_sbs:
-    conda:
-        "../envs/sbs.yml"
     input:
         # path to segmentation stats for well/tile
         segmentation_stats_paths=lambda wildcards: output_to_input(
@@ -270,8 +233,6 @@ rule eval_segmentation_sbs:
 
 
 rule eval_mapping:
-    conda:
-        "../envs/sbs.yml"
     input:
         reads_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_reads"],
@@ -302,8 +263,6 @@ rule eval_mapping:
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
 #     rule segment_sbs_paramsearch:
-#         conda:
-#             "../envs/sbs.yml"
 #         input:
 #             SBS_OUTPUTS["apply_ic_field_sbs"],
 #         output:
@@ -322,8 +281,6 @@ rule eval_mapping:
 #             "../scripts/shared/segment_cellpose.py"
 
 #     rule summarize_segment_sbs_paramsearch:
-#         conda:
-#             "../envs/sbs.yml"
 #         input:
 #             lambda wildcards: output_to_input(
 #                 SBS_OUTPUTS["segment_sbs_paramsearch"][2::3],
@@ -356,4 +313,3 @@ rule eval_mapping:
 rule all_sbs:
     input:
         SBS_TARGETS_ALL,
-        

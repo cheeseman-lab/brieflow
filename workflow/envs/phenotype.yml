@@ -6,6 +6,12 @@ dependencies:
   - scipy
   - joblib
   - cellpose # TODO: pin version if reproducbility is important (version may change segmentations)
+  - micro_sam
+  - tensorflow
+  - csbdeep
   - pytables # need pytables defined in module env
   - microfilm
   - mahotas
+  - pip
+  - pip:
+      - stardist

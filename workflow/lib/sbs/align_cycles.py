@@ -98,9 +98,9 @@ def align_cycles(
         stacked = np.array(image_data)
         extras = [0] * stacked.shape[0]
 
-    assert (
-        stacked.ndim == 4
-    ), "Input image_data must have dimensions CYCLE, CHANNEL, I, J"
+    assert stacked.ndim == 4, (
+        "Input image_data must have dimensions CYCLE, CHANNEL, I, J"
+    )
 
     # Align between SBS channels for each cycle
     aligned = stacked.copy()

@@ -3,8 +3,6 @@ from lib.shared.target_utils import output_to_input, get_montage_inputs
 
 # Clean, transform, and standardize merged data
 rule clean_transform_standardize:
-    conda:
-        "../envs/aggregate.yml"
     input:
         # final merge data
         ancient(MERGE_OUTPUTS["final_merge"]),
@@ -26,8 +24,6 @@ rule clean_transform_standardize:
 
 # Split mitotic and interphase data
 rule split_phases:
-    conda:
-        "../envs/aggregate.yml"
     input:
         # standardized data
         AGGREGATE_OUTPUTS["clean_transform_standardize"][2],
@@ -41,8 +37,6 @@ rule split_phases:
 
 # Process mitotic gene data
 rule process_mitotic_gene_data:
-    conda:
-        "../envs/aggregate.yml"
     input:
         # mitotic data
         lambda wildcards: output_to_input(
@@ -67,8 +61,6 @@ rule process_mitotic_gene_data:
 
 # Process interphase gene data
 rule process_interphase_gene_data:
-    conda:
-        "../envs/aggregate.yml"
     input:
         # interphase data
         lambda wildcards: output_to_input(
@@ -93,8 +85,6 @@ rule process_interphase_gene_data:
 
 # Process all gene data
 rule process_all_gene_data:
-    conda:
-        "../envs/aggregate.yml"
     input:
         # all standardized data
         lambda wildcards: output_to_input(
@@ -118,8 +108,6 @@ rule process_all_gene_data:
 
 
 rule eval_aggregate:
-    conda:
-        "../envs/aggregate.yml"
     input:
         # cleaned data
         cleaned_data_paths=lambda wildcards: output_to_input(
@@ -165,8 +153,6 @@ rule eval_aggregate:
 
 # Prepare montage data and create a checkpoint
 checkpoint prepare_mitotic_montage_data:
-    conda:
-        "../envs/aggregate.yml"
     input:
         # mitotic standardized data
         lambda wildcards: output_to_input(
@@ -185,8 +171,6 @@ checkpoint prepare_mitotic_montage_data:
 
 # Generate montage
 rule generate_mitotic_montage:
-    conda:
-        "../envs/aggregate.yml"
     input:
         MONTAGE_OUTPUTS["mitotic_montage_data"],
     output:
@@ -217,8 +201,6 @@ rule initiate_mitotic_montage:
 
 # Prepare montage data and create a checkpoint
 checkpoint prepare_interphase_montage_data:
-    conda:
-        "../envs/aggregate.yml"
     input:
         # interphase standardized data
         lambda wildcards: output_to_input(
@@ -237,8 +219,6 @@ checkpoint prepare_interphase_montage_data:
 
 # Generate montage
 rule generate_interphase_montage:
-    conda:
-        "../envs/aggregate.yml"
     input:
         MONTAGE_OUTPUTS["interphase_montage_data"],
     output:

@@ -5,8 +5,6 @@ from lib.shared.target_utils import output_to_input
 
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
-    conda:
-        "../envs/preprocess.yml"
     input:
         lambda wildcards: get_sample_fps(
             sbs_samples_df,
@@ -27,8 +25,6 @@ rule extract_metadata_sbs:
 
 # Combine metadata for SBS images on well level
 rule combine_metadata_sbs:
-    conda:
-        "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_sbs"],
@@ -44,8 +40,6 @@ rule combine_metadata_sbs:
 
 # Extract metadata for phenotype images
 rule extract_metadata_phenotype:
-    conda:
-        "../envs/preprocess.yml"
     input:
         lambda wildcards: get_sample_fps(
             phenotype_samples_df,
@@ -64,8 +58,6 @@ rule extract_metadata_phenotype:
 
 # Comine metadata for phenotype images on well level
 rule combine_metadata_phenotype:
-    conda:
-        "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
@@ -81,8 +73,6 @@ rule combine_metadata_phenotype:
 
 # Convert SBS ND2 files to TIFF
 rule convert_sbs:
-    conda:
-        "../envs/preprocess.yml"
     input:
         lambda wildcards: get_sample_fps(
             sbs_samples_df,
@@ -102,8 +92,6 @@ rule convert_sbs:
 
 # Convert phenotype ND2 files to TIFF
 rule convert_phenotype:
-    conda:
-        "../envs/preprocess.yml"
     input:
         lambda wildcards: get_sample_fps(
             phenotype_samples_df,
@@ -123,8 +111,6 @@ rule convert_phenotype:
 
 # Calculate illumination correction function for SBS files
 rule calculate_ic_sbs:
-    conda:
-        "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["convert_sbs"],
@@ -142,8 +128,6 @@ rule calculate_ic_sbs:
 
 # Calculate illumination correction for phenotype files
 rule calculate_ic_phenotype:
-    conda:
-        "../envs/preprocess.yml"
     input:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["convert_phenotype"],

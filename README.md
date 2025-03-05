@@ -22,7 +22,6 @@ The Brieflow project structure is as follows:
 
 ```
 workflow/
-├── envs/ - Environment YAML files that describe dependencies for different modules.
 ├── lib/ - Brieflow library code used for performing Brieflow processing. Organized into module-specific, shared, and external code.
 ├── rules/ - Snakemake rule files for each module. Used to organize processses within each module with inputs, outputs, parameters, and script file location.
 ├── scripts/ - Python script files for processes called by modules. Organized into module-specific and shared code.

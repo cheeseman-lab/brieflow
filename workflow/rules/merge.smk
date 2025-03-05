@@ -3,8 +3,6 @@ from lib.shared.target_utils import output_to_input
 
 # Complete fast alignment process
 rule fast_alignment:
-    conda:
-        "../envs/merge.yml"
     input:
         # metadata files with image locations
         ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
@@ -14,8 +12,16 @@ rule fast_alignment:
     output:
         MERGE_OUTPUTS_MAPPED["fast_alignment"],
     params:
-        sbs_metadata_filters=(lambda: {"cycle": config["merge"]["sbs_metadata_cycle"]} if "sbs_metadata_channel" not in config["merge"] 
-                            else {"cycle": config["merge"]["sbs_metadata_cycle"], "channel": config["merge"]["sbs_metadata_channel"]}),
+        sbs_metadata_filters=(
+            lambda: (
+                {"cycle": config["merge"]["sbs_metadata_cycle"]}
+                if "sbs_metadata_channel" not in config["merge"]
+                else {
+                    "cycle": config["merge"]["sbs_metadata_cycle"],
+                    "channel": config["merge"]["sbs_metadata_channel"],
+                }
+            )
+        ),
         det_range=config["merge"]["det_range"],
         score=config["merge"]["score"],
         initial_sites=config["merge"]["initial_sites"],
@@ -27,8 +33,6 @@ rule fast_alignment:
 
 # Complete merge process
 rule merge:
-    conda:
-        "../envs/merge.yml"
     input:
         # phenotype and sbs info files with cell locations
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_info"]),
@@ -47,8 +51,6 @@ rule merge:
 
 # Format merge data
 rule format_merge:
-    conda:
-        "../envs/merge.yml"
     input:
         # merge data
         MERGE_OUTPUTS["merge"],
@@ -64,8 +66,6 @@ rule format_merge:
 
 # Evaluate merge
 rule eval_merge:
-    conda:
-        "../envs/merge.yml"
     input:
         # formatted merge data
         format_merge_paths=lambda wildcards: output_to_input(
@@ -98,8 +98,6 @@ rule eval_merge:
 
 # Clean merge data
 rule clean_merge:
-    conda:
-        "../envs/merge.yml"
     input:
         # formatted merge data
         MERGE_OUTPUTS["format_merge"],
@@ -115,8 +113,6 @@ rule clean_merge:
 
 # Deduplicate merge data
 rule deduplicate_merge:
-    conda:
-        "../envs/merge.yml"
     input:
         # cleaned merge data
         MERGE_OUTPUTS["clean_merge"][1],
@@ -132,8 +128,6 @@ rule deduplicate_merge:
 
 # # Final merge with all feature data
 rule final_merge:
-    conda:
-        "../envs/merge.yml"
     input:
         # formatted merge data
         MERGE_OUTPUTS["deduplicate_merge"][1],

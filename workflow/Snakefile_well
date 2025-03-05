@@ -10,23 +10,16 @@ from lib.shared.initialize_paramsearch import initialize_segment_phenotype_param
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
 
-# Get paths to the sample files dfs
+# Get paths to the sample and combo files dfs
 SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])
+SBS_COMBO_FP = Path(config["preprocess"]["sbs_combo_fp"])
 PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
+PHENOTYPE_COMBO_FP = Path(config["preprocess"]["phenotype_combo_fp"])
 
 # Load sbs samples if they exist
 sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
 if len(sbs_samples_df) > 0:
-    # Create a list of all base combos
-    base_combos = sbs_samples_df[["plate", "well", "channel", "cycle"]].drop_duplicates().astype(str)
-    # Create a list of all tiles
-    tiles = [str(i) for i in range(config["preprocess"]["sbs_tiles"])]
-    # Create product of base combos and tiles
-    sbs_wildcard_combos = pd.DataFrame([
-        {**row.to_dict(), "tile": tile}
-        for _, row in base_combos.iterrows()
-        for tile in tiles
-    ])
+    sbs_wildcard_combos = pd.read_csv(SBS_COMBO_FP, sep="\t")
 else:
     print("No SBS samples found!")
     sbs_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"])
@@ -34,20 +27,10 @@ else:
 # Load phenotype samples if they exist
 phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
 if len(phenotype_samples_df) > 0:
-    # Create a list of all base combos
-    base_combos = phenotype_samples_df[["plate", "well", "channel"]].drop_duplicates().astype(str)
-    # Create a list of all tiles
-    tiles = [str(i) for i in range(config["preprocess"]["phenotype_tiles"])]
-    # Create product of base combos and tiles
-    phenotype_wildcard_combos = pd.DataFrame([
-        {**row.to_dict(), "tile": tile}
-        for _, row in base_combos.iterrows()
-        for tile in tiles
-    ])
+    phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t")
 else:
     print("No phenotype samples found!")
     phenotype_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"])
-    
 
 # Generate plate-well combinations for merge
 sbs_combos = set(zip(sbs_wildcard_combos["plate"], sbs_wildcard_combos["well"]))
@@ -63,6 +46,13 @@ else:
     )
     merge_wildcard_combos = None
 
+# Print the samples df length
+print(f"Number of SBS samples: {len(sbs_samples_df)}")
+print(f"Number of PHENOTYPE samples: {len(phenotype_samples_df)}")
+
+# Print number of combinations
+print(f"Number of SBS combinations: {len(sbs_wildcard_combos)}")
+print(f"Number of PHENOTYPE combinations: {len(phenotype_wildcard_combos)}")
 
 include: "targets/preprocess_well.smk"
 include: "rules/preprocess_well.smk"
@@ -70,57 +60,57 @@ include: "rules/preprocess_well.smk"
 
 ALL_TARGETS = PREPROCESS_TARGETS_ALL
 
-if "sbs" in config and len(sbs_wildcard_combos) > 0:
-    # TODO: test and implement segmentation paramsearch for updated brieflow setup
-    # # Initialize parameter search configurations if needed
-    # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
-    #     config = initialize_segment_sbs_paramsearch(config)
+# if "sbs" in config and len(sbs_wildcard_combos) > 0:
+#     # TODO: test and implement segmentation paramsearch for updated brieflow setup
+#     # # Initialize parameter search configurations if needed
+#     # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
+#     #     config = initialize_segment_sbs_paramsearch(config)
 
-    # Include target and rule files
-    include: "targets/sbs.smk"
-    include: "rules/sbs.smk"
+#     # Include target and rule files
+#     include: "targets/sbs.smk"
+#     include: "rules/sbs.smk"
 
-    ALL_TARGETS += SBS_TARGETS_ALL
-
-
-if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
-    # TODO: test and implement segmentation paramsearch for updated brieflow setup
-    # # Initialize parameter search configurations if needed
-    # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
-    #     config = initialize_segment_phenotype_paramsearch(config)
-
-    # Include target and rule files
-    include: "targets/phenotype.smk"
-    include: "rules/phenotype.smk"
-
-    ALL_TARGETS += PHENOTYPE_TARGETS_ALL
+#     ALL_TARGETS += SBS_TARGETS_ALL
 
 
-if "merge" in config:
+# if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
+#     # TODO: test and implement segmentation paramsearch for updated brieflow setup
+#     # # Initialize parameter search configurations if needed
+#     # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
+#     #     config = initialize_segment_phenotype_paramsearch(config)
 
-    # Include target and rule files
-    include: "targets/merge.smk"
-    include: "rules/merge.smk"
+#     # Include target and rule files
+#     include: "targets/phenotype.smk"
+#     include: "rules/phenotype.smk"
 
-    ALL_TARGETS += MERGE_TARGETS_ALL
-
-
-if "aggregate" in config:
-
-    # Include target and rule files
-    include: "targets/aggregate.smk"
-    include: "rules/aggregate.smk"
-
-    ALL_TARGETS += AGGREGATE_TARGETS_ALL
+#     ALL_TARGETS += PHENOTYPE_TARGETS_ALL
 
 
-if "cluster" in config:
+# if "merge" in config:
 
-    # Include target and rule files
-    include: "targets/cluster.smk"
-    include: "rules/cluster.smk"
+#     # Include target and rule files
+#     include: "targets/merge.smk"
+#     include: "rules/merge.smk"
 
-    ALL_TARGETS += CLUSTER_TARGETS_ALL
+#     ALL_TARGETS += MERGE_TARGETS_ALL
+
+
+# if "aggregate" in config:
+
+#     # Include target and rule files
+#     include: "targets/aggregate.smk"
+#     include: "rules/aggregate.smk"
+
+#     ALL_TARGETS += AGGREGATE_TARGETS_ALL
+
+
+# if "cluster" in config:
+
+#     # Include target and rule files
+#     include: "targets/cluster.smk"
+#     include: "rules/cluster.smk"
+
+#     ALL_TARGETS += CLUSTER_TARGETS_ALL
 
 
 # Define the target files for the workflow

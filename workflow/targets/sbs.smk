@@ -176,22 +176,22 @@ SBS_OUTPUTS = {
 }
 
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": temp,
-    "log_filter": temp,
-    "compute_standard_deviation": temp,
-    "find_peaks": temp,
-    "max_filter": temp,
-    "apply_ic_field_sbs": temp,
+    "align_sbs": None,
+    "log_filter": None,
+    "compute_standard_deviation": None,
+    "find_peaks": None,
+    "max_filter": None,
+    "apply_ic_field_sbs": None,
     "segment_sbs": None,
-    "extract_bases": temp,
-    "call_reads": temp,
-    "call_cells": temp,
-    "extract_sbs_info": temp,
-    "combine_reads": protected,
-    "combine_cells": protected,
-    "combine_sbs_info": protected,
-    "eval_segmentation_sbs": protected,
-    "eval_mapping": protected,
+    "extract_bases": None,
+    "call_reads": None,
+    "call_cells": None,
+    "extract_sbs_info": None,
+    "combine_reads": None,
+    "combine_cells": None,
+    "combine_sbs_info": None,
+    "eval_segmentation_sbs": None,
+    "eval_mapping": None,
 }
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup

@@ -114,7 +114,7 @@ if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
 
 
 if "merge" in config:
-    MERGE_COMBO_FP = Path(config["preprocess"]["merge_combo_fp"])
+    MERGE_COMBO_FP = Path(config["merge"]["merge_combo_fp"])
     merge_wildcard_combos = pd.read_csv(MERGE_COMBO_FP, sep="\t")
 
     # Include target and rule files

@@ -15,22 +15,36 @@ SBS_COMBO_FP = Path(config["preprocess"]["sbs_combo_fp"])
 PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 PHENOTYPE_COMBO_FP = Path(config["preprocess"]["phenotype_combo_fp"])
 
-# Load sbs samples if they exist
-sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
-if len(sbs_samples_df) > 0:
-    sbs_wildcard_combos = pd.read_csv(SBS_COMBO_FP, sep="\t").astype(str)
+# Load sbs samples if the file exists
+if SBS_SAMPLES_FP.exists():
+    sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
+    if len(sbs_samples_df) > 0:
+        sbs_wildcard_combos = pd.read_csv(SBS_COMBO_FP, sep="\t").astype(str)
+    else:
+        print("No SBS samples found in the file!")
+        sbs_wildcard_combos = pd.DataFrame(
+            columns=["plate", "well", "tile", "cycle"]
+        ).astype(str)
 else:
-    print("No SBS samples found!")
+    print(f"SBS samples file not found: {SBS_SAMPLES_FP}")
+    sbs_samples_df = pd.DataFrame()
     sbs_wildcard_combos = pd.DataFrame(
         columns=["plate", "well", "tile", "cycle"]
     ).astype(str)
 
-# Load phenotype samples if they exist
-phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
-if len(phenotype_samples_df) > 0:
-    phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t").astype(str)
+# Load phenotype samples if the file exists
+if PHENOTYPE_SAMPLES_FP.exists():
+    phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
+    if len(phenotype_samples_df) > 0:
+        phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t").astype(str)
+    else:
+        print("No phenotype samples found in the file!")
+        phenotype_wildcard_combos = pd.DataFrame(
+            columns=["plate", "well", "tile", "cycle"]
+        ).astype(str)
 else:
-    print("No phenotype samples found!")
+    print(f"Phenotype samples file not found: {PHENOTYPE_SAMPLES_FP}")
+    phenotype_samples_df = pd.DataFrame()
     phenotype_wildcard_combos = pd.DataFrame(
         columns=["plate", "well", "tile", "cycle"]
     ).astype(str)

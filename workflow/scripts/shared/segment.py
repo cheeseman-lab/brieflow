@@ -21,12 +21,12 @@ if method == "cellpose":
         cyto_index=params["cyto_index"],
         nuclei_diameter=params["nuclei_diameter"],
         cell_diameter=params["cell_diameter"],
-        cyto_model=params["cyto_model"],
+        cyto_model=params["cellpose_model"],
         cellpose_kwargs=dict(
             flow_threshold=params["flow_threshold"],
             cellprob_threshold=params["cellprob_threshold"],
         ),
-        reconcile=params.get("reconcile", False),
+        reconcile=params.get("reconcile"),
         return_counts=params.get("return_counts", True),
         gpu=params.get("gpu", False),
     )
@@ -45,7 +45,7 @@ elif method == "microsam":
             stability_score_thresh=params["stability_score_thresh"],
             pred_iou_thresh=params["pred_iou_thresh"],
         ),
-        reconcile=params.get("reconcile", False),
+        reconcile=params.get("reconcile"),
         return_counts=params.get("return_counts", True),
         gpu=params.get("gpu", False),
     )
@@ -62,7 +62,7 @@ elif method == "stardist":
             prob_thresh=params["prob_thresh"],
             nms_thresh=params["nms_thresh"],
         ),
-        reconcile=params.get("reconcile", False),
+        reconcile=params.get("reconcile"),
         return_counts=params.get("return_counts", True),
         gpu=params.get("gpu", False),
     )

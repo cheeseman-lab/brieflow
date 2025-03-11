@@ -112,38 +112,38 @@ rule convert_phenotype:
         "../scripts/preprocess/nd2_to_tiff.py"
 
 
-# Calculate illumination correction function for SBS files
-rule calculate_ic_sbs:
-    input:
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_sbs"],
-            wildcards=wildcards,
-            expansion_values=["tile"],
-            metadata_combos=sbs_wildcard_combos,
-        ),
-    output:
-        PREPROCESS_OUTPUTS_MAPPED["calculate_ic_sbs"],
-    params:
-        threading=True,
-    script:
-        "../scripts/preprocess/calculate_ic_field.py"
+# # Calculate illumination correction function for SBS files
+# rule calculate_ic_sbs:
+#     input:
+#         lambda wildcards: output_to_input(
+#             PREPROCESS_OUTPUTS["convert_sbs"],
+#             wildcards=wildcards,
+#             expansion_values=["tile"],
+#             metadata_combos=sbs_wildcard_combos,
+#         ),
+#     output:
+#         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_sbs"],
+#     params:
+#         threading=True,
+#     script:
+#         "../scripts/preprocess/calculate_ic_field.py"
 
 
-# Calculate illumination correction for phenotype files
-rule calculate_ic_phenotype:
-    input:
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_phenotype"],
-            wildcards=wildcards,
-            expansion_values=["tile"],
-            metadata_combos=phenotype_wildcard_combos,
-        ),
-    output:
-        PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],
-    params:
-        threading=True,
-    script:
-        "../scripts/preprocess/calculate_ic_field.py"
+# # Calculate illumination correction for phenotype files
+# rule calculate_ic_phenotype:
+#     input:
+#         lambda wildcards: output_to_input(
+#             PREPROCESS_OUTPUTS["convert_phenotype"],
+#             wildcards=wildcards,
+#             expansion_values=["tile"],
+#             metadata_combos=phenotype_wildcard_combos,
+#         ),
+#     output:
+#         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],
+#     params:
+#         threading=True,
+#     script:
+#         "../scripts/preprocess/calculate_ic_field.py"
 
 
 # rule for all preprocessing steps

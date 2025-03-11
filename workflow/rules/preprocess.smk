@@ -102,6 +102,7 @@ rule convert_phenotype:
             plate=wildcards.plate,
             well=wildcards.well,
             tile=wildcards.tile,
+            round_order=config["preprocess"]["phenotype_round_order"],
             channel_order=config["preprocess"]["phenotype_channel_order"],
         ),
     output:

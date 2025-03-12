@@ -124,12 +124,9 @@ def segment_microsam_multichannel(
     remove_edges=True,
     return_counts=False,
     gpu=False,
-    points_per_side=32,
-    points_per_batch=16,
-    stability_score_thresh=0.95,
-    pred_iou_thresh=0.88,
+    **kwargs
 ):
-    """Segment nuclei and cells using the MicroSAM algorithm.
+    """Segment nuclei and cells using the MicroSAM algorithm with InstanceSegmentationWithDecoder.
 
     Args:
         dapi (numpy.ndarray): DAPI channel image
@@ -139,10 +136,6 @@ def segment_microsam_multichannel(
         remove_edges (bool, optional): Whether to remove nuclei and cells touching image edges
         return_counts (bool, optional): Whether to return counts of nuclei and cells
         gpu (bool, optional): Whether to use GPU for segmentation
-        points_per_side (int, optional): Number of points to sample along each side of the image
-        points_per_batch (int, optional): Number of points to process in each batch
-        stability_score_thresh (float, optional): Threshold for stability score
-        pred_iou_thresh (float, optional): Threshold for predicted IoU
         **kwargs: Additional keyword arguments for MicroSAM segmentation
 
     Returns:
@@ -150,10 +143,10 @@ def segment_microsam_multichannel(
     """
     counts = {}
 
-    # Step 1: Initialize the model
-    predictor = util.get_sam_model(model_type=model_type)
+    # Step 1: Initialize the model and decoder
+    predictor, decoder = get_predictor_and_decoder(model_type=model_type, checkpoint_path=None)
 
-    # Step 2: Computation of the image embeddings for DAPI and cytoplasmic channels
+    # Step 2: Computation of image embeddings
     dapi_embeddings = util.precompute_image_embeddings(
         predictor=predictor, input_=dapi, ndim=2
     )
@@ -161,34 +154,28 @@ def segment_microsam_multichannel(
         predictor=predictor, input_=cyto, ndim=2
     )
 
-    # Step 3: Create automatic mask generators for nuclei and cells
-    amg_nuclei = AutomaticMaskGenerator(
-        predictor=predictor,
-        points_per_side=points_per_side,
-        points_per_batch=points_per_batch,
-    )
-
-    amg_cells = AutomaticMaskGenerator(
-        predictor=predictor,
-        points_per_side=points_per_side,
-        points_per_batch=points_per_batch,
-    )
-
-    # Step 4: Initialize with precomputed embeddings
-    amg_nuclei.initialize(image=dapi, image_embeddings=dapi_embeddings)
-    amg_cells.initialize(image=cyto, image_embeddings=cyto_embeddings)
-
-    # Step 5: Generate automatic instance segmentations with the provided parameters
-    nuclei_prediction = amg_nuclei.generate(
-        stability_score_thresh=stability_score_thresh, pred_iou_thresh=pred_iou_thresh
-    )
-    cells_prediction = amg_cells.generate(
-        stability_score_thresh=stability_score_thresh, pred_iou_thresh=pred_iou_thresh
-    )
-
-    # Convert mask data to segmentation
-    nuclei = mask_data_to_segmentation(nuclei_prediction, with_background=True)
-    cells = mask_data_to_segmentation(cells_prediction, with_background=True)
+    # Step 3: Nuclei segmentation with decoder
+    ais_nuclei = InstanceSegmentationWithDecoder(predictor, decoder)
+    ais_nuclei.initialize(image=dapi, image_embeddings=dapi_embeddings)
+    nuclei_prediction = ais_nuclei.generate()
+    
+    # Step 4: Cell segmentation with decoder
+    ais_cells = InstanceSegmentationWithDecoder(predictor, decoder)
+    ais_cells.initialize(image=cyto, image_embeddings=cyto_embeddings)
+    cells_prediction = ais_cells.generate()
+    
+    # Check if we got any predictions and convert mask data to segmentation
+    if nuclei_prediction:
+        nuclei = mask_data_to_segmentation(nuclei_prediction, with_background=True)
+    else:
+        print("Warning: No nuclei detected in the DAPI channel", file=sys.stderr)
+        nuclei = np.zeros_like(dapi, dtype="uint32")
+    
+    if cells_prediction:
+        cells = mask_data_to_segmentation(cells_prediction, with_background=True)
+    else:
+        print("Warning: No cells detected in the cytoplasmic channel", file=sys.stderr)
+        cells = np.zeros_like(cyto, dtype="uint32")
 
     # Track initial counts
     counts["initial_nuclei"] = len(np.unique(nuclei)) - 1
@@ -222,7 +209,7 @@ def segment_microsam_multichannel(
     )
 
     # Reconcile nuclei and cells if specified
-    if reconcile:
+    if reconcile and counts["after_edge_removal_nuclei"] > 0 and counts["after_edge_removal_cells"] > 0:
         print(f"reconciling masks with method how={reconcile}")
         nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
 
@@ -244,65 +231,56 @@ def segment_microsam_nuclei(
     model_type="vit_b_lm",
     remove_edges=True,
     gpu=False,
-    points_per_side=32,
-    points_per_batch=16,
-    stability_score_thresh=0.95,
-    pred_iou_thresh=0.88,
+    **kwargs
 ):
-    """Segment nuclei using the MicroSAM algorithm.
+    """Segment nuclei using the MicroSAM algorithm with InstanceSegmentationWithDecoder.
 
     Args:
         dapi (numpy.ndarray): DAPI channel image
         model_type (str, optional): MicroSAM model type to use
         remove_edges (bool, optional): Whether to remove nuclei touching the image edges
         gpu (bool, optional): Whether to use GPU for segmentation
-        points_per_side (int, optional): Number of points to sample along each side of the image
-        points_per_batch (int, optional): Number of points to process in each batch
-        stability_score_thresh (float, optional): Threshold for stability score
-        pred_iou_thresh (float, optional): Threshold for predicted IoU
         **kwargs: Additional keyword arguments for MicroSAM segmentation
 
     Returns:
         Labeled segmentation mask of nuclei
-    """
-    # Step 1: Initialize the model
-    predictor = util.get_sam_model(model_type=model_type)
+    """  
+    # Step 1: Initialize the model and decoder
+    predictor, decoder = get_predictor_and_decoder(model_type=model_type, checkpoint_path=None)
 
     # Step 2: Compute image embeddings for DAPI channel
     image_embeddings = util.precompute_image_embeddings(
         predictor=predictor, input_=dapi, ndim=2
     )
 
-    # Step 3: Create automatic mask generator for nuclei
-    amg_nuclei = AutomaticMaskGenerator(
-        predictor, points_per_side=points_per_side, points_per_batch=points_per_batch
-    )
-
+    # Step 3: Create instance segmentation with decoder
+    ais_nuclei = InstanceSegmentationWithDecoder(predictor, decoder)
+    
     # Step 4: Initialize with precomputed embeddings
-    amg_nuclei.initialize(image=dapi, image_embeddings=image_embeddings)
+    ais_nuclei.initialize(image=dapi, image_embeddings=image_embeddings)
 
-    # Step 5: Generate automatic instance segmentations with the provided parameters
-    nuclei_masks = amg_nuclei.generate(
-        stability_score_thresh=stability_score_thresh,
-        pred_iou_thresh=pred_iou_thresh,
-        **kwargs,
-    )
-
-    # Convert mask data to segmentation
-    nuclei = mask_data_to_segmentation(nuclei_masks, with_background=True)
+    # Step 5: Generate segmentation
+    nuclei_masks = ais_nuclei.generate()
+    
+    # Check if we got any predictions
+    if nuclei_masks:
+        nuclei = mask_data_to_segmentation(nuclei_masks, with_background=True)
+    else:
+        print("Warning: No nuclei detected in the DAPI channel", file=sys.stderr)
+        nuclei = np.zeros_like(dapi, dtype="uint32")
 
     # Print the number of nuclei found before and after removing edges
-    print(
-        f"found {len(np.unique(nuclei))} nuclei before removing edges", file=sys.stderr
-    )
+    nuclei_count = len(np.unique(nuclei)) - 1
+    print(f"found {nuclei_count} nuclei before removing edges", file=sys.stderr)
 
     # Remove nuclei touching the image edges if specified
-    if remove_edges:
+    if remove_edges and nuclei_count > 0:
         print("removing edges")
         nuclei = clear_border(nuclei)
 
     # Print the final number of nuclei after processing
-    print(f"found {len(np.unique(nuclei))} final nuclei", file=sys.stderr)
+    final_count = len(np.unique(nuclei)) - 1
+    print(f"found {final_count} final nuclei", file=sys.stderr)
 
     return nuclei
 

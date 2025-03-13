@@ -20,9 +20,12 @@ def plot_feature_distributions(
 ):
     feature_data = cell_data.sample(num_samples)
 
-    feature_col_indxs = random.sample(
-        range(feature_start_indx, cell_data.shape[1]), num_features
+    # Get random feature columns
+    np.random.seed(42)
+    feature_col_indxs = np.random.choice(
+        range(feature_start_indx, cell_data.shape[1]), num_features, replace=False
     )
+    feature_col_indxs = np.sort(feature_col_indxs)
     feature_cols = cell_data.columns[feature_col_indxs]
 
     # Reshape data for seaborn (long format)

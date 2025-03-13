@@ -62,10 +62,10 @@ def summarize_cell_data(
 
     for class_name in classes:
         class_subset = cell_data[cell_data["class"] == class_name]
-        counts.append((f"{class_name} Cells", len(class_subset)))
+        counts.append((f"{class_name} cells", len(class_subset)))
 
         for col in collapse_cols:
-            counts.append((f"{class_name} {col}s", class_subset[col].nunique()))
+            counts.append((f"{class_name} {col}", class_subset[col].nunique()))
 
     return pd.DataFrame(counts, columns=["Stage", "Count"])
 

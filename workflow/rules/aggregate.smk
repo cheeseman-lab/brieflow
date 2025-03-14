@@ -22,6 +22,25 @@ rule split_classes:
         "../scripts/aggregate/split_classes.py"
 
 
+rule align_filter_aggregate:
+    input:
+        AGGREGATE_OUTPUTS_MAPPED["split_classes"],
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["align_filter_aggregate"],
+    params:
+        first_feature=config["aggregate"]["first_feature"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        perturbation_multi_col=config["aggregate"]["perturbation_multi_col"],
+        filter_single_pert=config["aggregate"]["filter_single_pert"],
+        drop_cols_threshold=config["aggregate"]["drop_cols_threshold"],
+        batch_cols=config["aggregate"]["batch_cols"],
+        pc_count=config["aggregate"]["pc_count"],
+        control_key=config["aggregate"]["control_key"],
+        agg_method=config["aggregate"]["agg_method"],
+    script:
+        "../scripts/aggregate/align_filter_aggregate.py"
+
+
 # Rule for all aggregate processing steps
 rule all_aggregate:
     input:

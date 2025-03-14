@@ -1,9 +1,9 @@
 """Utility functions for handling and filtering sample file paths in the BrieFlow pipeline."""
 
-import logging
 from pathlib import Path
 
-log = logging.getLogger(__name__)
+from pyarrow.parquet import ParquetFile
+import pyarrow as pa
 
 # Mapping of metadata keys to filename prefixes and data types
 FILENAME_METADATA_MAPPING = {
@@ -90,3 +90,23 @@ def parse_filename(file_path: str) -> tuple:
         info_type = parts[0]
 
     return metadata, info_type, file_type
+
+
+def load_parquet_subset(full_df_fp, n_rows=50000):
+    """Load a fixed number of rows from an parquet file without loading entire file into memory.
+
+    Args:
+        full_df_fp (str): Path to parquet file.
+        n_rows (int): Number of rows to get.
+
+    Returns:
+        pd.DataFrame: Subset of the data with combined blocks.
+    """
+    print(f"Reading first {n_rows:,} rows from {full_df_fp}")
+
+    # read the first n_rows of the file path
+    df = ParquetFile(full_df_fp)
+    row_subset = next(df.iter_batches(batch_size=n_rows))
+    df = pa.Table.from_batches([row_subset]).to_pandas()
+
+    return df

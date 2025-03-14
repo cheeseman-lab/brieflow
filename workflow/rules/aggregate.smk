@@ -41,6 +41,18 @@ rule align_filter_aggregate:
         "../scripts/aggregate/align_filter_aggregate.py"
 
 
+rule eval_aggregate:
+    input:
+        # class merge data
+        AGGREGATE_OUTPUTS_MAPPED["split_classes"],
+        # aggregated gene data
+        AGGREGATE_OUTPUTS_MAPPED["align_filter_aggregate"],
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
+    script:
+        "../scripts/aggregate/eval_aggregate.py"
+
+
 # Rule for all aggregate processing steps
 rule all_aggregate:
     input:

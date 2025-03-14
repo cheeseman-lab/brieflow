@@ -16,11 +16,23 @@ AGGREGATE_OUTPUTS = {
         / "parquets"
         / get_filename({"cell_class": "{cell_class}"}, "gene_data", "parquet"),
     ],
+    "eval_aggregate": [
+        AGGREGATE_FP
+        / "eval"
+        / get_filename({"cell_class": "{cell_class}"}, "na_stats", "tsv"),
+        AGGREGATE_FP
+        / "eval"
+        / get_filename({"cell_class": "{cell_class}"}, "na_stats", "png"),
+        AGGREGATE_FP
+        / "eval"
+        / get_filename({"cell_class": "{cell_class}"}, "feature_violins", "png"),
+    ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
     "split_classes": None,
     "align_filter_aggregate": None,
+    "eval_aggregate": None,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)

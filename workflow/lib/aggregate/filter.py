@@ -7,33 +7,9 @@ Functions:
     - load_parquet_subset: Load a fixed number of random rows from a parquet file.
 """
 
-from pyarrow.parquet import ParquetFile
-import pyarrow as pa
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.impute import KNNImputer
 from sklearn.covariance import EllipticEnvelope
-
-
-def load_parquet_subset(full_df_fp, n_rows=50000):
-    """Load a fixed number of rows from an parquet file without loading entire file into memory.
-
-    Args:
-        full_df_fp (str): Path to parquet file.
-        n_rows (int): Number of rows to get.
-
-    Returns:
-        pd.DataFrame: Subset of the data with combined blocks.
-    """
-    print(f"Reading first {n_rows:,} rows from {full_df_fp}")
-
-    # read the first n_rows of the file path
-    df = ParquetFile(full_df_fp)
-    row_subset = next(df.iter_batches(batch_size=n_rows))
-    df = pa.Table.from_batches([row_subset]).to_pandas()
-
-    return df
 
 
 def perturbation_filter(
@@ -74,55 +50,6 @@ def perturbation_filter(
             )
 
     return clean_cell_data.reset_index(drop=True)
-
-
-def visualize_nas(cell_data):
-    """
-    Creates a visualization matrix showing which columns have NA values and in which rows.
-
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        The DataFrame to analyze for NA values
-
-    Returns:
-    --------
-    matplotlib.figure.Figure or None
-        The figure object if NAs are found, None otherwise
-    """
-    # Get only columns with at least one NA
-    cols_with_na = cell_data.columns[cell_data.isna().any()].tolist()
-
-    if not cols_with_na:
-        print("No columns with NA values found in the DataFrame.")
-        return None
-
-    # Create a smaller DataFrame with only columns containing NAs
-    na_df = cell_data[cols_with_na].isna()
-
-    # Create the heatmap
-    plt.figure(figsize=(15, 7))
-    plt.title(f"NA Values Matrix ({len(cols_with_na)} columns with missing values)")
-
-    # Create heatmap - True (NA) values will be colored, without color bar
-    ax = sns.heatmap(
-        na_df, cmap="viridis", cbar=False, yticklabels=False
-    )  # Hide y-axis labels
-
-    # Display column names on x-axis, rotated for readability
-    plt.xticks(rotation=90)
-    plt.tight_layout()
-
-    # Add summary information
-    na_counts = cell_data[cols_with_na].isna().sum()
-    na_percent = (na_counts / len(cell_data)) * 100
-
-    print(f"Columns with high NA value percent:")
-    for col, count, pct in zip(cols_with_na, na_counts, na_percent):
-        if pct > 10:
-            print(f"  - {col}: {count} NAs ({pct:.2f}%)")
-
-    return plt.gcf()
 
 
 def missing_values_filter(

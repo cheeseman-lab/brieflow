@@ -7,20 +7,68 @@ It provides the following functionalities:
 - Detection and reporting of missing values, including NA, null, blank, and infinite values.
 """
 
-import random
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
+def nas_summary(cell_data):
+    """Creates a visualization matrix highlighting NA values and returns summary statistics.
+
+    Args:
+        cell_data (pandas.DataFrame): The DataFrame to analyze for NA values.
+
+    Returns:
+        tuple: A tuple containing:
+            - pandas.DataFrame: A DataFrame with columns: 'column', 'num_nas', and 'percent_na'.
+            - matplotlib.figure.Figure or None: The figure object if NAs are found, None otherwise.
+    """
+    cols_with_na = cell_data.columns[cell_data.isna().any()].tolist()
+
+    if not cols_with_na:
+        print("No columns with NA values found in the DataFrame.")
+        return pd.DataFrame(columns=["column", "num_nas", "percent_na"]), None
+
+    na_counts = cell_data[cols_with_na].isna().sum()
+    na_percent = na_counts / len(cell_data)
+
+    na_summary_df = pd.DataFrame(
+        {
+            "column": cols_with_na,
+            "percent_na": na_percent.values,
+        }
+    )
+
+    plt.figure(figsize=(15, 7))
+    plt.title(f"NA Values Matrix ({len(cols_with_na)} columns with missing values)")
+
+    ax = sns.heatmap(
+        cell_data[cols_with_na].isna(), cmap="viridis", cbar=False, yticklabels=False
+    )
+
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+
+    return na_summary_df, plt.gcf()
+
+
 def plot_feature_distributions(
     cell_data, first_feature, num_features=5, num_samples=1000
 ):
+    """Plots the distribution of selected features using a violin plot.
+
+    Args:
+        cell_data (pandas.DataFrame): The DataFrame containing the feature data.
+        first_feature (str): The column name to start feature selection from.
+        num_features (int, optional): The number of features to plot. Defaults to 5.
+        num_samples (int, optional): The number of samples to randomly select. Defaults to 1000.
+
+    Returns:
+        matplotlib.figure.Figure: The figure object containing the violin plot.
+    """
     feature_data = cell_data.sample(num_samples)
 
-    # Get random feature columns
     np.random.seed(42)
     feature_start_indx = cell_data.columns.get_loc(first_feature)
     feature_col_indxs = np.random.choice(
@@ -29,7 +77,6 @@ def plot_feature_distributions(
     feature_col_indxs = np.sort(feature_col_indxs)
     feature_cols = cell_data.columns[feature_col_indxs]
 
-    # Reshape data for seaborn (long format)
     plot_data = pd.DataFrame()
     for col in feature_cols:
         features = np.array(feature_data[col].tolist())
@@ -38,12 +85,12 @@ def plot_feature_distributions(
         )
         plot_data = pd.concat([plot_data, temp_df])
 
-    # Create violin plot
-    plt.figure(figsize=(12, 6))
-    sns.violinplot(x="Column", y="Feature", data=plot_data)
-    plt.title(f"Distribution of Features For {num_features} Columns")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.violinplot(x="Column", y="Feature", data=plot_data, ax=ax)
+    ax.set_title(f"Distribution of Features For {num_features} Columns")
     plt.tight_layout()
-    plt.show()
+
+    return fig
 
 
 def summarize_cell_data(

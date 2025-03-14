@@ -7,7 +7,10 @@ class CellClassifier(ABC):
 
     @abstractmethod
     def classify_cells(self, cell_data, first_feature):
-        """Classify cells based on input data."""
+        """Classify cells based on input data.
+
+        Takes a DataFrame with cell data and returns new cell data dataframe with `class` and `confidence` columns.
+        """
         pass
 
     def save(self, filename):

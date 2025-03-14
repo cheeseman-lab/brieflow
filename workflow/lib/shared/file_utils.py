@@ -11,6 +11,7 @@ FILENAME_METADATA_MAPPING = {
     "well": ["W-", str],
     "tile": ["T-", int],
     "cycle": ["C-", int],
+    "cell_class": ["CC-", str],
     "gene": ["G-", str],
     "sgrna": ["SG-", str],
     "channel": ["CH-", str],

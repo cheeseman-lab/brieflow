@@ -6,13 +6,13 @@ from sklearn.decomposition import PCA
 from scipy import linalg
 
 
-def prepare_alignment_data(cell_data, batch_cols, feature_start_idx):
+def prepare_alignment_data(cell_data, batch_cols, first_feature):
     """Prepare batch values and split metadata and feature DataFrames.
 
     Args:
         cell_data (pd.DataFrame): Input DataFrame containing metadata and features.
         batch_cols (list): List of column names used to generate batch values.
-        feature_start_idx (int): Index where feature columns start.
+        first_feature (str): Name of the first feature column.
 
     Returns:
         tuple: metadata (pd.DataFrame), features (pd.DataFrame)
@@ -23,6 +23,7 @@ def prepare_alignment_data(cell_data, batch_cols, feature_start_idx):
         batch_values = batch_values + "_" + cell_data[col].astype(str)
 
     # Add batch values to metadata
+    feature_start_idx = cell_data.columns.get_loc(first_feature)
     metadata = cell_data.iloc[:, :feature_start_idx].copy()
     metadata["batch_values"] = batch_values
 

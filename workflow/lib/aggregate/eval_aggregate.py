@@ -16,12 +16,13 @@ import seaborn as sns
 
 
 def plot_feature_distributions(
-    cell_data, feature_start_indx, num_features=5, num_samples=1000
+    cell_data, first_feature, num_features=5, num_samples=1000
 ):
     feature_data = cell_data.sample(num_samples)
 
     # Get random feature columns
     np.random.seed(42)
+    feature_start_indx = cell_data.columns.get_loc(first_feature)
     feature_col_indxs = np.random.choice(
         range(feature_start_indx, cell_data.shape[1]), num_features, replace=False
     )

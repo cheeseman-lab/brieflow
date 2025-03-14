@@ -127,7 +127,7 @@ def visualize_nas(cell_data):
 
 def missing_values_filter(
     cell_data,
-    feature_start_idx,
+    first_feature,
     impute=True,
     drop_rows=False,
     drop_cols=False,
@@ -137,7 +137,7 @@ def missing_values_filter(
 
     Args:
         cell_data (pd.DataFrame): Raw dataframe containing cell measurements.
-        feature_start_idx (int): Index of the first feature column.
+        first_feature (str): Name of the first feature column.
         impute (bool): Whether to impute remaining missing values after dropping. Defaults to True.
         drop_rows (bool): Whether to drop all rows with any missing values. Defaults to False.
         drop_cols (bool): Whether to drop all columns with any missing values. Defaults to False.
@@ -149,6 +149,7 @@ def missing_values_filter(
         pd.DataFrame: Filtered dataframe with handled missing values.
     """
     # Get features
+    feature_start_idx = cell_data.columns.get_loc(first_feature)
     metadata = cell_data.iloc[:, :feature_start_idx].copy()
     features = cell_data.iloc[:, feature_start_idx:].copy()
 
@@ -219,7 +220,7 @@ def missing_values_filter(
 
 
 def intensity_filter(
-    cell_data, feature_start_idx, channel_names=None, contamination=0.01
+    cell_data, first_feature, channel_names=None, contamination=0.01
 ) -> pd.DataFrame:
     """Uses EllipticEnvelope to filter outliers by channel intensities.
 
@@ -227,7 +228,7 @@ def intensity_filter(
 
     Args:
         cell_data (pd.DataFrame): Cell data dataframe.
-        feature_start_idx (int): Index of the first feature column.
+        first_feature (str): Name of the first feature column
         channel_names (list[str], optional): A list of channel names to use for intensity filtering. Defaults to None.
         contamination (float, optional): The proportion of outliers to expect. Defaults to 0.01.
 
@@ -235,6 +236,7 @@ def intensity_filter(
         pd.DataFrame: Filtered cell data dataframe.
     """
     # Identify feature cols
+    feature_start_idx = cell_data.columns.get_loc(first_feature)
     feature_cols = cell_data.columns[feature_start_idx:].tolist()
 
     # Determine intensity columns

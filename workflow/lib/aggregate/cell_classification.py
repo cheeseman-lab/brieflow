@@ -6,7 +6,7 @@ class CellClassifier(ABC):
     """Base class for cell classifiers."""
 
     @abstractmethod
-    def classify_cells(self, cell_data, feature_start_idx):
+    def classify_cells(self, cell_data, first_feature):
         """Classify cells based on input data."""
         pass
 

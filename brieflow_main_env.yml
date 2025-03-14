@@ -30,6 +30,7 @@ dependencies:
   - phate
   - statsmodels
   - joblib
+  - dill
   - pip:
       - -e .
       - stardist

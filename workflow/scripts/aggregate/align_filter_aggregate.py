@@ -4,6 +4,7 @@ import pandas as pd
 from lib.aggregate.filter import (
     perturbation_filter,
     missing_values_filter,
+    intensity_filter,
 )
 from lib.aggregate.align import (
     prepare_alignment_data,
@@ -32,6 +33,13 @@ missing_values_filtered = missing_values_filter(
     drop_cols_threshold=snakemake.params.drop_cols_threshold,
 )
 print(f"Shape of missing filtered data: {missing_values_filtered.shape}")
+
+intensity_filtered = intensity_filter(
+    missing_values_filtered,
+    snakemake.params.first_feature,
+    snakemake.params.channel_names,
+    snakemake.params.contamination,
+)
 
 # Align
 features, metadata = prepare_alignment_data(

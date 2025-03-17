@@ -12,10 +12,9 @@ from lib.aggregate.align import (
 )
 from lib.aggregate.aggregate import aggregate
 
-# # Load cell data using PyArrow dataset
-# cell_data = ds.dataset(snakemake.input[0], format="parquet")
-# cell_data = cell_data.to_table(use_threads=True, memory_pool=None).to_pandas()
-cell_data = pd.read_parquet(snakemake.input[0])
+# Load cell data using PyArrow dataset
+cell_data = ds.dataset(snakemake.input[0], format="parquet")
+cell_data = cell_data.to_table(use_threads=True, memory_pool=None).to_pandas()
 print(f"Shape of input data: {cell_data.shape}")
 
 # Filter

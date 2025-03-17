@@ -1,17 +1,22 @@
 import pandas as pd
+import pyarrow.dataset as ds
 
-from lib.shared.file_utils import parse_filename, load_parquet_subset
 from lib.aggregate.eval_aggregate import (
     nas_summary,
     plot_feature_distributions,
 )
 
-# Load data
-class_merge_data = load_parquet_subset(snakemake.input[0], n_rows=20000)
-class_gene_data = load_parquet_subset(snakemake.input[1], n_rows=20000)
+# Load merge data using PyArrow dataset
+class_merge_data = ds.dataset(snakemake.input[0], format="parquet")
+class_merge_data = class_merge_data.to_table(
+    use_threads=True, memory_pool=None
+).to_pandas()
+
+# Load gene data
+class_gene_data = pd.read_parquet(snakemake.input[1])
 
 # Evaluate missing values
-nas_df, nas_fig = nas_summary(class_merge_data)
+nas_df, nas_fig = nas_summary(class_merge_data, vis_subsample=50000)
 nas_df.to_csv(snakemake.output[0], sep="\t", index=False)
 nas_fig.savefig(snakemake.output[1])
 

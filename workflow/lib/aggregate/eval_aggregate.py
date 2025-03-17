@@ -13,11 +13,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def nas_summary(cell_data):
+def nas_summary(cell_data, vis_subsample=None):
     """Creates a visualization matrix highlighting NA values and returns summary statistics.
 
     Args:
         cell_data (pandas.DataFrame): The DataFrame to analyze for NA values.
+        vis_subsample (int, optional): Number of samples to visualize. Defaults to None.
 
     Returns:
         tuple: A tuple containing:
@@ -39,6 +40,11 @@ def nas_summary(cell_data):
             "percent_na": na_percent.values,
         }
     )
+
+    if vis_subsample is not None:
+        if vis_subsample > len(cell_data):
+            vis_subsample = len(cell_data)
+        cell_data = cell_data.sample(vis_subsample)
 
     plt.figure(figsize=(15, 7))
     plt.title(f"NA Values Matrix ({len(cols_with_na)} columns with missing values)")

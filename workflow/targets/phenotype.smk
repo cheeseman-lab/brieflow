@@ -69,6 +69,29 @@ PHENOTYPE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "phenotype_info", "parquet"
         ),
     ],
+    "identify_vacuoles": [
+        PHENOTYPE_FP
+        / "images"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "identified_vacuoles",
+            "tiff",
+        ),
+        PHENOTYPE_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "cell_vacuole_table",
+            "tsv",
+        ),
+        PHENOTYPE_FP
+        / "images"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "updated_cytoplasms",
+            "tiff",
+        ),
+    ],
     "extract_phenotype_cp": [
         PHENOTYPE_FP
         / "tsvs"
@@ -88,6 +111,22 @@ PHENOTYPE_OUTPUTS = {
         / "parquets"
         / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_cp_min", "parquet"
+        ),
+    ],
+    "extract_phenotype_vacuoles": [
+        PHENOTYPE_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "phenotype_vacuoles",
+            "tsv",
+        ),
+    ],
+    "merge_phenotype_vacuoles": [
+        PHENOTYPE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_vacuoles", "parquet"
         ),
     ],
     "eval_segmentation_phenotype": [
@@ -128,8 +167,11 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "identify_cytoplasm": temp,
     "extract_phenotype_info": temp,
     "merge_phenotype_info": protected,
+    "identify_vacuoles": None,
     "extract_phenotype_cp": temp,
     "merge_phenotype_cp": protected,
+    "extract_phenotype_vacuoles": temp,
+    "merge_phenotype_vacuoles": protected,
     "eval_segmentation_phenotype": protected,
     "eval_features": protected,
 }

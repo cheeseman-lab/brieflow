@@ -8,8 +8,10 @@ Functions:
 """
 
 import pandas as pd
+import numpy as np
 from sklearn.impute import KNNImputer
-from sklearn.covariance import EllipticEnvelope
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import LocalOutlierFactor
 
 
 def perturbation_filter(
@@ -55,22 +57,26 @@ def perturbation_filter(
 def missing_values_filter(
     cell_data,
     first_feature,
-    impute=True,
-    drop_rows=False,
-    drop_cols=False,
     drop_cols_threshold=None,
+    drop_rows_threshold=None,
+    impute=False,
+    perturbation_name_col=None,
+    batch_size=1000,
+    sample_size=10000,
 ):
-    """Filter cell data by handling missing values through dropping or imputation.
+    """Filter cell data by handling missing values through dropping or batched imputation.
 
     Args:
         cell_data (pd.DataFrame): Raw dataframe containing cell measurements.
         first_feature (str): Name of the first feature column.
-        impute (bool): Whether to impute remaining missing values after dropping. Defaults to True.
-        drop_rows (bool): Whether to drop all rows with any missing values. Defaults to False.
-        drop_cols (bool): Whether to drop all columns with any missing values. Defaults to False.
         drop_cols_threshold (float, optional): If provided, drops columns with NaN proportion >= threshold.
-                                              This overrides drop_cols if both are specified.
                                               Range: 0.0-1.0. Defaults to None.
+        drop_rows_threshold (float, optional): If provided, drops rows with NaN proportion >= threshold.
+                                              Range: 0.0-1.0. Defaults to None.
+        impute (bool): Whether to impute remaining missing values after dropping. Defaults to False.
+        perturbation_name_col (str): Column name for stratification during imputation sampling.
+        batch_size (int): Number of NA rows to process in each batch. Defaults to 1000.
+        sample_size (int): Number of non-NA rows to sample for each batch. Defaults to 10000.
 
     Returns:
         pd.DataFrame: Filtered dataframe with handled missing values.
@@ -86,19 +92,7 @@ def missing_values_filter(
     if not cols_with_na:
         return cell_data
 
-    # Perform dropping operations if requested
-    if drop_rows:
-        # Drop rows with any missing values
-        original_row_count = features.shape[0]
-        features.dropna(axis=0, inplace=True)
-        print(
-            f"Dropped {original_row_count - features.shape[0]} rows with missing values"
-        )
-
-        # Update metadata to match remaining rows
-        metadata = metadata.loc[features.index]
-
-    # Handle column dropping based on parameters
+    # Handle column dropping based on threshold
     if drop_cols_threshold is not None:
         # Calculate proportion of NaN values in each column
         na_proportions = features.isna().mean()
@@ -114,10 +108,21 @@ def missing_values_filter(
             )
             features.drop(columns=cols_to_drop, inplace=True)
 
-    if drop_cols:
-        # Drop all columns with any missing values
-        print(f"Dropping all {len(cols_with_na)} columns with any missing values")
-        features.drop(columns=cols_with_na, inplace=True)
+    # Handle row dropping based on threshold
+    if drop_rows_threshold is not None:
+        # Calculate proportion of NaN values in each row
+        row_na_proportions = features.isna().sum(axis=1) / features.shape[1]
+
+        # Identify rows to keep (inverse of rows to drop)
+        rows_to_keep = row_na_proportions < drop_rows_threshold
+
+        original_row_count = features.shape[0]
+        features = features.loc[rows_to_keep]
+        metadata = metadata.loc[rows_to_keep]
+
+        print(
+            f"Dropped {original_row_count - features.shape[0]} rows with ≥{drop_rows_threshold * 100}% missing values"
+        )
 
     # Impute remaining missing values if requested
     if impute:
@@ -126,19 +131,45 @@ def missing_values_filter(
 
         if remaining_cols_with_na:
             print(
-                f"Imputing {len(remaining_cols_with_na)} columns with remaining missing values"
+                f"Imputing {len(remaining_cols_with_na)} columns with remaining missing values using batched KNN"
             )
 
-            # Store index for later reconstruction
-            index = features.index
+            # Identify rows with any NAs in the remaining columns
+            has_na_mask = features[remaining_cols_with_na].isna().any(axis=1)
+            na_rows_idx = features.index[has_na_mask]
+            non_na_rows_idx = features.index[~has_na_mask]
 
-            # Apply imputation only to columns with missing values
-            imputer = KNNImputer(n_neighbors=5)
-            features[remaining_cols_with_na] = pd.DataFrame(
-                imputer.fit_transform(features[remaining_cols_with_na]),
-                columns=remaining_cols_with_na,
-                index=index,
-            )
+            np.random.seed(42)
+            # Process NA rows in batches
+            for i in range(0, len(na_rows_idx), batch_size):
+                batch_na_idx = na_rows_idx[i : i + batch_size]
+                print(
+                    f"Imputing for batch {i // batch_size + 1} with {len(batch_na_idx)} NA rows"
+                )
+
+                # Sample non-NA rows randomly instead of stratified sampling
+                sampled_non_na_idx = np.random.choice(
+                    non_na_rows_idx,
+                    size=min(sample_size, len(non_na_rows_idx)),
+                    replace=False,
+                )
+
+                # Combine sampled non-NA rows with current batch of NA rows
+                batch_idx = np.concatenate([batch_na_idx, sampled_non_na_idx])
+
+                # Perform KNN imputation on this batch
+                imputer = KNNImputer(n_neighbors=5)
+                imputed_values = imputer.fit_transform(
+                    features.loc[batch_idx, remaining_cols_with_na]
+                )
+
+                # Update only the NA rows with imputed values
+                na_rows_in_batch = np.arange(len(batch_na_idx))
+                features.loc[batch_na_idx, remaining_cols_with_na] = pd.DataFrame(
+                    imputed_values[na_rows_in_batch],
+                    index=batch_na_idx,
+                    columns=remaining_cols_with_na,
+                )
 
     # Combine metadata and features
     filtered_data = pd.concat([metadata, features], axis=1).reset_index(drop=True)
@@ -173,10 +204,11 @@ def intensity_filter(
         if any(col.endswith(f"_{channel}_mean") for channel in channel_names)
     ]
 
-    # Fit EllipticEnvelope to intensity cols and get mask
-    mask = EllipticEnvelope(contamination=contamination, random_state=42).fit_predict(
-        cell_data[intensity_cols]
-    )
+    # Fit LocalOutlierFactor to intensity cols and get mask
+    mask = LocalOutlierFactor(
+        contamination=contamination,
+        n_jobs=-1,
+    ).fit_predict(cell_data[intensity_cols])
 
     # Return filtered cell data
     return cell_data[mask == 1].reset_index(drop=True)

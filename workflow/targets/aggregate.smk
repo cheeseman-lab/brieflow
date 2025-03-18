@@ -40,7 +40,7 @@ AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPI
 # aggregate_wildcard_combos = pd.DataFrame(
 #     {"cell_class": config["aggregate"]["cell_classes"]}
 # )
-aggregate_wildcard_combos = pd.DataFrame({"cell_class": ["mitotic"]})
+aggregate_wildcard_combos = pd.DataFrame({"cell_class": ["interphase"]})
 AGGREGATE_TARGETS = outputs_to_targets(
     AGGREGATE_OUTPUTS, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS
 )

@@ -33,6 +33,8 @@ rule align_filter_aggregate:
         perturbation_multi_col=config["aggregate"]["perturbation_multi_col"],
         filter_single_pert=config["aggregate"]["filter_single_pert"],
         drop_cols_threshold=config["aggregate"]["drop_cols_threshold"],
+        drop_rows_threshold=config["aggregate"]["drop_rows_threshold"],
+        impute=config["aggregate"]["impute"],
         channel_names=config["phenotype"]["channel_names"],
         contamination=config["aggregate"]["contamination"],
         batch_cols=config["aggregate"]["batch_cols"],

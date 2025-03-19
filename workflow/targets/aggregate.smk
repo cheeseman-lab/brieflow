@@ -11,10 +11,16 @@ AGGREGATE_OUTPUTS = {
         / "parquets"
         / get_filename({"cell_class": "{cell_class}"}, "merge_data", "parquet"),
     ],
-    "align_filter_aggregate": [
+    "filter_align_aggregate": [
         AGGREGATE_FP
         / "parquets"
-        / get_filename({"cell_class": "{cell_class}"}, "gene_data", "parquet"),
+        / get_filename({"cell_class": "{cell_class}"}, "filtered", "parquet"),
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename({"cell_class": "{cell_class}"}, "aligned", "parquet"),
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename({"cell_class": "{cell_class}"}, "aggregated", "parquet"),
     ],
     "eval_aggregate": [
         AGGREGATE_FP
@@ -31,16 +37,16 @@ AGGREGATE_OUTPUTS = {
 
 AGGREGATE_OUTPUT_MAPPINGS = {
     "split_classes": None,
-    "align_filter_aggregate": None,
+    "filter_align_aggregate": None,
     "eval_aggregate": None,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
 
-# aggregate_wildcard_combos = pd.DataFrame(
-#     {"cell_class": config["aggregate"]["cell_classes"]}
-# )
-aggregate_wildcard_combos = pd.DataFrame({"cell_class": ["interphase"]})
+aggregate_wildcard_combos = pd.DataFrame(
+    {"cell_class": config["aggregate"]["cell_classes"]}
+)
+# aggregate_wildcard_combos = pd.DataFrame({"cell_class": ["mitotic"]})
 AGGREGATE_TARGETS = outputs_to_targets(
     AGGREGATE_OUTPUTS, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS
 )

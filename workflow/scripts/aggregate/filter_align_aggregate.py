@@ -26,7 +26,6 @@ cell_data = perturbation_filter(
     snakemake.params.perturbation_multi_col,
     snakemake.params.filter_single_pert,
 )
-
 cell_data = missing_values_filter(
     cell_data,
     snakemake.params.first_feature,
@@ -35,13 +34,15 @@ cell_data = missing_values_filter(
     impute=snakemake.params.impute,
     perturbation_name_col=snakemake.params.perturbation_name_col,
 )
-
 cell_data = intensity_filter(
     cell_data,
     snakemake.params.first_feature,
     snakemake.params.channel_names,
     snakemake.params.contamination,
 )
+# Save filtered data
+cell_data.to_parquet(snakemake.output[0], index=False)
+
 
 # Align
 features, metadata = prepare_alignment_data(
@@ -61,6 +62,14 @@ tvn_normalized = tvn_on_controls(
     "batch_values",
 )
 
+# Save aligned data
+feature_columns = [f"PC_{i}" for i in range(tvn_normalized.shape[1])]
+embeddings_df = pd.DataFrame(
+    tvn_normalized, index=metadata.index, columns=feature_columns
+)
+cell_data = pd.concat([metadata, embeddings_df], axis=1)
+cell_data.to_parquet(snakemake.output[1], index=False)
+
 # Aggregate
 aggregated_embeddings, aggregated_metadata = aggregate(
     tvn_normalized,
@@ -68,7 +77,8 @@ aggregated_embeddings, aggregated_metadata = aggregate(
     snakemake.params.perturbation_name_col,
     snakemake.params.agg_method,
 )
-feature_columns = [f"PC_{i}" for i in range(aggregated_embeddings.shape[1])]
+
+# Save aggregated data
 aggregated_embeddings_df = pd.DataFrame(
     aggregated_embeddings, index=aggregated_metadata.index, columns=feature_columns
 )
@@ -77,6 +87,4 @@ aggregated_cell_data = (
     .sort_values("cell_count", ascending=False)
     .reset_index(drop=True)
 )
-
-# Save
-aggregated_cell_data.to_parquet(snakemake.output[0], index=False)
+aggregated_cell_data.to_parquet(snakemake.output[2], index=False)

@@ -22,11 +22,11 @@ rule split_classes:
         "../scripts/aggregate/split_classes.py"
 
 
-rule align_filter_aggregate:
+rule filter_align_aggregate:
     input:
         AGGREGATE_OUTPUTS_MAPPED["split_classes"],
     output:
-        AGGREGATE_OUTPUTS_MAPPED["align_filter_aggregate"],
+        AGGREGATE_OUTPUTS_MAPPED["filter_align_aggregate"],
     params:
         first_feature=config["aggregate"]["first_feature"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
@@ -42,7 +42,7 @@ rule align_filter_aggregate:
         control_key=config["aggregate"]["control_key"],
         agg_method=config["aggregate"]["agg_method"],
     script:
-        "../scripts/aggregate/align_filter_aggregate.py"
+        "../scripts/aggregate/filter_align_aggregate.py"
 
 
 rule eval_aggregate:
@@ -50,7 +50,7 @@ rule eval_aggregate:
         # class merge data
         AGGREGATE_OUTPUTS_MAPPED["split_classes"],
         # aggregated gene data
-        AGGREGATE_OUTPUTS_MAPPED["align_filter_aggregate"],
+        AGGREGATE_OUTPUTS_MAPPED["filter_align_aggregate"][2],
     output:
         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
     script:

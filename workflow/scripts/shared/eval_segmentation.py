@@ -19,6 +19,9 @@ cells = pd.concat(
     [pd.read_parquet(p) for p in snakemake.input.cells_paths], ignore_index=True
 )
 
+# convert tile column to int
+cells['tile'] = cells['tile'].astype(int)
+
 # plot cell density heatmap
 cell_density_summary, fig = plot_cell_density_heatmap(cells, shape="square", plate="6W")
 cell_density_summary.to_csv(snakemake.output[1], index=False, sep="\t")

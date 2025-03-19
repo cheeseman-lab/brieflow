@@ -52,6 +52,8 @@ rule find_peaks:
         SBS_OUTPUTS["compute_standard_deviation"],
     output:
         SBS_OUTPUTS_MAPPED["find_peaks"],
+    params:
+        width=config["sbs"]["peak_width"],
     script:
         "../scripts/sbs/find_peaks.py"
 
@@ -63,7 +65,7 @@ rule max_filter:
     output:
         SBS_OUTPUTS_MAPPED["max_filter"],
     params:
-        width=3,
+        width=config["sbs"]["max_width"],
         remove_index=0,
     script:
         "../scripts/sbs/max_filter.py"

@@ -69,6 +69,7 @@ def get_segmentation_params(module, config):
         "reconcile": module_config.get("reconcile", False),
         "return_counts": module_config.get("return_counts", True),
         "gpu": module_config.get("gpu", False),
+        "cells": module_config.get("cells", True),
     }
 
     # Method-specific parameters
@@ -104,9 +105,18 @@ def get_segmentation_params(module, config):
                 "nms_thresh": module_config.get("nms_thresh", 0.3),
             }
         )
+    elif method == "watershed":
+        params.update(
+            {
+                "nuclei_threshold": module_config.get("nuclei_threshold", 4260),
+                "nuclei_area_min": module_config.get("nuclei_area_min", 45),
+                "nuclei_area_max": module_config.get("nuclei_area_max", 450),
+                "cell_threshold": module_config.get("cell_threshold", 1300),
+            }
+        )
     else:
         raise ValueError(
-            f"Unknown segmentation method: {method}. Choose one of: cellpose, microsam, stardist"
+            f"Unknown segmentation method: {method}. Choose one of: cellpose, microsam, stardist, watershed"
         )
 
     return params

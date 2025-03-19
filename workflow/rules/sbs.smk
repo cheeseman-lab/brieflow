@@ -139,6 +139,8 @@ rule call_reads:
         SBS_OUTPUTS["find_peaks"],
     output:
         SBS_OUTPUTS_MAPPED["call_reads"],
+    params:
+        method=config["sbs"]["call_reads_method"]
     script:
         "../scripts/sbs/call_reads.py"
 

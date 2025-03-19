@@ -28,12 +28,12 @@ def call_reads(
     peaks_data=None,
     correction_only_in_cells=True,
     normalize_bases_first=True,
+    method="median",
 ):
     """Call reads for in situ sequencing data.
 
     Call reads by compensating for channel cross-talk and calling the base
-    with the highest corrected intensity for each cycle. Median correction
-    is performed independently for each tile.
+    with the highest corrected intensity for each cycle.
 
     Args:
     bases_data : pandas DataFrame
@@ -45,13 +45,19 @@ def call_reads(
         peaks scores in returned df_reads table.
 
     correction_only_in_cells : boolean, default True
-        If True, restricts median correction/compensation step to account only for reads that
+        If True, restricts correction/compensation step to account only for reads that
         are within a cell, as defined by the cell segmentation mask passed into
         extract_bases. Often identified spots outside of cells are not true sequencing
         reads.
 
     normalize_bases_first : boolean, default True
         If True, normalizes the base intensities before performing median correction.
+        Only applies when method="median".
+
+    method : str, default "median"
+        Method to use for correction. Options are "median" or "percentile".
+        - "median": Uses median-based correction, performed independently for each tile.
+        - "percentile": Uses percentile-based correction, performed independently for each tile.
 
     Returns:
     df_reads : pandas DataFrame
@@ -88,26 +94,41 @@ def call_reads(
     cycles = len(set(bases_data["cycle"]))
     channels = len(set(bases_data["channel"]))
 
-    if normalize_bases_first:
-        # Clean up and normalize base intensities, then perform median calling
-        df_reads = (
-            bases_data.pipe(clean_up_bases)
-            .pipe(normalize_bases)
-            .pipe(
+    # Choose the appropriate method for read calling
+    if method == "median":
+        if normalize_bases_first:
+            # Clean up and normalize base intensities, then perform median calling
+            df_reads = (
+                bases_data.pipe(clean_up_bases)
+                .pipe(normalize_bases)
+                .pipe(
+                    do_median_call,
+                    cycles,
+                    channels=channels,
+                    correction_only_in_cells=correction_only_in_cells,
+                )
+            )
+        else:
+            # Clean up bases and perform median calling without normalization
+            df_reads = bases_data.pipe(clean_up_bases).pipe(
                 do_median_call,
                 cycles,
                 channels=channels,
                 correction_only_in_cells=correction_only_in_cells,
             )
+    elif method == "percentile":
+        # Clean up bases and perform percentile calling
+        df_reads = (
+            bases_data.pipe(clean_up_bases)
+            .pipe(
+                do_percentile_call,
+                cycles=cycles,
+                channels=channels,
+                correction_only_in_cells=correction_only_in_cells,
+            )
         )
     else:
-        # Clean up bases and perform median calling without normalization
-        df_reads = bases_data.pipe(clean_up_bases).pipe(
-            do_median_call,
-            cycles,
-            channels=channels,
-            correction_only_in_cells=correction_only_in_cells,
-        )
+        raise ValueError(f"Unknown method: {method}. Use 'median' or 'percentile'.")
 
     # Include peaks scores if available
     if peaks_data is not None:
@@ -193,6 +214,40 @@ def do_median_call(
     return df_reads
 
 
+def do_percentile_call(
+    df_bases, 
+    cycles=12, 
+    channels=4, 
+    correction_only_in_cells=False, 
+):
+    """Call reads from raw base signal using percentile-based correction.
+
+    Args:
+        df_bases (pandas.DataFrame): DataFrame containing raw base signal intensities.
+        cycles (int): Number of sequencing cycles.
+        channels (int): Number of sequencing channels.
+        correction_only_in_cells (bool): Flag specifying whether correction is based on reads within cells or all reads.
+        
+    Returns:
+        pandas.DataFrame: DataFrame containing the called reads.
+    """
+    if correction_only_in_cells:
+        # First obtain transformation matrix W
+        X_ = dataframe_to_values(df_bases.query("cell > 0"))
+        _, W = transform_percentiles(X_.reshape(-1, channels))
+
+        # Then apply to all data
+        X = dataframe_to_values(df_bases)
+        Y = W.dot(X.reshape(-1, channels).T).T.astype(int)
+    else:
+        X = dataframe_to_values(df_bases)
+        Y, W = transform_percentiles(X.reshape(-1, channels))
+        
+    df_reads = call_barcodes(df_bases, Y, cycles=cycles, channels=channels)
+
+    return df_reads
+
+
 def dataframe_to_values(df, value="intensity"):
     """Convert a sorted DataFrame containing intensity values into a 3D NumPy array.
 
@@ -256,6 +311,53 @@ def transform_medians(X, correction_quartile=0):
     W = np.linalg.inv(M)
     # Apply transformation to X
     Y = W.dot(X.T).T.astype(int)
+    return Y, W
+
+
+def transform_percentiles(X):
+    """For each dimension, find points where that dimension is >=95th percentile intensity.
+
+    Use median of those points to define new axes.
+    Describe with linear transformation W so that W * X = Y.
+    
+    Args:
+        X (numpy.ndarray): Input array of intensity values.
+        
+    Returns:
+        Y (numpy.ndarray): Transformed array.
+        W (numpy.ndarray): Transformation matrix.
+    """
+    def get_percentiles(X):
+        arr = []
+        for i in range(X.shape[1]):
+            # Calculate relative intensities by dividing by rowsums
+            rowsums = np.sum(X, axis=1)[:, np.newaxis]
+            X_rel = (X / rowsums)
+            
+            # Find 95th percentile of relative intensities for channel i
+            perc = np.nanpercentile(X_rel[:, i], 95)
+            
+            # Select spots where channel i has high relative intensity
+            high = X[X_rel[:, i] >= perc]
+            
+            # Take median of those high-intensity spots
+            arr += [np.median(high, axis=0)]
+            
+        M = np.array(arr)
+        return M
+
+    # Get percentile-based matrix
+    M = get_percentiles(X).T
+    
+    # Normalize columns
+    M = M / M.sum(axis=0)
+    
+    # Compute inverse to get transformation matrix
+    W = np.linalg.inv(M)
+    
+    # Apply transformation
+    Y = W.dot(X.T).T.astype(int)
+    
     return Y, W
 
 

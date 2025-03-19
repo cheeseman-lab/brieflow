@@ -13,7 +13,7 @@ class_merge_data = class_merge_data.to_table(
 ).to_pandas()
 
 # Load gene data
-class_gene_data = pd.read_parquet(snakemake.input[1])
+class_aggregated_data = pd.read_csv(snakemake.input[1], sep="\t")
 
 # Evaluate missing values
 nas_df, nas_fig = nas_summary(class_merge_data, vis_subsample=50000)
@@ -21,5 +21,5 @@ nas_df.to_csv(snakemake.output[0], sep="\t", index=False)
 nas_fig.savefig(snakemake.output[1])
 
 # Evaluate feature distributions
-feature_fig = plot_feature_distributions(class_gene_data, "PC_0", num_features=10)
+feature_fig = plot_feature_distributions(class_aggregated_data, "PC_0", num_features=10)
 feature_fig.savefig(snakemake.output[2])

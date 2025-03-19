@@ -87,4 +87,4 @@ aggregated_cell_data = (
     .sort_values("cell_count", ascending=False)
     .reset_index(drop=True)
 )
-aggregated_cell_data.to_parquet(snakemake.output[2], index=False)
+aggregated_cell_data.to_csv(snakemake.output[2], sep="\t", index=False)

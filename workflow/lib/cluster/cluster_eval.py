@@ -18,11 +18,18 @@ import seaborn as sns
 from lib.shared.file_utils import parse_filename
 
 
-def plot_cell_histogram(gene_cell_counts, cutoff, bins=50, figsize=(12, 6)):
+def plot_cell_histogram(
+    gene_cell_counts,
+    cutoff,
+    perturbation_name_col,
+    count_col_name="cell_count",
+    bins=50,
+    figsize=(12, 6),
+):
     """Plot a histogram of cell numbers with a vertical cutoff line and return genes below the cutoff.
 
     Args:
-        gene_cell_counts (pandas.DataFrame): DataFrame containing 'cell_number' and 'gene_symbol_0' columns.
+        gene_cell_counts (pandas.DataFrame): DataFrame containing 'cell_count' and 'gene_symbol_0' columns.
         cutoff (float): Vertical line position and threshold for identifying genes.
         bins (int, optional): Number of bins for histogram. Defaults to 50.
         figsize (tuple, optional): Figure size as (width, height). Defaults to (12, 6).
@@ -36,7 +43,7 @@ def plot_cell_histogram(gene_cell_counts, cutoff, bins=50, figsize=(12, 6)):
     # Plot histogram using seaborn for better styling
     sns.histplot(
         data=gene_cell_counts,
-        x="cell_number",
+        x=count_col_name,
         bins=bins,
         color="skyblue",
         alpha=0.6,
@@ -56,8 +63,8 @@ def plot_cell_histogram(gene_cell_counts, cutoff, bins=50, figsize=(12, 6)):
     ax.grid(True, alpha=0.3)
 
     # Get genes below cutoff
-    genes_below_cutoff = gene_cell_counts[gene_cell_counts["cell_number"] <= cutoff][
-        "gene_symbol_0"
+    genes_below_cutoff = gene_cell_counts[gene_cell_counts[count_col_name] <= cutoff][
+        perturbation_name_col
     ].tolist()
 
     # Print genes below cutoff

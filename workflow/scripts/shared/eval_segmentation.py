@@ -23,6 +23,6 @@ cells = pd.concat(
 cells['tile'] = cells['tile'].astype(int)
 
 # plot cell density heatmap
-cell_density_summary, fig = plot_cell_density_heatmap(cells, shape="square", plate="6W")
+cell_density_summary, fig = plot_cell_density_heatmap(cells, shape=snakemake.params.heatmap_shape, plate="6W")
 cell_density_summary.to_csv(snakemake.output[1], index=False, sep="\t")
 fig.savefig(snakemake.output[2])

@@ -62,7 +62,7 @@ fig.savefig(snakemake.output[6])
 _, fig = plot_reads_per_cell_histogram(cells, x_cutoff=20)
 fig.savefig(snakemake.output[7])
 
-_, fig = plot_gene_symbol_histogram(cells, x_cutoff=30)
+_, fig = plot_gene_symbol_histogram(cells)
 fig.savefig(snakemake.output[8])
 
 mapping_overview_df = mapping_overview(sbs_info, cells)

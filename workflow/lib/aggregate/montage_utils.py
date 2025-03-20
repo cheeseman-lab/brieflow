@@ -230,9 +230,9 @@ def create_montage(arr, shape=None):
         if (nr - 1) * nc >= n:
             nr -= 1
     elif -1 in shape:
-        assert shape[0] != shape[1], (
-            "cannot infer both rows and columns, use shape=None for square montage"
-        )
+        assert (
+            shape[0] != shape[1]
+        ), "cannot infer both rows and columns, use shape=None for square montage"
         shape = np.array(shape)
         infer, given = int(np.argwhere(shape == -1)), int(np.argwhere(shape != -1))
         shape[infer] = int(np.ceil(n / shape[given]))

@@ -1,4 +1,4 @@
-name: brieflow_denali_env
+name: brieflow_main_env
 channels:
   - conda-forge
   - bioconda

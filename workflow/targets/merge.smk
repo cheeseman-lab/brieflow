@@ -93,13 +93,13 @@ MERGE_OUTPUTS = {
 }
 
 MERGE_OUTPUT_MAPPINGS = {
-    "fast_alignment": None,
-    "merge": None,
-    "format_merge": None,
+    "fast_alignment": temp,
+    "merge": temp,
+    "format_merge": temp,
     "eval_merge": None,
     "clean_merge": None,
     "deduplicate_merge": None,
-    "final_merge": None,
+    "final_merge": protected,
 }
 
 MERGE_OUTPUTS_MAPPED = map_outputs(MERGE_OUTPUTS, MERGE_OUTPUT_MAPPINGS)

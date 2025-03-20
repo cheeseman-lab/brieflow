@@ -121,8 +121,8 @@ rule extract_bases:
     input:
         SBS_OUTPUTS["find_peaks"],
         SBS_OUTPUTS["max_filter"],
-        # use cell segmentation map
-        SBS_OUTPUTS["segment_sbs"][1],
+        # use nuclei segmentation map
+        SBS_OUTPUTS["segment_sbs"][0],
     output:
         SBS_OUTPUTS_MAPPED["extract_bases"],
     params:
@@ -140,7 +140,7 @@ rule call_reads:
     output:
         SBS_OUTPUTS_MAPPED["call_reads"],
     params:
-        method=config["sbs"]["call_reads_method"]
+        call_reads_method=config["sbs"]["call_reads_method"]
     script:
         "../scripts/sbs/call_reads.py"
 
@@ -185,7 +185,7 @@ rule call_cells:
         barcode_info_cols=config["sbs"]["barcode_info_cols"],
         max_distance=config["sbs"]["max_distance"],
     script:
-        "../scripts/sbs/call_cells_t7.py"
+        "../scripts/sbs/call_cells_T7.py"
 
 # Extract minimal sbs info
 rule extract_sbs_info:

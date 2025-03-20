@@ -1,4 +1,5 @@
 import pandas as pd
+import matplotlib as plt
 
 from lib.sbs.eval_mapping import (
     plot_mapping_vs_threshold,
@@ -62,6 +63,7 @@ fig.savefig(snakemake.output[6])
 
 # _, fig = plot_reads_per_cell_histogram(cells, x_cutoff=20)
 fig = plt.figure()
+plt.text(0.5, 0.5, 'Placeholder figure', horizontalalignment='center')
 fig.savefig(snakemake.output[7])
 
 _, fig = plot_gene_symbol_histogram(cells)

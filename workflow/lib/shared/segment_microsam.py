@@ -124,7 +124,7 @@ def segment_microsam_multichannel(
     remove_edges=True,
     return_counts=False,
     gpu=False,
-    **kwargs
+    **kwargs,
 ):
     """Segment nuclei and cells using the MicroSAM algorithm with InstanceSegmentationWithDecoder.
 
@@ -144,7 +144,9 @@ def segment_microsam_multichannel(
     counts = {}
 
     # Step 1: Initialize the model and decoder
-    predictor, decoder = get_predictor_and_decoder(model_type=model_type, checkpoint_path=None)
+    predictor, decoder = get_predictor_and_decoder(
+        model_type=model_type, checkpoint_path=None
+    )
 
     # Step 2: Computation of image embeddings
     dapi_embeddings = util.precompute_image_embeddings(
@@ -158,19 +160,19 @@ def segment_microsam_multichannel(
     ais_nuclei = InstanceSegmentationWithDecoder(predictor, decoder)
     ais_nuclei.initialize(image=dapi, image_embeddings=dapi_embeddings)
     nuclei_prediction = ais_nuclei.generate()
-    
+
     # Step 4: Cell segmentation with decoder
     ais_cells = InstanceSegmentationWithDecoder(predictor, decoder)
     ais_cells.initialize(image=cyto, image_embeddings=cyto_embeddings)
     cells_prediction = ais_cells.generate()
-    
+
     # Check if we got any predictions and convert mask data to segmentation
     if nuclei_prediction:
         nuclei = mask_data_to_segmentation(nuclei_prediction, with_background=True)
     else:
         print("Warning: No nuclei detected in the DAPI channel", file=sys.stderr)
         nuclei = np.zeros_like(dapi, dtype="uint32")
-    
+
     if cells_prediction:
         cells = mask_data_to_segmentation(cells_prediction, with_background=True)
     else:
@@ -209,7 +211,11 @@ def segment_microsam_multichannel(
     )
 
     # Reconcile nuclei and cells if specified
-    if reconcile and counts["after_edge_removal_nuclei"] > 0 and counts["after_edge_removal_cells"] > 0:
+    if (
+        reconcile
+        and counts["after_edge_removal_nuclei"] > 0
+        and counts["after_edge_removal_cells"] > 0
+    ):
         print(f"reconciling masks with method how={reconcile}")
         nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
 
@@ -227,11 +233,7 @@ def segment_microsam_multichannel(
 
 
 def segment_microsam_nuclei(
-    dapi,
-    model_type="vit_b_lm",
-    remove_edges=True,
-    gpu=False,
-    **kwargs
+    dapi, model_type="vit_b_lm", remove_edges=True, gpu=False, **kwargs
 ):
     """Segment nuclei using the MicroSAM algorithm with InstanceSegmentationWithDecoder.
 
@@ -244,9 +246,11 @@ def segment_microsam_nuclei(
 
     Returns:
         Labeled segmentation mask of nuclei
-    """  
+    """
     # Step 1: Initialize the model and decoder
-    predictor, decoder = get_predictor_and_decoder(model_type=model_type, checkpoint_path=None)
+    predictor, decoder = get_predictor_and_decoder(
+        model_type=model_type, checkpoint_path=None
+    )
 
     # Step 2: Compute image embeddings for DAPI channel
     image_embeddings = util.precompute_image_embeddings(
@@ -255,13 +259,13 @@ def segment_microsam_nuclei(
 
     # Step 3: Create instance segmentation with decoder
     ais_nuclei = InstanceSegmentationWithDecoder(predictor, decoder)
-    
+
     # Step 4: Initialize with precomputed embeddings
     ais_nuclei.initialize(image=dapi, image_embeddings=image_embeddings)
 
     # Step 5: Generate segmentation
     nuclei_masks = ais_nuclei.generate()
-    
+
     # Check if we got any predictions
     if nuclei_masks:
         nuclei = mask_data_to_segmentation(nuclei_masks, with_background=True)

@@ -93,7 +93,9 @@ def get_sample_fps(
                 # If no channel order, just take the first file from this round
                 all_files.append(round_df["sample_fp"].iloc[0])
                 if "channel" in round_df.columns:
-                    final_channel_order.append(f"Round {round_num}: {round_df['channel'].iloc[0]}")
+                    final_channel_order.append(
+                        f"Round {round_num}: {round_df['channel'].iloc[0]}"
+                    )
                 else:
                     final_channel_order.append(f"Round {round_num}")
 

@@ -10,10 +10,11 @@ from lib.sbs.eval_mapping import (
 )
 
 # Read barcodes
-df_design = pd.read_csv(snakemake.params.df_design_path, sep="\t")
-df_pool = df_design.query("dialout==[0,1]").drop_duplicates("sgRNA")
-df_pool["prefix"] = df_pool.apply(lambda x: x.sgRNA[: x.prefix_length], axis=1)
-barcodes = df_pool["prefix"]
+df_design = pd.read_csv(snakemake.params.df_design_path, index_col=None)
+df_pool = df_design.drop(columns=['Unnamed: 0']).rename(columns={'target':'gene_symbol'})
+df_pool['prefix_map'] = df_pool['iBAR_2']
+df_pool['prefix_recomb'] = df_pool['iBAR_1'].str.slice(0,3)
+barcodes = df_pool["prefix_recomb"] + df_pool["prefix_map"]
 
 # Load SBS processing files
 reads = pd.concat(
@@ -59,7 +60,8 @@ df_summary_any, fig = plot_cell_mapping_heatmap(
 df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")
 fig.savefig(snakemake.output[6])
 
-_, fig = plot_reads_per_cell_histogram(cells, x_cutoff=20)
+# _, fig = plot_reads_per_cell_histogram(cells, x_cutoff=20)
+fig = plt.figure()
 fig.savefig(snakemake.output[7])
 
 _, fig = plot_gene_symbol_histogram(cells, x_cutoff=30)

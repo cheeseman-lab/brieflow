@@ -14,6 +14,10 @@ cells_data = call_cells(
     reads_data=reads_data,
     df_pool=df_pool,
     q_min=snakemake.params.q_min,
+    barcode_col=snakemake.params.barcode_col,
+    df_UMI=snakemake.params.df_umi,
+    error_correct=snakemake.params.error_correct,
+
 )
 
 # save cells data

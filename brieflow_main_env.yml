@@ -33,3 +33,4 @@ dependencies:
   - pip:
       - -e .
       - stardist
+      - levenshtein

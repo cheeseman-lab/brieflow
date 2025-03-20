@@ -144,8 +144,8 @@ rule call_reads:
     script:
         "../scripts/sbs/call_reads.py"
 
-
-# Call cells
+'''
+# Call cells (to be merged to main)
 rule call_cells:
     input:
         SBS_OUTPUTS["call_reads"],
@@ -154,9 +154,38 @@ rule call_cells:
     params:
         df_design_path=config["sbs"]["df_design_path"],
         q_min=config["sbs"]["q_min"],
+        barcode_col=config["sbs"]["barcode_col"],
+        df_umi=config["sbs"]["df_umi"],
+        error_correct=config["sbs"]["error_correct"],        
     script:
         "../scripts/sbs/call_cells.py"
+'''
 
+# Call cells using T7 protocol
+rule call_cells:
+    input:
+        SBS_OUTPUTS["call_reads"],
+    output:
+        SBS_OUTPUTS_MAPPED["call_cells"],
+    params:
+        # Pool design parameters
+        df_design_path=config["sbs"]["df_design_path"],
+        # T7 read preparation parameters
+        map_start=config["t7"]["map_start"],
+        map_end=config["t7"]["map_end"],
+        recomb_start=config["t7"]["recomb_start"],
+        recomb_end=config["t7"]["recomb_end"],
+        map_col=config["t7"]["map_col"],
+        recomb_col=config["t7"]["recomb_col"],
+        recomb_filter_col=config["t7"]["recomb_filter_col"],
+        # Cell calling parameters
+        q_min=config["t7"]["q_min"],
+        recomb_q_thresh=config["t7"]["recomb_q_thresh"],
+        error_correct=config["t7"]["error_correct"],
+        barcode_info_cols=config["t7"]["barcode_info_cols"],
+        max_distance=config["t7"]["max_distance"],
+    script:
+        "../scripts/sbs/call_cells_t7.py"
 
 # Extract minimal sbs info
 rule extract_sbs_info:

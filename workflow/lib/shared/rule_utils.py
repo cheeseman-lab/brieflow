@@ -59,11 +59,11 @@ def get_segmentation_params(module, config):
     module_config = config[module]
 
     # Get segmentation method, default to cellpose if not specified
-    method = module_config.get("method", "cellpose")
+    segmentation_method = module_config.get("segmentation_method", "cellpose")
 
     # Common parameters for all methods
     params = {
-        "method": method,
+        "segmentation_method": segmentation_method,
         "dapi_index": module_config.get("dapi_index"),
         "cyto_index": module_config.get("cyto_index"),
         "reconcile": module_config.get("reconcile", False),
@@ -73,7 +73,7 @@ def get_segmentation_params(module, config):
     }
 
     # Method-specific parameters
-    if method == "cellpose":
+    if segmentation_method == "cellpose":
         params.update(
             {
                 "cellpose_model": module_config.get("cellpose_model", "cyto3"),
@@ -83,7 +83,7 @@ def get_segmentation_params(module, config):
                 "cellprob_threshold": module_config.get("cellprob_threshold", 0),
             }
         )
-    elif method == "microsam":
+    elif segmentation_method == "microsam":
         params.update(
             {
                 "microsam_model": module_config.get("microsam_model", "vit_b_lm"),
@@ -95,7 +95,7 @@ def get_segmentation_params(module, config):
                 "pred_iou_thresh": module_config.get("pred_iou_thresh", 0.88),
             }
         )
-    elif method == "stardist":
+    elif segmentation_method == "stardist":
         params.update(
             {
                 "stardist_model": module_config.get(
@@ -105,18 +105,18 @@ def get_segmentation_params(module, config):
                 "nms_thresh": module_config.get("nms_thresh", 0.3),
             }
         )
-    elif method == "watershed":
+    elif segmentation_method == "watershed":
         params.update(
             {
-                "nuclei_threshold": module_config.get("nuclei_threshold", 4260),
+                "threshold_dapi": module_config.get("threshold_dapi", 4260),
                 "nuclei_area_min": module_config.get("nuclei_area_min", 45),
                 "nuclei_area_max": module_config.get("nuclei_area_max", 450),
-                "cell_threshold": module_config.get("cell_threshold", 1300),
+                "threshold_cell": module_config.get("threshold_cell", 1300),
             }
         )
     else:
         raise ValueError(
-            f"Unknown segmentation method: {method}. Choose one of: cellpose, microsam, stardist, watershed"
+            f"Unknown segmentation method: {segmentation_method}. Choose one of: cellpose, microsam, stardist, watershed"
         )
 
     return params

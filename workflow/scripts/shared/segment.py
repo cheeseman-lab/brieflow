@@ -9,7 +9,7 @@ illumination_corrected_data = imread(snakemake.input[0])
 params = snakemake.params.config
 
 # Choose segmentation method based on parameter
-method = params.get("method", "cellpose")
+method = params.get("segmentation_method", "cellpose")
 cells_enabled = params.get("cells", True)
 
 if method == "cellpose":
@@ -135,26 +135,22 @@ elif method == "watershed":
     if cells_enabled:
         nuclei_data, cells_data, counts_df = segment_watershed(
             data=illumination_corrected_data,
-            nuclei_threshold=params["nuclei_threshold"],
+            nuclei_threshold=params["threshold_dapi"],
             nuclei_area_min=params["nuclei_area_min"],
             nuclei_area_max=params["nuclei_area_max"],
-            cell_threshold=params["cell_threshold"],
+            cell_threshold=params["threshold_cell"],
             cells=True,
-            smooth=params.get("smooth", 1.35),
-            radius=params.get("radius", 15),
             reconcile=params.get("reconcile"),
             return_counts=params.get("return_counts", True),
         )
     else:
         nuclei_data, counts_df = segment_watershed(
             data=illumination_corrected_data,
-            nuclei_threshold=params["nuclei_threshold"],
+            nuclei_threshold=params["threshold_dapi"],
             nuclei_area_min=params["nuclei_area_min"],
             nuclei_area_max=params["nuclei_area_max"],
-            cell_threshold=params["cell_threshold"],
+            cell_threshold=params["threshold_cell"],
             cells=False,
-            smooth=params.get("smooth", 1.35),
-            radius=params.get("radius", 15),
             return_counts=params.get("return_counts", True),
         )
         cells_data = np.zeros_like(nuclei_data)

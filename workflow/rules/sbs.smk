@@ -65,7 +65,7 @@ rule max_filter:
     output:
         SBS_OUTPUTS_MAPPED["max_filter"],
     params:
-        width=config["sbs"]["max_width"],
+        width=config["sbs"]["maxed_width"],
         remove_index=0,
     script:
         "../scripts/sbs/max_filter.py"
@@ -171,19 +171,19 @@ rule call_cells:
         # Pool design parameters
         df_design_path=config["sbs"]["df_design_path"],
         # T7 read preparation parameters
-        map_start=config["t7"]["map_start"],
-        map_end=config["t7"]["map_end"],
-        recomb_start=config["t7"]["recomb_start"],
-        recomb_end=config["t7"]["recomb_end"],
-        map_col=config["t7"]["map_col"],
-        recomb_col=config["t7"]["recomb_col"],
-        recomb_filter_col=config["t7"]["recomb_filter_col"],
+        map_start=config["sbs"]["map_start"],
+        map_end=config["sbs"]["map_end"],
+        recomb_start=config["sbs"]["recomb_start"],
+        recomb_end=config["sbs"]["recomb_end"],
+        map_col=config["sbs"]["map_col"],
+        recomb_col=config["sbs"]["recomb_col"],
+        recomb_filter_col=config["sbs"]["recomb_filter_col"],
         # Cell calling parameters
-        q_min=config["t7"]["q_min"],
-        recomb_q_thresh=config["t7"]["recomb_q_thresh"],
-        error_correct=config["t7"]["error_correct"],
-        barcode_info_cols=config["t7"]["barcode_info_cols"],
-        max_distance=config["t7"]["max_distance"],
+        q_min=config["sbs"]["q_min"],
+        recomb_q_thresh=config["sbs"]["recomb_q_thresh"],
+        error_correct=config["sbs"]["error_correct"],
+        barcode_info_cols=config["sbs"]["barcode_info_cols"],
+        max_distance=config["sbs"]["max_distance"],
     script:
         "../scripts/sbs/call_cells_t7.py"
 

@@ -1,6 +1,5 @@
 """Utility functions for extracting features from image data."""
 
-
 # Basic features added to all feature extractions
 features_basic = {
     "area": lambda r: r.area,

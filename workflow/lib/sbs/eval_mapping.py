@@ -70,12 +70,16 @@ def plot_mapping_vs_threshold(
             # Use original threshold generation logic
             if df_reads[threshold_var].max() < 100:
                 thresholds = (
-                    np.array(range(0, int(np.quantile(df[threshold_var], q=0.99) * 1000)))
+                    np.array(
+                        range(0, int(np.quantile(df[threshold_var], q=0.99) * 1000))
+                    )
                     / 1000
                 )
             else:
-                thresholds = list(range(0, int(np.quantile(df[threshold_var], q=0.99)), 10))
-        
+                thresholds = list(
+                    range(0, int(np.quantile(df[threshold_var], q=0.99)), 10)
+                )
+
         # Calculate metrics
         mapping_rate = []
         spots_mapped = []
@@ -85,7 +89,11 @@ def plot_mapping_vs_threshold(
             mapped_reads = df_thresholded[df_thresholded["mapped"]]
             spots_mapped.append(mapped_reads.shape[0])
             cells_mapped.append(len(mapped_reads.groupby(["well", "tile", "cell"])))
-            mapping_rate.append(mapped_reads.shape[0] / df_thresholded.shape[0] if df_thresholded.shape[0] > 0 else 0)
+            mapping_rate.append(
+                mapped_reads.shape[0] / df_thresholded.shape[0]
+                if df_thresholded.shape[0] > 0
+                else 0
+            )
 
         # Create summary DataFrame
         df_summary = pd.DataFrame(
@@ -385,14 +393,14 @@ def plot_reads_per_cell_histogram(df, x_cutoff=40):
     return outliers, fig
 
 
-def plot_gene_symbol_histogram(df, x_cutoff=40):
+def plot_gene_symbol_histogram(df, x_cutoff=None):
     """Plot a histogram of the number of counts of each unique gene_symbol_0.
 
     Args:
         df (pandas.DataFrame):
             DataFrame containing the data with a column 'gene_symbol_0'.
         x_cutoff (int, optional):
-            Cutoff value for the x-axis. Defaults to 40.
+            Cutoff value for the x-axis. If None, will be calculated from data.
 
     Returns:
         pandas.Series: Series containing outlier gene symbols with counts exceeding x_cutoff.
@@ -405,14 +413,15 @@ def plot_gene_symbol_histogram(df, x_cutoff=40):
     fig, ax = plt.subplots(figsize=(12, 7))
     sns.set_style("white")
 
-    # Set bin number based on x_cutoff
-    if x_cutoff < 100:
-        num_bins = x_cutoff
-    else:
-        num_bins = 100
+    # Auto-determine x_cutoff if not provided
+    if x_cutoff is None:
+        # Use IQR method to determine cutoff
+        q1, q3 = gene_symbol_counts.quantile(0.25), gene_symbol_counts.quantile(0.75)
+        iqr = q3 - q1
+        x_cutoff = q3 + 1.5 * iqr
 
-    # Create 100 evenly spaced bins from 0 to x_cutoff
-    bins = np.linspace(0, x_cutoff, num_bins + 1)  # 101 edges to create 100 bins
+    # Always create 100 evenly spaced bins from 0 to x_cutoff
+    bins = np.linspace(0, x_cutoff, 101)  # 101 edges to create 100 bins
 
     # Plot the histogram
     sns.histplot(

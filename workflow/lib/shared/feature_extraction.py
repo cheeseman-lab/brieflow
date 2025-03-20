@@ -1,6 +1,14 @@
 """Utility functions for extracting features from image data."""
 
-from lib.shared.features import features_basic
+
+# Basic features added to all feature extractions
+features_basic = {
+    "area": lambda r: r.area,
+    "i": lambda r: r.centroid[0],
+    "j": lambda r: r.centroid[1],
+    "label": lambda r: r.label,
+    "bounds": lambda r: r.bbox,
+}
 
 
 def extract_features(data, labels, wildcards, features=None, multichannel=False):

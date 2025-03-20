@@ -20,9 +20,8 @@ phenotype_cp.to_parquet(snakemake.output[0])
 
 # Create subset of features
 # Add bounds for each channel
-bounds_features = [
-    f"cell_bounds_{i}" for i in range(len(snakemake.params.channel_names))
-]
+bounds_features = [f"cell_bounds_{i}" for i in range(4)]
+
 # Add minimum intensity feature for each channel
 channel_min_features = [
     f"cell_{channel}_min" for channel in snakemake.params.channel_names

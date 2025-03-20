@@ -2,7 +2,6 @@ import pandas as pd
 
 from lib.sbs.eval_mapping import (
     plot_mapping_vs_threshold,
-    plot_mapping_vs_threshold,
     plot_read_mapping_heatmap,
     plot_cell_mapping_heatmap,
     plot_reads_per_cell_histogram,
@@ -27,10 +26,10 @@ sbs_info = pd.concat(
     [pd.read_parquet(p) for p in snakemake.input.sbs_info_paths], ignore_index=True
 )
 
-_, fig = plot_mapping_vs_threshold(reads, barcodes, "peak")
+_, fig = plot_mapping_vs_threshold(reads, barcodes, "peak", num_thresholds=10)
 fig.savefig(snakemake.output[0])
 
-_, fig = plot_mapping_vs_threshold(reads, barcodes, "Q_min")
+_, fig = plot_mapping_vs_threshold(reads, barcodes, "Q_min", num_thresholds=10)
 fig.savefig(snakemake.output[1])
 
 fig = plot_read_mapping_heatmap(reads, barcodes, shape="6W_sbs")
@@ -63,7 +62,7 @@ fig.savefig(snakemake.output[6])
 _, fig = plot_reads_per_cell_histogram(cells, x_cutoff=20)
 fig.savefig(snakemake.output[7])
 
-_, fig = plot_gene_symbol_histogram(cells, x_cutoff=30)
+_, fig = plot_gene_symbol_histogram(cells)
 fig.savefig(snakemake.output[8])
 
 mapping_overview_df = mapping_overview(sbs_info, cells)

@@ -11,7 +11,7 @@ from lib.shared.eval import plot_plate_heatmap
 
 
 def plot_mapping_vs_threshold(
-    df_reads, barcodes, threshold_var="peak", ax=None, **kwargs
+    df_reads, barcodes, threshold_var="peak", ax=None, num_thresholds=None, **kwargs
 ):
     """Plot the mapping rate and number of mapped spots against varying thresholds of peak intensity, quality score, or a user-defined metric.
 
@@ -28,6 +28,10 @@ def plot_mapping_vs_threshold(
         ax (matplotlib.axis, optional):
             Optional. If not None, this is an axis object to plot on. Helpful when plotting on
             a subplot of a larger figure. Defaults to None.
+        num_thresholds (int, optional):
+            Number of threshold points to evaluate. Controls the granularity of the curve.
+            Lower values will run faster. If None, uses the original threshold generation logic.
+            Defaults to None.
         **kwargs:
             Keyword arguments passed to sns.lineplot()
 
@@ -37,28 +41,44 @@ def plot_mapping_vs_threshold(
     """
     # Create figure with two subplots side by side
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-
     # Left plot (all reads)
     df_all = df_reads.copy()
     df_all.loc[:, "mapped"] = df_all["barcode"].isin(barcodes)
-
     # Right plot (cell-associated reads only)
     df_cells = df_reads.copy().query("cell > 0")
     df_cells.loc[:, "mapped"] = df_cells["barcode"].isin(barcodes)
-
     # Process data and create plots for both
     for df, ax, title in [
         (df_all, ax1, "All Reads"),
         (df_cells, ax2, "Cell-Associated Reads Only"),
     ]:
         # Define thresholds
-        if df_reads[threshold_var].max() < 100:
-            thresholds = (
-                np.array(range(0, int(np.quantile(df[threshold_var], q=0.99) * 1000)))
-                / 1000
-            )
+        if num_thresholds is not None:
+            # User specified the number of thresholds - use evenly spaced points
+            max_threshold = np.quantile(df[threshold_var], q=0.99)
+            if df_reads[threshold_var].max() < 100:
+                # For smaller values, use linear spacing
+                thresholds = np.linspace(0, max_threshold, num_thresholds)
+            else:
+                # For larger values, use integer steps appropriate for the range
+                step_size = max(1, int(max_threshold / num_thresholds))
+                thresholds = np.arange(0, max_threshold + step_size, step_size)
+                # Limit to num_thresholds points if needed
+                if len(thresholds) > num_thresholds:
+                    thresholds = thresholds[:num_thresholds]
         else:
-            thresholds = list(range(0, int(np.quantile(df[threshold_var], q=0.99)), 10))
+            # Use original threshold generation logic
+            if df_reads[threshold_var].max() < 100:
+                thresholds = (
+                    np.array(
+                        range(0, int(np.quantile(df[threshold_var], q=0.99) * 1000))
+                    )
+                    / 1000
+                )
+            else:
+                thresholds = list(
+                    range(0, int(np.quantile(df[threshold_var], q=0.99)), 10)
+                )
 
         # Calculate metrics
         mapping_rate = []
@@ -69,7 +89,11 @@ def plot_mapping_vs_threshold(
             mapped_reads = df_thresholded[df_thresholded["mapped"]]
             spots_mapped.append(mapped_reads.shape[0])
             cells_mapped.append(len(mapped_reads.groupby(["well", "tile", "cell"])))
-            mapping_rate.append(mapped_reads.shape[0] / df_thresholded.shape[0])
+            mapping_rate.append(
+                mapped_reads.shape[0] / df_thresholded.shape[0]
+                if df_thresholded.shape[0] > 0
+                else 0
+            )
 
         # Create summary DataFrame
         df_summary = pd.DataFrame(
@@ -369,14 +393,14 @@ def plot_reads_per_cell_histogram(df, x_cutoff=40):
     return outliers, fig
 
 
-def plot_gene_symbol_histogram(df, x_cutoff=40):
+def plot_gene_symbol_histogram(df, x_cutoff=None):
     """Plot a histogram of the number of counts of each unique gene_symbol_0.
 
     Args:
         df (pandas.DataFrame):
             DataFrame containing the data with a column 'gene_symbol_0'.
         x_cutoff (int, optional):
-            Cutoff value for the x-axis. Defaults to 40.
+            Cutoff value for the x-axis. If None, will be calculated from data.
 
     Returns:
         pandas.Series: Series containing outlier gene symbols with counts exceeding x_cutoff.
@@ -389,14 +413,15 @@ def plot_gene_symbol_histogram(df, x_cutoff=40):
     fig, ax = plt.subplots(figsize=(12, 7))
     sns.set_style("white")
 
-    # Set bin number based on x_cutoff
-    if x_cutoff < 100:
-        num_bins = x_cutoff
-    else:
-        num_bins = 100
+    # Auto-determine x_cutoff if not provided
+    if x_cutoff is None:
+        # Use IQR method to determine cutoff
+        q1, q3 = gene_symbol_counts.quantile(0.25), gene_symbol_counts.quantile(0.75)
+        iqr = q3 - q1
+        x_cutoff = q3 + 1.5 * iqr
 
-    # Create 100 evenly spaced bins from 0 to x_cutoff
-    bins = np.linspace(0, x_cutoff, num_bins + 1)  # 101 edges to create 100 bins
+    # Always create 100 evenly spaced bins from 0 to x_cutoff
+    bins = np.linspace(0, x_cutoff, 101)  # 101 edges to create 100 bins
 
     # Plot the histogram
     sns.histplot(

@@ -1,6 +1,7 @@
 from tifffile import imread, imwrite
 
 from lib.phenotype.align_channels import align_phenotype_channels
+from lib.shared.align import apply_custom_offsets
 
 # Load image data
 image_data = imread(snakemake.input[0])
@@ -9,6 +10,7 @@ image_data = imread(snakemake.input[0])
 align_config = snakemake.params.config
 print("Alignment config:", align_config)
 
+# Standard alignment process
 if align_config["align"]:
     print("Aligning channels...")
 
@@ -40,6 +42,19 @@ if align_config["align"]:
 else:
     print("Skipping alignment...")
     aligned_data = image_data
+
+# Custom alignment process (applies after standard alignment)
+if align_config.get("custom_align", False):
+    print("Applying custom channel offsets...")
+    print(f"Custom channels: {align_config['custom_channels']}")
+    print(f"Custom offset (y,x): {align_config['custom_offset_yx']}")
+    
+    # Apply custom offsets directly using the channel indices from config
+    aligned_data = apply_custom_offsets(
+        aligned_data,
+        offset_yx=align_config["custom_offset_yx"],
+        channels=align_config["custom_channels"]
+    )
 
 # Save the aligned/unaligned data as a .tiff file
 imwrite(snakemake.output[0], aligned_data)

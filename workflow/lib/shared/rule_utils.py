@@ -26,7 +26,8 @@ def get_alignment_params(wildcards, config):
         if "steps" in plate_config:
             return {"align": True, "multi_step": True, "steps": plate_config["steps"]}
 
-        return {
+        # Create base alignment params
+        alignment_params = {
             "align": True,
             "multi_step": False,
             "target": plate_config["target"],
@@ -34,9 +35,19 @@ def get_alignment_params(wildcards, config):
             "riders": plate_config["riders"],
             "remove_channel": plate_config["remove_channel"],
         }
+        
+        # Add custom alignment parameters if they exist
+        if "custom_align" in plate_config:
+            alignment_params["custom_align"] = True
+            alignment_params["custom_channels"] = plate_config.get("custom_channels", [])
+            alignment_params["custom_offset_yx"] = plate_config.get("custom_offset_yx", (0, 0))
+        else:
+            alignment_params["custom_align"] = False
+            
+        return alignment_params
 
     # If no plate-specific alignments, use global config
-    return {
+    base_params = {
         "align": config["phenotype"].get("align", False),
         "multi_step": False,
         "target": config["phenotype"].get("target"),
@@ -44,6 +55,16 @@ def get_alignment_params(wildcards, config):
         "riders": config["phenotype"].get("riders", []),
         "remove_channel": config["phenotype"].get("remove_channel", False),
     }
+    
+    # Add global custom alignment parameters if they exist
+    if "custom_align" in config["phenotype"]:
+        base_params["custom_align"] = config["phenotype"].get("custom_align", False)
+        base_params["custom_channels"] = config["phenotype"].get("custom_channels", [])
+        base_params["custom_offset_yx"] = config["phenotype"].get("custom_offset_yx", (0, 0))
+    else:
+        base_params["custom_align"] = False
+        
+    return base_params
 
 
 def get_segmentation_params(module, config):
@@ -81,6 +102,10 @@ def get_segmentation_params(module, config):
                 "cell_diameter": module_config.get("cell_diameter"),
                 "flow_threshold": module_config.get("flow_threshold", 0.4),
                 "cellprob_threshold": module_config.get("cellprob_threshold", 0),
+                "nuclei_flow_threshold": module_config.get("nuclei_flow_threshold", module_config.get("flow_threshold", 0.4)),
+                "nuclei_cellprob_threshold": module_config.get("nuclei_cellprob_threshold", module_config.get("cellprob_threshold", 0)),
+                "cell_flow_threshold": module_config.get("cell_flow_threshold", module_config.get("flow_threshold", 0.4)),
+                "cell_cellprob_threshold": module_config.get("cell_cellprob_threshold", module_config.get("cellprob_threshold", 0)),           
             }
         )
     elif segmentation_method == "microsam":

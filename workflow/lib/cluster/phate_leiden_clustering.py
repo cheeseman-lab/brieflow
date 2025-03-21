@@ -29,7 +29,9 @@ import phate
 
 
 def phate_leiden_pipeline(
-    aggregated_data, resolution=1.0, first_feature_name="PC_0", phate_kwargs=None
+    aggregated_data,
+    resolution=1.0,
+    first_feature_name="PC_0",
 ):
     """Run complete PHATE and Leiden clustering pipeline.
 
@@ -37,14 +39,10 @@ def phate_leiden_pipeline(
         aggregated_data (pd.DataFrame): Input data with metadata and feature columns.
         resolution (float): Resolution parameter for Leiden clustering. Defaults to 1.0.
         first_feature_name (str): Name of first feature column. Defaults to "PC_0".
-        phate_kwargs (dict, optional): Additional arguments for PHATE.
 
     Returns:
         pd.DataFrame: DataFrame with original metadata, PHATE coordinates and cluster assignments.
     """
-    if phate_kwargs is None:
-        phate_kwargs = {}
-
     # Identify feature columns - first_feature_name and everything after it
     all_cols = aggregated_data.columns.tolist()
     feature_start_idx = all_cols.index(first_feature_name)
@@ -55,7 +53,7 @@ def phate_leiden_pipeline(
     metadata_cols = all_cols[:feature_start_idx]
 
     # Run PHATE
-    df_phate, p = run_phate(feature_selected_data, **phate_kwargs)
+    df_phate, p = run_phate(feature_selected_data)
 
     # Get weights from PHATE
     weights = np.asarray(p.graph.diff_op.todense())
@@ -69,16 +67,12 @@ def phate_leiden_pipeline(
     # Combine metadata with PHATE results
     result_df = pd.concat([aggregated_data[metadata_cols], df_phate], axis=1)
 
-    print(f"Number of clusters: {result_df['cluster'].nunique()}")
-    print(f"Average cluster size: {result_df['cluster'].value_counts().mean():.2f}")
-
     return result_df
 
 
 def run_phate(
     feature_selected_data,
     random_state=42,
-    n_jobs=4,
     knn=10,
     metric="euclidean",
     **kwargs,
@@ -91,14 +85,10 @@ def run_phate(
         Input data matrix
     random_state : int, default=42
         Random seed for reproducibility
-    n_jobs : int, default=4
-        Number of parallel jobs
     knn : int, default=10
         Number of nearest neighbors
     metric : str, default='euclidean'
         Distance metric for KNN
-    **kwargs : dict
-        Additional arguments passed to PHATE
 
     Returns:
     --------
@@ -107,7 +97,11 @@ def run_phate(
     """
     # Initialize and run PHATE
     p = phate.PHATE(
-        random_state=random_state, n_jobs=n_jobs, knn=knn, knn_dist=metric, **kwargs
+        random_state=random_state,
+        n_jobs=-1,
+        knn=knn,
+        knn_dist=metric,
+        verbose=False,
     )
 
     # Transform data

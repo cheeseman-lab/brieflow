@@ -69,7 +69,7 @@ def get_uniprot_data():
             results.append(line.split("\t"))
 
         progress += len(lines[1:] if progress == 0 else lines)
-        print(f"Progress: {progress} / {total}")
+        print(f"Progress: {progress} / {total}", end="\r")
 
         batch_url = get_next_link(response.headers)
 
@@ -120,3 +120,103 @@ def get_string_data():
     df = df[df["combined_score"] >= 950]
     print(f"Completed. Total interactions: {len(df)}")
     return df
+
+
+def select_gene_variants(benchmark_df, ref_gene_df, ref_gene_col="gene_symbol_0"):
+    """
+    Selects the appropriate gene name from variants that matches the cluster genes.
+    If no match is found, the first gene name is selected.
+    """
+    # Get all unique genes in the cluster_df
+    ref_genes = set(ref_gene_df[ref_gene_col])
+
+    # Select the appropriate gene name from variants that matches cluster genes
+    def select_gene_name(variants):
+        for gene in variants.split():
+            if gene in ref_genes:
+                return gene
+        return variants.split()[0]
+
+    # Create a copy of pathway_df and add gene_name column
+    benchmark_df = benchmark_df.copy()
+    benchmark_df["gene_name"] = benchmark_df["gene_name_variants"].apply(
+        select_gene_name
+    )
+
+    return benchmark_df
+
+
+def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
+    string_data = get_string_data()
+    uniprot_data = get_uniprot_data()
+
+    # Create mapping from STRING IDs to gene names
+    string_to_genes = {}
+    for _, row in uniprot_data.iterrows():
+        if pd.notna(row["STRING"]) and row["STRING"] != "":
+            string_id = (
+                row["STRING"].split(";")[0] if ";" in row["STRING"] else row["STRING"]
+            )
+            gene_names = row["Gene Names"]
+            if pd.notna(gene_names):
+                string_to_genes[string_id] = gene_names
+
+    # Create the benchmark dataframe
+    data = []
+    for index, row in string_data.reset_index(drop=True).iterrows():
+        protein1 = row["protein1"]
+        protein2 = row["protein2"]
+
+        # Get gene names for each protein ID
+        genes_variants_1 = string_to_genes.get(protein1, None)
+        genes_variants_2 = string_to_genes.get(protein2, None)
+
+        if genes_variants_1 is None or genes_variants_2 is None:
+            continue
+        else:
+            data.append(
+                {
+                    "gene_name_variants": genes_variants_1,
+                    "pair": index + 1,
+                }
+            )
+            data.append(
+                {
+                    "gene_name_variants": genes_variants_2,
+                    "pair": index + 1,
+                }
+            )
+
+    string_pair_benchmark = (
+        pd.DataFrame(data).sort_values("pair").reset_index(drop=True)
+    )
+    string_pair_benchmark = select_gene_variants(
+        string_pair_benchmark, aggregated_data, gene_col
+    )
+
+    return string_pair_benchmark
+
+
+def generate_corum_group_benchmark():
+    corum_data = get_corum_data()
+
+    # Create the new dataframe with columns for gene_name and complex
+    rows = []
+    group_id = 0
+
+    # Iterate through each row in corum_data
+    for idx, subunits in enumerate(corum_data["subunits_gene_name"]):
+        # Split the gene names by semicolon
+        genes = subunits.split(";")
+
+        # Add each gene to the rows list with the current group_id
+        for gene in genes:
+            rows.append({"gene_name": gene, "group": group_id})
+
+        # Increment group_id for the next complex
+        group_id += 1
+
+    # Create the DataFrame from the rows
+    corum_cluster_benchmark = pd.DataFrame(rows)
+
+    return corum_cluster_benchmark

@@ -119,14 +119,14 @@ PREPROCESS_OUTPUTS = {
 }
 
 PREPROCESS_OUTPUT_MAPPINGS = {
-    "extract_metadata_sbs": temp,
-    "combine_metadata_sbs": protected,
-    "extract_metadata_phenotype": temp,
-    "combine_metadata_phenotype": protected,
+    "extract_metadata_sbs": None,
+    "combine_metadata_sbs": None,
+    "extract_metadata_phenotype": None,
+    "combine_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,
-    "calculate_ic_sbs": protected,
-    "calculate_ic_phenotype": protected,
+    "calculate_ic_sbs": None,
+    "calculate_ic_phenotype": None,
 }
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 

@@ -1,16 +1,3 @@
-"""Module for visualizing features during clustering module processing.
-
-This module provides functions for visualization, feature ranking, and axis transformations to help
-interpret and analyze features in clustering workflows. The functions generate scatter plots, heatmaps,
-and apply transformations to better visualize complex datasets.
-
-Functions:
-    - rank_transform: Transform features in a DataFrame to their rank values.
-    - two_feature: Create a scatter plot comparing two features with optional annotations and controls.
-    - heatmap: Generate a heatmap with optional clustering and color annotations.
-    - symlog_axis: Apply a symmetrical log scale to an axis for better visualization of large dynamic ranges.
-"""
-
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt

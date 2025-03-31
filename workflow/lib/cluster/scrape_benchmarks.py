@@ -1,15 +1,3 @@
-"""Module for scraping external benchmark datasets for clustering analysis.
-
-This module contains functions to fetch data from external sources, including UniProt, CORUM,
-and STRING databases. The data retrieved is used to enhance and complement clustering results
-in the clustering module by providing information on protein functions, complexes, and interactions.
-
-Functions:
-    - get_uniprot_data: Fetch all human-reviewed UniProt data using the REST API.
-    - get_corum_data: Fetch CORUM complex data for human proteins.
-    - get_string_data: Fetch STRING interaction data for human proteins with high confidence scores.
-"""
-
 import re
 import requests
 from requests.adapters import HTTPAdapter, Retry
@@ -17,6 +5,82 @@ import io
 import gzip
 
 import pandas as pd
+
+
+def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
+    string_data = get_string_data()
+    uniprot_data = get_uniprot_data()
+
+    # Create mapping from STRING IDs to gene names
+    string_to_genes = {}
+    for _, row in uniprot_data.iterrows():
+        if pd.notna(row["STRING"]) and row["STRING"] != "":
+            string_id = (
+                row["STRING"].split(";")[0] if ";" in row["STRING"] else row["STRING"]
+            )
+            gene_names = row["Gene Names"]
+            if pd.notna(gene_names):
+                string_to_genes[string_id] = gene_names
+
+    # Create the benchmark dataframe
+    data = []
+    for index, row in string_data.reset_index(drop=True).iterrows():
+        protein1 = row["protein1"]
+        protein2 = row["protein2"]
+
+        # Get gene names for each protein ID
+        genes_variants_1 = string_to_genes.get(protein1, None)
+        genes_variants_2 = string_to_genes.get(protein2, None)
+
+        if genes_variants_1 is None or genes_variants_2 is None:
+            continue
+        else:
+            data.append(
+                {
+                    "gene_name_variants": genes_variants_1,
+                    "pair": index + 1,
+                }
+            )
+            data.append(
+                {
+                    "gene_name_variants": genes_variants_2,
+                    "pair": index + 1,
+                }
+            )
+
+    string_pair_benchmark = (
+        pd.DataFrame(data).sort_values("pair").reset_index(drop=True)
+    )
+    string_pair_benchmark = select_gene_variants(
+        string_pair_benchmark, aggregated_data, gene_col
+    )
+
+    return string_pair_benchmark
+
+
+def generate_corum_group_benchmark():
+    corum_data = get_corum_data()
+
+    # Create the new dataframe with columns for gene_name and complex
+    rows = []
+    group_id = 0
+
+    # Iterate through each row in corum_data
+    for idx, subunits in enumerate(corum_data["subunits_gene_name"]):
+        # Split the gene names by semicolon
+        genes = subunits.split(";")
+
+        # Add each gene to the rows list with the current group_id
+        for gene in genes:
+            rows.append({"gene_name": gene, "group": group_id})
+
+        # Increment group_id for the next complex
+        group_id += 1
+
+    # Create the DataFrame from the rows
+    corum_cluster_benchmark = pd.DataFrame(rows)
+
+    return corum_cluster_benchmark
 
 
 def get_uniprot_data():
@@ -144,79 +208,3 @@ def select_gene_variants(benchmark_df, ref_gene_df, ref_gene_col="gene_symbol_0"
     )
 
     return benchmark_df
-
-
-def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
-    string_data = get_string_data()
-    uniprot_data = get_uniprot_data()
-
-    # Create mapping from STRING IDs to gene names
-    string_to_genes = {}
-    for _, row in uniprot_data.iterrows():
-        if pd.notna(row["STRING"]) and row["STRING"] != "":
-            string_id = (
-                row["STRING"].split(";")[0] if ";" in row["STRING"] else row["STRING"]
-            )
-            gene_names = row["Gene Names"]
-            if pd.notna(gene_names):
-                string_to_genes[string_id] = gene_names
-
-    # Create the benchmark dataframe
-    data = []
-    for index, row in string_data.reset_index(drop=True).iterrows():
-        protein1 = row["protein1"]
-        protein2 = row["protein2"]
-
-        # Get gene names for each protein ID
-        genes_variants_1 = string_to_genes.get(protein1, None)
-        genes_variants_2 = string_to_genes.get(protein2, None)
-
-        if genes_variants_1 is None or genes_variants_2 is None:
-            continue
-        else:
-            data.append(
-                {
-                    "gene_name_variants": genes_variants_1,
-                    "pair": index + 1,
-                }
-            )
-            data.append(
-                {
-                    "gene_name_variants": genes_variants_2,
-                    "pair": index + 1,
-                }
-            )
-
-    string_pair_benchmark = (
-        pd.DataFrame(data).sort_values("pair").reset_index(drop=True)
-    )
-    string_pair_benchmark = select_gene_variants(
-        string_pair_benchmark, aggregated_data, gene_col
-    )
-
-    return string_pair_benchmark
-
-
-def generate_corum_group_benchmark():
-    corum_data = get_corum_data()
-
-    # Create the new dataframe with columns for gene_name and complex
-    rows = []
-    group_id = 0
-
-    # Iterate through each row in corum_data
-    for idx, subunits in enumerate(corum_data["subunits_gene_name"]):
-        # Split the gene names by semicolon
-        genes = subunits.split(";")
-
-        # Add each gene to the rows list with the current group_id
-        for gene in genes:
-            rows.append({"gene_name": gene, "group": group_id})
-
-        # Increment group_id for the next complex
-        group_id += 1
-
-    # Create the DataFrame from the rows
-    corum_cluster_benchmark = pd.DataFrame(rows)
-
-    return corum_cluster_benchmark

@@ -1,10 +1,12 @@
 import pandas as pd
 
+from lib.shared.file_utils import validate_dtypes
+
 # Load deduplicated merge data
-merge_deduplicated = pd.read_parquet(snakemake.input[0])
+merge_deduplicated = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 
 # Load full feature data
-cp_phenotype = pd.read_parquet(snakemake.input[1])
+cp_phenotype = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 
 # Merge full CP data on deduplicated
 merged_final = merge_deduplicated.merge(

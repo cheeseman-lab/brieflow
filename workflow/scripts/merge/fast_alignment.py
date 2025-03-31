@@ -1,11 +1,12 @@
 import pandas as pd
 
+from lib.shared.file_utils import validate_dtypes
 from lib.merge.hash import hash_cell_locations, multistep_alignment, extract_rotation
 
 
 # Load dfs with metadata on well level
-phenotype_metadata = pd.read_parquet(snakemake.input[0])
-sbs_metadata = pd.read_parquet(snakemake.input[1])
+phenotype_metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
+sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 
 # Apply metadata filters if they exist
 phenotype_filters = snakemake.params.get("phenotype_metadata_filters", None)
@@ -20,8 +21,8 @@ if sbs_filters is not None:
         sbs_metadata = sbs_metadata[sbs_metadata[filter_key] == filter_value]
 
 # Load phentoype/sbs info on well level
-phenotype_info = pd.read_parquet(snakemake.input[2])
-sbs_info = pd.read_parquet(snakemake.input[3])
+phenotype_info = validate_dtypes(pd.read_parquet(snakemake.input[2]))
+sbs_info = validate_dtypes(pd.read_parquet(snakemake.input[3]))
 
 # Derive fast alignment per well
 

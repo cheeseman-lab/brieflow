@@ -4,6 +4,8 @@ from pathlib import Path
 
 from pyarrow.parquet import ParquetFile
 import pyarrow as pa
+import pandas as pd
+import numpy as np
 
 # Mapping of metadata keys to filename prefixes and data types
 FILENAME_METADATA_MAPPING = {
@@ -108,5 +110,44 @@ def load_parquet_subset(full_df_fp, n_rows=50000):
     df = ParquetFile(full_df_fp)
     row_subset = next(df.iter_batches(batch_size=n_rows))
     df = pa.Table.from_batches([row_subset]).to_pandas()
+
+    return df
+
+
+def validate_dtypes(df):
+    """Convert DataFrame columns to the most specific data type possible with the following rules.
+
+    - Convert strings to int if possible, or float if necessary
+    - Convert floats to int if possible
+
+    Args:
+    df : pandas.DataFrame
+        The DataFrame to optimize
+
+    Returns:
+    pandas.DataFrame
+        A new DataFrame with optimized dtypes
+    """
+    for col in df.columns:
+        # Skip columns that are already int64
+        if pd.api.types.is_integer_dtype(df[col]):
+            continue
+
+        # Attempt to convert strings to float
+        if pd.api.types.is_string_dtype(df[col]):
+            try:
+                df[col] = df[col].astype("Float64")
+            except ValueError:
+                pass
+
+        # Convert float to int if possible
+        if pd.api.types.is_float_dtype(df[col]):
+            col_subset = (
+                df[col]
+                .dropna()
+                .sample(min(10000, df[col].notna().sum()), random_state=42)
+            )
+            if np.array_equal(col_subset, col_subset.astype(int)):
+                df[col] = df[col].astype("Int64")
 
     return df

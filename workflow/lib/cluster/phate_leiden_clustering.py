@@ -1,24 +1,3 @@
-"""Module for PHATE and Leiden clustering pipeline.
-
-This module contains functions used to perform dimensionality reduction, clustering,
-and data integration for the PHATE and Leiden clustering pipeline within the cluster
-processing workflow. The main tasks include feature selection, normalization, PCA
-analysis, PHATE dimensionality reduction, Leiden clustering, visualization, and
-merging of clustering results with external data.
-
-Functions:
-    - select_features: Select features based on correlation, variance, and unique values.
-    - normalize_to_controls: Normalize data using StandardScaler fit to control samples.
-    - perform_pca_analysis: Perform PCA analysis and generate an explained variance plot.
-    - phate_leiden_pipeline: Execute the full PHATE and Leiden clustering pipeline.
-    - run_phate: Apply PHATE dimensionality reduction to the input data.
-    - run_leiden_clustering: Run Leiden clustering on a weighted adjacency matrix.
-    - dimensionality_reduction: Create a scatter plot for dimensionality reduction results.
-    - merge_phate_uniprot: Merge PHATE clustering results with UniProt data.
-"""
-
-import random
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt

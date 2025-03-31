@@ -1,14 +1,3 @@
-"""Module for evaluating the clustering module.
-
-This module provides functions for analyzing and visualizing clustering metrics and cell distributions.
-It helps evaluate the quality of clustering by aggregating global metrics and plotting distributions
-of cell counts to identify outliers or thresholds for filtering.
-
-Functions:
-    - plot_cell_histogram: Plot a histogram of cell numbers with a cutoff line and return genes below the cutoff.
-    - aggregate_global_metrics: Aggregate global metrics from multiple TSV files into a unified DataFrame.
-"""
-
 from pathlib import Path
 
 import pandas as pd

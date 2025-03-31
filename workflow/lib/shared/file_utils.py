@@ -117,7 +117,6 @@ def validate_dtypes(df):
         if pd.api.types.is_string_dtype(df[col]):
             try:
                 df[col] = df[col].astype("Float64")
-                print(f"Converting {col} from str to float")
             except ValueError:
                 pass
 
@@ -129,7 +128,6 @@ def validate_dtypes(df):
                 .sample(min(10000, df[col].notna().sum()), random_state=42)
             )
             if np.array_equal(col_subset, col_subset.astype(int)):
-                print(f"Converting {col} from float to int")
                 df[col] = df[col].astype("Int64")
 
     return df

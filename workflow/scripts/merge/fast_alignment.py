@@ -14,6 +14,9 @@ if phenotype_filters is not None:
         phenotype_metadata = phenotype_metadata[
             phenotype_metadata[filter_key] == filter_value
         ]
+else:
+    phenotype_metadata = phenotype_metadata.groupby(['plate', 'well', 'tile']).first().reset_index()
+
 sbs_filters = snakemake.params.get("sbs_metadata_filters", None)
 if sbs_filters is not None:
     for filter_key, filter_value in sbs_filters.items():

@@ -82,19 +82,19 @@ if plate_filter is not None:
 
 # TODO: restrict wells and tiles for testing
 # TODO: unrestrict wells and tiles after testing
-sbs_wildcard_combos = sbs_wildcard_combos[
-    ((sbs_wildcard_combos["plate"] == "3") & (sbs_wildcard_combos["well"] == "A1"))
-]
-sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["tile"].isin(["1", "2"])]
-phenotype_wildcard_combos = phenotype_wildcard_combos[
-    (
-        (phenotype_wildcard_combos["plate"] == "3")
-        & (phenotype_wildcard_combos["well"] == "A1")
-    )
-]
-phenotype_wildcard_combos = phenotype_wildcard_combos[
-    phenotype_wildcard_combos["tile"].isin(["1", "2"])
-]
+# sbs_wildcard_combos = sbs_wildcard_combos[
+#     ((sbs_wildcard_combos["plate"] == "1") & (sbs_wildcard_combos["well"] == "A1"))
+# ]
+# sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["tile"].isin(["1", "2"])]
+# phenotype_wildcard_combos = phenotype_wildcard_combos[
+#     (
+#         (phenotype_wildcard_combos["plate"] == "1")
+#         & (phenotype_wildcard_combos["well"] == "A1")
+#     )
+# ]
+# phenotype_wildcard_combos = phenotype_wildcard_combos[
+#     phenotype_wildcard_combos["tile"].isin(["1", "2"])
+# ]
 
 
 include: "targets/preprocess.smk"
@@ -132,9 +132,6 @@ if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
 if "merge" in config:
     MERGE_COMBO_FP = Path(config["merge"]["merge_combo_fp"])
     merge_wildcard_combos = pd.read_csv(MERGE_COMBO_FP, sep="\t")
-    merge_wildcard_combos = merge_wildcard_combos[
-        ((merge_wildcard_combos["plate"] == 3))
-    ]
 
     # Include target and rule files
     include: "targets/merge.smk"
@@ -159,9 +156,3 @@ if "cluster" in config:
     include: "rules/cluster.smk"
 
     ALL_TARGETS += CLUSTER_TARGETS_ALL
-
-
-# Define the target files for the workflow
-rule all:
-    input:
-        ALL_TARGETS,

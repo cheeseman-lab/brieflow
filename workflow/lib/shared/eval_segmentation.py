@@ -88,6 +88,20 @@ def plot_cell_density_heatmap(df_cells, shape="square", plate="6W", **kwargs):
         df_cells.groupby(["well", "tile"]).size().reset_index(name="cell count")
     )
 
+    # Ensure all wells and tiles are represented
+    max_tile = df_summary["tile"].max()
+    all_tiles = pd.DataFrame(
+        [(w, t) for w in df_summary["well"].unique() for t in range(max_tile + 1)],
+        columns=["well", "tile"],
+    )
+
+    # Merge and sort
+    df_summary = (
+        all_tiles.merge(df_summary, on=["well", "tile"], how="left")
+        .fillna({"cell count": 0})
+        .sort_values(["well", "tile"])
+    )
+
     # Plot heatmap
     fig, _ = plot_plate_heatmap(
         df_summary, metric="cell count", shape=shape, plate=plate, **kwargs

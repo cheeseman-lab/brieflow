@@ -187,11 +187,11 @@ SBS_OUTPUT_MAPPINGS = {
     "call_reads": temp,
     "call_cells": temp,
     "extract_sbs_info": temp,
-    "combine_reads": protected,
-    "combine_cells": protected,
-    "combine_sbs_info": protected,
-    "eval_segmentation_sbs": protected,
-    "eval_mapping": protected,
+    "combine_reads": None,
+    "combine_cells": None,
+    "combine_sbs_info": None,
+    "eval_segmentation_sbs": None,
+    "eval_mapping": None,
 }
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup

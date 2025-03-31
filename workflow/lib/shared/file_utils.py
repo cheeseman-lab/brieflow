@@ -3,6 +3,9 @@
 import logging
 from pathlib import Path
 
+import pandas as pd
+import numpy as np
+
 log = logging.getLogger(__name__)
 
 # Mapping of metadata keys to filename prefixes and data types
@@ -89,3 +92,44 @@ def parse_filename(file_path: str) -> tuple:
         info_type = parts[0]
 
     return metadata, info_type, file_type
+
+
+def validate_dtypes(df):
+    """Convert DataFrame columns to the most specific data type possible with the following rules.
+
+    - Convert strings to int if possible, or float if necessary
+    - Convert floats to int if possible
+
+    Args:
+    df : pandas.DataFrame
+        The DataFrame to optimize
+
+    Returns:
+    pandas.DataFrame
+        A new DataFrame with optimized dtypes
+    """
+    for col in df.columns:
+        # Skip columns that are already int64
+        if pd.api.types.is_integer_dtype(df[col]):
+            continue
+
+        # Attempt to convert strings to float
+        if pd.api.types.is_string_dtype(df[col]):
+            try:
+                df[col] = df[col].astype("Float64")
+                print(f"Converting {col} from str to float")
+            except ValueError:
+                pass
+
+        # Convert float to int if possible
+        if pd.api.types.is_float_dtype(df[col]):
+            col_subset = (
+                df[col]
+                .dropna()
+                .sample(min(10000, df[col].notna().sum()), random_state=42)
+            )
+            if np.array_equal(col_subset, col_subset.astype(int)):
+                print(f"Converting {col} from float to int")
+                df[col] = df[col].astype("Int64")
+
+    return df

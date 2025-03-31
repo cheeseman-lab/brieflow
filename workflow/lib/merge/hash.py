@@ -214,8 +214,6 @@ def initial_alignment(well_triangles_0, well_triangles_1, initial_sites=8):
         return result
 
     arr = []
-    well_triangles_0["tile"] = well_triangles_0["tile"].astype(int)
-    well_triangles_1["site"] = well_triangles_1["site"].astype(int)
     for tile, site in initial_sites:
         result = work_on(
             well_triangles_0.query("tile==@tile"), well_triangles_1.query("site==@site")
@@ -391,8 +389,6 @@ def multistep_alignment(
 
     # use initial_sites directly to determine initial matches
     arr = []
-    well_triangles_0["tile"] = well_triangles_0["tile"].astype(int)
-    well_triangles_1["site"] = well_triangles_1["site"].astype(int)
     for tile, site in initial_sites:
         result = work_on(
             well_triangles_0.query("tile==@tile"),

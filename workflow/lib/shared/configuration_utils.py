@@ -316,9 +316,7 @@ def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 10))
 
     # Filter for specific tile and site
-    df_ph["tile"] = df_ph["tile"].astype(int)
     df_ph_filtered = df_ph[df_ph["tile"] == alignment_vec["tile"]]
-    df_sbs["tile"] = df_sbs["tile"].astype(int)
     df_sbs_filtered = df_sbs[df_sbs["tile"] == alignment_vec["site"]]
 
     # Get coordinates

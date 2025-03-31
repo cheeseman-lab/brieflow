@@ -49,7 +49,7 @@ MERGE_OUTPUTS = {
     ],
     "clean_merge": [
         MERGE_FP
-        / "parquets"
+        / "eval"
         / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "channel_min_histogram", "png"
         ),

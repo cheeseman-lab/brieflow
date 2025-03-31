@@ -1,18 +1,27 @@
 import pandas as pd
 
+from lib.shared.file_utils import validate_dtypes
 from lib.merge.format_merge import identify_single_gene_mappings
 from lib.merge.eval_merge import plot_sbs_ph_matching_heatmap, plot_cell_positions
 
 # Load data for evaluating merge
-merge_formatted = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input.format_merge_paths], ignore_index=True
+merge_formatted = validate_dtypes(
+    pd.concat(
+        [pd.read_parquet(p) for p in snakemake.input.format_merge_paths],
+        ignore_index=True,
+    )
 )
-sbs_cells = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input.combine_cells_paths], ignore_index=True
+sbs_cells = validate_dtypes(
+    pd.concat(
+        [pd.read_parquet(p) for p in snakemake.input.combine_cells_paths],
+        ignore_index=True,
+    )
 )
-phenotype_min_cp = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input.min_phenotype_cp_paths],
-    ignore_index=True,
+phenotype_min_cp = validate_dtypes(
+    pd.concat(
+        [pd.read_parquet(p) for p in snakemake.input.min_phenotype_cp_paths],
+        ignore_index=True,
+    )
 )
 
 # Identify single gene mappings in SBS

@@ -75,6 +75,31 @@ def plot_cell_histogram(
     return fig
 
 
+def plot_cluster_sizes(phate_leiden_clustering):
+    """Creates a histogram of cluster sizes from clustering data.
+
+    Args:
+        phate_leiden_clustering: DataFrame containing a 'cluster' column with cluster IDs.
+
+    Returns:
+        matplotlib.figure.Figure: Figure object that can be saved with .savefig()
+    """
+    fig = plt.figure(figsize=(10, 6))
+
+    # Create histogram with bin count equal to max cluster number
+    max_cluster = phate_leiden_clustering["cluster"].max()
+    sns.histplot(
+        data=phate_leiden_clustering, x="cluster", bins=max_cluster, discrete=True
+    )
+
+    # Labels
+    plt.title("Cluster Sizes")
+    plt.xlabel("Cluster Number")
+    plt.ylabel("Cluster Size")
+
+    return fig
+
+
 def aggregate_global_metrics(global_metrics_files: list) -> pd.DataFrame:
     """Aggregate global metrics from multiple files into a unified DataFrame.
 

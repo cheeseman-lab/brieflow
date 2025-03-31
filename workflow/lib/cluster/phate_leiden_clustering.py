@@ -67,6 +67,12 @@ def phate_leiden_pipeline(
     # Combine metadata with PHATE results
     result_df = pd.concat([aggregated_data[metadata_cols], df_phate], axis=1)
 
+    # sort by cluster
+    result_df = result_df.sort_values(by=["cluster"])
+
+    # Reset index
+    result_df = result_df.reset_index(drop=True)
+
     return result_df
 
 

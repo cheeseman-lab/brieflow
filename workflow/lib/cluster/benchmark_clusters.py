@@ -17,9 +17,14 @@ import numpy as np
 from scipy.stats import ttest_ind, fisher_exact
 from statsmodels.stats.multitest import multipletests
 
+from lib.cluster.phate_leiden_clustering import (
+    phate_leiden_pipeline,
+    plot_phate_leiden_clusters,
+)
+
 
 def calculate_pair_recall(
-    pair_benchmark, phate_leiden_clustering, pertubration_col_name
+    pair_benchmark, phate_leiden_clustering, perturbation_col_name="gene_symbol_0"
 ):
     # 1. Convert the string pairs DataFrame to a set of positive pairs
     positive_pairs = set()
@@ -38,7 +43,7 @@ def calculate_pair_recall(
     # Create a dictionary mapping genes to their cluster
     gene_to_cluster = dict(
         zip(
-            phate_leiden_clustering["gene_symbol_0"],  # Using the correct column name
+            phate_leiden_clustering[perturbation_col_name],
             phate_leiden_clustering["cluster"],
         )
     )
@@ -76,7 +81,7 @@ import seaborn as sns
 
 
 def perform_resolution_thresholding(
-    aggregated_data, shuffled_aggregated_data, leiden_resolutions
+    aggregated_data, shuffled_aggregated_data, leiden_resolutions, pair_benchmark
 ):
     # perform phate leiden clustering for each resolution
     results = []
@@ -94,11 +99,9 @@ def perform_resolution_thresholding(
         statistics = {
             "resolution": resolution,
             "num_clusters": phate_leiden_clustering["cluster"].nunique(),
-            "recall": calculate_pair_recall(
-                string_pair_benchmark, phate_leiden_clustering
-            ),
+            "recall": calculate_pair_recall(pair_benchmark, phate_leiden_clustering),
             "recall_shuffled": calculate_pair_recall(
-                string_pair_benchmark, phate_leiden_clustering_shuffled
+                pair_benchmark, phate_leiden_clustering_shuffled
             ),
         }
 
@@ -117,7 +120,7 @@ def perform_resolution_thresholding(
         x="resolution",
         y="recall",
         marker="o",
-        label="Real Recall",
+        label="Real Data Recall",
         ax=ax1,
     )
     sns.lineplot(
@@ -125,7 +128,7 @@ def perform_resolution_thresholding(
         x="resolution",
         y="recall_shuffled",
         marker="s",
-        label="Shuffled Recall",
+        label="Shuffled Data Recall",
         ax=ax1,
     )
     ax1.set_title("Recall vs Resolution")

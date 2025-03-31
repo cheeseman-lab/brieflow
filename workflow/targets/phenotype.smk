@@ -122,13 +122,13 @@ PHENOTYPE_OUTPUTS = {
 }
 
 PHENOTYPE_OUTPUT_MAPPINGS = {
-    "apply_ic_field_phenotype": None,
+    "apply_ic_field_phenotype": temp,
     "align_phenotype": None,
     "segment_phenotype": None,
-    "identify_cytoplasm": None,
-    "extract_phenotype_info": None,
+    "identify_cytoplasm": temp,
+    "extract_phenotype_info": temp,
     "merge_phenotype_info": None,
-    "extract_phenotype_cp": None,
+    "extract_phenotype_cp": temp,
     "merge_phenotype_cp": None,
     "eval_segmentation_phenotype": None,
     "eval_features": None,

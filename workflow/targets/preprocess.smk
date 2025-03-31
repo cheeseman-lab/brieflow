@@ -119,9 +119,9 @@ PREPROCESS_OUTPUTS = {
 }
 
 PREPROCESS_OUTPUT_MAPPINGS = {
-    "extract_metadata_sbs": None,
+    "extract_metadata_sbs": temp,
     "combine_metadata_sbs": None,
-    "extract_metadata_phenotype": None,
+    "extract_metadata_phenotype": temp,
     "combine_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,

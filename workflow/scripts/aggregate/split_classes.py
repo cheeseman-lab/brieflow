@@ -9,8 +9,10 @@ import numpy as np
 classifier = CellClassifier.load(snakemake.params.classifier_path)
 
 # Load merge data using PyArrow dataset
-cell_data = ds.dataset(snakemake.input.merge_data_paths, format="parquet")
+print("Loading cell data")
+cell_data = ds.dataset(snakemake.input[0], format="parquet")
 cell_data = cell_data.to_table(use_threads=True, memory_pool=None).to_pandas()
+print("Loaded cell data")
 
 if snakemake.params.cell_class == "all":
     cell_data.to_parquet(snakemake.output[0], index=False)

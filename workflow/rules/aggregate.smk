@@ -5,13 +5,7 @@ from lib.shared.target_utils import output_to_input, get_montage_inputs
 rule split_classes:
     input:
         # final merge data
-        merge_data_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["final_merge"],
-            wildcards={},
-            expansion_values=["plate", "well"],
-            metadata_combos=merge_wildcard_combos,
-            ancient_output=True,
-        ),
+        ancient(MERGE_OUTPUTS["final_merge"]),
     output:
         AGGREGATE_OUTPUTS_MAPPED["split_classes"],
     params:
@@ -22,11 +16,11 @@ rule split_classes:
         "../scripts/aggregate/split_classes.py"
 
 
-rule filter_align_aggregate:
+rule filter:
     input:
         AGGREGATE_OUTPUTS_MAPPED["split_classes"],
     output:
-        AGGREGATE_OUTPUTS_MAPPED["filter_align_aggregate"],
+        AGGREGATE_OUTPUTS_MAPPED["filter"],
     params:
         first_feature=config["aggregate"]["first_feature"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
@@ -37,20 +31,54 @@ rule filter_align_aggregate:
         impute=config["aggregate"]["impute"],
         channel_names=config["phenotype"]["channel_names"],
         contamination=config["aggregate"]["contamination"],
+    script:
+        "../scripts/aggregate/filter.py"
+
+
+rule align:
+    input:
+        filtered_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS_MAPPED["filter"],
+            wildcards={"cell_class": wildcards.cell_class},
+            expansion_values=["plate", "well"],
+            metadata_combos=aggregate_wildcard_combos,
+        ),
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["align"],
+    params:
+        first_feature=config["aggregate"]["first_feature"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         batch_cols=config["aggregate"]["batch_cols"],
         pc_count=config["aggregate"]["pc_count"],
         control_key=config["aggregate"]["control_key"],
+    script:
+        "../scripts/aggregate/align.py"
+
+
+rule aggregate:
+    input:
+        AGGREGATE_OUTPUTS_MAPPED["align"],
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["aggregate"],
+    params:
+        first_feature=config["aggregate"]["first_feature"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         agg_method=config["aggregate"]["agg_method"],
     script:
-        "../scripts/aggregate/filter_align_aggregate.py"
+        "../scripts/aggregate/aggregate.py"
 
 
 rule eval_aggregate:
     input:
-        # class merge data
-        AGGREGATE_OUTPUTS_MAPPED["split_classes"],
         # aggregated gene data
-        AGGREGATE_OUTPUTS_MAPPED["filter_align_aggregate"][2],
+        AGGREGATE_OUTPUTS_MAPPED["aggregate"],
+        # class merge data
+        split_classes_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS_MAPPED["split_classes"],
+            wildcards={"cell_class": wildcards.cell_class},
+            expansion_values=["plate", "well"],
+            metadata_combos=aggregate_wildcard_combos,
+        ),
     output:
         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
     script:

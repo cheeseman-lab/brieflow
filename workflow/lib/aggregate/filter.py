@@ -10,7 +10,6 @@ Functions:
 import pandas as pd
 import numpy as np
 from sklearn.impute import KNNImputer
-from sklearn.model_selection import train_test_split
 from sklearn.neighbors import LocalOutlierFactor
 
 
@@ -32,26 +31,22 @@ def perturbation_filter(
         pd.DataFrame: Cleaned dataframe.
     """
     # Remove cells without perturbation assignments
-    clean_cell_data = cell_data[cell_data[perturbation_name_col].notna()].copy()
-    print(f"Found {len(clean_cell_data)} cells with assigned perturbations")
+    cell_data = cell_data[cell_data[perturbation_name_col].notna()]
+    print(f"Found {len(cell_data)} cells with assigned perturbations")
 
     if filter_single_pert:
         # Filter for single-gene cells if requested
-        clean_cell_data = clean_cell_data[
-            clean_cell_data[perturbation_multi_col] == True
-        ]
-        print(f"Kept {len(clean_cell_data)} cells with single gene assignments")
+        cell_data = cell_data[cell_data[perturbation_multi_col] == True]
+        print(f"Kept {len(cell_data)} cells with single gene assignments")
     else:
         # Warn about multi-gene cells if not filtering
-        multi_pert_cells = len(
-            clean_cell_data[clean_cell_data[perturbation_multi_col] == False]
-        )
+        multi_pert_cells = len(cell_data[cell_data[perturbation_multi_col] == False])
         if multi_pert_cells > 0:
             print(
                 f"WARNING: {multi_pert_cells} cells have multiple perturbation assignments"
             )
 
-    return clean_cell_data.reset_index(drop=True)
+    return cell_data.reset_index(drop=True)
 
 
 def missing_values_filter(
@@ -60,7 +55,6 @@ def missing_values_filter(
     drop_cols_threshold=None,
     drop_rows_threshold=None,
     impute=False,
-    perturbation_name_col=None,
     batch_size=1000,
     sample_size=10000,
 ):
@@ -74,7 +68,6 @@ def missing_values_filter(
         drop_rows_threshold (float, optional): If provided, drops rows with NaN proportion >= threshold.
                                               Range: 0.0-1.0. Defaults to None.
         impute (bool): Whether to impute remaining missing values after dropping. Defaults to False.
-        perturbation_name_col (str): Column name for stratification during imputation sampling.
         batch_size (int): Number of NA rows to process in each batch. Defaults to 1000.
         sample_size (int): Number of non-NA rows to sample for each batch. Defaults to 10000.
 

@@ -20,7 +20,7 @@ def calculate_pair_recall(
         cluster_df = phate_leiden_clustering
 
     cluster_genes_in_group = len(
-        set(pair_benchmark["gene_name"]) & set(cluster_df["gene_name"])
+        set(pair_benchmark["gene_name"]) & set(cluster_df[perturbation_col_name])
     )
     print(f"Number of cluster genes found in group dataset: {cluster_genes_in_group}")
 

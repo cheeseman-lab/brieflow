@@ -1,7 +1,6 @@
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
-
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
 PREPROCESS_OUTPUTS = {
@@ -13,7 +12,7 @@ PREPROCESS_OUTPUTS = {
             {
                 "plate": "{plate}",
                 "well": "{well}",
-                "tile": "{tile}",
+                "channel": "{channel}",
                 "cycle": "{cycle}",
             },
             "metadata",
@@ -41,7 +40,7 @@ PREPROCESS_OUTPUTS = {
             {
                 "plate": "{plate}",
                 "well": "{well}",
-                "tile": "{tile}",
+                "channel": "{channel}",
             },
             "metadata",
             "tsv",
@@ -119,9 +118,9 @@ PREPROCESS_OUTPUTS = {
 }
 
 PREPROCESS_OUTPUT_MAPPINGS = {
-    "extract_metadata_sbs": temp,
+    "extract_metadata_sbs": None,
     "combine_metadata_sbs": None,
-    "extract_metadata_phenotype": temp,
+    "extract_metadata_phenotype": None,
     "combine_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,

@@ -11,8 +11,9 @@ print(f"Shape of input data: {cell_data.shape}")
 
 # Split aligned data into features and metadata
 feature_start_idx = cell_data.columns.get_loc("PC_0")
-metadata = cell_data.iloc[:, :feature_start_idx].copy()
-tvn_normalized = cell_data.iloc[:, feature_start_idx:].to_numpy()
+metadata = cell_data.iloc[:, :feature_start_idx]
+tvn_normalized = cell_data.iloc[:, feature_start_idx:].values
+del cell_data
 
 # Aggregate
 aggregated_embeddings, aggregated_metadata = aggregate(

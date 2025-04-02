@@ -75,11 +75,11 @@ aggregate_wildcard_combos = merge_wildcard_combos.loc[
     merge_wildcard_combos.index.repeat(len(cell_classes))
 ].reset_index(drop=True)
 aggregate_wildcard_combos["cell_class"] = cell_classes * len(merge_wildcard_combos)
-# aggregate_wildcard_combos = aggregate_wildcard_combos[
-#     (aggregate_wildcard_combos["plate"].isin([1, 2]))
-#     & (aggregate_wildcard_combos["well"].isin(["A1", "A2"]))
-#     & (aggregate_wildcard_combos["cell_class"].isin(["mitotic", "interphase"]))
-# ]
+aggregate_wildcard_combos = aggregate_wildcard_combos[
+    # (aggregate_wildcard_combos["plate"].isin([1, 2]))
+    # & (aggregate_wildcard_combos["well"].isin(["A1", "A2"]))
+    (aggregate_wildcard_combos["cell_class"].isin(["all"]))
+]
 
 AGGREGATE_TARGETS = outputs_to_targets(
     AGGREGATE_OUTPUTS, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS

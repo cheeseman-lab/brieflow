@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, IncrementalPCA
 from scipy import linalg
 
 
@@ -24,11 +24,11 @@ def prepare_alignment_data(cell_data, batch_cols, first_feature):
 
     # Add batch values to metadata
     feature_start_idx = cell_data.columns.get_loc(first_feature)
-    metadata = cell_data.iloc[:, :feature_start_idx].copy()
+    metadata = cell_data.iloc[:, :feature_start_idx]
     metadata["batch_values"] = batch_values
 
     # Extract feature data
-    features = cell_data.iloc[:, feature_start_idx:].copy()
+    features = cell_data.iloc[:, feature_start_idx:]
 
     return features, metadata
 
@@ -119,9 +119,10 @@ def embed_by_pca(
     Returns:
         np.ndarray: Transformed data using PCA.
     """
-    features = features.copy()
     features = centerscale_by_batch(features, metadata, batch_col)
-    features = PCA(variance_or_ncomp).fit_transform(features)
+    features = IncrementalPCA(
+        n_components=variance_or_ncomp, batch_size=5000
+    ).fit_transform(features)
     return features
 
 
@@ -147,10 +148,9 @@ def tvn_on_controls(
     Returns:
         np.ndarray: The normalized embeddings.
     """
-    embeddings = embeddings.copy()
     embeddings = centerscale_on_controls(embeddings, metadata, pert_col, control_key)
     ctrl_ind = metadata[pert_col] == control_key
-    embeddings = PCA().fit(embeddings[ctrl_ind]).transform(embeddings)
+    embeddings = IncrementalPCA().fit(embeddings[ctrl_ind]).transform(embeddings)
     embeddings = centerscale_on_controls(
         embeddings, metadata, pert_col, control_key, batch_col
     )
@@ -189,7 +189,6 @@ def centerscale_by_batch(
     Returns:
         np.ndarray: Centered and scaled features.
     """
-    features = features.copy()
     if batch_col is None:
         features = StandardScaler().fit_transform(features)
     else:
@@ -223,7 +222,6 @@ def centerscale_on_controls(
     Returns:
         numpy.ndarray: The aligned embeddings.
     """
-    embeddings = embeddings.copy()
     if batch_col is not None:
         batches = metadata[batch_col].unique()
         for batch in batches:

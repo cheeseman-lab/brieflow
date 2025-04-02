@@ -52,33 +52,18 @@ def plot_mapping_vs_threshold(
         (df_all, ax1, "All Reads"),
         (df_cells, ax2, "Cell-Associated Reads Only"),
     ]:
-        # Define thresholds
-        if num_thresholds is not None:
-            # User specified the number of thresholds - use evenly spaced points
-            max_threshold = np.quantile(df[threshold_var], q=0.99)
-            if df_reads[threshold_var].max() < 100:
-                # For smaller values, use linear spacing
-                thresholds = np.linspace(0, max_threshold, num_thresholds)
-            else:
-                # For larger values, use integer steps appropriate for the range
-                step_size = max(1, int(max_threshold / num_thresholds))
-                thresholds = np.arange(0, max_threshold + step_size, step_size)
-                # Limit to num_thresholds points if needed
-                if len(thresholds) > num_thresholds:
-                    thresholds = thresholds[:num_thresholds]
+        if df_reads[threshold_var].max() < 100:
+            thresholds = (
+                np.array(range(0, int(np.quantile(df[threshold_var], q=0.99) * 1000)))
+                / 1000
+            )
         else:
-            # Use original threshold generation logic
-            if df_reads[threshold_var].max() < 100:
-                thresholds = (
-                    np.array(
-                        range(0, int(np.quantile(df[threshold_var], q=0.99) * 1000))
-                    )
-                    / 1000
-                )
-            else:
-                thresholds = list(
-                    range(0, int(np.quantile(df[threshold_var], q=0.99)), 10)
-                )
+            thresholds = list(range(0, int(np.quantile(df[threshold_var], q=0.99)), 10))
+
+        if num_thresholds is not None:
+            # Choose evenly spaced indices from the existing thresholds
+            indices = np.linspace(0, len(thresholds) - 1, num_thresholds, dtype=int)
+            thresholds = [thresholds[i] for i in indices]
 
         # Calculate metrics
         mapping_rate = []

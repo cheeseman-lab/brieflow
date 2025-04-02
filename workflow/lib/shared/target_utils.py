@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pandas as pd
-from snakemake.io import expand, ancient
+from snakemake.io import expand, ancient, temp
 
 from lib.shared.file_utils import parse_filename
 
@@ -61,7 +61,7 @@ def outputs_to_targets(module_outputs, wildcards_df, module_target_mappings):
 
     # Process each rule's outputs
     for rule_name, rule_outputs in module_outputs.items():
-        if module_target_mappings[rule_name] == "temp":
+        if module_target_mappings[rule_name] == temp:
             continue
 
         for output in rule_outputs:

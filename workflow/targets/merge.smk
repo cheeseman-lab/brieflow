@@ -93,9 +93,9 @@ MERGE_OUTPUTS = {
 }
 
 MERGE_OUTPUT_MAPPINGS = {
-    "fast_alignment": temp,
-    "merge": temp,
-    "format_merge": temp,
+    "fast_alignment": None,
+    "merge": None,
+    "format_merge": None,
     "eval_merge": None,
     "clean_merge": None,
     "deduplicate_merge": None,

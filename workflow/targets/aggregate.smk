@@ -118,7 +118,8 @@ MONTAGE_OUTPUTS = {
     / "interphase_montages_complete.flag",
 }
 
-AGGREGATE_TARGETS_ALL = AGGREGATE_TARGETS + [
-    MONTAGE_OUTPUTS["mitotic_montage_flag"],
-    MONTAGE_OUTPUTS["interphase_montage_flag"],
-]
+# AGGREGATE_TARGETS_ALL = AGGREGATE_TARGETS + [
+#     MONTAGE_OUTPUTS["mitotic_montage_flag"],
+#     MONTAGE_OUTPUTS["interphase_montage_flag"],
+# ]
+AGGREGATE_TARGETS_ALL = AGGREGATE_TARGETS

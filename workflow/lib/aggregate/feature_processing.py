@@ -92,10 +92,6 @@ def grouped_standardization(
     Returns:
         pd.DataFrame: Standardized dataframe.
     """
-    cell_data_out = cell_data.copy().drop_duplicates(
-        subset=group_columns + index_columns
-    )
-
     if target_features is None:
         target_features = [
             col
@@ -130,17 +126,13 @@ def grouped_standardization(
     )
 
     # Standardize using robust z-score
-    cell_data_out = pd.concat(
+    return pd.concat(
         [
-            cell_data_out[unstandardized_features].set_index(
-                group_columns + index_columns
-            ),
-            cell_data_out.set_index(group_columns + index_columns)[target_features]
+            cell_data[unstandardized_features].set_index(group_columns + index_columns),
+            cell_data.set_index(group_columns + index_columns)[target_features]
             .subtract(group_medians)
             .divide(group_mads)
             .multiply(0.6745),  # Scale factor for robust z-score
         ],
         axis=1,
-    )
-
-    return cell_data_out.reset_index()
+    ).reset_index()

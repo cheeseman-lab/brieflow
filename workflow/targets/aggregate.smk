@@ -78,7 +78,7 @@ aggregate_wildcard_combos["cell_class"] = cell_classes * len(merge_wildcard_comb
 aggregate_wildcard_combos = aggregate_wildcard_combos[
     # (aggregate_wildcard_combos["plate"].isin([1, 2]))
     # & (aggregate_wildcard_combos["well"].isin(["A1", "A2"]))
-    (aggregate_wildcard_combos["cell_class"].isin(["all"]))
+    (aggregate_wildcard_combos["cell_class"].isin(["interphase"]))
 ]
 
 AGGREGATE_TARGETS = outputs_to_targets(

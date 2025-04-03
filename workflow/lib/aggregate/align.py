@@ -120,9 +120,7 @@ def embed_by_pca(
         np.ndarray: Transformed data using PCA.
     """
     features = centerscale_by_batch(features, metadata, batch_col)
-    features = IncrementalPCA(
-        n_components=variance_or_ncomp, batch_size=5000
-    ).fit_transform(features)
+    features = PCA(n_components=variance_or_ncomp).fit_transform(features)
     return features
 
 
@@ -150,7 +148,7 @@ def tvn_on_controls(
     """
     embeddings = centerscale_on_controls(embeddings, metadata, pert_col, control_key)
     ctrl_ind = metadata[pert_col] == control_key
-    embeddings = IncrementalPCA().fit(embeddings[ctrl_ind]).transform(embeddings)
+    embeddings = PCA().fit(embeddings[ctrl_ind]).transform(embeddings)
     embeddings = centerscale_on_controls(
         embeddings, metadata, pert_col, control_key, batch_col
     )

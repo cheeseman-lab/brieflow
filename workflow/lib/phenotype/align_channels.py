@@ -64,6 +64,10 @@ def align_phenotype_channels(
     else:
         aligned = apply_offsets(data_, full_offsets)
 
+
+
+
+
     # Handle channel removal if specified
     if remove_channel == "target":
         channel_order = list(range(image_data.shape[-3]))

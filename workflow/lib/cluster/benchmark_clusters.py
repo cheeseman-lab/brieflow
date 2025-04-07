@@ -1,6 +1,8 @@
 import pandas as pd
 from scipy.stats import fisher_exact
 from statsmodels.stats.multitest import multipletests
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 from lib.cluster.phate_leiden_clustering import phate_leiden_pipeline
 
@@ -72,95 +74,6 @@ def calculate_pair_recall(
     recall = true_positives / total_evaluated_pairs
 
     return recall
-
-
-from matplotlib import pyplot as plt
-import seaborn as sns
-
-
-def perform_resolution_thresholding(
-    aggregated_data,
-    shuffled_aggregated_data,
-    leiden_resolutions,
-    pair_benchmark,
-    perturbation_col_name,
-    control_key=None,
-):
-    # perform phate leiden clustering for each resolution
-    results = []
-    for resolution in leiden_resolutions:
-        print(f"Creating clusters for resolution: {resolution}")
-
-        phate_leiden_clustering = phate_leiden_pipeline(
-            aggregated_data, resolution=resolution
-        )
-
-        phate_leiden_clustering_shuffled = phate_leiden_pipeline(
-            shuffled_aggregated_data, resolution=resolution
-        )
-
-        statistics = {
-            "resolution": resolution,
-            "num_clusters": phate_leiden_clustering["cluster"].nunique(),
-            "recall": calculate_pair_recall(pair_benchmark, phate_leiden_clustering),
-            "recall_shuffled": calculate_pair_recall(
-                pair_benchmark,
-                phate_leiden_clustering_shuffled,
-                perturbation_col_name,
-                control_key,
-            ),
-        }
-
-        results.append(statistics)
-
-    results_df = pd.DataFrame(results)
-
-    # Create a figure with 2 subplots sharing x-axis
-    fig = plt.figure(figsize=(16, 6))
-    ax1 = fig.add_subplot(1, 2, 1)
-    ax2 = fig.add_subplot(1, 2, 2, sharex=ax1)
-
-    # First subplot for recall
-    sns.lineplot(
-        data=results_df,
-        x="resolution",
-        y="recall",
-        marker="o",
-        label="Real Data Recall",
-        ax=ax1,
-    )
-    sns.lineplot(
-        data=results_df,
-        x="resolution",
-        y="recall_shuffled",
-        marker="s",
-        label="Shuffled Data Recall",
-        ax=ax1,
-    )
-    ax1.set_title("Recall vs Resolution")
-    ax1.set_xlabel("Resolution")
-    ax1.set_ylabel("Recall Score")
-    ax1.legend()
-    ax1.grid(True, linestyle="--", alpha=0.7)
-
-    # Second subplot for number of clusters
-    sns.lineplot(
-        data=results_df,
-        x="resolution",
-        y="num_clusters",
-        marker="D",
-        color="green",
-        ax=ax2,
-    )
-    ax2.set_title("Number of Clusters vs Resolution")
-    ax2.set_xlabel("Resolution")
-    ax2.set_ylabel("Number of Clusters")
-    ax2.grid(True, linestyle="--", alpha=0.7)
-
-    plt.tight_layout()
-
-    # Return without showing the plot
-    return results_df, fig
 
 
 def calculate_group_enrichment(
@@ -257,3 +170,145 @@ def calculate_group_enrichment(
     )
 
     return num_groups_per_cluster.mean()
+
+
+def perform_resolution_thresholding(
+    aggregated_data,
+    shuffled_aggregated_data,
+    leiden_resolutions,
+    pair_benchmark,
+    perturbation_col_name,
+    control_key=None,
+):
+    # perform phate leiden clustering for each resolution
+    results = []
+    for resolution in leiden_resolutions:
+        print(f"Creating clusters for resolution: {resolution}")
+
+        phate_leiden_clustering = phate_leiden_pipeline(
+            aggregated_data, resolution=resolution
+        )
+
+        phate_leiden_clustering_shuffled = phate_leiden_pipeline(
+            shuffled_aggregated_data, resolution=resolution
+        )
+
+        statistics = {
+            "resolution": resolution,
+            "num_clusters": phate_leiden_clustering["cluster"].nunique(),
+            "recall": calculate_pair_recall(pair_benchmark, phate_leiden_clustering),
+            "recall_shuffled": calculate_pair_recall(
+                pair_benchmark,
+                phate_leiden_clustering_shuffled,
+                perturbation_col_name,
+                control_key,
+            ),
+        }
+
+        results.append(statistics)
+
+    results_df = pd.DataFrame(results)
+
+    # Create a figure with 2 subplots sharing x-axis
+    fig = plt.figure(figsize=(16, 6))
+    ax1 = fig.add_subplot(1, 2, 1)
+    ax2 = fig.add_subplot(1, 2, 2, sharex=ax1)
+
+    # First subplot for recall
+    sns.lineplot(
+        data=results_df,
+        x="resolution",
+        y="recall",
+        marker="o",
+        label="Real Data Recall",
+        ax=ax1,
+    )
+    sns.lineplot(
+        data=results_df,
+        x="resolution",
+        y="recall_shuffled",
+        marker="s",
+        label="Shuffled Data Recall",
+        ax=ax1,
+    )
+    ax1.set_title("Recall vs Resolution")
+    ax1.set_xlabel("Resolution")
+    ax1.set_ylabel("Recall Score")
+    ax1.legend()
+    ax1.grid(True, linestyle="--", alpha=0.7)
+
+    # Second subplot for number of clusters
+    sns.lineplot(
+        data=results_df,
+        x="resolution",
+        y="num_clusters",
+        marker="D",
+        color="green",
+        ax=ax2,
+    )
+    ax2.set_title("Number of Clusters vs Resolution")
+    ax2.set_xlabel("Resolution")
+    ax2.set_ylabel("Number of Clusters")
+    ax2.grid(True, linestyle="--", alpha=0.7)
+
+    plt.tight_layout()
+
+    # Return without showing the plot
+    return results_df, fig
+
+
+def plot_benchmark_results(
+    cluster_datasets, pair_recall_benchmarks, group_enrichment_benchmarks
+):
+    """Plot benchmark results for pair recall and group enrichment across clustering datasets.
+
+    Args:
+        cluster_datasets (dict): Mapping from dataset name to cluster DataFrame.
+        pair_recall_benchmarks (dict): Mapping from benchmark name to pair benchmark DataFrame.
+        group_enrichment_benchmarks (dict): Mapping from benchmark name to group benchmark DataFrame.
+
+    Returns:
+        matplotlib.figure.Figure: Figure with benchmark bar plots.
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), sharey=False)
+
+    # Plot pair recall
+    for benchmark_name, benchmark_df in pair_recall_benchmarks.items():
+        values = []
+        labels = []
+        for dataset_name, cluster_df in cluster_datasets.items():
+            # score = calculate_pair_recall(
+            #     benchmark_df,
+            #     cluster_df,
+            #     perturbation_col_name=PERTURBATION_NAME_COL,
+            #     control_key=CONTROL_KEY,
+            # )
+            score = 0.17  # TODO: use real
+            values.append(score)
+            labels.append(f"{dataset_name}")
+    ax1.bar(labels, values)
+    ax1.set_title("Pair Recall")
+    ax1.set_ylabel("Recall Score")
+    ax1.set_xticklabels(labels, rotation=45, ha="right")
+
+    # Plot group enrichment
+    for benchmark_name, benchmark_df in group_enrichment_benchmarks.items():
+        values = []
+        labels = []
+        for dataset_name, cluster_df in cluster_datasets.items():
+            # score = calculate_group_enrichment(
+            #     benchmark_df,
+            #     cluster_df,
+            #     perturbation_col_name=PERTURBATION_NAME_COL,
+            #     control_key=CONTROL_KEY,
+            # )
+            score = 4  # TODO: use real
+            values.append(score)
+            labels.append(f"{dataset_name}")
+    ax2.bar(labels, values)
+    ax2.set_title("Group Enrichment")
+    ax2.set_ylabel("Enrichment Score")
+    ax2.set_xticklabels(labels, rotation=45, ha="right")
+
+    fig.tight_layout()
+    return fig

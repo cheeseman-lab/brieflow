@@ -1,6 +1,7 @@
 import re
 import requests
 from requests.adapters import HTTPAdapter, Retry
+import json
 import io
 import gzip
 
@@ -55,32 +56,64 @@ def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
         string_pair_benchmark, aggregated_data, gene_col
     )
 
-    return string_pair_benchmark
+    return string_data, uniprot_data, string_pair_benchmark
 
 
 def generate_corum_group_benchmark():
     corum_data = get_corum_data()
 
     # Create the new dataframe with columns for gene_name and complex
-    rows = []
-    group_id = 0
+    benchmark_rows = []
 
-    # Iterate through each row in corum_data
-    for idx, subunits in enumerate(corum_data["subunits_gene_name"]):
+    for _, row in corum_data.iterrows():
         # Split the gene names by semicolon
-        genes = subunits.split(";")
+        subunits = row["subunits_gene_name"].split(";")
+
+        # Get the complex name
+        complex_name = row["complex_name"]
 
         # Add each gene to the rows list with the current group_id
-        for gene in genes:
-            rows.append({"gene_name": gene, "group": group_id})
-
-        # Increment group_id for the next complex
-        group_id += 1
+        for gene in subunits:
+            benchmark_rows.append({"gene_name": gene, "group": complex_name})
 
     # Create the DataFrame from the rows
-    corum_cluster_benchmark = pd.DataFrame(rows)
+    corum_cluster_benchmark = pd.DataFrame(benchmark_rows)
 
     return corum_cluster_benchmark
+
+
+def generate_msigdb_group_benchmark(
+    url="https://data.broadinstitute.org/gsea-msigdb/msigdb/release/2024.1.Hs/c2.cp.kegg_medicus.v2024.1.Hs.json",
+):
+    """
+    Generate group benchmark from Molecular Signatures Database (MSigDB) data. We use Kegg as default.
+    """
+    response = requests.get(url)
+    msigdb_data = json.loads(response.text)
+
+    # Create lists to hold data for DataFrame
+    pathways = []
+    genes = []
+
+    # Process each pathway entry
+    for pathway_id, pathway_data in msigdb_data.items():
+        gene_symbols = pathway_data.get("geneSymbols", [])
+
+        pathways.append(pathway_id)
+        genes.append(gene_symbols)
+
+    # Create DataFrame
+    group_benchmark_df = pd.DataFrame({"pathway_id": pathways, "gene_symbol": genes})
+
+    # Expand gene symbols into rows
+    group_benchmark_df = group_benchmark_df.explode("gene_symbol")
+
+    # Rename and reorder columns
+    group_benchmark_df = group_benchmark_df.rename(
+        columns={"gene_symbol": "gene_name", "pathway_id": "cluster"}
+    )[["gene_name", "cluster"]]
+
+    return group_benchmark_df.reset_index(drop=True)
 
 
 def get_uniprot_data():

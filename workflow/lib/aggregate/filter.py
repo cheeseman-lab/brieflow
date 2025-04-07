@@ -13,19 +13,38 @@ from sklearn.impute import KNNImputer
 from sklearn.neighbors import LocalOutlierFactor
 
 
+def query_filter(df: pd.DataFrame, queries: list[str]) -> pd.DataFrame:
+    """Sequentially apply a list of query strings to filter a DataFrame.
+
+    Example: queries=["mapped_single_gene == False", "cell_quality_score > 0.8"] filters for unmapped single-gene cells with high quality.
+
+    Args:
+        df: The input DataFrame.
+        queries: List of query strings to apply using DataFrame.query().
+
+    Returns:
+        A filtered DataFrame.
+    """
+    if queries is None:
+        return df
+
+    for q in queries:
+        before = len(df)
+        df = df.query(q)
+        after = len(df)
+        print(f"Query '{q}' filtered out {before - after} cells")
+    return df
+
+
 def perturbation_filter(
     cell_data,
     perturbation_name_col,
-    perturbation_multi_col=None,
-    filter_single_pert=False,
 ):
-    """Clean cell data by removing cells without perturbation assignments and optionally filtering for single-gene cells.
+    """Clean cell data by removing cells without perturbation assignments.
 
     Args:
         cell_data (pd.DataFrame): Raw dataframe containing cell measurements.
         perturbation_name_col (str): Column name containing perturbation assignments.
-        perturbation_multi_col (str): Column name containing multi-perturbation flags. Defaults to None.
-        filter_single_pert (bool): If True, only keep cells with single-gene perturbations.
 
     Returns:
         pd.DataFrame: Cleaned dataframe.
@@ -33,18 +52,6 @@ def perturbation_filter(
     # Remove cells without perturbation assignments
     cell_data = cell_data[cell_data[perturbation_name_col].notna()]
     print(f"Found {len(cell_data)} cells with assigned perturbations")
-
-    if filter_single_pert:
-        # Filter for single-gene cells if requested
-        cell_data = cell_data[cell_data[perturbation_multi_col] == True]
-        print(f"Kept {len(cell_data)} cells with single gene assignments")
-    else:
-        # Warn about multi-gene cells if not filtering
-        multi_pert_cells = len(cell_data[cell_data[perturbation_multi_col] == False])
-        if multi_pert_cells > 0:
-            print(
-                f"WARNING: {multi_pert_cells} cells have multiple perturbation assignments"
-            )
 
     return cell_data.reset_index(drop=True)
 
@@ -173,7 +180,7 @@ def missing_values_filter(
 def intensity_filter(
     cell_data, first_feature, channel_names=None, contamination=0.01
 ) -> pd.DataFrame:
-    """Uses EllipticEnvelope to filter outliers by channel intensities.
+    """Uses LocalOutlierFactor to filter outliers by channel intensities.
 
     Derived from Recursion's EFAAR pipeline: https://github.com/recursionpharma/EFAAR_benchmarking/blob/60df3eb267de3ba13b95f720b2a68c85f6b63d14/efaar_benchmarking/efaar.py#L295
 

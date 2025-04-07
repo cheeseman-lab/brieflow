@@ -1,4 +1,4 @@
-import pyarrow.dataset as ds
+import pandas as pd
 from lib.aggregate.cell_classification import CellClassifier
 
 # ADD ANY IMPORTS NECESSARY FOR CLASSIFIER
@@ -8,11 +8,8 @@ import numpy as np
 # Load classifier
 classifier = CellClassifier.load(snakemake.params.classifier_path)
 
-# Load merge data using PyArrow dataset
-print("Loading cell data")
-cell_data = ds.dataset(snakemake.input[0], format="parquet")
-cell_data = cell_data.to_table(use_threads=True, memory_pool=None).to_pandas()
-print("Loaded cell data")
+# Load merge data
+cell_data = pd.read_parquet(snakemake.input[0])
 
 if snakemake.params.cell_class == "all":
     cell_data.to_parquet(snakemake.output[0], index=False)

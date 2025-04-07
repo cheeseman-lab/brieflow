@@ -49,10 +49,7 @@ def phate_leiden_pipeline(
     # sort by cluster
     result_df = result_df.sort_values(by=["cluster"])
 
-    # Reset index
-    result_df = result_df.reset_index(drop=True)
-
-    return result_df
+    return result_df.reset_index(drop=True)
 
 
 def run_phate(
@@ -146,13 +143,12 @@ def plot_phate_leiden_clusters(
     """
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Split data into control and experimental
-    control_data = phate_leiden_clustering[
-        phate_leiden_clustering[perturbation_name_col] == control_key
-    ]
-    exp_data = phate_leiden_clustering[
-        phate_leiden_clustering[perturbation_name_col] != control_key
-    ]
+    # Split data into experimental and control groups
+    control_mask = phate_leiden_clustering[perturbation_name_col].str.startswith(
+        control_key
+    )
+    control_data = phate_leiden_clustering[control_mask]
+    exp_data = phate_leiden_clustering[~control_mask]
 
     # Plot experimental data colored by cluster
     sns.scatterplot(

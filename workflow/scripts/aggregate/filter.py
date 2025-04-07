@@ -1,24 +1,23 @@
-import pyarrow.dataset as ds
 import pandas as pd
 
 from lib.aggregate.filter import (
+    query_filter,
     perturbation_filter,
     missing_values_filter,
     intensity_filter,
 )
 
-# Load cell data using PyArrow dataset
-print("Loading cell data")
-cell_data = ds.dataset(snakemake.input[0], format="parquet")
-cell_data = cell_data.to_table(use_threads=True, memory_pool=None).to_pandas()
-print(f"Shape of input data: {cell_data.shape}")
+# Load cell data
+cell_data = pd.read_parquet(snakemake.input[0])
 
 # Filter
+cell_data = query_filter(
+    cell_data,
+    snakemake.params.filter_queries,
+)
 cell_data = perturbation_filter(
     cell_data,
     snakemake.params.perturbation_name_col,
-    snakemake.params.perturbation_multi_col,
-    snakemake.params.filter_single_pert,
 )
 cell_data = missing_values_filter(
     cell_data,

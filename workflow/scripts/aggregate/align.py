@@ -50,13 +50,16 @@ print(f"{datetime.now().isoformat()} - RSS Memory: {mem:.2f} MB")
 
 # Align
 features, metadata = prepare_alignment_data(
-    cell_data, snakemake.params.batch_cols, snakemake.params.first_feature
+    cell_data,
+    snakemake.params.batch_cols,
+    snakemake.params.first_feature,
+    snakemake.params.perturbation_name_col,
+    snakemake.params.control_key,
+    snakemake.params.perturbation_id_col,
 )
 del cell_data
 gc.collect()
 
-features = features.to_numpy()
-metadata = metadata[[snakemake.params.perturbation_name_col, "batch_values"]]
 gc.collect()
 print("Done preparing alignment data")
 print(metadata.info())

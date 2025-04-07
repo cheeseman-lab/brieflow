@@ -17,6 +17,8 @@ release = '4/8/2025'
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.viewcode',
+    'sphinx.ext.napoleon',
+    "autoapi.extension",
 ]
 
 templates_path = ['_templates']

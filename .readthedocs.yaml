@@ -1,0 +1,12 @@
+version: 2
+
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "miniconda3-4.7"
+
+conda:
+  environment: brieflow_main_env.yml
+
+sphinx:
+  configuration: docs/source/conf.py

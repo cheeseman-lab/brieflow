@@ -141,6 +141,8 @@ if "merge" in config:
 
 
 if "aggregate" in config:
+    AGGREGATE_COMBO_FP = Path(config["aggregate"]["aggregate_combo_fp"])
+    aggregate_wildcard_combos = pd.read_csv(AGGREGATE_COMBO_FP, sep="\t")
 
     # Include target and rule files
     include: "targets/aggregate.smk"

@@ -7,4 +7,4 @@ __pycache__/
 .ruff_cache/
 
 # files for example analysis that are too large to store with git
-tests/data/
+tests/small_test_analysis

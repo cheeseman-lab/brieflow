@@ -30,3 +30,5 @@ pydocstyle = { convention = "google" }
 "workflow/lib/external/*.py" = ["ALL"]
 # Ignore all checks for docs
 "docs/source/*.py" = ["ALL"]
+# Ignore all checks for tests
+"tests/*.py" = ["ALL"]

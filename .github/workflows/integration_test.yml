@@ -14,13 +14,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Mamba
-        uses: conda-incubator/setup-miniconda@v3
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@v1
         with:
-          miniforge-variant: Mambaforge
           environment-file: brieflow_main_env.yml
-          use-mamba: true
-          auto-activate-base: false
+          cache-downloads: true
+          cache-environment: true
+          micromamba-version: 'latest'
 
       - name: Run small test setup
         shell: bash -l {0}

@@ -14,18 +14,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # Cache micromamba environment based on env file AND your code
       - name: Set up micromamba
         uses: mamba-org/setup-micromamba@v1
         with:
           environment-file: brieflow_main_env.yml
           cache-downloads: true
           cache-environment: true
+          cache-environment-key: "${{ runner.os }}-${{ hashFiles('brieflow_main_env.yml') }}-${{ hashFiles('**/*.py', 'setup.py', 'setup.cfg', 'pyproject.toml') }}"
           micromamba-version: 'latest'
 
+      # Cache the test data setup
+      - name: Cache test data
+        uses: actions/cache@v3
+        id: test-data-cache
+        with:
+          path: tests/small_test_analysis
+          key: small-test-analysis-${{ hashFiles('tests/small_test_analysis_setup.py') }}
+
+      # Only run setup if cache miss
       - name: Run small test setup
+        if: steps.test-data-cache.outputs.cache-hit != 'true'
         shell: bash -l {0}
         working-directory: tests/
         run: python small_test_analysis_setup.py
+
+      # Cache Snakemake results
+      - name: Cache Snakemake results
+        uses: actions/cache@v3
+        id: snakemake-cache
+        with:
+          path: tests/small_test_analysis/.snakemake
+          key: snakemake-results-${{ hashFiles('workflow/**', 'tests/small_test_analysis/config/config.yml', '**/*.py') }}
 
       - name: Run Snakemake pipeline
         shell: bash -l {0}

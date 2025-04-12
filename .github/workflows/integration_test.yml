@@ -39,7 +39,7 @@ jobs:
         working-directory: tests/
         run: python small_test_analysis_setup.py
 
-      # Cache both Snakemake internal state AND output files
+      # Cache Snakemake internal state and output files
       - name: Cache Snakemake results
         uses: actions/cache@v3
         id: snakemake-cache
@@ -48,16 +48,6 @@ jobs:
             tests/small_test_analysis/.snakemake
             tests/small_test_analysis/analysis_root
           key: snakemake-results-${{ hashFiles('workflow/Snakefile') }}
-
-      # Debug file existence
-      - name: Debug file existence
-        if: steps.analysis-output-cache.outputs.cache-hit == 'true'
-        shell: bash -l {0}
-        run: |
-          echo "Checking if analysis output files exist:"
-          find tests/small_test_analysis/analysis_root -type f | head -n 5
-          echo "Total file count:"
-          find tests/small_test_analysis/analysis_root -type f | wc -l
 
       - name: Run Snakemake pipeline
         shell: bash -l {0}

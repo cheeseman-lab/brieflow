@@ -1,3 +1,7 @@
+"""
+Integration tests for the preprocess module.
+"""
+
 from pathlib import Path
 
 import yaml
@@ -5,7 +9,6 @@ import pandas as pd
 from tifffile import imread
 
 from lib.shared.file_utils import get_filename
-
 
 TEST_ANALYSIS_PATH = Path(__file__).resolve().parents[1] / "small_test_analysis"
 TEST_PLATE = 1

@@ -57,7 +57,7 @@ jobs:
             --snakefile "../../workflow/Snakefile" \
             --configfile "config/config.yml" \
             --rerun-triggers mtime \
-            --until all_phenotype
+            --until all_preprocess
 
       - name: Run pytest
         shell: bash -l {0}

@@ -39,13 +39,15 @@ jobs:
         working-directory: tests/
         run: python small_test_analysis_setup.py
 
-      # Cache Snakemake results
+      # Cache both Snakemake internal state AND output files
       - name: Cache Snakemake results
         uses: actions/cache@v3
         id: snakemake-cache
         with:
-          path: tests/small_test_analysis/.snakemake
-          key: snakemake-results-${{ hashFiles('workflow/**', 'tests/small_test_analysis/config/config.yml', '**/*.py') }}
+          path: |
+            tests/small_test_analysis/.snakemake
+            tests/small_test_analysis/analysis_root
+          key: snakemake-results-${{ hashFiles('workflow/Snakefile') }}
 
       - name: Run Snakemake pipeline
         shell: bash -l {0}

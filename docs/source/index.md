@@ -29,9 +29,11 @@ Brieflow is a community-driven project, and we welcome contributions from anyone
 :maxdepth: 2
 :caption: Contents:
 
+before_you_screen.md
 quickstart.md
 brieflow_analysis.md
 running_modules.md
 example_analysis.md
 config_glossary.md
+contributing.md
 ```

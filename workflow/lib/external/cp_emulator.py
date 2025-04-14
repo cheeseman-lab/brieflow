@@ -920,6 +920,7 @@ def closest_objects(labeled, n_cpu=1):
         result_df["second_neighbor"] = np.nan
         result_df["second_neighbor_distance"] = np.nan
         result_df["angle_between_neighbors"] = np.nan
+        
         # If we have exactly 2 objects, we can fill in the first neighbor info
         if len(df) == 2:
             # Each object's first neighbor is the other object
@@ -929,6 +930,7 @@ def closest_objects(labeled, n_cpu=1):
             distance = np.sqrt(((points[0] - points[1]) ** 2).sum())
             result_df["first_neighbor_distance"] = distance
             # No second neighbor, angle remains NaN
+
         return result_df.drop(columns=["i", "j"]).set_index("label")
 
     kdt = cKDTree(df[["i", "j"]])

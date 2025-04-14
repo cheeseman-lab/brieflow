@@ -28,3 +28,7 @@ pydocstyle = { convention = "google" }
 "*.ipynb" = ["D100", "D103"]
 # Ignore all checks for external files
 "workflow/lib/external/*.py" = ["ALL"]
+# Ignore all checks for docs
+"docs/source/*.py" = ["ALL"]
+# Ignore all checks for tests
+"tests/*.py" = ["ALL"]

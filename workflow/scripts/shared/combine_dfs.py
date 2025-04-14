@@ -1,6 +1,8 @@
 import pandas as pd
 from joblib import Parallel, delayed
 
+from lib.shared.file_utils import validate_dtypes
+
 
 # Define function to read df tsv files
 def get_file(f):
@@ -10,28 +12,21 @@ def get_file(f):
         pass
 
 
-# Get input, output, and threads from Snakemake
-input_files = snakemake.input
-output_file = snakemake.output[0]
-output_type = getattr(snakemake.params, "output_type", "parquet")
-threads = snakemake.threads
-
 # Load and concatenate data
-arr_reads = Parallel(n_jobs=threads)(delayed(get_file)(file) for file in input_files)
-df_reads = pd.concat(arr_reads)
-
-# Reset index of concatenated data
-df_reads.reset_index(drop=True, inplace=True)
-
-# Convert object columns to string
-df_reads = df_reads.apply(
-    lambda col: col.astype("string") if col.dtype == "object" else col
+all_dfs = Parallel(n_jobs=snakemake.threads)(
+    delayed(get_file)(file) for file in snakemake.input
 )
+combined_df = pd.concat(all_dfs).reset_index(drop=True)
+
+# Validate col types
+# Empty dfs can cause issues with dtype
+combined_df = validate_dtypes(combined_df)
 
 # Save the data based on output_type
+output_type = getattr(snakemake.params, "output_type", "parquet")
 if output_type == "parquet":
-    df_reads.to_parquet(output_file, engine="pyarrow")
+    combined_df.to_parquet(snakemake.output[0], engine="pyarrow")
 elif output_type == "tsv":
-    df_reads.to_csv(output_file, sep="\t", index=False)
+    combined_df.to_csv(snakemake.output[0], sep="\t", index=False)
 else:
     raise ValueError(f"Unsupported output type: {output_type}")

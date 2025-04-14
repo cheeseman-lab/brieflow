@@ -9,10 +9,12 @@ class CellClassifier(ABC):
     """Base class for cell classifiers."""
 
     @abstractmethod
-    def classify_cells(self, cell_data, first_feature):
-        """Classify cells based on input data.
+    def classify_cells(self, metadata, features):
+        """Classify cells based on feature data.
 
-        Takes a DataFrame with cell data and returns new cell data dataframe with `class` and `confidence` columns.
+        Takes DataFrames with metadata and features for cells.
+        Uses features to determine the class of each cell and the confidence of that classification.
+        The class and confidence are added to the metadata DataFrame.
         """
         pass
 
@@ -33,12 +35,9 @@ class NaiveMitoticClassifier(CellClassifier):
         self.threshold_variable = threshold_variable
         self.mitotic_threshold = mitotic_threshold
 
-    def classify_cells(self, cell_data, first_feature):
-        # Create a copy to avoid modifying the original
-        cell_data = cell_data.copy()
-
+    def classify_cells(self, metadata, features):
         # Extract just the threshold variable we need
-        threshold_values = cell_data[self.threshold_variable].astype(float)
+        threshold_values = features[self.threshold_variable].astype(float)
 
         # Scale only this single feature
         threshold_values_scaled = (
@@ -53,7 +52,7 @@ class NaiveMitoticClassifier(CellClassifier):
         )
 
         # Compute confidence
-        confidences = np.zeros(len(cell_data))
+        confidences = np.zeros(len(features))
         for cl in ["mitotic", "interphase"]:
             idx = np.where(classes == cl)[0]
             if len(idx) > 0:
@@ -64,8 +63,8 @@ class NaiveMitoticClassifier(CellClassifier):
                     confidences[i] = (rank + 1) / len(sorted_idx)
 
         # Insert class and confidence columns
-        feature_start_idx = cell_data.columns.get_loc(first_feature)
-        cell_data.insert(feature_start_idx, "class", classes)
-        cell_data.insert(feature_start_idx + 1, "confidence", confidences)
+        metadata = metadata.copy()
+        metadata.loc[:, "class"] = classes
+        metadata.loc[:, "confidence"] = confidences
 
-        return cell_data
+        return metadata

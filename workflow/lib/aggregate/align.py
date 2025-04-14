@@ -2,12 +2,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA, IncrementalPCA
+from sklearn.decomposition import PCA
 from scipy import linalg
 
 
 def prepare_alignment_data(
-    cell_data, batch_cols, first_feature, pert_col, control_key, pert_id_col
+    metadata, features, batch_cols, pert_col, control_key, pert_id_col
 ):
     """Prepare batch values and split metadata and feature DataFrames.
 
@@ -20,13 +20,11 @@ def prepare_alignment_data(
         tuple: metadata (pd.DataFrame), features (pd.DataFrame)
     """
     # Create batch values
-    batch_values = cell_data[batch_cols[0]].astype(str)
+    batch_values = metadata[batch_cols[0]].astype(str)
     for col in batch_cols[1:]:
-        batch_values = batch_values + "_" + cell_data[col].astype(str)
+        batch_values = batch_values + "_" + metadata[col].astype(str)
 
     # Add batch values to metadata
-    feature_start_idx = cell_data.columns.get_loc(first_feature)
-    metadata = cell_data.iloc[:, :feature_start_idx]
     metadata["batch_values"] = batch_values
 
     # Add unique number suffix to perturbation names based on pert_id_col
@@ -39,7 +37,7 @@ def prepare_alignment_data(
     metadata = metadata[[pert_col, "batch_values"]]
 
     # Extract feature data
-    features = cell_data.iloc[:, feature_start_idx:].to_numpy()
+    features = features.to_numpy()
 
     return features, metadata
 
@@ -158,7 +156,7 @@ def tvn_on_controls(
         np.ndarray: The normalized embeddings.
     """
     embeddings = centerscale_on_controls(embeddings, metadata, pert_col, control_key)
-    ctrl_ind = metadata[pert_col].str.startswith(control_key)
+    ctrl_ind = metadata[pert_col].str.startswith(control_key).to_list()
     embeddings = PCA().fit(embeddings[ctrl_ind]).transform(embeddings)
     embeddings = centerscale_on_controls(
         embeddings, metadata, pert_col, control_key, batch_col
@@ -170,8 +168,8 @@ def tvn_on_controls(
         batches = metadata[batch_col].unique()
         for batch in batches:
             batch_ind = metadata[batch_col] == batch
-            batch_control_ind = batch_ind & (
-                metadata[pert_col].str.startswith(control_key)
+            batch_control_ind = (
+                batch_ind & (metadata[pert_col].str.startswith(control_key)).to_list()
             )
             source_cov = np.cov(
                 embeddings[batch_control_ind], rowvar=False, ddof=1
@@ -237,8 +235,8 @@ def centerscale_on_controls(
         batches = metadata[batch_col].unique()
         for batch in batches:
             batch_ind = metadata[batch_col] == batch
-            batch_control_ind = batch_ind & (
-                metadata[pert_col].str.startswith(control_key)
+            batch_control_ind = (
+                batch_ind & (metadata[pert_col].str.startswith(control_key)).to_list()
             )
             embeddings[batch_ind] = (
                 StandardScaler()
@@ -247,5 +245,5 @@ def centerscale_on_controls(
             )
         return embeddings
 
-    control_ind = metadata[pert_col].str.startswith(control_key)
+    control_ind = metadata[pert_col].str.startswith(control_key).to_list()
     return StandardScaler().fit(embeddings[control_ind]).transform(embeddings)

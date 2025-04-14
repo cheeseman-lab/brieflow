@@ -13,52 +13,67 @@ from sklearn.impute import KNNImputer
 from sklearn.neighbors import LocalOutlierFactor
 
 
-def query_filter(df: pd.DataFrame, queries: list[str]) -> pd.DataFrame:
-    """Sequentially apply a list of query strings to filter a DataFrame.
+def query_filter(metadata, features, queries):
+    """Sequentially apply a list of query strings to filter metadata and features DataFrames.
 
     Example: queries=["mapped_single_gene == False", "cell_quality_score > 0.8"] filters for unmapped single-gene cells with high quality.
 
     Args:
-        df: The input DataFrame.
+        metadata: The input metadata DataFrame.
+        features: The input features DataFrame.
         queries: List of query strings to apply using DataFrame.query().
 
     Returns:
-        A filtered DataFrame.
+        A tuple of (filtered_metadata, filtered_features).
     """
     if queries is None:
-        return df
+        return metadata, features
 
     for q in queries:
-        before = len(df)
-        df = df.query(q)
-        after = len(df)
+        before = len(metadata)
+        # Apply query filter to metadata
+        metadata_filtered = metadata.query(q)
+        # Filter features to match metadata indices
+        features_filtered = features.loc[metadata_filtered.index]
+        after = len(metadata_filtered)
         print(f"Query '{q}' filtered out {before - after} cells")
-    return df
+        metadata, features = metadata_filtered, features_filtered
+
+    return metadata.reset_index(drop=True), features.reset_index(drop=True)
 
 
 def perturbation_filter(
-    cell_data,
+    metadata,
+    features,
     perturbation_name_col,
 ):
     """Clean cell data by removing cells without perturbation assignments.
 
     Args:
-        cell_data (pd.DataFrame): Raw dataframe containing cell measurements.
-        perturbation_name_col (str): Column name containing perturbation assignments.
+        metadata: DataFrame containing metadata.
+        features: DataFrame containing features.
+        perturbation_name_col: Column name in metadata containing perturbation assignments.
 
     Returns:
-        pd.DataFrame: Cleaned dataframe.
+        tuple: (filtered_metadata, filtered_features)
     """
-    # Remove cells without perturbation assignments
-    cell_data = cell_data[cell_data[perturbation_name_col].notna()]
-    print(f"Found {len(cell_data)} cells with assigned perturbations")
+    # Get indices of cells with perturbation assignments
+    valid_indices = metadata[metadata[perturbation_name_col].notna()].index
 
-    return cell_data.reset_index(drop=True)
+    # Filter both metadata and features
+    filtered_metadata = metadata.loc[valid_indices]
+    filtered_features = features.loc[valid_indices]
+
+    print(f"Found {len(filtered_metadata)} cells with assigned perturbations")
+
+    return filtered_metadata.reset_index(drop=True), filtered_features.reset_index(
+        drop=True
+    )
 
 
 def missing_values_filter(
-    cell_data,
-    first_feature,
+    metadata,
+    features,
     drop_cols_threshold=None,
     drop_rows_threshold=None,
     impute=False,
@@ -81,10 +96,6 @@ def missing_values_filter(
     Returns:
         pd.DataFrame: Filtered dataframe with handled missing values.
     """
-    # Get features
-    feature_start_idx = cell_data.columns.get_loc(first_feature)
-    metadata = cell_data.iloc[:, :feature_start_idx].copy()
-    features = cell_data.iloc[:, feature_start_idx:].copy()
 
     # Get columns with missing values
     cols_with_na = features.columns[features.isna().any()].tolist()
@@ -171,14 +182,11 @@ def missing_values_filter(
                     columns=remaining_cols_with_na,
                 )
 
-    # Combine metadata and features
-    filtered_data = pd.concat([metadata, features], axis=1).reset_index(drop=True)
-
-    return filtered_data
+    return metadata, features
 
 
 def intensity_filter(
-    cell_data, first_feature, channel_names=None, contamination=0.01
+    metadata, features, channel_names=None, contamination=0.01
 ) -> pd.DataFrame:
     """Uses LocalOutlierFactor to filter outliers by channel intensities.
 
@@ -194,8 +202,7 @@ def intensity_filter(
         pd.DataFrame: Filtered cell data dataframe.
     """
     # Identify feature cols
-    feature_start_idx = cell_data.columns.get_loc(first_feature)
-    feature_cols = cell_data.columns[feature_start_idx:].tolist()
+    feature_cols = features.columns.tolist()
 
     # Determine intensity columns
     intensity_cols = [
@@ -208,7 +215,9 @@ def intensity_filter(
     mask = LocalOutlierFactor(
         contamination=contamination,
         n_jobs=-1,
-    ).fit_predict(cell_data[intensity_cols])
+    ).fit_predict(features[intensity_cols])
 
     # Return filtered cell data
-    return cell_data[mask == 1].reset_index(drop=True)
+    return metadata[mask == 1].reset_index(drop=True), features[mask == 1].reset_index(
+        drop=True
+    )

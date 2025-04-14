@@ -45,3 +45,9 @@ def split_cell_data(cell_data, metadata_cols):
     metadata = cell_data[metadata_cols]
     features = cell_data.drop(columns=metadata_cols)
     return metadata, features
+
+
+def channel_combo_subset(features, channel_combo):
+    """Return subset of DataFrame with columns containing any of the given channel names."""
+    cols = [col for col in features.columns if any(ch in col for ch in channel_combo)]
+    return features[cols]

@@ -92,17 +92,7 @@ def pca_variance_plot(features, variance_threshold=0.95, random_state=42):
     ax.grid(True)
     ax.legend()
 
-    print(
-        f"Number of components needed for {variance_threshold * 100}% variance: {n_components}"
-    )
-    print(f"Shape of input data: {features.shape}")
-
-    # Create threshold-limited version
-    pca_df_threshold = pca_df[[f"pca_{i}" for i in range(n_components)]]
-
-    print(f"Shape of PCA transformed and reduced data: {pca_df_threshold.shape}")
-
-    return pca_df_threshold, n_components, pca, fig
+    return n_components, fig
 
 
 def embed_by_pca(

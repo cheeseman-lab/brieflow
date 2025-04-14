@@ -58,7 +58,6 @@ jobs:
             --use-conda \
             --snakefile "../../workflow/Snakefile" \
             --configfile "config/config.yml" \
-            --rerun-triggers mtime \
             --until all_preprocess
 
       - name: Run pytest

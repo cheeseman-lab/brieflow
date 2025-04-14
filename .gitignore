@@ -8,4 +8,6 @@ __pycache__/
 
 # docs
 docs/build/
-tests/
+
+# test analysis
+tests/small_test_analysis

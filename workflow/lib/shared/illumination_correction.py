@@ -8,6 +8,7 @@ from typing import List
 
 from joblib import Parallel, delayed
 import numpy as np
+import random
 from skimage import morphology
 import skimage.restoration
 import skimage.transform
@@ -23,6 +24,7 @@ def calculate_ic_field(
     rescale: bool = True,
     threading: bool = False,
     slicer: slice = slice(None),
+    sample_fraction: float = 1.0,
 ) -> np.ndarray:
     """Calculate illumination correction field for use with the apply_ic_field.
 
@@ -40,10 +42,16 @@ def calculate_ic_field(
         rescale (bool, optional): Whether to rescale the correction field. Defaults to True.
         threading (bool, optional): Whether to use threading for parallel processing. Defaults to False.
         slicer (slice, optional): Slice object to select specific parts of the images.
+        sample_fraction (float, optional): Fraction of images to sample for calculation. Defaults to 1.0 (100% of images).
 
     Returns:
         np.ndarray: The calculated illumination correction field.
     """
+    # Randomly sample a subset of files if sample_fraction is less than 1.0
+    if sample_fraction < 1.0:
+        sample_size = int(len(files) * sample_fraction)
+        files = random.sample(files, sample_size)
+
     # Initialize data variable
     data = imread(files[0])[slicer] / len(files)
 

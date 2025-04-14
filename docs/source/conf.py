@@ -2,31 +2,27 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'brieflow'
-copyright = '2025, Matteo Di Bernardo, Roshan Kern'
-author = 'Matteo Di Bernardo, Roshan Kern'
-release = '4/8/2025'
+project = "brieflow"
+copyright = "2025, Matteo Di Bernardo, Roshan Kern"
+author = "Matteo Di Bernardo, Roshan Kern"
+release = "4/8/2025"
 
 # -- General configuration ---------------------------------------------------
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon',
-    'myst_parser',
+    "myst_parser",
 ]
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = []
 
 # Use Markdown as source format
 source_suffix = {
-    '.md': 'markdown',
+    ".md": "markdown",
 }
 
-root_doc = 'index'
+root_doc = "index"
 
 # -- Options for HTML output -------------------------------------------------
 
-html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"

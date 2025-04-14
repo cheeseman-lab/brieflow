@@ -13,11 +13,11 @@ FILENAME_METADATA_MAPPING = {
     "well": ["W-", str],
     "tile": ["T-", int],
     "cycle": ["C-", int],
-    "cell_class": ["CC-", str],
+    "cell_class": ["CeCl-", str],
+    "channel_combo": ["ChCo-", str],
     "gene": ["G-", str],
     "sgrna": ["SG-", str],
     "channel": ["CH-", str],
-    "dataset": ["DT-", str],
 }
 
 

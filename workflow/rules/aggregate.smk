@@ -1,30 +1,36 @@
-from lib.shared.target_utils import output_to_input, get_montage_inputs
+from lib.shared.target_utils import output_to_input, map_wildcard_outputs
 
 
-# Split cells by classes
-rule split_classes:
+# Create datasets with cell classes and channel combos
+rule split_datasets:
     input:
         # final merge data
         ancient(MERGE_OUTPUTS["final_merge"]),
     output:
-        AGGREGATE_OUTPUTS_MAPPED["split_classes"],
+        map_wildcard_outputs(
+            aggregate_wildcard_combos,
+            AGGREGATE_OUTPUTS["split_datasets"][0],
+            ["cell_class", "channel_combo"],
+        ),
     params:
-        cell_class=lambda wildcards: wildcards.cell_class,
+        all_channels=config["phenotype"]["channel_names"],
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         classifier_path=config["aggregate"]["classifier_path"],
-        first_feature=config["aggregate"]["first_feature"],
+        cell_classes=aggregate_wildcard_combos["cell_class"].unique(),
+        channel_combos=aggregate_wildcard_combos["channel_combo"].unique(),
     script:
-        "../scripts/aggregate/split_classes.py"
+        "../scripts/aggregate/split_datasets.py"
 
 
 rule filter:
     input:
-        AGGREGATE_OUTPUTS_MAPPED["split_classes"],
+        AGGREGATE_OUTPUTS_MAPPED["split_datasets"],
     output:
         AGGREGATE_OUTPUTS_MAPPED["filter"],
     params:
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         filter_queries=config["aggregate"]["filter_queries"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        first_feature=config["aggregate"]["first_feature"],
         drop_cols_threshold=config["aggregate"]["drop_cols_threshold"],
         drop_rows_threshold=config["aggregate"]["drop_rows_threshold"],
         impute=config["aggregate"]["impute"],
@@ -38,51 +44,54 @@ rule align:
     input:
         filtered_paths=lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS_MAPPED["filter"],
-            wildcards={"cell_class": wildcards.cell_class},
+            wildcards={
+                "cell_class": wildcards.cell_class,
+                "channel_combo": wildcards.channel_combo,
+            },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
         ),
     output:
         AGGREGATE_OUTPUTS_MAPPED["align"],
     params:
-        first_feature=config["aggregate"]["first_feature"],
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         batch_cols=config["aggregate"]["batch_cols"],
-        pc_count=config["aggregate"]["pc_count"],
+        variance_or_ncomp=config["aggregate"]["variance_or_ncomp"],
         control_key=config["aggregate"]["control_key"],
     script:
         "../scripts/aggregate/align.py"
 
 
-rule aggregate:
-    input:
-        AGGREGATE_OUTPUTS_MAPPED["align"],
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["aggregate"],
-    params:
-        first_feature=config["aggregate"]["first_feature"],
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        agg_method=config["aggregate"]["agg_method"],
-    script:
-        "../scripts/aggregate/aggregate.py"
+# rule aggregate:
+#     input:
+#         AGGREGATE_OUTPUTS_MAPPED["align"],
+#     output:
+#         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
+#     params:
+#         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+#         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+#         agg_method=config["aggregate"]["agg_method"],
+#     script:
+#         "../scripts/aggregate/aggregate.py"
 
 
-rule eval_aggregate:
-    input:
-        # aggregated gene data
-        AGGREGATE_OUTPUTS_MAPPED["aggregate"],
-        # class merge data
-        split_classes_paths=lambda wildcards: output_to_input(
-            AGGREGATE_OUTPUTS_MAPPED["split_classes"],
-            wildcards={"cell_class": wildcards.cell_class},
-            expansion_values=["plate", "well"],
-            metadata_combos=aggregate_wildcard_combos,
-        ),
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
-    script:
-        "../scripts/aggregate/eval_aggregate.py"
+# rule eval_aggregate:
+#     input:
+#         # aggregated gene data
+#         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
+#         # class merge data
+#         split_classes_paths=lambda wildcards: output_to_input(
+#             AGGREGATE_OUTPUTS_MAPPED["split_classes"],
+#             wildcards={"cell_class": wildcards.cell_class},
+#             expansion_values=["plate", "well"],
+#             metadata_combos=aggregate_wildcard_combos,
+#         ),
+#     output:
+#         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
+#     script:
+#         "../scripts/aggregate/eval_aggregate.py"
 
 
 # Rule for all aggregate processing steps

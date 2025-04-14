@@ -1,6 +1,7 @@
 import pyarrow.dataset as ds
 import pandas as pd
 
+from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
 from lib.aggregate.aggregate import aggregate
 
 # Load cell data using PyArrow dataset
@@ -10,9 +11,8 @@ cell_data = cell_data.to_table(use_threads=True, memory_pool=None).to_pandas()
 print(f"Shape of input data: {cell_data.shape}")
 
 # Split aligned data into features and metadata
-feature_start_idx = cell_data.columns.get_loc("PC_0")
-metadata = cell_data.iloc[:, :feature_start_idx]
-tvn_normalized = cell_data.iloc[:, feature_start_idx:].values
+metadata_cols = [snakemake.params.perturbation_name_col, "batch_values"]
+metadata, tvn_normalized = split_cell_data(cell_data, metadata_cols)
 del cell_data
 
 # Aggregate

@@ -9,11 +9,16 @@ AGGREGATE_FP = Path(
 
 # Define standard (non-montage) aggreagte outputs
 AGGREGATE_OUTPUTS = {
-    "split_classes": [
+    "split_datasets": [
         AGGREGATE_FP
         / "parquets"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "cell_class": "{cell_class}"},
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "cell_class": "{cell_class}",
+                "channel_combo": "{channel_combo}",
+            },
             "merge_data",
             "parquet",
         ),
@@ -22,7 +27,12 @@ AGGREGATE_OUTPUTS = {
         AGGREGATE_FP
         / "parquets"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "cell_class": "{cell_class}"},
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "cell_class": "{cell_class}",
+                "channel_combo": "{channel_combo}",
+            },
             "filtered",
             "parquet",
         ),
@@ -31,35 +41,35 @@ AGGREGATE_OUTPUTS = {
         AGGREGATE_FP
         / "parquets"
         / get_filename(
-            {"cell_class": "{cell_class}"},
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
             "aligned",
             "parquet",
         ),
     ],
-    "aggregate": [
-        AGGREGATE_FP
-        / "tsvs"
-        / get_filename(
-            {"cell_class": "{cell_class}"},
-            "aggregated",
-            "tsv",
-        ),
-    ],
-    "eval_aggregate": [
-        AGGREGATE_FP
-        / "eval"
-        / get_filename({"cell_class": "{cell_class}"}, "na_stats", "tsv"),
-        AGGREGATE_FP
-        / "eval"
-        / get_filename({"cell_class": "{cell_class}"}, "na_stats", "png"),
-        AGGREGATE_FP
-        / "eval"
-        / get_filename({"cell_class": "{cell_class}"}, "feature_violins", "png"),
-    ],
+    # "aggregate": [
+    #     AGGREGATE_FP
+    #     / "tsvs"
+    #     / get_filename(
+    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+    #         "aggregated",
+    #         "tsv",
+    #     ),
+    # ],
+    # "eval_aggregate": [
+    #     AGGREGATE_FP
+    #     / "eval"
+    #     / get_filename({"cell_class": "{cell_class}"}, "na_stats", "tsv"),
+    #     AGGREGATE_FP
+    #     / "eval"
+    #     / get_filename({"cell_class": "{cell_class}"}, "na_stats", "png"),
+    #     AGGREGATE_FP
+    #     / "eval"
+    #     / get_filename({"cell_class": "{cell_class}"}, "feature_violins", "png"),
+    # ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
-    "split_classes": None,
+    "split_datasets": None,
     "filter": None,
     "align": None,
     "aggregate": None,
@@ -68,18 +78,17 @@ AGGREGATE_OUTPUT_MAPPINGS = {
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
 
-# TODO: LOAD REAL CELL CLASSES AND AGGREGATE WILDCARD COMBOS (LATTER IN MAIN SNAKEFILE)
-# cell_classes = config["aggregate"]["cell_classes"]
-cell_classes = ["all", "interphase", "mitotic"]
-aggregate_wildcard_combos = merge_wildcard_combos.loc[
-    merge_wildcard_combos.index.repeat(len(cell_classes))
-].reset_index(drop=True)
-aggregate_wildcard_combos["cell_class"] = cell_classes * len(merge_wildcard_combos)
-# aggregate_wildcard_combos = aggregate_wildcard_combos[
-#     (aggregate_wildcard_combos["plate"].isin([1, 2]))
-#     & (aggregate_wildcard_combos["well"].isin(["A1", "A2"]))
-#     & (aggregate_wildcard_combos["cell_class"].isin(["mitotic"]))
-# ]
+# TODO: Use all combos
+aggregate_wildcard_combos = aggregate_wildcard_combos[
+    (aggregate_wildcard_combos["plate"].isin([1]))
+    & (aggregate_wildcard_combos["well"].isin(["A1"]))
+    & (aggregate_wildcard_combos["cell_class"].isin(["mitotic"]))
+    & (
+        aggregate_wildcard_combos["channel_combo"].isin(
+            ["DAPI_COXIV_CENPA_WGA", "DAPI_CENPA"]
+        )
+    )
+]
 
 AGGREGATE_TARGETS = outputs_to_targets(
     AGGREGATE_OUTPUTS, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS

@@ -19,6 +19,8 @@ def prepare_alignment_data(
     Returns:
         tuple: metadata (pd.DataFrame), features (pd.DataFrame)
     """
+    metadata = metadata.copy()
+
     # Create batch values
     batch_values = metadata[batch_cols[0]].astype(str)
     for col in batch_cols[1:]:

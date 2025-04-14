@@ -1,3 +1,5 @@
+import pandas as pd
+
 DEFAULT_METADATA_COLS = [
     "plate",
     "well",
@@ -37,6 +39,18 @@ DEFAULT_METADATA_COLS = [
 ]
 
 
+def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
+    metadata_cols = pd.read_csv(metadata_cols_fp, header=None, sep="\t")[0].tolist()
+
+    if include_classification_cols:
+        metadata_cols += [
+            "class",
+            "confidence",
+        ]
+
+    return metadata_cols
+
+
 def split_cell_data(cell_data, metadata_cols):
     """
     Splits the cell data into metadata and features.
@@ -47,7 +61,19 @@ def split_cell_data(cell_data, metadata_cols):
     return metadata, features
 
 
-def channel_combo_subset(features, channel_combo):
-    """Return subset of DataFrame with columns containing any of the given channel names."""
-    cols = [col for col in features.columns if any(ch in col for ch in channel_combo)]
-    return features[cols]
+def channel_combo_subset(features, channel_combo, all_channels):
+    # Find channels to remove (those not in channel_combo)
+    channels_to_remove = [ch for ch in all_channels if ch not in channel_combo]
+
+    # Get all column names
+    columns = features.columns.tolist()
+
+    # Find columns to remove (those containing removed channel names)
+    columns_to_remove = [
+        col for col in columns if any(ch in col for ch in channels_to_remove)
+    ]
+
+    # Keep all columns except those from removed channels
+    columns_to_keep = [col for col in columns if col not in columns_to_remove]
+
+    return features[columns_to_keep]

@@ -920,7 +920,7 @@ def closest_objects(labeled, n_cpu=1):
         result_df["second_neighbor"] = np.nan
         result_df["second_neighbor_distance"] = np.nan
         result_df["angle_between_neighbors"] = np.nan
-        
+
         # If we have exactly 2 objects, we can fill in the first neighbor info
         if len(df) == 2:
             # Each object's first neighbor is the other object

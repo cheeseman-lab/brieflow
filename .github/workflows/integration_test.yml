@@ -21,7 +21,7 @@ jobs:
           environment-file: brieflow_main_env.yml
           cache-downloads: true
           cache-environment: true
-          cache-environment-key: "${{ runner.os }}-${{ hashFiles('brieflow_main_env.yml') }}-${{ hashFiles('**/*.py', 'setup.py', 'setup.cfg', 'pyproject.toml') }}"
+          cache-environment-key: "${{ runner.os }}-${{ hashFiles('brieflow_main_env.yml') }}-${{ hashFiles('**/*.py', 'pyproject.toml') }}"
           micromamba-version: 'latest'
 
       # Cache the test data setup

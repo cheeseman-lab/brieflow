@@ -31,4 +31,7 @@ Brieflow is a community-driven project, and we welcome contributions from anyone
 
 quickstart.md
 brieflow_analysis.md
+running_modules.md
+example_analysis.md
+config_glossary.md
 ```

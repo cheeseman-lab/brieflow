@@ -14,7 +14,7 @@ metadata, features = split_cell_data(cell_data, metadata_cols)
 
 # Classify cells
 classifier = NaiveMitoticClassifier()
-metadata = classifier.classify_cells(metadata, features)
+metadata, features = classifier.classify_cells(metadata, features)
 
 # Load all channels
 all_channels = snakemake.params.all_channels

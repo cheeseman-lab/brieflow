@@ -1,3 +1,10 @@
+"""This module provides functionality for aggregating embeddings based on metadata.
+
+It includes a function to apply mean or median aggregation to replicate embeddings
+for each perturbation, along with returning metadata containing perturbation labels
+and cell counts.
+"""
+
 import numpy as np
 import pandas as pd
 
@@ -8,8 +15,8 @@ def aggregate(
     pert_col: str,
     method="mean",
 ) -> tuple[np.ndarray, pd.DataFrame]:
-    """
-    Apply mean or median aggregation to replicate embeddings for each perturbation.
+    """Apply mean or median aggregation to replicate embeddings for each perturbation.
+
     The function also returns metadata with perturbation labels and cell counts.
 
     Args:

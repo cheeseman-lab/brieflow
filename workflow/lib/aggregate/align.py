@@ -1,3 +1,9 @@
+"""This module provides functions for data preparation, PCA analysis, and normalization.
+
+It includes utilities for aligning data, performing PCA transformations, and applying
+typical variation normalization (TVN) on embeddings based on control perturbation units.
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,9 +18,12 @@ def prepare_alignment_data(
     """Prepare batch values and split metadata and feature DataFrames.
 
     Args:
-        cell_data (pd.DataFrame): Input DataFrame containing metadata and features.
+        metadata (pd.DataFrame): Input DataFrame containing metadata.
+        features (pd.DataFrame): DataFrame containing feature data.
         batch_cols (list): List of column names used to generate batch values.
-        first_feature (str): Name of the first feature column.
+        pert_col (str): Column name representing perturbation labels.
+        control_key (str): Key for identifying control samples in the metadata.
+        pert_id_col (str): Column name for perturbation IDs.
 
     Returns:
         tuple: metadata (pd.DataFrame), features (pd.DataFrame)
@@ -48,15 +57,13 @@ def pca_variance_plot(features, variance_threshold=0.95, random_state=42):
     """Perform PCA analysis and create an explained variance plot.
 
     Args:
-        feature_data (pd.DataFrame): DataFrame containing features.
+        features (np.ndarray): Array containing feature data to be analyzed.
         variance_threshold (float): Cumulative variance threshold. Defaults to 0.95.
         random_state (int): Random seed for reproducibility.
 
     Returns:
         tuple: A tuple containing:
-            - pca_df (pd.DataFrame): DataFrame with PCA-transformed data (gene symbols as index).
             - n_components (int): Number of components needed to reach the variance threshold.
-            - pca_object (PCA): Fitted PCA object.
             - fig (matplotlib.figure.Figure): Figure object for the explained variance plot.
     """
     # Copy and scale data
@@ -103,8 +110,8 @@ def embed_by_pca(
     variance_or_ncomp=128,
     batch_col: str | None = None,
 ) -> np.ndarray:
-    """
-    Embed the whole input data using principal component analysis (PCA).
+    """Embed the whole input data using principal component analysis (PCA).
+
     Note that we explicitly center & scale the data (by batch) before an embedding operation with `PCA`.
     Centering and scaling is done by batch if `batch_col` is not None, and on the whole data otherwise.
     Also note that `PCA` transformer also does mean-centering on the whole data prior to the PCA operation.
@@ -117,6 +124,7 @@ def embed_by_pca(
             the amount of variance that needs to be explained is greater than the percentage specified.
             If 1, a single component is kept, and if None, all components are kept.
         batch_col (str, optional): Column name for batch information. Defaults to None.
+
     Returns:
         np.ndarray: Transformed data using PCA.
     """
@@ -132,8 +140,8 @@ def tvn_on_controls(
     control_key: str,
     batch_col: str | None = None,
 ) -> np.ndarray:
-    """
-    Apply TVN (Typical Variation Normalization) to the data based on the control perturbation units.
+    """Apply TVN (Typical Variation Normalization) to the data based on the control perturbation units.
+
     Note that the data is first centered and scaled based on the control units.
 
     Args:
@@ -178,8 +186,8 @@ def tvn_on_controls(
 def centerscale_by_batch(
     features: np.ndarray, metadata: pd.DataFrame = None, batch_col: str | None = None
 ) -> np.ndarray:
-    """
-    Center and scale the input features by each batch. Not using any controls at all.
+    """Center and scale the input features by each batch. Not using any controls at all.
+
     We are using this prior to embedding high-dimensional data with PCA.
 
     Args:
@@ -209,8 +217,8 @@ def centerscale_on_controls(
     control_key: str,
     batch_col: str | None = None,
 ) -> np.ndarray:
-    """
-    Center and scale the embeddings on the control perturbation units in the metadata.
+    """Center and scale the embeddings on the control perturbation units in the metadata.
+
     If batch information is provided, the embeddings are centered and scaled by batch.
 
     Args:
@@ -220,6 +228,7 @@ def centerscale_on_controls(
         control_key (str, optional): The key for non-targeting controls in the metadata.
         batch_col (str, optional): Column name in the metadata representing the batch labels.
             Defaults to None.
+
     Returns:
         numpy.ndarray: The aligned embeddings.
     """

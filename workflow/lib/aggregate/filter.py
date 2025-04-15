@@ -83,8 +83,8 @@ def missing_values_filter(
     """Filter cell data by handling missing values through dropping or batched imputation.
 
     Args:
-        cell_data (pd.DataFrame): Raw dataframe containing cell measurements.
-        first_feature (str): Name of the first feature column.
+        metadata (pd.DataFrame): DataFrame containing metadata.
+        features (pd.DataFrame): DataFrame containing features.
         drop_cols_threshold (float, optional): If provided, drops columns with NaN proportion >= threshold.
                                               Range: 0.0-1.0. Defaults to None.
         drop_rows_threshold (float, optional): If provided, drops rows with NaN proportion >= threshold.
@@ -94,14 +94,13 @@ def missing_values_filter(
         sample_size (int): Number of non-NA rows to sample for each batch. Defaults to 10000.
 
     Returns:
-        pd.DataFrame: Filtered dataframe with handled missing values.
+        tuple: (filtered_metadata, filtered_features)
     """
-
     # Get columns with missing values
     cols_with_na = features.columns[features.isna().any()].tolist()
 
     if not cols_with_na:
-        return cell_data
+        return metadata, features
 
     # Handle column dropping based on threshold
     if drop_cols_threshold is not None:
@@ -193,13 +192,13 @@ def intensity_filter(
     Derived from Recursion's EFAAR pipeline: https://github.com/recursionpharma/EFAAR_benchmarking/blob/60df3eb267de3ba13b95f720b2a68c85f6b63d14/efaar_benchmarking/efaar.py#L295
 
     Args:
-        cell_data (pd.DataFrame): Cell data dataframe.
-        first_feature (str): Name of the first feature column
+        metadata (pd.DataFrame): DataFrame containing metadata.
+        features (pd.DataFrame): DataFrame containing features.
         channel_names (list[str], optional): A list of channel names to use for intensity filtering. Defaults to None.
         contamination (float, optional): The proportion of outliers to expect. Defaults to 0.01.
 
     Returns:
-        pd.DataFrame: Filtered cell data dataframe.
+        tuple: (filtered_metadata, filtered_features) DataFrames with outliers removed.
     """
     # Identify feature cols
     feature_cols = features.columns.tolist()

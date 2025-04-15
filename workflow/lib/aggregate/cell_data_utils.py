@@ -1,3 +1,10 @@
+"""Utility functions for handling cell data in the brieflow aggregation pipeline.
+
+This module provides helper functions for manipulating cell data, including
+loading metadata columns, splitting cell data into metadata and features,
+and filtering features based on channel combinations.
+"""
+
 import pandas as pd
 
 DEFAULT_METADATA_COLS = [
@@ -40,6 +47,16 @@ DEFAULT_METADATA_COLS = [
 
 
 def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
+    """Load metadata column names from a file.
+
+    Args:
+        metadata_cols_fp (str): File path to the metadata columns list.
+        include_classification_cols (bool, optional): Whether to include
+            classification columns. Defaults to False.
+
+    Returns:
+        list: List of metadata column names.
+    """
     metadata_cols = pd.read_csv(metadata_cols_fp, header=None, sep="\t")[0].tolist()
 
     if include_classification_cols:
@@ -52,16 +69,34 @@ def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
 
 
 def split_cell_data(cell_data, metadata_cols):
-    """
-    Splits the cell data into metadata and features.
-    """
+    """Splits the cell data into metadata and features.
 
+    Args:
+        cell_data (pd.DataFrame): Input DataFrame containing cell data.
+        metadata_cols (list): List of column names that represent metadata.
+
+    Returns:
+        tuple: (metadata, features) where metadata is a DataFrame containing
+            only metadata columns and features is a DataFrame containing all
+            non-metadata columns.
+    """
     metadata = cell_data[metadata_cols]
     features = cell_data.drop(columns=metadata_cols)
     return metadata, features
 
 
 def channel_combo_subset(features, channel_combo, all_channels):
+    """Filter features to include only columns from specified channel combination.
+
+    Args:
+        features (pd.DataFrame): DataFrame containing feature data.
+        channel_combo (list): List of channels to include.
+        all_channels (list): List of all available channels.
+
+    Returns:
+        pd.DataFrame: DataFrame with features filtered to include only
+            columns from the specified channel combination.
+    """
     # Find channels to remove (those not in channel_combo)
     channels_to_remove = [ch for ch in all_channels if ch not in channel_combo]
 

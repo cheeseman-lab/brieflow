@@ -175,6 +175,7 @@ def calculate_group_enrichment(
 def perform_resolution_thresholding(
     aggregated_data,
     shuffled_aggregated_data,
+    phate_distance_metric,
     leiden_resolutions,
     pair_benchmark,
     perturbation_col_name,
@@ -186,11 +187,11 @@ def perform_resolution_thresholding(
         print(f"Creating clusters for resolution: {resolution}")
 
         phate_leiden_clustering = phate_leiden_pipeline(
-            aggregated_data, resolution=resolution
+            aggregated_data, resolution, phate_distance_metric
         )
 
         phate_leiden_clustering_shuffled = phate_leiden_pipeline(
-            shuffled_aggregated_data, resolution=resolution
+            shuffled_aggregated_data, resolution, phate_distance_metric
         )
 
         statistics = {

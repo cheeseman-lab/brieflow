@@ -9,7 +9,8 @@ import phate
 
 def phate_leiden_pipeline(
     aggregated_data,
-    resolution=1.0,
+    resolution,
+    phate_distance_metric,
     first_feature_name="PC_0",
 ):
     """Run complete PHATE and Leiden clustering pipeline.
@@ -32,7 +33,7 @@ def phate_leiden_pipeline(
     metadata_cols = all_cols[:feature_start_idx]
 
     # Run PHATE
-    df_phate, p = run_phate(feature_selected_data)
+    df_phate, p = run_phate(feature_selected_data, metric=phate_distance_metric)
 
     # Get weights from PHATE
     weights = np.asarray(p.graph.diff_op.todense())

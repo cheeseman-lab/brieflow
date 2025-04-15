@@ -10,7 +10,7 @@ from lib.aggregate.eval_aggregate import (
 class_aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
 
 # Load merge data using PyArrow dataset
-class_merge_data = ds.dataset(snakemake.input.split_classes_paths, format="parquet")
+class_merge_data = ds.dataset(snakemake.input.split_datasets_paths, format="parquet")
 class_merge_data = class_merge_data.to_table(
     use_threads=True, memory_pool=None
 ).to_pandas()

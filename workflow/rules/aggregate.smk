@@ -64,34 +64,37 @@ rule align:
         "../scripts/aggregate/align.py"
 
 
-# rule aggregate:
-#     input:
-#         AGGREGATE_OUTPUTS_MAPPED["align"],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
-#     params:
-#         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
-#         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-#         agg_method=config["aggregate"]["agg_method"],
-#     script:
-#         "../scripts/aggregate/aggregate.py"
+rule aggregate:
+    input:
+        AGGREGATE_OUTPUTS_MAPPED["align"],
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["aggregate"],
+    params:
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        agg_method=config["aggregate"]["agg_method"],
+    script:
+        "../scripts/aggregate/aggregate.py"
 
 
-# rule eval_aggregate:
-#     input:
-#         # aggregated gene data
-#         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
-#         # class merge data
-#         split_classes_paths=lambda wildcards: output_to_input(
-#             AGGREGATE_OUTPUTS_MAPPED["split_classes"],
-#             wildcards={"cell_class": wildcards.cell_class},
-#             expansion_values=["plate", "well"],
-#             metadata_combos=aggregate_wildcard_combos,
-#         ),
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
-#     script:
-#         "../scripts/aggregate/eval_aggregate.py"
+rule eval_aggregate:
+    input:
+        # aggregated gene data
+        AGGREGATE_OUTPUTS_MAPPED["aggregate"],
+        # class merge data
+        split_datasets_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS_MAPPED["split_datasets"],
+            wildcards={
+                "cell_class": wildcards.cell_class,
+                "channel_combo": wildcards.channel_combo,
+            },
+            expansion_values=["plate", "well"],
+            metadata_combos=aggregate_wildcard_combos,
+        ),
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
+    script:
+        "../scripts/aggregate/eval_aggregate.py"
 
 
 # Rule for all aggregate processing steps

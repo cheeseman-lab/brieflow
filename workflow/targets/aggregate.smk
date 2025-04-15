@@ -46,26 +46,38 @@ AGGREGATE_OUTPUTS = {
             "parquet",
         ),
     ],
-    # "aggregate": [
-    #     AGGREGATE_FP
-    #     / "tsvs"
-    #     / get_filename(
-    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-    #         "aggregated",
-    #         "tsv",
-    #     ),
-    # ],
-    # "eval_aggregate": [
-    #     AGGREGATE_FP
-    #     / "eval"
-    #     / get_filename({"cell_class": "{cell_class}"}, "na_stats", "tsv"),
-    #     AGGREGATE_FP
-    #     / "eval"
-    #     / get_filename({"cell_class": "{cell_class}"}, "na_stats", "png"),
-    #     AGGREGATE_FP
-    #     / "eval"
-    #     / get_filename({"cell_class": "{cell_class}"}, "feature_violins", "png"),
-    # ],
+    "aggregate": [
+        AGGREGATE_FP
+        / "tsvs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "aggregated",
+            "tsv",
+        ),
+    ],
+    "eval_aggregate": [
+        AGGREGATE_FP
+        / "eval"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "na_stats",
+            "tsv",
+        ),
+        AGGREGATE_FP
+        / "eval"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "na_stats",
+            "png",
+        ),
+        AGGREGATE_FP
+        / "eval"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "feature_violins",
+            "png",
+        ),
+    ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
@@ -80,8 +92,8 @@ AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPI
 
 # TODO: Use all combos
 aggregate_wildcard_combos = aggregate_wildcard_combos[
-    (aggregate_wildcard_combos["plate"].isin([1]))
-    & (aggregate_wildcard_combos["well"].isin(["A1"]))
+    (aggregate_wildcard_combos["plate"].isin([1, 2]))
+    & (aggregate_wildcard_combos["well"].isin(["A1", "A2"]))
     & (aggregate_wildcard_combos["cell_class"].isin(["mitotic"]))
     & (
         aggregate_wildcard_combos["channel_combo"].isin(

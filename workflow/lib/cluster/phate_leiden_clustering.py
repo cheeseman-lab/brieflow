@@ -129,7 +129,7 @@ def run_leiden_clustering(weights, resolution=1.0, seed=42):
 
 
 def plot_phate_leiden_clusters(
-    phate_leiden_clustering, perturbation_name_col, control_key, figsize=(15, 15)
+    phate_leiden_clustering, perturbation_name_col, control_key, figsize=(8, 8)
 ):
     """Create a simple scatter plot for PHATE leiden clustering results.
 

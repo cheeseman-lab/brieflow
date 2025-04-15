@@ -33,7 +33,7 @@ from scipy.spatial import ConvexHull, QhullError
 import skimage.measure
 import skimage.morphology
 from skimage import img_as_ubyte
-from lib.shared.features import (
+from lib.shared.feature_utils import (
     correlate_channels_masked,
     masked,
     correlate_channels_all_multichannel,
@@ -911,6 +911,27 @@ def closest_objects(labeled, n_cpu=1):
     }
 
     df = feature_table(labeled, labeled, features)
+
+    # Handle cases with fewer than 3 objects
+    if len(df) < 3:
+        result_df = df.copy()
+        result_df["first_neighbor"] = np.nan
+        result_df["first_neighbor_distance"] = np.nan
+        result_df["second_neighbor"] = np.nan
+        result_df["second_neighbor_distance"] = np.nan
+        result_df["angle_between_neighbors"] = np.nan
+
+        # If we have exactly 2 objects, we can fill in the first neighbor info
+        if len(df) == 2:
+            # Each object's first neighbor is the other object
+            result_df["first_neighbor"] = result_df.index[::-1].values
+            # Calculate distance between the two objects
+            points = result_df[["i", "j"]].values
+            distance = np.sqrt(((points[0] - points[1]) ** 2).sum())
+            result_df["first_neighbor_distance"] = distance
+            # No second neighbor, angle remains NaN
+
+        return result_df.drop(columns=["i", "j"]).set_index("label")
 
     kdt = cKDTree(df[["i", "j"]])
 

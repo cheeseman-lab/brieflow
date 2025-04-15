@@ -35,8 +35,10 @@ sbs_xy = sbs_metadata.rename(columns={"x_pos": "x", "y_pos": "y"}).set_index("ti
 ]
 
 # Hash phenotype and sbs info
-phenotype_info_hash = hash_cell_locations(phenotype_info)
-sbs_info_hash = hash_cell_locations(sbs_info).rename(columns={"tile": "site"})
+phenotype_info_hash = validate_dtypes(hash_cell_locations(phenotype_info))
+sbs_info_hash = validate_dtypes(
+    hash_cell_locations(sbs_info).rename(columns={"tile": "site"})
+)
 
 # Perform multistep alignment for well
 well_alignment = multistep_alignment(
@@ -53,7 +55,6 @@ well_alignment = multistep_alignment(
 # Reset index
 well_alignment.reset_index(drop=True, inplace=True)
 
-
 # Parse rotation into 2 columns
 well_alignment["rotation_1"] = well_alignment["rotation"].apply(
     lambda r: extract_rotation(r, 1)
@@ -66,7 +67,6 @@ well_alignment.drop(columns=["rotation"], inplace=True)
 # Add metadata to alignment data
 well_alignment["plate"] = snakemake.params.plate
 well_alignment["well"] = snakemake.params.well
-
 
 # Save alignment data
 well_alignment.to_parquet(snakemake.output[0])

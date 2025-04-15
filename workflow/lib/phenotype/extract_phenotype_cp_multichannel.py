@@ -11,7 +11,6 @@ import skimage.feature
 import skimage.segmentation
 from scipy import ndimage as ndi
 
-import lib.shared.features
 from lib.external.cp_emulator import (
     grayscale_features_multichannel,
     correlation_features_multichannel,
@@ -169,7 +168,7 @@ def extract_phenotype_cp_multichannel(
             data_phenotype[..., foci_channel, :, :], remove_border_foci=True
         )
         dfs.append(
-            extract_features_bare(foci, cells, features=lib.shared.features.foci)
+            extract_features_bare(foci, cells, features=foci_features)
             .set_index("label")
             .add_prefix(f"cell_{channel_names[foci_channel]}_")
         )
@@ -294,3 +293,32 @@ def remove_border(labels, mask, dilate=5):
     labels.flat[np.in1d(labels, remove)] = 0
 
     return labels
+
+
+def count_labels(labels, return_list=False):
+    """Count the unique non-zero labels in a labeled segmentation mask.
+
+    Args:
+        labels (numpy array): Labeled segmentation mask.
+        return_list (bool): Flag indicating whether to return the list of unique labels along with the count.
+
+    Returns:
+        int or tuple: Number of unique non-zero labels. If return_list is True, returns a tuple containing the count
+      and the list of unique labels.
+    """
+    # Get unique labels in the segmentation mask
+    uniques = np.unique(labels)
+    # Remove the background label (0)
+    ls = np.delete(uniques, np.where(uniques == 0))
+    # Count the unique non-zero labels
+    num_labels = len(ls)
+    # Return the count or both count and list of unique labels based on return_list flag
+    if return_list:
+        return num_labels, ls
+    return num_labels
+
+
+foci_features = {
+    "foci_count": lambda r: count_labels(r.intensity_image),
+    "foci_area": lambda r: (r.intensity_image > 0).sum(),
+}

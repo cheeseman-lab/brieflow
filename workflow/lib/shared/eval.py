@@ -36,7 +36,8 @@ def plot_plate_heatmap(
         np.array: Array of matplotlib Axes objects for the plot.
         matplotlib.Colorbar: Colorbar object for the plot.
     """
-    tiles = max(len(df["tile"].unique()), df["tile"].max())
+    tiles = df["tile"].astype(int)
+    tiles = max(len(tiles.unique()), tiles.max())
 
     # Define grid for plotting
     if shape == "square":

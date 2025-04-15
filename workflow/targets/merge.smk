@@ -90,6 +90,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "eval_merge": None,
     "deduplicate_merge": None,
     "final_merge": None,
+    "final_merge": None,
 }
 
 MERGE_OUTPUTS_MAPPED = map_outputs(MERGE_OUTPUTS, MERGE_OUTPUT_MAPPINGS)

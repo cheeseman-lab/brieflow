@@ -39,6 +39,9 @@ if PHENOTYPE_SAMPLES_FP.exists():
         phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t").astype(
             str
         )
+        phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t").astype(
+            str
+        )
     else:
         print("No phenotype samples found in the file!")
         phenotype_wildcard_combos = pd.DataFrame(
@@ -135,9 +138,6 @@ if "merge" in config:
 
     # Include target and rule files
     include: "targets/merge.smk"
-
-
-# include: "rules/merge.smk"
 
 
 if "aggregate" in config:

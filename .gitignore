@@ -6,14 +6,8 @@ __pycache__/
 *.egg-info/
 .ruff_cache/
 
-# benchmark files
-example_analysis/config/benchmark_clusters/
+# docs
+docs/build/
 
-# files for example analysis that are too large to store with git
-example_analysis/data/
-example_analysis/analysis_root/
-example_analysis/analysis_root_test/
-example_analysis/analysis_root_backup/
-
-# slurm outputs
-example_analysis/slurm/slurm_output/
+# test analysis
+tests/small_test_analysis

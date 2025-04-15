@@ -133,21 +133,29 @@ def validate_dtypes(df):
         if pd.api.types.is_integer_dtype(df[col]):
             continue
 
-        # Attempt to convert strings to float
+        # Convert object to string if possible
+        if pd.api.types.is_object_dtype(df[col]):
+            try:
+                df[col] = df[col].astype("string")
+            except ValueError:
+                pass
+
+        # Convert string to float if possible
         if pd.api.types.is_string_dtype(df[col]):
             try:
-                df[col] = df[col].astype("Float64")
+                df[col] = df[col].astype(float)
             except ValueError:
                 pass
 
         # Convert float to int if possible
         if pd.api.types.is_float_dtype(df[col]):
-            col_subset = (
-                df[col]
-                .dropna()
-                .sample(min(10000, df[col].notna().sum()), random_state=42)
-            )
-            if np.array_equal(col_subset, col_subset.astype(int)):
-                df[col] = df[col].astype("Int64")
+            col_nonan = df[col].dropna()
+            if len(col_nonan) == 0 or np.allclose(
+                col_nonan, col_nonan.round(), rtol=1e-10, atol=1e-10
+            ):
+                try:
+                    df[col] = df[col].astype("Int64")
+                except TypeError:
+                    pass
 
     return df

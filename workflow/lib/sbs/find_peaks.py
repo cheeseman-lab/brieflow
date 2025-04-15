@@ -88,10 +88,10 @@ def plot_channels_with_peaks(
     threshold_peaks=None,
     peak_colors=None,
     peak_labels=None,
-    figsize=(12, 12)
+    figsize=(12, 12),
 ):
     """Plot individual channel data with detected peaks overlaid.
-    
+
     Args:
         maxed_data : numpy.ndarray
             Max filtered data with shape (cycles, channels, height, width)
@@ -114,19 +114,19 @@ def plot_channels_with_peaks(
     """
     # Default values
     if peak_colors is None:
-        peak_colors = ['orange']
+        peak_colors = ["orange"]
     if peak_labels is None:
-        peak_labels = ['Detected Peaks']
-        
+        peak_labels = ["Detected Peaks"]
+
     # Standard colormaps for bases
-    standard_cmaps = ['Greens', 'Reds', 'Blues', 'Purples']
-    
+    standard_cmaps = ["Greens", "Reds", "Blues", "Purples"]
+
     # Extract data for the specified cycle
     if len(maxed_data.shape) == 4:  # (cycles, channels, height, width)
         cycle_data = maxed_data[cycle_number]
     else:  # (channels, height, width)
         cycle_data = maxed_data
-    
+
     # Convert peaks array to coordinate list
     if threshold_peaks is not None:
         peak_coords = np.argwhere(peaks_array > threshold_peaks)
@@ -137,44 +137,58 @@ def plot_channels_with_peaks(
         peak_coords = np.argwhere(peaks_array > 0)
         threshold_text = ""
         print(f"Found {len(peak_coords)} peaks (binary array, non-zero values)")
-    
+
     # Create figure and subplots
     fig, axes = plt.subplots(2, 2, figsize=figsize)
-    fig.suptitle(f"Cycle {cycle_number} with Detected Spots{threshold_text}", fontsize=16)
+    fig.suptitle(
+        f"Cycle {cycle_number} with Detected Spots{threshold_text}", fontsize=16
+    )
     axes = axes.flatten()
-    
+
     # Plot each base channel with spots
     for i, base in enumerate(bases):
         if i < len(axes):  # Ensure we don't exceed the number of subplots
             # Get the channel data
             channel_data = cycle_data[i]
-            
+
             # Apply percentile-based scaling
             vmin = np.percentile(channel_data, 1)
             vmax = np.percentile(channel_data, 99.5)
-            
+
             # Display the channel image
-            im = axes[i].imshow(channel_data, cmap=standard_cmaps[i], vmin=vmin, vmax=vmax)
-            
+            im = axes[i].imshow(
+                channel_data, cmap=standard_cmaps[i], vmin=vmin, vmax=vmax
+            )
+
             # Add peaks
             axes[i].scatter(
-                peak_coords[:, 1], peak_coords[:, 0],
-                facecolors='none', edgecolors=peak_colors[0],
-                s=15, linewidths=0.5
+                peak_coords[:, 1],
+                peak_coords[:, 0],
+                facecolors="none",
+                edgecolors=peak_colors[0],
+                s=15,
+                linewidths=0.5,
             )
-            
+
             # Set title and formatting
             axes[i].set_title(f"{base} Channel")
-            axes[i].axis('off')
+            axes[i].axis("off")
             plt.colorbar(im, ax=axes[i], fraction=0.046, pad=0.04)
-    
+
     # Add legend with peak count
     legend_elements = [
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='none',
-                  markeredgecolor=peak_colors[0], markersize=8,
-                  label=f'{peak_labels[0]} ({len(peak_coords)})')
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="none",
+            markeredgecolor=peak_colors[0],
+            markersize=8,
+            label=f"{peak_labels[0]} ({len(peak_coords)})",
+        )
     ]
-    fig.legend(handles=legend_elements, loc='lower right')
-    
+    fig.legend(handles=legend_elements, loc="lower right")
+
     plt.tight_layout()
     return fig, axes

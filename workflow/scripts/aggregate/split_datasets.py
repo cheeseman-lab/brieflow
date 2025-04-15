@@ -1,6 +1,6 @@
 import pandas as pd
 
-from lib.aggregate.cell_classification import NaiveMitoticClassifier
+from lib.aggregate.cell_classification import CellClassifier
 from lib.aggregate.cell_data_utils import split_cell_data, channel_combo_subset
 
 # Load merge data
@@ -13,7 +13,9 @@ metadata_cols = pd.read_csv(snakemake.params.metadata_cols_fp, header=None, sep=
 metadata, features = split_cell_data(cell_data, metadata_cols)
 
 # Classify cells
-classifier = NaiveMitoticClassifier()
+import numpy as np
+
+classifier = CellClassifier.load(snakemake.params.classifier_path)
 metadata, features = classifier.classify_cells(metadata, features)
 
 # Load all channels

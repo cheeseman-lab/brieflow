@@ -117,19 +117,20 @@ def load_parquet_subset(full_df_fp, n_rows=50000):
 def validate_dtypes(df):
     """Convert DataFrame columns to the most specific data type possible with the following rules.
 
-    - Convert strings to int if possible, or float if necessary
+    - Convert object to string if possible
+    - Convert strings to int float if possible
     - Convert floats to int if possible
 
     Args:
-    df : pandas.DataFrame
-        The DataFrame to optimize
+        df : pandas.DataFrame
+            The DataFrame to optimize
 
     Returns:
-    pandas.DataFrame
-        A new DataFrame with optimized dtypes
+        pandas.DataFrame
+            A new DataFrame with optimized dtypes
     """
     for col in df.columns:
-        # Skip columns that are already int64
+        # Skip columns that are already int
         if pd.api.types.is_integer_dtype(df[col]):
             continue
 

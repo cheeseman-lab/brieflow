@@ -80,8 +80,19 @@ def split_cell_data(cell_data, metadata_cols):
             only metadata columns and features is a DataFrame containing all
             non-metadata columns.
     """
-    metadata = cell_data[metadata_cols]
-    features = cell_data.drop(columns=metadata_cols)
+    # Ensure all metadata columns exist in the data
+    existing_metadata_cols = [col for col in metadata_cols if col in cell_data.columns]
+
+    # Get metadata columns
+    metadata = cell_data[existing_metadata_cols].copy()
+
+    # Get feature columns (all columns not in metadata)
+    features = cell_data.drop(columns=existing_metadata_cols).copy()
+
+    print(
+        f"Split data: {len(metadata.columns)} metadata columns, {len(features.columns)} feature columns"
+    )
+
     return metadata, features
 
 

@@ -17,7 +17,7 @@ if method == "standard":
     peaks = find_peaks(standard_deviation_data=standard_deviation_data)
 
 elif method == "spotiflow":
-    from lib.sbs.find_peaks_spotiflow import find_peaks_spotiflow
+    from lib.sbs.find_peaks import find_peaks_spotiflow
 
     # Load aligned images for spotiflow method
     aligned_images = imread(snakemake.input[0])

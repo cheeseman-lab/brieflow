@@ -127,11 +127,11 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "segment_phenotype": None,
     "identify_cytoplasm": temp,
     "extract_phenotype_info": temp,
-    "merge_phenotype_info": protected,
+    "merge_phenotype_info": None,
     "extract_phenotype_cp": temp,
-    "merge_phenotype_cp": protected,
-    "eval_segmentation_phenotype": protected,
-    "eval_features": protected,
+    "merge_phenotype_cp": None,
+    "eval_segmentation_phenotype": None,
+    "eval_features": None,
 }
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup

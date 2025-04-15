@@ -1,12 +1,13 @@
 import pandas as pd
 
+from lib.shared.file_utils import validate_dtypes
 from lib.merge.deduplicate_merge import deduplicate_cells, check_matching_rates
 from lib.merge.format_merge import identify_single_gene_mappings
 
 # Load data for evaluating merge
-merge_cleaned = pd.read_parquet(snakemake.input[0])
-sbs_cells = pd.read_parquet(snakemake.input[1])
-phenotype_min_cp = pd.read_parquet(snakemake.input[2])
+merge_cleaned = validate_dtypes(pd.read_parquet(snakemake.input[0]))
+sbs_cells = validate_dtypes(pd.read_parquet(snakemake.input[1]))
+phenotype_min_cp = validate_dtypes(pd.read_parquet(snakemake.input[2]))
 
 # Deduplicate cells and save results
 merge_deduplicated, deduplication_stats = deduplicate_cells(

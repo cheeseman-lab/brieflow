@@ -59,6 +59,32 @@ conda config --set channel_priority strict
 Simply change the name of the `brieflow_main_env` Conda environment and track your added packages in [brieflow_main_env.yml](brieflow_main_env.yml).
 For rule-specific package consider creating a separate conda environment file and using it for the particular rule as described in the [Snakemake integrated package management notes](https://snakemake.readthedocs.io/en/stable/snakefiles/deployment.html#integrated-package-management).
 
+### Tests
+
+Run the following commands to ensure your Brieflow is set up correctly:
+
+```sh
+# activate brieflow env
+conda activate brieflow_main_env
+# enter test dir
+cd brieflow/tests/
+# set up small test analysis
+python small_test_analysis_setup.py
+# enter small test anaylsis dir
+cd small_test_analysis
+# run snakemake
+snakemake \
+    --cores all \
+    --use-conda \
+    --snakefile "../../workflow/Snakefile" \
+    --configfile "config/config.yml" \
+    --until all_preprocess
+# return to brieflow dir
+cd ../../
+# run tests
+pytest
+```
+
 ### HPC Integrations
 
 The steps for running workflows currently include local and Slurm integration.

@@ -109,7 +109,9 @@ def plot_feature_distributions(
     df_orig = original_cell_data[["plate", "well"] + original_feature_cols].melt(
         id_vars=["plate", "well"], var_name="Feature", value_name="Value"
     )
-    df_orig["plate_well"] = df_orig["plate"].astype(str) + "_" + df_orig["well"]
+    df_orig["plate_well"] = (
+        df_orig["plate"].astype(int).astype(str) + "_" + df_orig["well"]
+    )
     df_orig["Type"] = "Original"
 
     # Melt aligned features
@@ -117,7 +119,7 @@ def plot_feature_distributions(
         id_vars=["plate", "well"], var_name="Feature", value_name="Value"
     )
     df_aligned["plate_well"] = (
-        df_aligned["plate"].astype(str) + "_" + df_aligned["well"]
+        df_aligned["plate"].astype(int).astype(str) + "_" + df_aligned["well"]
     )
     df_aligned["Type"] = "Aligned"
 

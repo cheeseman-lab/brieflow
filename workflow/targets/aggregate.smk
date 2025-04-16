@@ -2,10 +2,7 @@ from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 
-# AGGREGATE_FP = ROOT_FP / "aggregate"
-AGGREGATE_FP = Path(
-    "/lab/barcheese01/rkern/aggregate_overhaul/brieflow-analysis/analysis/analysis_root/aggregate"
-)
+AGGREGATE_FP = ROOT_FP / "aggregate"
 
 # Define standard (non-montage) aggreagte outputs
 AGGREGATE_OUTPUTS = {

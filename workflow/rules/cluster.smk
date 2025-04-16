@@ -1,7 +1,6 @@
 # Clean aggregate datasets
 rule clean_aggregate:
     input:
-        # aggregated data
         ancient(AGGREGATE_OUTPUTS["aggregate"]),
     output:
         CLUSTER_OUTPUTS_MAPPED["clean_aggregate"],
@@ -15,7 +14,6 @@ rule clean_aggregate:
 # perform phate embedding and leiden clustering
 rule phate_leiden_clustering:
     input:
-        # cluster dataset
         CLUSTER_OUTPUTS["clean_aggregate"],
     output:
         CLUSTER_OUTPUTS_MAPPED["phate_leiden_clustering"],
@@ -28,37 +26,23 @@ rule phate_leiden_clustering:
         "../scripts/cluster/phate_leiden_clustering.py"
 
 
-# # analyze clusters with uniprot data
-# rule benchmark_clusters:
-#     input:
-#         # phate leiden clusters with uniprot data
-#         CLUSTER_OUTPUTS["phate_leiden_clustering"][2],
-#         # cleaned gene data
-#         CLUSTER_OUTPUTS["generate_dataset"],
-#     output:
-#         CLUSTER_OUTPUTS_MAPPED["benchmark_clusters"],
-#     params:
-#         population_feature=config["aggregate"]["population_feature"],
-#         string_data_fp=config["cluster"]["string_data_fp"],
-#         corum_data_fp=config["cluster"]["corum_data_fp"],
-#     script:
-#         "../scripts/cluster/benchmark_clusters.py"
-
-
-# # evaluate clustering
-# rule cluster_eval:
-#     input:
-#         # all global metric files from analyze clusters
-#         lambda wildcards: output_to_input(
-#             CLUSTER_OUTPUTS["benchmark_clusters"][1],
-#             wildcards=wildcards,
-#             expansion_values=["channel_combo", "dataset"],
-#             metadata_combos=cluster_wildcard_combos,
-#         ),
-#     output:
-#         CLUSTER_OUTPUTS_MAPPED["cluster_eval"],
-#     script:
-#         "../scripts/cluster/cluster_eval.py"
+# benchmark
+rule benchmark_clusters:
+    input:
+        CLUSTER_OUTPUTS["clean_aggregate"],
+        CLUSTER_OUTPUTS["phate_leiden_clustering"][0],
+    output:
+        CLUSTER_OUTPUTS_MAPPED["benchmark_clusters"],
+    params:
+        leiden_resolution=lambda wildcards: wildcards.leiden_resolution,
+        phate_distance_metric=config["cluster"]["phate_distance_metric"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        control_key=config["aggregate"]["control_key"],
+        string_pair_benchmark_fp=config["cluster"]["string_pair_benchmark_fp"],
+        corum_group_benchmark_fp=config["cluster"]["corum_group_benchmark_fp"],
+        kegg_group_benchmark_fp=config["cluster"]["kegg_group_benchmark_fp"],
+    script:
+        "../scripts/cluster/benchmark_clusters.py"
 
 
 # Rule for all cluster processing steps

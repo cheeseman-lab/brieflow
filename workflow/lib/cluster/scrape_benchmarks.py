@@ -56,7 +56,7 @@ def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
         string_pair_benchmark, aggregated_data, gene_col
     )
 
-    return string_data, uniprot_data, string_pair_benchmark
+    return string_pair_benchmark
 
 
 def generate_corum_group_benchmark():
@@ -110,8 +110,8 @@ def generate_msigdb_group_benchmark(
 
     # Rename and reorder columns
     group_benchmark_df = group_benchmark_df.rename(
-        columns={"gene_symbol": "gene_name", "pathway_id": "cluster"}
-    )[["gene_name", "cluster"]]
+        columns={"gene_symbol": "gene_name", "pathway_id": "group"}
+    )[["gene_name", "group"]]
 
     return group_benchmark_df.reset_index(drop=True)
 

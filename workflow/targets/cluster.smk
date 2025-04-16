@@ -5,10 +5,7 @@ from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 
-# CLUSTER_FP = ROOT_FP / "cluster"
-CLUSTER_FP = Path(
-    "/lab/barcheese01/rkern/aggregate_overhaul/brieflow-analysis/analysis/analysis_root/cluster"
-)
+CLUSTER_FP = ROOT_FP / "cluster"
 
 CLUSTER_OUTPUTS = {
     "clean_aggregate": [
@@ -41,26 +38,21 @@ CLUSTER_OUTPUTS = {
         / "plots"
         / get_filename({"leiden_resolution": "{leiden_resolution}"}, "clusters", "png"),
     ],
-    # "benchmark_clusters": [
-    #     CLUSTER_FP
-    #     / "{channel_combo}"
-    #     / "tsvs"
-    #     / get_filename({"dataset": "{dataset}"}, "cluster_gene_table", "tsv"),
-    #     CLUSTER_FP
-    #     / "{channel_combo}"
-    #     / "tsvs"
-    #     / get_filename({"dataset": "{dataset}"}, "global_metrics", "tsv"),
-    # ],
-    # "cluster_eval": [
-    #     CLUSTER_FP / "tsvs" / "aggregated_cluster_metrics.tsv",
-    # ],
+    "benchmark_clusters": [
+        CLUSTER_FP
+        / "{channel_combo}"
+        / "{cell_class}"
+        / "plots"
+        / get_filename(
+            {"leiden_resolution": "{leiden_resolution}"}, "cluster_benchmarks", "png"
+        ),
+    ],
 }
 
 CLUSTER_OUTPUT_MAPPINGS = {
     "clean_aggregate": None,
     "phate_leiden_clustering": None,
     "benchmark_clusters": None,
-    "cluster_eval": None,
 }
 
 

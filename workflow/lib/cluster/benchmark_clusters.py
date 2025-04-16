@@ -16,15 +16,10 @@ def calculate_pair_recall(
     # Filter non-targeting genes if requested
     if control_key is not None:
         cluster_df = phate_leiden_clustering[
-            phate_leiden_clustering[perturbation_col_name] != control_key
+            ~phate_leiden_clustering[perturbation_col_name].str.startswith(control_key)
         ]
     else:
         cluster_df = phate_leiden_clustering
-
-    cluster_genes_in_group = len(
-        set(pair_benchmark["gene_name"]) & set(cluster_df[perturbation_col_name])
-    )
-    print(f"Number of cluster genes found in group dataset: {cluster_genes_in_group}")
 
     # 1. Convert the string pairs DataFrame to a set of positive pairs
     positive_pairs = set()
@@ -76,100 +71,153 @@ def calculate_pair_recall(
     return recall
 
 
+def calculate_pair_recall_global(
+    pair_benchmark,
+    phate_leiden_clustering,
+    perturbation_col_name="gene_symbol_0",
+    control_key=None,
+):
+    """Compute recall per cluster for a pair benchmark.
+
+    For each cluster, get recall as TP / (TP + FN). Also return true pairs.
+
+    Args:
+        pair_benchmark (pd.DataFrame): DataFrame with 'pair' and 'gene_name'.
+        phate_leiden_clustering (pd.DataFrame): Clustering result with 'cluster' and gene column.
+        perturbation_col_name (str): Column name for gene identifiers.
+        control_key (str or None): Value to exclude (e.g. 'nontargeting').
+
+    Returns:
+        pd.DataFrame: Per-cluster recall DataFrame with 'cluster', 'recall', 'cluster_size', and 'true_pairs'.
+    """
+    if control_key is not None:
+        cluster_df = phate_leiden_clustering[
+            ~phate_leiden_clustering[perturbation_col_name].str.startswith(control_key)
+        ]
+    else:
+        cluster_df = phate_leiden_clustering
+
+    gene_to_cluster = dict(
+        zip(cluster_df[perturbation_col_name], cluster_df["cluster"])
+    )
+
+    positive_pairs = set()
+    for _, group in pair_benchmark.groupby("pair"):
+        genes = group["gene_name"].unique()
+        for i in range(len(genes)):
+            for j in range(i + 1, len(genes)):
+                pair = tuple(sorted((genes[i], genes[j])))
+                positive_pairs.add(pair)
+
+    from collections import defaultdict
+
+    cluster_tp = defaultdict(int)
+    cluster_fn = defaultdict(int)
+    cluster_true_pairs = defaultdict(list)
+
+    for gene_a, gene_b in positive_pairs:
+        cluster_a = gene_to_cluster.get(gene_a)
+        cluster_b = gene_to_cluster.get(gene_b)
+        if cluster_a is None or cluster_b is None:
+            continue
+        if cluster_a == cluster_b:
+            cluster_tp[cluster_a] += 1
+            pair_str = f"{gene_a},{gene_b}"
+            cluster_true_pairs[cluster_a].append(pair_str)
+        else:
+            cluster_fn[cluster_a] += 1
+            cluster_fn[cluster_b] += 1
+
+    cluster_sizes = cluster_df.groupby("cluster").size().to_dict()
+
+    data = []
+    for cluster_id in (
+        set(cluster_tp.keys()) | set(cluster_fn.keys()) | set(cluster_sizes.keys())
+    ):
+        tp = cluster_tp.get(cluster_id, 0)
+        fn = cluster_fn.get(cluster_id, 0)
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        size = cluster_sizes.get(cluster_id, 0)
+        true_pairs_str = "; ".join(cluster_true_pairs.get(cluster_id, []))
+        data.append(
+            {
+                "cluster": cluster_id,
+                "recall": recall,
+                "cluster_size": size,
+                "true_pairs": true_pairs_str,
+            }
+        )
+
+    pair_recall_global = (
+        pd.DataFrame(data)
+        .sort_values(by="recall", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    return pair_recall_global["recall"].mean()
+
+
 def calculate_group_enrichment(
     group_benchmark,
     phate_leiden_clustering,
     perturbation_col_name="gene_symbol_0",
     control_key=None,
 ):
-    # Sort cluster df by cluster
     cluster_df = phate_leiden_clustering.sort_values(by="cluster")
-
-    # Get all unique genes in the cluster_df
-    cluster_genes = set(cluster_df[perturbation_col_name])
-
-    cluster_genes_in_group = len(set(group_benchmark["gene_name"]) & cluster_genes)
-    print(f"Number of cluster genes found in group dataset: {cluster_genes_in_group}")
-
-    # Filter non-targeting genes if requested
     if control_key is not None:
-        cluster_df = cluster_df[cluster_df[perturbation_col_name] != control_key]
+        cluster_df = phate_leiden_clustering[
+            ~phate_leiden_clustering[perturbation_col_name].str.startswith(control_key)
+        ]
 
-    # get background genes
-    background_genes = set(cluster_df[perturbation_col_name])
-
-    # Initialize an empty DataFrame to store the enriched groups for each gene in each cluster
-    enriched_groups_df = pd.DataFrame(
-        columns=["cluster", "enriched_groups", "cluster_genes"]
-    )
-
-    # Sort group df by group
+    background_genes = set(phate_leiden_clustering[perturbation_col_name])
     group_df = group_benchmark.sort_values(by="group")
 
-    # Iterate over unique clusters in the DataFrame
-    for cluster_id in cluster_df["cluster"].unique():
-        cluster_genes = cluster_df[cluster_df["cluster"] == cluster_id][
-            perturbation_col_name
-        ].tolist()
+    group_to_genes = {
+        group: set(df["gene_name"]) for group, df in group_df.groupby("group")
+    }
 
-        # Perform Fisher's exact test for each group and the current cluster
-        group_pvalues = []
-        for group_id in group_df["group"].unique():
-            group_genes = group_df[group_df["group"] == group_id]["gene_name"].to_list()
-            group_genes_in_cluster = len(set(cluster_genes).intersection(group_genes))
-            group_genes_not_in_cluster = len(group_genes) - group_genes_in_cluster
-            genes_in_cluster_not_in_group = len(cluster_genes) - group_genes_in_cluster
-            genes_not_in_cluster_not_in_group = (
-                len(background_genes) - len(cluster_genes) - group_genes_not_in_cluster
-            )
+    cluster_to_genes = {
+        cluster: set(df[perturbation_col_name])
+        for cluster, df in cluster_df.groupby("cluster")
+    }
 
-            contingency_table = [
-                [group_genes_in_cluster, group_genes_not_in_cluster],
-                [genes_in_cluster_not_in_group, genes_not_in_cluster_not_in_group],
-            ]
+    enriched_rows = []
 
-            _, p_value = fisher_exact(contingency_table)
-            group_pvalues.append(p_value)
-        # Perform Benjamini-Hochberg correction for multiple testing
-        group_fdrs = multipletests(group_pvalues, method="fdr_bh")[1]
+    for cluster_id, cluster_genes in cluster_to_genes.items():
+        pvals = []
+        group_ids = list(group_to_genes.keys())
 
-        # Get the unique groups and store in a list for later reference
-        group_ids = group_df["group"].unique().tolist()
+        for group_id in group_ids:
+            group_genes = group_to_genes[group_id]
+            a = len(cluster_genes & group_genes)
+            b = len(group_genes) - a
+            c = len(cluster_genes) - a
+            d = len(background_genes) - (a + b + c)
 
-        # Create a DataFrame to store the results for the current cluster
-        cluster_result_df = pd.DataFrame(
+            contingency = [[a, b], [c, d]]
+            _, p = fisher_exact(contingency)
+            pvals.append(p)
+
+        fdrs = multipletests(pvals, method="fdr_bh")[1]
+        enriched = [str(g) for g, f in zip(group_ids, fdrs) if f < 0.05]
+        enriched_rows.append(
             {
                 "cluster": cluster_id,
-                "enriched_groups": "; ".join(
-                    [
-                        str(group_id)
-                        for group_id, group_fdr in zip(group_ids, group_fdrs)
-                        if group_fdr < 0.05
-                    ]
-                ),
-                "cluster_genes": "; ".join(cluster_genes),
-            },
-            index=[0],
+                "cluster_size": len(cluster_genes),
+                "num_enriched_groups": len(enriched),
+                "cluster_genes": "; ".join(sorted(cluster_genes)),
+                "enriched_groups": "; ".join(enriched),
+            }
         )
 
-        # Append the current cluster's results to the main DataFrame
-        enriched_groups_df = pd.concat(
-            [enriched_groups_df, cluster_result_df], ignore_index=True
-        )
-
-        # TODO: remove when want to run all clusters
-        if cluster_id == 10:
+        if cluster_id > 5:
             break
 
-    # Sort enriched_groups_df by cluster number
-    enriched_groups_df.sort_values(by="cluster", inplace=True)
-
-    # Calculate the metric: Number of clusters associated with each group
-    num_groups_per_cluster = enriched_groups_df["enriched_groups"].apply(
-        lambda x: len(x.split(";")) if x.strip() else 0
+    cluster_enrichment = (
+        pd.DataFrame(enriched_rows).sort_values("cluster").reset_index(drop=True)
     )
 
-    return num_groups_per_cluster.mean()
+    return cluster_enrichment["num_enriched_groups"].mean()
 
 
 def perform_resolution_thresholding(
@@ -197,7 +245,12 @@ def perform_resolution_thresholding(
         statistics = {
             "resolution": resolution,
             "num_clusters": phate_leiden_clustering["cluster"].nunique(),
-            "recall": calculate_pair_recall(pair_benchmark, phate_leiden_clustering),
+            "recall": calculate_pair_recall(
+                pair_benchmark,
+                phate_leiden_clustering,
+                perturbation_col_name,
+                control_key,
+            ),
             "recall_shuffled": calculate_pair_recall(
                 pair_benchmark,
                 phate_leiden_clustering_shuffled,
@@ -259,7 +312,11 @@ def perform_resolution_thresholding(
 
 
 def plot_benchmark_results(
-    cluster_datasets, pair_recall_benchmarks, group_enrichment_benchmarks
+    cluster_datasets,
+    pair_recall_benchmarks,
+    group_enrichment_benchmarks,
+    perturbation_col_name,
+    control_key,
 ):
     """Plot benchmark results for pair recall and group enrichment across clustering datasets.
 
@@ -271,45 +328,69 @@ def plot_benchmark_results(
     Returns:
         matplotlib.figure.Figure: Figure with benchmark bar plots.
     """
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), sharey=False)
-
-    # Plot pair recall
+    # Collect data
+    pair_data = []
     for benchmark_name, benchmark_df in pair_recall_benchmarks.items():
-        values = []
-        labels = []
         for dataset_name, cluster_df in cluster_datasets.items():
-            # score = calculate_pair_recall(
-            #     benchmark_df,
-            #     cluster_df,
-            #     perturbation_col_name=PERTURBATION_NAME_COL,
-            #     control_key=CONTROL_KEY,
-            # )
-            score = 0.17  # TODO: use real
-            values.append(score)
-            labels.append(f"{dataset_name}")
-    ax1.bar(labels, values)
-    ax1.set_title("Pair Recall")
-    ax1.set_ylabel("Recall Score")
-    ax1.set_xticklabels(labels, rotation=45, ha="right")
+            score = calculate_pair_recall(
+                benchmark_df,
+                cluster_df,
+                perturbation_col_name=perturbation_col_name,
+                control_key=control_key,
+            )
+            pair_data.append(
+                {
+                    "Score": score,
+                    "Dataset": dataset_name,
+                    "Benchmark": benchmark_name,
+                    "Type": "Pair Recall",
+                }
+            )
 
-    # Plot group enrichment
+    group_data = []
     for benchmark_name, benchmark_df in group_enrichment_benchmarks.items():
-        values = []
-        labels = []
         for dataset_name, cluster_df in cluster_datasets.items():
-            # score = calculate_group_enrichment(
-            #     benchmark_df,
-            #     cluster_df,
-            #     perturbation_col_name=PERTURBATION_NAME_COL,
-            #     control_key=CONTROL_KEY,
-            # )
-            score = 4  # TODO: use real
-            values.append(score)
-            labels.append(f"{dataset_name}")
-    ax2.bar(labels, values)
-    ax2.set_title("Group Enrichment")
-    ax2.set_ylabel("Enrichment Score")
-    ax2.set_xticklabels(labels, rotation=45, ha="right")
+            score = calculate_group_enrichment(
+                benchmark_df,
+                cluster_df,
+                perturbation_col_name=perturbation_col_name,
+                control_key=control_key,
+            )
+            group_data.append(
+                {
+                    "Score": score,
+                    "Dataset": dataset_name,
+                    "Benchmark": benchmark_name,
+                    "Type": "Group Enrichment",
+                }
+            )
+
+    df = pd.DataFrame(pair_data + group_data)
+
+    # Plot using seaborn
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=False)
+
+    sns.barplot(
+        data=df[df["Type"] == "Pair Recall"],
+        x="Dataset",
+        y="Score",
+        hue="Benchmark",
+        ax=axes[0],
+    )
+    axes[0].set_title("Pair Recall")
+    axes[0].set_ylabel("Recall Score")
+    axes[0].tick_params(axis="x", rotation=45)
+
+    sns.barplot(
+        data=df[df["Type"] == "Group Enrichment"],
+        x="Dataset",
+        y="Score",
+        hue="Benchmark",
+        ax=axes[1],
+    )
+    axes[1].set_title("Group Enrichment")
+    axes[1].set_ylabel("Enrichment Score")
+    axes[1].tick_params(axis="x", rotation=45)
 
     fig.tight_layout()
     return fig

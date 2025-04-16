@@ -26,7 +26,7 @@ def prepare_alignment_data(
         pert_id_col (str): Column name for perturbation IDs.
 
     Returns:
-        tuple: metadata (pd.DataFrame), features (pd.DataFrame)
+        tuple: metadata (pd.DataFrame), features (numpy.ndarray)
     """
     metadata = metadata.copy()
 
@@ -129,6 +129,10 @@ def embed_by_pca(
         np.ndarray: Transformed data using PCA.
     """
     features = centerscale_by_batch(features, metadata, batch_col)
+    if features.shape[0] > 50000:
+        sample = features[:50000]
+        pca_estimate = PCA(n_components=variance_or_ncomp).fit(sample)
+        variance_or_ncomp = pca_estimate.n_components_
     features = PCA(n_components=variance_or_ncomp).fit_transform(features)
     return features
 

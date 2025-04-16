@@ -32,7 +32,7 @@ dependencies:
   - statsmodels
   - joblib
   - dill
-  - xgboost
+  - xgboost=3.0.0
   - pip:
       - -e .
       - stardist

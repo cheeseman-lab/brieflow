@@ -155,7 +155,6 @@ rule call_cells:
         df_design_path=config["sbs"]["df_design_path"],
         q_min=config["sbs"]["q_min"],
         barcode_col=config["sbs"]["barcode_col"],
-        df_umi=config["sbs"]["df_umi"],
         error_correct=config["sbs"]["error_correct"],        
     script:
         "../scripts/sbs/call_cells.py"

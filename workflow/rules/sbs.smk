@@ -121,8 +121,8 @@ rule extract_bases:
     input:
         SBS_OUTPUTS["find_peaks"],
         SBS_OUTPUTS["max_filter"],
-        # use nuclei segmentation map
-        SBS_OUTPUTS["segment_sbs"][0],
+        # optionally use cell or nuclei segmentation
+        lambda wildcards: SBS_OUTPUTS["segment_sbs"][1] if config["sbs"]["segment_cells"] else SBS_OUTPUTS["segment_sbs"][0],
     output:
         SBS_OUTPUTS_MAPPED["extract_bases"],
     params:

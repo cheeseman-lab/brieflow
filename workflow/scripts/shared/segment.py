@@ -10,13 +10,13 @@ params = snakemake.params.config
 
 # Choose segmentation method based on parameter
 method = params.get("segmentation_method", "cellpose")
-cells_enabled = params.get("cells", True)
+segment_cells = params.get("segment_cells", True)
 
 if method == "cellpose":
     # Segment cells using cellpose
     from lib.shared.segment_cellpose import segment_cellpose
 
-    if cells_enabled:
+    if segment_cells:
         nuclei_data, cells_data, counts_df = segment_cellpose(
             data=illumination_corrected_data,
             dapi_index=params["dapi_index"],
@@ -35,7 +35,7 @@ if method == "cellpose":
             reconcile=params.get("reconcile"),
             return_counts=params.get("return_counts", True),
             gpu=params.get("gpu", False),
-            cells=True,
+            cells=segment_cells,
         )
     else:
         nuclei_data, counts_df = segment_cellpose(
@@ -56,7 +56,7 @@ if method == "cellpose":
             reconcile=params.get("reconcile"),
             return_counts=params.get("return_counts", True),
             gpu=params.get("gpu", False),
-            cells=False,
+            cells=segment_cells,
         )
         cells_data = np.zeros_like(nuclei_data)
         
@@ -64,7 +64,7 @@ elif method == "microsam":
     # Segment cells using MicroSAM
     from lib.shared.segment_microsam import segment_microsam
 
-    if cells_enabled:
+    if segment_cells:
         nuclei_data, cells_data, counts_df = segment_microsam(
             data=illumination_corrected_data,
             dapi_index=params["dapi_index"],
@@ -79,7 +79,7 @@ elif method == "microsam":
             reconcile=params.get("reconcile"),
             return_counts=params.get("return_counts", True),
             gpu=params.get("gpu", False),
-            cells=True,
+            cells=segment_cells,
         )
     else:
         nuclei_data, counts_df = segment_microsam(
@@ -96,7 +96,7 @@ elif method == "microsam":
             reconcile=params.get("reconcile"),
             return_counts=params.get("return_counts", True),
             gpu=params.get("gpu", False),
-            cells=False,
+            cells=segment_cells,
         )
         cells_data = np.zeros_like(nuclei_data)
         
@@ -104,7 +104,7 @@ elif method == "stardist":
     # Segment cells using StarDist
     from lib.shared.segment_stardist import segment_stardist
 
-    if cells_enabled:
+    if segment_cells:
         nuclei_data, cells_data, counts_df = segment_stardist(
             data=illumination_corrected_data,
             dapi_index=params["dapi_index"],
@@ -117,7 +117,7 @@ elif method == "stardist":
             reconcile=params.get("reconcile"),
             return_counts=params.get("return_counts", True),
             gpu=params.get("gpu", False),
-            cells=True,
+            cells=segment_cells,
         )
     else:
         nuclei_data, counts_df = segment_stardist(
@@ -132,7 +132,7 @@ elif method == "stardist":
             reconcile=params.get("reconcile"),
             return_counts=params.get("return_counts", True),
             gpu=params.get("gpu", False),
-            cells=False,
+            cells=segment_cells,
         )
         cells_data = np.zeros_like(nuclei_data)
         
@@ -140,7 +140,7 @@ elif method == "watershed":
     # Segment cells using Watershed
     from lib.shared.segment_watershed import segment_watershed
 
-    if cells_enabled:
+    if segment_cells:
         nuclei_data, cells_data, counts_df = segment_watershed(
             data=illumination_corrected_data,
             nuclei_threshold=params["threshold_dapi"],
@@ -158,8 +158,8 @@ elif method == "watershed":
             nuclei_area_min=params["nuclei_area_min"],
             nuclei_area_max=params["nuclei_area_max"],
             cell_threshold=params["threshold_cell"],
-            cells=False,
             return_counts=params.get("return_counts", True),
+            cells=segment_cells,
         )
         cells_data = np.zeros_like(nuclei_data)
 else:

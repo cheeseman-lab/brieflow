@@ -17,8 +17,8 @@ dependencies:
   - nd2
   - scikit-image
   - joblib
-  - cellpose # TODO: pin version if reproducbility is important (version may change segmentations)
-  - micro_sam
+  - cellpose==3.1.0
+  - micro_sam==1.3.1
   - tensorflow
   - csbdeep
   - pytables
@@ -33,7 +33,7 @@ dependencies:
   - joblib
   - pip:
       - -e .
-      - stardist
+      - stardist==0.9.1
       - levenshtein
       - torch
       - spotiflow

@@ -31,12 +31,6 @@ def segment_microsam(
     dapi_index,
     cyto_index,
     model_type="vit_b_lm",
-    microsam_kwargs=dict(
-        points_per_side=32,
-        points_per_batch=16,
-        stability_score_thresh=0.95,
-        pred_iou_thresh=0.88,
-    ),
     cells=True,
     reconcile="consensus",
     return_counts=False,
@@ -59,10 +53,6 @@ def segment_microsam(
         tuple or numpy.ndarray: If 'cells' is True, returns tuple of nuclei and cell segmentation masks,
         otherwise returns only nuclei segmentation mask. If return_counts is True, includes a dictionary of counts.
     """
-    # Initialize microsam_kwargs if None
-    if microsam_kwargs is None:
-        microsam_kwargs = {}
-
     # Prepare channels for MicroSAM
     dapi = data[dapi_index]
     cyto = data[cyto_index]
@@ -78,7 +68,6 @@ def segment_microsam(
                 reconcile=reconcile,
                 return_counts=True,
                 gpu=gpu,
-                **microsam_kwargs,
             )
             counts.update(seg_counts)
         else:
@@ -88,7 +77,6 @@ def segment_microsam(
                 model_type=model_type,
                 reconcile=reconcile,
                 gpu=gpu,
-                **microsam_kwargs,
             )
 
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
@@ -103,7 +91,7 @@ def segment_microsam(
         else:
             return nuclei, cells
     else:
-        nuclei = segment_microsam_nuclei(dapi, model_type=model_type, **microsam_kwargs)
+        nuclei = segment_microsam_nuclei(dapi, model_type=model_type)
 
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
         print(f"Number of nuclei segmented: {counts['final_nuclei']}")
@@ -124,7 +112,6 @@ def segment_microsam_multichannel(
     remove_edges=True,
     return_counts=False,
     gpu=False,
-    **kwargs,
 ):
     """Segment nuclei and cells using the MicroSAM algorithm with InstanceSegmentationWithDecoder.
 
@@ -136,7 +123,6 @@ def segment_microsam_multichannel(
         remove_edges (bool, optional): Whether to remove nuclei and cells touching image edges
         return_counts (bool, optional): Whether to return counts of nuclei and cells
         gpu (bool, optional): Whether to use GPU for segmentation
-        **kwargs: Additional keyword arguments for MicroSAM segmentation
 
     Returns:
         Segmentation masks with optional counts
@@ -233,7 +219,7 @@ def segment_microsam_multichannel(
 
 
 def segment_microsam_nuclei(
-    dapi, model_type="vit_b_lm", remove_edges=True, gpu=False, **kwargs
+    dapi, model_type="vit_b_lm", remove_edges=True, gpu=False,
 ):
     """Segment nuclei using the MicroSAM algorithm with InstanceSegmentationWithDecoder.
 
@@ -242,7 +228,6 @@ def segment_microsam_nuclei(
         model_type (str, optional): MicroSAM model type to use
         remove_edges (bool, optional): Whether to remove nuclei touching the image edges
         gpu (bool, optional): Whether to use GPU for segmentation
-        **kwargs: Additional keyword arguments for MicroSAM segmentation
 
     Returns:
         Labeled segmentation mask of nuclei

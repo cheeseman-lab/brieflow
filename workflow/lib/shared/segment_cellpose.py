@@ -79,14 +79,16 @@ def segment_cellpose(
     cell_flow_threshold = cellpose_kwargs.pop("cell_flow_threshold", cellpose_kwargs.get("flow_threshold", 0.4))
     cell_cellprob_threshold = cellpose_kwargs.pop("cell_cellprob_threshold", cellpose_kwargs.get("cellprob_threshold", 0))
     
-    # Create separate kwargs dictionaries for nuclei and cell segmentation
-    nuclei_kwargs = cellpose_kwargs.copy()
-    nuclei_kwargs["flow_threshold"] = nuclei_flow_threshold
-    nuclei_kwargs["cellprob_threshold"] = nuclei_cellprob_threshold
-    
-    cell_kwargs = cellpose_kwargs.copy()
-    cell_kwargs["flow_threshold"] = cell_flow_threshold
-    cell_kwargs["cellprob_threshold"] = cell_cellprob_threshold
+    # Create separate kwargs dictionaries
+    nuclei_kwargs = {
+        "flow_threshold": nuclei_flow_threshold,
+        "cellprob_threshold": nuclei_cellprob_threshold
+    }
+
+    cell_kwargs = {
+        "flow_threshold": cell_flow_threshold,
+        "cellprob_threshold": cell_cellprob_threshold
+    }
     
     # Prepare data for Cellpose by creating a merged RGB image
     rgb = prepare_cellpose(
@@ -261,7 +263,7 @@ def segment_cellpose_rgb(
         gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
         nuclei_kwargs (dict, optional): Specific parameters for nuclei segmentation. Default is None.
         cell_kwargs (dict, optional): Specific parameters for cell segmentation. Default is None.
-        **kwargs: Additional keyword arguments applied to both nuclei and cell segmentation if specific kwargs not provided.
+        kwargs: Additional keyword arguments applied to both nuclei and cell segmentation if specific kwargs not provided.
 
     Returns:
         tuple: A tuple containing:

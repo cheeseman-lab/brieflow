@@ -36,7 +36,9 @@ else:
 if PHENOTYPE_SAMPLES_FP.exists():
     phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
     if len(phenotype_samples_df) > 0:
-        phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t").astype(str)
+        phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t").astype(
+            str
+        )
     else:
         print("No phenotype samples found in the file!")
         phenotype_wildcard_combos = pd.DataFrame(

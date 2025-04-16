@@ -49,7 +49,7 @@ MERGE_OUTPUTS = {
     ],
     "clean_merge": [
         MERGE_FP
-        / "parquets"
+        / "eval"
         / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "channel_min_histogram", "png"
         ),
@@ -99,7 +99,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "eval_merge": None,
     "clean_merge": None,
     "deduplicate_merge": None,
-    "final_merge": protected,
+    "final_merge": None,
 }
 
 MERGE_OUTPUTS_MAPPED = map_outputs(MERGE_OUTPUTS, MERGE_OUTPUT_MAPPINGS)

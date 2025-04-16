@@ -1,6 +1,13 @@
-"""Find SBS peaks."""
+"""Find SBS peaks!
+
+Find peaks of signal in SBS data using either a local maxima of base channel standard deviation
+(standard approach) or a deep learning model (Spotiflow).
+"""
 
 import numpy as np
+import matplotlib.pyplot as plt
+from scipy.spatial.distance import cdist
+from spotiflow.model import Spotiflow
 
 from lib.shared.image_utils import remove_channels
 
@@ -77,3 +84,280 @@ def find_neighborhood_peaks(data, n=5):
     peaks[mask] = 0
 
     return peaks
+
+
+def find_peaks_spotiflow(
+    aligned_images,
+    cycle_idx=0,
+    model="general",
+    prob_thresh=0.5,
+    min_distance=3,
+    subpixel_precision=True,
+    verbose=True,
+    round_coords=True,
+):
+    """Detect peaks separately for each base channel and combine results.
+
+    Args:
+    -----------
+    aligned_images : numpy.ndarray
+        Aligned SBS images with shape (cycles, channels, height, width).
+        First channel (index 0) is assumed to be DAPI and is excluded from processing.
+
+    cycle_idx : int
+        Index of the cycle to use for peak detection (default: 0, first cycle)
+
+    model : str or spotiflow.model.Spotiflow
+        Spotiflow model specification
+
+    prob_thresh : float
+        Probability threshold for spot detection (default: 0.5)
+
+    min_distance : int
+        Minimum distance between spots in pixels (default: 3)
+
+    subpixel_precision : bool
+        Whether to use subpixel precision for spot detection (default: True)
+
+    verbose : bool
+        Whether to print progress information (default: True)
+
+    round_coords : bool
+        Whether to round coordinates to integers (default: True)
+
+    Returns:
+    --------
+    peaks : numpy.ndarray
+        Binary array of shape (height, width) where 1 indicates
+        a peak location and 0 indicates no peak.
+
+    all_base_coords : list
+        List of peak coordinates for each base channel.
+    """
+    # Load model if string is provided
+    if isinstance(model, str):
+        if verbose:
+            print(f"Loading Spotiflow '{model}' model...")
+        model = Spotiflow.from_pretrained(model)
+
+    if verbose:
+        print(f"Detecting peaks for each base channel using cycle {cycle_idx}...")
+
+    # Get spots for cycle cycle_idx
+    spots = aligned_images[cycle_idx, 1:, :, :]  # Selected cycle, base channels only
+
+    # Get dimensions
+    n_bases, height, width = spots.shape
+
+    # Initialize output array
+    peaks = np.zeros((height, width), dtype=np.int8)
+
+    # List to store coordinates for each base
+    all_base_coords = []
+
+    # Process each base channel separately
+    for base_idx in range(n_bases):
+        if verbose:
+            print(f"Processing base channel {base_idx + 1}/{n_bases}...")
+
+        # Extract data for current base
+        base_data = spots[base_idx, :, :]
+
+        # Use the base_data directly - no normalization
+        # Run Spotiflow spot detection
+        peak_coords, _ = model.predict(
+            base_data,
+            prob_thresh=prob_thresh,
+            min_distance=min_distance,
+            subpix=subpixel_precision,
+            verbose=False,
+        )
+
+        # Round coordinates if requested
+        if round_coords:
+            peak_coords = np.array(
+                [(int(y), int(x)) for y, x in zip(peak_coords[:, 0], peak_coords[:, 1])]
+            )
+
+        # Filter out coordinates outside image boundaries
+        valid_peaks = (
+            (peak_coords[:, 0] >= 0)
+            & (peak_coords[:, 0] < height)
+            & (peak_coords[:, 1] >= 0)
+            & (peak_coords[:, 1] < width)
+        )
+        valid_coords = peak_coords[valid_peaks]
+
+        if verbose:
+            print(f"  Base {base_idx + 1}: {len(valid_coords)} spots detected")
+
+        # Store coordinates for this base
+        all_base_coords.append(valid_coords)
+
+    # Combine results from all bases while enforcing minimum distance
+    if verbose:
+        print("Combining results from all bases...")
+
+    # First, collect all coordinates
+    all_coords = (
+        np.vstack(all_base_coords)
+        if all_base_coords and all(len(coords) > 0 for coords in all_base_coords)
+        else np.empty((0, 2))
+    )
+
+    if len(all_coords) > 0:
+        # Remove duplicates (exact same positions)
+        all_coords = np.unique(all_coords, axis=0)
+
+        # Initialize list for final coordinates
+        final_coords = []
+
+        # Sort coordinates by intensity if available
+        # For simplicity, we'll just process them in order
+        remaining_coords = all_coords.copy()
+
+        while len(remaining_coords) > 0:
+            # Take the first coordinate as a "seed"
+            seed_coord = remaining_coords[0]
+            final_coords.append(seed_coord)
+
+            # Calculate distances to all remaining coordinates
+            distances = cdist([seed_coord], remaining_coords)
+
+            # Find coordinates that are far enough from the seed
+            far_enough = distances[0] > min_distance
+
+            # Update remaining coords to only those far enough from the seed
+            remaining_coords = remaining_coords[far_enough]
+
+        # Convert to numpy array
+        final_coords = np.array(final_coords)
+
+        # Create binary peak array
+        peaks = np.zeros((height, width), dtype=np.int8)
+        peaks[final_coords[:, 0], final_coords[:, 1]] = 1
+
+        if verbose:
+            print(
+                f"Final result: {len(final_coords)} spots after enforcing minimum distance of {min_distance}"
+            )
+    else:
+        if verbose:
+            print("No spots detected in any channel")
+        final_coords = np.empty((0, 2))
+
+    return peaks, all_base_coords
+
+
+def plot_channels_with_peaks(
+    maxed_data,
+    peaks_array,
+    bases,
+    cycle_number=0,
+    threshold_peaks=None,
+    peak_colors=None,
+    peak_labels=None,
+    figsize=(12, 12),
+):
+    """Plot individual channel data with detected peaks overlaid.
+
+    Args:
+        maxed_data : numpy.ndarray
+            Max filtered data with shape (cycles, channels, height, width)
+            or (channels, height, width)
+        peaks_array : numpy.ndarray
+            2D array where values indicate peaks (binary or intensity values)
+        bases : list of str
+            List of base names (e.g., ['G', 'T', 'A', 'C'])
+        cycle_number : int
+            Cycle number for subsetting the data and for the title
+        threshold_peaks : float, optional
+            Threshold value to consider a point as a peak.
+            If None, treats peaks_array as binary (non-zero values are peaks).
+        peak_colors : list of str, optional
+            Colors for the peaks. Defaults to ['orange']
+        peak_labels : list of str, optional
+            Labels for the peaks in the legend. Defaults to None
+        figsize : tuple, optional
+            Figure size. Defaults to (12, 12)
+    """
+    # Default values
+    if peak_colors is None:
+        peak_colors = ["orange"]
+    if peak_labels is None:
+        peak_labels = ["Detected Peaks"]
+
+    # Standard colormaps for bases
+    standard_cmaps = ["Greens", "Reds", "Blues", "Purples"]
+
+    # Extract data for the specified cycle
+    if len(maxed_data.shape) == 4:  # (cycles, channels, height, width)
+        cycle_data = maxed_data[cycle_number]
+    else:  # (channels, height, width)
+        cycle_data = maxed_data
+
+    # Convert peaks array to coordinate list
+    if threshold_peaks is not None:
+        peak_coords = np.argwhere(peaks_array > threshold_peaks)
+        threshold_text = f" (threshold={threshold_peaks})"
+        print(f"Found {len(peak_coords)} peaks above threshold {threshold_peaks}")
+    else:
+        # If no threshold provided, assume binary array (non-zero values are peaks)
+        peak_coords = np.argwhere(peaks_array > 0)
+        threshold_text = ""
+        print(f"Found {len(peak_coords)} peaks (binary array, non-zero values)")
+
+    # Create figure and subplots
+    fig, axes = plt.subplots(2, 2, figsize=figsize)
+    fig.suptitle(
+        f"Cycle {cycle_number} with Detected Spots{threshold_text}", fontsize=16
+    )
+    axes = axes.flatten()
+
+    # Plot each base channel with spots
+    for i, base in enumerate(bases):
+        if i < len(axes):  # Ensure we don't exceed the number of subplots
+            # Get the channel data
+            channel_data = cycle_data[i]
+
+            # Apply percentile-based scaling
+            vmin = np.percentile(channel_data, 1)
+            vmax = np.percentile(channel_data, 99.5)
+
+            # Display the channel image
+            im = axes[i].imshow(
+                channel_data, cmap=standard_cmaps[i], vmin=vmin, vmax=vmax
+            )
+
+            # Add peaks
+            axes[i].scatter(
+                peak_coords[:, 1],
+                peak_coords[:, 0],
+                facecolors="none",
+                edgecolors=peak_colors[0],
+                s=15,
+                linewidths=0.5,
+            )
+
+            # Set title and formatting
+            axes[i].set_title(f"{base} Channel")
+            axes[i].axis("off")
+            plt.colorbar(im, ax=axes[i], fraction=0.046, pad=0.04)
+
+    # Add legend with peak count
+    legend_elements = [
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="none",
+            markeredgecolor=peak_colors[0],
+            markersize=8,
+            label=f"{peak_labels[0]} ({len(peak_coords)})",
+        )
+    ]
+    fig.legend(handles=legend_elements, loc="lower right")
+
+    plt.tight_layout()
+    return fig, axes

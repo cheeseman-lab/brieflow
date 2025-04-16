@@ -9,6 +9,7 @@ dependencies:
   - snakemake-executor-plugin-slurm
   - coincbc=2.10.12 # Pinned because need this version specifically. Should check if relevant across machines.
   - pip
+  - sphinx-rtd-theme
   - ipykernel
   - pandas
   - numpy
@@ -33,4 +34,9 @@ dependencies:
   - pip:
       - -e .
       - stardist
+<<<<<<< HEAD
       - levenshtein
+=======
+      - torch
+      - spotiflow
+>>>>>>> main

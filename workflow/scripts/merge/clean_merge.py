@@ -1,9 +1,10 @@
 import pandas as pd
 
+from lib.shared.file_utils import validate_dtypes
 from lib.merge.eval_merge import plot_channel_histogram
 
 # Load formatted merge data
-merge_formatted = pd.read_parquet(snakemake.input[0])
+merge_formatted = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 
 # Cleaned merged dataset
 merge_cleaned = merge_formatted.query(

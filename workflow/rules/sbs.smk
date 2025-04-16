@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input
-from lib.shared.rule_utils import get_segmentation_params
+from lib.shared.rule_utils import get_spot_detection_params, get_segmentation_params
 
 
 # Align images from each sequencing round
@@ -49,11 +49,11 @@ rule compute_standard_deviation:
 # Find local maxima of SBS reads across cycles
 rule find_peaks:
     input:
-        SBS_OUTPUTS["compute_standard_deviation"],
+        SBS_OUTPUTS["compute_standard_deviation"] if config["sbs"]["spot_detection_method"] == "standard" else SBS_OUTPUTS["align_sbs"],
     output:
         SBS_OUTPUTS_MAPPED["find_peaks"],
     params:
-        width=config["sbs"]["peak_width"],
+        config=lambda wildcards: get_spot_detection_params(config)
     script:
         "../scripts/sbs/find_peaks.py"
 

@@ -67,6 +67,49 @@ def get_alignment_params(wildcards, config):
     return base_params
 
 
+def get_spot_detection_params(config):
+    """Get spot detection parameters.
+
+    Args:
+        config (dict): Configuration dictionary.
+
+    Returns:
+        dict: Spot detection parameters for SBS processing.
+    """
+    # Get module config
+    module_config = config["sbs"]
+
+    # Get spot detection method, default to standard if not specified
+    method = module_config.get("spot_detection_method", "standard")
+
+    # Common parameters for all methods
+    params = {
+        "method": method,
+    }
+
+    # Method-specific parameters
+    if method == "standard":
+        # No additional parameters needed for standard method
+        pass
+    elif method == "spotiflow":
+        params.update(
+            {
+                "spotiflow_model": module_config.get("spotiflow_model", "general"),
+                "spotiflow_threshold": module_config.get("spotiflow_threshold", 0.3),
+                "spotiflow_cycle_index": module_config.get("spotiflow_cycle_index", 0),
+                "spotiflow_min_distance": module_config.get(
+                    "spotiflow_min_distance", 1
+                ),
+            }
+        )
+    else:
+        raise ValueError(
+            f"Unknown spot detection method: {method}. Choose one of: standard, spotiflow"
+        )
+
+    return params
+
+
 def get_segmentation_params(module, config):
     """Get segmentation parameters for a specific module.
 

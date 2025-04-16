@@ -9,6 +9,7 @@ This includes:
 
 import re
 import math
+from pathlib import Path
 
 import pandas as pd
 from microfilm.microplot import Micropanel
@@ -58,7 +59,7 @@ def create_samples_df(images_fp, sample_pattern, metadata, metadata_order_type):
     sample_regex = re.compile(sample_pattern)
 
     # Find and extract metadata from matching files
-    for image_fp in images_fp.rglob("*"):
+    for image_fp in Path(images_fp).rglob("*"):
         match = sample_regex.search(str(image_fp))
         if match:
             samples_data.append(
@@ -67,6 +68,11 @@ def create_samples_df(images_fp, sample_pattern, metadata, metadata_order_type):
 
     # Create DataFrame
     samples_df = pd.DataFrame(samples_data)
+
+    if samples_df.empty:
+        raise ValueError(
+            f"No matching files found in {images_fp} with pattern {sample_pattern}"
+        )
 
     # Convert column types according to metadata_order_type
     for column, column_type in metadata_order_type.items():

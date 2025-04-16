@@ -48,12 +48,12 @@ if align_config.get("custom_align", False):
     print("Applying custom channel offsets...")
     print(f"Custom channels: {align_config['custom_channels']}")
     print(f"Custom offset (y,x): {align_config['custom_offset_yx']}")
-    
+
     # Apply custom offsets directly using the channel indices from config
     aligned_data = apply_custom_offsets(
         aligned_data,
         offset_yx=align_config["custom_offset_yx"],
-        channels=align_config["custom_channels"]
+        channels=align_config["custom_channels"],
     )
 
 # Save the aligned/unaligned data as a .tiff file

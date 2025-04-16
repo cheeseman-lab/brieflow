@@ -20,17 +20,30 @@ from collections import defaultdict
 import skimage
 from skimage.measure import regionprops, label
 from skimage.segmentation import clear_border, watershed, relabel_sequential
-from skimage.morphology import disk, binary_erosion, binary_dilation, remove_small_objects
+from skimage.morphology import (
+    disk,
+    binary_erosion,
+    binary_dilation,
+    remove_small_objects,
+)
 from skimage.feature import peak_local_max
 from skimage.filters import threshold_local, gaussian, rank
 from scipy import ndimage as ndi
 from skimage.util import img_as_ubyte
 
 
-def segment_watershed(data, nuclei_threshold, nuclei_area_min,
-                      nuclei_area_max, cell_threshold, cells=True,
-                      smooth=1.35, radius=15, return_counts=False,
-                      reconcile=None):
+def segment_watershed(
+    data,
+    nuclei_threshold,
+    nuclei_area_min,
+    nuclei_area_max,
+    cell_threshold,
+    cells=True,
+    smooth=1.35,
+    radius=15,
+    return_counts=False,
+    reconcile=None,
+):
     """Segment cells using watershed method.
 
     Args:
@@ -57,33 +70,39 @@ def segment_watershed(data, nuclei_threshold, nuclei_area_min,
         nuclei_data = data
     else:
         nuclei_data = data
-    
+
     # Segment nuclei using the segment_nuclei method
-    nuclei = segment_nuclei(nuclei_data, nuclei_threshold, nuclei_area_min, nuclei_area_max,
-                           smooth=smooth, radius=radius)
-    
+    nuclei = segment_nuclei(
+        nuclei_data,
+        nuclei_threshold,
+        nuclei_area_min,
+        nuclei_area_max,
+        smooth=smooth,
+        radius=radius,
+    )
+
     counts = {}
     counts["nuclei"] = len(np.unique(nuclei)) - 1  # Subtract 1 to exclude background
-    
+
     if not cells:
         if return_counts:
             counts_df = pd.DataFrame([counts])
             return nuclei, counts_df
         else:
             return nuclei
-    
+
     # Segment cells using the segment_cells method
     cells = segment_cells(data, nuclei, cell_threshold)
-    
+
     counts["cells"] = len(np.unique(cells)) - 1  # Subtract 1 to exclude background
-    
+
     # Reconcile nuclei and cells if specified
     if reconcile:
         print(f"reconciling masks with method how={reconcile}")
         nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
         counts["reconciled_nuclei"] = len(np.unique(nuclei)) - 1
         counts["reconciled_cells"] = len(np.unique(cells)) - 1
-    
+
     if return_counts:
         counts_df = pd.DataFrame([counts])
         return nuclei, cells, counts_df
@@ -109,7 +128,7 @@ def segment_nuclei(data, threshold, area_min, area_max, smooth=1.35, radius=15):
         radius (float, optional): Radius of disk used in local mean thresholding to identify foreground. Default is 15.
 
     Returns:
-        nuclei (numpy.ndarray): Labeled segmentation mask of nuclei, dimensions are same as trailing two dimensions of `data`.
+        numpy.ndarray: Labeled segmentation mask of nuclei.
     """
     # Extract DAPI channel from the input data
     if isinstance(data, list):
@@ -120,9 +139,13 @@ def segment_nuclei(data, threshold, area_min, area_max, smooth=1.35, radius=15):
         dapi = data
 
     # Define keyword arguments for find_nuclei function
-    kwargs = dict(threshold=lambda x: threshold, 
-                  area_min=area_min, area_max=area_max,
-                  smooth=smooth, radius=radius)
+    kwargs = dict(
+        threshold=lambda x: threshold,
+        area_min=area_min,
+        area_max=area_max,
+        smooth=smooth,
+        radius=radius,
+    )
 
     # Suppress precision warning from skimage
     with warnings.catch_warnings():
@@ -140,26 +163,24 @@ def segment_nuclei(data, threshold, area_min, area_max, smooth=1.35, radius=15):
 
 def segment_cells(data, nuclei, threshold, add_nuclei=True):
     """Segment cells from aligned data and match cell labels to nuclei labels.
-    
-    Note that labels can be skipped, for example if cells are touching the 
+
+    Note that labels can be skipped, for example if cells are touching the
     image boundary.
 
-    Parameters
-    ----------
-    data : np.ndarray
-        The aligned image data. Can have 2, 3, or 4 dimensions.
-    nuclei : np.ndarray
-        The segmented nuclei data.
-    threshold : float
-        The threshold value for cell segmentation.
-    add_nuclei : bool, default True
-        Whether to add the nuclei shape to the cell mask to help with mapping 
-        reads to cells at the edge of the field of view.
+    Args:
+        data : np.ndarray
+            The aligned image data. Can have 2, 3, or 4 dimensions.
+        nuclei : np.ndarray
+            The segmented nuclei data.
+        threshold : float
+            The threshold value for cell segmentation.
+        add_nuclei : bool, default True
+            Whether to add the nuclei shape to the cell mask to help with mapping
+            reads to cells at the edge of the field of view.
 
-    Returns
-    -------
-    np.ndarray
-        The segmented cells, with labels matched to nuclei.
+    Returns:
+        np.ndarray
+            The segmented cells, with labels matched to nuclei.
     """
     # Determine the mask based on the number of dimensions in data
     if data.ndim == 4:
@@ -190,7 +211,7 @@ def segment_cells(data, nuclei, threshold, add_nuclei=True):
             cells = find_cells(nuclei, mask)
     except ValueError:
         # Handle the case where no cells are found
-        print('segment_cells error -- no cells')
+        print("segment_cells error -- no cells")
         cells = nuclei
 
     # Calculate the number of segmented cells (excluding background label)
@@ -216,10 +237,10 @@ def find_cells(nuclei, mask, remove_boundary_cells=True):
     """
     # Calculate distance transform of areas where nuclei are not present
     distance = ndi.distance_transform_cdt(nuclei == 0)
-    
+
     # Use watershed segmentation to expand nuclei labels to cells within the mask
     cells = watershed(distance, nuclei, mask=mask)
-    
+
     # Remove cells touching the boundary if specified
     if remove_boundary_cells:
         # Identify cells touching the boundary
@@ -230,9 +251,15 @@ def find_cells(nuclei, mask, remove_boundary_cells=True):
     return cells.astype(np.uint16)
 
 
-def find_nuclei(dapi, threshold, radius=15, area_min=50, area_max=500,
-                score=lambda r: r.mean_intensity,
-                smooth=1.35):
+def find_nuclei(
+    dapi,
+    threshold,
+    radius=15,
+    area_min=50,
+    area_max=500,
+    score=lambda r: r.mean_intensity,
+    smooth=1.35,
+):
     """Segment nuclei from DAPI stain using various parameters and filters.
 
     Args:
@@ -250,16 +277,16 @@ def find_nuclei(dapi, threshold, radius=15, area_min=50, area_max=500,
     """
     # Binarize DAPI image to identify foreground
     mask = binarize(dapi, radius, area_min)
-    
+
     # Label connected components in the binary mask
     labeled = label(mask)
-    
+
     # Filter labeled regions based on intensity score and threshold
     labeled = filter_by_region(labeled, score, threshold, intensity_image=dapi) > 0
 
     # Fill holes in the labeled mask
     filled = ndi.binary_fill_holes(labeled)
-    
+
     # Label the differences between filled and original labeled regions
     difference = label(filled != labeled)
 
@@ -292,10 +319,10 @@ def filter_by_region(labeled, score, threshold, intensity_image=None, relabel=Tr
     """
     # Copy the labeled image to avoid modifying the original
     labeled = labeled.copy().astype(int)
-    
+
     # Compute region properties
     regions = regionprops(labeled, intensity_image=intensity_image)
-    
+
     # Calculate scores for each region
     scores = np.array([score(r) for r in regions])
 
@@ -312,7 +339,7 @@ def filter_by_region(labeled, score, threshold, intensity_image=None, relabel=Tr
 
     # Remove identified regions from the labeled image
     labeled.flat[np.in1d(labeled.flat[:], cut)] = 0
-    
+
     if relabel:
         # Relabel the regions sequentially
         labeled, _, _ = relabel_sequential(labeled)
@@ -332,21 +359,19 @@ def apply_watershed(img, smooth=4):
     """
     # Compute the distance transform of the image
     distance = ndi.distance_transform_edt(img)
-    
+
     if smooth > 0:
         # Apply Gaussian smoothing to the distance transform
         distance = gaussian(distance, sigma=smooth)
-    
+
     # local_max = peak_local_max(
-    #                 distance, indices=False, footprint=np.ones((3, 3)), 
+    #                 distance, indices=False, footprint=np.ones((3, 3)),
     #                 exclude_border=False)
 
     # Identify local maxima in the distance transform
     coordinates = peak_local_max(
-                    distance, 
-                    min_distance=1,
-                    footprint=np.ones((3, 3)), 
-                    exclude_border=False)
+        distance, min_distance=1, footprint=np.ones((3, 3)), exclude_border=False
+    )
 
     # Create a boolean mask of local maxima
     local_max = np.zeros_like(distance, dtype=bool)
@@ -355,10 +380,10 @@ def apply_watershed(img, smooth=4):
 
     # Label the local maxima
     markers = ndi.label(local_max)[0]
-    
+
     # Apply watershed algorithm to the distance transform
     result = watershed(-distance, markers, mask=img)
-    
+
     return result.astype(np.uint16)
 
 
@@ -375,16 +400,16 @@ def binarize(image, radius, min_size):
     """
     # Convert image to 8-bit unsigned integers
     dapi = img_as_ubyte(image)
-    
+
     # Create a disk-shaped structuring element for filtering
     footprint = disk(radius)
-    
+
     # Apply local mean filtering to the image
     mean_filtered = skimage.filters.rank.mean(dapi, footprint=footprint)
-    
+
     # Create a binary mask by thresholding the image
     mask = dapi > mean_filtered
-    
+
     # Remove small objects from the mask
     mask = remove_small_objects(mask, min_size=min_size)
 

@@ -144,8 +144,8 @@ rule call_reads:
     script:
         "../scripts/sbs/call_reads.py"
 
-'''
-# Call cells (to be merged to main)
+
+# Call cells
 rule call_cells:
     input:
         SBS_OUTPUTS["call_reads"],
@@ -158,33 +158,7 @@ rule call_cells:
         error_correct=config["sbs"]["error_correct"],        
     script:
         "../scripts/sbs/call_cells.py"
-'''
 
-# Call cells using T7 protocol
-rule call_cells:
-    input:
-        SBS_OUTPUTS["call_reads"],
-    output:
-        SBS_OUTPUTS_MAPPED["call_cells"],
-    params:
-        # Pool design parameters
-        df_design_path=config["sbs"]["df_design_path"],
-        # T7 read preparation parameters
-        map_start=config["sbs"]["map_start"],
-        map_end=config["sbs"]["map_end"],
-        recomb_start=config["sbs"]["recomb_start"],
-        recomb_end=config["sbs"]["recomb_end"],
-        map_col=config["sbs"]["map_col"],
-        recomb_col=config["sbs"]["recomb_col"],
-        recomb_filter_col=config["sbs"]["recomb_filter_col"],
-        # Cell calling parameters
-        q_min=config["sbs"]["q_min"],
-        recomb_q_thresh=config["sbs"]["recomb_q_thresh"],
-        error_correct=config["sbs"]["error_correct"],
-        barcode_info_cols=config["sbs"]["barcode_info_cols"],
-        max_distance=config["sbs"]["max_distance"],
-    script:
-        "../scripts/sbs/call_cells_T7.py"
 
 # Extract minimal sbs info
 rule extract_sbs_info:

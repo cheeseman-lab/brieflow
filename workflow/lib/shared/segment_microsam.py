@@ -219,7 +219,10 @@ def segment_microsam_multichannel(
 
 
 def segment_microsam_nuclei(
-    dapi, model_type="vit_b_lm", remove_edges=True, gpu=False,
+    dapi,
+    model_type="vit_b_lm",
+    remove_edges=True,
+    gpu=False,
 ):
     """Segment nuclei using the MicroSAM algorithm with InstanceSegmentationWithDecoder.
 

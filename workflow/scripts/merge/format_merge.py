@@ -35,7 +35,7 @@ merge_formatted = merge_formatted.merge(
             "well",
             "tile",
             "cell",
-            "cell_barcode_0",
+            "sgRNA_0",
             "gene_symbol_0",
             "mapped_single_gene",
         ]

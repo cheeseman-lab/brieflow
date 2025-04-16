@@ -63,16 +63,20 @@ def segment_stardist(
         Segmentation masks with optional counts
     """
     # Extract specific thresholds for nuclei and cells
-    nuclei_prob_threshold = stardist_kwargs.pop("nuclei_prob_threshold", 
-                                               stardist_kwargs.get("prob_threshold", 0.479071))
-    nuclei_nms_threshold = stardist_kwargs.pop("nuclei_nms_threshold", 
-                                              stardist_kwargs.get("nms_threshold", 0.3))
-    cell_prob_threshold = stardist_kwargs.pop("cell_prob_threshold", 
-                                             stardist_kwargs.get("prob_threshold", 0.479071))
-    cell_nms_threshold = stardist_kwargs.pop("cell_nms_threshold", 
-                                            stardist_kwargs.get("nms_threshold", 0.3))
-    
-    # Create separate kwargs dictionaries 
+    nuclei_prob_threshold = stardist_kwargs.pop(
+        "nuclei_prob_threshold", stardist_kwargs.get("prob_threshold", 0.479071)
+    )
+    nuclei_nms_threshold = stardist_kwargs.pop(
+        "nuclei_nms_threshold", stardist_kwargs.get("nms_threshold", 0.3)
+    )
+    cell_prob_threshold = stardist_kwargs.pop(
+        "cell_prob_threshold", stardist_kwargs.get("prob_threshold", 0.479071)
+    )
+    cell_nms_threshold = stardist_kwargs.pop(
+        "cell_nms_threshold", stardist_kwargs.get("nms_threshold", 0.3)
+    )
+
+    # Create separate kwargs dictionaries
     nuclei_kwargs = {
         "prob_thresh": nuclei_prob_threshold,
         "nms_thresh": nuclei_nms_threshold,
@@ -138,7 +142,7 @@ def segment_stardist(
             return nuclei, counts_df
         else:
             return nuclei
-        
+
 
 def prepare_channel(data):
     """Prepare channel data for segmentation using StarDist's normalization.
@@ -163,7 +167,7 @@ def segment_stardist_multichannel(
     gpu=False,
     nuclei_kwargs=None,
     cell_kwargs=None,
-    **kwargs
+    **kwargs,
 ):
     """Segment nuclei and cells using the StarDist algorithm with separate parameters.
 
@@ -188,7 +192,7 @@ def segment_stardist_multichannel(
     # Initialize StarDist models for nuclei and cytoplasmic segmentation
     model_nuclei = StarDist2D.from_pretrained(model_type)
     model_cells = StarDist2D.from_pretrained(model_type)
-    
+
     # Set default kwargs if not provided
     if nuclei_kwargs is None:
         nuclei_kwargs = kwargs.copy()

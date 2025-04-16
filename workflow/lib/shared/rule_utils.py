@@ -35,15 +35,19 @@ def get_alignment_params(wildcards, config):
             "riders": plate_config["riders"],
             "remove_channel": plate_config["remove_channel"],
         }
-        
+
         # Add custom alignment parameters if they exist
         if "custom_align" in plate_config:
             alignment_params["custom_align"] = True
-            alignment_params["custom_channels"] = plate_config.get("custom_channels", [])
-            alignment_params["custom_offset_yx"] = plate_config.get("custom_offset_yx", (0, 0))
+            alignment_params["custom_channels"] = plate_config.get(
+                "custom_channels", []
+            )
+            alignment_params["custom_offset_yx"] = plate_config.get(
+                "custom_offset_yx", (0, 0)
+            )
         else:
             alignment_params["custom_align"] = False
-            
+
         return alignment_params
 
     # If no plate-specific alignments, use global config
@@ -55,15 +59,17 @@ def get_alignment_params(wildcards, config):
         "riders": config["phenotype"].get("riders", []),
         "remove_channel": config["phenotype"].get("remove_channel", False),
     }
-    
+
     # Add global custom alignment parameters if they exist
     if "custom_align" in config["phenotype"]:
         base_params["custom_align"] = config["phenotype"].get("custom_align", False)
         base_params["custom_channels"] = config["phenotype"].get("custom_channels", [])
-        base_params["custom_offset_yx"] = config["phenotype"].get("custom_offset_yx", (0, 0))
+        base_params["custom_offset_yx"] = config["phenotype"].get(
+            "custom_offset_yx", (0, 0)
+        )
     else:
         base_params["custom_align"] = False
-        
+
     return base_params
 
 
@@ -145,10 +151,20 @@ def get_segmentation_params(module, config):
                 "cell_diameter": module_config.get("cell_diameter"),
                 "flow_threshold": module_config.get("flow_threshold", 0.4),
                 "cellprob_threshold": module_config.get("cellprob_threshold", 0),
-                "nuclei_flow_threshold": module_config.get("nuclei_flow_threshold", module_config.get("flow_threshold", 0.4)),
-                "nuclei_cellprob_threshold": module_config.get("nuclei_cellprob_threshold", module_config.get("cellprob_threshold", 0)),
-                "cell_flow_threshold": module_config.get("cell_flow_threshold", module_config.get("flow_threshold", 0.4)),
-                "cell_cellprob_threshold": module_config.get("cell_cellprob_threshold", module_config.get("cellprob_threshold", 0)),           
+                "nuclei_flow_threshold": module_config.get(
+                    "nuclei_flow_threshold", module_config.get("flow_threshold", 0.4)
+                ),
+                "nuclei_cellprob_threshold": module_config.get(
+                    "nuclei_cellprob_threshold",
+                    module_config.get("cellprob_threshold", 0),
+                ),
+                "cell_flow_threshold": module_config.get(
+                    "cell_flow_threshold", module_config.get("flow_threshold", 0.4)
+                ),
+                "cell_cellprob_threshold": module_config.get(
+                    "cell_cellprob_threshold",
+                    module_config.get("cellprob_threshold", 0),
+                ),
             }
         )
     elif segmentation_method == "microsam":
@@ -160,10 +176,16 @@ def get_segmentation_params(module, config):
     elif segmentation_method == "stardist":
         params.update(
             {
-                "stardist_model": module_config.get("stardist_model", "2D_versatile_fluo"),
-                "nuclei_prob_threshold": module_config.get("nuclei_prob_threshold", 0.479071),
+                "stardist_model": module_config.get(
+                    "stardist_model", "2D_versatile_fluo"
+                ),
+                "nuclei_prob_threshold": module_config.get(
+                    "nuclei_prob_threshold", 0.479071
+                ),
                 "nuclei_nms_threshold": module_config.get("nuclei_nms_threshold", 0.3),
-                "cell_prob_threshold": module_config.get("cell_prob_threshold", 0.479071),
+                "cell_prob_threshold": module_config.get(
+                    "cell_prob_threshold", 0.479071
+                ),
                 "cell_nms_threshold": module_config.get("cell_nms_threshold", 0.3),
             }
         )

@@ -155,22 +155,16 @@ def get_segmentation_params(module, config):
         params.update(
             {
                 "microsam_model": module_config.get("microsam_model", "vit_b_lm"),
-                "points_per_side": module_config.get("points_per_side", 32),
-                "points_per_batch": module_config.get("points_per_batch", 16),
-                "stability_score_thresh": module_config.get(
-                    "stability_score_thresh", 0.95
-                ),
-                "pred_iou_thresh": module_config.get("pred_iou_thresh", 0.88),
             }
         )
     elif segmentation_method == "stardist":
         params.update(
             {
-                "stardist_model": module_config.get(
-                    "stardist_model", "2D_versatile_fluo"
-                ),
-                "prob_thresh": module_config.get("prob_thresh", 0.479071),
-                "nms_thresh": module_config.get("nms_thresh", 0.3),
+                "stardist_model": module_config.get("stardist_model", "2D_versatile_fluo"),
+                "nuclei_prob_threshold": module_config.get("nuclei_prob_threshold", 0.479071),
+                "nuclei_nms_threshold": module_config.get("nuclei_nms_threshold", 0.3),
+                "cell_prob_threshold": module_config.get("cell_prob_threshold", 0.479071),
+                "cell_nms_threshold": module_config.get("cell_nms_threshold", 0.3),
             }
         )
     elif segmentation_method == "watershed":

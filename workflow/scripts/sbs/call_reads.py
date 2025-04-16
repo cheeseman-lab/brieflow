@@ -13,6 +13,7 @@ peaks_data = imread(snakemake.input[1])
 reads_data = call_reads(
     bases_data=bases_data,
     peaks_data=peaks_data,
+    method=snakemake.params.call_reads_method,
 )
 
 # save reads data

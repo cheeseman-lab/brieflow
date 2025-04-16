@@ -18,6 +18,7 @@ FILENAME_METADATA_MAPPING = {
     "gene": ["G-", str],
     "sgrna": ["SG-", str],
     "channel": ["CH-", str],
+    "leiden_resolution": ["LR-", float],
 }
 
 

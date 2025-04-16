@@ -45,8 +45,6 @@ def prepare_alignment_data(
             control_key + "_" + metadata.loc[control_mask, pert_id_col].astype(str)
         )
 
-    metadata = metadata[[pert_col, "batch_values"]]
-
     # Extract feature data
     features = features.to_numpy()
 

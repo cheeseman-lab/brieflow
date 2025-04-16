@@ -80,7 +80,7 @@ rule aggregate:
 rule eval_aggregate:
     input:
         # aggregated gene data
-        AGGREGATE_OUTPUTS_MAPPED["aggregate"],
+        AGGREGATE_OUTPUTS_MAPPED["align"],
         # class merge data
         split_datasets_paths=lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS_MAPPED["split_datasets"],

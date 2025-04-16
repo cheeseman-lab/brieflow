@@ -34,9 +34,6 @@ dependencies:
   - pip:
       - -e .
       - stardist
-<<<<<<< HEAD
       - levenshtein
-=======
       - torch
       - spotiflow
->>>>>>> main

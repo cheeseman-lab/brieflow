@@ -30,7 +30,14 @@ def segment_cellpose(
     nuclei_diameter,
     cell_diameter,
     cyto_model="cyto3",
-    cellpose_kwargs=dict(flow_threshold=0.4, cellprob_threshold=0),
+    cellpose_kwargs=dict(
+        flow_threshold=0.4,
+        cellprob_threshold=0,
+        nuclei_flow_threshold=None,
+        nuclei_cellprob_threshold=None,
+        cell_flow_threshold=None,
+        cell_cellprob_threshold=None,
+    ),
     cells=True,
     reconcile="consensus",
     logscale=True,
@@ -46,10 +53,16 @@ def segment_cellpose(
         nuclei_diameter (int): Estimated diameter of nuclei.
         cell_diameter (int): Estimated diameter of cells.
         cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
-        logscale (bool, optional): Whether to apply logarithmic transformation to image data.
-        cellpose_kwargs (dict, optional): Additional keyword arguments for Cellpose.
+        cellpose_kwargs (dict, optional): Additional keyword arguments for Cellpose, including:
+            - flow_threshold (float): Default flow threshold for both nuclei and cells if specific ones not provided
+            - cellprob_threshold (float): Default cell probability threshold for both nuclei and cells if specific ones not provided
+            - nuclei_flow_threshold (float): Specific flow threshold for nuclei segmentation
+            - nuclei_cellprob_threshold (float): Specific cell probability threshold for nuclei segmentation
+            - cell_flow_threshold (float): Specific flow threshold for cell segmentation
+            - cell_cellprob_threshold (float): Specific cell probability threshold for cell segmentation
         cells (bool, optional): Whether to segment both nuclei and cells or just nuclei.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
+        logscale (bool, optional): Whether to apply logarithmic transformation to image data.
         return_counts (bool, optional): Whether to return counts of nuclei and cells. Default is False.
         gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
 
@@ -57,10 +70,35 @@ def segment_cellpose(
         tuple or numpy.ndarray: If 'cells' is True, returns tuple of nuclei and cell segmentation masks,
         otherwise returns only nuclei segmentation mask. If return_counts is True, includes a dictionary of counts.
     """
+    # Extract log_kwargs from cellpose_kwargs
+    log_kwargs = cellpose_kwargs.pop("log_kwargs", dict())
+
+    # Extract specific thresholds for nuclei and cells
+    nuclei_flow_threshold = cellpose_kwargs.pop(
+        "nuclei_flow_threshold", cellpose_kwargs.get("flow_threshold", 0.4)
+    )
+    nuclei_cellprob_threshold = cellpose_kwargs.pop(
+        "nuclei_cellprob_threshold", cellpose_kwargs.get("cellprob_threshold", 0)
+    )
+    cell_flow_threshold = cellpose_kwargs.pop(
+        "cell_flow_threshold", cellpose_kwargs.get("flow_threshold", 0.4)
+    )
+    cell_cellprob_threshold = cellpose_kwargs.pop(
+        "cell_cellprob_threshold", cellpose_kwargs.get("cellprob_threshold", 0)
+    )
+
+    # Create separate kwargs dictionaries
+    nuclei_kwargs = {
+        "flow_threshold": nuclei_flow_threshold,
+        "cellprob_threshold": nuclei_cellprob_threshold,
+    }
+
+    cell_kwargs = {
+        "flow_threshold": cell_flow_threshold,
+        "cellprob_threshold": cell_cellprob_threshold,
+    }
+
     # Prepare data for Cellpose by creating a merged RGB image
-    log_kwargs = cellpose_kwargs.pop(
-        "log_kwargs", dict()
-    )  # Extract log_kwargs from cellpose_kwargs
     rgb = prepare_cellpose(
         data, dapi_index, cyto_index, logscale, log_kwargs=log_kwargs
     )
@@ -78,7 +116,8 @@ def segment_cellpose(
                 reconcile=reconcile,
                 return_counts=True,
                 gpu=gpu,
-                **cellpose_kwargs,
+                nuclei_kwargs=nuclei_kwargs,
+                cell_kwargs=cell_kwargs,
             )
             counts.update(seg_counts)
 
@@ -90,7 +129,8 @@ def segment_cellpose(
                 cyto_model=cyto_model,
                 reconcile=reconcile,
                 gpu=gpu,
-                **cellpose_kwargs,
+                nuclei_kwargs=nuclei_kwargs,
+                cell_kwargs=cell_kwargs,
             )
 
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
@@ -104,7 +144,9 @@ def segment_cellpose(
         else:
             return nuclei, cells
     else:
-        nuclei = segment_cellpose_nuclei_rgb(rgb, nuclei_diameter, **cellpose_kwargs)
+        nuclei = segment_cellpose_nuclei_rgb(
+            rgb, nuclei_diameter, gpu=gpu, **nuclei_kwargs
+        )
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
         print(f"Number of nuclei segmented: {counts['final_nuclei']}")
         counts_df = pd.DataFrame([counts])
@@ -213,9 +255,9 @@ def segment_cellpose_rgb(
     reconcile="consensus",
     remove_edges=True,
     return_counts=False,
-    flow_threshold=0.4,
-    cellprob_threshold=0,
     gpu=False,
+    nuclei_kwargs=None,
+    cell_kwargs=None,
     **kwargs,
 ):
     """Segment nuclei and cells using the Cellpose algorithm from an RGB image.
@@ -226,13 +268,12 @@ def segment_cellpose_rgb(
         cell_diameter (int): Diameter of cells for segmentation.
         cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
-        logscale (bool, optional): Whether to apply log scaling to the cytoplasmic channel. Default is True.
         remove_edges (bool, optional): Whether to remove nuclei and cells touching the image edges. Default is True.
         return_counts (bool, optional): Whether to return counts of nuclei and cells before reconciliation. Default is False.
-        flow_threshold (float, optional): Flow threshold for cell segmentation. Default is 0.4.
-        cellprob_threshold (float, optional): Cell probability threshold for cell segmentation. Default is 0.
         gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
-        **kwargs: Additional keyword arguments.
+        nuclei_kwargs (dict, optional): Specific parameters for nuclei segmentation. Default is None.
+        cell_kwargs (dict, optional): Specific parameters for cell segmentation. Default is None.
+        kwargs: Additional keyword arguments applied to both nuclei and cell segmentation if specific kwargs not provided.
 
     Returns:
         tuple: A tuple containing:
@@ -244,20 +285,22 @@ def segment_cellpose_rgb(
     model_dapi = Cellpose(model_type="nuclei", gpu=gpu)
     model_cyto = Cellpose(model_type=cyto_model, gpu=gpu)
 
+    # Set default kwargs if not provided
+    if nuclei_kwargs is None:
+        nuclei_kwargs = kwargs.copy()
+    if cell_kwargs is None:
+        cell_kwargs = kwargs.copy()
+
     counts = {}
 
-    # Segment nuclei and cells using Cellpose from the RGB image with enhanced parameters
+    # Segment nuclei using nuclei-specific parameters
     nuclei, _, _, _ = model_dapi.eval(
-        rgb, channels=[3, 0], diameter=nuclei_diameter, **kwargs
+        rgb, channels=[3, 0], diameter=nuclei_diameter, **nuclei_kwargs
     )
 
+    # Segment cells using cell-specific parameters
     cells, _, _, _ = model_cyto.eval(
-        rgb,
-        channels=[2, 3],
-        diameter=cell_diameter,
-        flow_threshold=flow_threshold,
-        cellprob_threshold=cellprob_threshold,
-        **kwargs,
+        rgb, channels=[2, 3], diameter=cell_diameter, **cell_kwargs
     )
 
     counts["initial_nuclei"] = (
@@ -326,7 +369,9 @@ def segment_cellpose_nuclei_rgb(
     model_dapi = Cellpose(model_type="nuclei", gpu=gpu)
 
     # Segment nuclei using Cellpose from the RGB image
-    nuclei, _, _, _ = model_dapi.eval(rgb, channels=[3, 0], diameter=nuclei_diameter)
+    nuclei, _, _, _ = model_dapi.eval(
+        rgb, channels=[3, 0], diameter=nuclei_diameter, **kwargs
+    )
 
     # Print the number of nuclei found before and after removing edges
     print(

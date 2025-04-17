@@ -8,54 +8,60 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 CLUSTER_FP = ROOT_FP / "cluster"
 
 CLUSTER_OUTPUTS = {
-    "generate_dataset": [
+    "clean_aggregate": [
         CLUSTER_FP
         / "{channel_combo}"
-        / "datasets"
-        / get_filename({"dataset": "{dataset}"}, "clean_gene_data", "tsv"),
+        / "{cell_class}"
+        / "tsvs"
+        / get_filename({}, "aggregate_cleaned", "tsv"),
     ],
     "phate_leiden_clustering": [
         CLUSTER_FP
         / "{channel_combo}"
-        / "plots"
-        / get_filename({"dataset": "{dataset}"}, "pca_variance_plot", "png"),
-        CLUSTER_FP
-        / "{channel_combo}"
-        / "plots"
-        / get_filename({"dataset": "{dataset}"}, "phate_leiden_clustering", "pdf"),
-        CLUSTER_FP
-        / "{channel_combo}"
+        / "{cell_class}"
         / "tsvs"
-        / get_filename({"dataset": "{dataset}"}, "phate_leiden_uniprot", "tsv"),
+        / get_filename(
+            {"leiden_resolution": "{leiden_resolution}"},
+            "phate_leiden_clustering",
+            "tsv",
+        ),
+        CLUSTER_FP
+        / "{channel_combo}"
+        / "{cell_class}"
+        / "plots"
+        / get_filename(
+            {"leiden_resolution": "{leiden_resolution}"}, "cluster_sizes", "png"
+        ),
+        CLUSTER_FP
+        / "{channel_combo}"
+        / "{cell_class}"
+        / "plots"
+        / get_filename({"leiden_resolution": "{leiden_resolution}"}, "clusters", "png"),
     ],
     "benchmark_clusters": [
         CLUSTER_FP
         / "{channel_combo}"
-        / "tsvs"
-        / get_filename({"dataset": "{dataset}"}, "cluster_gene_table", "tsv"),
-        CLUSTER_FP
-        / "{channel_combo}"
-        / "tsvs"
-        / get_filename({"dataset": "{dataset}"}, "global_metrics", "tsv"),
-    ],
-    "cluster_eval": [
-        CLUSTER_FP / "tsvs" / "aggregated_cluster_metrics.tsv",
+        / "{cell_class}"
+        / "plots"
+        / get_filename(
+            {"leiden_resolution": "{leiden_resolution}"}, "cluster_benchmarks", "png"
+        ),
     ],
 }
 
 CLUSTER_OUTPUT_MAPPINGS = {
-    "generate_dataset": None,
+    "clean_aggregate": None,
     "phate_leiden_clustering": None,
     "benchmark_clusters": None,
-    "cluster_eval": None,
 }
 
 
-channel_combos = ["_".join(combo) for combo in config["cluster"]["channel_combos"]]
-datasets = config["cluster"]["dataset_types"]
-cluster_wildcard_combos = pd.DataFrame(
-    product(channel_combos, datasets), columns=["channel_combo", "dataset"]
-)
+# # TODO: Use all combos
+# cluster_wildcard_combos = cluster_wildcard_combos[
+#     (cluster_wildcard_combos["cell_class"].isin(["all"]))
+#     & (cluster_wildcard_combos["channel_combo"].isin(["DAPI_COXIV_CENPA_WGA"]))
+#     & (cluster_wildcard_combos["leiden_resolution"].isin([10]))
+# ]
 
 CLUSTER_OUTPUTS_MAPPED = map_outputs(CLUSTER_OUTPUTS, CLUSTER_OUTPUT_MAPPINGS)
 

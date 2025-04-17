@@ -122,6 +122,7 @@ rule calculate_ic_sbs:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_sbs"],
     params:
         threading=True,
+        sample_fraction=config["preprocess"]["sample_fraction"],
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 
@@ -139,6 +140,7 @@ rule calculate_ic_phenotype:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],
     params:
         threading=True,
+        sample_fraction=config["preprocess"]["sample_fraction"],
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 

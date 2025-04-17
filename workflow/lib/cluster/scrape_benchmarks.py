@@ -1,29 +1,165 @@
-"""Module for scraping external benchmark datasets for clustering analysis.
+"""This module provides functions to fetch and process benchmark datasets for gene and protein analysis.
 
-This module contains functions to fetch data from external sources, including UniProt, CORUM,
-and STRING databases. The data retrieved is used to enhance and complement clustering results
-in the clustering module by providing information on protein functions, complexes, and interactions.
-
-Functions:
-    - get_uniprot_data: Fetch all human-reviewed UniProt data using the REST API.
-    - get_corum_data: Fetch CORUM complex data for human proteins.
-    - get_string_data: Fetch STRING interaction data for human proteins with high confidence scores.
+It includes utilities to retrieve data from external sources like UniProt, CORUM, STRING, and MSigDB,
+and to generate benchmarks for clustering and pathway analysis.
 """
 
 import re
 import requests
 from requests.adapters import HTTPAdapter, Retry
+import json
 import io
 import gzip
 
 import pandas as pd
 
 
+def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
+    """Generate a STRING pair benchmark DataFrame.
+
+    This function maps STRING protein IDs to gene names and creates a benchmark DataFrame
+    for STRING protein pairs. It filters and selects gene variants based on the provided
+    aggregated data.
+
+    Args:
+        aggregated_data (pd.DataFrame): The aggregated data containing gene information.
+        gene_col (str, optional): The column name in the aggregated data representing gene symbols.
+            Defaults to "gene_symbol_0".
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the STRING pair benchmark.
+    """
+    string_data = get_string_data()
+    uniprot_data = get_uniprot_data()
+
+    # Create mapping from STRING IDs to gene names
+    string_to_genes = {}
+    for _, row in uniprot_data.iterrows():
+        if pd.notna(row["STRING"]) and row["STRING"] != "":
+            string_id = (
+                row["STRING"].split(";")[0] if ";" in row["STRING"] else row["STRING"]
+            )
+            gene_names = row["Gene Names"]
+            if pd.notna(gene_names):
+                string_to_genes[string_id] = gene_names
+
+    # Create the benchmark dataframe
+    data = []
+    for index, row in string_data.reset_index(drop=True).iterrows():
+        protein1 = row["protein1"]
+        protein2 = row["protein2"]
+
+        # Get gene names for each protein ID
+        genes_variants_1 = string_to_genes.get(protein1, None)
+        genes_variants_2 = string_to_genes.get(protein2, None)
+
+        if genes_variants_1 is None or genes_variants_2 is None:
+            continue
+        else:
+            data.append(
+                {
+                    "gene_name_variants": genes_variants_1,
+                    "pair": index + 1,
+                }
+            )
+            data.append(
+                {
+                    "gene_name_variants": genes_variants_2,
+                    "pair": index + 1,
+                }
+            )
+
+    string_pair_benchmark = (
+        pd.DataFrame(data).sort_values("pair").reset_index(drop=True)
+    )
+    string_pair_benchmark = select_gene_variants(
+        string_pair_benchmark, aggregated_data, gene_col
+    )
+
+    return string_pair_benchmark
+
+
+def generate_corum_group_benchmark():
+    """Generate a CORUM group benchmark DataFrame.
+
+    This function processes CORUM data to create a benchmark DataFrame with gene names
+    and their associated protein complexes.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the CORUM group benchmark.
+    """
+    corum_data = get_corum_data()
+
+    # Create the new dataframe with columns for gene_name and complex
+    benchmark_rows = []
+
+    for _, row in corum_data.iterrows():
+        # Split the gene names by semicolon
+        subunits = row["subunits_gene_name"].split(";")
+
+        # Get the complex name
+        complex_name = row["complex_name"]
+
+        # Add each gene to the rows list with the current group_id
+        for gene in subunits:
+            benchmark_rows.append({"gene_name": gene, "group": complex_name})
+
+    # Create the DataFrame from the rows
+    corum_cluster_benchmark = pd.DataFrame(benchmark_rows)
+
+    return corum_cluster_benchmark
+
+
+def generate_msigdb_group_benchmark(
+    url="https://data.broadinstitute.org/gsea-msigdb/msigdb/release/2024.1.Hs/c2.cp.kegg_medicus.v2024.1.Hs.json",
+):
+    """Generate a group benchmark from MSigDB data.
+
+    This function fetches pathway data from the Molecular Signatures Database (MSigDB)
+    and creates a benchmark DataFrame with gene names and their associated pathways.
+
+    Args:
+        url (str, optional): The URL to fetch MSigDB data. Defaults to the KEGG Medicus pathway.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the MSigDB group benchmark.
+    """
+    response = requests.get(url)
+    msigdb_data = json.loads(response.text)
+
+    # Create lists to hold data for DataFrame
+    pathways = []
+    genes = []
+
+    # Process each pathway entry
+    for pathway_id, pathway_data in msigdb_data.items():
+        gene_symbols = pathway_data.get("geneSymbols", [])
+
+        pathways.append(pathway_id)
+        genes.append(gene_symbols)
+
+    # Create DataFrame
+    group_benchmark_df = pd.DataFrame({"pathway_id": pathways, "gene_symbol": genes})
+
+    # Expand gene symbols into rows
+    group_benchmark_df = group_benchmark_df.explode("gene_symbol")
+
+    # Rename and reorder columns
+    group_benchmark_df = group_benchmark_df.rename(
+        columns={"gene_symbol": "gene_name", "pathway_id": "group"}
+    )[["gene_name", "group"]]
+
+    return group_benchmark_df.reset_index(drop=True)
+
+
 def get_uniprot_data():
     """Fetch all human-reviewed UniProt data using the REST API.
 
+    This function retrieves UniProt data for human-reviewed entries, including gene names,
+    functions, and cross-references to STRING, KEGG, and ComplexPortal.
+
     Returns:
-        pd.DataFrame: DataFrame with UniProt data.
+        pd.DataFrame: A DataFrame containing UniProt data.
     """
     # Define UniProt REST API query
     re_next_link = re.compile(r'<(.+)>; rel="next"')
@@ -69,7 +205,7 @@ def get_uniprot_data():
             results.append(line.split("\t"))
 
         progress += len(lines[1:] if progress == 0 else lines)
-        print(f"Progress: {progress} / {total}")
+        print(f"Progress: {progress} / {total}", end="\r")
 
         batch_url = get_next_link(response.headers)
 
@@ -80,10 +216,13 @@ def get_uniprot_data():
 
 
 def get_corum_data():
-    """Fetch all human-reviewed UniProt data using the REST API.
+    """Fetch CORUM complex data for human proteins.
+
+    This function retrieves CORUM data for human protein complexes and processes it
+    into a DataFrame.
 
     Returns:
-        pd.DataFrame: DataFrame with UniProt data.
+        pd.DataFrame: A DataFrame containing CORUM complex data.
     """
     print("Fetching CORUM data...")
     url = "https://mips.helmholtz-muenchen.de/fastapi-corum/public/file/download_current_file"
@@ -101,10 +240,13 @@ def get_corum_data():
 
 
 def get_string_data():
-    """Fetch CORUM complex data for human proteins.
+    """Fetch STRING interaction data for human proteins.
+
+    This function retrieves STRING interaction data for human proteins and filters
+    interactions with a combined score of 950 or higher.
 
     Returns:
-        pd.DataFrame: DataFrame with CORUM complex data for human proteins.
+        pd.DataFrame: A DataFrame containing STRING interaction data.
     """
     print("Fetching STRING data...")
     url = "https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz"
@@ -120,3 +262,38 @@ def get_string_data():
     df = df[df["combined_score"] >= 950]
     print(f"Completed. Total interactions: {len(df)}")
     return df
+
+
+def select_gene_variants(benchmark_df, ref_gene_df, ref_gene_col="gene_symbol_0"):
+    """Select appropriate gene names from variants that match cluster genes.
+
+    This function selects the most relevant gene name from a list of variants
+    based on a reference gene DataFrame. If no match is found, the first gene
+    name in the list is selected.
+
+    Args:
+        benchmark_df (pd.DataFrame): The benchmark DataFrame containing gene name variants.
+        ref_gene_df (pd.DataFrame): The reference DataFrame containing cluster genes.
+        ref_gene_col (str, optional): The column name in the reference DataFrame representing gene symbols.
+            Defaults to "gene_symbol_0".
+
+    Returns:
+        pd.DataFrame: A DataFrame with the selected gene names.
+    """
+    # Get all unique genes in the cluster_df
+    ref_genes = set(ref_gene_df[ref_gene_col])
+
+    # Select the appropriate gene name from variants that matches cluster genes
+    def select_gene_name(variants):
+        for gene in variants.split():
+            if gene in ref_genes:
+                return gene
+        return variants.split()[0]
+
+    # Create a copy of pathway_df and add gene_name column
+    benchmark_df = benchmark_df.copy()
+    benchmark_df["gene_name"] = benchmark_df["gene_name_variants"].apply(
+        select_gene_name
+    )
+
+    return benchmark_df

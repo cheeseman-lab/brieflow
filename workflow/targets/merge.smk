@@ -2,7 +2,10 @@ from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 
-MERGE_FP = ROOT_FP / "merge"
+# MERGE_FP = ROOT_FP / "merge"
+MERGE_FP = Path(
+    "/lab/barcheese01/rkern/aggregate_overhaul/brieflow-analysis/analysis/analysis_root/merge"
+)
 
 MERGE_OUTPUTS = {
     "fast_alignment": [
@@ -22,41 +25,6 @@ MERGE_OUTPUTS = {
         / "parquets"
         / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merge_formatted", "parquet"
-        ),
-    ],
-    "eval_merge": [
-        MERGE_FP
-        / "eval"
-        / get_filename({"plate": "{plate}"}, "cell_mapping_stats", "tsv"),
-        MERGE_FP
-        / "eval"
-        / get_filename({"plate": "{plate}"}, "sbs_to_ph_matching_rates", "tsv"),
-        MERGE_FP
-        / "eval"
-        / get_filename({"plate": "{plate}"}, "sbs_to_ph_matching_rates", "png"),
-        MERGE_FP
-        / "eval"
-        / get_filename({"plate": "{plate}"}, "ph_to_sbs_matching_rates", "tsv"),
-        MERGE_FP
-        / "eval"
-        / get_filename({"plate": "{plate}"}, "ph_to_sbs_matching_rates", "png"),
-        MERGE_FP
-        / "eval"
-        / get_filename({"plate": "{plate}"}, "all_cells_by_channel_min", "png"),
-        MERGE_FP
-        / "eval"
-        / get_filename({"plate": "{plate}"}, "cells_with_channel_min_0", "png"),
-    ],
-    "clean_merge": [
-        MERGE_FP
-        / "eval"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "channel_min_histogram", "png"
-        ),
-        MERGE_FP
-        / "parquets"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "merge_cleaned", "parquet"
         ),
     ],
     "deduplicate_merge": [
@@ -90,14 +58,36 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "merge_final", "parquet"
         ),
     ],
+    "eval_merge": [
+        MERGE_FP
+        / "eval"
+        / get_filename({"plate": "{plate}"}, "cell_mapping_stats", "tsv"),
+        MERGE_FP
+        / "eval"
+        / get_filename({"plate": "{plate}"}, "sbs_to_ph_matching_rates", "tsv"),
+        MERGE_FP
+        / "eval"
+        / get_filename({"plate": "{plate}"}, "sbs_to_ph_matching_rates", "png"),
+        MERGE_FP
+        / "eval"
+        / get_filename({"plate": "{plate}"}, "ph_to_sbs_matching_rates", "tsv"),
+        MERGE_FP
+        / "eval"
+        / get_filename({"plate": "{plate}"}, "ph_to_sbs_matching_rates", "png"),
+        MERGE_FP
+        / "eval"
+        / get_filename({"plate": "{plate}"}, "all_cells_by_channel_min", "png"),
+        MERGE_FP
+        / "eval"
+        / get_filename({"plate": "{plate}"}, "cells_with_channel_min_0", "png"),
+    ],
 }
 
 MERGE_OUTPUT_MAPPINGS = {
-    "fast_alignment": temp,
-    "merge": temp,
-    "format_merge": temp,
+    "fast_alignment": None,
+    "merge": None,
+    "format_merge": None,
     "eval_merge": None,
-    "clean_merge": None,
     "deduplicate_merge": None,
     "final_merge": None,
 }

@@ -1,6 +1,7 @@
 """Helper functions for using Snakemake outputs and targets for use with Brieflow."""
 
 from pathlib import Path
+import string
 
 import pandas as pd
 from snakemake.io import expand, ancient, temp
@@ -182,3 +183,39 @@ def get_montage_inputs(montage_data_checkpoint, montage_output_template, channel
             output_files.append(output_file)
 
     return output_files
+
+
+def map_wildcard_outputs(wildcard_combos_df, output_template, wildcards_to_map):
+    """Map specified wildcards in a template string using values from a DataFrame.
+
+    Given a template path and a list of wildcards to map (e.g. ["cell_class", "channel_combo"]),
+    replaces only those placeholders with values from the DataFrame, leaving others untouched.
+    Useful for creating lists of output paths where we need to fill in some wildcards but not others.
+
+    Args:
+        wildcard_combos_df (pd.DataFrame): DataFrame with one column per wildcard.
+        output_template (str): Template string with placeholders.
+        wildcards_to_map (list[str]): List of wildcard names to substitute.
+
+    Returns:
+        list[str]: List of template paths with specified wildcards substituted.
+    """
+    output_template = str(output_template)
+    all_wildcards = [
+        field_name
+        for _, field_name, _, _ in string.Formatter().parse(output_template)
+        if field_name
+    ]
+
+    mapped_paths = []
+    wildcard_combos_df = wildcard_combos_df[wildcards_to_map].drop_duplicates()
+    for _, row in wildcard_combos_df.iterrows():
+        mapped_path = output_template.format(
+            **{
+                w: row[w] if w in wildcards_to_map else f"{{{w}}}"
+                for w in all_wildcards
+            }
+        )
+        mapped_paths.append(mapped_path)
+
+    return mapped_paths

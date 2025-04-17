@@ -7,320 +7,185 @@ It provides the following functionalities:
 - Detection and reporting of missing values, including NA, null, blank, and infinite values.
 """
 
-import re
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def suggest_parameters(dataframe, population_feature):
-    """Suggest parameters based on input dataframe.
+def nas_summary(cell_data, vis_subsample=None):
+    """Creates a visualization matrix highlighting NA values and returns summary statistics.
 
     Args:
-        dataframe (pd.DataFrame): Input dataframe.
-        population_feature (str): Column name containing population identifiers.
+        cell_data (pandas.DataFrame): The DataFrame to analyze for NA values.
+        vis_subsample (int, optional): Number of samples to visualize. Defaults to None.
 
     Returns:
-        None
+        tuple: A tuple containing:
+            - pandas.DataFrame: A DataFrame with columns: 'column', 'num_nas', and 'percent_na'.
+            - matplotlib.figure.Figure or None: The figure object if NAs are found, None otherwise.
     """
-    # Look for potential control prefixes
-    unique_populations = dataframe[population_feature].unique()
-    control_patterns = [
-        # Match at start of string
-        r"^nt[\s_-]",
-        r"^non[\s_-]?targeting",
-        r"^control",
-        r"^ctrl",
-        r"^neg[\s_-]",
-    ]
+    cols_with_na = cell_data.columns[cell_data.isna().any()].tolist()
 
-    potential_controls = [
-        pop
-        for pop in unique_populations
-        if any(re.match(pattern, pop.lower()) for pattern in control_patterns)
-    ]
+    if not cols_with_na:
+        print("No columns with NA values found in the DataFrame.")
+        return pd.DataFrame(columns=["column", "num_nas", "percent_na"]), None
 
-    # Find first feature-like column
-    numeric_cols = dataframe.select_dtypes(include=[np.number]).columns
-    potential_features = [
-        col
-        for col in numeric_cols
-        if any(
-            pattern in col.lower()
-            for pattern in ["mean", "median", "std", "intensity", "area"]
-        )
-    ]
+    na_counts = cell_data[cols_with_na].isna().sum()
+    na_percent = na_counts / len(cell_data)
 
-    # Identify metadata-like columns
-    potential_metadata = dataframe.select_dtypes(include=["object"]).columns.tolist()
-
-    print("Suggested Parameters:")
-    print("-" * 50)
-
-    if potential_controls:
-        print("\nPotential control prefixes found:")
-        for ctrl in potential_controls:
-            print(f"  - '{ctrl}'")
-    else:
-        print("\nNo obvious control prefixes found. Please check your data.")
-
-    if potential_features:
-        print(f"\nFirst few feature columns detected:")
-        for feat in potential_features[:5]:
-            print(f"  - '{feat}'")
-
-    print("\nMetadata columns detected:")
-    print(f"  - Categorical: {', '.join(potential_metadata[:5])}")
-
-
-def plot_feature_distributions(combined_cell_data, features, remove_clean=False):
-    """Create violin plots with jittered points for feature distributions across different datasets.
-
-    Plots demonstrate the distribution of features across datasets and wells to compare data distributions and ensure proper transformation/standardization.
-    Uses a log scale for clean and transformed data and a linear scale for standardized data.
-    Points are colored based on control vs. non-control status.
-
-    Args:
-        combined_cell_data (dict): Dictionary of dataframes with keys as dataset names (e.g., "clean", "transformed").
-        features (list): List of feature names to plot.
-        remove_clean (bool): Whether to remove clean data from the plot.
-
-    Returns:
-        matplotlib.figure.Figure: The generated figure containing the violin plots.
-    """
-    # Prepare data for plotting
-    plot_data = []
-
-    # Remove clean data if requested
-    if remove_clean:
-        combined_cell_data = {
-            key: combined_cell_data
-            for key, combined_cell_data in combined_cell_data.items()
-            if key != "clean"
+    na_summary_df = pd.DataFrame(
+        {
+            "column": cols_with_na,
+            "percent_na": na_percent.values,
         }
+    )
 
-    for dataset_name, cell_data in combined_cell_data.items():
-        for feature in features:
-            feature_data = pd.DataFrame(
-                {
-                    "Dataset": dataset_name,
-                    "Well": cell_data["well"],
-                    "Value": cell_data[feature],
-                    "Feature": feature,
-                }
-            )
-            plot_data.append(feature_data)
+    if vis_subsample is not None:
+        if vis_subsample > len(cell_data):
+            vis_subsample = len(cell_data)
+        cell_data = cell_data.sample(vis_subsample)
 
-    # Combine all data
-    plot_df = pd.concat(plot_data, ignore_index=True)
+    plt.figure(figsize=(15, 7))
+    plt.title(f"NA Values Matrix ({len(cols_with_na)} columns with missing values)")
 
-    # Create subplot for each feature
-    n_features = len(features)
-    fig, axes = plt.subplots(1, n_features, figsize=(7 * n_features, 8))
+    ax = sns.heatmap(
+        cell_data[cols_with_na].isna(), cmap="viridis", cbar=False, yticklabels=False
+    )
 
-    if n_features == 1:
-        axes = [axes]
-
-    # Plot violins for each feature
-    for ax, feature in zip(axes, features):
-        # Create a second axis that shares the same x-axis
-        ax2 = ax.twinx()
-
-        # Plot log-scale data (clean and transformed) on main axis
-        log_data = plot_df[
-            (plot_df["Feature"] == feature)
-            & (plot_df["Dataset"].isin(["clean", "transformed"]))
-        ]
-        if not log_data.empty:
-            # Violin plot with high transparency
-            sns.violinplot(
-                data=log_data,
-                x="Dataset",
-                y="Value",
-                hue="Well",
-                ax=ax,
-                inner=None,
-                cut=0,
-                density_norm="width",
-                split=False,
-                alpha=0.5,
-            )
-
-            ax.set_yscale("log")
-
-        # Plot linear-scale data (standardized) on second axis
-        linear_data = plot_df[
-            (plot_df["Feature"] == feature) & (plot_df["Dataset"] == "standardized")
-        ]
-        if not linear_data.empty:
-            # Violin plot with high transparency
-            sns.violinplot(
-                data=linear_data,
-                x="Dataset",
-                y="Value",
-                hue="Well",
-                ax=ax2,
-                inner=None,
-                cut=0,
-                density_norm="width",
-                split=False,
-                alpha=0.5,
-            )
-
-        # Customize plot
-        ax.set_title(feature.replace("_", " ").title())
-        ax.set_xlabel("")
-        ax.tick_params(axis="x", rotation=45)
-
-        # Set y-axis labels
-        ax.set_ylabel("Value (log scale)")
-        ax2.set_ylabel("Value (linear scale)")
-
-        # Remove redundant legends from violin plots
-        if ax.get_legend():
-            ax.get_legend().remove()
-
-    # Adjust layout to prevent label cutoff
+    plt.xticks(rotation=90)
     plt.tight_layout()
 
-    return fig
+    return na_summary_df, plt.gcf()
 
 
-def test_missing_values(gene_data, name):
-    """Test for missing values in a dataframe, including NA, null, blank, and infinite values.
-
-    Returns results in a format suitable for CSV export.
+def summarize_cell_data(
+    cell_data: pd.DataFrame, classes: list, collapse_cols: list
+) -> pd.DataFrame:
+    """Summarizes cell data by counting total cells, class-specific cells, and unique metric values.
 
     Args:
-        gene_data (pandas.DataFrame): DataFrame to test.
-        name (str): Name of the dataset for printing.
+        cell_data (pd.DataFrame): DataFrame containing cell metadata.
+        classes (list): List of class names to filter.
+        collapse_cols (list): List of column names to count unique values.
 
     Returns:
-        pandas.DataFrame: DataFrame containing detailed missing value information.
+        pd.DataFrame: Summary table with stage names and corresponding counts/percentages.
     """
-    # Check for various types of missing or problematic values
-    missing = pd.DataFrame(
-        {
-            "null_na": gene_data.isna().sum(),  # Catches np.nan, None, pd.NA
-            "empty_string": gene_data.astype(str).eq("").sum(),  # Empty strings
-            "infinite": gene_data.isin([np.inf, -np.inf]).sum(),  # Infinite values
-        }
+    counts = [("Raw Data", len(cell_data))]
+
+    for class_name in classes:
+        class_subset = cell_data[cell_data["class"] == class_name]
+        counts.append((f"{class_name} cells", len(class_subset)))
+
+        for col in collapse_cols:
+            counts.append((f"{class_name} {col}", class_subset[col].nunique()))
+
+    summary_df = pd.DataFrame(counts, columns=["Stage", "Count"])
+    total = summary_df.loc[summary_df["Stage"] == "Raw Data", "Count"].values[0]
+    summary_df["Percent"] = (summary_df["Count"] / total * 100).round(2)
+    return summary_df
+
+
+def plot_feature_distributions(
+    original_feature_cols,
+    original_cell_data,
+    aligned_feature_cols,
+    aligned_cell_data,
+):
+    """Plot violin plots comparing original and aligned feature distributions.
+
+    Generates a subplot grid where each row corresponds to a feature pair
+    (original vs aligned). Each subplot shows value distributions across
+    plate_well combinations with outliers clipped to the 1st and 99th percentiles.
+
+    Args:
+        original_feature_cols: List of column names for original features.
+        original_cell_data: DataFrame containing original features and 'plate', 'well' columns.
+        aligned_feature_cols: List of column names for aligned features (e.g., PCs).
+        aligned_cell_data: DataFrame containing aligned features and 'plate', 'well' columns.
+
+    Returns:
+        matplotlib.figure.Figure: Figure containing the violin plots.
+    """
+    # Melt original features
+    df_orig = original_cell_data[["plate", "well"] + original_feature_cols].melt(
+        id_vars=["plate", "well"], var_name="Feature", value_name="Value"
     )
+    df_orig["plate_well"] = (
+        df_orig["plate"].astype(int).astype(str) + "_" + df_orig["well"]
+    )
+    df_orig["Type"] = "Original"
 
-    # Sum up all types of problematic values
-    missing["total_issues"] = missing.sum(axis=1)
+    # Melt aligned features
+    df_aligned = aligned_cell_data[["plate", "well"] + aligned_feature_cols].melt(
+        id_vars=["plate", "well"], var_name="Feature", value_name="Value"
+    )
+    df_aligned["plate_well"] = (
+        df_aligned["plate"].astype(int).astype(str) + "_" + df_aligned["well"]
+    )
+    df_aligned["Type"] = "Aligned"
 
-    # Calculate percentages
-    missing["percentage"] = (missing["total_issues"] / len(gene_data) * 100).round(2)
-
-    # Add dataset name
-    missing["dataset"] = name
-
-    # Add column names as a separate column
-    missing["column"] = missing.index
-
-    # Reorder columns
-    missing = missing[
-        [
-            "dataset",
-            "column",
-            "total_issues",
-            "percentage",
-            "null_na",
-            "empty_string",
-            "infinite",
+    # Clip outliers to 1st–99th percentiles
+    df_orig = df_orig.groupby(["Feature", "plate_well"], group_keys=False).apply(
+        lambda g: g[
+            (g["Value"] >= g["Value"].quantile(0.01))
+            & (g["Value"] <= g["Value"].quantile(0.99))
         ]
-    ]
-
-    # Filter for columns that have any issues
-    results = missing[missing["total_issues"] > 0].reset_index(drop=True)
-
-    # Print summary
-    if not results.empty:
-        for _, row in results.iterrows():
-            details = []
-            if row["null_na"] > 0:
-                details.append(f"{row['null_na']} NA/null")
-            if row["empty_string"] > 0:
-                details.append(f"{row['empty_string']} empty")
-            if row["infinite"] > 0:
-                details.append(f"{row['infinite']} infinite")
-    else:
-        print(f"\nNo missing values found in {name} dataset")
-
-    return results
-
-
-def calculate_mitotic_percentage(df_mitotic, df_interphase):
-    """Calculate the percentage of mitotic cells for each gene using pre-grouped data.
-
-    Fills in zeros for missing genes in either dataset.
-
-    Args:
-        df_mitotic (DataFrame): DataFrame containing mitotic cell data (already grouped by gene).
-        df_interphase (DataFrame): DataFrame containing interphase cell data (already grouped by gene).
-
-    Returns:
-        DataFrame: Contains gene names and their mitotic percentages.
-    """
-    # Get all unique genes from both datasets
-    all_genes = sorted(
-        list(set(df_mitotic["gene_symbol_0"]) | set(df_interphase["gene_symbol_0"]))
+    )
+    df_aligned = df_aligned.groupby(["Feature", "plate_well"], group_keys=False).apply(
+        lambda g: g[
+            (g["Value"] >= g["Value"].quantile(0.01))
+            & (g["Value"] <= g["Value"].quantile(0.99))
+        ]
     )
 
-    # Create dictionaries mapping genes to their counts
-    mitotic_counts = dict(zip(df_mitotic["gene_symbol_0"], df_mitotic["gene_count"]))
-    interphase_counts = dict(
-        zip(df_interphase["gene_symbol_0"], df_interphase["gene_count"])
+    # Create plot
+    fig, axes = plt.subplots(
+        len(original_feature_cols),
+        2,
+        figsize=(16, 3 * len(original_feature_cols)),
+        sharey=False,
     )
+    fig.suptitle("Original vs Aligned Feature Distributions")
 
-    # Create result DataFrame with all genes, filling in zeros for missing values
-    result_df = pd.DataFrame(
-        {
-            "gene": all_genes,
-            "mitotic_cells": [mitotic_counts.get(gene, 0) for gene in all_genes],
-            "interphase_cells": [interphase_counts.get(gene, 0) for gene in all_genes],
-        }
-    )
+    for i, (orig_col, aligned_col) in enumerate(
+        zip(original_feature_cols, aligned_feature_cols)
+    ):
+        df_o = df_orig[df_orig["Feature"] == orig_col]
+        df_a = df_aligned[df_aligned["Feature"] == aligned_col]
 
-    # Report genes that were filled with zeros
-    missing_in_mitotic = set(all_genes) - set(df_mitotic["gene_symbol_0"])
-    missing_in_interphase = set(all_genes) - set(df_interphase["gene_symbol_0"])
+        sns.violinplot(
+            data=df_o,
+            x="plate_well",
+            y="Value",
+            ax=axes[i, 0],
+            cut=0,
+            density_norm="width",
+            inner="quartile",
+        )
+        axes[i, 0].set_title(f"{orig_col}")
+        axes[i, 0].set_ylabel("Original Value")
+        axes[i, 0].tick_params(axis="x", rotation=45)
+        if i < len(original_feature_cols) - 1:
+            axes[i, 0].set_xlabel("")
 
-    if missing_in_mitotic or missing_in_interphase:
-        print("Note: Some genes were missing and filled with zero counts:")
-        if missing_in_mitotic:
-            print(
-                f"Genes missing in mitotic data (filled with 0): {missing_in_mitotic}"
-            )
-        if missing_in_interphase:
-            print(
-                f"Genes missing in interphase data (filled with 0): {missing_in_interphase}"
-            )
+        sns.violinplot(
+            data=df_a,
+            x="plate_well",
+            y="Value",
+            ax=axes[i, 1],
+            cut=0,
+            density_norm="width",
+            inner="quartile",
+        )
+        axes[i, 1].set_title(f"{aligned_col}")
+        axes[i, 1].yaxis.set_label_position("right")
+        axes[i, 1].yaxis.tick_right()
+        axes[i, 1].set_ylabel("Aligned Value")
+        axes[i, 1].tick_params(axis="x", rotation=45)
+        if i < len(original_feature_cols) - 1:
+            axes[i, 1].set_xlabel("")
 
-    # Calculate total cells and mitotic percentage
-    result_df["total_cells"] = (
-        result_df["mitotic_cells"] + result_df["interphase_cells"]
-    )
-
-    # Handle division by zero: if total_cells is 0, set percentage to 0
-    result_df["mitotic_percentage"] = np.where(
-        result_df["total_cells"] > 0,
-        (result_df["mitotic_cells"] / result_df["total_cells"] * 100).round(2),
-        0.0,
-    )
-
-    # Sort by mitotic percentage in descending order
-    result_df = result_df.sort_values("mitotic_percentage", ascending=False)
-
-    # Reset index to remove the old index
-    result_df = result_df.reset_index(drop=True)
-
-    # Print summary statistics
-    print(f"\nProcessed {len(all_genes)} total genes")
-    print(f"Average mitotic percentage: {result_df['mitotic_percentage'].mean():.2f}%")
-    print(f"Median mitotic percentage: {result_df['mitotic_percentage'].median():.2f}%")
-
-    return result_df
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
+    return fig

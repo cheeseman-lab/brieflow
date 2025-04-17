@@ -4,6 +4,14 @@ This module provides functions to evaluate clustering results using external ben
 such as known gene pairs and gene groups. It includes methods for calculating recall
 of known gene pairs, measuring group enrichment, and visualizing benchmark performance
 across different clustering parameters.
+
+Statistical Methodology:
+- Pair Recall: Evaluates clustering by measuring the fraction of known gene pairs that appear
+  in the same cluster, providing a direct measure of how well the clustering preserves known
+  relationships.
+- Group Enrichment: Uses Fisher's exact test to identify statistically significant
+  over-representation of known gene groups within clusters, followed by multiple testing
+  correction using the Benjamini-Hochberg procedure to control false discovery rate.
 """
 
 import pandas as pd
@@ -25,6 +33,11 @@ def calculate_pair_recall(
 
     Evaluates how well the clustering recovers known gene-gene relationships
     by measuring the fraction of known gene pairs that are assigned to the same cluster.
+
+    Statistical Methodology:
+    Calculates the true positive rate (recall) as TP/(TP+FN), where TP is the number of
+    known gene pairs assigned to the same cluster, and FN is the number of known gene
+    pairs assigned to different clusters.
 
     Args:
         pair_benchmark (pd.DataFrame): DataFrame with 'pair' and 'gene_name' columns
@@ -105,6 +118,12 @@ def calculate_pair_recall_global(
     """Compute the average recall across all clusters for a pair benchmark.
 
     For each cluster, get recall as TP / (TP + FN) and return the overall mean recall.
+
+    Statistical Methodology:
+    Calculates recall separately for each cluster and then averages these values,
+    giving equal weight to each cluster regardless of size. This approach measures
+    how consistently the clustering algorithm identifies true relationships across
+    all clusters.
 
     Args:
         pair_benchmark (pd.DataFrame): DataFrame with 'pair' and 'gene_name'.
@@ -194,6 +213,13 @@ def calculate_group_enrichment(
 
     Evaluates cluster quality by measuring how many known gene groups are
     significantly enriched within each cluster using Fisher's exact test.
+
+    Statistical Methodology:
+    For each cluster-group pair, constructs a 2×2 contingency table and performs
+    Fisher's exact test to determine if the group is significantly over-represented
+    in the cluster. P-values are adjusted for multiple testing using the
+    Benjamini-Hochberg method, and groups with adjusted p < 0.05 are considered
+    significantly enriched.
 
     Args:
         group_benchmark (pd.DataFrame): DataFrame with 'group' and 'gene_name' columns
@@ -386,6 +412,12 @@ def plot_benchmark_results(
 
     Creates a side-by-side bar plot comparing multiple clustering approaches against
     different benchmarking datasets.
+
+    Statistical Methodology:
+    Visualizes pair recall scores and group enrichment metrics across different datasets,
+    enabling direct comparison of clustering approaches. The visualization helps identify
+    which clustering method best captures known biological relationships and functional
+    groupings.
 
     Args:
         cluster_datasets (dict): Mapping from dataset name to cluster DataFrame.

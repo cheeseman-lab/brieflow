@@ -70,7 +70,7 @@ def summarize_cell_data(
         collapse_cols (list): List of column names to count unique values.
 
     Returns:
-        pd.DataFrame: Summary table with stage names and corresponding counts.
+        pd.DataFrame: Summary table with stage names and corresponding counts/percentages.
     """
     counts = [("Raw Data", len(cell_data))]
 
@@ -81,7 +81,10 @@ def summarize_cell_data(
         for col in collapse_cols:
             counts.append((f"{class_name} {col}", class_subset[col].nunique()))
 
-    return pd.DataFrame(counts, columns=["Stage", "Count"])
+    summary_df = pd.DataFrame(counts, columns=["Stage", "Count"])
+    total = summary_df.loc[summary_df["Stage"] == "Raw Data", "Count"].values[0]
+    summary_df["Percent"] = (summary_df["Count"] / total * 100).round(2)
+    return summary_df
 
 
 def plot_feature_distributions(

@@ -31,6 +31,8 @@ dependencies:
   - phate
   - statsmodels
   - joblib
+  - dill
+  - xgboost=3.0.0
   - pip:
       - -e .
       - stardist==0.9.1

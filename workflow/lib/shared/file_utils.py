@@ -1,12 +1,11 @@
 """Utility functions for handling and filtering sample file paths in the BrieFlow pipeline."""
 
-import logging
 from pathlib import Path
 
+from pyarrow.parquet import ParquetFile
+import pyarrow as pa
 import pandas as pd
 import numpy as np
-
-log = logging.getLogger(__name__)
 
 # Mapping of metadata keys to filename prefixes and data types
 FILENAME_METADATA_MAPPING = {
@@ -14,10 +13,12 @@ FILENAME_METADATA_MAPPING = {
     "well": ["W-", str],
     "tile": ["T-", int],
     "cycle": ["C-", int],
+    "cell_class": ["CeCl-", str],
+    "channel_combo": ["ChCo-", str],
     "gene": ["G-", str],
     "sgrna": ["SG-", str],
     "channel": ["CH-", str],
-    "dataset": ["DT-", str],
+    "leiden_resolution": ["LR-", float],
 }
 
 
@@ -94,23 +95,43 @@ def parse_filename(file_path: str) -> tuple:
     return metadata, info_type, file_type
 
 
+def load_parquet_subset(full_df_fp, n_rows=50000):
+    """Load a fixed number of rows from an parquet file without loading entire file into memory.
+
+    Args:
+        full_df_fp (str): Path to parquet file.
+        n_rows (int): Number of rows to get.
+
+    Returns:
+        pd.DataFrame: Subset of the data with combined blocks.
+    """
+    print(f"Reading first {n_rows:,} rows from {full_df_fp}")
+
+    # read the first n_rows of the file path
+    df = ParquetFile(full_df_fp)
+    row_subset = next(df.iter_batches(batch_size=n_rows))
+    df = pa.Table.from_batches([row_subset]).to_pandas()
+
+    return df
+
+
 def validate_dtypes(df):
     """Convert DataFrame columns to the most specific data type possible with the following rules.
 
     - Convert object to string if possible
-    - Convert strings to float if possible
+    - Convert strings to int float if possible
     - Convert floats to int if possible
 
     Args:
-    df : pandas.DataFrame
-        The DataFrame to optimize
+        df : pandas.DataFrame
+            The DataFrame to optimize
 
     Returns:
-    pandas.DataFrame
-        A new DataFrame with optimized dtypes
+        pandas.DataFrame
+            A new DataFrame with optimized dtypes
     """
     for col in df.columns:
-        # Skip columns that are already int64
+        # Skip columns that are already int
         if pd.api.types.is_integer_dtype(df[col]):
             continue
 

@@ -88,16 +88,16 @@ AGGREGATE_OUTPUT_MAPPINGS = {
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
 
 # TODO: Use all combos
-aggregate_wildcard_combos = aggregate_wildcard_combos[
-    (aggregate_wildcard_combos["plate"].isin([1]))
-    & (aggregate_wildcard_combos["well"].isin(["A1", "A2"]))
-    & (aggregate_wildcard_combos["cell_class"].isin(["all"]))
-    & (
-        aggregate_wildcard_combos["channel_combo"].isin(
-            ["DAPI_COXIV_CENPA_WGA"]  # , "DAPI_CENPA"]
-        )
-    )
-]
+# aggregate_wildcard_combos = aggregate_wildcard_combos[
+#     (aggregate_wildcard_combos["plate"].isin([1]))
+#     & (aggregate_wildcard_combos["well"].isin(["A1", "A2"]))
+#     & (aggregate_wildcard_combos["cell_class"].isin(["all"]))
+#     & (
+#         aggregate_wildcard_combos["channel_combo"].isin(
+#             ["DAPI_COXIV_CENPA_WGA"]  # , "DAPI_CENPA"]
+#         )
+#     )
+# ]
 
 AGGREGATE_TARGETS = outputs_to_targets(
     AGGREGATE_OUTPUTS, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS

@@ -13,8 +13,6 @@ montage = create_cell_montage(montage_data, snakemake.params.channels)
 
 # save montages
 for index, channel_montage in enumerate(montage.values()):
-    print(f"Saving montage for channel {snakemake.params.channels[index]}...")
-
     # Normalize to 0–255 for PNG
     montage_uint8 = rescale_intensity(
         channel_montage, in_range="image", out_range=(0, 255)

@@ -219,12 +219,15 @@ def get_montage_inputs(
         montage_data_checkpoint (object): Checkpoint object containing output directory information.
         montage_output_template (str): Template string for generating output file paths.
         channels (list): List of channels to include in the output file paths.
+        cell_class (str): Cell class for which the montage is being generated.
 
     Returns:
         list: List of generated output file paths for each channel.
     """
     # Resolve the checkpoint output directory using .get()
-    checkpoint_output = Path(montage_data_checkpoint.get().output[0])
+    checkpoint_output = Path(
+        montage_data_checkpoint.get(cell_class=cell_class).output[0]
+    )
 
     # Get actual existing files
     montage_data_files = list(checkpoint_output.glob("*.tsv"))
@@ -243,5 +246,4 @@ def get_montage_inputs(
             )
             output_files.append(output_file)
 
-    print(output_files)
     return output_files

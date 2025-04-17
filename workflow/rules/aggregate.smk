@@ -112,7 +112,9 @@ checkpoint prepare_montage_data:
             AGGREGATE_OUTPUTS["split_datasets"],
             wildcards={
                 "cell_class": wildcards.cell_class,
-                "channel_combo": "DAPI_COXIV_CENPA_WGA",
+                "channel_combo": aggregate_wildcard_combos["channel_combo"].unique()[
+                    0
+                ],
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,

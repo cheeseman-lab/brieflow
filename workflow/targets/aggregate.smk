@@ -108,10 +108,10 @@ AGGREGATE_TARGETS_ALL = AGGREGATE_TARGETS
 # Define montage outputs
 # These are special because we dynamically derive outputs
 MONTAGE_OUTPUTS = {
-    "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}_montage_data",
+    "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__montage_data",
     "montage_data": AGGREGATE_FP
     / "montages"
-    / "{cell_class}_montage_data"
+    / "{cell_class}__montage_data"
     / get_filename(
         {"gene": "{gene}", "sgrna": "{sgrna}"},
         "montage_data",
@@ -119,19 +119,18 @@ MONTAGE_OUTPUTS = {
     ),
     "montage": AGGREGATE_FP
     / "montages"
-    / "{cell_class}_montages"
+    / "{cell_class}__montages"
     / "{gene}"
     / get_filename(
         {"sgrna": "{sgrna}", "channel": "{channel}"},
         "montage",
         "png",
     ),
-    "montage_flag": AGGREGATE_FP / "montages" / "{cell_class}_montages_complete.flag",
+    "montage_flag": AGGREGATE_FP / "montages" / "{cell_class}__montages_complete.flag",
 }
-cell_classes = ["mitotic", "interphase"]
 
+cell_classes = aggregate_wildcard_combos["cell_class"].unique()
 AGGREGATE_TARGETS_ALL = [
     str(MONTAGE_OUTPUTS["montage_flag"]).format(cell_class=cell_class)
     for cell_class in cell_classes
 ]
-print(AGGREGATE_TARGETS_ALL)

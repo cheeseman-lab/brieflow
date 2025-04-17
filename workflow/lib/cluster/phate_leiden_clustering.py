@@ -1,3 +1,11 @@
+"""Implementation of PHATE dimensionality reduction with Leiden clustering.
+
+This module provides functions to perform dimensionality reduction using PHATE
+(Potential of Heat-diffusion for Affinity-based Trajectory Embedding) followed by
+Leiden community detection for clustering. It also includes visualization utilities
+for the resulting low-dimensional embeddings.
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -13,12 +21,13 @@ def phate_leiden_pipeline(
     phate_distance_metric,
     first_feature_name="PC_0",
 ):
-    """Run complete PHATE and Leiden clustering pipeline.
+    """Run complete PHATE dimensionality reduction and Leiden clustering pipeline.
 
     Args:
         aggregated_data (pd.DataFrame): Input data with metadata and feature columns.
-        resolution (float): Resolution parameter for Leiden clustering. Defaults to 1.0.
-        first_feature_name (str): Name of first feature column. Defaults to "PC_0".
+        resolution (float): Resolution parameter for Leiden clustering.
+        phate_distance_metric (str): Distance metric for PHATE algorithm (e.g., 'euclidean', 'cosine').
+        first_feature_name (str, optional): Name of first feature column. Defaults to "PC_0".
 
     Returns:
         pd.DataFrame: DataFrame with original metadata, PHATE coordinates and cluster assignments.
@@ -62,21 +71,20 @@ def run_phate(
 ):
     """Run PHATE dimensionality reduction.
 
-    Parameters:
-    -----------
-    feature_selected_data : pandas.DataFrame
-        Input data matrix
-    random_state : int, default=42
-        Random seed for reproducibility
-    knn : int, default=10
-        Number of nearest neighbors
-    metric : str, default='euclidean'
-        Distance metric for KNN
+    Performs dimensionality reduction using the PHATE algorithm to generate
+    a low-dimensional representation of the input data.
+
+    Args:
+        feature_selected_data (pd.DataFrame): Input data matrix with features as columns.
+        random_state (int, optional): Random seed for reproducibility. Defaults to 42.
+        knn (int, optional): Number of nearest neighbors to use. Defaults to 10.
+        metric (str, optional): Distance metric for KNN calculations. Defaults to 'euclidean'.
+        **kwargs: Additional parameters to pass to the PHATE constructor.
 
     Returns:
-    --------
-    tuple
-        (DataFrame with PHATE coordinates, PHATE object)
+        tuple:
+            pd.DataFrame: DataFrame with PHATE coordinates.
+            phate.PHATE: Fitted PHATE object with graph and other attributes.
     """
     # Initialize and run PHATE
     p = phate.PHATE(
@@ -99,15 +107,19 @@ def run_phate(
 
 
 def run_leiden_clustering(weights, resolution=1.0, seed=42):
-    """Run Leiden clustering on a weighted adjacency matrix.
+    """Run Leiden community detection algorithm on a weighted adjacency matrix.
+
+    Performs clustering using the Leiden algorithm, which is an improved version
+    of the Louvain method for community detection in networks.
 
     Args:
-        weights (np.ndarray): Weighted adjacency matrix.
-        resolution (float): Resolution parameter for Leiden clustering. Defaults to 1.0.
-        seed (int): Random seed for reproducibility. Defaults to 42.
+        weights (np.ndarray): Weighted adjacency matrix representing the graph.
+        resolution (float, optional): Resolution parameter controlling cluster granularity.
+            Higher values yield more clusters. Defaults to 1.0.
+        seed (int, optional): Random seed for reproducibility. Defaults to 42.
 
     Returns:
-        list: Cluster assignments.
+        list: Cluster assignments for each node in the graph.
     """
     # Force symmetry by averaging with transpose
     weights_symmetric = (weights + weights.T) / 2
@@ -131,16 +143,20 @@ def run_leiden_clustering(weights, resolution=1.0, seed=42):
 def plot_phate_leiden_clusters(
     phate_leiden_clustering, perturbation_name_col, control_key, figsize=(8, 8)
 ):
-    """Create a simple scatter plot for PHATE leiden clustering results.
+    """Create a scatter plot visualization of PHATE embedding colored by Leiden clusters.
+
+    Generates a visualization showing the 2D PHATE embedding with points colored by
+    cluster assignment, with control samples highlighted in gray.
 
     Args:
-        phate_leiden_clustering (pd.DataFrame): Output from phate_leiden_pipeline.
-        perturbation_name_col (str): Column name with perturbation identifiers.
-        control_key (str): Value in perturbation_name_col that indicates controls.
-        figsize (tuple): Figure size. Defaults to (15, 15).
+        phate_leiden_clustering (pd.DataFrame): Output from phate_leiden_pipeline with
+            'PHATE_0', 'PHATE_1', and 'cluster' columns.
+        perturbation_name_col (str): Column name containing perturbation identifiers.
+        control_key (str): Prefix or value in perturbation_name_col that identifies controls.
+        figsize (tuple, optional): Figure dimensions (width, height). Defaults to (8, 8).
 
     Returns:
-        matplotlib.figure.Figure: The figure object.
+        matplotlib.figure.Figure: The figure object for further customization or saving.
     """
     fig, ax = plt.subplots(figsize=figsize)
 

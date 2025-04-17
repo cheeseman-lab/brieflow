@@ -1,3 +1,11 @@
+"""Benchmark utilities for evaluating gene clustering performance.
+
+This module provides functions to evaluate clustering results using external benchmarks
+such as known gene pairs and gene groups. It includes methods for calculating recall
+of known gene pairs, measuring group enrichment, and visualizing benchmark performance
+across different clustering parameters.
+"""
+
 import pandas as pd
 from scipy.stats import fisher_exact
 from statsmodels.stats.multitest import multipletests
@@ -13,6 +21,23 @@ def calculate_pair_recall(
     perturbation_col_name="gene_symbol_0",
     control_key=None,
 ):
+    """Calculate recall for known gene pairs within clusters.
+
+    Evaluates how well the clustering recovers known gene-gene relationships
+    by measuring the fraction of known gene pairs that are assigned to the same cluster.
+
+    Args:
+        pair_benchmark (pd.DataFrame): DataFrame with 'pair' and 'gene_name' columns
+            representing known gene pairs.
+        phate_leiden_clustering (pd.DataFrame): Clustering results with cluster assignments.
+        perturbation_col_name (str, optional): Column name for gene identifiers.
+            Defaults to "gene_symbol_0".
+        control_key (str, optional): Prefix for control perturbations to filter out.
+            Defaults to None.
+
+    Returns:
+        float: Recall score, fraction of known gene pairs found in the same cluster.
+    """
     # Filter non-targeting genes if requested
     if control_key is not None:
         cluster_df = phate_leiden_clustering[
@@ -77,18 +102,20 @@ def calculate_pair_recall_global(
     perturbation_col_name="gene_symbol_0",
     control_key=None,
 ):
-    """Compute recall per cluster for a pair benchmark.
+    """Compute the average recall across all clusters for a pair benchmark.
 
-    For each cluster, get recall as TP / (TP + FN). Also return true pairs.
+    For each cluster, get recall as TP / (TP + FN) and return the overall mean recall.
 
     Args:
         pair_benchmark (pd.DataFrame): DataFrame with 'pair' and 'gene_name'.
         phate_leiden_clustering (pd.DataFrame): Clustering result with 'cluster' and gene column.
-        perturbation_col_name (str): Column name for gene identifiers.
-        control_key (str or None): Value to exclude (e.g. 'nontargeting').
+        perturbation_col_name (str, optional): Column name for gene identifiers.
+            Defaults to "gene_symbol_0".
+        control_key (str or None, optional): Prefix for control perturbations to filter out.
+            Defaults to None.
 
     Returns:
-        pd.DataFrame: Per-cluster recall DataFrame with 'cluster', 'recall', 'cluster_size', and 'true_pairs'.
+        float: Average recall across all clusters.
     """
     if control_key is not None:
         cluster_df = phate_leiden_clustering[
@@ -163,6 +190,23 @@ def calculate_group_enrichment(
     perturbation_col_name="gene_symbol_0",
     control_key=None,
 ):
+    """Calculate enrichment of known gene groups within clusters.
+
+    Evaluates cluster quality by measuring how many known gene groups are
+    significantly enriched within each cluster using Fisher's exact test.
+
+    Args:
+        group_benchmark (pd.DataFrame): DataFrame with 'group' and 'gene_name' columns
+            representing known gene groupings.
+        phate_leiden_clustering (pd.DataFrame): Clustering results with cluster assignments.
+        perturbation_col_name (str, optional): Column name for gene identifiers.
+            Defaults to "gene_symbol_0".
+        control_key (str, optional): Prefix for control perturbations to filter out.
+            Defaults to None.
+
+    Returns:
+        float: Average number of enriched groups per cluster.
+    """
     cluster_df = phate_leiden_clustering.sort_values(by="cluster")
     if control_key is not None:
         cluster_df = phate_leiden_clustering[
@@ -229,6 +273,26 @@ def perform_resolution_thresholding(
     perturbation_col_name,
     control_key=None,
 ):
+    """Evaluate clustering at different Leiden resolution parameters.
+
+    Performs clustering across multiple resolution values and evaluates recall
+    performance on both real and shuffled (control) data.
+
+    Args:
+        aggregated_data (pd.DataFrame): Data matrix to cluster.
+        shuffled_aggregated_data (pd.DataFrame): Shuffled data for control comparison.
+        phate_distance_metric (str): Distance metric for PHATE dimensionality reduction.
+        leiden_resolutions (list): List of resolution parameters to evaluate.
+        pair_benchmark (pd.DataFrame): DataFrame with known gene pairs for benchmarking.
+        perturbation_col_name (str): Column name for gene identifiers.
+        control_key (str, optional): Prefix for control perturbations to filter out.
+            Defaults to None.
+
+    Returns:
+        tuple:
+            pd.DataFrame: Results with resolution, cluster count, and recall metrics.
+            matplotlib.figure.Figure: Visualization of results.
+    """
     # perform phate leiden clustering for each resolution
     results = []
     for resolution in leiden_resolutions:
@@ -320,10 +384,15 @@ def plot_benchmark_results(
 ):
     """Plot benchmark results for pair recall and group enrichment across clustering datasets.
 
+    Creates a side-by-side bar plot comparing multiple clustering approaches against
+    different benchmarking datasets.
+
     Args:
         cluster_datasets (dict): Mapping from dataset name to cluster DataFrame.
         pair_recall_benchmarks (dict): Mapping from benchmark name to pair benchmark DataFrame.
         group_enrichment_benchmarks (dict): Mapping from benchmark name to group benchmark DataFrame.
+        perturbation_col_name (str): Column name for gene identifiers.
+        control_key (str): Prefix for control perturbations to filter out.
 
     Returns:
         matplotlib.figure.Figure: Figure with benchmark bar plots.

@@ -18,12 +18,17 @@ prepared_cell_data = add_filenames(
     cell_data, Path(snakemake.params.root_fp), montage_subset=True
 )
 
+print(prepared_cell_data)
+
 # Get combos of gene and sgrna
-gene_sgrna_combos = prepared_cell_data[["gene_symbol_0", "sgRNA_0"]].drop_duplicates()
+gene_sgrna_combos = (
+    prepared_cell_data[["gene_symbol_0", "sgRNA_0"]].drop_duplicates().dropna()
+)
 
 # Save one file per gene/sgRNA combo
 print("saving data...")
 for _, row in gene_sgrna_combos.iterrows():
+    print(f"Saving {row['gene_symbol_0']} {row['sgRNA_0']}...")
     gene = row["gene_symbol_0"]
     sgrna = row["sgRNA_0"]
 
@@ -41,3 +46,6 @@ for _, row in gene_sgrna_combos.iterrows():
     )
 
     subset.to_csv(save_path, sep="\t", index=False)
+
+    if int(_) > 10:
+        break

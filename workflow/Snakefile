@@ -101,7 +101,9 @@ if plate_filter is not None:
 
 
 include: "targets/preprocess.smk"
-include: "rules/preprocess.smk"
+
+
+# include: "rules/preprocess.smk"
 
 
 if "sbs" in config and len(sbs_wildcard_combos) > 0:
@@ -112,7 +114,9 @@ if "sbs" in config and len(sbs_wildcard_combos) > 0:
 
     # Include target and rule files
     include: "targets/sbs.smk"
-    include: "rules/sbs.smk"
+
+
+# include: "rules/sbs.smk"
 
 
 if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
@@ -123,7 +127,9 @@ if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
 
     # Include target and rule files
     include: "targets/phenotype.smk"
-    include: "rules/phenotype.smk"
+
+
+# include: "rules/phenotype.smk"
 
 
 if "merge" in config:
@@ -132,7 +138,9 @@ if "merge" in config:
 
     # Include target and rule files
     include: "targets/merge.smk"
-    include: "rules/merge.smk"
+
+
+# include: "rules/merge.smk"
 
 
 if "aggregate" in config:

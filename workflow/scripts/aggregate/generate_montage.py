@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
-from tifffile import imwrite
+from skimage.exposure import rescale_intensity
+from skimage.io import imsave
 
 from lib.aggregate.montage_utils import create_cell_montage
 
@@ -12,4 +13,11 @@ montage = create_cell_montage(montage_data, snakemake.params.channels)
 
 # save montages
 for index, channel_montage in enumerate(montage.values()):
-    imwrite(snakemake.output[index], channel_montage)
+    print(f"Saving montage for channel {snakemake.params.channels[index]}...")
+
+    # Normalize to 0–255 for PNG
+    montage_uint8 = rescale_intensity(
+        channel_montage, in_range="image", out_range=(0, 255)
+    ).astype(np.uint8)
+
+    imsave(snakemake.output[index], montage_uint8)

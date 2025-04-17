@@ -57,11 +57,11 @@ CLUSTER_OUTPUT_MAPPINGS = {
 
 
 # # TODO: Use all combos
-# cluster_wildcard_combos = cluster_wildcard_combos[
-#     (cluster_wildcard_combos["cell_class"].isin(["all"]))
-#     & (cluster_wildcard_combos["channel_combo"].isin(["DAPI_COXIV_CENPA_WGA"]))
-#     & (cluster_wildcard_combos["leiden_resolution"].isin([10]))
-# ]
+cluster_wildcard_combos = cluster_wildcard_combos[
+    (cluster_wildcard_combos["cell_class"].isin(["mitotic"]))
+    & (cluster_wildcard_combos["channel_combo"].isin(["DAPI_COXIV_CENPA_WGA"]))
+    & (cluster_wildcard_combos["leiden_resolution"].isin([8]))
+]
 
 CLUSTER_OUTPUTS_MAPPED = map_outputs(CLUSTER_OUTPUTS, CLUSTER_OUTPUT_MAPPINGS)
 

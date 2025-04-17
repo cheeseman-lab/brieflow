@@ -2,10 +2,7 @@ from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 
-# MERGE_FP = ROOT_FP / "merge"
-MERGE_FP = Path(
-    "/lab/barcheese01/rkern/aggregate_overhaul/brieflow-analysis/analysis/analysis_root/merge"
-)
+MERGE_FP = ROOT_FP / "merge"
 
 MERGE_OUTPUTS = {
     "fast_alignment": [

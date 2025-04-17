@@ -1,4 +1,5 @@
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
+from lib.shared.rule_utils import get_montage_inputs
 
 
 # Create datasets with cell classes and channel combos
@@ -95,6 +96,65 @@ rule eval_aggregate:
         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
     script:
         "../scripts/aggregate/eval_aggregate.py"
+
+
+# MONTAGE CREATION
+# NOTE: Montage creation happens dynamically
+# We create a checkpoint once the montage data is prepared
+# Then we initiate montage creation based on the checkpoint
+# Then create a flag once montage creation is done
+
+
+# Prepare montage data and create a checkpoint
+checkpoint prepare_montage_data:
+    input:
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["split_datasets"],
+            wildcards={
+                "cell_class": wildcards.cell_class,
+                "channel_combo": "DAPI_COXIV_CENPA_WGA",
+            },
+            expansion_values=["plate", "well"],
+            metadata_combos=aggregate_wildcard_combos,
+        ),
+    output:
+        directory(MONTAGE_OUTPUTS["montage_data_dir"]),
+    params:
+        root_fp=config["all"]["root_fp"],
+    script:
+        "../scripts/aggregate/prepare_montage_data.py"
+
+
+# Generate montage
+rule generate_montage:
+    input:
+        MONTAGE_OUTPUTS["montage_data"],
+    output:
+        expand(
+            str(MONTAGE_OUTPUTS["montage"]),
+            cell_class="{cell_class}",
+            gene="{gene}",
+            sgrna="{sgrna}",
+            channel=config["phenotype"]["channel_names"],
+        ),
+    params:
+        channels=config["phenotype"]["channel_names"],
+    script:
+        "../scripts/aggregate/generate_montage.py"
+
+
+# Initiate montage creation based on checkpoint
+# Create a flag to indicate montage creation is done
+rule initiate_montage:
+    input:
+        lambda wildcards: get_montage_inputs(
+            checkpoints.prepare_montage_data,
+            MONTAGE_OUTPUTS["montage"],
+            config["phenotype"]["channel_names"],
+            wildcards.cell_class,
+        ),
+    output:
+        touch(MONTAGE_OUTPUTS["montage_flag"]),
 
 
 # Rule for all aggregate processing steps

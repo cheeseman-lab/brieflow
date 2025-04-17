@@ -11,7 +11,6 @@ from lib.aggregate.align import (
     tvn_on_controls,
 )
 
-
 # Load cell data using PyArrow dataset
 cell_data = ds.dataset(snakemake.input.filtered_paths, format="parquet")
 cell_data = cell_data.to_table(use_threads=True, memory_pool=None).to_pandas()
@@ -38,6 +37,7 @@ features, metadata = prepare_alignment_data(
     snakemake.params.perturbation_id_col,
 )
 
+# Embed data using PCA
 features = embed_by_pca(
     features,
     metadata,
@@ -45,6 +45,7 @@ features = embed_by_pca(
     batch_col="batch_values",
 )
 
+# Perform tvn alignment
 features = tvn_on_controls(
     features,
     metadata,

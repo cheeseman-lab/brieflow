@@ -1,3 +1,9 @@
+"""This module provides functions to fetch and process benchmark datasets for gene and protein analysis.
+
+It includes utilities to retrieve data from external sources like UniProt, CORUM, STRING, and MSigDB,
+and to generate benchmarks for clustering and pathway analysis.
+"""
+
 import re
 import requests
 from requests.adapters import HTTPAdapter, Retry
@@ -9,6 +15,20 @@ import pandas as pd
 
 
 def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
+    """Generate a STRING pair benchmark DataFrame.
+
+    This function maps STRING protein IDs to gene names and creates a benchmark DataFrame
+    for STRING protein pairs. It filters and selects gene variants based on the provided
+    aggregated data.
+
+    Args:
+        aggregated_data (pd.DataFrame): The aggregated data containing gene information.
+        gene_col (str, optional): The column name in the aggregated data representing gene symbols.
+            Defaults to "gene_symbol_0".
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the STRING pair benchmark.
+    """
     string_data = get_string_data()
     uniprot_data = get_uniprot_data()
 
@@ -60,6 +80,14 @@ def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
 
 
 def generate_corum_group_benchmark():
+    """Generate a CORUM group benchmark DataFrame.
+
+    This function processes CORUM data to create a benchmark DataFrame with gene names
+    and their associated protein complexes.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the CORUM group benchmark.
+    """
     corum_data = get_corum_data()
 
     # Create the new dataframe with columns for gene_name and complex
@@ -85,8 +113,16 @@ def generate_corum_group_benchmark():
 def generate_msigdb_group_benchmark(
     url="https://data.broadinstitute.org/gsea-msigdb/msigdb/release/2024.1.Hs/c2.cp.kegg_medicus.v2024.1.Hs.json",
 ):
-    """
-    Generate group benchmark from Molecular Signatures Database (MSigDB) data. We use Kegg as default.
+    """Generate a group benchmark from MSigDB data.
+
+    This function fetches pathway data from the Molecular Signatures Database (MSigDB)
+    and creates a benchmark DataFrame with gene names and their associated pathways.
+
+    Args:
+        url (str, optional): The URL to fetch MSigDB data. Defaults to the KEGG Medicus pathway.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the MSigDB group benchmark.
     """
     response = requests.get(url)
     msigdb_data = json.loads(response.text)
@@ -119,8 +155,11 @@ def generate_msigdb_group_benchmark(
 def get_uniprot_data():
     """Fetch all human-reviewed UniProt data using the REST API.
 
+    This function retrieves UniProt data for human-reviewed entries, including gene names,
+    functions, and cross-references to STRING, KEGG, and ComplexPortal.
+
     Returns:
-        pd.DataFrame: DataFrame with UniProt data.
+        pd.DataFrame: A DataFrame containing UniProt data.
     """
     # Define UniProt REST API query
     re_next_link = re.compile(r'<(.+)>; rel="next"')
@@ -177,10 +216,13 @@ def get_uniprot_data():
 
 
 def get_corum_data():
-    """Fetch all human-reviewed UniProt data using the REST API.
+    """Fetch CORUM complex data for human proteins.
+
+    This function retrieves CORUM data for human protein complexes and processes it
+    into a DataFrame.
 
     Returns:
-        pd.DataFrame: DataFrame with UniProt data.
+        pd.DataFrame: A DataFrame containing CORUM complex data.
     """
     print("Fetching CORUM data...")
     url = "https://mips.helmholtz-muenchen.de/fastapi-corum/public/file/download_current_file"
@@ -198,10 +240,13 @@ def get_corum_data():
 
 
 def get_string_data():
-    """Fetch CORUM complex data for human proteins.
+    """Fetch STRING interaction data for human proteins.
+
+    This function retrieves STRING interaction data for human proteins and filters
+    interactions with a combined score of 950 or higher.
 
     Returns:
-        pd.DataFrame: DataFrame with CORUM complex data for human proteins.
+        pd.DataFrame: A DataFrame containing STRING interaction data.
     """
     print("Fetching STRING data...")
     url = "https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz"
@@ -220,9 +265,20 @@ def get_string_data():
 
 
 def select_gene_variants(benchmark_df, ref_gene_df, ref_gene_col="gene_symbol_0"):
-    """
-    Selects the appropriate gene name from variants that matches the cluster genes.
-    If no match is found, the first gene name is selected.
+    """Select appropriate gene names from variants that match cluster genes.
+
+    This function selects the most relevant gene name from a list of variants
+    based on a reference gene DataFrame. If no match is found, the first gene
+    name in the list is selected.
+
+    Args:
+        benchmark_df (pd.DataFrame): The benchmark DataFrame containing gene name variants.
+        ref_gene_df (pd.DataFrame): The reference DataFrame containing cluster genes.
+        ref_gene_col (str, optional): The column name in the reference DataFrame representing gene symbols.
+            Defaults to "gene_symbol_0".
+
+    Returns:
+        pd.DataFrame: A DataFrame with the selected gene names.
     """
     # Get all unique genes in the cluster_df
     ref_genes = set(ref_gene_df[ref_gene_col])

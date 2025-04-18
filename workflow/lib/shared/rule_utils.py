@@ -222,6 +222,7 @@ def get_montage_inputs(
     Args:
         montage_data_checkpoint (object): Checkpoint object containing output directory information.
         montage_output_template (str): Template string for generating output file paths.
+        montage_overlay_template (str): Template string for generating overlay file paths.
         channels (list): List of channels to include in the output file paths.
         cell_class (str): Cell class for which the montage is being generated.
 

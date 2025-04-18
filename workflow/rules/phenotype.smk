@@ -77,7 +77,7 @@ rule merge_phenotype_info:
 
 
 # Extract full phenotype information using CellProfiler from phenotype images
-rule extract_phenotype_cp:
+rule extract_phenotype_cp_multichannel:
     input:
         # aligned phenotype image
         PHENOTYPE_OUTPUTS["align_phenotype"],
@@ -87,19 +87,35 @@ rule extract_phenotype_cp:
         PHENOTYPE_OUTPUTS["segment_phenotype"][1],
         PHENOTYPE_OUTPUTS["identify_cytoplasm"],
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_cp"],
+        PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_cp_multichannel"],
     params:
         foci_channel=config["phenotype"]["foci_channel"],
         channel_names=config["phenotype"]["channel_names"],
     script:
         "../scripts/phenotype/extract_phenotype_cp_multichannel.py"
 
+rule extract_phenotype_cp_measure:
+    input:
+        # aligned phenotype image
+        PHENOTYPE_OUTPUTS["align_phenotype"],
+        # nuclei segmentation map
+        PHENOTYPE_OUTPUTS["segment_phenotype"][0],
+        # cells segmentation map
+        PHENOTYPE_OUTPUTS["segment_phenotype"][1],
+        PHENOTYPE_OUTPUTS["identify_cytoplasm"],
+    output:
+        PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_cp_measure"],
+    params:
+        foci_channel=config["phenotype"]["foci_channel"],
+        channel_names=config["phenotype"]["channel_names"],
+    script:
+        "../scripts/phenotype/extract_phenotype_cp_measure.py"
 
 # Combine phenotype results from different tiles
-rule merge_phenotype_cp:
+rule merge_phenotype_cp_multichannel:
     input:
         lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
+            PHENOTYPE_OUTPUTS["extract_phenotype_cp_multichannel"],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=phenotype_wildcard_combos,
@@ -107,10 +123,24 @@ rule merge_phenotype_cp:
     params:
         channel_names=config["phenotype"]["channel_names"],
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_cp"],
+        PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_cp_multichannel"],
     script:
         "../scripts/phenotype/merge_phenotype_cp.py"
 
+rule merge_phenotype_cp_measure:
+    input:
+        lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["extract_phenotype_cp_measure"],
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
+        ),
+    params:
+        channel_names=config["phenotype"]["channel_names"],
+    output:
+        PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_cp_measure"],
+    script:
+        "../scripts/phenotype/merge_phenotype_cp.py"
 
 # Evaluate segmentation results
 rule eval_segmentation_phenotype:
@@ -141,7 +171,7 @@ rule eval_features:
     input:
         # use minimum phenotype CellProfiler features for evaluation
         cells_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
+            PHENOTYPE_OUTPUTS["merge_phenotype_cp_multichannel"][1],
             wildcards=wildcards,
             expansion_values=["well"],
             metadata_combos=phenotype_wildcard_combos,

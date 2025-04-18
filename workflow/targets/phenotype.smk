@@ -69,25 +69,46 @@ PHENOTYPE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "phenotype_info", "parquet"
         ),
     ],
-    "extract_phenotype_cp": [
+    "extract_phenotype_cp_multichannel": [
         PHENOTYPE_FP
         / "tsvs"
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "phenotype_cp",
+            "extract_phenotype_cp_multichannel",
             "tsv",
         ),
     ],
-    "merge_phenotype_cp": [
+        "extract_phenotype_cp_measure": [
+        PHENOTYPE_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "extract_phenotype_cp_measure",
+            "tsv",
+        ),
+    ],
+    "merge_phenotype_cp_multichannel": [
         PHENOTYPE_FP
         / "parquets"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_cp", "parquet"
+            {"plate": "{plate}", "well": "{well}"}, "merge_phenotype_cp_multichannel", "parquet"
         ),
         PHENOTYPE_FP
         / "parquets"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_cp_min", "parquet"
+            {"plate": "{plate}", "well": "{well}"}, "merge_phenotype_cp_multichannel_min", "parquet"
+        ),
+    ],
+        "merge_phenotype_cp_measure": [
+        PHENOTYPE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "merge_phenotype_cp_measure", "parquet"
+        ),
+        PHENOTYPE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "merge_phenotype_cp_measure_min", "parquet"
         ),
     ],
     "eval_segmentation_phenotype": [
@@ -120,18 +141,20 @@ PHENOTYPE_OUTPUTS = {
         for feature in eval_features
     ],
 }
-
+### [mappings set to none for cp-measure testing]
 PHENOTYPE_OUTPUT_MAPPINGS = {
-    "apply_ic_field_phenotype": temp,
+    "apply_ic_field_phenotype": None,
     "align_phenotype": None,
     "segment_phenotype": None,
-    "identify_cytoplasm": temp,
-    "extract_phenotype_info": temp,
-    "merge_phenotype_info": protected,
-    "extract_phenotype_cp": temp,
-    "merge_phenotype_cp": protected,
-    "eval_segmentation_phenotype": protected,
-    "eval_features": protected,
+    "identify_cytoplasm": None,
+    "extract_phenotype_info": None,
+    "merge_phenotype_info": None,
+    "extract_phenotype_cp_multichannel": None,
+    "extract_phenotype_cp_measure": None,
+    "merge_phenotype_cp_multichannel": None,
+    "merge_phenotype_cp_measure": None,
+    "eval_segmentation_phenotype": None,
+    "eval_features": None,
 }
 
 # TODO: test and implement segmentation paramsearch for updated brieflow setup

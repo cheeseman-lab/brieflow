@@ -91,6 +91,7 @@ rule extract_phenotype_cp:
     params:
         foci_channel=config["phenotype"]["foci_channel"],
         channel_names=config["phenotype"]["channel_names"],
+        cp_method=config["phenotype"]["cp_method"],
     script:
         "../scripts/phenotype/extract_phenotype_cp_multichannel.py"
 
@@ -132,7 +133,7 @@ rule eval_segmentation_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
     params:
-        heatmap_shape="6W_ph"
+        heatmap_shape="6W_ph",
     script:
         "../scripts/shared/eval_segmentation.py"
 

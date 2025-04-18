@@ -90,8 +90,8 @@ AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPI
 # TODO: Use all combos
 # aggregate_wildcard_combos = aggregate_wildcard_combos[
 #     (aggregate_wildcard_combos["plate"].isin([1]))
-#     & (aggregate_wildcard_combos["well"].isin(["A1", "A2"]))
-#     & (aggregate_wildcard_combos["cell_class"].isin(["all"]))
+#     & (aggregate_wildcard_combos["well"].isin(["A1"]))
+#     & (aggregate_wildcard_combos["cell_class"].isin(["mitotic"]))
 #     & (
 #         aggregate_wildcard_combos["channel_combo"].isin(
 #             ["DAPI_COXIV_CENPA_WGA"]  # , "DAPI_CENPA"]
@@ -102,5 +102,46 @@ AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPI
 AGGREGATE_TARGETS = outputs_to_targets(
     AGGREGATE_OUTPUTS, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS
 )
-
 AGGREGATE_TARGETS_ALL = AGGREGATE_TARGETS
+
+
+# Define montage outputs
+# These are special because we dynamically derive outputs
+MONTAGE_OUTPUTS = {
+    "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__montage_data",
+    "montage_data": AGGREGATE_FP
+    / "montages"
+    / "{cell_class}__montage_data"
+    / get_filename(
+        {"gene": "{gene}", "sgrna": "{sgrna}"},
+        "montage_data",
+        "tsv",
+    ),
+    "montage": AGGREGATE_FP
+    / "montages"
+    / "{cell_class}__montages"
+    / "{gene}"
+    / "{sgrna}"
+    / get_filename(
+        {"channel": "{channel}"},
+        "montage",
+        "png",
+    ),
+    "montage_overlay": AGGREGATE_FP
+    / "montages"
+    / "{cell_class}__montages"
+    / "{gene}"
+    / "{sgrna}"
+    / get_filename(
+        {},
+        "overlay_montage",
+        "tiff",
+    ),
+    "montage_flag": AGGREGATE_FP / "montages" / "{cell_class}__montages_complete.flag",
+}
+
+cell_classes = aggregate_wildcard_combos["cell_class"].unique()
+AGGREGATE_TARGETS_ALL = [
+    str(MONTAGE_OUTPUTS["montage_flag"]).format(cell_class=cell_class)
+    for cell_class in cell_classes
+]

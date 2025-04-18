@@ -33,7 +33,9 @@ gene_sgrna_combos = (
 
 # Save one file per gene/sgRNA combo
 for _, row in gene_sgrna_combos.iterrows():
-    print(f"Saving {row['gene_symbol_0']} {row['sgRNA_0']}...")
+    print(f"Processing {row['gene_symbol_0']} {row['sgRNA_0']}")
+
+    # Get gene and sgRNA
     gene = row["gene_symbol_0"]
     sgrna = row["sgRNA_0"]
 
@@ -51,6 +53,3 @@ for _, row in gene_sgrna_combos.iterrows():
     )
 
     subset.to_csv(save_path, sep="\t", index=False)
-
-    if int(_) > 10:
-        break

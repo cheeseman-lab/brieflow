@@ -109,7 +109,7 @@ rule eval_aggregate:
 checkpoint prepare_montage_data:
     input:
         lambda wildcards: output_to_input(
-            AGGREGATE_OUTPUTS["split_datasets"],
+            AGGREGATE_OUTPUTS["filter"],
             wildcards={
                 "cell_class": wildcards.cell_class,
                 "channel_combo": aggregate_wildcard_combos["channel_combo"].unique()[
@@ -138,7 +138,12 @@ rule generate_montage:
             gene="{gene}",
             sgrna="{sgrna}",
             channel=config["phenotype"]["channel_names"],
-        ),
+        )
+        + [
+            str(MONTAGE_OUTPUTS["montage_overlay"]).format(
+                cell_class="{cell_class}", gene="{gene}", sgrna="{sgrna}"
+            )
+        ],
     params:
         channels=config["phenotype"]["channel_names"],
     script:
@@ -152,6 +157,7 @@ rule initiate_montage:
         lambda wildcards: get_montage_inputs(
             checkpoints.prepare_montage_data,
             MONTAGE_OUTPUTS["montage"],
+            MONTAGE_OUTPUTS["montage_overlay"],
             config["phenotype"]["channel_names"],
             wildcards.cell_class,
         ),

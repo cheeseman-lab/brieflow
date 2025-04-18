@@ -211,7 +211,11 @@ def get_segmentation_params(module, config):
 
 
 def get_montage_inputs(
-    montage_data_checkpoint, montage_output_template, channels, cell_class
+    montage_data_checkpoint,
+    montage_output_template,
+    montage_overlay_template,
+    channels,
+    cell_class,
 ):
     """Generate montage input file paths based on checkpoint data and output template.
 
@@ -241,9 +245,18 @@ def get_montage_inputs(
         sgrna = file_metadata["sgrna"]
 
         for channel in channels:
+            # Generate the output file path using the template
             output_file = str(montage_output_template).format(
                 gene=gene, sgrna=sgrna, channel=channel, cell_class=cell_class
             )
+
+            # Append the output file path to the list
             output_files.append(output_file)
+
+    # Add the overlay file path
+    overlay_file = str(montage_overlay_template).format(
+        gene=gene, sgrna=sgrna, cell_class=cell_class
+    )
+    output_files.append(overlay_file)
 
     return output_files

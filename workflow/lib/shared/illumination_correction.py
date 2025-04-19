@@ -318,22 +318,23 @@ def combine_ic_images(images, indices):
     """Combine illumination correction images using specified indices.
 
     Args:
-        images: List of IC images [dapi_image, full_image]
-        indices: List of indices [dapi_index, None] where None means use all non-DAPI indices
+        images: List of IC images [extra_channels_image, base_channels_image]
+        indices: List of indices [extra_channel_indices, base_channel_indices] 
+                 where None means use all channels
 
     Returns:
-        Combined IC image with DAPI channel from first image
+        Combined IC image with extra channels from first image and base channels from second
     """
-    dapi_img = images[0]
-    full_img = images[1]
+    extra_img = images[0]
+    base_img = images[1]
 
     # Subset the images by the indices, if any
     if indices[0] is not None:
-        dapi_img = dapi_img[indices[0]]
+        extra_img = extra_img[indices[0]]
     if indices[1] is not None:
-        full_img = full_img[indices[1]]
+        base_img = base_img[indices[1]]
 
-    # Combine the images with the dapi_img as the first channel
-    combined_img = np.concatenate([dapi_img[np.newaxis], full_img], axis=0)
+    # Combine the extra channels and base channels
+    combined_img = np.concatenate([extra_img[np.newaxis], base_img], axis=0)
 
     return combined_img

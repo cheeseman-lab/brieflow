@@ -16,8 +16,8 @@ rule align_sbs:
         SBS_OUTPUTS_MAPPED["align_sbs"],
     params:
         method=config["sbs"]["alignment_method"],
+        channel_order=config["sbs"]["channel_order"],
         upsample_factor=1,
-        keep_extras=config["sbs"]["keep_extras"],
     script:
         "../scripts/sbs/align_cycles.py"
 
@@ -29,7 +29,7 @@ rule log_filter:
     output:
         SBS_OUTPUTS_MAPPED["log_filter"],
     params:
-        skip_index=0,
+        skip_index=config["sbs"]["extra_channel_indices"],
     script:
         "../scripts/sbs/log_filter.py"
 
@@ -41,7 +41,7 @@ rule compute_standard_deviation:
     output:
         SBS_OUTPUTS_MAPPED["compute_standard_deviation"],
     params:
-        remove_index=0,
+        remove_index=config["sbs"]["extra_channel_indices"],
     script:
         "../scripts/sbs/compute_standard_deviation.py"
 
@@ -66,7 +66,7 @@ rule max_filter:
         SBS_OUTPUTS_MAPPED["max_filter"],
     params:
         width=config["sbs"]["max_filter_width"],
-        remove_index=0,
+        remove_index=config["sbs"]["extra_channel_indices"],
     script:
         "../scripts/sbs/max_filter.py"
 
@@ -78,7 +78,7 @@ SBS_CYCLES = sorted(sbs_wildcard_combos["cycle"].unique(), key=int)
 rule apply_ic_field_sbs:
     input:
         SBS_OUTPUTS["align_sbs"],
-        # dapi illumination correction field
+        # extra channel illumination correction field
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
@@ -98,8 +98,7 @@ rule apply_ic_field_sbs:
         SBS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
         segmentation_cycle_index=config["sbs"]["segmentation_cycle_index"],
-        keep_extras=config["sbs"]["keep_extras"],
-        dapi_index=config["sbs"]["dapi_index"],
+        extra_channel_indices=config["sbs"]["extra_channel_indices"],
     script:
         "../scripts/sbs/apply_ic_field_sbs.py"
 

@@ -79,8 +79,11 @@ def align_cycles(
     base_indices = [i for i, ch in enumerate(channel_order) if ch in base_channels]
     extra_indices = [i for i, ch in enumerate(channel_order) if ch not in base_channels]
     
+    # Check if channels are consistent across cycles
+    channels_consistent = not isinstance(image_data, list) or all(x.shape == image_data[0].shape for x in image_data)
+
     # Check if number of channels varies across cycles
-    if isinstance(image_data, list) and not all(x.shape == image_data[0].shape for x in image_data):
+    if not channels_consistent:
         print("Warning: Number of channels varies across cycles.")
         
         # Process cycles with inconsistent channels
@@ -137,7 +140,7 @@ def align_cycles(
 
     # Automatically determine method if not provided
     if method is None:
-        if extra_indices and 0 in extra_indices and channel_order[0] == "DAPI":
+        if channels_consistent:
             method = "DAPI"
         else:
             method = "sbs_mean"
@@ -158,30 +161,31 @@ def align_cycles(
 
     # Align between cycles
     if method == "DAPI":
-        if 0 not in extra_indices or channel_order[0] != "DAPI":
-            print("Warning: 'DAPI' method selected but DAPI channel not found at index 0")
-            dapi_index = channel_order.index("DAPI") if "DAPI" in channel_order else 0
-        else:
+        # Only attempt DAPI alignment if DAPI channel exists
+        if 0 in range(aligned.shape[1]) and (channel_order is None or channel_order[0] == "DAPI"):
             dapi_index = 0
+            # Align cycles using the DAPI channel
+            aligned = align_between_cycles(
+                aligned, channel_index=dapi_index, window=window, upsample_factor=upsample_factor
+            )
+        else:
+            print("Warning: 'DAPI' method selected but DAPI channel not available. Switching to 'sbs_mean'.")
+            method = "sbs_mean"  # Fall back to sbs_mean method
             
-        # Align cycles using the DAPI channel
-        aligned = align_between_cycles(
-            aligned, channel_index=dapi_index, window=window, upsample_factor=upsample_factor
-        )
-    elif method == "sbs_mean":
-        # Calculate cycle offsets using the average of base channels
-        if not base_indices:
+    if method == "sbs_mean":
+        # Calculate cycle offsets using ONLY the base channels (ignore extra channels)
+        if base_indices:
+            sbs_channels = base_indices
+        else:
             print("Warning: No base channels found for 'sbs_mean' method. Using all channels.")
             sbs_channels = list(range(aligned.shape[1]))
-        else:
-            sbs_channels = base_indices
             
         target = apply_window(aligned[:, sbs_channels], window=window).max(axis=1)
         normed = normalize_by_percentile(target, q_norm=q_norm)
         normed[normed > cutoff] = cutoff
         offsets = calculate_offsets(normed, upsample_factor=upsample_factor)
         
-        # Apply cycle offsets to all channels
+        # Apply cycle offsets to ALL channels (both base and extra)
         for channel in range(aligned.shape[1]):
             aligned[:, channel] = apply_offsets(aligned[:, channel], offsets)
     else:

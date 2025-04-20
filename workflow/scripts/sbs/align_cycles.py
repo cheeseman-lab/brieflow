@@ -8,7 +8,7 @@ image_data = [imread(file_path) for file_path in snakemake.input]
 # align cycles
 aligned_data = align_cycles(
     image_data,
-    channel_order=snakemake.params.channel_order,
+    channel_order=snakemake.params.channel_names,
     method=snakemake.params.method,
     upsample_factor=snakemake.params.upsample_factor,
 )

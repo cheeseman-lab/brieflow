@@ -16,7 +16,7 @@ rule align_sbs:
         SBS_OUTPUTS_MAPPED["align_sbs"],
     params:
         method=config["sbs"]["alignment_method"],
-        channel_order=config["sbs"]["channel_order"],
+        channel_names=config["sbs"]["channel_names"],
         upsample_factor=1,
     script:
         "../scripts/sbs/align_cycles.py"

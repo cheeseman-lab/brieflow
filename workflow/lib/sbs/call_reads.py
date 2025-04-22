@@ -118,14 +118,11 @@ def call_reads(
             )
     elif method == "percentile":
         # Clean up bases and perform percentile calling
-        df_reads = (
-            bases_data.pipe(clean_up_bases)
-            .pipe(
-                do_percentile_call,
-                cycles=cycles,
-                channels=channels,
-                correction_only_in_cells=correction_only_in_cells,
-            )
+        df_reads = bases_data.pipe(clean_up_bases).pipe(
+            do_percentile_call,
+            cycles=cycles,
+            channels=channels,
+            correction_only_in_cells=correction_only_in_cells,
         )
     else:
         raise ValueError(f"Unknown method: {method}. Use 'median' or 'percentile'.")
@@ -215,10 +212,10 @@ def do_median_call(
 
 
 def do_percentile_call(
-    df_bases, 
-    cycles=12, 
-    channels=4, 
-    correction_only_in_cells=False, 
+    df_bases,
+    cycles=12,
+    channels=4,
+    correction_only_in_cells=False,
 ):
     """Call reads from raw base signal using percentile-based correction.
 
@@ -227,7 +224,6 @@ def do_percentile_call(
         cycles (int): Number of sequencing cycles.
         channels (int): Number of sequencing channels.
         correction_only_in_cells (bool): Flag specifying whether correction is based on reads within cells or all reads.
-        
     Returns:
         pandas.DataFrame: DataFrame containing the called reads.
     """
@@ -242,7 +238,6 @@ def do_percentile_call(
     else:
         X = dataframe_to_values(df_bases)
         Y, W = transform_percentiles(X.reshape(-1, channels))
-        
     df_reads = call_barcodes(df_bases, Y, cycles=cycles, channels=channels)
 
     return df_reads
@@ -319,10 +314,10 @@ def transform_percentiles(X):
 
     Use median of those points to define new axes.
     Describe with linear transformation W so that W * X = Y.
-    
+
     Args:
         X (numpy.ndarray): Input array of intensity values.
-        
+
     Returns:
         Y (numpy.ndarray): Transformed array.
         W (numpy.ndarray): Transformation matrix.
@@ -332,32 +327,32 @@ def transform_percentiles(X):
         for i in range(X.shape[1]):
             # Calculate relative intensities by dividing by rowsums
             rowsums = np.sum(X, axis=1)[:, np.newaxis]
-            X_rel = (X / rowsums)
-            
+            X_rel = X / rowsums
+
             # Find 95th percentile of relative intensities for channel i
             perc = np.nanpercentile(X_rel[:, i], 95)
-            
+
             # Select spots where channel i has high relative intensity
             high = X[X_rel[:, i] >= perc]
-            
+
             # Take median of those high-intensity spots
             arr += [np.median(high, axis=0)]
-            
+
         M = np.array(arr)
         return M
 
     # Get percentile-based matrix
     M = get_percentiles(X).T
-    
+
     # Normalize columns
     M = M / M.sum(axis=0)
-    
+
     # Compute inverse to get transformation matrix
     W = np.linalg.inv(M)
-    
+
     # Apply transformation
     Y = W.dot(X.T).T.astype(int)
-    
+
     return Y, W
 
 

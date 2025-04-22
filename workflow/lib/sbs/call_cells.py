@@ -31,13 +31,13 @@ from lib.sbs.constants import (
 
 
 def call_cells(
-    reads_data, 
-    df_pool=None, 
-    q_min=0, 
-    barcode_col='sgRNA', 
+    reads_data,
+    df_pool=None,
+    q_min=0,
+    barcode_col="sgRNA",
     df_UMI=None,
-    error_correct=False, 
-    **kwargs
+    error_correct=False,
+    **kwargs,
 ):
     """Process sequencing reads to identify cell barcodes, optionally mapping them to a pool design.
 
@@ -55,7 +55,6 @@ def call_cells(
                  Common options include:
                  - max_distance (int): Maximum distance threshold for correction (default: 2)
                  - distance_metric (str): Type of distance ('hamming' or 'levenshtein')
-        
     Returns:
         DataFrame: DataFrame containing corrected cells.
     """
@@ -91,11 +90,10 @@ def call_cells(
             "gene_id_1",
         ]
         return pd.DataFrame(columns=columns)
-    
-    
+
     # Columns for grouping
     cols = [WELL, TILE, CELL]
-    
+
     # Check if df_pool is None
     if df_pool is None:
         # Filter reads by quality threshold and call cells no ref
@@ -104,15 +102,18 @@ def call_cells(
         # Determine the experimental prefix length
         prefix_length = len(reads_data.iloc[0].barcode)
         # Add prefix to the pool DataFrame
-        df_pool[PREFIX] = df_pool.apply(lambda x: x[barcode_col][:prefix_length], axis=1)
+        df_pool[PREFIX] = df_pool.apply(
+            lambda x: x[barcode_col][:prefix_length], axis=1
+        )
         # Filter reads by quality threshold and call cells mapping
         df_cells = reads_data.query("Q_min >= @q_min").pipe(
-            call_cells_mapping, df_pool, error_correct=error_correct, **kwargs)   
-         
+            call_cells_mapping, df_pool, error_correct=error_correct, **kwargs
+        )
+
     # If UMI data is provided, add UMI information to the cell data
     if df_UMI is not None:
         return call_cells_add_UMIs(df_cells, df_UMI, cols=cols)
-    
+
     return df_cells
 
 
@@ -176,8 +177,13 @@ def call_cells_no_ref(df_reads):
     )
 
 
-def call_cells_mapping(df_reads, df_pool, barcode_info_cols=[SGRNA, GENE_SYMBOL, GENE_ID],
-                       error_correct=False, **kwargs):
+def call_cells_mapping(
+    df_reads,
+    df_pool,
+    barcode_info_cols=[SGRNA, GENE_SYMBOL, GENE_ID],
+    error_correct=False,
+    **kwargs,
+):
     """Determine the count of top barcodes, with prioritization given to barcodes mapping to the given pool design.
     
     Args:
@@ -192,11 +198,9 @@ def call_cells_mapping(df_reads, df_pool, barcode_info_cols=[SGRNA, GENE_SYMBOL,
     """
     # Optionally perform error correction
     if error_correct:
-        print('performing error correction')
+        print("performing error correction")
         df_reads[BARCODE] = error_correct_reads(
-            df_reads[BARCODE],
-            df_pool[PREFIX],
-            **kwargs
+            df_reads[BARCODE], df_pool[PREFIX], **kwargs
         )
 
     # Map reads to the pool design
@@ -295,12 +299,10 @@ def call_cells_mapping(df_reads, df_pool, barcode_info_cols=[SGRNA, GENE_SYMBOL,
 
 def call_cells_add_UMIs(df_cells, df_UMI, cols=[WELL, TILE, CELL]):
     """Add UMI (Unique Molecular Identifier) information to called cells.
-    
     Args:
         df_cells (DataFrame): DataFrame containing called cells.
         df_UMI (DataFrame): DataFrame containing UMI reads.
         cols (list, optional): List of columns to use to merge DataFrames. Default is [WELL, TILE, CELL].
-        
     Returns:
         DataFrame: df_cells DataFrame with top UMI counts.
     """
@@ -313,7 +315,6 @@ def call_cells_add_UMIs(df_cells, df_UMI, cols=[WELL, TILE, CELL]):
         .reset_index()  # Reset the index
         .groupby(cols)  # Group again by well, tile, and cell
     )
-    
     df_cells_UMI = (
         df_UMI.join(
             s.nth(0)[["well", "tile", "cell", "barcode"]]
@@ -352,27 +353,29 @@ def call_cells_add_UMIs(df_cells, df_UMI, cols=[WELL, TILE, CELL]):
         .filter(regex="^(?!Q_)")  # remove read quality scores
         .query("cell > 0")  # remove reads not in a cell
     )
-    
+
     cols_to_use = list(df_cells_UMI.columns.difference(df_cells.columns))
-    
-    return df_cells.merge(df_cells_UMI[cols_to_use + cols], left_on=cols, right_on=cols, how="inner")
+
+    return df_cells.merge(
+        df_cells_UMI[cols_to_use + cols], left_on=cols, right_on=cols, how="inner"
+    )
 
 
-def error_correct_reads(reads, reference, max_distance=2, distance_metric='hamming'):
+def error_correct_reads(reads, reference, max_distance=2, distance_metric="hamming"):
     """Error correct reads against a reference set of barcodes.
-    
+
     Compares each read to the reference set and corrects it to the closest unique reference
     if within the specified distance threshold.
-    
+
     Args:
         reads (pd.Series): Series with reads for error correction
         reference (pd.Series): Series with reference sequences
-        max_distance (int, optional): Maximum distance for correction. Correction is performed 
-            only if (1) one reference sequence is closest (no ties) and (2) that unique reference 
+        max_distance (int, optional): Maximum distance for correction. Correction is performed
+            only if (1) one reference sequence is closest (no ties) and (2) that unique reference
             sequence is within this distance. Default is 2.
-        distance_metric (str, optional): Distance metric to compare barcodes. 
+        distance_metric (str, optional): Distance metric to compare barcodes.
             Options are 'hamming' (default) and 'levenshtein'.
-    
+
     Returns:
         pd.Series: Corrected reads
     """
@@ -381,53 +384,60 @@ def error_correct_reads(reads, reference, max_distance=2, distance_metric='hammi
         reads.to_list(),
         reference.to_list(),
         distance_metric=distance_metric,
-    ) 
-    
+    )
+
     # Find minimum distance to reference for each read
     min_dist_to_ref = dist_to_ref.min(axis=1)
 
     # Determine which reads have a unique closest match
-    unique_dist = np.array([np.sum(dist_to_ref[x] == min_dist_to_ref[x]) == 1 
-                           for x in range(dist_to_ref.shape[0])])
+    unique_dist = np.array(
+        [
+            np.sum(dist_to_ref[x] == min_dist_to_ref[x]) == 1
+            for x in range(dist_to_ref.shape[0])
+        ]
+    )
 
     # Filter for reads that have a unique closest match within max_distance
     corrected_subset = (unique_dist) & (min_dist_to_ref <= max_distance)
-    
+
     # Get the corrected barcodes for eligible reads
-    corrected_barcodes = reference.loc[dist_to_ref[corrected_subset].argmin(axis=1)].values
-    
+    corrected_barcodes = reference.loc[
+        dist_to_ref[corrected_subset].argmin(axis=1)
+    ].values
+
     # Create copy of reads and update only the ones that can be corrected
     corrected_reads = reads.copy()
     corrected_reads.loc[corrected_subset] = corrected_barcodes
-    
+
     return corrected_reads
 
 
-def barcode_distance_matrix(barcodes_1, barcodes_2=False, distance_metric='hamming'):
+def barcode_distance_matrix(barcodes_1, barcodes_2=False, distance_metric="hamming"):
     """Calculate distances between two sets of barcodes.
-    
+
     Creates a matrix of distances between all pairs of barcodes from two sets.
     If only one set is provided, computes self-distances.
-    
+
     Args:
         barcodes_1 (list): First list of barcode sequences
         barcodes_2 (list or bool, optional): Second list of barcode sequences.
             If False, uses barcodes_1 for both sets. Default is False.
         distance_metric (str, optional): Type of distance to calculate.
             Options are 'hamming' or 'levenshtein'. Default is 'hamming'.
-    
     Returns:
         numpy.ndarray: Matrix of distances between barcode pairs
     """
     import warnings
-    
+
     # Define the distance function based on chosen metric
-    if distance_metric == 'hamming':
+    if distance_metric == "hamming":
         distance = lambda i, j: Levenshtein.hamming(i, j)
-    elif distance_metric == 'levenshtein':
+    elif distance_metric == "levenshtein":
         distance = lambda i, j: Levenshtein.distance(i, j)
     else:
-        warnings.warn('distance_metric must be "hamming" or "levenshtein" - defaulting to "hamming"')
+        warnings.warn(
+            'distance_metric must be "hamming" or "levenshtein" - defaulting to "hamming"'
+        )
         distance = lambda i, j: Levenshtein.hamming(i, j)
 
     # If second set not provided, use the first set

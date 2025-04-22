@@ -6,119 +6,142 @@ AGGREGATE_FP = ROOT_FP / "aggregate"
 
 # Define standard (non-montage) aggreagte outputs
 AGGREGATE_OUTPUTS = {
-    "clean_transform_standardize": [
+    "split_datasets": [
         AGGREGATE_FP
         / "parquets"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "cleaned_data", "parquet"
-        ),
-        AGGREGATE_FP
-        / "parquets"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "transformed_data", "parquet"
-        ),
-        AGGREGATE_FP
-        / "parquets"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "standardized_data", "parquet"
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "cell_class": "{cell_class}",
+                "channel_combo": "{channel_combo}",
+            },
+            "merge_data",
+            "parquet",
         ),
     ],
-    "split_phases": [
+    "filter": [
         AGGREGATE_FP
         / "parquets"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "mitotic_data", "parquet"
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "cell_class": "{cell_class}",
+                "channel_combo": "{channel_combo}",
+            },
+            "filtered",
+            "parquet",
         ),
+    ],
+    "align": [
         AGGREGATE_FP
         / "parquets"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "interphase_data", "parquet"
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "aligned",
+            "parquet",
         ),
     ],
-    "process_mitotic_gene_data": [
-        AGGREGATE_FP / "tsvs" / "mitotic_gene_data.tsv",
-    ],
-    "process_interphase_gene_data": [
-        AGGREGATE_FP / "tsvs" / "interphase_gene_data.tsv",
-    ],
-    "process_all_gene_data": [
-        AGGREGATE_FP / "tsvs" / "all_gene_data.tsv",
+    "aggregate": [
+        AGGREGATE_FP
+        / "tsvs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "aggregated",
+            "tsv",
+        ),
     ],
     "eval_aggregate": [
-        AGGREGATE_FP / "eval" / "cell_feature_violins.png",
-        AGGREGATE_FP / "eval" / "nuclear_feature_violins.png",
-        AGGREGATE_FP / "eval" / "mitotic_missing.tsv",
-        AGGREGATE_FP / "eval" / "interphase_missing.tsv",
-        AGGREGATE_FP / "eval" / "all_missing.tsv",
-        AGGREGATE_FP / "eval" / "mitotic_stats.tsv",
+        AGGREGATE_FP
+        / "eval"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "na_stats",
+            "tsv",
+        ),
+        AGGREGATE_FP
+        / "eval"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "na_stats",
+            "png",
+        ),
+        AGGREGATE_FP
+        / "eval"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "feature_distributions",
+            "png",
+        ),
     ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
-    "clean_transform_standardize": None,
-    "split_phases": None,
-    "process_mitotic_gene_data": None,
-    "process_interphase_gene_data": None,
-    "process_all_gene_data": None,
+    "split_datasets": None,
+    "filter": None,
+    "align": None,
+    "aggregate": None,
     "eval_aggregate": None,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
 
+# TODO: Use all combos
+# aggregate_wildcard_combos = aggregate_wildcard_combos[
+#     (aggregate_wildcard_combos["plate"].isin([1]))
+#     & (aggregate_wildcard_combos["well"].isin(["A1"]))
+#     & (aggregate_wildcard_combos["cell_class"].isin(["mitotic"]))
+#     & (
+#         aggregate_wildcard_combos["channel_combo"].isin(
+#             ["DAPI_COXIV_CENPA_WGA"]  # , "DAPI_CENPA"]
+#         )
+#     )
+# ]
+
 AGGREGATE_TARGETS = outputs_to_targets(
-    AGGREGATE_OUTPUTS, merge_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS
+    AGGREGATE_OUTPUTS, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS
 )
+AGGREGATE_TARGETS_ALL = AGGREGATE_TARGETS
+
 
 # Define montage outputs
 # These are special because we dynamically derive outputs
 MONTAGE_OUTPUTS = {
-    "mitotic_montage_data_dir": AGGREGATE_FP / "montages" / "mitotic_montage_data",
-    "mitotic_montage_data": AGGREGATE_FP
+    "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__montage_data",
+    "montage_data": AGGREGATE_FP
     / "montages"
-    / "mitotic_montage_data"
+    / "{cell_class}__montage_data"
     / get_filename(
         {"gene": "{gene}", "sgrna": "{sgrna}"},
         "montage_data",
         "tsv",
     ),
-    "mitotic_montage": AGGREGATE_FP
+    "montage": AGGREGATE_FP
     / "montages"
-    / "mitotic_montages"
+    / "{cell_class}__montages"
     / "{gene}"
+    / "{sgrna}"
     / get_filename(
-        {"sgrna": "{sgrna}", "channel": "{channel}"},
+        {"channel": "{channel}"},
         "montage",
+        "png",
+    ),
+    "montage_overlay": AGGREGATE_FP
+    / "montages"
+    / "{cell_class}__montages"
+    / "{gene}"
+    / "{sgrna}"
+    / get_filename(
+        {},
+        "overlay_montage",
         "tiff",
     ),
-    "mitotic_montage_flag": AGGREGATE_FP
-    / "montages"
-    / "mitotic_montages_complete.flag",
-    "interphase_montage_data_dir": AGGREGATE_FP
-    / "montages"
-    / "interphase_montage_data",
-    "interphase_montage_data": AGGREGATE_FP
-    / "montages"
-    / "interphase_montage_data"
-    / get_filename(
-        {"gene": "{gene}", "sgrna": "{sgrna}"},
-        "montage_data",
-        "tsv",
-    ),
-    "interphase_montage": AGGREGATE_FP
-    / "montages"
-    / "interphase_montages"
-    / "{gene}"
-    / get_filename(
-        {"sgrna": "{sgrna}", "channel": "{channel}"},
-        "montage",
-        "tiff",
-    ),
-    "interphase_montage_flag": AGGREGATE_FP
-    / "montages"
-    / "interphase_montages_complete.flag",
+    "montage_flag": AGGREGATE_FP / "montages" / "{cell_class}__montages_complete.flag",
 }
 
-AGGREGATE_TARGETS_ALL = AGGREGATE_TARGETS + [
-    MONTAGE_OUTPUTS["mitotic_montage_flag"],
-    MONTAGE_OUTPUTS["interphase_montage_flag"],
+cell_classes = aggregate_wildcard_combos["cell_class"].unique()
+AGGREGATE_TARGETS_ALL = [
+    str(MONTAGE_OUTPUTS["montage_flag"]).format(cell_class=cell_class)
+    for cell_class in cell_classes
 ]

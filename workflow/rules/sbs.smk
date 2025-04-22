@@ -65,7 +65,7 @@ rule max_filter:
     output:
         SBS_OUTPUTS_MAPPED["max_filter"],
     params:
-        width=config["sbs"]["maxed_width"],
+        width=config["sbs"]["max_filter_width"],
         remove_index=0,
     script:
         "../scripts/sbs/max_filter.py"

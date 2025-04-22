@@ -1,5 +1,9 @@
 """Helper functions for using Snakemake rules for use with Brieflow."""
 
+from pathlib import Path
+
+from lib.shared.file_utils import parse_filename
+
 
 def get_alignment_params(wildcards, config):
     """Get alignment parameters for a specific plate.
@@ -46,6 +50,20 @@ def get_alignment_params(wildcards, config):
             
         return alignment_params
 
+        # Add custom alignment parameters if they exist
+        if "custom_align" in plate_config:
+            alignment_params["custom_align"] = True
+            alignment_params["custom_channels"] = plate_config.get(
+                "custom_channels", []
+            )
+            alignment_params["custom_offset_yx"] = plate_config.get(
+                "custom_offset_yx", (0, 0)
+            )
+        else:
+            alignment_params["custom_align"] = False
+
+        return alignment_params
+
     # If no plate-specific alignments, use global config
     base_params = {
         "align": config["phenotype"].get("align", False),
@@ -64,6 +82,18 @@ def get_alignment_params(wildcards, config):
     else:
         base_params["custom_align"] = False
         
+    return base_params
+
+    # Add global custom alignment parameters if they exist
+    if "custom_align" in config["phenotype"]:
+        base_params["custom_align"] = config["phenotype"].get("custom_align", False)
+        base_params["custom_channels"] = config["phenotype"].get("custom_channels", [])
+        base_params["custom_offset_yx"] = config["phenotype"].get(
+            "custom_offset_yx", (0, 0)
+        )
+    else:
+        base_params["custom_align"] = False
+
     return base_params
 
 
@@ -145,10 +175,20 @@ def get_segmentation_params(module, config):
                 "cell_diameter": module_config.get("cell_diameter"),
                 "flow_threshold": module_config.get("flow_threshold", 0.4),
                 "cellprob_threshold": module_config.get("cellprob_threshold", 0),
-                "nuclei_flow_threshold": module_config.get("nuclei_flow_threshold", module_config.get("flow_threshold", 0.4)),
-                "nuclei_cellprob_threshold": module_config.get("nuclei_cellprob_threshold", module_config.get("cellprob_threshold", 0)),
-                "cell_flow_threshold": module_config.get("cell_flow_threshold", module_config.get("flow_threshold", 0.4)),
-                "cell_cellprob_threshold": module_config.get("cell_cellprob_threshold", module_config.get("cellprob_threshold", 0)),           
+                "nuclei_flow_threshold": module_config.get(
+                    "nuclei_flow_threshold", module_config.get("flow_threshold", 0.4)
+                ),
+                "nuclei_cellprob_threshold": module_config.get(
+                    "nuclei_cellprob_threshold",
+                    module_config.get("cellprob_threshold", 0),
+                ),
+                "cell_flow_threshold": module_config.get(
+                    "cell_flow_threshold", module_config.get("flow_threshold", 0.4)
+                ),
+                "cell_cellprob_threshold": module_config.get(
+                    "cell_cellprob_threshold",
+                    module_config.get("cellprob_threshold", 0),
+                ),
             }
         )
     elif segmentation_method == "microsam":
@@ -160,10 +200,16 @@ def get_segmentation_params(module, config):
     elif segmentation_method == "stardist":
         params.update(
             {
-                "stardist_model": module_config.get("stardist_model", "2D_versatile_fluo"),
-                "nuclei_prob_threshold": module_config.get("nuclei_prob_threshold", 0.479071),
+                "stardist_model": module_config.get(
+                    "stardist_model", "2D_versatile_fluo"
+                ),
+                "nuclei_prob_threshold": module_config.get(
+                    "nuclei_prob_threshold", 0.479071
+                ),
                 "nuclei_nms_threshold": module_config.get("nuclei_nms_threshold", 0.3),
-                "cell_prob_threshold": module_config.get("cell_prob_threshold", 0.479071),
+                "cell_prob_threshold": module_config.get(
+                    "cell_prob_threshold", 0.479071
+                ),
                 "cell_nms_threshold": module_config.get("cell_nms_threshold", 0.3),
             }
         )
@@ -182,3 +228,56 @@ def get_segmentation_params(module, config):
         )
 
     return params
+
+
+def get_montage_inputs(
+    montage_data_checkpoint,
+    montage_output_template,
+    montage_overlay_template,
+    channels,
+    cell_class,
+):
+    """Generate montage input file paths based on checkpoint data and output template.
+
+    Args:
+        montage_data_checkpoint (object): Checkpoint object containing output directory information.
+        montage_output_template (str): Template string for generating output file paths.
+        montage_overlay_template (str): Template string for generating overlay file paths.
+        channels (list): List of channels to include in the output file paths.
+        cell_class (str): Cell class for which the montage is being generated.
+
+    Returns:
+        list: List of generated output file paths for each channel.
+    """
+    # Resolve the checkpoint output directory using .get()
+    checkpoint_output = Path(
+        montage_data_checkpoint.get(cell_class=cell_class).output[0]
+    )
+
+    # Get actual existing files
+    montage_data_files = list(checkpoint_output.glob("*.tsv"))
+
+    # Extract the gene_sgrna parts and make output paths for each channel
+    output_files = []
+    for montage_data_file in montage_data_files:
+        # parse gene, sgrna from filename
+        file_metadata = parse_filename(montage_data_file)[0]
+        gene = file_metadata["gene"]
+        sgrna = file_metadata["sgrna"]
+
+        for channel in channels:
+            # Generate the output file path using the template
+            output_file = str(montage_output_template).format(
+                gene=gene, sgrna=sgrna, channel=channel, cell_class=cell_class
+            )
+
+            # Append the output file path to the list
+            output_files.append(output_file)
+
+    # Add the overlay file path
+    overlay_file = str(montage_overlay_template).format(
+        gene=gene, sgrna=sgrna, cell_class=cell_class
+    )
+    output_files.append(overlay_file)
+
+    return output_files

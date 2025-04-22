@@ -1,132 +1,124 @@
-"""This module provides functions for visualizing and analyzing cell populations.
+"""Cell classification module for the Brieflow workflow.
 
-Functions include:
-- Plotting the distribution of mitotic cells using histograms and scatter plots.
-- Splitting cell populations into mitotic and interphase groups based on feature thresholds.
-
-Functions:
-    - plot_mitotic_distribution_hist: Plot histogram of a feature and calculate the percentage of mitotic cells.
-    - plot_mitotic_distribution_scatter: Plot a scatter plot of two features with threshold cutoffs.
-    - split_mitotic_simple: Split cells into mitotic and interphase populations based on thresholds.
-
+This module provides functionality to classify cells based on their features,
+such as identifying mitotic cells vs interphase cells. It contains a base
+classifier class and implementations of specific classifiers.
 """
 
-import matplotlib.pyplot as plt
+from abc import ABC, abstractmethod
+
+import dill
+from sklearn.preprocessing import RobustScaler
+import numpy as np
 
 
-def plot_mitotic_distribution_hist(
-    cell_data, threshold_variable, threshold_value, bins=100
-):
-    """Plot distribution of the threshold variable and calculate percent of mitotic cells.
+class CellClassifier(ABC):
+    """Base class for cell classifiers."""
 
-    Args:
-        cell_data (pd.DataFrame): Input dataframe containing cell measurements.
-        threshold_variable (str): Column name for mitotic cell identification.
-        threshold_value (float): Threshold value for separating mitotic cells.
-        bins (int): Number of bins for histogram.
+    @abstractmethod
+    def classify_cells(self, metadata, features):
+        """Classify cells based on feature data.
 
-    Returns:
-        float: Percentage of cells classified as mitotic.
+        Takes DataFrames with metadata and features for cells.
+        Uses features to determine the class of each cell and the confidence
+        of that classification.
+
+        Args:
+            metadata (pd.DataFrame): DataFrame containing metadata for cells.
+            features (pd.DataFrame): DataFrame containing feature data for cells.
+
+        Returns:
+            tuple: (metadata, features) - Modified DataFrames with classification
+                  results added to metadata.
+        """
+        print("No classification method defined! Returning orginal cell data...")
+
+    def save(self, filename):
+        """Save the classifier to a file.
+
+        Args:
+            filename (str): Path to save the serialized classifier.
+        """
+        with open(filename, "wb") as f:
+            dill.dump(self, f)
+
+    @staticmethod
+    def load(filename):
+        """Load a classifier from a file.
+
+        Args:
+            filename (str): Path to the serialized classifier file.
+
+        Returns:
+            CellClassifier: The loaded classifier instance.
+        """
+        with open(filename, "rb") as f:
+            return dill.load(f)
+
+
+class NaiveMitoticClassifier(CellClassifier):
+    """Simple mitotic cell classifier based on threshold values.
+
+    Classifies cells as either 'mitotic' or 'interphase' based on a threshold
+    applied to a specified feature after robust scaling.
     """
-    # Create plot
-    plt.figure(figsize=(10, 6))
-    plt.hist(cell_data[threshold_variable], bins=bins)
-    plt.title(f"Histogram of {threshold_variable}")
-    plt.xlabel(threshold_variable)
-    plt.ylabel("Frequency")
-    plt.axvline(
-        x=threshold_value,
-        color="r",
-        linestyle="--",
-        label=f"Mitotic threshold ({threshold_value})",
-    )
-    plt.legend()
-    plt.show()
 
-    # Calculate percent mitotic
-    mitotic_mask = cell_data[threshold_variable] > threshold_value
-    percent_mitotic = (mitotic_mask.sum() / len(cell_data)) * 100
+    def __init__(self, threshold_variable="nucleus_DAPI_median", mitotic_threshold=4.5):
+        """Initialize the naive mitotic classifier.
 
-    print(f"Number of mitotic cells: {mitotic_mask.sum():,}")
-    print(f"Total cells: {len(cell_data):,}")
-    print(f"Percent mitotic: {percent_mitotic:.2f}%")
+        Args:
+            threshold_variable (str): The feature name to use for classification.
+                Defaults to "nucleus_DAPI_median".
+            mitotic_threshold (float): The threshold value above which cells are
+                considered mitotic after robust scaling. Defaults to 4.5.
+        """
+        self.threshold_variable = threshold_variable
+        self.mitotic_threshold = mitotic_threshold
 
+    def classify_cells(self, metadata, features):
+        """Classify cells as mitotic or interphase based on threshold.
 
-def plot_mitotic_distribution_scatter(
-    cell_data,
-    threshold_variable_x,
-    threshold_variable_y,
-    threshold_x,
-    threshold_y,
-    alpha=0.5,
-):
-    """Plot scatter plot of two variables with two threshold cutoffs.
+        Args:
+            metadata (pd.DataFrame): DataFrame containing metadata for cells.
+            features (pd.DataFrame): DataFrame containing feature data for cells.
 
-    Args:
-        cell_data (pd.DataFrame): Input dataframe containing cell measurements.
-        threshold_variable_x (str): Column name for x-axis variable.
-        threshold_variable_y (str): Column name for y-axis variable.
-        threshold_x (float): Threshold value for x-axis.
-        threshold_y (float): Threshold value for y-axis.
-        alpha (float): Transparency of points.
+        Returns:
+            tuple: (metadata, features) - Modified DataFrames with 'class' and
+                  'confidence' columns added to metadata.
+        """
+        # Filter out rows with NA in threshold variable
+        valid_mask = features[self.threshold_variable].notna()
+        metadata = metadata.loc[valid_mask]
+        features = features.loc[valid_mask]
 
-    Returns:
-        None
-    """
-    # Create plot
-    plt.figure(figsize=(10, 6))
-    plt.scatter(
-        cell_data[threshold_variable_x], cell_data[threshold_variable_y], alpha=alpha
-    )
-    plt.title(f"Scatter plot of {threshold_variable_x} vs {threshold_variable_y}")
-    plt.xlabel(threshold_variable_x)
-    plt.ylabel(threshold_variable_y)
-    plt.axvline(
-        x=threshold_x,
-        color="r",
-        linestyle="--",
-        label=f"Mitotic threshold ({threshold_x})",
-    )
-    plt.axhline(
-        y=threshold_y,
-        color="g",
-        linestyle="--",
-        label=f"Mitotic threshold ({threshold_y})",
-    )
-    plt.legend()
-    plt.show()
+        # Extract just the threshold variable we need
+        threshold_values = features[self.threshold_variable].astype(float)
 
-    # Calculate percent mitotic
-    mitotic_mask_x = cell_data[threshold_variable_x] > threshold_x
-    mitotic_mask_y = cell_data[threshold_variable_y] > threshold_y
-    percent_mitotic = (mitotic_mask_x & mitotic_mask_y).sum() / len(cell_data) * 100
+        # Scale only this single feature
+        threshold_values_scaled = (
+            RobustScaler()
+            .fit_transform(threshold_values.values.reshape(-1, 1))
+            .flatten()
+        )
 
-    print(f"Number of mitotic cells: {sum(mitotic_mask_x & mitotic_mask_y):,}")
-    print(f"Total cells: {len(cell_data):,}")
-    print(f"Percent mitotic: {percent_mitotic:.2f}%")
+        # Classify cells
+        classes = np.where(
+            threshold_values_scaled > self.mitotic_threshold, "mitotic", "interphase"
+        )
 
+        # Compute confidence
+        confidences = np.zeros(len(features))
+        for cl in ["mitotic", "interphase"]:
+            idx = np.where(classes == cl)[0]
+            if len(idx) > 0:
+                sorted_idx = idx[np.argsort(threshold_values.iloc[idx])]
+                if cl == "interphase":
+                    sorted_idx = sorted_idx[::-1]  # Reverse for interphase
+                for rank, i in enumerate(sorted_idx):
+                    confidences[i] = (rank + 1) / len(sorted_idx)
 
-def split_mitotic_simple(cell_data, conditions):
-    """Split cells into mitotic and interphase populations based on feature thresholds.
+        # Insert class and confidence columns
+        metadata.loc[:, "class"] = classes
+        metadata.loc[:, "confidence"] = confidences
 
-    Args:
-        cell_data (pd.DataFrame): Input dataframe.
-        conditions (dict): Dictionary mapping feature names to (threshold, direction) tuples
-            where direction is 'greater' or 'less'.
-
-    Returns:
-        tuple: (mitotic_df, interphase_df) pair of DataFrames.
-    """
-    mitotic_df = cell_data.copy()
-
-    for feature, (cutoff, direction) in conditions.items():
-        if direction == "greater":
-            mitotic_df = mitotic_df[mitotic_df[feature] > cutoff]
-        elif direction == "less":
-            mitotic_df = mitotic_df[mitotic_df[feature] < cutoff]
-        else:
-            raise ValueError("Direction must be 'greater' or 'less'")
-
-    interphase_df = cell_data.drop(mitotic_df.index)
-
-    return mitotic_df, interphase_df
+        return metadata, features

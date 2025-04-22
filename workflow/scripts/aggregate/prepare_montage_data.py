@@ -9,21 +9,33 @@ output_dir = Path(snakemake.output[0])
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Load cell data
-print("loading cell data...")
-cell_data = pd.concat([pd.read_parquet(p) for p in snakemake.input], ignore_index=True)
-
-# Prepare for montage
-print("preparing cell data...")
-prepared_cell_data = add_filenames(
-    cell_data, Path(snakemake.params.root_fp), montage_subset=True
+montage_columns = [
+    "gene_symbol_0",
+    "sgRNA_0",
+    "plate",
+    "well",
+    "tile",
+    "i_0",
+    "j_0",
+]
+cell_data = pd.concat(
+    [pd.read_parquet(p, columns=montage_columns) for p in snakemake.input],
+    ignore_index=True,
 )
 
+# Prepare for montage
+prepared_cell_data = add_filenames(cell_data, Path(snakemake.params.root_fp))
+
 # Get combos of gene and sgrna
-gene_sgrna_combos = prepared_cell_data[["gene_symbol_0", "sgRNA_0"]].drop_duplicates()
+gene_sgrna_combos = (
+    prepared_cell_data[["gene_symbol_0", "sgRNA_0"]].drop_duplicates().dropna()
+)
 
 # Save one file per gene/sgRNA combo
-print("saving data...")
 for _, row in gene_sgrna_combos.iterrows():
+    print(f"Processing {row['gene_symbol_0']} {row['sgRNA_0']}")
+
+    # Get gene and sgRNA
     gene = row["gene_symbol_0"]
     sgrna = row["sgRNA_0"]
 

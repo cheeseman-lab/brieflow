@@ -59,7 +59,6 @@ if method == "cellpose":
             cells=segment_cells,
         )
         cells_data = np.zeros_like(nuclei_data)
-        
 elif method == "microsam":
     # Segment cells using MicroSAM
     from lib.shared.segment_microsam import segment_microsam
@@ -87,7 +86,6 @@ elif method == "microsam":
             cells=segment_cells,
         )
         cells_data = np.zeros_like(nuclei_data)
-        
 elif method == "stardist":
     # Segment cells using StarDist
     from lib.shared.segment_stardist import segment_stardist
@@ -131,7 +129,6 @@ elif method == "stardist":
             cells=segment_cells,
         )
         cells_data = np.zeros_like(nuclei_data)
-        
 elif method == "watershed":
     # Segment cells using Watershed
     from lib.shared.segment_watershed import segment_watershed

@@ -1,73 +1,41 @@
+import random
+
 import pandas as pd
+import pyarrow.dataset as ds
 
-from lib.aggregate.load_format_data import load_parquet_subset
 from lib.aggregate.eval_aggregate import (
+    nas_summary,
     plot_feature_distributions,
-    test_missing_values,
-    calculate_mitotic_percentage,
 )
 
-print("Loading subsets of processed datasets...")
-cleaned_data = pd.concat(
-    [load_parquet_subset(p, n_rows=20000) for p in snakemake.input.cleaned_data_paths],
-    ignore_index=True,
-)
-transformed_data = pd.concat(
-    [
-        load_parquet_subset(p, n_rows=20000)
-        for p in snakemake.input.transformed_data_paths
-    ],
-    ignore_index=True,
-)
-standardized_data = pd.concat(
-    [
-        load_parquet_subset(p, n_rows=20000)
-        for p in snakemake.input.standardized_data_paths
-    ],
-    ignore_index=True,
-)
-combined_cell_data = {
-    "cleaned": cleaned_data,
-    "transformed": transformed_data,
-    "standardized": standardized_data,
-}
+# Load merge data using PyArrow dataset
+merge_data = ds.dataset(snakemake.input.split_datasets_paths, format="parquet")
+merge_data = merge_data.to_table(use_threads=True, memory_pool=None).to_pandas()
 
-# create feature distribution plots for cell and nucleus features
-print("Creating feature distribution plots...")
+# Evaluate missing values
+nas_df, nas_fig = nas_summary(merge_data, vis_subsample=50000)
+nas_df.to_csv(snakemake.output[0], sep="\t", index=False)
+nas_fig.savefig(snakemake.output[1])
 
-cell_features = [
-    "cell_{}_mean".format(channel) for channel in snakemake.params.channels
+# Load gene data
+aligned_data = ds.dataset(snakemake.input[0], format="parquet")
+aligned_data = aligned_data.to_table(use_threads=True, memory_pool=None).to_pandas()
+
+# determine original and aligned columns
+random.seed(42)
+merge_feature_cols = [
+    col for col in merge_data.columns if ("cell_" in col and col.endswith("_mean"))
 ]
-cell_features_fig = plot_feature_distributions(
-    combined_cell_data, cell_features, remove_clean=True
+pc_cols = [col for col in aligned_data.columns if col.startswith("PC_")]
+aligned_feature_cols = random.sample(
+    pc_cols, k=min(len(merge_feature_cols), len(pc_cols))
 )
-cell_features_fig.savefig(snakemake.output[0])
 
-nucleus_features = [
-    "nucleus_{}_mean".format(channel) for channel in snakemake.params.channels
-]
-nucleus_features_fig = plot_feature_distributions(
-    combined_cell_data, nucleus_features, remove_clean=True
+# Evaluate feature distributions
+feature_distributions_fig = plot_feature_distributions(
+    merge_feature_cols,
+    merge_data,
+    aligned_feature_cols,
+    aligned_data,
 )
-nucleus_features_fig.savefig(snakemake.output[1])
-
-
-# test for missing values in mitotic, interphase, and all gene data
-print("Testing for missing values in final dataframes...")
-
-print(snakemake.input.mitotic_gene_data[0])
-mitotic_gene_data = pd.read_csv(snakemake.input.mitotic_gene_data[0], sep="\t")
-mitotic_missing = test_missing_values(mitotic_gene_data, "mitotic")
-mitotic_missing.to_csv(snakemake.output[2], sep="\t", index=False)
-
-interphase_gene_data = pd.read_csv(snakemake.input.interphase_gene_data[0], sep="\t")
-interphase_missing = test_missing_values(interphase_gene_data, "interphase")
-interphase_missing.to_csv(snakemake.output[3], sep="\t", index=False)
-
-all_gene_data = pd.read_csv(snakemake.input.all_gene_data[0], sep="\t")
-all_missing = test_missing_values(all_gene_data, "all")
-all_missing.to_csv(snakemake.output[4], sep="\t", index=False)
-
-# calculate mitotic percentages
-mitotic_stats = calculate_mitotic_percentage(mitotic_gene_data, interphase_gene_data)
-mitotic_stats.to_csv(snakemake.output[5], sep="\t", index=False)
+feature_distributions_fig.savefig(snakemake.output[2])

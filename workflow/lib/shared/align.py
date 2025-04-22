@@ -158,31 +158,29 @@ def normalize_by_percentile(data_, q_norm=70):
 
 def apply_custom_offsets(data, offset_yx, channels):
     """Apply custom offsets to specific channels in image data.
-    
-    Applies a custom offset to specified channels. Useful for aligning channels with 
-    systematic offsets due to lightpath/optical configuration differences (e.g., far red 
+
+    Applies a custom offset to specified channels. Useful for aligning channels with
+    systematic offsets due to lightpath/optical configuration differences (e.g., far red
     channel like AF750 imaged without a PFS dichroic used for other channels).
-    
+
     Offset directions:
     - To shift left: +x
     - To shift right: -x
     - To shift up: +y
     - To shift down: -y
-    
     Args:
         data (np.ndarray): Input image data.
         offset_yx (tuple): Tuple of (y, x) pixel offsets to apply.
         channels (int or list): Channel indices to apply the offset to.
-        
+
     Returns:
         np.ndarray: Image data with custom offsets applied.
-        
+
     Raises:
         ValueError: If 'channels' is not an int or list/tuple of ints.
     """
     # Set up offsets array, initialized with zeros
     offsets = np.array([(0, 0) for i in range(data.shape[0])])
-    
     # Apply the specified offset to the specified channel(s)
     if isinstance(channels, int):
         offsets[channels] = offset_yx
@@ -191,8 +189,8 @@ def apply_custom_offsets(data, offset_yx, channels):
             offsets[channel] = offset_yx
     else:
         raise ValueError("'channels' must be an int or tuple/list of ints")
-    
+
     # Apply the calculated offsets to data
     adjusted = apply_offsets(data, offsets)
-    
+
     return adjusted

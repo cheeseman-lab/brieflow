@@ -1,6 +1,7 @@
 import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.file_utils import validate_dtypes
 from lib.merge.format_merge import (
     fov_distance,
     identify_single_gene_mappings,
@@ -11,9 +12,6 @@ from lib.merge.format_merge import (
 merge_data = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 sbs_cells = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 phenotype_min_cp = validate_dtypes(pd.read_parquet(snakemake.input[2]))
-
-# fix merge data types
-merge_data["cell_0"] = merge_data["cell_0"].astype(int)
 
 # Add FOV distances for both imaging modalities
 merge_formatted = merge_data.pipe(

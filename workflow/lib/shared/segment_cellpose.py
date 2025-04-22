@@ -31,7 +31,7 @@ def segment_cellpose(
     cell_diameter,
     cyto_model="cyto3",
     cellpose_kwargs=dict(
-        flow_threshold=0.4, 
+        flow_threshold=0.4,
         cellprob_threshold=0,
         nuclei_flow_threshold=None,
         nuclei_cellprob_threshold=None,
@@ -72,24 +72,32 @@ def segment_cellpose(
     """
     # Extract log_kwargs from cellpose_kwargs
     log_kwargs = cellpose_kwargs.pop("log_kwargs", dict())
-    
+
     # Extract specific thresholds for nuclei and cells
-    nuclei_flow_threshold = cellpose_kwargs.pop("nuclei_flow_threshold", cellpose_kwargs.get("flow_threshold", 0.4))
-    nuclei_cellprob_threshold = cellpose_kwargs.pop("nuclei_cellprob_threshold", cellpose_kwargs.get("cellprob_threshold", 0))
-    cell_flow_threshold = cellpose_kwargs.pop("cell_flow_threshold", cellpose_kwargs.get("flow_threshold", 0.4))
-    cell_cellprob_threshold = cellpose_kwargs.pop("cell_cellprob_threshold", cellpose_kwargs.get("cellprob_threshold", 0))
-    
+    nuclei_flow_threshold = cellpose_kwargs.pop(
+        "nuclei_flow_threshold", cellpose_kwargs.get("flow_threshold", 0.4)
+    )
+    nuclei_cellprob_threshold = cellpose_kwargs.pop(
+        "nuclei_cellprob_threshold", cellpose_kwargs.get("cellprob_threshold", 0)
+    )
+    cell_flow_threshold = cellpose_kwargs.pop(
+        "cell_flow_threshold", cellpose_kwargs.get("flow_threshold", 0.4)
+    )
+    cell_cellprob_threshold = cellpose_kwargs.pop(
+        "cell_cellprob_threshold", cellpose_kwargs.get("cellprob_threshold", 0)
+    )
+
     # Create separate kwargs dictionaries
     nuclei_kwargs = {
         "flow_threshold": nuclei_flow_threshold,
-        "cellprob_threshold": nuclei_cellprob_threshold
+        "cellprob_threshold": nuclei_cellprob_threshold,
     }
 
     cell_kwargs = {
         "flow_threshold": cell_flow_threshold,
-        "cellprob_threshold": cell_cellprob_threshold
+        "cellprob_threshold": cell_cellprob_threshold,
     }
-    
+
     # Prepare data for Cellpose by creating a merged RGB image
     rgb = prepare_cellpose(
         data, dapi_index, cyto_index, logscale, log_kwargs=log_kwargs
@@ -136,7 +144,9 @@ def segment_cellpose(
         else:
             return nuclei, cells
     else:
-        nuclei = segment_cellpose_nuclei_rgb(rgb, nuclei_diameter, gpu=gpu, **nuclei_kwargs)
+        nuclei = segment_cellpose_nuclei_rgb(
+            rgb, nuclei_diameter, gpu=gpu, **nuclei_kwargs
+        )
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
         print(f"Number of nuclei segmented: {counts['final_nuclei']}")
         counts_df = pd.DataFrame([counts])
@@ -248,7 +258,7 @@ def segment_cellpose_rgb(
     gpu=False,
     nuclei_kwargs=None,
     cell_kwargs=None,
-    **kwargs
+    **kwargs,
 ):
     """Segment nuclei and cells using the Cellpose algorithm from an RGB image.
 
@@ -290,10 +300,7 @@ def segment_cellpose_rgb(
 
     # Segment cells using cell-specific parameters
     cells, _, _, _ = model_cyto.eval(
-        rgb,
-        channels=[2, 3],
-        diameter=cell_diameter,
-        **cell_kwargs
+        rgb, channels=[2, 3], diameter=cell_diameter, **cell_kwargs
     )
 
     counts["initial_nuclei"] = (
@@ -362,7 +369,9 @@ def segment_cellpose_nuclei_rgb(
     model_dapi = Cellpose(model_type="nuclei", gpu=gpu)
 
     # Segment nuclei using Cellpose from the RGB image
-    nuclei, _, _, _ = model_dapi.eval(rgb, channels=[3, 0], diameter=nuclei_diameter, **kwargs)
+    nuclei, _, _, _ = model_dapi.eval(
+        rgb, channels=[3, 0], diameter=nuclei_diameter, **kwargs
+    )
 
     # Print the number of nuclei found before and after removing edges
     print(

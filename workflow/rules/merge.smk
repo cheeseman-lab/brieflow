@@ -55,6 +55,34 @@ rule format_merge:
         "../scripts/merge/format_merge.py"
 
 
+# Deduplicate merge data
+rule deduplicate_merge:
+    input:
+        # cleaned merge data
+        MERGE_OUTPUTS["format_merge"],
+        # cell information from SBS
+        ancient(SBS_OUTPUTS["combine_cells"]),
+        # min phentoype information
+        ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1]),
+    output:
+        MERGE_OUTPUTS_MAPPED["deduplicate_merge"],
+    script:
+        "../scripts/merge/deduplicate_merge.py"
+
+
+# # Final merge with all feature data
+rule final_merge:
+    input:
+        # formatted merge data
+        MERGE_OUTPUTS["deduplicate_merge"][1],
+        # full phentoype information
+        ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0]),
+    output:
+        MERGE_OUTPUTS_MAPPED["final_merge"],
+    script:
+        "../scripts/merge/final_merge.py"
+
+
 # Evaluate merge
 rule eval_merge:
     input:
@@ -85,49 +113,6 @@ rule eval_merge:
         MERGE_OUTPUTS_MAPPED["eval_merge"],
     script:
         "../scripts/merge/eval_merge.py"
-
-
-# Clean merge data
-rule clean_merge:
-    input:
-        # formatted merge data
-        MERGE_OUTPUTS["format_merge"],
-    output:
-        MERGE_OUTPUTS_MAPPED["clean_merge"],
-    params:
-        channel_min_cutoff=0,
-        misaligned_wells=None,
-        misaligned_tiles=None,
-    script:
-        "../scripts/merge/clean_merge.py"
-
-
-# Deduplicate merge data
-rule deduplicate_merge:
-    input:
-        # cleaned merge data
-        MERGE_OUTPUTS["clean_merge"][1],
-        # cell information from SBS
-        ancient(SBS_OUTPUTS["combine_cells"]),
-        # min phentoype information
-        ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1]),
-    output:
-        MERGE_OUTPUTS_MAPPED["deduplicate_merge"],
-    script:
-        "../scripts/merge/deduplicate_merge.py"
-
-
-# # Final merge with all feature data
-rule final_merge:
-    input:
-        # formatted merge data
-        MERGE_OUTPUTS["deduplicate_merge"][1],
-        # full phentoype information
-        ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0]),
-    output:
-        MERGE_OUTPUTS_MAPPED["final_merge"],
-    script:
-        "../scripts/merge/final_merge.py"
 
 
 # Rule for all merge processing steps

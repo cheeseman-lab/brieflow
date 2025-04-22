@@ -9,7 +9,7 @@ phenotype_info = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 sbs_info = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 
 # Load alignment data
-fast_alignment = validate_dtypes(pd.read_parquet(snakemake.input[2]))
+fast_alignment = pd.read_parquet(snakemake.input[2])
 fast_alignment["rotation"] = fast_alignment.apply(
     lambda row: np.array([row["rotation_1"], row["rotation_2"]]), axis=1
 )

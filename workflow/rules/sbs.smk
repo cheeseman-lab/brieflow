@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input
-from lib.shared.rule_utils import get_segmentation_params
+from lib.shared.rule_utils import get_spot_detection_params, get_segmentation_params
 
 
 # Align images from each sequencing round
@@ -49,9 +49,11 @@ rule compute_standard_deviation:
 # Find local maxima of SBS reads across cycles
 rule find_peaks:
     input:
-        SBS_OUTPUTS["compute_standard_deviation"],
+        SBS_OUTPUTS["compute_standard_deviation"] if config["sbs"]["spot_detection_method"] == "standard" else SBS_OUTPUTS["align_sbs"],
     output:
         SBS_OUTPUTS_MAPPED["find_peaks"],
+    params:
+        config=lambda wildcards: get_spot_detection_params(config)
     script:
         "../scripts/sbs/find_peaks.py"
 
@@ -63,7 +65,7 @@ rule max_filter:
     output:
         SBS_OUTPUTS_MAPPED["max_filter"],
     params:
-        width=3,
+        width=config["sbs"]["max_filter_width"],
         remove_index=0,
     script:
         "../scripts/sbs/max_filter.py"
@@ -119,8 +121,8 @@ rule extract_bases:
     input:
         SBS_OUTPUTS["find_peaks"],
         SBS_OUTPUTS["max_filter"],
-        # use cell segmentation map
-        SBS_OUTPUTS["segment_sbs"][1],
+        # optionally use cell or nuclei segmentation
+        lambda wildcards: SBS_OUTPUTS["segment_sbs"][1] if config["sbs"]["segment_cells"] else SBS_OUTPUTS["segment_sbs"][0],
     output:
         SBS_OUTPUTS_MAPPED["extract_bases"],
     params:
@@ -137,6 +139,8 @@ rule call_reads:
         SBS_OUTPUTS["find_peaks"],
     output:
         SBS_OUTPUTS_MAPPED["call_reads"],
+    params:
+        call_reads_method=config["sbs"]["call_reads_method"]
     script:
         "../scripts/sbs/call_reads.py"
 
@@ -150,6 +154,8 @@ rule call_cells:
     params:
         df_design_path=config["sbs"]["df_design_path"],
         q_min=config["sbs"]["q_min"],
+        barcode_col=config["sbs"]["barcode_col"],
+        error_correct=config["sbs"]["error_correct"],        
     script:
         "../scripts/sbs/call_cells.py"
 

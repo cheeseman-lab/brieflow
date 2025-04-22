@@ -1,31 +1,50 @@
 import pandas as pd
+import numpy as np
 
-from lib.cluster.benchmark_clusters import (
-    create_cluster_gene_table,
-    analyze_differential_features,
-    process_interactions,
+from lib.cluster.phate_leiden_clustering import phate_leiden_pipeline
+from lib.cluster.benchmark_clusters import plot_benchmark_results
+
+aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
+
+# create baseline data by shuffling columns independently
+shuffled_aggregated_data = aggregated_data.copy()
+feature_start_idx = shuffled_aggregated_data.columns.get_loc("PC_0")
+feature_cols = shuffled_aggregated_data.columns[feature_start_idx:]
+for col in feature_cols:
+    shuffled_aggregated_data[col] = np.random.permutation(
+        shuffled_aggregated_data[col].values
+    )
+
+phate_leiden_clustering = pd.read_csv(snakemake.input[1], sep="\t")
+
+phate_leiden_clustering_shuffled = phate_leiden_pipeline(
+    shuffled_aggregated_data,
+    int(snakemake.params.leiden_resolution),
+    snakemake.params.phate_distance_metric,
 )
 
-# load cluster data with uniprot annotations
-phate_leiden_uniprot = pd.read_csv(snakemake.input[0], sep="\t")
+cluster_datasets = {
+    "Real": phate_leiden_clustering,
+    "Shuffled": phate_leiden_clustering_shuffled,
+}
 
-# create cluster gene table
-cluster_gene_table = create_cluster_gene_table(
-    phate_leiden_uniprot,
-    columns_to_combine=[snakemake.params.population_feature, "STRING"],
+string_pair_benchmark = pd.read_csv(snakemake.params.string_pair_benchmark_fp, sep="\t")
+pair_recall_benchmarks = {
+    "STRING": string_pair_benchmark,
+}
+
+corum_group_benchmark = pd.read_csv(snakemake.params.corum_group_benchmark_fp, sep="\t")
+kegg_group_benchmark = pd.read_csv(snakemake.params.kegg_group_benchmark_fp, sep="\t")
+group_enrichment_benchmarks = {
+    "CORUM": corum_group_benchmark,
+    "KEGG": kegg_group_benchmark,
+}
+
+benchmark_results_fig = plot_benchmark_results(
+    cluster_datasets,
+    pair_recall_benchmarks,
+    group_enrichment_benchmarks,
+    snakemake.params.perturbation_name_col,
+    snakemake.params.control_key,
 )
-
-# analyze differential features
-cleaned_gene_data = pd.read_csv(snakemake.input[1], sep="\t")
-cluster_gene_table, diff_results = analyze_differential_features(
-    cluster_gene_table, cleaned_gene_data
-)
-
-# process interactions and get enrichment results
-cluster_gene_table, global_metrics = process_interactions(
-    cluster_gene_table, snakemake.params.string_data_fp, snakemake.params.corum_data_fp
-)
-
-# save cluster analysis results
-cluster_gene_table.to_csv(snakemake.output[0], sep="\t", index=False)
-global_metrics.to_csv(snakemake.output[1], sep="\t", index=False)
+benchmark_results_fig.savefig(snakemake.output[0])

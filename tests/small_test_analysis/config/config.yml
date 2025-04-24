@@ -1,0 +1,121 @@
+
+# BrieFlow configuration file
+
+# Defining samples:
+#   Samples must be defined in the following TSV files with columns:
+#     sbs_samples.tsv: sample_fp, well, tile, cycle
+#     phenotype_samples.tsv: sample_fp, well, tile
+
+# Paths:
+#   Paths are resolved relative to the directory the workflow is run from
+
+# Parameters:
+all:
+  root_fp: analysis_root/
+phenotype:
+  align: false
+  cell_diameter: 53.075815293046055
+  cellprob_threshold: 0
+  channel_names:
+  - DAPI
+  - COXIV
+  - CENPA
+  - WGA
+  cyto_index: 1
+  cyto_model: cyto3
+  dapi_index: 0
+  flow_threshold: 0.4
+  foci_channel: 2
+  gpu: false
+  method: cellpose
+  mode: null
+  nuclei_diameter: 41.97813156768016
+  reconcile: contained_in_cells
+preprocess:
+  phenotype_channel_order: null
+  phenotype_channel_order_flip: true
+  phenotype_combo_fp: config/phenotype_combo.tsv
+  phenotype_round_order: null
+  phenotype_samples_fp: config/phenotype_samples.tsv
+  sample_fraction: 1
+  sbs_channel_order: null
+  sbs_channel_order_flip: true
+  sbs_combo_fp: config/sbs_combo.tsv
+  sbs_samples_fp: config/sbs_samples.tsv
+sbs:
+  alignment_method: DAPI
+  barcode_col: sgRNA
+  bases:
+  - G
+  - T
+  - A
+  - C
+  call_reads_method: median
+  cell_diameter: 19.86716534556202
+  cellpose_model: cyto3
+  cellprob_threshold: 0
+  cyto_index: 4
+  dapi_index: 0
+  df_design_path: config/pool10_design.tsv
+  error_correct: false
+  flow_threshold: 0.4
+  gpu: false
+  keep_extras: false
+  max_filter_width: 3
+  mode: null
+  nuclei_diameter: 9.166995688475083
+  q_min: 0
+  reconcile: contained_in_cells
+  segmentation_cycle_index: 10
+  spot_detection_method: standard
+  threshold_peaks: 400
+  segment_cells: true
+merge:
+  det_range:
+  - 0.06
+  - 0.065
+  initial_sites:
+  - - 5
+    - 0
+  - - 141
+    - 32
+  merge_combo_fp: config/merge_combo.tsv
+  ph_metadata_channel: null
+  sbs_metadata_channel: null
+  sbs_metadata_cycle: 1
+  score: 0.1
+  threshold: 2
+aggregate:
+  agg_method: median
+  aggregate_combo_fp: config/aggregate_combo.tsv
+  batch_cols:
+  - plate
+  - well
+  classifier_path: config/binary_xgb_robust_model.dill
+  collapse_cols:
+  - sgRNA_0
+  - gene_symbol_0
+  contamination: 0.01
+  control_key: nontargeting
+  drop_cols_threshold: 0.2
+  drop_rows_threshold: 0.01
+  filter_queries: null
+  impute: true
+  metadata_cols_fp: config/cell_data_metadata_cols.tsv
+  perturbation_id_col: sgRNA_0
+  perturbation_name_col: gene_symbol_0
+  variance_or_ncomp: 0.99
+cluster:
+  cluster_combo_fp: config/cluster_combo.tsv
+  corum_group_benchmark_fp: config/benchmark_clusters/corum_group_benchmark.tsv
+  kegg_group_benchmark_fp: config/benchmark_clusters/kegg_group_benchmark.tsv
+  leiden_resolutions:
+  - 8
+  - 10
+  - 12
+  min_cell_cutoffs:
+    all: 3
+    interphase: 3
+    mitotic: 0
+  phate_distance_metric: cosine
+  string_pair_benchmark_fp: config/benchmark_clusters/string_pair_benchmark.tsv

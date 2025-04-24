@@ -99,10 +99,9 @@ AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPI
 #     )
 # ]
 
-AGGREGATE_TARGETS = outputs_to_targets(
+AGGREGATE_TARGETS_ALL = outputs_to_targets(
     AGGREGATE_OUTPUTS, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS
 )
-AGGREGATE_TARGETS_ALL = AGGREGATE_TARGETS
 
 
 # Define montage outputs
@@ -139,9 +138,8 @@ MONTAGE_OUTPUTS = {
     ),
     "montage_flag": AGGREGATE_FP / "montages" / "{cell_class}__montages_complete.flag",
 }
-
 cell_classes = aggregate_wildcard_combos["cell_class"].unique()
-AGGREGATE_TARGETS_ALL = [
+MONTAGE_TARGETS_ALL = [
     str(MONTAGE_OUTPUTS["montage_flag"]).format(cell_class=cell_class)
     for cell_class in cell_classes
 ]

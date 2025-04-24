@@ -61,7 +61,8 @@ For rule-specific package consider creating a separate conda environment file an
 
 ### Tests
 
-Run the following commands to ensure your Brieflow is set up correctly:
+Run the following commands to ensure your Brieflow is set up correctly
+This process takes about 14 minutes on our machine.
 
 ```sh
 # activate brieflow env

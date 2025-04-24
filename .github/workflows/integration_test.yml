@@ -39,16 +39,6 @@ jobs:
         working-directory: tests/small_test_analysis
         run: python small_test_analysis_setup.py
 
-      # Cache Snakemake internal state and output files
-      - name: Cache Snakemake results
-        uses: actions/cache@v3
-        id: snakemake-cache
-        with:
-          path: |
-            tests/small_test_analysis/.snakemake
-            tests/small_test_analysis/analysis_root
-          key: small-test-data-${{ hashFiles('tests/small_test_analysis/run_brieflow.sh') }} #snakemake-results-stable-v1
-
       # Run Brieflow
       - name: Run Brieflow
         shell: bash -l {0}

@@ -61,6 +61,7 @@ rule align:
         batch_cols=config["aggregate"]["batch_cols"],
         variance_or_ncomp=config["aggregate"]["variance_or_ncomp"],
         control_key=config["aggregate"]["control_key"],
+        subset_factor=config["aggregate"]["subset_factor"],
     script:
         "../scripts/aggregate/align.py"
 

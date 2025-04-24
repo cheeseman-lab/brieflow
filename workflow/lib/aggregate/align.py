@@ -48,7 +48,7 @@ def prepare_alignment_data(
     # Extract feature data
     features = features.to_numpy()
 
-    return features, metadata
+    return metadata, features
 
 
 def pca_variance_plot(features, variance_threshold=0.95, random_state=42):

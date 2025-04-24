@@ -21,7 +21,7 @@ jobs:
           environment-file: brieflow_main_env.yml
           cache-downloads: true
           cache-environment: true
-          cache-environment-key: "${{ runner.os }}-${{ hashFiles('brieflow_main_env.yml') }}-${{ hashFiles('**/*.py', 'pyproject.toml') }}"
+          cache-environment-key: brieflow_env-${{ hashFiles('brieflow_main_env.yml') }}
           micromamba-version: 'latest'
 
       # Cache the test data setup
@@ -47,7 +47,7 @@ jobs:
           path: |
             tests/small_test_analysis/.snakemake
             tests/small_test_analysis/analysis_root
-          key: snakemake-results-${{ hashFiles('workflow/Snakefile') }}
+          key: snakemake-results-stable-v1
 
       # Run Brieflow
       - name: Run Brieflow

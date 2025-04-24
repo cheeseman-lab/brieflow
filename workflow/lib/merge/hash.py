@@ -529,7 +529,7 @@ def prioritize(well_locations_0, well_locations_1, matches):
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
         # allow testing with subset of tiles
-        if a.shape[1] == 1:
+        if a.shape[0] == a.shape[1]:
             model = RANSACRegressor(min_samples=1)
         else:
             model = RANSACRegressor()

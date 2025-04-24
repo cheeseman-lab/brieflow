@@ -233,6 +233,8 @@ def calculate_group_enrichment(
     Returns:
         float: Average number of enriched groups per cluster.
     """
+    print(group_benchmark)
+    print(phate_leiden_clustering)
     cluster_df = phate_leiden_clustering.sort_values(by="cluster")
     if control_key is not None:
         cluster_df = phate_leiden_clustering[
@@ -262,7 +264,7 @@ def calculate_group_enrichment(
             a = len(cluster_genes & group_genes)
             b = len(group_genes) - a
             c = len(cluster_genes) - a
-            d = len(background_genes) - (a + b + c)
+            d = max(0, len(background_genes) - (a + b + c))
 
             contingency = [[a, b], [c, d]]
             _, p = fisher_exact(contingency)

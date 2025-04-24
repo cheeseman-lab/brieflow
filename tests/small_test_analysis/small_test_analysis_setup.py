@@ -5,7 +5,7 @@ import zipfile
 from tqdm import tqdm
 
 SMALL_TEST_DATA_URL = "https://zenodo.org/records/15276612/files/small_test_data.zip"
-local_fp = Path("small_test_analysis/small_test_data.zip")
+local_fp = Path("small_test_data.zip")
 
 # Download the zip file
 response = requests.get(SMALL_TEST_DATA_URL, stream=True)

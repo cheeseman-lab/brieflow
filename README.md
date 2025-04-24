@@ -67,22 +67,14 @@ This process takes about 14 minutes on our machine.
 ```sh
 # activate brieflow env
 conda activate brieflow_main_env
-# enter test dir
-cd brieflow/tests/
+# enter small test analysis dir
+cd brieflow/tests/small_test_analysis
 # set up small test analysis
 python small_test_analysis_setup.py
-# enter small test anaylsis dir
-cd small_test_analysis
-# run snakemake
-snakemake \
-    --cores all \
-    --use-conda \
-    --snakefile "../../workflow/Snakefile" \
-    --configfile "config/config.yml" \
-    --until all_preprocess
-# return to brieflow dir
-cd ../../
+# run brieflow
+sh run_brieflow.sh
 # run tests
+cd ../../
 pytest
 ```
 

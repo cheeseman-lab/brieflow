@@ -105,6 +105,7 @@ aggregate:
   perturbation_id_col: sgRNA_0
   perturbation_name_col: gene_symbol_0
   variance_or_ncomp: 0.99
+  num_align_batches: 1
 cluster:
   cluster_combo_fp: config/cluster_combo.tsv
   corum_group_benchmark_fp: config/benchmark_clusters/corum_group_benchmark.tsv

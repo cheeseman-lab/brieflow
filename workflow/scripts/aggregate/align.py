@@ -55,17 +55,17 @@ pca = PCA(n_components=snakemake.params.variance_or_ncomp).fit(
 ## Step 2: Batched alignment
 
 # Determine subset indices
-subset_factor = snakemake.params.subset_factor
+num_align_batches = snakemake.params.num_align_batches
 all_indices = np.random.permutation(total_rows)
-chunk_size = math.ceil(total_rows / subset_factor)
+chunk_size = math.ceil(total_rows / num_align_batches)
 subset_indices = [
-    all_indices[i * chunk_size : (i + 1) * chunk_size] for i in range(subset_factor)
+    all_indices[i * chunk_size : (i + 1) * chunk_size] for i in range(num_align_batches)
 ]
 
 # Process each batch
 writer = None
 for i, indices in enumerate(subset_indices):
-    print(f"Processing subset {i + 1}/{subset_factor} with {len(indices)} cells")
+    print(f"Processing subset {i + 1}/{num_align_batches} with {len(indices)} cells")
 
     subset_df = cell_dataset.scanner().take(pa.array(indices))
     subset_df = subset_df.to_pandas(use_threads=True, memory_pool=None)

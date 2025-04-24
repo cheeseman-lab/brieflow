@@ -21,7 +21,7 @@ jobs:
           environment-file: brieflow_main_env.yml
           cache-downloads: true
           cache-environment: true
-          cache-environment-key: "${{ runner.os }}-${{ hashFiles('brieflow_main_env.yml') }}-${{ hashFiles('**/*.py', 'pyproject.toml') }}"
+          cache-environment-key: brieflow_env-${{ hashFiles('brieflow_main_env.yml') }}
           micromamba-version: 'latest'
 
       # Cache the test data setup
@@ -29,37 +29,23 @@ jobs:
         uses: actions/cache@v3
         id: test-data-cache
         with:
-          path: tests/small_test_analysis
-          key: small-test-analysis-${{ hashFiles('tests/small_test_analysis_setup.py') }}
+          path: tests/small_test_analysis/small_test_data
+          key: small-test-data-${{ hashFiles('tests/small_test_analysis/small_test_analysis_setup.py') }}
 
       # Only run setup if cache miss
       - name: Run small test setup
         if: steps.test-data-cache.outputs.cache-hit != 'true'
         shell: bash -l {0}
-        working-directory: tests/
+        working-directory: tests/small_test_analysis
         run: python small_test_analysis_setup.py
 
-      # Cache Snakemake internal state and output files
-      - name: Cache Snakemake results
-        uses: actions/cache@v3
-        id: snakemake-cache
-        with:
-          path: |
-            tests/small_test_analysis/.snakemake
-            tests/small_test_analysis/analysis_root
-          key: snakemake-results-${{ hashFiles('workflow/Snakefile') }}
-
-      - name: Run Snakemake pipeline
+      # Run Brieflow
+      - name: Run Brieflow
         shell: bash -l {0}
         working-directory: tests/small_test_analysis
-        run: |
-          snakemake \
-            --cores all \
-            --use-conda \
-            --snakefile "../../workflow/Snakefile" \
-            --configfile "config/config.yml" \
-            --until all_preprocess
+        run: sh run_brieflow.sh
 
+      # Run Pytest
       - name: Run pytest
         shell: bash -l {0}
         run: pytest

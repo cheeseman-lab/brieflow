@@ -47,7 +47,7 @@ jobs:
           path: |
             tests/small_test_analysis/.snakemake
             tests/small_test_analysis/analysis_root
-          key: snakemake-results-stable-v1
+          key: small-test-data-${{ hashFiles('tests/small_test_analysis/run_brieflow.sh') }} #snakemake-results-stable-v1
 
       # Run Brieflow
       - name: Run Brieflow

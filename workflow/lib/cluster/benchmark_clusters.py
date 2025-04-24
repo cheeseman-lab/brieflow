@@ -233,8 +233,6 @@ def calculate_group_enrichment(
     Returns:
         float: Average number of enriched groups per cluster.
     """
-    print(group_benchmark)
-    print(phate_leiden_clustering)
     cluster_df = phate_leiden_clustering.sort_values(by="cluster")
     if control_key is not None:
         cluster_df = phate_leiden_clustering[

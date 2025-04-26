@@ -1,0 +1,7 @@
+sample_fp	plate	well	tile
+small_test_data/phenotype/empty_images/P001_Pheno_20x_Wells-A1_Points-002__Channel_AF750,Cy3,GFP,DAPI.nd2	1	A1	2
+small_test_data/phenotype/real_images/P001_Pheno_20x_Wells-A1_Points-005__Channel_AF750,Cy3,GFP,DAPI.nd2	1	A1	5
+small_test_data/phenotype/real_images/P001_Pheno_20x_Wells-A1_Points-141__Channel_AF750,Cy3,GFP,DAPI.nd2	1	A1	141
+small_test_data/phenotype/empty_images/P001_Pheno_20x_Wells-A2_Points-002__Channel_AF750,Cy3,GFP,DAPI.nd2	1	A2	2
+small_test_data/phenotype/real_images/P001_Pheno_20x_Wells-A2_Points-005__Channel_AF750,Cy3,GFP,DAPI.nd2	1	A2	5
+small_test_data/phenotype/real_images/P001_Pheno_20x_Wells-A2_Points-141__Channel_AF750,Cy3,GFP,DAPI.nd2	1	A2	141

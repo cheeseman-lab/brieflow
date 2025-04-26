@@ -262,7 +262,7 @@ def calculate_group_enrichment(
             a = len(cluster_genes & group_genes)
             b = len(group_genes) - a
             c = len(cluster_genes) - a
-            d = len(background_genes) - (a + b + c)
+            d = max(0, len(background_genes) - (a + b + c))
 
             contingency = [[a, b], [c, d]]
             _, p = fisher_exact(contingency)

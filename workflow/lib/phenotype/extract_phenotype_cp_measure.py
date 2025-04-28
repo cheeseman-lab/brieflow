@@ -16,37 +16,11 @@ from cp_measure.bulk import (
 # contains core measurements like, intensity, shape, texture etc.
 from cp_measure.core import (
     measurecolocalization,
-)  # contains colocalization, neighbor, overlap measurements -- more specialized than the bulk ones.
+)  # contains colocalization measurements -- more specialized than the bulk ones.
 from cp_measure.multimask import (
     measureobjectneighbors,
     measureobjectoverlap,
-)  # contains colocalization, neighbor, overlap measurements -- more specialized than the bulk ones.
-
-
-def get_area_features(mask, prefix=""):
-    """Extract area features (subset of "Type 1" cp measure features).
-
-    Args:
-        mask (np.ndarray): Segmentation mask
-        prefix (str): Prefix for feature names
-
-    Returns:
-        dict: Dictionary of extracted features of the form {'label':[measurements,],}
-    """
-    results = {}  # initializing dict of extracted features
-    measurements = get_core_measurements().items()
-    # Extract all core measurements
-    try:
-        for name, measure_func in measurements:
-            if name in {"get_zernike", "get_ferret"}:  # only single mask features
-                features = measure_func(mask)
-                # Add prefix to feature names
-                if prefix:
-                    features = {f"{prefix}_{k}": v for k, v in features.items()}
-                results.update(features)
-    except Exception as e:
-        print(f"Warning: Error calling {name} on {mask}: {str(e)}")
-
+)  # contains neighbor, overlap measurements -- more specialized than the bulk ones.
 
 # low level feature extraction - uses cp_measure.bulk.get_core_measurements() to get all basic measurements like intensity, texture, shape, etc.
 def get_single_object_features(image, mask, prefix=""):
@@ -66,7 +40,6 @@ def get_single_object_features(image, mask, prefix=""):
     try:
         # Extract all core measurements except area features (handled seperately)
         for name, measure_func in measurements:
-            if name not in {"get_zernike", "get_ferret"}:
                 features = measure_func(mask, image)
                 # Add prefix to feature names
                 if prefix:
@@ -78,7 +51,7 @@ def get_single_object_features(image, mask, prefix=""):
     return results
 
 
-# low level feature extraction - extracts all colocalization metrics between two channels within a mask.
+# low level feature extraction - extracts all colocalization metrics between two channels on a particular mask.
 def get_colocalization_features(image1, image2, mask, prefix=""):
     """Extract colocalization features (Type 2: 2 images + 1 mask).
 
@@ -109,7 +82,7 @@ def get_colocalization_features(image1, image2, mask, prefix=""):
     return results
 
 
-# low level feature extraction - extracts all neighbor relationship metrics between two masks within a mask.
+# low level feature extraction - extracts all neighbor relationship metrics between two masks
 def get_neighbor_features(mask1, mask2, prefix=""):
     """Extract neighbor relationship features (Type 3: 2 masks).
 
@@ -142,10 +115,9 @@ def get_neighbor_features(mask1, mask2, prefix=""):
 
 
 # INTEGRATION: orchestrates all measurements, matches the existing implementation, catering to Snakemake
-# 1 Area measurements, params: mask only
-# 2 Single-object features for each channel-mask combination, params: mask + 1 img
-# 3 Colocalization features between all channel pairs, params: mask + 2 imgs
-# 4 Neighbor features between different mask types, params: 2 masks
+# 1 Single-object features for each channel-mask combination, params: mask + 1 img
+# 2 Colocalization features between all channel pairs, params: mask + 2 imgs
+# 2 Neighbor features between different mask types, params: 2 masks
 # NOTE: 1 & 2 both specified to be "type 1" functions on cp measure readme (fns are categorized by their parameters)
 def extract_phenotype_cp_measure(
     data_phenotype,
@@ -194,16 +166,7 @@ def extract_phenotype_cp_measure(
     all_features = []
 
     try:
-        # 1. Area features (single-mask input)
-        print("Computing area features...")
-        MASKS = [nuclei, cells, cytoplasms]
-        for mask in MASKS:
-            if mask is not None and np.any(mask > 0):
-                features = get_area_features(mask, f"{mask_name}__")
-                if features:
-                    all_features.append(pd.DataFrame(features))
-
-        # 2. Single object features (not including area measurements, excluded in helper)
+        # 1. Single object features (including area measurements with unutilized but required pixels param)
         print("Computing single object features...")
         for channel_idx, channel_name in enumerate(channel_names):
             channel_data = data_phenotype[channel_idx]
@@ -221,7 +184,7 @@ def extract_phenotype_cp_measure(
                     if features:
                         all_features.append(pd.DataFrame(features))
 
-        # 3. Colocalization features
+        # 2. Colocalization features
         print("Computing colocalization features...")
         for (ch1_idx, ch1_name), (ch2_idx, ch2_name) in permutations(
             enumerate(channel_names), 2
@@ -244,13 +207,13 @@ def extract_phenotype_cp_measure(
                     if features:
                         all_features.append(pd.DataFrame(features))
 
-        # 4. Neighbor features
+        # 3. Neighbor features
         print("Computing neighbor features...")
         # Process each mask pair if both contain objects
         mask_pairs = [
-            (nuclei, cells, "nucleus_cell"),
-            (nuclei, cytoplasms, "nucleus_cytoplasm"),
-            (cells, cytoplasms, "cell_cytoplasm"),
+            (nuclei, nuclei, "nucleus"),
+            (nuclei, cytoplasms, "cytoplasm"),
+            (cells, cells, "cell"),
         ]
 
         for mask1, mask2, prefix in mask_pairs:

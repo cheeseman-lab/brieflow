@@ -70,7 +70,7 @@ rule deduplicate_merge:
         "../scripts/merge/deduplicate_merge.py"
 
 
-# # Final merge with all feature data
+# Final merge with all feature data
 rule final_merge:
     input:
         # formatted merge data

@@ -22,6 +22,7 @@ from cp_measure.multimask import (
     measureobjectoverlap,
 )  # contains neighbor, overlap measurements -- more specialized than the bulk ones.
 
+
 # low level feature extraction - uses cp_measure.bulk.get_core_measurements() to get all basic measurements like intensity, texture, shape, etc.
 def get_single_object_features(image, mask, prefix=""):
     """Extract single-object features (Type 1: 1 image + 1 mask), excluding area features.
@@ -40,11 +41,11 @@ def get_single_object_features(image, mask, prefix=""):
     try:
         # Extract all core measurements except area features (handled seperately)
         for name, measure_func in measurements:
-                features = measure_func(mask, image)
-                # Add prefix to feature names
-                if prefix:
-                    features = {f"{prefix}_{k}": v for k, v in features.items()}
-                results.update(features)
+            features = measure_func(mask, image)
+            # Add prefix to feature names
+            if prefix:
+                features = {f"{prefix}_{k}": v for k, v in features.items()}
+            results.update(features)
     except Exception as e:
         print(f"Warning: Error calling {name} with {mask} and {image}: {str(e)}")
 

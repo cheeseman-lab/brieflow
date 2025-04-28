@@ -62,7 +62,7 @@ PHENOTYPE_OUTPUTS = {
             "tsv",
         ),
     ],
-    "merge_phenotype_info": [
+    "combine_phenotype_info": [
         PHENOTYPE_FP
         / "parquets"
         / get_filename(
@@ -127,7 +127,7 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "segment_phenotype": None,
     "identify_cytoplasm": temp,
     "extract_phenotype_info": temp,
-    "merge_phenotype_info": None,
+    "combine_phenotype_info": None,
     "extract_phenotype_cp": temp,
     "merge_phenotype_cp": None,
     "eval_segmentation_phenotype": None,

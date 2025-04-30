@@ -7,7 +7,7 @@ rule fast_alignment:
         # metadata files with image locations
         ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
         ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
-        ancient(PHENOTYPE_OUTPUTS["merge_phenotype_info"]),
+        ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
         ancient(SBS_OUTPUTS["combine_sbs_info"]),
     output:
         MERGE_OUTPUTS_MAPPED["fast_alignment"],
@@ -26,7 +26,7 @@ rule fast_alignment:
 rule merge:
     input:
         # phenotype and sbs info files with cell locations
-        ancient(PHENOTYPE_OUTPUTS["merge_phenotype_info"]),
+        ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
         ancient(SBS_OUTPUTS["combine_sbs_info"]),
         # fast alignment data
         MERGE_OUTPUTS["fast_alignment"],
@@ -70,7 +70,7 @@ rule deduplicate_merge:
         "../scripts/merge/deduplicate_merge.py"
 
 
-# # Final merge with all feature data
+# Final merge with all feature data
 rule final_merge:
     input:
         # formatted merge data

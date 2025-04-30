@@ -1,17 +1,20 @@
-"""Benchmark utilities for evaluating gene clustering performance.
+"""Benchmark evaluation and visualization of gene clustering against curated datasets.
 
-This module provides functions to evaluate clustering results using external benchmarks
-such as known gene pairs and gene groups. It includes methods for calculating recall
-of known gene pairs, measuring group enrichment, and visualizing benchmark performance
-across different clustering parameters.
+This module contains methods to benchmark gene clustering results against
+biological ground truth datasets such as STRING, CORUM, and KEGG. It includes
+functions for computing enrichment of known gene groups and gene pairs,
+integrating metrics across datasets, and generating summary visualizations.
 
-Statistical Methodology:
-- Pair Recall: Evaluates clustering by measuring the fraction of known gene pairs that appear
-  in the same cluster, providing a direct measure of how well the clustering preserves known
-  relationships.
-- Group Enrichment: Uses Fisher's exact test to identify statistically significant
-  over-representation of known gene groups within clusters, followed by multiple testing
-  correction using the Benjamini-Hochberg procedure to control false discovery rate.
+Key functions:
+    - run_benchmark_analysis: Perform integrated benchmarking and plotting.
+    - evaluate_resolution: Compare clustering resolutions using PR metrics.
+    - calculate_group_enrichment: Enrich gene groups within clusters.
+    - calculate_pair_enrichment: Compute pairwise precision and recall.
+    - run_integrated_benchmarks: Consolidate enrichment and performance metrics.
+    - generate_combined_enrichment_table: Assemble detailed benchmark table.
+    - enrichment_pie_chart: Visualize enrichment category distribution.
+    - enrichment_bar_chart: Plot enrichment scores by cluster.
+    - save_json_results: Export data with type-safe JSON serialization.
 """
 
 import json
@@ -413,10 +416,10 @@ def calculate_pair_enrichment(
         control_key (str, optional): Prefix for control perturbations to filter out.
         max_clusters (int, optional): Maximum number of clusters to analyze.
         return_cluster_details (bool, optional): Whether to return per-cluster details.
-    adjust_precision (bool, optional): If True, calculates precision more conservatively by
-        only considering pairs as false positives when both genes are known to belong to
-        different pairs in the benchmark data. This avoids penalizing potential novel
-        interactions between genes not fully characterized in the benchmark dataset.
+        adjust_precision (bool, optional): If True, calculates precision more conservatively by
+            only considering pairs as false positives when both genes are known to belong to
+            different pairs in the benchmark data. This avoids penalizing potential novel
+            interactions between genes not fully characterized in the benchmark dataset.
 
     Returns:
         dict or tuple: Dictionary with metrics or tuple of (metrics, cluster_details)
@@ -1035,6 +1038,18 @@ def enrichment_bar_chart(df: pd.DataFrame, figsize=(12, 8)) -> plt.Figure:
 
 
 def save_json_results(data, output_path):
+    """Save data as a JSON file, converting unsupported types to serializable forms.
+
+    This function recursively converts sets to lists, NumPy numeric types to
+    native Python types, and ensures dictionary keys are strings before saving
+    the result as a JSON file to the specified path.
+
+    Args:
+        data: The data structure to save. May include nested dicts, lists, sets,
+            and NumPy scalar types.
+        output_path (str or Path): The file path where the JSON will be written.
+    """
+
     def clean(obj):
         if isinstance(obj, set):
             return list(obj)

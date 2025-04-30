@@ -1,7 +1,19 @@
-"""This module provides functions to fetch and process benchmark datasets for gene and protein analysis.
+"""Utilities for generating gene set benchmarks from external biological databases.
 
-It includes utilities to retrieve data from external sources like UniProt, CORUM, STRING, and MSigDB,
-and to generate benchmarks for clustering and pathway analysis.
+This module fetches and processes benchmark datasets used to evaluate gene clustering
+performance. It includes access to STRING, CORUM, MSigDB, and UniProt resources,
+and provides standardized functions to format, clean, and filter group and pairwise
+gene benchmarks for use in enrichment and precision-recall analyses.
+
+Key functions:
+    - generate_string_pair_benchmark: Create gene pair benchmarks from STRING interactions.
+    - generate_corum_group_benchmark: Extract gene complexes from CORUM.
+    - generate_msigdb_group_benchmark: Convert MSigDB KEGG pathways to gene group format.
+    - get_uniprot_data: Retrieve UniProt gene and annotation data.
+    - get_corum_data / get_string_data: Download raw benchmark inputs.
+    - select_gene_variants: Harmonize variant gene names with clustering outputs.
+    - filter_complexes: Curate benchmark gene groups with coverage and overlap filters.
+    - simplify_ampersand_genes: Standardize gene names by removing concatenated forms.
 """
 
 import re
@@ -303,8 +315,7 @@ def select_gene_variants(benchmark_df, ref_gene_df, ref_gene_col="gene_symbol_0"
 def filter_complexes(
     group_df, cluster_df, perturbation_col_name=None, control_key=None
 ):
-    """
-    Filter complexes based on gene coverage and overlap.
+    """Filter complexes based on gene coverage and overlap.
 
     Args:
         group_df (pd.DataFrame): DataFrame with columns ['gene_name', 'group'].
@@ -355,9 +366,7 @@ def filter_complexes(
 
 # TODO: eventually, take care of ampersand genes during the SBS step and this can be removed
 def simplify_ampersand_genes(df, perturbation_name_col="gene_symbol_0"):
-    """
-    Simplifies gene names by replacing ampersand-containing gene names
-    with just the first gene in the list.
+    """Simplifies gene names by replacing ampersand-containing gene names with just the first gene in the list.
 
     Args:
         df (pd.DataFrame): The DataFrame containing gene names.

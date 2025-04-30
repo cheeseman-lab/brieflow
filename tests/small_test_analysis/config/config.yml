@@ -21,6 +21,7 @@ phenotype:
   - COXIV
   - CENPA
   - WGA
+  cp_method: 
   cyto_index: 1
   cyto_model: cyto3
   dapi_index: 0

@@ -19,6 +19,7 @@ FILENAME_METADATA_MAPPING = {
     "sgrna": ["SG-", str],
     "channel": ["CH-", str],
     "leiden_resolution": ["LR-", float],
+    "cluster_benchmark": ["CB-", str],
 }
 
 

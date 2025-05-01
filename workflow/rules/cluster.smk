@@ -22,6 +22,7 @@ rule phate_leiden_clustering:
         phate_distance_metric=config["cluster"]["phate_distance_metric"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         control_key=config["aggregate"]["control_key"],
+        uniprot_data_fp=config["cluster"]["uniprot_data_fp"],
     script:
         "../scripts/cluster/phate_leiden_clustering.py"
 

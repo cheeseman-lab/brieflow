@@ -169,5 +169,5 @@ rule initiate_montage:
 # Rule for all aggregate processing steps
 rule all_aggregate:
     input:
-        AGGREGATE_TARGETS_ALL,
+        # AGGREGATE_TARGETS_ALL,
         MONTAGE_TARGETS_ALL,

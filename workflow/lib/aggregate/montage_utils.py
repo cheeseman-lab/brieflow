@@ -42,12 +42,11 @@ def add_filenames(merge_data, root_fp):
     merge_data["image_path"] = merge_data.apply(
         lambda row: str(
             root_fp
-            / "preprocess"
-            / "images"
             / "phenotype"
+            / "images"
             / get_filename(
                 {"plate": row["plate"], "well": row["well"], "tile": row["tile"]},
-                "image",
+                "aligned",
                 "tiff",
             )
         ),

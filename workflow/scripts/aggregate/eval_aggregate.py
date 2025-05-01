@@ -54,4 +54,4 @@ feature_distributions_fig = plot_feature_distributions(
     aligned_feature_cols,
     aligned_data,
 )
-feature_distributions_fig.savefig(snakemake.output[2])
+feature_distributions_fig.savefig(snakemake.output[2], dpi=600)

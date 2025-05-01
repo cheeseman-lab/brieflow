@@ -237,6 +237,10 @@ def get_uniprot_data():
     if "function_[cc]" in df.columns:
         df = df.rename(columns={"function_[cc]": "function"})
 
+    # Remove the string "FUNCTION: " from all entries in the function column
+    if "function" in df.columns:
+        df["function"] = df["function"].str.replace("FUNCTION: ", "", regex=False)
+
     print(f"Completed. Total entries: {len(df)}")
     return df
 

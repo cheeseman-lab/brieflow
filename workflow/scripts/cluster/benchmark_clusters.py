@@ -12,6 +12,8 @@ from lib.cluster.scrape_benchmarks import (
 )
 
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
+# TODO: remove after we take care of this cleanup in SBS
+aggregated_data = simplify_ampersand_genes(aggregated_data)
 phate_leiden_clustering = pd.read_csv(snakemake.input[1], sep="\t")
 
 # create baseline data by shuffling columns independently

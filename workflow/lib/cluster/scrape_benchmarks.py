@@ -27,7 +27,9 @@ from itertools import combinations
 import pandas as pd
 
 
-def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
+def generate_string_pair_benchmark(
+    aggregated_data, uniprot_data, gene_col="gene_symbol_0"
+):
     """Generate a STRING pair benchmark DataFrame.
 
     This function maps STRING protein IDs to gene names and creates a benchmark DataFrame
@@ -36,6 +38,7 @@ def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
 
     Args:
         aggregated_data (pd.DataFrame): The aggregated data containing gene information.
+        uniprot_data (pd.DataFrame): The UniProt data containing STRING IDs and gene names.
         gene_col (str, optional): The column name in the aggregated data representing gene symbols.
             Defaults to "gene_symbol_0".
 
@@ -43,16 +46,15 @@ def generate_string_pair_benchmark(aggregated_data, gene_col="gene_symbol_0"):
         pd.DataFrame: A DataFrame containing the STRING pair benchmark.
     """
     string_data = get_string_data()
-    uniprot_data = get_uniprot_data()
 
     # Create mapping from STRING IDs to gene names
     string_to_genes = {}
     for _, row in uniprot_data.iterrows():
-        if pd.notna(row["STRING"]) and row["STRING"] != "":
+        if pd.notna(row["string"]) and row["string"] != "":
             string_id = (
-                row["STRING"].split(";")[0] if ";" in row["STRING"] else row["STRING"]
+                row["string"].split(";")[0] if ";" in row["string"] else row["string"]
             )
-            gene_names = row["Gene Names"]
+            gene_names = row["gene_names"]
             if pd.notna(gene_names):
                 string_to_genes[string_id] = gene_names
 
@@ -172,10 +174,10 @@ def get_uniprot_data():
     functions, and cross-references to STRING, KEGG, and ComplexPortal.
 
     Returns:
-        pd.DataFrame: A DataFrame containing UniProt data.
+        pd.DataFrame: A DataFrame containing UniProt data with UniProt entry links.
     """
     # Define UniProt REST API query
-    re_next_link = re.compile(r'<(.+)>; rel="next"')
+    re_next_link = re.compile(r"<(.+)>; rel=\"next\"")
     retries = Retry(total=5, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
     session = requests.Session()
     session.mount("https://", HTTPAdapter(max_retries=retries))
@@ -192,7 +194,7 @@ def get_uniprot_data():
     # Query for human reviewed entries with specific fields
     params = {
         "query": "organism_id:9606 AND reviewed:true",
-        "fields": "gene_names,cc_function,xref_kegg,xref_complexportal,xref_string",
+        "fields": "accession,gene_names,cc_function,xref_kegg,xref_complexportal,xref_string",
         "format": "tsv",
         "size": 500,
     }
@@ -224,6 +226,17 @@ def get_uniprot_data():
 
     # Create DataFrame from results
     df = pd.DataFrame(results, columns=headers)
+
+    # Generate UniProt links using the accession field
+    df["Link"] = "https://www.uniprot.org/uniprotkb/" + df["Entry"] + "/entry"
+
+    # Make all column names standardized
+    df.columns = df.columns.str.lower().str.replace(" ", "_")
+
+    # Rename the function_[cc] column to just function
+    if "function_[cc]" in df.columns:
+        df = df.rename(columns={"function_[cc]": "function"})
+
     print(f"Completed. Total entries: {len(df)}")
     return df
 

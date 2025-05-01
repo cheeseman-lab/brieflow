@@ -19,6 +19,7 @@ FILENAME_METADATA_MAPPING = {
     "sgrna": ["SG-", str],
     "channel": ["CH-", str],
     "leiden_resolution": ["LR-", float],
+    "cluster_benchmark": ["CB-", str],
 }
 
 
@@ -118,7 +119,7 @@ def load_parquet_subset(full_df_fp, n_rows=50000):
 def validate_dtypes(df):
     """Convert DataFrame columns to the most specific data type possible with the following rules.
 
-    - Convert object to string if possible
+    - Convert object to bool or string if possible
     - Convert strings to int float if possible
     - Convert floats to int if possible
 
@@ -135,12 +136,18 @@ def validate_dtypes(df):
         if pd.api.types.is_integer_dtype(df[col]):
             continue
 
-        # Convert object to string if possible
+        # Convert object to bool if possible, else to string
         if pd.api.types.is_object_dtype(df[col]):
-            try:
-                df[col] = df[col].astype("string")
-            except ValueError:
-                pass
+            lowered = df[col].dropna().astype(str).str.lower()
+            if lowered.isin(["true", "false"]).all():
+                df[col] = (
+                    df[col].astype(str).str.lower().map({"true": True, "false": False})
+                )
+            else:
+                try:
+                    df[col] = df[col].astype("string")
+                except ValueError:
+                    pass
 
         # Convert string to float if possible
         if pd.api.types.is_string_dtype(df[col]):

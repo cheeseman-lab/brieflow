@@ -1,7 +1,19 @@
-"""This module provides functions to fetch and process benchmark datasets for gene and protein analysis.
+"""Utilities for generating gene set benchmarks from external biological databases.
 
-It includes utilities to retrieve data from external sources like UniProt, CORUM, STRING, and MSigDB,
-and to generate benchmarks for clustering and pathway analysis.
+This module fetches and processes benchmark datasets used to evaluate gene clustering
+performance. It includes access to STRING, CORUM, MSigDB, and UniProt resources,
+and provides standardized functions to format, clean, and filter group and pairwise
+gene benchmarks for use in enrichment and precision-recall analyses.
+
+Key functions:
+    - generate_string_pair_benchmark: Create gene pair benchmarks from STRING interactions.
+    - generate_corum_group_benchmark: Extract gene complexes from CORUM.
+    - generate_msigdb_group_benchmark: Convert MSigDB KEGG pathways to gene group format.
+    - get_uniprot_data: Retrieve UniProt gene and annotation data.
+    - get_corum_data / get_string_data: Download raw benchmark inputs.
+    - select_gene_variants: Harmonize variant gene names with clustering outputs.
+    - filter_complexes: Curate benchmark gene groups with coverage and overlap filters.
+    - simplify_ampersand_genes: Standardize gene names by removing concatenated forms.
 """
 
 import re
@@ -10,6 +22,7 @@ from requests.adapters import HTTPAdapter, Retry
 import json
 import io
 import gzip
+from itertools import combinations
 
 import pandas as pd
 
@@ -297,3 +310,81 @@ def select_gene_variants(benchmark_df, ref_gene_df, ref_gene_col="gene_symbol_0"
     )
 
     return benchmark_df
+
+
+def filter_complexes(
+    group_df, cluster_df, perturbation_col_name=None, control_key=None
+):
+    """Filter complexes based on gene coverage and overlap.
+
+    Args:
+        group_df (pd.DataFrame): DataFrame with columns ['gene_name', 'group'].
+        cluster_df (pd.DataFrame): DataFrame with perturbation data.
+        perturbation_col_name (str): Column name for gene identifiers.
+        control_key (str, optional): Prefix for control perturbations to filter out.
+
+    Returns:
+        pd.DataFrame: Filtered group DataFrame.
+    """
+    # Generate the screening gene list directly from the cluster_df
+    gene_list = [
+        gene
+        for gene in cluster_df[perturbation_col_name].unique()
+        if control_key is None or control_key not in gene
+    ]
+
+    # 1. Build a dictionary: complex -> set of genes
+    complex_to_genes = group_df.groupby("group")["gene_name"].apply(set).to_dict()
+
+    # 2. Find complexes with ≥3 genes from gene_list and ≥2/3 of complex represented
+    selected_complexes = {}
+    for complex_name, genes in complex_to_genes.items():
+        genes_in_library = genes.intersection(gene_list)
+        if len(genes_in_library) >= 3 and len(genes_in_library) / len(genes) >= (2 / 3):
+            selected_complexes[complex_name] = genes_in_library
+
+    # 3. Remove larger complexes that share >10% of gene-pairs with smaller ones
+    #    (compare by % of *gene pairs* that overlap)
+    final_complexes = set(selected_complexes.keys())
+    complex_list_sorted = sorted(
+        selected_complexes.items(), key=lambda x: len(x[1])
+    )  # small to large
+
+    for i, (small_complex, small_genes) in enumerate(complex_list_sorted):
+        small_pairs = set(combinations(small_genes, 2))
+        for larger_complex, larger_genes in complex_list_sorted[i + 1 :]:
+            larger_pairs = set(combinations(larger_genes, 2))
+            if len(small_pairs) == 0:
+                continue
+            shared_pairs = small_pairs & larger_pairs
+            if len(shared_pairs) / len(small_pairs) > 0.10:
+                final_complexes.discard(larger_complex)
+
+    filtered = group_df[group_df["group"].isin(final_complexes)]
+    return filtered
+
+
+# TODO: eventually, take care of ampersand genes during the SBS step and this can be removed
+def simplify_ampersand_genes(df, perturbation_name_col="gene_symbol_0"):
+    """Simplifies gene names by replacing ampersand-containing gene names with just the first gene in the list.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing gene names.
+        perturbation_name_col (str): The column name in the DataFrame containing gene names.
+
+    Returns:
+        pd.DataFrame: A DataFrame with simplified gene names.
+    """
+    # Create a copy to avoid modifying the original dataframe
+    result_df = df.copy()
+
+    # Find rows with ampersands in the perturbation name column
+    mask = result_df[perturbation_name_col].astype(str).str.contains("&")
+
+    # For those rows, replace with just the first gene name before the ampersand
+    if mask.any():
+        result_df.loc[mask, perturbation_name_col] = result_df.loc[
+            mask, perturbation_name_col
+        ].apply(lambda x: x.split("&")[0].strip() if isinstance(x, str) else x)
+
+    return result_df

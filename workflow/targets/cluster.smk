@@ -102,7 +102,7 @@ CLUSTER_OUTPUT_MAPPINGS = {
 
 # TODO: Use all combos
 # cluster_wildcard_combos = cluster_wildcard_combos[
-#     (cluster_wildcard_combos["cell_class"].isin(["Interphase"]))
+#     (cluster_wildcard_combos["cell_class"].isin(["Mitotic"]))
 #     & (cluster_wildcard_combos["channel_combo"].isin(["DAPI_COXIV_CENPA_WGA"]))
 #     & (cluster_wildcard_combos["leiden_resolution"].isin([15]))
 # ]

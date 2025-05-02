@@ -213,7 +213,7 @@ def extract_phenotype_cp_measure(
         # Process each mask pair if both contain objects
         mask_pairs = [
             (nuclei, nuclei, "nucleus"),
-            (nuclei, cytoplasms, "cytoplasm"),
+            (cytoplasms, cytoplasms, "cytoplasm"),
             (cells, cells, "cell"),
         ]
 

@@ -12,7 +12,11 @@ print(f"Shape of input data: {cell_data.shape}")
 
 # Modify pert col for nontargeting entries by appending pert id value
 mask = cell_data[snakemake.params.perturbation_name_col] == snakemake.params.control_key
-cell_data.loc[mask, snakemake.params.perturbation_name_col] = cell_data.loc[mask, snakemake.params.perturbation_name_col] + '_' + cell_data.loc[mask, snakemake.params.perturbation_id_col]
+cell_data.loc[mask, snakemake.params.perturbation_name_col] = (
+    cell_data.loc[mask, snakemake.params.perturbation_name_col]
+    + "_"
+    + cell_data.loc[mask, snakemake.params.perturbation_id_col]
+)
 
 # Determine feature cols
 metadata_cols = load_metadata_cols(

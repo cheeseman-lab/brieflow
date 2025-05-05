@@ -19,21 +19,27 @@ phate_leiden_clustering = phate_leiden_pipeline(
 # add uniprot information
 uniprot_data = pd.read_csv(snakemake.params.uniprot_data_fp, sep="\t")
 # Expand the rows of the uniprot data to deal with synonyms and homologs
+uniprot_data = uniprot_data.dropna(subset=["gene_names"])
 expanded_rows = []
 for _, row in uniprot_data.iterrows():
-    if pd.notna(row['gene_names']):
-        gene_names = row['gene_names'].split()
-        for position, gene in enumerate(gene_names):
-            expanded_rows.append({
-                'gene_name': gene,
-                'position': position,
-                'uniprot_entry': row['entry'],
-                'uniprot_function': row['function'],
-                'uniprot_link': row['link']
-            })
+    gene_names = row["gene_names"].split()
+    for position, gene in enumerate(gene_names):
+        expanded_rows.append(
+            {
+                "gene_name": gene,
+                "position": position,
+                "uniprot_entry": row["entry"],
+                "uniprot_function": row["function"],
+                "uniprot_link": row["link"],
+            }
+        )
 expanded_df = pd.DataFrame(expanded_rows)
-uniprot_data = expanded_df.sort_values(['gene_name', 'position']).drop_duplicates('gene_name', keep='first')
-uniprot_data = uniprot_data[["gene_name", "uniprot_entry", "uniprot_function", "uniprot_link"]]
+uniprot_data = expanded_df.sort_values(["gene_name", "position"]).drop_duplicates(
+    "gene_name", keep="first"
+)
+uniprot_data = uniprot_data[
+    ["gene_name", "uniprot_entry", "uniprot_function", "uniprot_link"]
+]
 # merge uniprot data with clustering results
 phate_leiden_clustering = phate_leiden_clustering.merge(
     uniprot_data, how="left", left_on="gene_symbol_0", right_on="gene_name"

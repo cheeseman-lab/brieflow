@@ -28,7 +28,7 @@ phenotype:
   flow_threshold: 0.4
   foci_channel: 2
   gpu: false
-  method: cellpose
+  segmentation_method: cellpose
   mode: null
   nuclei_diameter: 41.97813156768016
   reconcile: contained_in_cells
@@ -71,6 +71,7 @@ sbs:
   spot_detection_method: standard
   threshold_peaks: 400
   segment_cells: true
+  segmentation_method: cellpose
 merge:
   det_range:
   - 0.06

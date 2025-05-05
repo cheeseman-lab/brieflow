@@ -22,15 +22,9 @@ from scipy.spatial.distance import cdist
 from lib.merge.merge import build_linear_model
 
 CONFIG_FILE_HEADER = """
-# BrieFlow configuration file
+# ~BrieFlow analysis configuration file~
 
-# Defining samples:
-#   Samples must be defined in the following TSV files with columns:
-#     sbs_samples.tsv: sample_fp, well, tile, cycle
-#     phenotype_samples.tsv: sample_fp, well, tile
-
-# Paths:
-#   Paths are resolved relative to the directory the workflow is run from
+# All paths are resolved relative to the directory the workflow is run from.
 
 # Parameters:
 """

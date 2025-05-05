@@ -10,6 +10,7 @@ if snakemake.params.cp_method == "cp_measure":
     from lib.phenotype.extract_phenotype_cp_measure import (
         extract_phenotype_cp_measure,
     )
+
     # TO-DO: Ensure conda environment is set up for cp_measure when using this method.
     # A quick guide:
     # 1. Clone brieflow environment:

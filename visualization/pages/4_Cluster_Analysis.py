@@ -24,9 +24,7 @@ from src.config import get_analysis_root_dir
 # =====================
 # CONSTANTS
 ANALYSIS_ROOT = get_analysis_root_dir()
-st.write(f"Analysis root: {ANALYSIS_ROOT}")
 CLUSTER_ROOT = os.path.join(ANALYSIS_ROOT, 'cluster')
-st.write(f"Cluster root: {CLUSTER_ROOT}")
 
 # Common hover data columns
 HOVER_COLUMNS = ['gene_symbol_0', 'cluster', 'cell_count', 'source']
@@ -461,19 +459,28 @@ def display_cluster(cluster_data, container=st.container()):
                 ]
 
         # Display data overview
-        st.write("Cluster Data Overview")
+        st.markdown("## Cluster Data Overview")
 
         # If an item is selected, filter the dataframe
         source_tsv = cluster_data['source_full_path'].unique()[0]
-        table_data = pd.read_csv(source_tsv, sep='\t')
-        if st.session_state.selected_item:
-            table_data = table_data[table_data['cluster'] == st.session_state.selected_item]
-            st.dataframe(table_data)
+        if os.path.exists(source_tsv):
+            table_data = pd.read_csv(source_tsv, sep='\t')
+            if len(table_data.index) == 0:
+                st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
+            else:
+                if st.session_state.selected_item:
+                    table_data = table_data[table_data['cluster'] == st.session_state.selected_item]
+                    if len(table_data.index) == 0:
+                        st.info(f"No data found for cluster {st.session_state.selected_item} in the TSV file: {source_tsv}")
+                    else:
+                        st.dataframe(table_data)
+                else:
+                    st.dataframe(table_data)
         else:
-            st.dataframe(table_data)
+            st.warning(f"⚠️ WARNING: Source TSV file not found at: {source_tsv}")
 
         # Feature Data Overview
-        st.write("Feature Data Overview")
+        st.markdown("## Feature Data Overview")
 
         # Construct the feature table path
         feature_table_path = os.path.join(
@@ -502,7 +509,7 @@ def display_cluster(cluster_data, container=st.container()):
                     }
                 )
         else:
-            st.warning(f"Feature table not found at: {feature_table_path}")
+            st.warning(f"⚠️ WARNING: Feature table not found at: {feature_table_path}")
 
 
     else:
@@ -531,35 +538,35 @@ def display_cluster_json(cluster_data, container=st.container()):
                 c = clusters[cluster_id]
                 # Card layout using markdown and Streamlit elements
                 st.markdown(f"""
-                    <div style='background-color:#f8f9fa; border-radius:10px; padding:20px; margin-bottom:20px; box-shadow:0 2px 8px #00000010;'>
+                    <div style='background-color:#1e1e1e; border-radius:10px; padding:20px; margin-bottom:20px; box-shadow:0 2px 8px #00000040;'>
                         <div style='display:flex; justify-content:space-between; align-items:center;'>
                             <div>
-                                <span style='font-size:1.3em; font-weight:bold;'>Dominant Process:</span>
-                                <span style='font-size:1.3em; color:#2a7cff; font-weight:bold;'>{c.get('dominant_process','')}</span>
+                                <span style='font-size:1.3em; font-weight:bold; color:#e0e0e0;'>Dominant Process:</span>
+                                <span style='font-size:1.3em; color:#60a5fa; font-weight:bold;'>{c.get('dominant_process','')}</span>
                             </div>
                             <div>
-                                <span style='background:#e0e7ff; color:#2a7cff; border-radius:6px; padding:4px 12px; font-weight:600;'>Confidence: {c.get('pathway_confidence','')}</span>
+                                <span style='background:#1e3a8a; color:#93c5fd; border-radius:6px; padding:4px 12px; font-weight:600;'>Confidence: {c.get('pathway_confidence','')}</span>
                             </div>
                         </div>
-                        <div style='margin-top:10px; margin-bottom:10px; font-size:1.1em; color:#333;'>
+                        <div style='margin-top:10px; margin-bottom:10px; font-size:1.1em; color:#d1d5db;'>
                             {c.get('summary','')}
                         </div>
                         <div style='margin-top:18px;'>
-                            <span style='font-weight:600; color:#2a7cff;'>Established Genes:</span>
-                            <span style='margin-left:8px;'>{" ".join([f"<span style='background:#d1fae5; color:#065f46; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene}</span>" for gene in c.get('established_genes',[])])}</span>
+                            <span style='font-weight:600; color:#60a5fa;'>Established Genes:</span>
+                            <span style='margin-left:8px;'>{" ".join([f"<span style='background:#064e3b; color:#6ee7b7; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene}</span>" for gene in c.get('established_genes',[])])}</span>
                         </div>
                         <div style='margin-top:10px;'>
-                            <span style='font-weight:600; color:#f59e42;'>Novel Role Genes:</span>
+                            <span style='font-weight:600; color:#fbbf24;'>Novel Role Genes:</span>
                             <ul style='margin:0; padding-left:20px;'>
                             {"".join([
-                                f"<li><span style='background:#fef3c7; color:#b45309; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#555;'>{gene['rationale']}</span></li>" for gene in c.get('novel_role_genes',[])
+                                f"<li><span style='background:#78350f; color:#fcd34d; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>" for gene in c.get('novel_role_genes',[])
                             ])}</ul>
                         </div>
                         <div style='margin-top:10px;'>
-                            <span style='font-weight:600; color:#a855f7;'>Uncharacterized Genes:</span>
+                            <span style='font-weight:600; color:#c084fc;'>Uncharacterized Genes:</span>
                             <ul style='margin:0; padding-left:20px;'>
                             {"".join([
-                                f"<li><span style='background:#ede9fe; color:#6d28d9; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#555;'>{gene['rationale']}</span></li>" for gene in c.get('uncharacterized_genes',[])
+                                f"<li><span style='background:#5b21b6; color:#d8b4fe; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>" for gene in c.get('uncharacterized_genes',[])
                             ])}</ul>
                         </div>
                     </div>

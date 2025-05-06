@@ -53,12 +53,13 @@ rule generate_feature_table:
             metadata_combos=aggregate_wildcard_combos,
         ),
     output:
-        AGGREGATE_OUTPUTS_MAPPED["get_feature_table"],
+        AGGREGATE_OUTPUTS_MAPPED["generate_feature_table"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
+        batch_cols=config["aggregate"]["batch_cols"],
     script:
         "../scripts/aggregate/generate_feature_table.py"
 

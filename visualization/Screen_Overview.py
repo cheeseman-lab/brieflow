@@ -9,7 +9,7 @@ def load_yaml(file_path):
     with open(file_path, 'r') as file:
         return yaml.safe_load(file)
 
-def display_yaml(file_path):
+def display_yaml_as_json(file_path):
     try:
         data = load_yaml(file_path)
         for key, value in data.items():
@@ -19,6 +19,10 @@ def display_yaml(file_path):
         st.error(f"Error loading YAML: {str(e)}")
 
 st.title("Screen Configuration")
+
+def display_yaml(file_path):
+    with open(file_path, 'r') as file:
+        st.code(file.read(), language="yaml")
 
 display_yaml(SCREEN_PATH)
 

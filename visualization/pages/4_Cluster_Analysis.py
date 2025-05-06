@@ -137,7 +137,7 @@ def make_scatter_trace(x, y, marker, text, customdata, name, showlegend, color=N
         customdata=customdata,
         name=name,
         hovertemplate=hovertemplate,
-        showlegend=showlegend,
+        showlegend=False,
     )
 
 @st.cache_data
@@ -323,7 +323,7 @@ def display_cluster(cluster_data, container=st.container()):
                         text=group_df['gene_symbol_0'],
                         customdata=group_df[HOVER_COLUMNS],
                         name=str(group),
-                        showlegend=True,
+                        showlegend=False,
                     ))
 
             # Second phase: Add selected points on top
@@ -353,7 +353,7 @@ def display_cluster(cluster_data, container=st.container()):
                             text=other_genes_df['gene_symbol_0'],
                             customdata=other_genes_df[HOVER_COLUMNS],
                             name=str(group),
-                            showlegend=True,
+                            showlegend=False,
                         ))
                     
                     # Add the selected gene with special highlighting
@@ -372,7 +372,7 @@ def display_cluster(cluster_data, container=st.container()):
                             text=selected_gene_df['gene_symbol_0'],
                             customdata=selected_gene_df[HOVER_COLUMNS],
                             name=f"{selected_gene} (Selected)",
-                            showlegend=True,
+                            showlegend=False,
                         ))
         else:
             # No selection: add all points with their original colors
@@ -390,20 +390,13 @@ def display_cluster(cluster_data, container=st.container()):
                     text=group_df['gene_symbol_0'],
                     customdata=group_df[HOVER_COLUMNS],
                     name=str(group),
-                    showlegend=True,
+                    showlegend=False,
                 ))
 
         # Update layout
         fig.update_layout(
             hovermode='closest',
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            ),
+            showlegend=False,
             title='',
             width=1000,
             height=800,

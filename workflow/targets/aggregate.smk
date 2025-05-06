@@ -34,6 +34,15 @@ AGGREGATE_OUTPUTS = {
             "parquet",
         ),
     ],
+    "generate_feature_table": [
+        AGGREGATE_FP
+        / "tsvs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "feature_table",
+            "tsv",
+        ),
+    ],
     "align": [
         AGGREGATE_FP
         / "parquets"
@@ -75,15 +84,6 @@ AGGREGATE_OUTPUTS = {
             "png",
         ),
     ],
-    "get_feature_table": [
-        AGGREGATE_FP
-        / "tsvs"
-        / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "feature_table",
-            "tsv",
-        ),
-    ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
@@ -92,7 +92,7 @@ AGGREGATE_OUTPUT_MAPPINGS = {
     "align": None,
     "aggregate": None,
     "eval_aggregate": None,
-    "get_feature_table": None,
+    "generate_feature_table": None,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)

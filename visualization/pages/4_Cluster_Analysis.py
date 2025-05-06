@@ -463,10 +463,24 @@ def display_cluster(cluster_data, container=st.container()):
         source_tsv = cluster_data['source_full_path'].unique()[0]
         if os.path.exists(source_tsv):
             table_data = pd.read_csv(source_tsv, sep='\t')
-            if len(table_data.index) == 0:
-                st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
+            if st.session_state.selected_item:
+                # Convert selected_item to integer since cluster column is int64
+                try:
+                    selected_item_int = int(st.session_state.selected_item)
+                    table_data = table_data[table_data['cluster'] == selected_item_int]
+                except ValueError:
+                    st.error(f"Invalid cluster value: {st.session_state.selected_item}")
+                    return
+                
+                if len(table_data.index) == 0:
+                    st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
+                else:
+                    st.dataframe(table_data)
             else:
-                st.dataframe(table_data)
+                if len(table_data.index) == 0:
+                    st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
+                else:
+                    st.dataframe(table_data)
         else:
             st.warning(f"⚠️ WARNING: Source TSV file not found at: {source_tsv}")
 
@@ -518,8 +532,8 @@ def display_cluster_json(cluster_data, container=st.container()):
             'mozzarellm',
             'gpt-4o_clusters.json'
         )
-        st.write(cluster_json_path)
         if os.path.exists(cluster_json_path):
+            st.markdown("### LLM Cluster Analysis")
             with open(cluster_json_path, 'r') as f:
                 cluster_json = json.load(f)
             cluster_id = str(st.session_state.selected_item)
@@ -626,7 +640,7 @@ with col2:
                 # Create two columns for the title and button
                 title_col, button_col = st.columns([3, 1])
                 with title_col:
-                    st.write(f"### Cluster {selected_item}: {len(genes)} genes")
+                    st.write(f"## Cluster {selected_item}: {len(genes)} genes")
                 with button_col:
                     if st.button("Clear Selection"):
                         st.session_state.selected_item = None
@@ -638,6 +652,7 @@ with col2:
             
             # Check if gene_montages_root directory exists
             if os.path.exists(gene_montages_root):
+                st.markdown("#### Gene Montages")
                 
                 # Define a callback for when the dropdown changes
                 def on_gene_select():

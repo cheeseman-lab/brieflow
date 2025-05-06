@@ -8,6 +8,7 @@ import pandas as pd
 import glob
 import os
 import uuid
+import json
 
 import plotly.express as px
 import plotly.graph_objects as go
@@ -503,8 +504,71 @@ def display_cluster(cluster_data, container=st.container()):
         else:
             st.warning(f"Feature table not found at: {feature_table_path}")
 
+
     else:
         st.write("No cluster data files found.")
+
+def display_cluster_json(cluster_data, container=st.container()):
+    if 'selected_item' in st.session_state and st.session_state.selected_item is not None:
+
+        # Because the interphase folder has mixed case
+        cluster_dir = os.path.dirname(cluster_data['source_full_path'].unique()[0])
+
+        # Build the path to the gpt-4o_clusters.json file
+        cluster_json_path = os.path.join(
+            cluster_dir,
+            'mozzarellm',
+            'gpt-4o_clusters.json'
+        )
+        st.write(cluster_json_path)
+        if os.path.exists(cluster_json_path):
+            with open(cluster_json_path, 'r') as f:
+                cluster_json = json.load(f)
+            cluster_id = str(st.session_state.selected_item)
+            clusters = cluster_json.get('clusters', {})
+            
+            if cluster_id in clusters:
+                c = clusters[cluster_id]
+                # Card layout using markdown and Streamlit elements
+                st.markdown(f"""
+                    <div style='background-color:#f8f9fa; border-radius:10px; padding:20px; margin-bottom:20px; box-shadow:0 2px 8px #00000010;'>
+                        <div style='display:flex; justify-content:space-between; align-items:center;'>
+                            <div>
+                                <span style='font-size:1.3em; font-weight:bold;'>Dominant Process:</span>
+                                <span style='font-size:1.3em; color:#2a7cff; font-weight:bold;'>{c.get('dominant_process','')}</span>
+                            </div>
+                            <div>
+                                <span style='background:#e0e7ff; color:#2a7cff; border-radius:6px; padding:4px 12px; font-weight:600;'>Confidence: {c.get('pathway_confidence','')}</span>
+                            </div>
+                        </div>
+                        <div style='margin-top:10px; margin-bottom:10px; font-size:1.1em; color:#333;'>
+                            {c.get('summary','')}
+                        </div>
+                        <div style='margin-top:18px;'>
+                            <span style='font-weight:600; color:#2a7cff;'>Established Genes:</span>
+                            <span style='margin-left:8px;'>{" ".join([f"<span style='background:#d1fae5; color:#065f46; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene}</span>" for gene in c.get('established_genes',[])])}</span>
+                        </div>
+                        <div style='margin-top:10px;'>
+                            <span style='font-weight:600; color:#f59e42;'>Novel Role Genes:</span>
+                            <ul style='margin:0; padding-left:20px;'>
+                            {"".join([
+                                f"<li><span style='background:#fef3c7; color:#b45309; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#555;'>{gene['rationale']}</span></li>" for gene in c.get('novel_role_genes',[])
+                            ])}</ul>
+                        </div>
+                        <div style='margin-top:10px;'>
+                            <span style='font-weight:600; color:#a855f7;'>Uncharacterized Genes:</span>
+                            <ul style='margin:0; padding-left:20px;'>
+                            {"".join([
+                                f"<li><span style='background:#ede9fe; color:#6d28d9; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#555;'>{gene['rationale']}</span></li>" for gene in c.get('uncharacterized_genes',[])
+                            ])}</ul>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.error(f"Cluster {cluster_id} not found in the analysis. Available clusters are: {', '.join(clusters.keys())}")
+                st.info("This might indicate that the cluster analysis was run with different parameters or the JSON file is from a different analysis run.")
+                return
+
 
 # Load cluster data
 cluster_data = load_cluster_data()
@@ -545,13 +609,6 @@ with col1:
     display_cluster(cluster_data)
 
 with col2:
-    # Show selected item and clear button if an item is selected
-    if st.session_state.selected_item:
-        st.write(f"Selected {st.session_state.groupby_column}: {st.session_state.selected_item}")
-        if st.button("Clear Selection"):
-            st.session_state.selected_item = None
-            st.session_state.selected_gene = None
-            st.rerun()
 
     # Selected Gene info
     cell_class = st.session_state.get("cell_class", 'all')
@@ -563,14 +620,26 @@ with col2:
         
         if selected_item:
             selected_gene_info_df = cluster_data[cluster_data[groupby_column] == selected_item]
+            genes = selected_gene_info_df['gene_symbol_0'].tolist()
             gene_montages_root = os.path.join(ANALYSIS_ROOT, "aggregate", 'montages', f"{cell_class}__montages")
+
+            # Show selected item and clear button if an item is selected
+            if st.session_state.selected_item:
+                # Create two columns for the title and button
+                title_col, button_col = st.columns([3, 1])
+                with title_col:
+                    st.write(f"### Cluster {selected_item}: {len(genes)} genes")
+                with button_col:
+                    if st.button("Clear Selection"):
+                        st.session_state.selected_item = None
+                        st.session_state.selected_gene = None
+                        st.rerun()
+            
+            display_cluster_json(cluster_data)
+            
             
             # Check if gene_montages_root directory exists
             if os.path.exists(gene_montages_root):
-                genes = selected_gene_info_df['gene_symbol_0'].tolist()
-                
-                # Display a dropdown to select a gene
-                st.write(f"### Cluster {selected_item}: {len(genes)} genes")
                 
                 # Define a callback for when the dropdown changes
                 def on_gene_select():

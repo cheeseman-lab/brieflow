@@ -52,6 +52,7 @@ def load_cluster_data():
         dirname = os.path.dirname(rel_path)
         base_name = os.path.splitext(os.path.basename(file_path))[0]
         df = pd.read_csv(file_path, sep='\t')
+        df['source_full_path'] = file_path
         df['source'] = base_name
         parts = dirname.split(os.sep)
         for i, part in enumerate(parts):
@@ -462,12 +463,13 @@ def display_cluster(cluster_data, container=st.container()):
         st.write("Cluster Data Overview")
 
         # If an item is selected, filter the dataframe
+        source_tsv = cluster_data['source_full_path'].unique()[0]
+        table_data = pd.read_csv(source_tsv, sep='\t')
         if st.session_state.selected_item:
-            filtered_data = cluster_data[
-                cluster_data[st.session_state.groupby_column] == st.session_state.selected_item]
-            st.dataframe(filtered_data)
+            table_data = table_data[table_data['cluster'] == st.session_state.selected_item]
+            st.dataframe(table_data)
         else:
-            st.dataframe(cluster_data)
+            st.dataframe(table_data)
     else:
         st.write("No cluster data files found.")
 

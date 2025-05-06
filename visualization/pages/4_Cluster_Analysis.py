@@ -63,8 +63,6 @@ def load_cluster_data():
             'dir_level_2': 'leiden_resolution'
         }, inplace=True)
 
-        df['cell_class'] = df['cell_class'].str.lower()
-
         dfs.append(df)
 
     # Concatenate all dataframes
@@ -595,7 +593,7 @@ selected_channel_combo = create_filter_radio(cluster_data, 'channel_combo', st.s
 cluster_data = apply_filter(cluster_data, 'channel_combo', selected_channel_combo)
 
 # Cell Class
-cell_class_options = ['all', 'mitotic', 'interphase']  # Add default options
+cell_class_options = ['all', 'Mitotic', 'Interphase']  # Add default options
 selected_cell_class = st.sidebar.radio(
     "Cell Class",
     cell_class_options,

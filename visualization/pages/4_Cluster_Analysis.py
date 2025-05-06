@@ -207,10 +207,12 @@ def display_gene_montages(gene_montages_root, gene):
                 for _, row in filtered_montage_data.iterrows():
                     # Construct the full path including the montages directory
                     image_path = os.path.join(gene_montages_root, row['file_path'])
+                    channel_name = row['channel']
+                    channel_name = channel_name.replace('CH-', '')
 
                     try:
                         if os.path.exists(image_path):
-                            st.image(image_path, caption=f"{gene} - {selected_guide} - {row['channel']}")
+                            st.image(image_path, caption=f"Channel: {channel_name}")
                         else:
                             st.error(f"Image file not found: {image_path}")
                     except Exception as e:

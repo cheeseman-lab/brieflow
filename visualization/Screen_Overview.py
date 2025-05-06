@@ -2,8 +2,7 @@ import streamlit as st
 from pathlib import Path
 import yaml
 import os
-
-SCREEN_PATH = os.getenv('BRIEFLOW_SCREEN_PATH', '../../screen.yaml')
+from src.config import SCREEN_PATH
 
 def load_yaml(file_path):
     with open(file_path, 'r') as file:

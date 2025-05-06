@@ -6,6 +6,7 @@ import yaml
 from src.filesystem import FileSystem
 from src.rendering import VisualizationRenderer
 from src.filtering import create_filter_radio, apply_filter
+from src.config import get_analysis_root_dir
 
 st.set_page_config(
     page_title="Quality Control - Brieflow Analysis",
@@ -30,19 +31,8 @@ def load_data(root_dir):
     filtered_df = FileSystem.extract_features(root_dir, files)
     return filtered_df
 
-
-
-
-# Configuration
-CONFIG_PATH = os.getenv('BRIEFLOW_CONFIG_PATH', '../../analysis/config/config.yml')
-with open(CONFIG_PATH, 'r') as file:
-    config = yaml.safe_load(file)
-
-# Extract the analysis_root from the config
-# repo root is two dirs up from the config file.
-analysis_repo_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(CONFIG_PATH)), '..', 'analysis'))
-analysis_root = config['all']['root_fp']
-ANALYSIS_ROOT_DIR = os.path.abspath(os.path.join(analysis_repo_root, analysis_root))
+# Get the analysis root directory
+ANALYSIS_ROOT_DIR = get_analysis_root_dir()
 st.write(f"Analysis root dir: {ANALYSIS_ROOT_DIR}")
 
 # Load the data

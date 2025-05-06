@@ -1,8 +1,7 @@
 import streamlit as st
 import git
 import os
-
-CONFIG_PATH = os.getenv('BRIEFLOW_CONFIG_PATH', '../../analysis/config/config.yml')
+from src.config import CONFIG_PATH
 
 st.set_page_config(
     page_title="Configuration - Brieflow Analysis",

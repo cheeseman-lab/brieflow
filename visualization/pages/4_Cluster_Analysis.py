@@ -466,14 +466,7 @@ def display_cluster(cluster_data, container=st.container()):
             if len(table_data.index) == 0:
                 st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
             else:
-                if st.session_state.selected_item:
-                    table_data = table_data[table_data['cluster'] == st.session_state.selected_item]
-                    if len(table_data.index) == 0:
-                        st.info(f"No data found for cluster {st.session_state.selected_item} in the TSV file: {source_tsv}")
-                    else:
-                        st.dataframe(table_data)
-                else:
-                    st.dataframe(table_data)
+                st.dataframe(table_data)
         else:
             st.warning(f"⚠️ WARNING: Source TSV file not found at: {source_tsv}")
 
@@ -663,6 +656,22 @@ with col2:
                     key=f"gene_dropdown_{selected_item}",  # Use a stable key based on the selected cluster
                     on_change=on_gene_select
                 )
+
+
+                if st.session_state.selected_gene:
+                    source_tsv = cluster_data['source_full_path'].unique()[0]
+                    if os.path.exists(source_tsv):
+                        table_data = pd.read_csv(source_tsv, sep='\t')
+                        table_data = table_data[table_data['gene_symbol_0'] == st.session_state.selected_gene]
+                        if len(table_data.index) != 0:
+                            # only uniprot_entr,y uniprot_function, and uniprot_link
+                            # not as a dataframe, but as three lines, with the link being a clickable link
+                            st.write(f"Uniprot Entry: [{table_data['uniprot_entry'].values[0]}]({table_data['uniprot_link'].values[0]})")
+                            function_text = table_data['uniprot_function'].values[0]
+                            preview = ' '.join(function_text.split()[:20]) + '...'
+                            with st.expander(f"Uniprot Function: {preview}", expanded=False):
+                                st.markdown(f"> {function_text}")
+                            st.write(f"Uniprot Link: [{table_data['uniprot_link'].values[0]}]({table_data['uniprot_link'].values[0]})")
                 
                 # Display montages only for the selected gene
                 if selected_gene:

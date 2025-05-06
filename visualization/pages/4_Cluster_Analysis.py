@@ -570,7 +570,7 @@ with col2:
                 genes = selected_gene_info_df['gene_symbol_0'].tolist()
                 
                 # Display a dropdown to select a gene
-                st.write(f"### Cluster ({len(genes)} genes)")
+                st.write(f"### Cluster {selected_item}: {len(genes)} genes")
                 
                 # Define a callback for when the dropdown changes
                 def on_gene_select():

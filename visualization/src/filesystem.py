@@ -140,7 +140,7 @@ class FileSystem:
             feature['well_id'] = FileSystem.extract_well_id(rel_path)
             feature['plate_id'] = FileSystem.extract_plate_id(rel_path)
             feature['metric_name'] = FileSystem.extract_metric_name(rel_path)
-            feature['leiden_resolution'] = FileSystem.extract_leiden_resolution(rel_path)
+            #feature['leiden_resolution'] = FileSystem.extract_leiden_resolution(rel_path)
 
             # Add directory levels, skipping omitted folders
             parts = dirname.split(os.sep)

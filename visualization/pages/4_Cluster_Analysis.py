@@ -271,16 +271,6 @@ def display_cluster(cluster_data, container=st.container()):
     global st
     # Display the data
     if not cluster_data.empty:
-        # Create a sidebar with controls
-        with st.sidebar:
-            # Show selected item and clear button if an item is selected
-            if st.session_state.selected_item:
-                st.write(f"Selected {st.session_state.groupby_column}: {st.session_state.selected_item}")
-                if st.button("Clear Selection"):
-                    st.session_state.selected_item = None
-                    st.session_state.selected_gene = None
-                    st.rerun()
-
         # Always treat grouping column as categorical for discrete color maps
         if st.session_state.groupby_column in cluster_data.columns:
             cluster_data[st.session_state.groupby_column] = cluster_data[st.session_state.groupby_column].astype(str)
@@ -501,7 +491,6 @@ st.title("Cluster Analysis")
 # Add cell class filter in the sidebar
 st.sidebar.title("Filters")
 
-
 # Channel Combo
 selected_channel_combo = create_filter_radio(cluster_data, 'channel_combo', st.sidebar, "Channel Combo", include_all=False)
 cluster_data = apply_filter(cluster_data, 'channel_combo', selected_channel_combo)
@@ -528,6 +517,14 @@ with col1:
     display_cluster(cluster_data)
 
 with col2:
+    # Show selected item and clear button if an item is selected
+    if st.session_state.selected_item:
+        st.write(f"Selected {st.session_state.groupby_column}: {st.session_state.selected_item}")
+        if st.button("Clear Selection"):
+            st.session_state.selected_item = None
+            st.session_state.selected_gene = None
+            st.rerun()
+
     # Selected Gene info
     cell_class = st.session_state.get("cell_class", 'all')
 

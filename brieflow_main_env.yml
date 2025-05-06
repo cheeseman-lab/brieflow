@@ -33,6 +33,10 @@ dependencies:
   - joblib
   - dill
   - xgboost=3.0.0
+  - streamlit
+  - plotly
+  - pytest
+  - matplotlib
   - pip:
       - -e .
       - stardist==0.9.1

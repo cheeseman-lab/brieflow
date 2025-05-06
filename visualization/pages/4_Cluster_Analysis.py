@@ -470,6 +470,39 @@ def display_cluster(cluster_data, container=st.container()):
             st.dataframe(table_data)
         else:
             st.dataframe(table_data)
+
+        # Feature Data Overview
+        st.write("Feature Data Overview")
+
+        # Construct the feature table path
+        feature_table_path = os.path.join(
+            ANALYSIS_ROOT,
+            "aggregate",
+            "tsvs",
+            f"CeCl-{selected_cell_class}_ChCo-{selected_channel_combo}__feature_table.tsv"
+        )
+
+        # Load and display the feature table if it exists
+        if os.path.exists(feature_table_path):
+            feature_df = pd.read_csv(feature_table_path, sep='\t')
+
+            # Create a container with a fixed height and scrolling
+            with st.container():
+                # Display the dataframe with all columns and sorting enabled
+                st.dataframe(
+                    feature_df,
+                    use_container_width=True,
+                    height=400,  # Fixed height for scrolling
+                    column_config={
+                        # Configure all columns to be sortable
+                        col: st.column_config.NumberColumn(
+                            width="medium"
+                        ) for col in feature_df.columns
+                    }
+                )
+        else:
+            st.warning(f"Feature table not found at: {feature_table_path}")
+
     else:
         st.write("No cluster data files found.")
 

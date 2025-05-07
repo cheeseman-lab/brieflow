@@ -5,12 +5,10 @@
 
 cd /home/andy/work/src/brieflow-analysis/brieflow/visualization
 
-if [ -z "$SCREEN_OVERVIEW_PATH" ]; then
-    export BRIEFLOW_SCREEN_PATH="../../screen.yaml"
-fi
-
-if [ -z "$CONFIG_PATH" ]; then
-    export BRIEFLOW_CONFIG_PATH="../../analysis/config/config.yml"
+# Set default analysis directory if not provided
+# Override this by setting ANALYSIS_DIR before running the script
+if [ -z "$ANALYSIS_DIR" ]; then
+    export ANALYSIS_DIR="../../analysis/"
 fi
 
 # Start Streamlit server, force bind to 0.0.0.0

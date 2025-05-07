@@ -1,25 +1,40 @@
 import os
 import yaml
+import logging
 
-# Default path to the configuration file
-CONFIG_PATH = os.getenv('BRIEFLOW_CONFIG_PATH', '../../analysis/config/config.yml')
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Default path to the screen configuration file
-SCREEN_PATH = os.getenv('BRIEFLOW_SCREEN_PATH', '../../screen.yaml')
+# Get the analysis directory from environment variable or use default
+ANALYSIS_DIR = os.getenv('ANALYSIS_REPO_ROOT', '../../analysis/')
+logger.info(f"ANALYSIS_DIR: {os.path.abspath(ANALYSIS_DIR)}")
+
+# Derive paths from ANALYSIS_DIR
+CONFIG_PATH = os.path.join(ANALYSIS_DIR, 'config', 'config.yml')
+SCREEN_PATH = os.path.join(ANALYSIS_DIR, 'screen.yaml')
+
+logger.info(f"CONFIG_PATH: {os.path.abspath(CONFIG_PATH)}")
+logger.info(f"SCREEN_PATH: {os.path.abspath(SCREEN_PATH)}")
 
 def load_config():
     """Load the YAML configuration file."""
-    with open(CONFIG_PATH, 'r') as file:
-        return yaml.safe_load(file)
+    try:
+        with open(CONFIG_PATH, 'r') as file:
+            return yaml.safe_load(file)
+    except FileNotFoundError:
+        logger.error(f"Config file not found at: {os.path.abspath(CONFIG_PATH)}")
+        logger.info(f"Current working directory: {os.getcwd()}")
+        raise
 
 def get_analysis_root_dir():
     """Get the absolute path to the analysis root directory."""
     config = load_config()
     analysis_root = config['all']['root_fp']
-    return os.path.abspath(
+    abs_path = os.path.abspath(
         os.path.join(
-            os.path.dirname(
-                os.path.dirname(CONFIG_PATH)), 
-                '..', 
-                'analysis', 
-                analysis_root)) 
+            os.path.dirname(CONFIG_PATH),
+            '..',
+            analysis_root))
+    logger.info(f"Analysis root directory: {abs_path}")
+    return abs_path 

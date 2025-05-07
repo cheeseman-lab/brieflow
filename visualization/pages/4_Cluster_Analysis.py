@@ -625,23 +625,19 @@ st.session_state.cell_class = selected_cell_class
 selected_lr = create_filter_radio(cluster_data, 'leiden_resolution', st.sidebar, "Leiden Resolution", include_all=False)
 cluster_data = apply_filter(cluster_data, 'leiden_resolution', selected_lr)
 
-if 'selected_item' in st.session_state and st.session_state.selected_item is not None:
-    # Create two columns for the main content
-    col1, col2 = st.columns([1,1])
-else:
-    col1 = st.container()
-    col2 = st.container()
-
-with col1:
-    # Display cluster data in the left column
+if (('selected_item' not in st.session_state) or (st.session_state.selected_item is None)):
+    # No cluster selected: Just show the full width cluster plot
     display_cluster(cluster_data)
+else:
+    # Cluster selected: Two columns: plot | detail.
+    col1, col2 = st.columns([1,1])
+    with col1:
+        display_cluster(cluster_data)
 
-with col2:
+    with col2:
+        # Selected Gene info
+        cell_class = st.session_state.get("cell_class", 'all')
 
-    # Selected Gene info
-    cell_class = st.session_state.get("cell_class", 'all')
-
-    if 'selected_item' in st.session_state:
         selected_item = st.session_state.get("selected_item", None)
         selected_gene = st.session_state.get("selected_gene", None)
         groupby_column = 'cluster'
@@ -663,72 +659,71 @@ with col2:
             key="cluster_dropdown",
             on_change=on_cluster_select
         )
-        
-        if selected_item:
-            selected_gene_info_df = cluster_data[cluster_data[groupby_column] == selected_item]
-            genes = selected_gene_info_df['gene_symbol_0'].tolist()
-            gene_montages_root = os.path.join(ANALYSIS_ROOT, "aggregate", 'montages', f"{cell_class}__montages")
 
-            # Show selected item and clear button if an item is selected
-            if st.session_state.selected_item:
-                # Create two columns for the title and button
-                title_col, button_col = st.columns([7, 1])
-                with title_col:
-                    st.write(f"## Cluster {selected_item}: {len(genes)} genes")
-                with button_col:
-                    if st.button("X"):
-                        st.session_state.selected_item = None
-                        st.session_state.selected_gene = None
-                        st.rerun()
-            
-            display_cluster_json(cluster_data)
-            
-            
-            # Check if gene_montages_root directory exists
-            if os.path.exists(gene_montages_root):
-                st.markdown("#### Gene Montages")
-                
-                # Define a callback for when the dropdown changes
-                def on_gene_select():
-                    st.session_state.selected_gene = st.session_state[f"gene_dropdown_{selected_item}"]
-                
-                # Determine the index of the selected gene in the dropdown
-                selected_index = 0
-                if selected_gene in genes:
-                    selected_index = genes.index(selected_gene)
-                
-                # Create a dropdown to select a gene
-                st.selectbox(
-                    "Select a gene to view",
-                    options=genes,
-                    index=selected_index,
-                    key=f"gene_dropdown_{selected_item}",  # Use a stable key based on the selected cluster
-                    on_change=on_gene_select
-                )
+        selected_gene_info_df = cluster_data[cluster_data[groupby_column] == selected_item]
+        genes = selected_gene_info_df['gene_symbol_0'].tolist()
+        gene_montages_root = os.path.join(ANALYSIS_ROOT, "aggregate", 'montages', f"{cell_class}__montages")
 
+        ## Cluster Info
+        # Show selected item and clear button if an item is selected
+        if st.session_state.selected_item:
+            # Create two columns for the title and button
+            title_col, button_col = st.columns([7, 1])
+            with title_col:
+                st.write(f"## Cluster {selected_item}: {len(genes)} genes")
+            with button_col:
+                if st.button("X"):
+                    st.session_state.selected_item = None
+                    st.session_state.selected_gene = None
+                    st.rerun()
 
-                if st.session_state.selected_gene:
-                    source_tsv = cluster_data['source_full_path'].unique()[0]
-                    if os.path.exists(source_tsv):
-                        table_data = pd.read_csv(source_tsv, sep='\t')
-                        table_data = table_data[table_data['gene_symbol_0'] == st.session_state.selected_gene]
-                        if len(table_data.index) != 0:
-                            st.write(f"Uniprot Entry: [{table_data['uniprot_entry'].values[0]}]({table_data['uniprot_link'].values[0]})")
-                            function_text = table_data['uniprot_function'].values[0]
-                            if isinstance(function_text, str) and function_text.strip():
-                                st.markdown(f"Uniprot Function:\n>{function_text}")
-                            else:
-                                st.write("Uniprot Function: Not available")
-                
-                # Display montages only for the selected gene
-                if selected_gene:
-                    display_gene_montages(gene_montages_root, selected_gene)
-                else:
-                    # If no gene is selected yet, select the first one
-                    if genes:
-                        st.session_state.selected_gene = genes[0]
-                        st.rerun()
-                    else:
-                        st.write("No genes found in this cluster.")
+        display_cluster_json(cluster_data)
+
+        ## Montages
+        # Check if gene_montages_root directory exists
+        if os.path.exists(gene_montages_root):
+            st.markdown("#### Gene Montages")
+
+            # Define a callback for when the dropdown changes
+            def on_gene_select():
+                st.session_state.selected_gene = st.session_state[f"gene_dropdown_{selected_item}"]
+
+            # Determine the index of the selected gene in the dropdown
+            selected_index = 0
+            if selected_gene in genes:
+                selected_index = genes.index(selected_gene)
+
+            # Create a dropdown to select a gene
+            st.selectbox(
+                "Select a gene to view",
+                options=genes,
+                index=selected_index,
+                key=f"gene_dropdown_{selected_item}",  # Use a stable key based on the selected cluster
+                on_change=on_gene_select
+            )
+
+            if st.session_state.selected_gene:
+                source_tsv = cluster_data['source_full_path'].unique()[0]
+                if os.path.exists(source_tsv):
+                    table_data = pd.read_csv(source_tsv, sep='\t')
+                    table_data = table_data[table_data['gene_symbol_0'] == st.session_state.selected_gene]
+                    if len(table_data.index) != 0:
+                        st.write(f"Uniprot Entry: [{table_data['uniprot_entry'].values[0]}]({table_data['uniprot_link'].values[0]})")
+                        function_text = table_data['uniprot_function'].values[0]
+                        if isinstance(function_text, str) and function_text.strip():
+                            st.markdown(f"Uniprot Function:\n>{function_text}")
+                        else:
+                            st.write("Uniprot Function: Not available")
+
+            # Display montages only for the selected gene
+            if selected_gene:
+                display_gene_montages(gene_montages_root, selected_gene)
             else:
-                st.warning(f"⚠️ WARNING: Gene montages root directory does not exist: {gene_montages_root}")
+                # If no gene is selected yet, select the first one
+                if genes:
+                    st.session_state.selected_gene = genes[0]
+                    st.rerun()
+                else:
+                    st.write("No genes found in this cluster.")
+        else:
+            st.warning(f"⚠️ WARNING: Gene montages root directory does not exist: {gene_montages_root}")

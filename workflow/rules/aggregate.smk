@@ -60,6 +60,7 @@ rule generate_feature_table:
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
         batch_cols=config["aggregate"]["batch_cols"],
+        batches=10,
     script:
         "../scripts/aggregate/generate_feature_table.py"
 

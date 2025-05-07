@@ -9,6 +9,8 @@ It includes functions for:
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 # constants for calling reads
 from lib.sbs.constants import (
@@ -465,3 +467,230 @@ def normalize_bases(df):
     df_out.intensity = df.apply(lambda x: x.intensity / df_medians[x.channel], axis=1)
 
     return df_out
+
+
+def plot_normalization_comparison(df_bases, 
+                                             base_pairs=[('C', 'A'), ('T', 'G')], 
+                                             filter_to_compared_bases=True,
+                                             base_order=["G", "T", "A", "C"]):
+    """
+    Compare raw, median and percentile normalization with all cycles combined
+    
+    Args:
+        df_bases: DataFrame containing raw base intensities from extract_bases
+        base_pairs: List of tuples representing base pairs to compare
+        filter_to_compared_bases: If True, only show points where one of the compared bases was called
+        base_order: List specifying the order of bases in the channel dimension (default: ["G", "T", "A", "C"])
+        
+    """
+    # First, clean up the bases data
+    df_bases_clean = clean_up_bases(df_bases)
+    
+    # Create figure with subplots - 3 rows (normalization methods) x 2 columns (base pairs)
+    fig, axes = plt.subplots(3, 2, figsize=(14, 18))
+    
+    # Get channel indices based on the specified base order
+    channel_to_idx = {base: idx for idx, base in enumerate(base_order)}
+    
+    # Define base colors - keep the original colors
+    base_colors = {'G': 'purple', 'T': 'cyan', 'A': 'green', 'C': 'red'}
+    
+    # Process the raw data
+    for bp_idx, (base1, base2) in enumerate(base_pairs):
+        # Filter the data for the relevant base pairs
+        df_base1 = df_bases_clean[df_bases_clean['channel'] == base1][['read', 'cycle', 'intensity']]
+        df_base2 = df_bases_clean[df_bases_clean['channel'] == base2][['read', 'cycle', 'intensity']]
+        
+        # Merge the two dataframes to get paired intensities
+        df_merged = pd.merge(
+            df_base1, 
+            df_base2, 
+            on=['read', 'cycle'], 
+            suffixes=('_'+base1, '_'+base2)
+        )
+        
+        # Get max intensities for base calling coloring
+        all_bases = base_order.copy()  # Use the custom base order
+        df_max = None
+        
+        for base in all_bases:
+            df_temp = df_bases_clean[df_bases_clean['channel'] == base][['read', 'cycle', 'intensity']]
+            df_temp = df_temp.rename(columns={'intensity': 'intensity_'+base})
+            
+            if df_max is None:
+                df_max = df_temp
+            else:
+                df_max = pd.merge(df_max, df_temp, on=['read', 'cycle'])
+        
+        # Determine which base has max intensity for each read/cycle
+        for base in all_bases:
+            if base == all_bases[0]:
+                df_max['max_base'] = base
+                df_max['max_intensity'] = df_max['intensity_'+base]
+            else:
+                mask = df_max['intensity_'+base] > df_max['max_intensity']
+                df_max.loc[mask, 'max_base'] = base
+                df_max.loc[mask, 'max_intensity'] = df_max['intensity_'+base]
+        
+        # Merge with the paired data
+        df_merged = pd.merge(df_merged, df_max[['read', 'cycle', 'max_base']], on=['read', 'cycle'])
+        
+        # Plot raw data (first row)
+        ax = axes[0, bp_idx]
+        
+        # Filter to only show the compared bases if requested
+        if filter_to_compared_bases:
+            plot_bases = [base1, base2]
+        else:
+            plot_bases = all_bases
+        
+        for base in plot_bases:
+            mask = df_merged['max_base'] == base
+            if mask.any():
+                ax.scatter(
+                    df_merged.loc[mask, 'intensity_'+base2],
+                    df_merged.loc[mask, 'intensity_'+base1],
+                    color=base_colors[base],
+                    alpha=0.5,
+                    s=10,
+                    label=f"'{base}' base call"
+                )
+        
+        title_suffix = " (filtered)" if filter_to_compared_bases else ""
+        ax.set_title(f"All Cycles: {base1}-{base2} (Raw){title_suffix}")
+        ax.set_xlabel(base2)
+        ax.set_ylabel(base1)
+        
+        # Now process for median and percentile normalization
+        # First get all base intensities for each read/cycle
+        data_all = df_bases_clean.pivot_table(
+            index=['read', 'cycle'], 
+            columns='channel', 
+            values='intensity',
+            aggfunc='first'
+        ).reset_index()
+        
+        # Make sure all bases are present in data_all
+        for base in all_bases:
+            if base not in data_all.columns:
+                data_all[base] = 0
+        
+        # Convert to numpy array for normalization functions (ensure correct order)
+        X = data_all[all_bases].values
+        
+        # Apply median normalization
+        # First normalize bases
+        df_bases_norm = normalize_bases(df_bases_clean)
+        X_norm = dataframe_to_values(df_bases_norm)
+        Y_median, W_median = transform_medians(X_norm.reshape(-1, len(all_bases)))
+        
+        # Apply percentile normalization
+        Y_percentile, W_percentile = transform_percentiles(X.reshape(-1, len(all_bases)))
+        
+        # Add normalized values back to the dataframe
+        data_all['median_'+base1] = Y_median[:, channel_to_idx[base1]]
+        data_all['median_'+base2] = Y_median[:, channel_to_idx[base2]]
+        data_all['percentile_'+base1] = Y_percentile[:, channel_to_idx[base1]]
+        data_all['percentile_'+base2] = Y_percentile[:, channel_to_idx[base2]]
+        
+        # Determine max channel after normalization
+        for method in ['median', 'percentile']:
+            values = Y_median if method == 'median' else Y_percentile
+            max_indices = np.argmax(values, axis=1)
+            data_all[method+'_max_base'] = [all_bases[i] for i in max_indices]
+        
+        # Plot median normalized data (second row)
+        ax = axes[1, bp_idx]
+        
+        # Filter to only show the compared bases if requested
+        if filter_to_compared_bases:
+            plot_bases = [base1, base2]
+        else:
+            plot_bases = all_bases
+        
+        for base in plot_bases:
+            mask = data_all['median_max_base'] == base
+            if mask.any():
+                ax.scatter(
+                    data_all.loc[mask, 'median_'+base2],
+                    data_all.loc[mask, 'median_'+base1],
+                    color=base_colors[base],
+                    alpha=0.5,
+                    s=10,
+                    label=f"'{base}' base call"
+                )
+        
+        # Add diagonal reference line
+        max_val = max(ax.get_xlim()[1], ax.get_ylim()[1])
+        ax.plot([0, max_val], [0, max_val], 'k--', alpha=0.7)
+        
+        ax.set_title(f"All Cycles: {base1}-{base2} (Median){title_suffix}")
+        ax.set_xlabel(base2)
+        ax.set_ylabel(base1)
+        
+        # Plot percentile normalized data (third row)
+        ax = axes[2, bp_idx]
+        
+        # Filter to only show the compared bases if requested
+        if filter_to_compared_bases:
+            plot_bases = [base1, base2]
+        else:
+            plot_bases = all_bases
+        
+        for base in plot_bases:
+            mask = data_all['percentile_max_base'] == base
+            if mask.any():
+                ax.scatter(
+                    data_all.loc[mask, 'percentile_'+base2],
+                    data_all.loc[mask, 'percentile_'+base1],
+                    color=base_colors[base],
+                    alpha=0.5,
+                    s=10,
+                    label=f"'{base}' base call"
+                )
+        
+        # Add diagonal reference line
+        max_val = max(ax.get_xlim()[1], ax.get_ylim()[1])
+        ax.plot([0, max_val], [0, max_val], 'k--', alpha=0.7)
+        
+        ax.set_title(f"All Cycles: {base1}-{base2} (Percentile){title_suffix}")
+        ax.set_xlabel(base2)
+        ax.set_ylabel(base1)
+    
+    # Create a shared legend at the bottom
+    # Choose which bases to show in the legend based on filter setting
+    if filter_to_compared_bases:
+        # Get unique bases from all base pairs
+        legend_bases = set()
+        for base1, base2 in base_pairs:
+            legend_bases.add(base1)
+            legend_bases.add(base2)
+        legend_bases = sorted(legend_bases)
+    else:
+        legend_bases = sorted(all_bases)
+    
+    # Create legend elements
+    legend_elements = [
+        Line2D([0], [0], marker='o', color='w', markerfacecolor=base_colors[base],
+               markersize=10, label=f"'{base}' base call")
+        for base in legend_bases
+    ]
+    
+    # Add diagonal line to legend if present in plots
+    legend_elements.append(
+        Line2D([0], [0], linestyle='--', color='k', 
+               label="Diagonal reference (y=x)")
+    )
+    
+    # Add legend at the bottom
+    fig.legend(
+        handles=legend_elements,
+        loc='lower center',
+        bbox_to_anchor=(0.5, 0.02),
+        ncol=len(legend_elements),
+        fontsize=12
+    )
+    
+    # Adjust layout to make room for the legend
+    plt.tight_layout()
+    plt.subplots_adjust(bottom=0.1)

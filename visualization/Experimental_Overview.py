@@ -17,7 +17,7 @@ def display_yaml_as_json(file_path):
     except Exception as e:
         st.error(f"Error loading YAML: {str(e)}")
 
-st.title("Screen Configuration")
+st.title("Experimental Overview")
 
 def display_yaml(file_path):
     with open(file_path, 'r') as file:

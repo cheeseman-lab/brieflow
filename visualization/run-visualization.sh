@@ -14,4 +14,4 @@ if [ -z "$CONFIG_PATH" ]; then
 fi
 
 # Start Streamlit server, force bind to 0.0.0.0
-exec streamlit run Screen_Overview.py --server.address=0.0.0.0 "$@"
+exec streamlit run Experimental_Overview.py --server.address=0.0.0.0 "$@"

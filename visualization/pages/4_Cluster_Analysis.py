@@ -644,11 +644,11 @@ with col2:
             # Show selected item and clear button if an item is selected
             if st.session_state.selected_item:
                 # Create two columns for the title and button
-                title_col, button_col = st.columns([3, 1])
+                title_col, button_col = st.columns([7, 1])
                 with title_col:
                     st.write(f"## Cluster {selected_item}: {len(genes)} genes")
                 with button_col:
-                    if st.button("Clear Selection"):
+                    if st.button("X"):
                         st.session_state.selected_item = None
                         st.session_state.selected_gene = None
                         st.rerun()

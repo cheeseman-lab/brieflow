@@ -639,6 +639,24 @@ with col2:
         selected_item = st.session_state.get("selected_item", None)
         selected_gene = st.session_state.get("selected_gene", None)
         groupby_column = 'cluster'
+
+        # Cluster section dropdown
+        cluster_options = cluster_data[groupby_column].unique()
+        selected_index = 0
+        if selected_item in cluster_options:
+            selected_index = list(cluster_options).index(selected_item)
+
+        def on_cluster_select():
+            st.session_state.selected_item = st.session_state.cluster_dropdown
+            st.session_state.selected_gene = None  # Reset selected gene when cluster changes
+
+        st.selectbox(
+            "Select a cluster to view",
+            options=cluster_options,
+            index=selected_index,
+            key="cluster_dropdown",
+            on_change=on_cluster_select
+        )
         
         if selected_item:
             selected_gene_info_df = cluster_data[cluster_data[groupby_column] == selected_item]

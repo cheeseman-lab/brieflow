@@ -93,46 +93,40 @@ def find_peaks_spotiflow(
     prob_thresh=0.5,
     min_distance=3,
     subpixel_precision=True,
+    remove_index=None,
     verbose=True,
     round_coords=True,
 ):
-    """Detect peaks separately for each base channel and combine results.
+    """Detect SBS peaks using the Spotiflow deep learning model.
+
+    Processes each base channel separately and combines the results.
 
     Args:
-    -----------
-    aligned_images : numpy.ndarray
-        Aligned SBS images with shape (cycles, channels, height, width).
-        First channel (index 0) is assumed to be DAPI and is excluded from processing.
-
-    cycle_idx : int
-        Index of the cycle to use for peak detection (default: 0, first cycle)
-
-    model : str or spotiflow.model.Spotiflow
-        Spotiflow model specification
-
-    prob_thresh : float
-        Probability threshold for spot detection (default: 0.5)
-
-    min_distance : int
-        Minimum distance between spots in pixels (default: 3)
-
-    subpixel_precision : bool
-        Whether to use subpixel precision for spot detection (default: True)
-
-    verbose : bool
-        Whether to print progress information (default: True)
-
-    round_coords : bool
-        Whether to round coordinates to integers (default: True)
+        aligned_images (numpy.ndarray): Aligned SBS images with shape
+            (cycles, channels, height, width).
+        cycle_idx (int, optional): Index of the cycle to use for peak detection.
+            Defaults to 0.
+        model (str or spotiflow.model.Spotiflow, optional): Either a model name to
+            load from pretrained models or a Spotiflow model instance.
+            Defaults to "general".
+        prob_thresh (float, optional): Probability threshold for spot detection.
+            Defaults to 0.5.
+        min_distance (int, optional): Minimum distance between spots in pixels.
+            Defaults to 3.
+        subpixel_precision (bool, optional): Whether to use subpixel precision
+            for spot detection. Defaults to True.
+        remove_index (int or None, optional): Index of channel to remove from
+            analysis, typically non-SBS channels like DAPI. Defaults to None.
+        verbose (bool, optional): Whether to print progress information.
+            Defaults to True.
+        round_coords (bool, optional): Whether to round coordinates to integers.
+            Defaults to True.
 
     Returns:
-    --------
-    peaks : numpy.ndarray
-        Binary array of shape (height, width) where 1 indicates
-        a peak location and 0 indicates no peak.
-
-    all_base_coords : list
-        List of peak coordinates for each base channel.
+        tuple:
+            - peaks (numpy.ndarray): Binary array of shape (height, width) where 1
+              indicates a peak location and 0 indicates no peak.
+            - all_base_coords (list): List of peak coordinates for each base channel.
     """
     # Load model if string is provided
     if isinstance(model, str):
@@ -144,7 +138,11 @@ def find_peaks_spotiflow(
         print(f"Detecting peaks for each base channel using cycle {cycle_idx}...")
 
     # Get spots for cycle cycle_idx
-    spots = aligned_images[cycle_idx, 1:, :, :]  # Selected cycle, base channels only
+    spots = aligned_images[cycle_idx, :, :, :]
+
+    # Remove specified index channel if needed
+    if remove_index is not None:
+        spots = remove_channels(spots, remove_index)
 
     # Get dimensions
     n_bases, height, width = spots.shape

@@ -615,8 +615,12 @@ st.session_state.cell_class = selected_cell_class
 selected_lr = create_filter_radio(cluster_data, 'leiden_resolution', st.sidebar, "Leiden Resolution", include_all=False)
 cluster_data = apply_filter(cluster_data, 'leiden_resolution', selected_lr)
 
-# Create two columns for the main content
-col1, col2 = st.columns([1,1])
+if 'selected_item' in st.session_state and st.session_state.selected_item is not None:
+    # Create two columns for the main content
+    col1, col2 = st.columns([1,1])
+else:
+    col1 = st.container()
+    col2 = st.container()
 
 with col1:
     # Display cluster data in the left column
@@ -702,7 +706,3 @@ with col2:
                         st.write("No genes found in this cluster.")
             else:
                 st.warning(f"⚠️ WARNING: Gene montages root directory does not exist: {gene_montages_root}")
-        else:
-            st.write("No group selected.")
-    else:
-        st.write("No group selected.")

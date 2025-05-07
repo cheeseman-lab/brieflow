@@ -568,6 +568,21 @@ def display_cluster_json(cluster_data, container=st.container()):
                     "This might indicate that the cluster analysis was run with different parameters or the JSON file is from a different analysis run.")
                 return
 
+def display_uniprot_info():
+    if st.session_state.selected_gene:
+        source_tsv = cluster_data['source_full_path'].unique()[0]
+        if os.path.exists(source_tsv):
+            table_data = pd.read_csv(source_tsv, sep='\t')
+            table_data = table_data[table_data['gene_symbol_0'] == st.session_state.selected_gene]
+            if len(table_data.index) != 0:
+                st.write(
+                    f"Uniprot Entry: [{table_data['uniprot_entry'].values[0]}]({table_data['uniprot_link'].values[0]})")
+                function_text = table_data['uniprot_function'].values[0]
+                if isinstance(function_text, str) and function_text.strip():
+                    st.markdown(f"Uniprot Function:\n>{function_text}")
+                else:
+                    st.write("Uniprot Function: Not available")
+
 # =====================
 # MAIN CODE
 
@@ -624,6 +639,8 @@ st.session_state.cell_class = selected_cell_class
 # Leiden Resolution
 selected_lr = create_filter_radio(cluster_data, 'leiden_resolution', st.sidebar, "Leiden Resolution", include_all=False)
 cluster_data = apply_filter(cluster_data, 'leiden_resolution', selected_lr)
+
+
 
 if (('selected_item' not in st.session_state) or (st.session_state.selected_item is None)):
     # No cluster selected: Just show the full width cluster plot
@@ -702,18 +719,7 @@ else:
                 on_change=on_gene_select
             )
 
-            if st.session_state.selected_gene:
-                source_tsv = cluster_data['source_full_path'].unique()[0]
-                if os.path.exists(source_tsv):
-                    table_data = pd.read_csv(source_tsv, sep='\t')
-                    table_data = table_data[table_data['gene_symbol_0'] == st.session_state.selected_gene]
-                    if len(table_data.index) != 0:
-                        st.write(f"Uniprot Entry: [{table_data['uniprot_entry'].values[0]}]({table_data['uniprot_link'].values[0]})")
-                        function_text = table_data['uniprot_function'].values[0]
-                        if isinstance(function_text, str) and function_text.strip():
-                            st.markdown(f"Uniprot Function:\n>{function_text}")
-                        else:
-                            st.write("Uniprot Function: Not available")
+            display_uniprot_info()
 
             # Display montages only for the selected gene
             if selected_gene:

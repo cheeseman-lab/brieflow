@@ -3,7 +3,8 @@
 # Default port and config
 #export STREAMLIT_CONFIG=".streamlit/config.toml"
 
-cd /home/andy/work/src/brieflow-analysis/brieflow/visualization
+# cd /home/andy/work/src/brieflow-analysis/brieflow/visualization
+
 
 if [ -z "$SCREEN_OVERVIEW_PATH" ]; then
     export BRIEFLOW_SCREEN_PATH="../../screen.yaml"

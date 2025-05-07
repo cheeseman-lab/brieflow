@@ -11,22 +11,23 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("Quality Control")
-st.markdown("Review the quality control metrics from the brieflow pipeline")
-
 @st.cache_data
 def load_data(root_dir):
     global filtered_df
     # Apply filters directly during file discovery for better performance
     # Filter for dir_level_0 in ['phenotype', 'merge', 'sbs', 'aggregate'] and dir_level_1 == 'eval'
     files = FileSystem.find_files(
-        root_dir, 
+        root_dir,
         include_any=['phenotype', 'merge', 'sbs', 'aggregate'],
         include_all=['eval'],
         extensions=['png', 'tsv']
     )
     filtered_df = FileSystem.extract_features(root_dir, files)
     return filtered_df
+
+
+st.title("Quality Control")
+st.markdown("Review the quality control metrics from the brieflow pipeline")
 
 # Get the analysis root directory
 ANALYSIS_ROOT_DIR = get_analysis_root_dir()
@@ -54,8 +55,5 @@ filtered_df = apply_filter(filtered_df, 'well_id', selected_well)
 
 selected_metric = create_filter_radio(filtered_df, 'metric_name', st.sidebar, "Metric")
 filtered_df = apply_filter(filtered_df, 'metric_name', selected_metric)
-
-# Display the filtered dataframe (debug)
-# st.dataframe(filtered_df)
 
 VisualizationRenderer.display_plots_and_tables(filtered_df, ANALYSIS_ROOT_DIR)

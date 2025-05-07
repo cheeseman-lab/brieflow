@@ -57,7 +57,6 @@ st.title("Analysis Overview")
 # tabs for: config, git, dependencies
 tab1, tab2, tab3 = st.tabs(["Config", "Git", "Dependencies"])
 with tab1:
-    st.header("Screen Configuration")
     display_yaml(CONFIG_PATH)
 
 with tab2:

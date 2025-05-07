@@ -4,7 +4,7 @@ import os
 from src.config import CONFIG_PATH
 
 st.set_page_config(
-    page_title="Configuration - Brieflow Analysis",
+    page_title="Analysis Overview - Brieflow Analysis",
     layout="wide",
 )
 
@@ -52,7 +52,7 @@ def display_requirements():
 
 
 
-st.title("Configuration")
+st.title("Analysis Overview")
 
 # tabs for: config, git, dependencies
 tab1, tab2, tab3 = st.tabs(["Config", "Git", "Dependencies"])

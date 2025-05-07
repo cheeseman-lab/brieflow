@@ -208,7 +208,9 @@ def centerscale_by_batch(
         batches = metadata[batch_col].unique()
         for batch in batches:
             ind = metadata[batch_col] == batch
-            features[ind, :] = StandardScaler(copy=False).fit_transform(features[ind, :])
+            features[ind, :] = StandardScaler(copy=False).fit_transform(
+                features[ind, :]
+            )
     return features
 
 

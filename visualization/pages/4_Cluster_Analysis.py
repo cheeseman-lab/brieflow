@@ -239,30 +239,6 @@ def display_gene_montages(gene_montages_root, gene):
             else:
                 st.warning(f"No image found for {gene} - {selected_guide}")
 
-# =====================
-# MAIN CODE
-
-# Initialize session state for selected item and grouping column if they don't exist
-if 'selected_item' not in st.session_state:
-    st.session_state.selected_item = None
-
-if 'groupby_column' not in st.session_state:
-    st.session_state.groupby_column = 'cluster'
-
-# Initialize session state for selected gene if it doesn't exist
-if 'selected_gene' not in st.session_state:
-    st.session_state.selected_gene = None
-
-# Initialize session state for selected guide if it doesn't exist
-if 'selected_guide' not in st.session_state:
-    st.session_state.selected_guide = None
-
-# Initialize session state for zoom coordinates if they don't exist
-if 'zoom_xrange' not in st.session_state:
-    st.session_state.zoom_xrange = None
-if 'zoom_yrange' not in st.session_state:
-    st.session_state.zoom_yrange = None
-
 def display_cluster(cluster_data, container=st.container()):
     r'''
     :param cluster_data: a dataframe from load_cluster_data
@@ -330,14 +306,15 @@ def display_cluster(cluster_data, container=st.container()):
             for group in group_names:
                 if group == selected_item:
                     group_df = cluster_data[cluster_data[groupby_column] == group]
-                    
+
                     # Get the selected gene if any
                     selected_gene = st.session_state.get("selected_gene", None)
-                    
+
                     # Split the dataframe into selected gene and other genes
-                    selected_gene_df = group_df[group_df['gene_symbol_0'] == selected_gene] if selected_gene else pd.DataFrame()
+                    selected_gene_df = group_df[
+                        group_df['gene_symbol_0'] == selected_gene] if selected_gene else pd.DataFrame()
                     other_genes_df = group_df[group_df['gene_symbol_0'] != selected_gene] if selected_gene else group_df
-                    
+
                     # Add other genes in the selected group
                     if not other_genes_df.empty:
                         marker = dict(
@@ -355,12 +332,12 @@ def display_cluster(cluster_data, container=st.container()):
                             name=str(group),
                             showlegend=False,
                         ))
-                    
+
                     # Add the selected gene with special highlighting
                     if not selected_gene_df.empty:
                         marker = dict(
                             color=color_map[group],  # Use the cluster's color instead of red
-                            size=15,      # Larger size
+                            size=15,  # Larger size
                             opacity=1.0,
                             symbol='circle',  # Filled circle
                             line=dict(width=3, color='white')  # White border for contrast
@@ -401,7 +378,7 @@ def display_cluster(cluster_data, container=st.container()):
             width=1000,
             height=800,
         )
-        
+
         # Apply saved zoom coordinates if they exist
         if st.session_state.zoom_xrange is not None and st.session_state.zoom_yrange is not None:
             fig.update_layout(
@@ -418,7 +395,7 @@ def display_cluster(cluster_data, container=st.container()):
 
             # Get the item value from the selected point
             item_value = get_item_value_from_point(selected_point, st.session_state.groupby_column)
-            
+
             # Get the gene value from the selected point
             gene_value = None
             if 'customdata' in selected_point and len(selected_point['customdata']) > 0:
@@ -426,10 +403,11 @@ def display_cluster(cluster_data, container=st.container()):
                     gene_value = str(selected_point['customdata'][GENE_SYMBOL_INDEX])
 
             # Update session state if the item has changed
-            if item_value and (st.session_state.selected_item != item_value or st.session_state.selected_gene != gene_value):
+            if item_value and (
+                    st.session_state.selected_item != item_value or st.session_state.selected_gene != gene_value):
                 st.session_state.selected_item = item_value
                 st.session_state.selected_gene = gene_value
-                
+
                 # Store current zoom state before rerunning
                 if hasattr(event, 'relayoutData') and event.relayoutData:
                     if 'xaxis.range[0]' in event.relayoutData and 'xaxis.range[1]' in event.relayoutData:
@@ -442,9 +420,9 @@ def display_cluster(cluster_data, container=st.container()):
                             event.relayoutData['yaxis.range[0]'],
                             event.relayoutData['yaxis.range[1]']
                         ]
-                
+
                 st.rerun()
-        
+
         # Save zoom coordinates from the event if available
         if hasattr(event, 'relayoutData') and event.relayoutData:
             if 'xaxis.range[0]' in event.relayoutData and 'xaxis.range[1]' in event.relayoutData:
@@ -473,7 +451,7 @@ def display_cluster(cluster_data, container=st.container()):
                 except ValueError:
                     st.error(f"Invalid cluster value: {st.session_state.selected_item}")
                     return
-                
+
                 if len(table_data.index) == 0:
                     st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
                 else:
@@ -490,7 +468,8 @@ def display_cluster(cluster_data, container=st.container()):
 
         # Feature Data Overview
         st.markdown("## Feature Data Overview")
-        st.markdown("Median feature values per gene after center scaling all single cell data on control cells by well.")
+        st.markdown(
+            "Median feature values per gene after center scaling all single cell data on control cells by well.")
 
         # Construct the feature table path
         feature_table_path = os.path.join(
@@ -544,7 +523,7 @@ def display_cluster_json(cluster_data, container=st.container()):
                 cluster_json = json.load(f)
             cluster_id = str(st.session_state.selected_item)
             clusters = cluster_json.get('clusters', {})
-            
+
             if cluster_id in clusters:
                 c = clusters[cluster_id]
                 # Card layout using markdown and Streamlit elements
@@ -553,39 +532,66 @@ def display_cluster_json(cluster_data, container=st.container()):
                         <div style='display:flex; justify-content:space-between; align-items:center;'>
                             <div>
                                 <span style='font-size:1.3em; font-weight:bold; color:#e0e0e0;'>Dominant Process:</span>
-                                <span style='font-size:1.3em; color:#60a5fa; font-weight:bold;'>{c.get('dominant_process','')}</span>
+                                <span style='font-size:1.3em; color:#60a5fa; font-weight:bold;'>{c.get('dominant_process', '')}</span>
                             </div>
                             <div>
-                                <span style='background:#1e3a8a; color:#93c5fd; border-radius:6px; padding:4px 12px; font-weight:600;'>Confidence: {c.get('pathway_confidence','')}</span>
+                                <span style='background:#1e3a8a; color:#93c5fd; border-radius:6px; padding:4px 12px; font-weight:600;'>Confidence: {c.get('pathway_confidence', '')}</span>
                             </div>
                         </div>
                         <div style='margin-top:10px; margin-bottom:10px; font-size:1.1em; color:#d1d5db;'>
-                            {c.get('summary','')}
+                            {c.get('summary', '')}
                         </div>
                         <div style='margin-top:18px;'>
                             <span style='font-weight:600; color:#60a5fa;'>Established Genes:</span>
-                            <span style='margin-left:8px;'>{" ".join([f"<span style='background:#064e3b; color:#6ee7b7; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene}</span>" for gene in c.get('established_genes',[])])}</span>
+                            <span style='margin-left:8px;'>{" ".join([f"<span style='background:#064e3b; color:#6ee7b7; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene}</span>" for gene in c.get('established_genes', [])])}</span>
                         </div>
                         <div style='margin-top:10px;'>
                             <span style='font-weight:600; color:#fbbf24;'>Novel Role Genes:</span>
                             <ul style='margin:0; padding-left:20px;'>
                             {"".join([
-                                f"<li><span style='background:#78350f; color:#fcd34d; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>" for gene in c.get('novel_role_genes',[])
-                            ])}</ul>
+                    f"<li><span style='background:#78350f; color:#fcd34d; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>" for gene in c.get('novel_role_genes', [])
+                ])}</ul>
                         </div>
                         <div style='margin-top:10px;'>
                             <span style='font-weight:600; color:#c084fc;'>Uncharacterized Genes:</span>
                             <ul style='margin:0; padding-left:20px;'>
                             {"".join([
-                                f"<li><span style='background:#5b21b6; color:#d8b4fe; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>" for gene in c.get('uncharacterized_genes',[])
-                            ])}</ul>
+                    f"<li><span style='background:#5b21b6; color:#d8b4fe; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>" for gene in c.get('uncharacterized_genes', [])
+                ])}</ul>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
             else:
-                st.error(f"Cluster {cluster_id} not found in the analysis. Available clusters are: {', '.join(clusters.keys())}")
-                st.info("This might indicate that the cluster analysis was run with different parameters or the JSON file is from a different analysis run.")
+                st.error(
+                    f"Cluster {cluster_id} not found in the analysis. Available clusters are: {', '.join(clusters.keys())}")
+                st.info(
+                    "This might indicate that the cluster analysis was run with different parameters or the JSON file is from a different analysis run.")
                 return
+
+# =====================
+# MAIN CODE
+
+# Initialize session state for selected item and grouping column if they don't exist
+if 'selected_item' not in st.session_state:
+    st.session_state.selected_item = None
+
+if 'groupby_column' not in st.session_state:
+    st.session_state.groupby_column = 'cluster'
+
+# Initialize session state for selected gene if it doesn't exist
+if 'selected_gene' not in st.session_state:
+    st.session_state.selected_gene = None
+
+# Initialize session state for selected guide if it doesn't exist
+if 'selected_guide' not in st.session_state:
+    st.session_state.selected_guide = None
+
+# Initialize session state for zoom coordinates if they don't exist
+if 'zoom_xrange' not in st.session_state:
+    st.session_state.zoom_xrange = None
+if 'zoom_yrange' not in st.session_state:
+    st.session_state.zoom_yrange = None
+
 
 
 # Load cluster data

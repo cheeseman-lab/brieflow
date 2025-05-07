@@ -1,10 +1,13 @@
 # Brieflow <> Brieflow Analysis
 
+## Overview
+
 Brieflow and brieflow-analysis are closely related repositories built together and, usually, both used for a screen analysis.
 We distinguish these repositories like so:
 - brieflow: code to process OPS data on a large scale
 - brieflow-analysis: notebooks, files, and scripts that are used during a brieflow run
 
+Both of these work together to run modules for steps like preprocessing, SBS, phenotype, etc.
 Let's take a closer look:
 
 ```{image} media/brieflow_brieflow_analysis.png
@@ -12,4 +15,130 @@ Let's take a closer look:
 :alt: Brieflow <> Brieflow Analysis
 ```
 
-In Brieflow we have the following components:
+## Brieflow
+
+Brieflow has the following components:
+
+- lib: Brieflow library code used for performing Brieflow processing. Organized into module-specific, shared, and external code.
+- rules: Snakemake rule files for each module. Used to organize processses within each module with inputs, outputs, parameters, and script file location.
+- scripts: Python script files for processes called by rules. Organized into module-specific and shared code.
+- targets: Snakemake files used to define inputs and their mappings for each module
+- Snakefile: Main Snakefile used to call modules.
+
+One of the simplest examples for this is read calling during the SBS step.
+We can approach this from a top -> down perspective to understand what is going on.
+
+1) In the main [Snakefile](https://github.com/cheeseman-lab/brieflow/blob/main/workflow/Snakefile) we tell Snakemake to include the rules and targets for the entire SBS module:
+```python
+if "sbs" in config and len(sbs_wildcard_combos) > 0:
+
+    # Include target and rule files
+    include: "targets/sbs.smk"
+    include: "rules/sbs.smk"
+```
+2) Snakemake first looks at the [targets](https://github.com/cheeseman-lab/brieflow/blob/main/workflow/targets/sbs.smk) to see what we want produced. The read calling output file is specified here: 
+```python
+"call_reads": [
+    SBS_FP
+    / "tsvs"
+    / get_filename(
+        {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "reads", "tsv"
+    ),
+],
+```
+3) Snakemake then looks through the [rules](https://github.com/cheeseman-lab/brieflow/blob/main/workflow/rules/sbs.smk) to see what needs to be run to produce this file. We need to run the following rule to get the `call_reads` output:
+```python
+rule call_reads:
+    input:
+        SBS_OUTPUTS["extract_bases"],
+        SBS_OUTPUTS["find_peaks"],
+    output:
+        SBS_OUTPUTS_MAPPED["call_reads"],
+    params:
+        call_reads_method=config["sbs"]["call_reads_method"]
+    script:
+        "../scripts/sbs/call_reads.py"
+```
+This process takes 2 inputs, produces 1 output, and passes one param to the script to do so.
+4) Snakemake loads the [script](https://github.com/cheeseman-lab/brieflow/blob/main/workflow/scripts/sbs/call_reads.py) for this rule:
+```python
+from lib.sbs.call_reads import call_reads
+
+# load bases data
+bases_data = pd.read_csv(snakemake.input[0], sep="\t")
+
+# load peaks data
+peaks_data = imread(snakemake.input[1])
+
+# call reads
+reads_data = call_reads(
+    bases_data=bases_data,
+    peaks_data=peaks_data,
+    method=snakemake.params.call_reads_method,
+)
+
+# save reads data
+reads_data.to_csv(snakemake.output[0], index=False, sep="\t")
+```
+This is a very simple script that loads data, calls a function, and saves data.
+5) Finally, snakemake accesses the [library code](https://github.com/cheeseman-lab/brieflow/blob/eb4f58947eaeb1f2dd2c7df8fb1a9f593148a55f/workflow/lib/sbs/call_reads.py#L26) that we use here:
+```python
+def call_reads(
+    bases_data,
+    peaks_data=None,
+    correction_only_in_cells=True,
+    normalize_bases_first=True,
+    method="median",
+):
+    """Call reads for in situ sequencing data.
+
+    Call reads by compensating for channel cross-talk and calling the base
+    with the highest corrected intensity for each cycle.
+
+    Args:
+    bases_data : pandas DataFrame
+        Table of base intensity for all candidate reads, output of extract_bases.
+...
+```
+
+## Brieflow Analysis
+
+The analysis repo holds the files neccessary for configuring and running brieflow.
+In the case of the read calling function above we:
+1) Run the [2.configure_sbs_params.ipynb](https://github.com/cheeseman-lab/brieflow-analysis/blob/main/analysis/2.configure_sbs_params.ipynb) notebook.
+2) Set the `CALL_READS_METHOD` parameter in this notebook.
+```python
+# Define parameters for extracting bases
+CALL_READS_METHOD = "median"
+```
+3) Save this parameter to the config file at the end of the notebook:
+```python
+config["sbs"] = {
+    ...
+    "call_reads_method": CALL_READS_METHOD,
+    ...
+}
+
+# Write the updated configuration back with markdown-style comments
+with open(CONFIG_FILE_PATH, "w") as config_file:
+    # Write the introductory markdown-style comments
+    config_file.write(CONFIG_FILE_HEADER)
+
+    # Dump the updated YAML structure, keeping markdown comments for sections
+    yaml.dump(config, config_file, default_flow_style=False, sort_keys=False)
+```
+4) This parameter gets passed to the snakemake rule during a run (see above)
+```python
+rule call_reads:
+...
+    params:
+        call_reads_method=config["sbs"]["call_reads_method"]
+...
+```
+
+## Reproducibility and Modularity
+
+Brieflow and brieflow-analysis are built for reproducibility and modularity.
+This 2-repository system enables researchers to
+- work on a specific process within brieflow (ex, make siloed changes to `call_reads`)
+- develop versions of brieflow that can be used across multiple brieflow-analysis repositories (ex, a `custom_screen` branch for brieflow can be used in multiple brieflow-analysis repos)

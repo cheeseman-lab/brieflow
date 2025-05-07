@@ -214,7 +214,7 @@ def plot_phate_leiden_clusters(
     return fig
 
 
-def calculate_potential_to_nontargeting(potential_df, control_key, distance_metric='euclidean'):
+def calculate_potential_to_nontargeting(potential_df, control_key, distance_metric='euclidean', normalize=True):
     """
     Calculate the average distance from each row to nontargeting controls.
     
@@ -262,5 +262,16 @@ def calculate_potential_to_nontargeting(potential_df, control_key, distance_metr
     
     # Create result DataFrame
     average_distance_df = pd.DataFrame(average_distance)
+
+    # Apply min-max normalization if requested
+    if normalize:
+        min_val = average_distance_df['mean_potential_to_nontargeting'].min()
+        max_val = average_distance_df['mean_potential_to_nontargeting'].max()
+        
+        # Add the normalized values as a new column
+        average_distance_df['normalized_potential_to_nontargeting'] = (
+            (average_distance_df['mean_potential_to_nontargeting'] - min_val) / 
+            (max_val - min_val)
+        )
     
     return average_distance_df

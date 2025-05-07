@@ -48,7 +48,9 @@ phate_leiden_clustering = phate_leiden_clustering.merge(
 ).drop(columns="gene_name")
 
 # calculate potential to nontargeting
-average_distance_df = calculate_potential_to_nontargeting(potential_df, snakemake.params.control_key)
+average_distance_df = calculate_potential_to_nontargeting(
+    potential_df, snakemake.params.control_key
+)
 
 # merge clustering data with potential_df
 phate_leiden_clustering = phate_leiden_clustering.merge(

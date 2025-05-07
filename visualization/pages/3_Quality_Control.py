@@ -1,8 +1,5 @@
 import streamlit as st
 import pandas as pd
-import os
-import uuid
-import yaml
 from src.filesystem import FileSystem
 from src.rendering import VisualizationRenderer
 from src.filtering import create_filter_radio, apply_filter

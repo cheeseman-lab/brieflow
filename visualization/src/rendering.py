@@ -1,7 +1,10 @@
 import os
-import uuid
 import pandas as pd
 import streamlit as st
+import sys
+import uuid
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from workflow.lib.shared.file_utils import parse_filename
 
 class VisualizationRenderer:
     @staticmethod
@@ -20,7 +23,13 @@ class VisualizationRenderer:
         # Iterate through each group
         for (dir_name, base_name), group_df in grouped:
             with st.container():
-                st.markdown(f"### Group: {dir_name} - {base_name}")
+                attrs, metric_name, _ = parse_filename(base_name)
+                title_parts = [metric_name]
+                if 'cell_class' in attrs:
+                    title_parts.append(f"Cell Class: {attrs['cell_class']}")
+                if 'channel_combo' in attrs:
+                    title_parts.append(f"Channel Combo: {attrs['channel_combo']}")
+                st.markdown(f"### {' – '.join(title_parts)}")
 
                 # Count only the items we'll actually display
                 display_items = []

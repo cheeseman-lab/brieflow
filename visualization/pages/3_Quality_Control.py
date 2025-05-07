@@ -25,6 +25,27 @@ def load_data(root_dir):
     filtered_df = FileSystem.extract_features(root_dir, files)
     return filtered_df
 
+# Create filters using the helper function
+def apply_all_filters(df, sidebar):
+    """Apply all filters in sequence and return the filtered dataframe."""
+    filters = [
+        ('dir_level_0', 'Phase'),
+        # Intentionally omitting dir_level_1
+        ('dir_level_2', 'Subgroup'),
+        ('plate_id', 'Plate'),
+        ('well_id', 'Well'),
+        ('metric_name', 'Metric')
+    ]
+
+    filtered_df = df.copy()
+    selected_values = {}
+
+    for column, label in filters:
+        selected_value = create_filter_radio(filtered_df, column, sidebar, label)
+        filtered_df = apply_filter(filtered_df, column, selected_value)
+        selected_values[column] = selected_value
+
+    return filtered_df, selected_values
 
 st.title("Quality Control")
 st.markdown("Review the quality control metrics from the brieflow pipeline")
@@ -37,23 +58,6 @@ st.write(f"Analysis root dir: {ANALYSIS_ROOT_DIR}")
 filtered_df = load_data(ANALYSIS_ROOT_DIR)
 
 st.sidebar.title("Filters")
-
-# Create filters using the helper function
-selected_dir_level_0 = create_filter_radio(filtered_df, 'dir_level_0', st.sidebar, "Phase")
-filtered_df = apply_filter(filtered_df, 'dir_level_0', selected_dir_level_0)
-
-# dir_level_1 is always "eval", so we don't need to create a filter
-
-selected_dir_level_2 = create_filter_radio(filtered_df, 'dir_level_2', st.sidebar, "Subgroup")
-filtered_df = apply_filter(filtered_df, 'dir_level_2', selected_dir_level_2)
-
-selected_plate = create_filter_radio(filtered_df, 'plate_id', st.sidebar, "Plate")
-filtered_df = apply_filter(filtered_df, 'plate_id', selected_plate)
-
-selected_well = create_filter_radio(filtered_df, 'well_id', st.sidebar, "Well")
-filtered_df = apply_filter(filtered_df, 'well_id', selected_well)
-
-selected_metric = create_filter_radio(filtered_df, 'metric_name', st.sidebar, "Metric")
-filtered_df = apply_filter(filtered_df, 'metric_name', selected_metric)
+filtered_df, selected_values = apply_all_filters(filtered_df, st.sidebar)
 
 VisualizationRenderer.display_plots_and_tables(filtered_df, ANALYSIS_ROOT_DIR)

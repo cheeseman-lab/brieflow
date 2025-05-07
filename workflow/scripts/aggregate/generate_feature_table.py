@@ -22,7 +22,13 @@ for col in cell_data.columns:
 print(f"Shape of input data: {cell_data.shape}")
 
 # load sample df as pandas dataframe
-metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, True)
+metadata_cols = load_metadata_cols(
+    snakemake.params.metadata_cols_fp,
+    [
+        "class",
+        "confidence",
+    ],
+)
 feature_cols = cell_data.columns.difference(metadata_cols, sort=False)
 
 # centerscale features on controls

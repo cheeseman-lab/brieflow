@@ -158,7 +158,7 @@ def tvn_on_controls(
         np.ndarray: The normalized embeddings.
     """
     embeddings = centerscale_on_controls(embeddings, metadata, pert_col, control_key)
-    ctrl_ind = metadata[pert_col].str.startswith(control_key).to_list()
+    ctrl_ind = metadata[pert_col].str.startswith(control_key).to_numpy()
     embeddings = PCA().fit(embeddings[ctrl_ind]).transform(embeddings)
     embeddings = centerscale_on_controls(
         embeddings, metadata, pert_col, control_key, batch_col
@@ -171,7 +171,7 @@ def tvn_on_controls(
         for batch in batches:
             batch_ind = metadata[batch_col] == batch
             batch_control_ind = (
-                batch_ind & (metadata[pert_col].str.startswith(control_key)).to_list()
+                batch_ind & (metadata[pert_col].str.startswith(control_key)).to_numpy()
             )
             source_cov = np.cov(
                 embeddings[batch_control_ind], rowvar=False, ddof=1
@@ -241,7 +241,7 @@ def centerscale_on_controls(
         for batch in batches:
             batch_ind = metadata[batch_col] == batch
             batch_control_ind = (
-                batch_ind & (metadata[pert_col].str.startswith(control_key)).to_list()
+                batch_ind & (metadata[pert_col].str.startswith(control_key)).to_numpy()
             )
             embeddings[batch_ind] = (
                 StandardScaler(copy=False)
@@ -250,5 +250,5 @@ def centerscale_on_controls(
             )
         return embeddings
 
-    control_ind = metadata[pert_col].str.startswith(control_key).to_list()
+    control_ind = metadata[pert_col].str.startswith(control_key).to_numpy()
     return StandardScaler(copy=False).fit(embeddings[control_ind]).transform(embeddings)

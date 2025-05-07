@@ -117,24 +117,24 @@ rule aggregate:
         "../scripts/aggregate/aggregate.py"
 
 
-rule eval_aggregate:
-    input:
-        # aggregated gene data
-        AGGREGATE_OUTPUTS_MAPPED["align"],
-        # class merge data
-        split_datasets_paths=lambda wildcards: output_to_input(
-            AGGREGATE_OUTPUTS_MAPPED["split_datasets"],
-            wildcards={
-                "cell_class": wildcards.cell_class,
-                "channel_combo": wildcards.channel_combo,
-            },
-            expansion_values=["plate", "well"],
-            metadata_combos=aggregate_wildcard_combos,
-        ),
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
-    script:
-        "../scripts/aggregate/eval_aggregate.py"
+# rule eval_aggregate:
+#     input:
+#         # aggregated gene data
+#         AGGREGATE_OUTPUTS_MAPPED["align"],
+#         # class merge data
+#         split_datasets_paths=lambda wildcards: output_to_input(
+#             AGGREGATE_OUTPUTS_MAPPED["split_datasets"],
+#             wildcards={
+#                 "cell_class": wildcards.cell_class,
+#                 "channel_combo": wildcards.channel_combo,
+#             },
+#             expansion_values=["plate", "well"],
+#             metadata_combos=aggregate_wildcard_combos,
+#         ),
+#     output:
+#         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
+#     script:
+#         "../scripts/aggregate/eval_aggregate.py"
 
 
 # MONTAGE CREATION

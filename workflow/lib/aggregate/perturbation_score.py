@@ -3,7 +3,9 @@ from scipy import stats
 from sklearn.linear_model import LinearRegression
 
 
-def get_top_differential_features(cell_data, feature_cols, gene, pert_col, control_key, n_features=100):
+def get_top_differential_features(
+    cell_data, feature_cols, gene, pert_col, control_key, n_features=100
+):
     """Get top differentially expressed features between control and gene using t-test"""
     results = []
 
@@ -22,15 +24,18 @@ def get_top_differential_features(cell_data, feature_cols, gene, pert_col, contr
 
         t_stat, p_value = stats.ttest_ind(control_values, gene_values, equal_var=False)
 
-        results.append({
-            'feature': feature,
-            'pvalue': p_value,
-            'control_mean': control_values.mean(),
-            'gene_mean': gene_values.mean()
-        })
+        results.append(
+            {
+                "feature": feature,
+                "pvalue": p_value,
+                "control_mean": control_values.mean(),
+                "gene_mean": gene_values.mean(),
+            }
+        )
 
-    results_df = pd.DataFrame(results).sort_values('pvalue')
-    return results_df.head(n_features)['feature'].tolist()
+    results_df = pd.DataFrame(results).sort_values("pvalue")
+    return results_df.head(n_features)["feature"].tolist()
+
 
 def get_perturbation_score(cell_data, gene, diff_exp_features, pert_col, control_key):
     """Compute perturbation scores for a given gene using a projection-based method."""
@@ -55,5 +60,7 @@ def get_perturbation_score(cell_data, gene, diff_exp_features, pert_col, control
     raw_scores = lin_model.predict(projection.values.reshape(-1, 1))
 
     # Scale scores to [0, 1]
-    scaled_scores = (raw_scores - raw_scores.min()) / (raw_scores.max() - raw_scores.min())
+    scaled_scores = (raw_scores - raw_scores.min()) / (
+        raw_scores.max() - raw_scores.min()
+    )
     return scaled_scores

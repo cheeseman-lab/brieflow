@@ -46,7 +46,7 @@ DEFAULT_METADATA_COLS = [
 ]
 
 
-def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
+def load_metadata_cols(metadata_cols_fp, extra_cols=None):
     """Load metadata column names from a file.
 
     Args:
@@ -59,11 +59,8 @@ def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     """
     metadata_cols = pd.read_csv(metadata_cols_fp, header=None, sep="\t")[0].tolist()
 
-    if include_classification_cols:
-        metadata_cols += [
-            "class",
-            "confidence",
-        ]
+    if extra_cols is not None:
+        metadata_cols += extra_cols
 
     return metadata_cols
 

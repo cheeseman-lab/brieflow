@@ -70,29 +70,29 @@ AGGREGATE_OUTPUTS = {
             "tsv",
         ),
     ],
-    "eval_aggregate": [
-        AGGREGATE_FP
-        / "eval"
-        / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "na_stats",
-            "tsv",
-        ),
-        AGGREGATE_FP
-        / "eval"
-        / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "na_stats",
-            "png",
-        ),
-        AGGREGATE_FP
-        / "eval"
-        / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "feature_distributions",
-            "png",
-        ),
-    ],
+    # "eval_aggregate": [
+    #     AGGREGATE_FP
+    #     / "eval"
+    #     / get_filename(
+    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+    #         "na_stats",
+    #         "tsv",
+    #     ),
+    #     AGGREGATE_FP
+    #     / "eval"
+    #     / get_filename(
+    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+    #         "na_stats",
+    #         "png",
+    #     ),
+    #     AGGREGATE_FP
+    #     / "eval"
+    #     / get_filename(
+    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+    #         "feature_distributions",
+    #         "png",
+    #     ),
+    # ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {

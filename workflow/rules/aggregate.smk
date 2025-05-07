@@ -65,7 +65,7 @@ rule generate_feature_table:
         "../scripts/aggregate/generate_feature_table.py"
 
 
-rule align:
+rule perturbation_score:
     input:
         filtered_paths=lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS_MAPPED["filter"],
@@ -77,7 +77,21 @@ rule align:
             metadata_combos=aggregate_wildcard_combos,
         ),
     output:
-        AGGREGATE_OUTPUTS_MAPPED["align"],
+        AGGREGATE_OUTPUTS_MAPPED["perturbation_score"],
+    params:
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        perturbation_id_col=config["aggregate"]["perturbation_id_col"],
+        control_key=config["aggregate"]["control_key"],
+        batch_cols=config["aggregate"]["batch_cols"],
+        batches=10,
+    script:
+        "../scripts/aggregate/perturbation_score.py"
+
+
+rule align:
+    input:
+        AGGREGATE_OUTPUTS_MAPPED["perturbation_score"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],

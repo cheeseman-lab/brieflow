@@ -22,7 +22,7 @@ from lib.aggregate.align import (
 PCA_SUBSET = 100000
 
 # Load full dataset as logical PyArrow dataset
-cell_dataset = ds.dataset(snakemake.input.filtered_paths, format="parquet")
+cell_dataset = ds.dataset(snakemake.input[0], format="parquet")
 print(f"Number of rows across all parquet files: {cell_dataset.count_rows()}")
 
 # Count total rows across all Parquet files

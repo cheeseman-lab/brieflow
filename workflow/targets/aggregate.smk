@@ -43,6 +43,15 @@ AGGREGATE_OUTPUTS = {
             "tsv",
         ),
     ],
+    "perturbation_score": [
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "perturbation_scored",
+            "parquet",
+        ),
+    ],
     "align": [
         AGGREGATE_FP
         / "parquets"
@@ -89,21 +98,22 @@ AGGREGATE_OUTPUTS = {
 AGGREGATE_OUTPUT_MAPPINGS = {
     "split_datasets": None,
     "filter": None,
+    "generate_feature_table": None,
+    "perturbation_score": None,
     "align": None,
     "aggregate": None,
     "eval_aggregate": None,
-    "generate_feature_table": None,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
 
 # TODO: Use all combos
-# aggregate_wildcard_combos = aggregate_wildcard_combos[
-#     (aggregate_wildcard_combos["plate"].isin([1]))
-#     & (aggregate_wildcard_combos["well"].isin(["A1"]))
-#     & (aggregate_wildcard_combos["cell_class"].isin(["Mitotic"]))
-#     & (aggregate_wildcard_combos["channel_combo"].isin(["DAPI_WGA"]))
-# ]
+aggregate_wildcard_combos = aggregate_wildcard_combos[
+    (aggregate_wildcard_combos["plate"].isin([1]))
+    & (aggregate_wildcard_combos["well"].isin(["A1"]))
+    & (aggregate_wildcard_combos["cell_class"].isin(["Mitotic"]))
+    & (aggregate_wildcard_combos["channel_combo"].isin(["DAPI_WGA"]))
+]
 
 AGGREGATE_TARGETS_ALL = outputs_to_targets(
     AGGREGATE_OUTPUTS, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS

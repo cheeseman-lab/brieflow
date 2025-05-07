@@ -9,7 +9,7 @@
 
 Brieflow is tool written with [Snakemake](http://snakemake.readthedocs.io) that simplifies and automates many of the steps in optical pooled screen (OPS) analysis.
 Although written to be easily deployed on a Slurm cluster, it can also be run on other cloud-based or local systems.
-We have built Brieflow in tandem with [brieflow-analysis](brieflow_analysis.md) to configure and organize Brieflow runs.
+We have built Brieflow in tandem with [brieflow-analysis](https://github.com/cheeseman-lab/brieflow-analysis) to configure and organize Brieflow runs.
 
 Brieflow currently automates the following OPS tasks:
 
@@ -20,7 +20,7 @@ Brieflow currently automates the following OPS tasks:
 - **Aggregate**: Aggregates single-cell data by perturbation or barcode, producing summary-level datasets.
 - **Cluster**: Performs unsupervised clustering to identify patterns or phenotypic signatures across perturbations.
 
-To get started, see the [quickstart guide](quickstart.md)!
+We recommend you view the doc pages below (in order) before using brieflow/brieflow-analysis to ensure you have a good understanding of the system.
 
 Brieflow is a community-driven project, and we welcome contributions from anyone interested in improving the tool :)
 
@@ -29,9 +29,9 @@ Brieflow is a community-driven project, and we welcome contributions from anyone
 :maxdepth: 2
 :caption: Contents:
 
+brieflow_brieflow_analysis.md
 before_you_screen.md
-quickstart.md
-brieflow_analysis.md
+brieflow_analysis_setup.md
 running_modules.md
 example_analysis.md
 config_glossary.md

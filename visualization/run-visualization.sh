@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 
-# Default port and config
-#export STREAMLIT_CONFIG=".streamlit/config.toml"
-
-cd /home/andy/work/src/brieflow-analysis/brieflow/visualization
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # Set default analysis directory if not provided
 # Override this by setting ANALYSIS_DIR before running the script

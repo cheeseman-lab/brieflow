@@ -490,6 +490,7 @@ def display_cluster(cluster_data, container=st.container()):
 
         # Feature Data Overview
         st.markdown("## Feature Data Overview")
+        st.markdown("Median feature values per gene after center scaling all single cell data on control cells by well.")
 
         # Construct the feature table path
         feature_table_path = os.path.join(

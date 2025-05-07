@@ -477,11 +477,13 @@ def display_cluster(cluster_data, container=st.container()):
                 if len(table_data.index) == 0:
                     st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
                 else:
+                    table_data.set_index('gene_symbol_0', inplace=True)
                     st.dataframe(table_data)
             else:
                 if len(table_data.index) == 0:
                     st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
                 else:
+                    table_data.set_index('gene_symbol_0', inplace=True)
                     st.dataframe(table_data)
         else:
             st.warning(f"⚠️ WARNING: Source TSV file not found at: {source_tsv}")
@@ -500,6 +502,7 @@ def display_cluster(cluster_data, container=st.container()):
         # Load and display the feature table if it exists
         if os.path.exists(feature_table_path):
             feature_df = pd.read_csv(feature_table_path, sep='\t')
+            feature_df.set_index('gene_symbol_0', inplace=True)
 
             # Create a container with a fixed height and scrolling
             with st.container():

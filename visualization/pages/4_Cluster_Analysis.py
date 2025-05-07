@@ -682,17 +682,16 @@ else:
         gene_montages_root = os.path.join(ANALYSIS_ROOT, "aggregate", 'montages', f"{cell_class}__montages")
 
         ## Cluster Info
-        # Show selected item and clear button if an item is selected
-        if st.session_state.selected_item:
-            # Create two columns for the title and button
-            title_col, button_col = st.columns([7, 1])
-            with title_col:
-                st.write(f"## Cluster {selected_item}: {len(genes)} genes")
-            with button_col:
-                if st.button("X"):
-                    st.session_state.selected_item = None
-                    st.session_state.selected_gene = None
-                    st.rerun()
+        # Create two columns for the title and clear button
+        title_col, button_col = st.columns([7, 1])
+        with title_col:
+            st.write(f"## Cluster {selected_item}: {len(genes)} genes")
+        with button_col:
+            # Show selected item and clear button if an item is selected
+            if st.button("X"):
+                st.session_state.selected_item = None
+                st.session_state.selected_gene = None
+                st.rerun()
 
         display_cluster_json(cluster_data)
 

@@ -30,7 +30,6 @@ def display_git_info():
     except Exception as e:
         st.error(f"Error retrieving git information: {str(e)}")
 
-
 def display_requirements():
     # Read and display conda environment file
     st.header("Conda Environment Configuration")
@@ -49,8 +48,6 @@ def display_requirements():
         st.code(env_content, language="yaml")
     except Exception as e:
         st.error(f"Error reading conda environment file: {str(e)}")
-
-
 
 st.title("Analysis Overview")
 

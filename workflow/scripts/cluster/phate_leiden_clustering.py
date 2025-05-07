@@ -4,16 +4,18 @@ from lib.cluster.cluster_eval import plot_cluster_sizes
 from lib.cluster.phate_leiden_clustering import (
     phate_leiden_pipeline,
     plot_phate_leiden_clusters,
+    calculate_potential_to_nontargeting,
 )
 
 # load aggregated data
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
 
 # cluster aggregated data
-phate_leiden_clustering = phate_leiden_pipeline(
+phate_leiden_clustering, potential_df = phate_leiden_pipeline(
     aggregated_data,
     int(snakemake.params.leiden_resolution),
     snakemake.params.phate_distance_metric,
+    return_potential=True,
 )
 
 # add uniprot information
@@ -44,6 +46,14 @@ uniprot_data = uniprot_data[
 phate_leiden_clustering = phate_leiden_clustering.merge(
     uniprot_data, how="left", left_on="gene_symbol_0", right_on="gene_name"
 ).drop(columns="gene_name")
+
+# calculate potential to nontargeting
+average_distance_df = calculate_potential_to_nontargeting(potential_df, snakemake.params.control_key)
+
+# merge clustering data with potential_df
+phate_leiden_clustering = phate_leiden_clustering.merge(
+    average_distance_df, how="left", left_on="gene_symbol_0", right_on="gene_symbol_0"
+)
 
 # save clustering results
 phate_leiden_clustering.to_csv(snakemake.output[0], sep="\t", index=False)

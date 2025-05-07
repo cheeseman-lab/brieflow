@@ -707,18 +707,12 @@ with col2:
                         table_data = pd.read_csv(source_tsv, sep='\t')
                         table_data = table_data[table_data['gene_symbol_0'] == st.session_state.selected_gene]
                         if len(table_data.index) != 0:
-                            # only uniprot_entr,y uniprot_function, and uniprot_link
-                            # not as a dataframe, but as three lines, with the link being a clickable link
                             st.write(f"Uniprot Entry: [{table_data['uniprot_entry'].values[0]}]({table_data['uniprot_link'].values[0]})")
                             function_text = table_data['uniprot_function'].values[0]
-                            # Handle cases where function_text is not a string
                             if isinstance(function_text, str) and function_text.strip():
-                                preview = ' '.join(function_text.split()[:20]) + '...'
-                                with st.expander(f"Uniprot Function: {preview}", expanded=False):
-                                    st.markdown(f"> {function_text}")
+                                st.markdown(f"Uniprot Function:\n>{function_text}")
                             else:
                                 st.write("Uniprot Function: Not available")
-                            st.write(f"Uniprot Link: [{table_data['uniprot_link'].values[0]}]({table_data['uniprot_link'].values[0]})")
                 
                 # Display montages only for the selected gene
                 if selected_gene:

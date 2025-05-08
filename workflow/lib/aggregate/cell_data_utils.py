@@ -89,10 +89,6 @@ def split_cell_data(cell_data, metadata_cols):
     # Get feature columns (all columns not in metadata)
     features = cell_data.drop(columns=existing_metadata_cols).copy()
 
-    print(
-        f"Split data: {len(metadata.columns)} metadata columns, {len(features.columns)} feature columns"
-    )
-
     return metadata, features
 
 

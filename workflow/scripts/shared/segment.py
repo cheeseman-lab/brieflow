@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 # Load illumination corrected data
-illumination_corrected_data = imread(snakemake.input[0])
+aligned_data = imread(snakemake.input[0])
 
 # Get configuration from params
 params = snakemake.params.config
@@ -18,7 +18,7 @@ if method == "cellpose":
 
     if segment_cells:
         nuclei_data, cells_data, counts_df = segment_cellpose(
-            data=illumination_corrected_data,
+            data=aligned_data,
             dapi_index=params["dapi_index"],
             cyto_index=params["cyto_index"],
             nuclei_diameter=params["nuclei_diameter"],
@@ -39,7 +39,7 @@ if method == "cellpose":
         )
     else:
         nuclei_data, counts_df = segment_cellpose(
-            data=illumination_corrected_data,
+            data=aligned_data,
             dapi_index=params["dapi_index"],
             cyto_index=params["cyto_index"],
             nuclei_diameter=params["nuclei_diameter"],
@@ -65,7 +65,7 @@ elif method == "microsam":
 
     if segment_cells:
         nuclei_data, cells_data, counts_df = segment_microsam(
-            data=illumination_corrected_data,
+            data=aligned_data,
             dapi_index=params["dapi_index"],
             cyto_index=params["cyto_index"],
             model_type=params["microsam_model"],
@@ -76,7 +76,7 @@ elif method == "microsam":
         )
     else:
         nuclei_data, counts_df = segment_microsam(
-            data=illumination_corrected_data,
+            data=aligned_data,
             dapi_index=params["dapi_index"],
             cyto_index=params["cyto_index"],
             model_type=params["microsam_model"],
@@ -92,7 +92,7 @@ elif method == "stardist":
 
     if segment_cells:
         nuclei_data, cells_data, counts_df = segment_stardist(
-            data=illumination_corrected_data,
+            data=aligned_data,
             dapi_index=params["dapi_index"],
             cyto_index=params["cyto_index"],
             model_type=params["stardist_model"],
@@ -111,7 +111,7 @@ elif method == "stardist":
         )
     else:
         nuclei_data, counts_df = segment_stardist(
-            data=illumination_corrected_data,
+            data=aligned_data,
             dapi_index=params["dapi_index"],
             cyto_index=params["cyto_index"],
             model_type=params["stardist_model"],
@@ -135,7 +135,7 @@ elif method == "watershed":
 
     if segment_cells:
         nuclei_data, cells_data, counts_df = segment_watershed(
-            data=illumination_corrected_data,
+            data=aligned_data,
             nuclei_threshold=params["threshold_dapi"],
             nuclei_area_min=params["nuclei_area_min"],
             nuclei_area_max=params["nuclei_area_max"],
@@ -146,7 +146,7 @@ elif method == "watershed":
         )
     else:
         nuclei_data, counts_df = segment_watershed(
-            data=illumination_corrected_data,
+            data=aligned_data,
             nuclei_threshold=params["threshold_dapi"],
             nuclei_area_min=params["nuclei_area_min"],
             nuclei_area_max=params["nuclei_area_max"],

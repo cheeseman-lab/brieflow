@@ -41,6 +41,30 @@ rule filter:
         "../scripts/aggregate/filter.py"
 
 
+rule generate_feature_table:
+    input:
+        filtered_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS_MAPPED["filter"],
+            wildcards={
+                "cell_class": wildcards.cell_class,
+                "channel_combo": wildcards.channel_combo,
+            },
+            expansion_values=["plate", "well"],
+            metadata_combos=aggregate_wildcard_combos,
+        ),
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["generate_feature_table"],
+    params:
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        perturbation_id_col=config["aggregate"]["perturbation_id_col"],
+        control_key=config["aggregate"]["control_key"],
+        batch_cols=config["aggregate"]["batch_cols"],
+        batches=10,
+    script:
+        "../scripts/aggregate/generate_feature_table.py"
+
+
 rule align:
     input:
         filtered_paths=lambda wildcards: output_to_input(
@@ -61,6 +85,7 @@ rule align:
         batch_cols=config["aggregate"]["batch_cols"],
         variance_or_ncomp=config["aggregate"]["variance_or_ncomp"],
         control_key=config["aggregate"]["control_key"],
+        num_align_batches=config["aggregate"]["num_align_batches"],
     script:
         "../scripts/aggregate/align.py"
 
@@ -169,3 +194,4 @@ rule initiate_montage:
 rule all_aggregate:
     input:
         AGGREGATE_TARGETS_ALL,
+        # MONTAGE_TARGETS_ALL,

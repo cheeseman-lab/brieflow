@@ -77,16 +77,8 @@ def split_cell_data(cell_data, metadata_cols):
             only metadata columns and features is a DataFrame containing all
             non-metadata columns.
     """
-    # Ensure all metadata columns exist in the data
-    existing_metadata_cols = [col for col in metadata_cols if col in cell_data.columns]
 
-    # Get metadata columns
-    metadata = cell_data[existing_metadata_cols].copy()
-
-    # Get feature columns (all columns not in metadata)
-    features = cell_data.drop(columns=existing_metadata_cols).copy()
-
-    return metadata, features
+    return cell_data[metadata_cols], cell_data.drop(columns=metadata_cols)
 
 
 def channel_combo_subset(features, channel_combo, all_channels):

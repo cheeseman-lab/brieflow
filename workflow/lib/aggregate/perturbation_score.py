@@ -16,11 +16,8 @@ def get_top_differential_features(
         if feature not in control_cells.columns or feature not in gene_cells.columns:
             continue
 
-        control_values = control_cells[feature].dropna()
-        gene_values = gene_cells[feature].dropna()
-
-        if len(control_values) < 2 or len(gene_values) < 2:
-            continue
+        control_values = control_cells[feature]
+        gene_values = gene_cells[feature]
 
         t_stat, p_value = stats.ttest_ind(control_values, gene_values, equal_var=False)
 
@@ -37,7 +34,7 @@ def get_top_differential_features(
     return results_df.head(n_features)["feature"].tolist()
 
 
-def get_perturbation_score(cell_data, gene, diff_exp_features, pert_col, control_key):
+def get_perturbation_scores(cell_data, gene, diff_exp_features, pert_col, control_key):
     """Compute perturbation scores for a given gene using a projection-based method."""
 
     feature_data = cell_data[diff_exp_features]

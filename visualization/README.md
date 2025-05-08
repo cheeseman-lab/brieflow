@@ -22,7 +22,7 @@ The `ANALYSIS_DIR` should point to a directory that follows this structure:
 
 ```
 analysis/
-├── analysis_root/     # Contains all outputs including TSV files and images
+├── brieflow_output/     # Contains all outputs including TSV files and images
 ├── screen.yml        # Screen configuration file
 └── config/
     └── config.yml    # Analysis configuration file
@@ -43,4 +43,4 @@ ANALYSIS_DIR=/lab/cheeseman_ops/brieflow-screens/denali-analysis/analysis ./run-
 The visualization tool provides an interactive interface for exploring your analysis results. It automatically loads:
 - Screen configuration from `screen.yml`
 - Analysis configuration from `config/config.yml`
-- Analysis outputs from the `analysis_root` directory 
+- Analysis outputs from the `brieflow_output/` directory 

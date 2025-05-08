@@ -3,6 +3,7 @@ import os
 import re
 import pandas as pd
 
+
 class FileSystem:
     """
     Utility class for file system operations related to evaluation files.
@@ -24,7 +25,7 @@ class FileSystem:
         """
         # Use default extensions if none provided
         if extensions is None:
-            extensions = ['png', 'tsv']
+            extensions = ["png", "tsv"]
 
         # Find all files with specified extensions
         all_files = []
@@ -37,13 +38,23 @@ class FileSystem:
 
         # Filter for paths that include any of the specified strings
         if include_any and len(include_any) > 0:
-            filtered_files = [f for f in filtered_files if
-                              any(item in os.path.normpath(f).split(os.sep) for item in include_any)]
+            filtered_files = [
+                f
+                for f in filtered_files
+                if any(
+                    item in os.path.normpath(f).split(os.sep) for item in include_any
+                )
+            ]
 
         # Filter for paths that include all of the specified strings
         if include_all and len(include_all) > 0:
-            filtered_files = [f for f in filtered_files if
-                              all(item in os.path.normpath(f).split(os.sep) for item in include_all)]
+            filtered_files = [
+                f
+                for f in filtered_files
+                if all(
+                    item in os.path.normpath(f).split(os.sep) for item in include_all
+                )
+            ]
 
         # Return the array of matching file paths
         return filtered_files
@@ -59,7 +70,7 @@ class FileSystem:
         Returns:
             Well ID if found, None otherwise
         """
-        match = re.search(r'W-([A-Z]\d+)', file_path)
+        match = re.search(r"W-([A-Z]\d+)", file_path)
         return match.group(1) if match else None
 
     @staticmethod
@@ -73,7 +84,7 @@ class FileSystem:
         Returns:
             Plate ID if found, None otherwise
         """
-        match = re.search(r'P-(\d+)', file_path)
+        match = re.search(r"P-(\d+)", file_path)
         return match.group(1) if match else None
 
     @staticmethod
@@ -103,7 +114,7 @@ class FileSystem:
         Returns:
             Leiden resolution if found, None otherwise
         """
-        match = re.search(r'(LR-\d+)', file_path)
+        match = re.search(r"(LR-\d+)", file_path)
         return match.group(1) if match else None
 
     @staticmethod
@@ -130,22 +141,22 @@ class FileSystem:
 
             # Basic feature dictionary with new fields
             feature = {
-                'file_path': rel_path,
-                'dir': dirname,
-                'basename': name,
-                'ext': ext.lstrip('.')  # Remove the leading dot from extension
+                "file_path": rel_path,
+                "dir": dirname,
+                "basename": name,
+                "ext": ext.lstrip("."),  # Remove the leading dot from extension
             }
 
             # Extract identifiers and metadata from file path
-            feature['well_id'] = FileSystem.extract_well_id(rel_path)
-            feature['plate_id'] = FileSystem.extract_plate_id(rel_path)
-            feature['metric_name'] = FileSystem.extract_metric_name(rel_path)
-            #feature['leiden_resolution'] = FileSystem.extract_leiden_resolution(rel_path)
+            feature["well_id"] = FileSystem.extract_well_id(rel_path)
+            feature["plate_id"] = FileSystem.extract_plate_id(rel_path)
+            feature["metric_name"] = FileSystem.extract_metric_name(rel_path)
+            # feature['leiden_resolution'] = FileSystem.extract_leiden_resolution(rel_path)
 
             # Add directory levels, skipping omitted folders
             parts = dirname.split(os.sep)
             for i, part in enumerate(parts):
-                feature[f'dir_level_{i}'] = part
+                feature[f"dir_level_{i}"] = part
             features.append(feature)
 
         return pd.DataFrame(features)

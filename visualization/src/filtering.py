@@ -1,4 +1,3 @@
-
 def create_filter_radio(df, column, container, label=None, include_all=True):
     """
     Create a radio button for filtering based on a column.
@@ -28,6 +27,7 @@ def create_filter_radio(df, column, container, label=None, include_all=True):
                 selected_value = container.radio(label, values, index=0)
 
     return selected_value
+
 
 def apply_filter(df, column, selected_value):
     """

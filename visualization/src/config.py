@@ -14,10 +14,11 @@ SCREEN_PATH = os.environ["SCREEN_PATH"]
 logger.info(f"CONFIG_PATH: {os.path.abspath(CONFIG_PATH)}")
 logger.info(f"SCREEN_PATH: {os.path.abspath(SCREEN_PATH)}")
 
+
 def load_config():
     """Load the YAML configuration file."""
     try:
-        with open(CONFIG_PATH, 'r') as file:
+        with open(CONFIG_PATH, "r") as file:
             return yaml.safe_load(file)
     except FileNotFoundError:
         logger.error(f"Config file not found at: {os.path.abspath(CONFIG_PATH)}")

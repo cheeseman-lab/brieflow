@@ -11,6 +11,7 @@ st.set_page_config(
     layout="wide",
 )
 
+
 @st.cache_data
 def load_data(root_dir):
     global filtered_df
@@ -18,23 +19,24 @@ def load_data(root_dir):
     # Filter for dir_level_0 in ['phenotype', 'merge', 'sbs', 'aggregate'] and dir_level_1 == 'eval'
     files = FileSystem.find_files(
         root_dir,
-        include_any=['phenotype', 'merge', 'sbs', 'aggregate'],
-        include_all=['eval'],
-        extensions=['png', 'tsv']
+        include_any=["phenotype", "merge", "sbs", "aggregate"],
+        include_all=["eval"],
+        extensions=["png", "tsv"],
     )
     filtered_df = FileSystem.extract_features(root_dir, files)
     return filtered_df
+
 
 # Create filters using the helper function
 def apply_all_filters(df, sidebar):
     """Apply all filters in sequence and return the filtered dataframe."""
     filters = [
-        ('dir_level_0', 'Phase'),
+        ("dir_level_0", "Phase"),
         # Intentionally omitting dir_level_1
-        ('dir_level_2', 'Subgroup'),
-        ('plate_id', 'Plate'),
-        ('well_id', 'Well'),
-        ('metric_name', 'Metric')
+        ("dir_level_2", "Subgroup"),
+        ("plate_id", "Plate"),
+        ("well_id", "Well"),
+        ("metric_name", "Metric"),
     ]
 
     filtered_df = df.copy()
@@ -46,6 +48,7 @@ def apply_all_filters(df, sidebar):
         selected_values[column] = selected_value
 
     return filtered_df, selected_values
+
 
 st.title("Quality Control")
 st.markdown("Review the quality control metrics from the brieflow pipeline")

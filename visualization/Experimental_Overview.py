@@ -1,7 +1,5 @@
 import streamlit as st
-from pathlib import Path
 import yaml
-import os
 from src.config import SCREEN_PATH
 
 st.set_page_config(
@@ -18,4 +16,3 @@ def display_yaml(file_path):
 
 st.title("Experimental Overview")
 display_yaml(SCREEN_PATH)
-

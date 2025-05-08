@@ -17,14 +17,12 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
 from src.filesystem import FileSystem
-from src.rendering import VisualizationRenderer
 from src.filtering import create_filter_radio, apply_filter
-from src.config import get_analysis_root_dir
+from src.config import BRIEFLOW_OUTPUT_PATH
 
 # =====================
 # CONSTANTS
-ANALYSIS_ROOT = get_analysis_root_dir()
-CLUSTER_ROOT = os.path.join(ANALYSIS_ROOT, 'cluster')
+CLUSTER_ROOT = os.path.join(BRIEFLOW_OUTPUT_PATH, 'cluster')
 
 # Common hover data columns
 HOVER_COLUMNS = ['gene_symbol_0', 'cluster', 'cell_count', 'source']
@@ -473,7 +471,7 @@ def display_cluster(cluster_data, container=st.container()):
 
         # Construct the feature table path
         feature_table_path = os.path.join(
-            ANALYSIS_ROOT,
+            BRIEFLOW_OUTPUT_PATH,
             "aggregate",
             "tsvs",
             f"CeCl-{selected_cell_class}_ChCo-{selected_channel_combo}__feature_table.tsv"
@@ -679,7 +677,7 @@ else:
 
         selected_gene_info_df = cluster_data[cluster_data[groupby_column] == selected_item]
         genes = selected_gene_info_df['gene_symbol_0'].tolist()
-        gene_montages_root = os.path.join(ANALYSIS_ROOT, "aggregate", 'montages', f"{cell_class}__montages")
+        gene_montages_root = os.path.join(BRIEFLOW_OUTPUT_PATH, "aggregate", 'montages', f"{cell_class}__montages")
 
         ## Cluster Info
         # Create two columns for the title and clear button

@@ -3,7 +3,7 @@ import pandas as pd
 from src.filesystem import FileSystem
 from src.rendering import VisualizationRenderer
 from src.filtering import create_filter_radio, apply_filter
-from src.config import get_analysis_root_dir
+from src.config import BRIEFLOW_OUTPUT_PATH
 
 st.set_page_config(
     page_title="Quality Control - Brieflow Analysis",
@@ -50,14 +50,10 @@ def apply_all_filters(df, sidebar):
 st.title("Quality Control")
 st.markdown("Review the quality control metrics from the brieflow pipeline")
 
-# Get the analysis root directory
-ANALYSIS_ROOT_DIR = get_analysis_root_dir()
-st.write(f"Analysis root dir: {ANALYSIS_ROOT_DIR}")
-
 # Load the data
-filtered_df = load_data(ANALYSIS_ROOT_DIR)
+filtered_df = load_data(BRIEFLOW_OUTPUT_PATH)
 
 st.sidebar.title("Filters")
 filtered_df, selected_values = apply_all_filters(filtered_df, st.sidebar)
 
-VisualizationRenderer.display_plots_and_tables(filtered_df, ANALYSIS_ROOT_DIR)
+VisualizationRenderer.display_plots_and_tables(filtered_df, BRIEFLOW_OUTPUT_PATH)

@@ -110,6 +110,7 @@ def get_spot_detection_params(config):
                 "spotiflow_min_distance": module_config.get(
                     "spotiflow_min_distance", 1
                 ),
+                "remove_index": module_config.get("spotiflow_remove_index", 0),
             }
         )
     else:

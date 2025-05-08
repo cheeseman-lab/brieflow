@@ -201,14 +201,16 @@ def centerscale_by_batch(
         np.ndarray: Centered and scaled features.
     """
     if batch_col is None:
-        features = StandardScaler().fit_transform(features)
+        features = StandardScaler(copy=False).fit_transform(features)
     else:
         if metadata is None:
             raise ValueError("metadata must be provided if batch_col is not None")
         batches = metadata[batch_col].unique()
         for batch in batches:
             ind = metadata[batch_col] == batch
-            features[ind, :] = StandardScaler().fit_transform(features[ind, :])
+            features[ind, :] = StandardScaler(copy=False).fit_transform(
+                features[ind, :]
+            )
     return features
 
 
@@ -242,11 +244,11 @@ def centerscale_on_controls(
                 batch_ind & (metadata[pert_col].str.startswith(control_key)).to_list()
             )
             embeddings[batch_ind] = (
-                StandardScaler()
+                StandardScaler(copy=False)
                 .fit(embeddings[batch_control_ind])
                 .transform(embeddings[batch_ind])
             )
         return embeddings
 
     control_ind = metadata[pert_col].str.startswith(control_key).to_list()
-    return StandardScaler().fit(embeddings[control_ind]).transform(embeddings)
+    return StandardScaler(copy=False).fit(embeddings[control_ind]).transform(embeddings)

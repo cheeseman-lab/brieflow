@@ -13,7 +13,7 @@ from scipy import linalg
 
 
 def prepare_alignment_data(
-    metadata, features, batch_cols, pert_col, control_key, pert_id_col
+    metadata, features, batch_cols, pert_col=None, control_key=None, pert_id_col=None
 ):
     """Prepare batch values and split metadata and feature DataFrames.
 
@@ -39,7 +39,7 @@ def prepare_alignment_data(
     metadata["batch_values"] = batch_values
 
     # Add unique number suffix to perturbation names based on pert_id_col
-    if control_key is not None and pert_col is not None:
+    if control_key is not None and pert_col is not None and pert_id_col is not None:
         control_mask = metadata[pert_col] == control_key
         metadata.loc[control_mask, pert_col] = (
             control_key + "_" + metadata.loc[control_mask, pert_id_col].astype(str)

@@ -1,37 +1,29 @@
+import numpy as np
 import pandas as pd
 from scipy import stats
 from sklearn.linear_model import LinearRegression
 
 
 def get_top_differential_features(
-    cell_data, feature_cols, gene, pert_col, control_key, n_features=100
+    cell_data,
+    feature_cols,
+    gene,
+    pert_col,
+    control_key,
+    n_features: int = 200,
 ):
-    """Get top differentially expressed features between control and gene using t-test"""
-    results = []
+    """Get the top differentially expressed features between control cells and `gene`.
+    """
+    control_mask = cell_data[pert_col].str.startswith(control_key)
+    gene_mask = cell_data[pert_col] == gene
 
-    control_cells = cell_data[cell_data[pert_col].str.startswith(control_key)]
-    gene_cells = cell_data[cell_data[pert_col] == gene]
+    control_vals = cell_data.loc[control_mask, feature_cols].to_numpy(dtype=np.float32)
+    gene_vals = cell_data.loc[gene_mask, feature_cols].to_numpy(dtype=np.float32)
 
-    for feature in feature_cols:
-        if feature not in control_cells.columns or feature not in gene_cells.columns:
-            continue
+    _, pvals = stats.ttest_ind(control_vals, gene_vals, axis=0, equal_var=False)
 
-        control_values = control_cells[feature]
-        gene_values = gene_cells[feature]
-
-        t_stat, p_value = stats.ttest_ind(control_values, gene_values, equal_var=False)
-
-        results.append(
-            {
-                "feature": feature,
-                "pvalue": p_value,
-                "control_mean": control_values.mean(),
-                "gene_mean": gene_values.mean(),
-            }
-        )
-
-    results_df = pd.DataFrame(results).sort_values("pvalue")
-    return results_df.head(n_features)["feature"].tolist()
+    top_idx = np.argsort(pvals)[:n_features]
+    return [feature_cols[i] for i in top_idx]
 
 
 def get_perturbation_scores(cell_data, gene, diff_exp_features, pert_col, control_key):

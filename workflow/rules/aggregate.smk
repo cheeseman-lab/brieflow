@@ -89,32 +89,34 @@ rule perturbation_score:
         "../scripts/aggregate/perturbation_score.py"
 
 
-rule align:
-    input:
-        AGGREGATE_OUTPUTS_MAPPED["perturbation_score"],
-    params:
-        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        perturbation_id_col=config["aggregate"]["perturbation_id_col"],
-        batch_cols=config["aggregate"]["batch_cols"],
-        variance_or_ncomp=config["aggregate"]["variance_or_ncomp"],
-        control_key=config["aggregate"]["control_key"],
-        num_align_batches=config["aggregate"]["num_align_batches"],
-    script:
-        "../scripts/aggregate/align.py"
+# rule align:
+#     input:
+#         AGGREGATE_OUTPUTS_MAPPED["perturbation_score"],
+#     output:
+#         AGGREGATE_OUTPUTS_MAPPED["align"],
+#     params:
+#         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+#         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+#         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
+#         batch_cols=config["aggregate"]["batch_cols"],
+#         variance_or_ncomp=config["aggregate"]["variance_or_ncomp"],
+#         control_key=config["aggregate"]["control_key"],
+#         num_align_batches=config["aggregate"]["num_align_batches"],
+#     script:
+#         "../scripts/aggregate/align.py"
 
 
-rule aggregate:
-    input:
-        AGGREGATE_OUTPUTS_MAPPED["align"],
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["aggregate"],
-    params:
-        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        agg_method=config["aggregate"]["agg_method"],
-    script:
-        "../scripts/aggregate/aggregate.py"
+# rule aggregate:
+#     input:
+#         AGGREGATE_OUTPUTS_MAPPED["align"],
+#     output:
+#         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
+#     params:
+#         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+#         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+#         agg_method=config["aggregate"]["agg_method"],
+#     script:
+#         "../scripts/aggregate/aggregate.py"
 
 
 # rule eval_aggregate:

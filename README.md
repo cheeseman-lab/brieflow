@@ -113,4 +113,4 @@ We use the following conventions:
 - [parquet](https://www.databricks.com/glossary/what-is-parquet) file format for saving large dataframes
 - Data location information (well, tile, cycle, etc) + `__` + type of information (cell features, phenotype info, etc) + `.` + file type. 
 Data is stored in its respective analysis directories. 
-For example: `analysis_root/preprocess/metadata/phenotype/P-1_W-A2_T-571__metadata.tsv`
+For example: `brieflow_output/preprocess/metadata/phenotype/P-1_W-A2_T-571__metadata.tsv`

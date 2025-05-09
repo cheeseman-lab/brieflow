@@ -32,3 +32,5 @@ pydocstyle = { convention = "google" }
 "docs/source/*.py" = ["ALL"]
 # Ignore all checks for tests
 "tests/*.py" = ["ALL"]
+# Visualization code
+"visualization/*.py" = ["ALL"]

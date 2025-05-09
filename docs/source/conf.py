@@ -30,5 +30,3 @@ html_theme = "sphinx_rtd_theme"
 # Build docs to test locally
 # cd brieflow/
 # make -C docs html
-
-

@@ -139,6 +139,8 @@ rule call_reads:
 ## Reproducibility and Modularity
 
 Brieflow and brieflow-analysis are built for reproducibility and modularity.
-This 2-repository system enables researchers to
+This setup enables researchers to
 - work on a specific process within brieflow (ex, make siloed changes to `call_reads`)
 - develop versions of brieflow that can be used across multiple brieflow-analysis repositories (ex, a `custom_screen` branch for brieflow can be used in multiple brieflow-analysis repos)
+- track exact differences between the `main` branch of brieflow and a custom branch
+- host an entire screen analysis on GitHub for reproducibility

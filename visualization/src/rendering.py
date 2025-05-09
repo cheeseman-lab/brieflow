@@ -26,12 +26,10 @@ class VisualizationRenderer:
         for (dir_name, base_name), group_df in grouped:
             with st.container():
                 attrs, metric_name, _ = parse_filename(base_name)
-                title_parts = [metric_name]
-                if "cell_class" in attrs:
-                    title_parts.append(f"Cell Class: {attrs['cell_class']}")
-                if "channel_combo" in attrs:
-                    title_parts.append(f"Channel Combo: {attrs['channel_combo']}")
-                st.markdown(f"### {' – '.join(title_parts)}")
+                metric_title = metric_name.replace('_', ' ').title()
+                attr_parts = [f"{k.replace('_', ' ').title()}: {v}" for k, v in attrs.items()]
+                title = f"{metric_title} - " + ", ".join(attr_parts)
+                st.markdown(f"### {title}")
 
                 # Count only the items we'll actually display
                 display_items = []

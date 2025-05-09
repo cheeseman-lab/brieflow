@@ -1,5 +1,7 @@
+import os
+import glob
+
 import streamlit as st
-import pandas as pd
 from src.filesystem import FileSystem
 from src.rendering import VisualizationRenderer
 from src.filtering import create_filter_radio, apply_filter
@@ -11,18 +13,17 @@ st.set_page_config(
     layout="wide",
 )
 
+def find_eval_files(root_dir):
+    png_files = glob.glob(os.path.join(root_dir, "*", "eval", "*.png"))
+    tsv_files = glob.glob(os.path.join(root_dir, "*", "eval", "*.tsv"))
+    return png_files + tsv_files
+
+
 
 @st.cache_data
 def load_data(root_dir):
     global filtered_df
-    # Apply filters directly during file discovery for better performance
-    # Filter for dir_level_0 in ['phenotype', 'merge', 'sbs', 'aggregate'] and dir_level_1 == 'eval'
-    files = FileSystem.find_files(
-        root_dir,
-        include_any=["phenotype", "merge", "sbs", "aggregate"],
-        include_all=["eval"],
-        extensions=["png", "tsv"],
-    )
+    files = find_eval_files(root_dir)
     filtered_df = FileSystem.extract_features(root_dir, files)
     return filtered_df
 

@@ -26,8 +26,10 @@ class VisualizationRenderer:
         for (dir_name, base_name), group_df in grouped:
             with st.container():
                 attrs, metric_name, _ = parse_filename(base_name)
-                metric_title = metric_name.replace('_', ' ').title()
-                attr_parts = [f"{k.replace('_', ' ').title()}: {v}" for k, v in attrs.items()]
+                metric_title = metric_name.replace("_", " ").title()
+                attr_parts = [
+                    f"{k.replace('_', ' ').title()}: {v}" for k, v in attrs.items()
+                ]
                 title = f"{metric_title} - " + ", ".join(attr_parts)
                 st.markdown(f"### {title}")
 

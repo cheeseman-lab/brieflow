@@ -579,13 +579,15 @@ def display_cluster_json(cluster_data, container=st.container()):
         # Build the path to the clusters.json file in mozzarellm_analysis dir
         mozzarellm_dir = os.path.join(cluster_dir, "mozzarellm_analysis")
         cluster_json_path = None
-        
+
         if os.path.exists(mozzarellm_dir):
             # Find the first file that ends with _clusters.json
-            json_files = [f for f in os.listdir(mozzarellm_dir) if f.endswith("_clusters.json")]
+            json_files = [
+                f for f in os.listdir(mozzarellm_dir) if f.endswith("_clusters.json")
+            ]
             if json_files:
                 cluster_json_path = os.path.join(mozzarellm_dir, json_files[0])
-        
+
         if os.path.exists(cluster_json_path):
             st.markdown("### LLM Cluster Analysis")
             with open(cluster_json_path, "r") as f:
@@ -723,7 +725,11 @@ st.sidebar.title("Filters")
 
 # Channel Combo
 selected_channel_combo = create_filter_radio(
-    cluster_data, "channel_combo", st.sidebar, label="**Channel Combo**", include_all=False
+    cluster_data,
+    "channel_combo",
+    st.sidebar,
+    label="**Channel Combo**",
+    include_all=False,
 )
 st.sidebar.markdown("Used to subset features during aggregation.")
 cluster_data = apply_filter(cluster_data, "channel_combo", selected_channel_combo)
@@ -737,7 +743,9 @@ selected_cell_class = st.sidebar.radio(
     if st.session_state.cell_class in cell_class_options
     else 0,
 )
-st.sidebar.markdown("Used to subset single cell data with classifier provided during aggregation.")
+st.sidebar.markdown(
+    "Used to subset single cell data with classifier provided during aggregation."
+)
 cluster_data = apply_filter(cluster_data, "cell_class", selected_cell_class)
 st.session_state.cell_class = selected_cell_class
 
@@ -750,7 +758,9 @@ selected_lr = create_filter_radio(
     label="**Leiden Resolution**",
     include_all=False,
 )
-st.sidebar.markdown("Used in the Leiden clustering algorithm to determine gene clusters.")
+st.sidebar.markdown(
+    "Used in the Leiden clustering algorithm to determine gene clusters."
+)
 cluster_data = apply_filter(cluster_data, "leiden_resolution", selected_lr)
 
 

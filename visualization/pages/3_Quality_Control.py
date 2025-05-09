@@ -13,11 +13,11 @@ st.set_page_config(
     layout="wide",
 )
 
+
 def find_eval_files(root_dir):
     png_files = glob.glob(os.path.join(root_dir, "*", "eval", "*.png"))
     tsv_files = glob.glob(os.path.join(root_dir, "*", "eval", "*.tsv"))
     return png_files + tsv_files
-
 
 
 @st.cache_data

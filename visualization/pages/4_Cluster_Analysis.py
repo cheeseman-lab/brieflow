@@ -728,23 +728,19 @@ selected_channel_combo = create_filter_radio(
     cluster_data,
     "channel_combo",
     st.sidebar,
-    label="**Channel Combo**",
+    label="**Channel Combo** - *Used to subset features during aggregation*",
     include_all=False,
 )
-st.sidebar.markdown("Used to subset features during aggregation.")
 cluster_data = apply_filter(cluster_data, "channel_combo", selected_channel_combo)
 
 # Cell Class
 cell_class_options = ["all", "Mitotic", "Interphase"]
 selected_cell_class = st.sidebar.radio(
-    "**Cell Class**",
+    "**Cell Class** - *Used to subset single cell data with classifier provided during aggregation*",
     cell_class_options,
     index=cell_class_options.index(st.session_state.cell_class)
     if st.session_state.cell_class in cell_class_options
     else 0,
-)
-st.sidebar.markdown(
-    "Used to subset single cell data with classifier provided during aggregation."
 )
 cluster_data = apply_filter(cluster_data, "cell_class", selected_cell_class)
 st.session_state.cell_class = selected_cell_class
@@ -755,11 +751,8 @@ selected_lr = create_filter_radio(
     cluster_data,
     "leiden_resolution",
     st.sidebar,
-    label="**Leiden Resolution**",
+    """**Leiden Resolution** - *Used in the Leiden clustering algorithm to determine gene clusters*""",
     include_all=False,
-)
-st.sidebar.markdown(
-    "Used in the Leiden clustering algorithm to determine gene clusters."
 )
 cluster_data = apply_filter(cluster_data, "leiden_resolution", selected_lr)
 

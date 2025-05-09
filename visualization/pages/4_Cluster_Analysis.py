@@ -576,10 +576,16 @@ def display_cluster_json(cluster_data, container=st.container()):
         # Because the interphase folder has mixed case
         cluster_dir = os.path.dirname(cluster_data["source_full_path"].unique()[0])
 
-        # Build the path to the gpt-4o_clusters.json file
-        cluster_json_path = os.path.join(
-            cluster_dir, "mozzarellm", "gpt-4o_clusters.json"
-        )
+        # Build the path to the clusters.json file in mozzarellm_analysis dir
+        mozzarellm_dir = os.path.join(cluster_dir, "mozzarellm_analysis")
+        cluster_json_path = None
+        
+        if os.path.exists(mozzarellm_dir):
+            # Find the first file that ends with _clusters.json
+            json_files = [f for f in os.listdir(mozzarellm_dir) if f.endswith("_clusters.json")]
+            if json_files:
+                cluster_json_path = os.path.join(mozzarellm_dir, json_files[0])
+        
         if os.path.exists(cluster_json_path):
             st.markdown("### LLM Cluster Analysis")
             with open(cluster_json_path, "r") as f:

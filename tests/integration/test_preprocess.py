@@ -23,7 +23,7 @@ with open(CONFIG_FILE_PATH, "r") as config_file:
     config = yaml.safe_load(config_file)
 
 
-ROOT_FP = TEST_ANALYSIS_PATH / "analysis_root"
+ROOT_FP = TEST_ANALYSIS_PATH / "brieflow_output"
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
 

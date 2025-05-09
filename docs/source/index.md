@@ -33,7 +33,7 @@ brieflow_brieflow_analysis.md
 before_you_screen.md
 screen_analysis_setup.md
 running_modules.md
+example_analyses.md
 config_glossary.md
-example_analysis.md
 development.md
 ```

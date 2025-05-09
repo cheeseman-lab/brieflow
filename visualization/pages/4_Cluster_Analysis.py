@@ -723,30 +723,34 @@ st.sidebar.title("Filters")
 
 # Channel Combo
 selected_channel_combo = create_filter_radio(
-    cluster_data, "channel_combo", st.sidebar, "Channel Combo", include_all=False
+    cluster_data, "channel_combo", st.sidebar, label="**Channel Combo**", include_all=False
 )
+st.sidebar.markdown("Used to subset features during aggregation.")
 cluster_data = apply_filter(cluster_data, "channel_combo", selected_channel_combo)
 
 # Cell Class
-cell_class_options = ["all", "Mitotic", "Interphase"]  # Add default options
+cell_class_options = ["all", "Mitotic", "Interphase"]
 selected_cell_class = st.sidebar.radio(
-    "Cell Class",
+    "**Cell Class**",
     cell_class_options,
     index=cell_class_options.index(st.session_state.cell_class)
     if st.session_state.cell_class in cell_class_options
     else 0,
 )
+st.sidebar.markdown("Used to subset single cell data with classifier provided during aggregation.")
 cluster_data = apply_filter(cluster_data, "cell_class", selected_cell_class)
 st.session_state.cell_class = selected_cell_class
+
 
 # Leiden Resolution
 selected_lr = create_filter_radio(
     cluster_data,
     "leiden_resolution",
     st.sidebar,
-    "Leiden Resolution",
+    label="**Leiden Resolution**",
     include_all=False,
 )
+st.sidebar.markdown("Used in the Leiden clustering algorithm to determine gene clusters.")
 cluster_data = apply_filter(cluster_data, "leiden_resolution", selected_lr)
 
 

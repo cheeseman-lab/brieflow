@@ -578,7 +578,7 @@ def display_cluster_json(cluster_data, container=st.container()):
 
         # Build the path to the clusters.json file in mozzarellm_analysis dir
         mozzarellm_dir = os.path.join(cluster_dir, "mozzarellm_analysis")
-        cluster_json_path = None
+        cluster_json_path = ""
 
         if os.path.exists(mozzarellm_dir):
             # Find the first file that ends with _clusters.json

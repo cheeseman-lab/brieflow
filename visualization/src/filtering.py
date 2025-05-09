@@ -18,7 +18,10 @@ def create_filter_radio(df, column, container, label=None, include_all=True):
     selected_value = "All" if include_all else None
     if column in df.columns:
         values = df[column].dropna().unique().tolist()
-        values.sort()  # Sort alphabetically
+        try:
+            values.sort(key=lambda x: int(x))
+        except ValueError:
+            values.sort()
         if values:
             if include_all:
                 selected_value = container.radio(label, ["All"] + values)

@@ -576,10 +576,18 @@ def display_cluster_json(cluster_data, container=st.container()):
         # Because the interphase folder has mixed case
         cluster_dir = os.path.dirname(cluster_data["source_full_path"].unique()[0])
 
-        # Build the path to the gpt-4o_clusters.json file
-        cluster_json_path = os.path.join(
-            cluster_dir, "mozzarellm", "gpt-4o_clusters.json"
-        )
+        # Build the path to the clusters.json file in mozzarellm_analysis dir
+        mozzarellm_dir = os.path.join(cluster_dir, "mozzarellm_analysis")
+        cluster_json_path = None
+
+        if os.path.exists(mozzarellm_dir):
+            # Find the first file that ends with _clusters.json
+            json_files = [
+                f for f in os.listdir(mozzarellm_dir) if f.endswith("_clusters.json")
+            ]
+            if json_files:
+                cluster_json_path = os.path.join(mozzarellm_dir, json_files[0])
+
         if os.path.exists(cluster_json_path):
             st.markdown("### LLM Cluster Analysis")
             with open(cluster_json_path, "r") as f:
@@ -717,14 +725,18 @@ st.sidebar.title("Filters")
 
 # Channel Combo
 selected_channel_combo = create_filter_radio(
-    cluster_data, "channel_combo", st.sidebar, "Channel Combo", include_all=False
+    cluster_data,
+    "channel_combo",
+    st.sidebar,
+    label="**Channel Combo** - *Used to subset features during aggregation*",
+    include_all=False,
 )
 cluster_data = apply_filter(cluster_data, "channel_combo", selected_channel_combo)
 
 # Cell Class
-cell_class_options = ["all", "Mitotic", "Interphase"]  # Add default options
+cell_class_options = ["all", "Mitotic", "Interphase"]
 selected_cell_class = st.sidebar.radio(
-    "Cell Class",
+    "**Cell Class** - *Used to subset single cell data with classifier provided during aggregation*",
     cell_class_options,
     index=cell_class_options.index(st.session_state.cell_class)
     if st.session_state.cell_class in cell_class_options
@@ -733,12 +745,13 @@ selected_cell_class = st.sidebar.radio(
 cluster_data = apply_filter(cluster_data, "cell_class", selected_cell_class)
 st.session_state.cell_class = selected_cell_class
 
+
 # Leiden Resolution
 selected_lr = create_filter_radio(
     cluster_data,
     "leiden_resolution",
     st.sidebar,
-    "Leiden Resolution",
+    """**Leiden Resolution** - *Used in the Leiden clustering algorithm to determine gene clusters*""",
     include_all=False,
 )
 cluster_data = apply_filter(cluster_data, "leiden_resolution", selected_lr)

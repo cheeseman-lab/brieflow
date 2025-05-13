@@ -12,7 +12,7 @@ We highly recommend reviewing the following materials before screening:
 
 ## Data Creation SOP
 
-## 1. Data Structure
+### 1. Data Structure
 
 The OPS data must follow a hierarchical structure:
 
@@ -31,11 +31,11 @@ screen_name/
 └── ... (plates of pooled screening data)
 ```
 
-## 2. File Naming Conventions
+### 2. File Naming Conventions
 
 **Note:** The Nikon microscope may generate subfolders with dates that are required for its output structure. Including these as subfolders of the rounds or cycles directories is not a problem. The same concept is relevant to if you are testing different magnifications or image acquisition approaches—these should be in subfolders of the round or cycles directories.
 
-### 2.1 SBS (Sequencing) Files
+#### 2.1 SBS (Sequencing) Files
 
 - Files must be located within cycle directories (`c1`, `c2`, etc.)
 - Naming format should include plate number, well ID, and tile number information
@@ -43,7 +43,7 @@ screen_name/
 
 **Example SBS filename:** `screen_name/plate_1/c2/P001_Wells-A3_Points-214.nd2`
 
-### 2.2 Phenotype Files
+#### 2.2 Phenotype Files
 
 - Files must be located within round directories (`round_1`, `round_2`, etc.)
 - Naming format should include plate number, well ID, and tile number information
@@ -51,7 +51,7 @@ screen_name/
 
 **Example Phenotype filename:** `screen_name/plate_1/input_ph/round_1/P001_Wells-B1_Points-585.nd2`
 
-## 3. Alignment Verification
+### 3. Alignment Verification
 
 **Critical Quality Control Step:** Check alignment between:
 - Rounds of phenotyping data (`round_1` vs. `round_2` vs. …)  
@@ -59,6 +59,6 @@ screen_name/
 
 Alignment verification should be performed before proceeding with downstream analysis. Downstream analysis will be impossible with large spatial shifts in alignment.
 
-## 4. Screen Name and Metadata Tracking
+### 4. Screen Name and Metadata Tracking
 
 Please inform Matteo Di Bernardo (mdiberna@wi.mit.edu) when you are beginning to acquire a screen. He will provide an appropriate unique screen name and a metadata tracking guide that will be associated with your screen and facilitate downstream analysis.

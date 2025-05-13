@@ -73,8 +73,7 @@ TODO: Add video <>
 
 - A slurm run's log files are output to `brieflow-analysis/analysis/slurm/slurm_output/main`
 - The preprocessing, SBS, and phenotype modules have special slurm files to optimize running by grouping rule jobs and splitting snakemake runs by plate.
-- Because of how snakemake generates DAGs, it is usually helpful to restrict the rules loaded for very large runs. When analyzing a large screen, we recommend commenting out the uncessary targets/rules in `brieflow/workflow/Snakefile`. Ex: when running aggregate, only the merge targets and aggregate rules/targets are neccesssary, so we can comment out the other components as shown below:
-
+- Because of how snakemake generates DAGs, it is usually helpful to restrict the rules loaded for very large runs. When analyzing a large screen, we recommend commenting out the uncessary targets/rules in `brieflow/workflow/Snakefile`. Ex: when running aggregate, only the merge targets and aggregate rules/targets are neccesssary, so we can comment out the other components as shown below.
 <details>
 <summary>View restricted Snakefile example</summary>
 
@@ -118,5 +117,5 @@ if "aggregate" in config:
 #     include: "targets/cluster.smk"
 #     include: "rules/cluster.smk"
 ```
-
 </details>
+^ Make sure to do a dry run to make sure the correct jobs will be run (step 2)! 

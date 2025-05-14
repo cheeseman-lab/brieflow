@@ -1,4 +1,6 @@
-def create_filter_radio(df, column, container, label=None, include_all=True):
+import streamlit as st
+
+def create_filter_radio(df, column, container, label=None, include_all=True, key=None):
     """
     Create a radio button for filtering based on a column.
 
@@ -8,6 +10,7 @@ def create_filter_radio(df, column, container, label=None, include_all=True):
         container: Streamlit container to place the radio button in
         label: Label for the radio button (defaults to "Filter by {column}")
         include_all: Whether to include an "All" option (defaults to True)
+        key: Unique key for the Streamlit radio widget (defaults to None)
 
     Returns:
         Selected value from the radio button
@@ -15,7 +18,14 @@ def create_filter_radio(df, column, container, label=None, include_all=True):
     if label is None:
         label = f"Filter by {column}"
 
-    selected_value = "All" if include_all else None
+    # Initialize the selection in session state if it doesn't exist
+    state_key = f"{key}_selection"
+    if state_key not in st.session_state:
+        st.session_state[state_key] = "All" if include_all else None
+
+    def on_change():
+        st.session_state[state_key] = st.session_state[key]
+
     if column in df.columns:
         values = df[column].dropna().unique().tolist()
         try:
@@ -23,13 +33,22 @@ def create_filter_radio(df, column, container, label=None, include_all=True):
         except ValueError:
             values.sort()
         if values:
-            if include_all:
-                selected_value = container.radio(label, ["All"] + values)
-            else:
-                # Default to the first value when "All" is not included
-                selected_value = container.radio(label, values, index=0)
+            options = ["All"] + values if include_all else values
+            # Find the index of the current selection
+            index = 0
+            if st.session_state[state_key] in options:
+                index = options.index(st.session_state[state_key])
+            
+            # Create the radio button with the callback
+            container.radio(
+                label,
+                options,
+                index=index,
+                key=key,
+                on_change=on_change
+            )
 
-    return selected_value
+    return st.session_state[state_key]
 
 
 def apply_filter(df, column, selected_value):

@@ -788,13 +788,25 @@ else:
                 None  # Reset selected gene when cluster changes
             )
 
-        st.selectbox(
-            "Select a cluster to view",
-            options=cluster_options,
-            index=selected_index,
-            key="cluster_dropdown",
-            on_change=on_cluster_select,
-        )
+        # Create a container with an outline for the cluster selection
+        with st.container():
+            st.write("""
+                <style>
+                div[data-testid="stElementContainer"][data-stale="false"][class*="st-key-cluster_dropdown"] {
+                    border: 1px solid #4a4a4a;
+                    border-radius: 5px;
+                    padding: 1rem;
+                    margin-bottom: 1rem;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            st.selectbox(
+                "Select a cluster to view",
+                options=cluster_options,
+                index=selected_index,
+                key="cluster_dropdown",
+                on_change=on_cluster_select,
+            )
 
         selected_gene_info_df = cluster_data[
             cluster_data[groupby_column] == selected_item

@@ -806,12 +806,23 @@ else:
 
         ## Cluster Info
         # Create two columns for the title and clear button
-        title_col, button_col = st.columns([7, 1])
+        title_col, button_col = st.columns([2, 1])
         with title_col:
             st.write(f"## Cluster {selected_item}: {len(genes)} genes")
         with button_col:
+            # Add float styling and red color specifically for the Close Cluster button
+            st.markdown("""
+                <style>
+                div[data-testid="stButton"] button {
+                    float: right;
+                    background-color: #dc2626 !important;
+                    border-color: #dc2626 !important;
+                    color: white !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
             # Show selected item and clear button if an item is selected
-            if st.button("X"):
+            if st.button("Close Cluster"):
                 st.session_state.selected_item = None
                 st.session_state.selected_gene = None
                 st.rerun()

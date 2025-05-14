@@ -36,6 +36,7 @@ SOURCE_INDEX = 3
 # =====================
 # FUNCTIONS
 
+# -- Data Load Methods --
 # Load and merge cluster TSV files
 @st.cache_data
 def load_cluster_data():
@@ -71,6 +72,26 @@ def load_cluster_data():
     # Concatenate all dataframes
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
+@st.cache_data
+def load_montage_data(root_dir, gene_name):
+    # Find all montage files
+    files = FileSystem.find_files(
+        root_dir + "/" + gene_name, include_all=["montages"], extensions=["png"]
+    )
+
+    # Extract features from the file paths
+    filtered_df = FileSystem.extract_features(root_dir, files)
+
+    # Add additional columns based on the file path structure
+    filtered_df["gene"] = filtered_df["file_path"].apply(lambda x: x.split("/")[-3])
+    filtered_df["guide"] = filtered_df["file_path"].apply(lambda x: x.split("/")[-2])
+    filtered_df["channel"] = filtered_df["file_path"].apply(
+        lambda x: x.split("/")[-1].split("__")[0]
+    )
+
+    return filtered_df
+
+# -- Cluster scatter methods --
 # Extract item value from selected point
 def get_item_value_from_point(selected_point, groupby_column):
     # Get value from customdata which contains the hover_data values
@@ -112,25 +133,7 @@ def make_scatter_trace(x, y, marker, text, customdata, name, showlegend, color=N
         showlegend=False,
     )
 
-@st.cache_data
-def load_montage_data(root_dir, gene_name):
-    # Find all montage files
-    files = FileSystem.find_files(
-        root_dir + "/" + gene_name, include_all=["montages"], extensions=["png"]
-    )
-
-    # Extract features from the file paths
-    filtered_df = FileSystem.extract_features(root_dir, files)
-
-    # Add additional columns based on the file path structure
-    filtered_df["gene"] = filtered_df["file_path"].apply(lambda x: x.split("/")[-3])
-    filtered_df["guide"] = filtered_df["file_path"].apply(lambda x: x.split("/")[-2])
-    filtered_df["channel"] = filtered_df["file_path"].apply(
-        lambda x: x.split("/")[-1].split("__")[0]
-    )
-
-    return filtered_df
-
+# -- Display helpers --
 def display_gene_montages(gene_montages_root, gene):
     gene_dir = os.path.join(gene_montages_root, gene)
     if not os.path.exists(gene_dir):
@@ -645,6 +648,8 @@ def display_uniprot_info():
                 else:
                     st.write("Uniprot Function: Not available")
 
+# -- Search/Filter state management --
+
 def initialize_session_state() -> None:
     """Initialize all session state variables used in the cluster analysis.
 
@@ -692,7 +697,6 @@ def initialize_session_state() -> None:
     if "filter_counter" not in st.session_state:
         st.session_state.filter_counter = 0
 
-# --- Widget Callbacks ---
 def on_global_gene_select() -> None:
     """Callback function for global gene selection.
 
@@ -840,6 +844,8 @@ def get_cluster_genes(data, cluster_id):
         cluster_val = cluster_id
     return sorted(data[data["cluster"] == cluster_val]["gene_symbol_0"].unique())
 
+# ===
+
 # Call initialize_session_state at the start of the script
 initialize_session_state()
 
@@ -894,7 +900,6 @@ with col2:
         on_change=on_cluster_select,
     )
 
-# --- Main Display ---
 if not st.session_state.selected_item:
     # No cluster selected: Just show the full width cluster plot
     display_cluster(cluster_data, cell_class=st.session_state.cell_class, channel_combo=st.session_state.channel_combo)

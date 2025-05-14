@@ -25,15 +25,14 @@ We recommend you view the doc pages below (in order) before using brieflow/brief
 Brieflow is a community-driven project, and we welcome contributions from anyone interested in improving the tool :)
 
 ```{toctree}
-:hidden:
 :maxdepth: 2
 :caption: Contents:
 
-brieflow_brieflow_analysis.md
-before_you_screen.md
-screen_analysis_setup.md
-running_modules.md
+0.brieflow_brieflow_analysis.md
+1.before_you_screen.md
+2.screen_analysis_setup.md
+3.running_modules.md
+4.development.md
 example_analyses.md
 config_glossary.md
-development.md
 ```

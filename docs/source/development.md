@@ -49,4 +49,4 @@ Make sure to self-review the PR to ensure the additional code is only what is us
 We aim to strike a balance between simplicity and funcitonaliy in the `main` branch.
 For this reason, we will only incorporate code into main that is helpful for a general/standardized OPS screening context.
 If you have code that would help other brieflow users, please make a [pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork) to `main`.
-Matteo and Roshan will review this pull request and guide it merge!
+Matteo and Roshan will review this pull request and guide it to be merged!

@@ -10,7 +10,7 @@ The general process of screen adaptation is as follows:
 
 1) Make a new fork/branch for a new screening context.
 Adapt Brieflow for this screening context.
-2) If there is code that would be useful to the `main` branhc, make a PR to contribute this code.
+2) If there is code that would be useful to the `main` branch, make a PR to contribute this code.
 See the *Contributing* section below for more info.
 
 [Matteo](https://github.com/mat10d) and [Roshan](https://github.com/roshankern) will be responsible for `main` brieflow development. 

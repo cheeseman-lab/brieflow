@@ -11,7 +11,6 @@ import glob
 import os
 import json
 
-import plotly.express as px
 import plotly.graph_objects as go
 
 import matplotlib.pyplot as plt
@@ -36,7 +35,6 @@ SOURCE_INDEX = 3
 
 # =====================
 # FUNCTIONS
-
 
 # Load and merge cluster TSV files
 @st.cache_data
@@ -73,39 +71,6 @@ def load_cluster_data():
     # Concatenate all dataframes
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
-
-# Create a scatter plot with consistent settings
-def create_scatter_plot(
-    data, color_column, color_discrete_sequence, color_discrete_map=None
-):
-    fig = px.scatter(
-        data,
-        x="PHATE_0",
-        y="PHATE_1",
-        color=color_column,
-        hover_data=HOVER_COLUMNS,
-        title="PHATE Visualization",
-        width=1000,
-        height=800,
-        color_discrete_sequence=color_discrete_sequence,
-        color_discrete_map=color_discrete_map or {},
-    )
-
-    # Apply hover template to all traces
-    for trace in fig.data:
-        trace.hovertemplate = (
-            "PHATE_0=%{x}<br>"
-            "PHATE_1=%{y}<br>"
-            f"gene_symbol_0=%{{customdata[{GENE_SYMBOL_INDEX}]}}<br>"
-            f"cluster=%{{customdata[{CLUSTER_INDEX}]}}<br>"
-            f"cell_count=%{{customdata[{CELL_COUNT_INDEX}]}}<br>"
-            f"source=%{{customdata[{SOURCE_INDEX}]}}<br>"
-            "<extra></extra>"
-        )
-
-    return fig
-
-
 # Extract item value from selected point
 def get_item_value_from_point(selected_point, groupby_column):
     # Get value from customdata which contains the hover_data values
@@ -120,7 +85,6 @@ def get_item_value_from_point(selected_point, groupby_column):
         return selected_point["legendgroup"]
 
     return None
-
 
 # Helper function to create a scatter trace
 def make_scatter_trace(x, y, marker, text, customdata, name, showlegend, color=None):
@@ -148,7 +112,6 @@ def make_scatter_trace(x, y, marker, text, customdata, name, showlegend, color=N
         showlegend=False,
     )
 
-
 @st.cache_data
 def load_montage_data(root_dir, gene_name):
     # Find all montage files
@@ -167,7 +130,6 @@ def load_montage_data(root_dir, gene_name):
     )
 
     return filtered_df
-
 
 def display_gene_montages(gene_montages_root, gene):
     gene_dir = os.path.join(gene_montages_root, gene)
@@ -249,7 +211,6 @@ def display_gene_montages(gene_montages_root, gene):
                     st.warning(f"No overlay tiff found: {overlay_tiff_path}")
             else:
                 st.warning(f"No image found for {gene} - {selected_guide}")
-
 
 def display_cluster(cluster_data, cell_class=None, channel_combo=None):
     r"""
@@ -569,7 +530,6 @@ def display_cluster(cluster_data, cell_class=None, channel_combo=None):
     else:
         st.write("No cluster data files found.")
 
-
 def display_cluster_json(cluster_data, container=st.container()):
     if (
         "selected_item" in st.session_state
@@ -667,7 +627,6 @@ def display_cluster_json(cluster_data, container=st.container()):
                 )
                 return
 
-
 def display_uniprot_info():
     if st.session_state.selected_gene:
         source_tsv = cluster_data["source_full_path"].unique()[0]
@@ -685,7 +644,6 @@ def display_uniprot_info():
                     st.markdown(f"Uniprot Function:\n>{function_text}")
                 else:
                     st.write("Uniprot Function: Not available")
-
 
 def initialize_session_state() -> None:
     """Initialize all session state variables used in the cluster analysis.
@@ -733,20 +691,6 @@ def initialize_session_state() -> None:
     # Initialize filter counter for unique keys
     if "filter_counter" not in st.session_state:
         st.session_state.filter_counter = 0
-
-def get_filter_key(base_key: str) -> str:
-    """Generate a unique but stable key for filter elements.
-
-    Args:
-        base_key: The base key to use for the filter element
-
-    Returns:
-        A unique key string that includes a counter
-    """
-    key = f"{base_key}_{st.session_state.filter_counter}"
-    st.session_state.filter_counter += 1
-    return key
-
 
 # --- Widget Callbacks ---
 def on_global_gene_select() -> None:

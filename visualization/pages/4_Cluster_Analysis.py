@@ -799,7 +799,7 @@ else:
         selected_gene_info_df = cluster_data[
             cluster_data[groupby_column] == selected_item
         ]
-        genes = selected_gene_info_df["gene_symbol_0"].tolist()
+        genes = sorted(selected_gene_info_df["gene_symbol_0"].tolist())
         gene_montages_root = os.path.join(
             BRIEFLOW_OUTPUT_PATH, "aggregate", "montages", f"{cell_class}__montages"
         )

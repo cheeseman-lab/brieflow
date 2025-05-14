@@ -19,14 +19,14 @@ The OPS data must follow a hierarchical structure:
 ```
 screen_name/
 └── plate_1/
-├── input_sbs/
-│ ├── c1/
-│ ├── c2/
-│ └── ... (cycles of sequencing data)
-└── input_ph/
-├── round_1/
-├── round_2/
-└── ... (rounds of phenotyping data)
+    ├── input_sbs/
+    │   ├── c1/
+    │   ├── c2/
+    │   └── ... (cycles of sequencing data)
+    └── input_ph/
+        ├── round_1/
+        ├── round_2/
+        └── ... (rounds of phenotyping data)
 ├── plate_2/
 └── ... (plates of pooled screening data)
 ```

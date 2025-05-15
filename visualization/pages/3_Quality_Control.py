@@ -19,6 +19,7 @@ def find_eval_files(root_dir):
     all_files = glob.glob(pattern, recursive=True)
     return [f for f in all_files if f.endswith(".png") or f.endswith(".tsv")]
 
+
 @st.cache_data
 def load_data(root_dir):
     global filtered_df

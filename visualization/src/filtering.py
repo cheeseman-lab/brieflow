@@ -24,7 +24,9 @@ def create_filter_radio(df, column, container, label=None, include_all=True, key
         st.session_state[state_key] = "All" if include_all else None
 
     def on_change():
-        st.session_state[state_key] = st.session_state[key]
+        # Only update if the key exists in session state
+        if key in st.session_state:
+            st.session_state[state_key] = st.session_state[key]
 
     if column in df.columns:
         values = df[column].dropna().unique().tolist()

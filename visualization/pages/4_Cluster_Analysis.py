@@ -533,6 +533,46 @@ def feature_table(cell_class, channel_combo):
     else:
         st.warning(f"⚠️ WARNING: Feature table not found at: {feature_table_path}")
 
+def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
+    # Create two equal-sized columns
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("### Cluster Sizes")
+        # Construct the path to the cluster sizes plot
+        cluster_sizes_path = os.path.join(
+            BRIEFLOW_OUTPUT_PATH,
+            "cluster",
+            channel_combo,
+            cell_class,
+            leiden_resolution,
+            "cluster_sizes.png"
+        )
+        
+        # Display the plot if it exists
+        if os.path.exists(cluster_sizes_path):
+            st.image(cluster_sizes_path, use_container_width=True)
+        else:
+            st.warning(f"Cluster sizes plot not found at: {cluster_sizes_path}")
+        
+    with col2:
+        st.markdown("### Cluster Enrichment")
+        # Construct the path to the enrichment pie chart
+        enrichment_pie_path = os.path.join(
+            BRIEFLOW_OUTPUT_PATH,
+            "cluster",
+            channel_combo,
+            cell_class,
+            leiden_resolution,
+            "CB-Real__pie_chart.png"
+        )
+        
+        # Display the plot if it exists
+        if os.path.exists(enrichment_pie_path):
+            st.image(enrichment_pie_path, use_container_width=True)
+        else:
+            st.warning(f"Cluster enrichment pie chart not found at: {enrichment_pie_path}")
+
 def display_cluster_json(cluster_data, container=st.container()):
     if (
         "selected_item" in st.session_state
@@ -909,6 +949,7 @@ if not st.session_state.selected_item:
     display_cluster(cluster_data, cell_class=st.session_state.cell_class, channel_combo=st.session_state.channel_combo)
     cluster_table(cluster_data)
     feature_table(cell_class, channel_combo)
+    cluster_size_charts(channel_combo, cell_class, leiden_resolution)
 
 else:
     # Cluster selected: Two columns: plot | detail.
@@ -917,6 +958,7 @@ else:
         display_cluster(cluster_data, cell_class=cell_class, channel_combo=channel_combo)
         cluster_table(cluster_data)
         feature_table(cell_class, channel_combo)
+        cluster_size_charts(channel_combo, cell_class, leiden_resolution)
 
     with col2:
         # Selected Gene info

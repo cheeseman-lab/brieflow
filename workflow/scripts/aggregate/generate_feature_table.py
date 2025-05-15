@@ -74,6 +74,4 @@ features[pert_col] = metadata[pert_col].values
 features = features.groupby(pert_col, sort=False, observed=True).median()
 features = features.reset_index()
 
-print(features)
-
-# features.to_csv(snakemake.output[0], sep="\t", index=False)
+features.to_csv(snakemake.output[0], sep="\t", index=False)

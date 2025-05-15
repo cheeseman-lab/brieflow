@@ -461,77 +461,77 @@ def display_cluster(cluster_data, cell_class=None, channel_combo=None):
                     event.relayoutData["yaxis.range[1]"],
                 ]
 
-        # Display data overview
-        st.markdown("## Cluster Data Overview")
-
-        # If an item is selected, filter the dataframe
-        source_tsv = cluster_data["source_full_path"].unique()[0]
-        if os.path.exists(source_tsv):
-            table_data = pd.read_csv(source_tsv, sep="\t")
-            if st.session_state.selected_item:
-                # Convert selected_item to integer since cluster column is int64
-                try:
-                    selected_item_int = int(st.session_state.selected_item)
-                    table_data = table_data[table_data["cluster"] == selected_item_int]
-                except ValueError:
-                    st.error(f"Invalid cluster value: {st.session_state.selected_item}")
-                    return
-
-                if len(table_data.index) == 0:
-                    st.warning(
-                        f"⚠️ WARNING: No data found in the TSV file: {source_tsv}"
-                    )
-                else:
-                    table_data.set_index("gene_symbol_0", inplace=True)
-                    st.dataframe(table_data)
-            else:
-                if len(table_data.index) == 0:
-                    st.warning(
-                        f"⚠️ WARNING: No data found in the TSV file: {source_tsv}"
-                    )
-                else:
-                    table_data.set_index("gene_symbol_0", inplace=True)
-                    st.dataframe(table_data)
-        else:
-            st.warning(f"⚠️ WARNING: Source TSV file not found at: {source_tsv}")
-
-        # Feature Data Overview
-        st.markdown("## Feature Data Overview")
-        st.markdown(
-            "Median feature values per gene after center scaling all single cell data on control cells by well."
-        )
-
-        # Construct the feature table path
-        feature_table_path = os.path.join(
-            BRIEFLOW_OUTPUT_PATH,
-            "aggregate",
-            "tsvs",
-            f"CeCl-{cell_class}_ChCo-{channel_combo}__feature_table.tsv",
-        )
-
-        # Load and display the feature table if it exists
-        if os.path.exists(feature_table_path):
-            feature_df = pd.read_csv(feature_table_path, sep="\t")
-            feature_df.set_index("gene_symbol_0", inplace=True)
-
-            # Create a container with a fixed height and scrolling
-            with st.container():
-                # Display the dataframe with all columns and sorting enabled
-                st.dataframe(
-                    feature_df,
-                    use_container_width=True,
-                    height=400,  # Fixed height for scrolling
-                    column_config={
-                        # Configure all columns to be sortable
-                        col: st.column_config.NumberColumn(width="medium")
-                        for col in feature_df.columns
-                    },
-                )
-        else:
-            st.warning(f"⚠️ WARNING: Feature table not found at: {feature_table_path}")
-
     else:
         st.write("No cluster data files found.")
+
+
+def cluster_table(cluster_data):
+    # Display data overview
+    st.markdown("## Cluster Data Overview")
+    # If an item is selected, filter the dataframe
+    source_tsv = cluster_data["source_full_path"].unique()[0]
+    if os.path.exists(source_tsv):
+        table_data = pd.read_csv(source_tsv, sep="\t")
+        if st.session_state.selected_item:
+            # Convert selected_item to integer since cluster column is int64
+            try:
+                selected_item_int = int(st.session_state.selected_item)
+                table_data = table_data[table_data["cluster"] == selected_item_int]
+            except ValueError:
+                st.error(f"Invalid cluster value: {st.session_state.selected_item}")
+
+            if len(table_data.index) == 0:
+                st.warning(
+                    f"⚠️ WARNING: No data found in the TSV file: {source_tsv}"
+                )
+            else:
+                table_data.set_index("gene_symbol_0", inplace=True)
+                st.dataframe(table_data)
+        else:
+            if len(table_data.index) == 0:
+                st.warning(
+                    f"⚠️ WARNING: No data found in the TSV file: {source_tsv}"
+                )
+            else:
+                table_data.set_index("gene_symbol_0", inplace=True)
+                st.dataframe(table_data)
+    else:
+        st.warning(f"⚠️ WARNING: Source TSV file not found at: {source_tsv}")
+
+
+def feature_table(cell_class, channel_combo):
+    # Feature Data Overview
+    st.markdown("## Feature Data Overview")
+    st.markdown(
+        "Median feature values per gene after center scaling all single cell data on control cells by well."
+    )
+    # Construct the feature table path
+    feature_table_path = os.path.join(
+        BRIEFLOW_OUTPUT_PATH,
+        "aggregate",
+        "tsvs",
+        f"CeCl-{cell_class}_ChCo-{channel_combo}__feature_table.tsv",
+    )
+    # Load and display the feature table if it exists
+    if os.path.exists(feature_table_path):
+        feature_df = pd.read_csv(feature_table_path, sep="\t")
+        feature_df.set_index("gene_symbol_0", inplace=True)
+
+        # Create a container with a fixed height and scrolling
+        with st.container():
+            # Display the dataframe with all columns and sorting enabled
+            st.dataframe(
+                feature_df,
+                use_container_width=True,
+                height=400,  # Fixed height for scrolling
+                column_config={
+                    # Configure all columns to be sortable
+                    col: st.column_config.NumberColumn(width="medium")
+                    for col in feature_df.columns
+                },
+            )
+    else:
+        st.warning(f"⚠️ WARNING: Feature table not found at: {feature_table_path}")
 
 def display_cluster_json(cluster_data, container=st.container()):
     if (
@@ -900,14 +900,23 @@ with col2:
         on_change=on_cluster_select,
     )
 
+cell_class = st.session_state.cell_class
+channel_combo = st.session_state.channel_combo
+leiden_resolution = st.session_state.leiden_resolution
+
 if not st.session_state.selected_item:
     # No cluster selected: Just show the full width cluster plot
     display_cluster(cluster_data, cell_class=st.session_state.cell_class, channel_combo=st.session_state.channel_combo)
+    cluster_table(cluster_data)
+    feature_table(cell_class, channel_combo)
+
 else:
     # Cluster selected: Two columns: plot | detail.
     col1, col2 = st.columns([1, 1])
     with col1:
-        display_cluster(cluster_data, cell_class=st.session_state.cell_class, channel_combo=st.session_state.channel_combo)
+        display_cluster(cluster_data, cell_class=cell_class, channel_combo=channel_combo)
+        cluster_table(cluster_data)
+        feature_table(cell_class, channel_combo)
 
     with col2:
         # Selected Gene info

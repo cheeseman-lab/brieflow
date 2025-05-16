@@ -856,7 +856,7 @@ def apply_all_filters(data):
     data = apply_filter(data, "cell_class", selected_cell_class)
 
     # Leiden Resolution filter - handle directly
-    leiden_options = sorted(data["leiden_resolution"].unique().tolist())
+    leiden_options = sorted(data["leiden_resolution"].unique().tolist(), key=lambda x: float(x))
     # Initialize leiden resolution in session state if needed
     if "leiden_resolution" not in st.session_state:
         st.session_state.leiden_resolution = leiden_options[0] if leiden_options else None

@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from collections import defaultdict
 
-from cellpose.models import Cellpose
+from cellpose.models import CellposeModel
 from skimage.util import img_as_ubyte
 from skimage.measure import regionprops
 from skimage.segmentation import clear_border
@@ -27,9 +27,10 @@ def segment_cellpose(
     data,
     dapi_index,
     cyto_index,
+    helper_index,
     nuclei_diameter,
     cell_diameter,
-    cyto_model="cyto3",
+    cyto_model="cpsam",
     cellpose_kwargs=dict(
         flow_threshold=0.4,
         cellprob_threshold=0,
@@ -44,16 +45,17 @@ def segment_cellpose(
     return_counts=False,
     gpu=False,
 ):
-    """Segment cells using Cellpose algorithm.
+    """Segment cells using CellposeSAM algorithm.
 
     Args:
         data (numpy.ndarray): Multichannel image data.
         dapi_index (int): Index of DAPI channel.
         cyto_index (int): Index of cytoplasmic channel.
+        helper_index (int): Index of helper channel.
         nuclei_diameter (int): Estimated diameter of nuclei.
         cell_diameter (int): Estimated diameter of cells.
-        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
-        cellpose_kwargs (dict, optional): Additional keyword arguments for Cellpose, including:
+        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cpsam'.
+        cellpose_kwargs (dict, optional): Additional keyword arguments for CellposeSAM, including:
             - flow_threshold (float): Default flow threshold for both nuclei and cells if specific ones not provided
             - cellprob_threshold (float): Default cell probability threshold for both nuclei and cells if specific ones not provided
             - nuclei_flow_threshold (float): Specific flow threshold for nuclei segmentation
@@ -100,7 +102,7 @@ def segment_cellpose(
 
     # Prepare data for Cellpose by creating a merged RGB image
     rgb = prepare_cellpose(
-        data, dapi_index, cyto_index, logscale, log_kwargs=log_kwargs
+        data, dapi_index, cyto_index, helper_index, logscale, log_kwargs=log_kwargs
     )
 
     counts = {}
@@ -157,13 +159,14 @@ def segment_cellpose(
             return nuclei
 
 
-def prepare_cellpose(data, dapi_index, cyto_index, logscale=True, log_kwargs=dict()):
+def prepare_cellpose(data, dapi_index, cyto_index, helper_index, logscale=True, log_kwargs=dict()):
     """Prepare a three-channel RGB image for use with the Cellpose GUI.
 
     Args:
         data (list or numpy.ndarray): List or array containing DAPI and cytoplasmic channel images.
         dapi_index (int): Index of the DAPI channel in the data.
         cyto_index (int): Index of the cytoplasmic channel in the data.
+        helper_index (int): Index of the helper channel in the data.
         logscale (bool, optional): Whether to apply log scaling to the cytoplasmic channel. Default is True.
         log_kwargs (dict, optional): Additional keyword arguments for log scaling.
 
@@ -173,14 +176,15 @@ def prepare_cellpose(data, dapi_index, cyto_index, logscale=True, log_kwargs=dic
     # Extract DAPI and cytoplasmic channel images from the data
     dapi = data[dapi_index]
     cyto = data[cyto_index]
+    helper = data[helper_index]
 
-    # Create a blank array with the same shape as the DAPI channel
-    blank = np.zeros_like(dapi)
 
     # Apply log scaling to the cytoplasmic channel if specified
     if logscale:
         cyto = image_log_scale(cyto, **log_kwargs)
         cyto /= cyto.max()  # Normalize the image for uint8 conversion
+        helper = image_log_scale(helper, **log_kwargs)
+        helper /= helper.max()  # Normalize the image for uint8 conversion
 
     # Normalize the intensity of the DAPI channel and scale it to the range [0, 1]
     dapi_upper = np.percentile(dapi, 99.5)
@@ -188,10 +192,9 @@ def prepare_cellpose(data, dapi_index, cyto_index, logscale=True, log_kwargs=dic
     dapi[dapi > 1] = 1
 
     # Convert the channels to uint8 format for RGB image creation
-    red, green, blue = img_as_ubyte(blank), img_as_ubyte(cyto), img_as_ubyte(dapi)
+    red, green, blue = img_as_ubyte(helper), img_as_ubyte(cyto), img_as_ubyte(dapi)
 
-    # Stack the channels to create the RGB image and transpose the dimensions
-    # return np.array([red, green, blue]).transpose([1, 2, 0])
+    # Stack the channels to create the RGB image
     return np.array([red, green, blue])
 
 
@@ -199,8 +202,9 @@ def estimate_diameters(
     data,
     dapi_index,
     cyto_index,
+    helper_index,
     channels=[2, 3],  # Default channels for cell estimation
-    cyto_model="cyto3",
+    cyto_model="cpsam",
     cellpose_kwargs=dict(flow_threshold=0.4, cellprob_threshold=0),
     gpu=False,
     logscale=True,
@@ -211,6 +215,7 @@ def estimate_diameters(
         data (numpy.ndarray): Multichannel image data
         dapi_index (int): Index of DAPI channel
         cyto_index (int): Index of cytoplasmic channel
+        helper_index (int): Index of helper channel
         channels (list): Channel indices for diameter estimation [cytoplasm, nuclei]
         cyto_model (str): Cellpose model type to use
         cellpose_kwargs (dict): Additional keyword arguments for Cellpose
@@ -225,12 +230,12 @@ def estimate_diameters(
         "log_kwargs", dict()
     )  # Extract log_kwargs from cellpose_kwargs
     rgb = prepare_cellpose(
-        data, dapi_index, cyto_index, logscale, log_kwargs=log_kwargs
+        data, dapi_index, cyto_index, helper_index, logscale, log_kwargs=log_kwargs
     )
 
     # Find optimal nuclei diameter
     print("Estimating nuclei diameters...")
-    model_nuclei = Cellpose(model_type="nuclei", gpu=gpu)
+    model_nuclei = CellposeModel(pretrained_model="cpsam", gpu=gpu)
     diam_nuclear, _ = model_nuclei.sz.eval(rgb, channels=[3, 0])
     diam_nuclear = np.maximum(5.0, diam_nuclear)
     diam_nuclear = float(diam_nuclear)
@@ -238,7 +243,7 @@ def estimate_diameters(
 
     # Find optimal cell diameter
     print("Estimating cell diameters...")
-    model_cyto = Cellpose(model_type=cyto_model, gpu=gpu)
+    model_cyto = CellposeModel(pretrained_model=cyto_model, gpu=gpu)
     diam_cell, _ = model_cyto.sz.eval(rgb, channels=channels)
     diam_cell = np.maximum(5.0, diam_cell)
     diam_cell = float(diam_cell)
@@ -251,7 +256,7 @@ def segment_cellpose_rgb(
     rgb,
     nuclei_diameter,
     cell_diameter,
-    cyto_model="cyto3",
+    cyto_model="cpsam",
     reconcile="consensus",
     remove_edges=True,
     return_counts=False,
@@ -266,7 +271,7 @@ def segment_cellpose_rgb(
         rgb (numpy.ndarray): RGB image.
         nuclei_diameter (int): Diameter of nuclei for segmentation.
         cell_diameter (int): Diameter of cells for segmentation.
-        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
+        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cpsam'.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
         remove_edges (bool, optional): Whether to remove nuclei and cells touching the image edges. Default is True.
         return_counts (bool, optional): Whether to return counts of nuclei and cells before reconciliation. Default is False.
@@ -282,8 +287,8 @@ def segment_cellpose_rgb(
             - (optional) counts (dict): Counts of nuclei and cells at different stages if return_counts is True.
     """
     # Instantiate Cellpose models for nuclei and cytoplasmic segmentation
-    model_dapi = Cellpose(model_type="nuclei", gpu=gpu)
-    model_cyto = Cellpose(model_type=cyto_model, gpu=gpu)
+    model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
+    model_cyto = CellposeModel(pretrained_model=cyto_model, gpu=gpu)
 
     # Set default kwargs if not provided
     if nuclei_kwargs is None:
@@ -294,13 +299,13 @@ def segment_cellpose_rgb(
     counts = {}
 
     # Segment nuclei using nuclei-specific parameters
-    nuclei, _, _, _ = model_dapi.eval(
-        rgb, channels=[3, 0], diameter=nuclei_diameter, **nuclei_kwargs
+    nuclei, _, _ = model_dapi.eval(
+        rgb[2], diameter=nuclei_diameter, **nuclei_kwargs
     )
 
     # Segment cells using cell-specific parameters
-    cells, _, _, _ = model_cyto.eval(
-        rgb, channels=[2, 3], diameter=cell_diameter, **cell_kwargs
+    cells, _, _ = model_cyto.eval(
+        rgb, diameter=cell_diameter, **cell_kwargs
     )
 
     counts["initial_nuclei"] = (
@@ -353,7 +358,7 @@ def segment_cellpose_rgb(
 def segment_cellpose_nuclei_rgb(
     rgb, nuclei_diameter, gpu=False, remove_edges=True, **kwargs
 ):
-    """Segment nuclei using the Cellpose algorithm from an RGB image.
+    """Segment nuclei using the CellposeModel algorithm from an RGB image.
 
     Args:
         rgb (numpy.ndarray): RGB image.
@@ -366,11 +371,11 @@ def segment_cellpose_nuclei_rgb(
         numpy.ndarray: Labeled segmentation mask of nuclei.
     """
     # Instantiate Cellpose model for nuclei segmentation
-    model_dapi = Cellpose(model_type="nuclei", gpu=gpu)
+    model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
 
     # Segment nuclei using Cellpose from the RGB image
-    nuclei, _, _, _ = model_dapi.eval(
-        rgb, channels=[3, 0], diameter=nuclei_diameter, **kwargs
+    nuclei, _, _ = model_dapi.eval(
+        rgb[0], channels=[3, 0], diameter=nuclei_diameter, **kwargs
     )
 
     # Print the number of nuclei found before and after removing edges

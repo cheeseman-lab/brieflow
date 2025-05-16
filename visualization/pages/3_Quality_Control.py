@@ -43,7 +43,9 @@ def apply_all_filters(df, sidebar):
     selected_values = {}
 
     for column, label in filters:
-        selected_value = create_filter_radio(filtered_df, column, sidebar, label)
+        # Create a unique key for each filter based on the column name
+        key = f"filter_{column}"
+        selected_value = create_filter_radio(filtered_df, column, sidebar, label, key=key)
         filtered_df = apply_filter(filtered_df, column, selected_value)
         selected_values[column] = selected_value
 

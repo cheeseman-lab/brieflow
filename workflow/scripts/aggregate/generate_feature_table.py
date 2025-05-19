@@ -30,10 +30,10 @@ feature_cols = get_feature_table_cols(feature_cols)
 cell_data = cell_data.to_table(
     columns=metadata_cols + feature_cols, use_threads=True, memory_pool=None
 ).to_pandas()
+print(f"Shape of input data: {cell_data.shape}")
 for col in cell_data.columns:
     if is_numeric_dtype(cell_data[col]):
         cell_data[col] = cell_data[col].astype("float32")
-print(f"Shape of input data: {cell_data.shape}")
 
 # centerscale features on controls
 # split metadata and features
@@ -59,14 +59,13 @@ metadata.loc[control_ind, pert_col] = (
 )
 
 # centerscale features on controls
-features = features.astype(np.float32)
 features = centerscale_on_controls(
     features,
     metadata,
     pert_col,
     control_key,
     "batch_values",
-)
+).astype(np.float32)
 
 # get the median of each perturbation
 features = pd.DataFrame(features, columns=feature_cols)

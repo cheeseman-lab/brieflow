@@ -122,6 +122,14 @@ def channel_combo_subset(features, channel_combo, all_channels):
 
 
 def get_feature_table_cols(feature_cols):
+    """Filter feature columns based on specific tags and compartments.
+
+    Args:
+        feature_cols (list): List of feature column names.
+
+    Returns:
+        list: Filtered list of feature column names.
+    """
     # Define the specific tags to look for
     intensity_tags = [
         "mean",

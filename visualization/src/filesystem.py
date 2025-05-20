@@ -2,6 +2,7 @@ import glob
 import os
 import re
 import pandas as pd
+import streamlit as st
 
 
 class FileSystem:
@@ -10,6 +11,7 @@ class FileSystem:
     """
 
     @staticmethod
+    @st.cache_data
     def find_files(root_dir, include_any=None, include_all=None, extensions=None):
         """
         Find all files with specified extensions in the directory tree with optional path filtering.

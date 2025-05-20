@@ -5,6 +5,7 @@ import numpy as np
 import nd2
 from typing import Union, List
 from pathlib import Path
+from skimage.measure import shannon_entropy
 
 
 def extract_tile_metadata(
@@ -100,36 +101,90 @@ def extract_tile_metadata(
 
     return df
 
+def entropy_focus(image):
+    """Compute a focus score using Shannon entropy."""
+    # Convert to grayscale if the image has multiple channels
+    if len(image.shape) > 2 and image.shape[2] > 1:
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = image
+
+    # Ensure image is in the right format (uint8)
+    if gray.dtype != np.uint8:
+        if gray.max() > 0:
+            gray = (gray * 255 / gray.max()).astype(np.uint8)
+        else:
+            gray = gray.astype(np.uint8)
+
+    return shannon_entropy(gray)
+
+def find_best_focus_slice(stack):
+    """Return the sharpest slice in a z-stack """
+    focus_scores = [entropy_focus(slice) for slice in stack]
+    best_index = np.argmin(focus_scores)
+    return stack[best_index], best_index, focus_scores
+
 
 def nd2_to_tiff(
     files: Union[str, List[str], Path, List[Path]],
     channel_order_flip: bool = False,
+    best_focus_channel: Union[int, List[int], None] = None,
     verbose: bool = False,
+    z_handling: str = "Max_projection"
 ) -> np.ndarray:
     """Converts one or multiple ND2 files to a multidimensional numpy array, ensuring CYX structure.
 
     Args:
         files: Path(s) to the ND2 file(s). Can be a single path or list of paths.
         channel_order_flip: If True, flips the channel order. Defaults to False.
+        best_focus_channel: For "Best_slice" z_handling, specify which channel(s) (0-based index) to use 
+                           for determining the best focal plane. If None, each channel is processed separately.
+                           Can be an integer for a single channel used across all files, or a list of integers
+                           with the same length as files to specify different channels for each file.
         verbose: If True, prints dimension information. Defaults to False.
+        z_handling: How to handle Z-stacks. Options are "Max_projection", "No_z", or "Best_slice". 
+                   Defaults to "Max_projection".
 
     Returns:
         np.ndarray: Image data as a multidimensional numpy array in CYX format.
 
     Raises:
-        ValueError: If files have incompatible dimensions.
+        ValueError: If files have incompatible dimensions or parameters are invalid.
     """
+    
+    # Debugging support for z_handling 
+    if z_handling not in ("Max_projection", "No_z", "Best_slice"):
+        raise ValueError(f"Invalid z_handling: {z_handling}. Choose 'Max_projection', 'No_z', or 'Best_slice'.")
+    
     # Convert input to list of Path objects
     if isinstance(files, (str, Path)):
         files = [Path(files)]
     else:
         files = [Path(f) for f in files]
+    
+    # Process best_focus_channel parameter
+    if best_focus_channel is not None:
+        if isinstance(best_focus_channel, int):
+            # Use the same channel for all files
+            best_focus_channels = [best_focus_channel] * len(files)
+        elif isinstance(best_focus_channel, list):
+            # Validate that list length matches the number of files
+            if len(best_focus_channel) != len(files):
+                raise ValueError(f"Length of best_focus_channel list ({len(best_focus_channel)}) "
+                                f"must match the number of files ({len(files)})")
+            best_focus_channels = best_focus_channel
+        else:
+            raise ValueError("best_focus_channel must be an integer, list of integers, or None")
+    else:
+        best_focus_channels = [None] * len(files)
 
     # Process all files
     image_arrays = []
-    for i, file in enumerate(files, 1):
+    for i, (file, file_focus_channel) in enumerate(zip(files, best_focus_channels), 1):
         if verbose:
             print(f"Processing file {i}/{len(files)}: {file}")
+            if file_focus_channel is not None and z_handling == "Best_slice":
+                print(f"Using channel {file_focus_channel} for focus detection in this file")
 
         image = nd2.imread(str(file), xarray=True)
 
@@ -138,20 +193,85 @@ def nd2_to_tiff(
 
         # Handle Z-stack if present
         if "Z" in image.dims:
-            image = image.max(dim="Z")
+            if z_handling == "Max_projection":
+                image = image.max(dim="Z")
+                if "C" in image.dims:
+                    img_array = image.transpose("C", "Y", "X").values
+                else:
+                    img_array = np.expand_dims(image.values, axis=0)
 
-        # Convert to numpy array based on dimensions present
-        if "C" in image.dims:
-            # If C dimension exists, ensure CYX order
-            img_array = image.transpose("C", "Y", "X").values
+            elif z_handling == "Best_slice":
+                if "C" not in image.dims:
+                    # Single channel case - just find best slice
+                    channel_data = image.values  # shape: (Z, Y, X)
+                    # Use your existing find_best_focus_slice function
+                    best_slice, best_index, scores = find_best_focus_slice(channel_data)
+                    img_array = np.expand_dims(best_slice, axis=0)  # Add channel dimension
+                    
+                    if verbose:
+                        print(f"Best Z index: {best_index}, scores min: {min(scores)}")
+                else:
+                    num_channels = image.sizes["C"]
+                    
+                    # Validate best_focus_channel if provided
+                    if file_focus_channel is not None:
+                        if file_focus_channel < 0 or file_focus_channel >= num_channels:
+                            raise ValueError(f"best_focus_channel must be between 0 and {num_channels-1} for file {file}")
+                        
+                        # Use the specified channel to find best Z index
+                        focus_data = image.isel(C=file_focus_channel).values  # shape: (Z, Y, X)
+                        # Your function expects shape (Z, Y, X), so this should work without modification
+                        _, best_z_index, scores = find_best_focus_slice(focus_data)
+                        
+                        if verbose:
+                            print(f"Using channel {file_focus_channel} for focus detection. Best Z: {best_z_index}, scores min: {min(scores)}")
+                        
+                        # Extract the best Z slice for all channels
+                        best_slices = []
+                        for c in range(num_channels):
+                            channel_data = image.isel(C=c, Z=best_z_index).values  # shape: (Y, X)
+                            best_slices.append(channel_data)
+                        
+                        img_array = np.stack(best_slices, axis=0)  # shape: (C, Y, X)
+                    else:
+                        # Original behavior: find best slice for each channel independently
+                        best_slices = []
+                        for c in range(num_channels):
+                            channel_data = image.isel(C=c).values  # shape: (Z, Y, X)
+                            # Your function expects this format so this should work
+                            best_slice, best_index, scores = find_best_focus_slice(channel_data)
+                            best_slices.append(best_slice)
+                            
+                            if verbose:
+                                print(f"Best Z for channel {c}: {best_index}, scores min: {min(scores)}")
+                        
+                        img_array = np.stack(best_slices, axis=0)  # shape: (C, Y, X)
 
-            # Flip channel order if needed
-            if channel_order_flip:
-                img_array = np.flip(img_array, axis=0)
+            elif z_handling == "No_z":
+                # Keep only the first Z slice instead of full stack
+                if verbose:
+                    print("Warning: 'No_z' option with Z-stacks will take only the first Z slice.")
+                
+                if "C" in image.dims:
+                    # Select the first Z slice for all channels
+                    img_array = image.isel(Z=0).transpose("C", "Y", "X").values
+                else:
+                    # Select the first Z slice for single channel
+                    img_array = np.expand_dims(image.isel(Z=0).values, axis=0)
         else:
-            # If no C dimension, assume YX and add channel dimension
-            img_array = image.transpose("Y", "X").values
-            img_array = np.expand_dims(img_array, axis=0)  # Add channel dimension
+            # No Z dimension
+            if verbose and z_handling == "Best_slice":
+                print(f"No Z-stack present in {file}; using original data.")
+            
+            # Convert to numpy array based on dimensions present
+            if "C" in image.dims:
+                img_array = image.transpose("C", "Y", "X").values
+            else:
+                img_array = np.expand_dims(image.transpose("Y", "X").values, axis=0)  # Add channel dimension
+
+        # Flip channel order if needed and C dimension exists
+        if channel_order_flip and len(img_array.shape) > 2:  # Make sure there's a channel dimension
+            img_array = np.flip(img_array, axis=0)
 
         if verbose:
             print(f"Array shape after processing: {img_array.shape}")

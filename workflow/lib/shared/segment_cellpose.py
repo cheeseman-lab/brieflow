@@ -159,7 +159,9 @@ def segment_cellpose(
             return nuclei
 
 
-def prepare_cellpose(data, dapi_index, cyto_index, helper_index, logscale=True, log_kwargs=dict()):
+def prepare_cellpose(
+    data, dapi_index, cyto_index, helper_index, logscale=True, log_kwargs=dict()
+):
     """Prepare a three-channel RGB image for use with the Cellpose GUI.
 
     Args:
@@ -177,7 +179,6 @@ def prepare_cellpose(data, dapi_index, cyto_index, helper_index, logscale=True, 
     dapi = data[dapi_index]
     cyto = data[cyto_index]
     helper = data[helper_index]
-
 
     # Apply log scaling to the cytoplasmic channel if specified
     if logscale:
@@ -299,14 +300,10 @@ def segment_cellpose_rgb(
     counts = {}
 
     # Segment nuclei using nuclei-specific parameters
-    nuclei, _, _ = model_dapi.eval(
-        rgb[2], diameter=nuclei_diameter, **nuclei_kwargs
-    )
+    nuclei, _, _ = model_dapi.eval(rgb[2], diameter=nuclei_diameter, **nuclei_kwargs)
 
     # Segment cells using cell-specific parameters
-    cells, _, _ = model_cyto.eval(
-        rgb, diameter=cell_diameter, **cell_kwargs
-    )
+    cells, _, _ = model_cyto.eval(rgb, diameter=cell_diameter, **cell_kwargs)
 
     counts["initial_nuclei"] = (
         len(np.unique(nuclei)) - 1

@@ -40,6 +40,8 @@ dependencies:
       - -e .
       - stardist==0.9.1
       - levenshtein
-      - torch
       - spotiflow
+      - torch
+      - torchvision
+      - torchaudio
       - cellpose==4.0.2

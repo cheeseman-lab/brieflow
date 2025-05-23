@@ -38,6 +38,7 @@ dependencies:
   - plotly
   - pytest
   - matplotlib
+  - adjusttext
   - pip:
       - -e .
       - stardist==0.9.1

@@ -151,7 +151,8 @@ def get_segmentation_params(module, config):
     if segmentation_method == "cellpose":
         params.update(
             {
-                "cellpose_model": module_config.get("cellpose_model", "cyto3"),
+                "cellpose_model": module_config.get("cellpose_model", "cpsam"),
+                "helper_index": module_config.get("helper_index"),
                 "nuclei_diameter": module_config.get("nuclei_diameter"),
                 "cell_diameter": module_config.get("cell_diameter"),
                 "flow_threshold": module_config.get("flow_threshold", 0.4),

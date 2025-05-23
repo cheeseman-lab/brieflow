@@ -17,7 +17,6 @@ dependencies:
   - nd2
   - scikit-image
   - joblib
-  - cellpose==3.1.0
   - micro_sam==1.3.1
   - tensorflow
   - csbdeep
@@ -41,5 +40,7 @@ dependencies:
       - -e .
       - stardist==0.9.1
       - levenshtein
-      - torch
       - spotiflow
+      - torch
+      - torchvision
+      - cellpose==4.0.2

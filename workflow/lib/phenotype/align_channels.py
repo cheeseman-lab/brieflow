@@ -18,7 +18,7 @@ def align_phenotype_channels(
     upsample_factor=2,
     window=2,
     remove_channel=False,
-    debug=True,  # New debug parameter
+    debug=False,  # New debug parameter
 ):
     """Rigid alignment of phenotype channels based on target and source channels.
 

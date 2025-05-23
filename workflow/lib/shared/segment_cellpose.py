@@ -166,14 +166,17 @@ def prepare_cellpose(
 
     Args:
         data (list or numpy.ndarray): List or array containing DAPI and cytoplasmic channel images.
-        dapi_index (int): Index of the DAPI channel in the data.
-        cyto_index (int): Index of the cytoplasmic channel in the data.
-        helper_index (int): Index of the helper channel in the data.
+        dapi_index (int): Index of the DAPI channel.
+        cyto_index (int): Index of the cytoplasmic channel.
+        helper_index (int): Index of the helper channel. Note: CPSAM uses up to 3 channels holistically to 
+            segment cells. This optional helper channel is meant to provide additional information to 
+            define cell boundaries.
         logscale (bool, optional): Whether to apply log scaling to the cytoplasmic channel. Default is True.
         log_kwargs (dict, optional): Additional keyword arguments for log scaling.
 
     Returns:
-        numpy.ndarray: Three-channel RGB image prepared for use with Cellpose GUI.
+        numpy.ndarray: Three-channel RGB image prepared for use with Cellpose GUI. Red is the helper channel,
+        green is the cytoplasmic channel, and blue is the DAPI channel.
     """
     # Extract DAPI and cytoplasmic channel images from the data
     dapi = data[dapi_index]
@@ -372,7 +375,7 @@ def segment_cellpose_nuclei_rgb(
 
     # Segment nuclei using Cellpose from the RGB image
     nuclei, _, _ = model_dapi.eval(
-        rgb[0], channels=[3, 0], diameter=nuclei_diameter, **kwargs
+        rgb[2], diameter=nuclei_diameter, **kwargs # Channels deprecated in v4.0.1+. If data contain more than 3 channels, only the first 3 channels will be used
     )
 
     # Print the number of nuclei found before and after removing edges

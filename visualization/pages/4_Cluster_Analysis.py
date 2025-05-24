@@ -36,6 +36,7 @@ SOURCE_INDEX = 3
 # =====================
 # FUNCTIONS
 
+
 # -- Data Load Methods --
 # Load and merge cluster TSV files
 @st.cache_data
@@ -72,6 +73,7 @@ def load_cluster_data():
     # Concatenate all dataframes
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
+
 @st.cache_data
 def load_montage_data(root_dir, gene_name):
     # Find all montage files
@@ -91,6 +93,7 @@ def load_montage_data(root_dir, gene_name):
 
     return filtered_df
 
+
 # -- Cluster scatter methods --
 # Extract item value from selected point
 def get_item_value_from_point(selected_point, groupby_column):
@@ -106,6 +109,7 @@ def get_item_value_from_point(selected_point, groupby_column):
         return selected_point["legendgroup"]
 
     return None
+
 
 # Helper function to create a scatter trace
 def make_scatter_trace(x, y, marker, text, customdata, name, showlegend, color=None):
@@ -132,6 +136,7 @@ def make_scatter_trace(x, y, marker, text, customdata, name, showlegend, color=N
         hovertemplate=hovertemplate,
         showlegend=False,
     )
+
 
 # -- Display helpers --
 def display_gene_montages(gene_montages_root, gene):
@@ -214,6 +219,7 @@ def display_gene_montages(gene_montages_root, gene):
                     st.warning(f"No overlay tiff found: {overlay_tiff_path}")
             else:
                 st.warning(f"No image found for {gene} - {selected_guide}")
+
 
 def display_cluster(cluster_data, cell_class=None, channel_combo=None):
     r"""
@@ -481,17 +487,13 @@ def cluster_table(cluster_data):
                 st.error(f"Invalid cluster value: {st.session_state.selected_item}")
 
             if len(table_data.index) == 0:
-                st.warning(
-                    f"⚠️ WARNING: No data found in the TSV file: {source_tsv}"
-                )
+                st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
             else:
                 table_data.set_index("gene_symbol_0", inplace=True)
                 st.dataframe(table_data)
         else:
             if len(table_data.index) == 0:
-                st.warning(
-                    f"⚠️ WARNING: No data found in the TSV file: {source_tsv}"
-                )
+                st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
             else:
                 table_data.set_index("gene_symbol_0", inplace=True)
                 st.dataframe(table_data)
@@ -533,10 +535,11 @@ def feature_table(cell_class, channel_combo):
     else:
         st.warning(f"⚠️ WARNING: Feature table not found at: {feature_table_path}")
 
+
 def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
     # Create two equal-sized columns
     col1, col2 = st.columns([1, 1])
-    
+
     with col1:
         st.markdown("### Cluster Sizes")
         # Construct the path to the cluster sizes plot
@@ -546,15 +549,15 @@ def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
             channel_combo,
             cell_class,
             leiden_resolution,
-            "cluster_sizes.png"
+            "cluster_sizes.png",
         )
-        
+
         # Display the plot if it exists
         if os.path.exists(cluster_sizes_path):
             st.image(cluster_sizes_path, use_container_width=True)
         else:
             st.warning(f"Cluster sizes plot not found at: {cluster_sizes_path}")
-        
+
     with col2:
         st.markdown("### Cluster Enrichment")
         # Construct the path to the enrichment pie chart
@@ -564,14 +567,17 @@ def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
             channel_combo,
             cell_class,
             leiden_resolution,
-            "CB-Real__pie_chart.png"
+            "CB-Real__pie_chart.png",
         )
-        
+
         # Display the plot if it exists
         if os.path.exists(enrichment_pie_path):
             st.image(enrichment_pie_path, use_container_width=True)
         else:
-            st.warning(f"Cluster enrichment pie chart not found at: {enrichment_pie_path}")
+            st.warning(
+                f"Cluster enrichment pie chart not found at: {enrichment_pie_path}"
+            )
+
 
 def display_cluster_json(cluster_data, container=st.container()):
     if (
@@ -670,6 +676,7 @@ def display_cluster_json(cluster_data, container=st.container()):
                 )
                 return
 
+
 def display_uniprot_info():
     if st.session_state.selected_gene:
         source_tsv = cluster_data["source_full_path"].unique()[0]
@@ -688,7 +695,9 @@ def display_uniprot_info():
                 else:
                     st.write("Uniprot Function: Not available")
 
+
 # -- Search/Filter state management --
+
 
 def initialize_session_state() -> None:
     """Initialize all session state variables used in the cluster analysis.
@@ -737,6 +746,7 @@ def initialize_session_state() -> None:
     if "filter_counter" not in st.session_state:
         st.session_state.filter_counter = 0
 
+
 def on_global_gene_select() -> None:
     """Callback function for global gene selection.
 
@@ -757,6 +767,7 @@ def on_global_gene_select() -> None:
         st.session_state.selected_item = None
         st.session_state.cluster_dropdown = None
         st.session_state.selected_gene_cluster = None
+
 
 def on_cluster_select() -> None:
     """Callback function for cluster selection.
@@ -785,6 +796,7 @@ def on_cluster_select() -> None:
             st.session_state.selected_gene_global = None
             st.session_state.selected_gene_cluster = None
 
+
 def on_cluster_gene_select() -> None:
     """Callback function for gene selection within a cluster.
 
@@ -796,6 +808,7 @@ def on_cluster_gene_select() -> None:
     st.session_state.selected_gene = gene
     st.session_state.selected_gene_global = gene
 
+
 def on_channel_combo_change():
     """Callback function for channel combo selection."""
     st.session_state.channel_combo = st.session_state.channel_combo_radio_main
@@ -803,6 +816,7 @@ def on_channel_combo_change():
     st.session_state.selected_gene = None
     st.session_state.selected_gene_global = None
     st.session_state.selected_gene_cluster = None
+
 
 def on_cell_class_change():
     """Callback function for cell class selection."""
@@ -812,6 +826,7 @@ def on_cell_class_change():
     st.session_state.selected_gene_global = None
     st.session_state.selected_gene_cluster = None
 
+
 def on_leiden_resolution_change():
     """Callback function for leiden resolution selection."""
     st.session_state.leiden_resolution = st.session_state.leiden_resolution_radio_main
@@ -820,6 +835,7 @@ def on_leiden_resolution_change():
     st.session_state.selected_gene_global = None
     st.session_state.selected_gene_cluster = None
 
+
 # Apply filters
 def apply_all_filters(data):
     """Apply all filters to the cluster data in the correct order."""
@@ -827,15 +843,19 @@ def apply_all_filters(data):
     channel_combo_options = sorted(data["channel_combo"].unique().tolist())
     # Initialize channel combo in session state if needed
     if "channel_combo" not in st.session_state:
-        st.session_state.channel_combo = channel_combo_options[0] if channel_combo_options else None
+        st.session_state.channel_combo = (
+            channel_combo_options[0] if channel_combo_options else None
+        )
 
     # Create the radio button with a stable key
     selected_channel_combo = st.sidebar.radio(
         "**Channel Combo** - *Used to subset features during aggregation*",
         channel_combo_options,
-        index=channel_combo_options.index(st.session_state.channel_combo) if st.session_state.channel_combo in channel_combo_options else 0,
+        index=channel_combo_options.index(st.session_state.channel_combo)
+        if st.session_state.channel_combo in channel_combo_options
+        else 0,
         key="channel_combo_radio_main",
-        on_change=on_channel_combo_change
+        on_change=on_channel_combo_change,
     )
     data = apply_filter(data, "channel_combo", selected_channel_combo)
 
@@ -851,27 +871,34 @@ def apply_all_filters(data):
         cell_class_options,
         index=cell_class_options.index(st.session_state.cell_class),
         key="cell_class_radio_main",
-        on_change=on_cell_class_change
+        on_change=on_cell_class_change,
     )
     data = apply_filter(data, "cell_class", selected_cell_class)
 
     # Leiden Resolution filter - handle directly
-    leiden_options = sorted(data["leiden_resolution"].unique().tolist(), key=lambda x: float(x))
+    leiden_options = sorted(
+        data["leiden_resolution"].unique().tolist(), key=lambda x: float(x)
+    )
     # Initialize leiden resolution in session state if needed
     if "leiden_resolution" not in st.session_state:
-        st.session_state.leiden_resolution = leiden_options[0] if leiden_options else None
+        st.session_state.leiden_resolution = (
+            leiden_options[0] if leiden_options else None
+        )
 
     # Create the radio button with a stable key
     selected_lr = st.sidebar.radio(
         """**Leiden Resolution** - *Used in the Leiden clustering algorithm to determine gene clusters*""",
         leiden_options,
-        index=leiden_options.index(st.session_state.leiden_resolution) if st.session_state.leiden_resolution in leiden_options else 0,
+        index=leiden_options.index(st.session_state.leiden_resolution)
+        if st.session_state.leiden_resolution in leiden_options
+        else 0,
         key="leiden_resolution_radio_main",
-        on_change=on_leiden_resolution_change
+        on_change=on_leiden_resolution_change,
     )
     data = apply_filter(data, "leiden_resolution", selected_lr)
 
     return data
+
 
 # Calculate cluster_genes after all filters are applied
 def get_cluster_genes(data, cluster_id):
@@ -884,6 +911,7 @@ def get_cluster_genes(data, cluster_id):
         cluster_val = cluster_id
     return sorted(data[data["cluster"] == cluster_val]["gene_symbol_0"].unique())
 
+
 # ===
 
 # Call initialize_session_state at the start of the script
@@ -894,7 +922,9 @@ cluster_data = load_cluster_data()
 
 # Sort clusters numerically instead of alphabetically
 all_genes = sorted(cluster_data["gene_symbol_0"].unique())
-all_clusters = sorted([str(c) for c in cluster_data["cluster"].unique()], key=lambda x: int(x))
+all_clusters = sorted(
+    [str(c) for c in cluster_data["cluster"].unique()], key=lambda x: int(x)
+)
 
 st.sidebar.title("Filters")
 cluster_data = apply_all_filters(cluster_data)
@@ -902,7 +932,9 @@ cluster_genes = get_cluster_genes(cluster_data, st.session_state.selected_item)
 
 # --- UI Layout ---
 st.title("Cluster Analysis")
-st.markdown("*Click a cluster to see details, panning and zooming is easily done through the top right of the cluster panel*")
+st.markdown(
+    "*Click a cluster to see details, panning and zooming is easily done through the top right of the cluster panel*"
+)
 
 # Add filters section in sidebar FIRST
 # Remove duplicate call to apply_all_filters since it's already called above
@@ -914,7 +946,11 @@ with col1:
     # Global gene dropdown with placeholder
     gene_placeholder = "Select a gene..."
     gene_options = [gene_placeholder] + all_genes
-    gene_val = st.session_state.selected_gene if st.session_state.selected_gene in all_genes else gene_placeholder
+    gene_val = (
+        st.session_state.selected_gene
+        if st.session_state.selected_gene in all_genes
+        else gene_placeholder
+    )
     st.session_state.selected_gene_global = gene_val
     selected_gene = st.selectbox(
         "Gene Search",
@@ -930,12 +966,18 @@ with col1:
 with col2:
     # Cluster dropdown
     cluster_options = ["Select a cluster..."] + all_clusters
-    cluster_val = st.session_state.selected_item if st.session_state.selected_item in all_clusters else "Select a cluster..."
+    cluster_val = (
+        st.session_state.selected_item
+        if st.session_state.selected_item in all_clusters
+        else "Select a cluster..."
+    )
     st.session_state.cluster_dropdown = cluster_val
     st.selectbox(
         "Cluster Search",
         options=cluster_options,
-        index=cluster_options.index(cluster_val) if cluster_val in cluster_options else 0,
+        index=cluster_options.index(cluster_val)
+        if cluster_val in cluster_options
+        else 0,
         key="cluster_dropdown",
         on_change=on_cluster_select,
     )
@@ -946,7 +988,11 @@ leiden_resolution = st.session_state.leiden_resolution
 
 if not st.session_state.selected_item:
     # No cluster selected: Just show the full width cluster plot
-    display_cluster(cluster_data, cell_class=st.session_state.cell_class, channel_combo=st.session_state.channel_combo)
+    display_cluster(
+        cluster_data,
+        cell_class=st.session_state.cell_class,
+        channel_combo=st.session_state.channel_combo,
+    )
     cluster_table(cluster_data)
     feature_table(cell_class, channel_combo)
     cluster_size_charts(channel_combo, cell_class, leiden_resolution)
@@ -955,7 +1001,9 @@ else:
     # Cluster selected: Two columns: plot | detail.
     col1, col2 = st.columns([1, 1])
     with col1:
-        display_cluster(cluster_data, cell_class=cell_class, channel_combo=channel_combo)
+        display_cluster(
+            cluster_data, cell_class=cell_class, channel_combo=channel_combo
+        )
         cluster_table(cluster_data)
         feature_table(cell_class, channel_combo)
         cluster_size_charts(channel_combo, cell_class, leiden_resolution)
@@ -965,7 +1013,7 @@ else:
         cell_class = st.session_state.get("cell_class", "all")
 
         selected_gene_info_df = cluster_data[
-            cluster_data['cluster'] == st.session_state.selected_item
+            cluster_data["cluster"] == st.session_state.selected_item
         ]
         genes = sorted(selected_gene_info_df["gene_symbol_0"].tolist())
         gene_montages_root = os.path.join(
@@ -979,7 +1027,8 @@ else:
             st.write(f"## Cluster {st.session_state.selected_item}: {len(genes)} genes")
         with button_col:
             # Add float styling and red color specifically for the Close Cluster button
-            st.markdown("""
+            st.markdown(
+                """
                 <style>
                 div[data-testid="stButton"] button {
                     float: right;
@@ -988,7 +1037,9 @@ else:
                     color: white !important;
                 }
                 </style>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
             # Show selected item and clear button if an item is selected
             if st.button("Close Cluster"):
                 st.session_state.selected_item = None
@@ -1004,7 +1055,11 @@ else:
 
             # Cluster gene dropdown
             if cluster_genes:
-                gene_val = st.session_state.selected_gene if st.session_state.selected_gene in cluster_genes else cluster_genes[0]
+                gene_val = (
+                    st.session_state.selected_gene
+                    if st.session_state.selected_gene in cluster_genes
+                    else cluster_genes[0]
+                )
                 st.session_state.selected_gene_cluster = gene_val
                 st.selectbox(
                     "Select a gene to view (within this cluster)",
@@ -1020,7 +1075,9 @@ else:
 
             # Display montages only for the selected gene
             if st.session_state.selected_gene:
-                display_gene_montages(gene_montages_root, st.session_state.selected_gene)
+                display_gene_montages(
+                    gene_montages_root, st.session_state.selected_gene
+                )
             else:
                 # If no gene is selected yet, select the first one
                 if genes:

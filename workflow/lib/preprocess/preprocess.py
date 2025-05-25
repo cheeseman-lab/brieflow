@@ -102,21 +102,21 @@ def extract_tile_metadata(
 
     return df
 
-def entropy_focus(image):
-    """ Computes a focus score for an image using Shannon entropy.
 
-    The function first ensures the input image is in grayscale and 
-    uint8 format, then calculates the Shannon entropy, which serves 
-    as a measure of image focus. Higher entropy values generally 
-    indicate a more focused (sharper) image, while lower values suggest blurriness.
-    However, this should be tested empirically for the specific dataset.
+def entropy_focus(image):
+    """Computes a focus score for an image using Shannon entropy.
+
+    The function first ensures the input image is in grayscale and
+    uint8 format, then calculates the Shannon entropy, which serves
+    as a measure of image focus. In this dataset, low entropy values 
+    indicate a more focused (sharper) image.
 
     Args:
-        image (np.ndarray): Input image as a NumPy array. Can be a 2D 
+        image (np.ndarray): Input image as a NumPy array. Can be a 2D
             grayscale image or a 3D color image (e.g., RGB).
 
     Returns:
-        float: Shannon entropy value representing the focus score 
+        float: Shannon entropy value representing the focus score
         of the input image.
     """
     # Convert to grayscale if the image has multiple channels
@@ -136,11 +136,11 @@ def entropy_focus(image):
 
 
 def find_best_focus_slice(stack):
-    """ Identifies and returns the sharpest (most focused) slice from a z-stack.
+    """Identifies and returns the sharpest (most focused) slice from a z-stack.
 
     The function computes a focus score for each slice in the 3D image stack using the
-    `entropy_focus` function. Note: the function uses `np.argmin`, which implies lower scores are 
-    treated as better — this will not be universally applicable to all datasets. Test the behavior 
+    `entropy_focus` function. Note: the function uses `np.argmin`, which implies lower scores are
+    treated as better — this will not be universally applicable to all datasets. Test the behavior
     of `entropy_focus` to asess what score best caputres focus and adjust as needed (ex. by changing to `np.argmax`).
 
     Args:
@@ -178,8 +178,8 @@ def nd2_to_tiff(
         z_handling: How to handle Z-stacks. Options are "max_projection", "no_z", or "best_focus".
                    Defaults to "max_projection".
                      - "max_projection": Takes the maximum intensity projection of the Z-stack.
-                     - "no_z": Keeps only the first Z slice. Used if no Z-stack is present. 
-                     - "best_focus": Uses the slice with the best focus based on Shannon entropy. See 
+                     - "no_z": Keeps only the first Z slice. Used if no Z-stack is present.
+                     - "best_focus": Uses the slice with the best focus based on Shannon entropy. See
                         find_best_focus_slice and entropy_focus functions.
 
     Returns:
@@ -202,11 +202,17 @@ def nd2_to_tiff(
 
     # Ensures best_focus_channel matches the number of nd2 files
     if best_focus_channel is not None:
-        if isinstance(best_focus_channel, int): # If using a single channel for all nd2 files
-            best_focus_channels = [best_focus_channel] * len(files) # Sets the same channel for all files
+        if isinstance(
+            best_focus_channel, int
+        ):  # If using a single channel for all nd2 files
+            best_focus_channels = [best_focus_channel] * len(
+                files
+            )  # Sets the same channel for all files
         elif isinstance(best_focus_channel, list):
             # If using different channels for each nd2 file
-            if len(best_focus_channel) != len(files): #Validates that list length matches the number of files
+            if len(best_focus_channel) != len(
+                files
+            ):  # Validates that list length matches the number of files
                 raise ValueError(
                     f"Length of best_focus_channel list ({len(best_focus_channel)}) "
                     f"must match the number of files ({len(files)})"
@@ -236,15 +242,19 @@ def nd2_to_tiff(
 
         # If Z-stack present, handles Z-stack processing depending on z_handling strategy:
         if "Z" in image.dims:
-            if z_handling == "max_projection": # "max_projection" → takes maximum intensity projection
+            if (
+                z_handling == "max_projection"
+            ):  # "max_projection" → takes maximum intensity projection
                 image = image.max(dim="Z")
                 if "C" in image.dims:
                     img_array = image.transpose("C", "Y", "X").values
                 else:
                     img_array = np.expand_dims(image.values, axis=0)
 
-            elif z_handling == "best_focus": # "best_focus" → selects most in-focus slice using Shannon entropy
-                if "C" not in image.dims: # Single channel case
+            elif (
+                z_handling == "best_focus"
+            ):  # "best_focus" → selects most in-focus slice using Shannon entropy
+                if "C" not in image.dims:  # Single channel case
                     channel_data = image.values  # shape: (Z, Y, X)
                     # Apply focus detection using find_best_focus_slice to identify the sharpest Z slice
                     best_slice, best_index, scores = find_best_focus_slice(channel_data)
@@ -254,7 +264,7 @@ def nd2_to_tiff(
 
                     if verbose:
                         print(f"Best Z index: {best_index}, scores min: {min(scores)}")
-                else: # Multiple channels present
+                else:  # Multiple channels present
                     num_channels = image.sizes["C"]
 
                     # Validate best_focus_channel if provided

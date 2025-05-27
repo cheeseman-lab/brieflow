@@ -1074,6 +1074,7 @@ def cluster_heatmap(
     label_size=20,
     max_genes_displayed=75,
     cluster_method="average",
+    group_by_cluster=False,
 ):
     """Create a hierarchically clustered heatmap for visualizing feature patterns across cluster genes.
 
@@ -1103,10 +1104,10 @@ def cluster_heatmap(
         label_size (int, optional): Font size for axis labels. Defaults to 20.
         max_genes_displayed (int, optional): Maximum number of gene labels to display. Defaults to 75.
         cluster_method (str, optional): Linkage method for hierarchical clustering. Defaults to 'average'.
-        legend_fontsize (int, optional): Font size for the colorbar legend. Defaults to 14.
+        group_by_cluster (bool, optional): If True, group genes by cluster instead of hierarchical clustering. Defaults to False.
 
     Returns:
-        tuple: (fig, ax, heatmap_data) - Figure, Axes, and processed DataFrame.
+        tuple: (clustermap_obj, heatmap_data) - ClusterGrid object and processed DataFrame.
     """
     # Ensure cluster_ids is a list
     if not isinstance(cluster_ids, list):
@@ -1165,7 +1166,6 @@ def cluster_heatmap(
     # Apply z-score normalization based on selected method
     if z_score == "global":
         # Global normalization: Use the mean and std from the entire feature_df
-        # This normalizes with respect to the global distribution
         global_means = feature_df[valid_features].mean()
         global_stds = feature_df[valid_features].std()
 
@@ -1192,83 +1192,26 @@ def cluster_heatmap(
         # Normalize each column (feature)
         heatmap_data = (heatmap_data - heatmap_data.mean()) / heatmap_data.std()
 
-    # Rename features to their display names before transposing
+    # Rename features to their display names
     heatmap_data.columns = [
         feature_display_names[feat] for feat in heatmap_data.columns
     ]
 
+    # Create cluster annotation for genes
+    cluster_annotations = df_heatmap.loc[heatmap_data.index, "cluster"]
+
+    # Create color mapping for clusters
+    unique_clusters = sorted(cluster_annotations.unique())
+    cluster_colors = sns.color_palette("Set2", len(unique_clusters))
+    cluster_color_map = dict(zip(unique_clusters, cluster_colors))
+
+    # Create annotation Series for genes (not DataFrame)
+    gene_colors = cluster_annotations.map(cluster_color_map)
+
     # Transpose data if requested (genes on x-axis, features on y-axis)
     if transpose:
-        heatmap_data = heatmap_data.T  # Now rows=features, cols=genes
-
-    # Perform hierarchical clustering
-    # 1. Cluster the rows (features if transposed, genes if not)
-    row_linkage = hierarchy.linkage(
-        distance.pdist(heatmap_data.values), method=cluster_method
-    )
-    row_order = hierarchy.leaves_list(row_linkage)
-
-    # 2. Cluster the columns (genes if transposed, features if not)
-    col_linkage = hierarchy.linkage(
-        distance.pdist(heatmap_data.values.T), method=cluster_method
-    )
-    col_order = hierarchy.leaves_list(col_linkage)
-
-    # Reorder the data according to the clustering
-    heatmap_data = heatmap_data.iloc[row_order, col_order]
-
-    # Handle label limits based on transpose setting
-    if transpose:
-        # When transposed, genes are on x-axis
-        if len(all_cluster_genes) > max_genes_displayed:
-            # Keep all data but limit displayed labels
-            gene_labels = heatmap_data.columns.tolist()
-            # Show labels with higher frequency at edges and middle
-            display_indices = np.concatenate(
-                [
-                    np.linspace(
-                        0, len(gene_labels) - 1, max_genes_displayed // 2, dtype=int
-                    ),
-                    np.linspace(
-                        len(gene_labels) - 1, 0, max_genes_displayed // 2, dtype=int
-                    ),
-                ]
-            )
-            display_indices = sorted(np.unique(display_indices))
-            xticklabels = [
-                gene_labels[i] if i in display_indices else ""
-                for i in range(len(gene_labels))
-            ]
-            yticklabels = True  # Features are now on y-axis
-        else:
-            xticklabels = True
-            yticklabels = True
-    else:
-        # When not transposed, genes are on y-axis
-        if len(all_cluster_genes) > max_genes_displayed:
-            gene_labels = heatmap_data.index.tolist()
-            display_indices = np.concatenate(
-                [
-                    np.linspace(
-                        0, len(gene_labels) - 1, max_genes_displayed // 2, dtype=int
-                    ),
-                    np.linspace(
-                        len(gene_labels) - 1, 0, max_genes_displayed // 2, dtype=int
-                    ),
-                ]
-            )
-            display_indices = sorted(np.unique(display_indices))
-            yticklabels = [
-                gene_labels[i] if i in display_indices else ""
-                for i in range(len(gene_labels))
-            ]
-            xticklabels = True  # Features are now on x-axis
-        else:
-            xticklabels = True
-            yticklabels = True
-
-    # Create figure
-    fig, ax = plt.subplots(figsize=figsize, dpi=300)
+        heatmap_data = heatmap_data.T
+        # No need to transpose gene_colors since it's now a Series
 
     # Set appropriate color bar title based on normalization method
     if z_score is None:
@@ -1282,33 +1225,242 @@ def cluster_heatmap(
     elif z_score == "columns":
         cbar_label = "Column Z-score"
 
-    # Create heatmap with the pre-clustered data
-    sns.heatmap(
+    # Handle gene label display limits
+    if transpose:
+        # Genes are now columns
+        if len(all_cluster_genes) > max_genes_displayed:
+            # Create sparse labels
+            n_genes = heatmap_data.shape[1]
+            display_indices = np.linspace(
+                0, n_genes - 1, min(max_genes_displayed, n_genes), dtype=int
+            )
+            col_labels = [
+                heatmap_data.columns[i] if i in display_indices else ""
+                for i in range(n_genes)
+            ]
+            xticklabels = col_labels
+        else:
+            xticklabels = True
+        yticklabels = True  # Always show feature labels
+    else:
+        # Genes are rows
+        if len(all_cluster_genes) > max_genes_displayed:
+            n_genes = heatmap_data.shape[0]
+            display_indices = np.linspace(
+                0, n_genes - 1, min(max_genes_displayed, n_genes), dtype=int
+            )
+            row_labels = [
+                heatmap_data.index[i] if i in display_indices else ""
+                for i in range(n_genes)
+            ]
+            yticklabels = row_labels
+        else:
+            yticklabels = True
+        xticklabels = True  # Always show feature labels
+
+    # Determine clustering parameters
+    if group_by_cluster:
+        # Group by cluster with hierarchical clustering within each cluster
+        from scipy.cluster.hierarchy import linkage, dendrogram
+        from scipy.spatial.distance import pdist
+
+        # Create ordered index with hierarchical clustering within each cluster
+        ordered_genes = []
+
+        for cluster_id in sorted(unique_clusters):
+            # Get genes in this cluster
+            cluster_mask = cluster_annotations == cluster_id
+            cluster_genes = cluster_annotations[cluster_mask].index.tolist()
+
+            if len(cluster_genes) > 1:
+                # Get data for this cluster
+                if transpose:
+                    cluster_data = heatmap_data[cluster_genes].T
+                else:
+                    cluster_data = heatmap_data.loc[cluster_genes]
+
+                # Perform hierarchical clustering within this cluster
+                try:
+                    # Calculate distance matrix
+                    dist_matrix = pdist(cluster_data, metric="euclidean")
+                    # Perform hierarchical clustering
+                    linkage_matrix = linkage(dist_matrix, method=cluster_method)
+                    # Get the order of genes from dendrogram
+                    dendro = dendrogram(linkage_matrix, no_plot=True)
+                    # Reorder genes based on clustering
+                    reordered_genes = [cluster_genes[i] for i in dendro["leaves"]]
+                    ordered_genes.extend(reordered_genes)
+                except:
+                    # If clustering fails, just use original order
+                    ordered_genes.extend(cluster_genes)
+            else:
+                # Single gene, no clustering needed
+                ordered_genes.extend(cluster_genes)
+
+        # Reorder the data based on clustered order
+        if transpose:
+            heatmap_data = heatmap_data[ordered_genes]
+            gene_colors = gene_colors[ordered_genes]
+            # Still cluster rows (features)
+            row_cluster = True
+            col_cluster = False
+        else:
+            heatmap_data = heatmap_data.loc[ordered_genes]
+            gene_colors = gene_colors[ordered_genes]
+            # Still cluster columns (features)
+            row_cluster = False
+            col_cluster = True
+    else:
+        # Full hierarchical clustering
+        row_cluster = True
+        col_cluster = True
+
+    # Create the clustermap
+    g = sns.clustermap(
         heatmap_data,
-        ax=ax,
+        method=cluster_method,
         cmap=cmap,
         center=center,
         robust=robust,
-        cbar_kws={"shrink": 0.5, "label": cbar_label},  # Added labelsize
+        figsize=figsize,
+        # Annotation parameters
+        row_colors=gene_colors if not transpose else None,
+        col_colors=gene_colors if transpose else None,
+        # Clustering parameters
+        row_cluster=row_cluster,
+        col_cluster=col_cluster,
+        # Dendrogram parameters - use minimal ratio instead of 0
+        dendrogram_ratio=0.01,  # Very small but not zero to avoid layout issues
+        colors_ratio=0.04,  # Small ratio for color bar
+        # Label parameters
         xticklabels=xticklabels,
         yticklabels=yticklabels,
+        # Colorbar parameters
+        cbar_kws={"label": cbar_label, "shrink": 0.5},
     )
 
-    # Customize labels based on transpose setting
+    # Hide the dendrogram axes after creation
+    if hasattr(g, "ax_row_dendrogram") and g.ax_row_dendrogram is not None:
+        g.ax_row_dendrogram.set_visible(False)
+    if hasattr(g, "ax_col_dendrogram") and g.ax_col_dendrogram is not None:
+        g.ax_col_dendrogram.set_visible(False)
+
+    # Remove labels from cluster color bars
+    if hasattr(g, "ax_row_colors") and g.ax_row_colors is not None:
+        g.ax_row_colors.set_ylabel("")
+        g.ax_row_colors.set_xlabel("")
+        # Remove all tick labels
+        g.ax_row_colors.set_xticklabels([])
+        g.ax_row_colors.set_yticklabels([])
+        # Turn off ticks
+        g.ax_row_colors.tick_params(left=False, right=False, top=False, bottom=False)
+    if hasattr(g, "ax_col_colors") and g.ax_col_colors is not None:
+        g.ax_col_colors.set_ylabel("")
+        g.ax_col_colors.set_xlabel("")
+        # Remove all tick labels
+        g.ax_col_colors.set_xticklabels([])
+        g.ax_col_colors.set_yticklabels([])
+        # Turn off ticks
+        g.ax_col_colors.tick_params(left=False, right=False, top=False, bottom=False)
+
+    # Add cluster labels directly on the color bar
+    if transpose and hasattr(g, "ax_col_colors"):
+        # Get the positions and add text labels
+        ax = g.ax_col_colors
+        # Group genes by cluster for labeling
+        cluster_positions = {}
+        for i, (gene, cluster) in enumerate(
+            zip(heatmap_data.columns, gene_colors.index)
+        ):
+            cluster_val = cluster_annotations[gene]
+            if cluster_val not in cluster_positions:
+                cluster_positions[cluster_val] = []
+            cluster_positions[cluster_val].append(i)
+
+        # Add text labels for each cluster
+        for cluster_id, positions in cluster_positions.items():
+            if positions:
+                # Calculate center position for this cluster
+                center_pos = np.mean(positions)
+                ax.text(
+                    center_pos,
+                    0.5,
+                    f"{int(cluster_id)}",
+                    ha="center",
+                    va="center",
+                    fontsize=label_size,
+                    fontweight="bold",
+                    transform=ax.get_xaxis_transform(),
+                )
+
+    elif not transpose and hasattr(g, "ax_row_colors"):
+        # Get the positions and add text labels
+        ax = g.ax_row_colors
+        # Group genes by cluster for labeling
+        cluster_positions = {}
+        for i, (gene, cluster) in enumerate(zip(heatmap_data.index, gene_colors.index)):
+            cluster_val = cluster_annotations[gene]
+            if cluster_val not in cluster_positions:
+                cluster_positions[cluster_val] = []
+            cluster_positions[cluster_val].append(i)
+
+        # Add text labels for each cluster
+        for cluster_id, positions in cluster_positions.items():
+            if positions:
+                # Calculate center position for this cluster
+                center_pos = np.mean(positions)
+                ax.text(
+                    0.5,
+                    center_pos,
+                    f"{int(cluster_id)}",
+                    ha="center",
+                    va="center",
+                    fontsize=label_size - 4,
+                    fontweight="bold",
+                    transform=ax.get_yaxis_transform(),
+                )
+
+    # Customize the appearance
+    # Set font sizes
+    g.ax_heatmap.tick_params(labelsize=label_size)
+
+    # Remove the bottom axis label (gene_symbol_0)
+    g.ax_heatmap.set_xlabel("")
+
     if transpose:
         # Genes on x-axis
-        plt.setp(ax.get_xticklabels(), rotation=90, ha="center", fontsize=label_size)
-        plt.setp(ax.get_yticklabels(), fontsize=label_size)
+        plt.setp(g.ax_heatmap.get_xticklabels(), rotation=90, ha="center")
+        plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0)
     else:
         # Features on x-axis
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=label_size)
-        plt.setp(ax.get_yticklabels(), fontsize=label_size)
+        plt.setp(g.ax_heatmap.get_xticklabels(), rotation=45, ha="right")
+        plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0)
 
-    # Add title
+    # Add title with better positioning
     title = title or (
         f"Cluster {cluster_ids[0]}" if len(cluster_ids) == 1 else "Multiple Clusters"
     )
-    plt.title(title, fontsize=25)
+    # Adjust the subplot to make room for title
+    g.fig.subplots_adjust(top=0.92)
+    g.fig.suptitle(title, fontsize=25, y=0.96)
 
-    plt.tight_layout()
-    return fig, ax, heatmap_data
+    # Move the colorbar to bottom right as horizontal with reduced width
+    cbar = g.ax_cbar
+    if cbar is not None:
+        # Remove the original colorbar
+        cbar.remove()
+
+        # Create new horizontal colorbar at bottom right with reduced width
+        cbar_ax = g.fig.add_axes(
+            [0.95, 0.02, 0.10, 0.025]
+        )  # [left, bottom, width, height] - reduced width
+        cbar_new = plt.colorbar(
+            g.ax_heatmap.collections[0],
+            cax=cbar_ax,
+            orientation="horizontal",
+            label=cbar_label,
+        )
+        cbar_new.ax.tick_params(labelsize=label_size - 6)
+        cbar_new.ax.set_xlabel(cbar_label, fontsize=label_size - 4)
+
+    return g

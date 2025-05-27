@@ -11,6 +11,10 @@ BRIEFLOW_OUTPUT_PATH = os.environ["BRIEFLOW_OUTPUT_PATH"]
 CONFIG_PATH = os.environ["CONFIG_PATH"]
 SCREEN_PATH = os.environ["SCREEN_PATH"]
 
+# Static asset configuration - these can be None for local development
+STATIC_ASSET_URL_ROOT = os.environ.get("STATIC_ASSET_URL_ROOT", None)  # e.g. "/aconcagua_dataset_static/"
+STATIC_ASSET_PATH = os.environ.get("STATIC_ASSET_PATH", None)  # e.g. "/disk1/brieflow_datasets/aconcagua/"
+
 logger.info(f"CONFIG_PATH: {os.path.abspath(CONFIG_PATH)}")
 logger.info(f"SCREEN_PATH: {os.path.abspath(SCREEN_PATH)}")
 

@@ -57,7 +57,7 @@ sbs:
   cellprob_threshold: 0
   cyto_index: 4
   dapi_index: 0
-  df_barcode_library_path: config/barcode_library.tsv
+  df_barcode_library_fp: config/barcode_library.tsv
   error_correct: false
   flow_threshold: 0.4
   gpu: false

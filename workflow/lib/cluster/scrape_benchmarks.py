@@ -13,7 +13,6 @@ Key functions:
     - get_corum_data / get_string_data: Download raw benchmark inputs.
     - select_gene_variants: Harmonize variant gene names with clustering outputs.
     - filter_complexes: Curate benchmark gene groups with coverage and overlap filters.
-    - simplify_ampersand_genes: Standardize gene names by removing concatenated forms.
 """
 
 import re

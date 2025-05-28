@@ -6,7 +6,7 @@ from lib.sbs.call_cells import call_cells
 reads_data = pd.read_csv(snakemake.input[0], sep="\t")
 
 # load df_barcode_library
-df_barcode_library = pd.read_csv(snakemake.params.df_barcode_library_path, sep="\t")
+df_barcode_library = pd.read_csv(snakemake.params.df_barcode_library_fp, sep="\t")
 
 # call cells
 cells_data = call_cells(

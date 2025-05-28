@@ -108,7 +108,10 @@ def call_cells(
         )
         # Filter reads by quality threshold and call cells mapping
         df_cells = reads_data.query("Q_min >= @q_min").pipe(
-            call_cells_mapping, df_barcode_library, error_correct=error_correct, **kwargs
+            call_cells_mapping,
+            df_barcode_library,
+            error_correct=error_correct,
+            **kwargs,
         )
 
     # If UMI data is provided, add UMI information to the cell data
@@ -207,7 +210,11 @@ def call_cells_mapping(
     # Map reads to the pool design
     df_mapped = (
         pd.merge(
-            df_reads, df_barcode_library[[PREFIX]], how="left", left_on=BARCODE, right_on=PREFIX
+            df_reads,
+            df_barcode_library[[PREFIX]],
+            how="left",
+            left_on=BARCODE,
+            right_on=PREFIX,
         )
         .assign(
             mapped=lambda x: pd.notnull(x[PREFIX])

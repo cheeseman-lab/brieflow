@@ -640,7 +640,9 @@ def validate_gene_symbols(
     return pd.DataFrame(validation_results).sort_values("gene_symbol")
 
 
-def get_barcode_list(df_barcode_library: pd.DataFrame, use_prefix: bool = True) -> List[str]:
+def get_barcode_list(
+    df_barcode_library: pd.DataFrame, use_prefix: bool = True
+) -> List[str]:
     """Extract list of barcodes for mapping validation.
 
     Args:
@@ -653,7 +655,9 @@ def get_barcode_list(df_barcode_library: pd.DataFrame, use_prefix: bool = True) 
     required_columns = ["sgRNA", "gene_symbol", "prefix", "uniprot_entry"]
 
     # Check required columns exist
-    missing_cols = [col for col in required_columns if col not in df_barcode_library.columns]
+    missing_cols = [
+        col for col in required_columns if col not in df_barcode_library.columns
+    ]
     if missing_cols:
         raise ValueError(f"Missing required columns: {missing_cols}")
 

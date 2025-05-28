@@ -152,7 +152,7 @@ rule call_cells:
     output:
         SBS_OUTPUTS_MAPPED["call_cells"],
     params:
-        df_design_path=config["sbs"]["df_design_path"],
+        df_barcode_library_path=config["sbs"]["df_barcode_library_path"],
         q_min=config["sbs"]["q_min"],
         barcode_col=config["sbs"]["barcode_col"],
         error_correct=config["sbs"]["error_correct"],        
@@ -263,7 +263,7 @@ rule eval_mapping:
     output:
         SBS_OUTPUTS_MAPPED["eval_mapping"],
     params:
-        df_design_path=config["sbs"]["df_design_path"],
+        df_barcode_library_path=config["sbs"]["df_barcode_library_path"],
     script:
         "../scripts/sbs/eval_mapping.py"
 

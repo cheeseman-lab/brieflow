@@ -32,7 +32,7 @@ from lib.sbs.constants import (
 
 def call_cells(
     reads_data,
-    df_pool=None,
+    df_barcode_library=None,
     q_min=0,
     barcode_col="sgRNA",
     df_UMI=None,
@@ -46,9 +46,9 @@ def call_cells(
 
     Args:
         reads_data (DataFrame): DataFrame containing read information.
-        df_pool (DataFrame, optional): DataFrame containing pool information. Default is None.
+        df_barcode_library (DataFrame, optional): DataFrame containing barcode library information. Default is None.
         q_min (int, optional): Minimum quality threshold. Default is 0.
-        barcode_col (str, optional): Column in df_pool with barcodes. Default is 'sgRNA' (e.g. CROPseq)
+        barcode_col (str, optional): Column in df_barcode_library with barcodes. Default is 'sgRNA' (e.g. CROPseq)
         df_UMI (DataFrame, optional): DataFrame containing UMI reads. Default is None.
         error_correct (bool, optional): Whether to perform error correction on barcodes. Default is False.
         **kwargs: Additional arguments passed to error_correct_reads if error_correct is True.
@@ -95,20 +95,20 @@ def call_cells(
     # Columns for grouping
     cols = [WELL, TILE, CELL]
 
-    # Check if df_pool is None
-    if df_pool is None:
+    # Check if df_barcode_library is None
+    if df_barcode_library is None:
         # Filter reads by quality threshold and call cells no ref
         df_cells = reads_data.query("Q_min >= @q_min").pipe(call_cells_no_ref)
     else:
         # Determine the experimental prefix length
         prefix_length = len(reads_data.iloc[0].barcode)
         # Add prefix to the pool DataFrame
-        df_pool[PREFIX] = df_pool.apply(
+        df_barcode_library[PREFIX] = df_barcode_library.apply(
             lambda x: x[barcode_col][:prefix_length], axis=1
         )
         # Filter reads by quality threshold and call cells mapping
         df_cells = reads_data.query("Q_min >= @q_min").pipe(
-            call_cells_mapping, df_pool, error_correct=error_correct, **kwargs
+            call_cells_mapping, df_barcode_library, error_correct=error_correct, **kwargs
         )
 
     # If UMI data is provided, add UMI information to the cell data
@@ -180,7 +180,7 @@ def call_cells_no_ref(df_reads):
 
 def call_cells_mapping(
     df_reads,
-    df_pool,
+    df_barcode_library,
     barcode_info_cols=[SGRNA, GENE_SYMBOL, GENE_ID],
     error_correct=False,
     **kwargs,
@@ -189,7 +189,7 @@ def call_cells_mapping(
 
     Args:
         df_reads (DataFrame): DataFrame containing read data.
-        df_pool (DataFrame): DataFrame containing pool design information.
+        df_barcode_library (DataFrame): DataFrame containing barcode library information.
         barcode_info_cols (list, optional): Columns related to guide information. Default is [SGRNA, GENE_SYMBOL, GENE_ID].
         error_correct (bool, optional): Whether to perform error correction. Default is False.
         **kwargs: Additional arguments passed to error_correct_reads if error_correct is True.
@@ -201,13 +201,13 @@ def call_cells_mapping(
     if error_correct:
         print("performing error correction")
         df_reads[BARCODE] = error_correct_reads(
-            df_reads[BARCODE], df_pool[PREFIX], **kwargs
+            df_reads[BARCODE], df_barcode_library[PREFIX], **kwargs
         )
 
     # Map reads to the pool design
     df_mapped = (
         pd.merge(
-            df_reads, df_pool[[PREFIX]], how="left", left_on=BARCODE, right_on=PREFIX
+            df_reads, df_barcode_library[[PREFIX]], how="left", left_on=BARCODE, right_on=PREFIX
         )
         .assign(
             mapped=lambda x: pd.notnull(x[PREFIX])
@@ -270,7 +270,7 @@ def call_cells_mapping(
     df_cells = (
         pd.merge(
             df_cells,
-            df_pool[[PREFIX] + barcode_info_cols],
+            df_barcode_library[[PREFIX] + barcode_info_cols],
             how="left",
             left_on=BARCODE_0,
             right_on=PREFIX,
@@ -284,7 +284,7 @@ def call_cells_mapping(
     df_cells = (
         pd.merge(
             df_cells,
-            df_pool[[PREFIX] + barcode_info_cols],
+            df_barcode_library[[PREFIX] + barcode_info_cols],
             how="left",
             left_on=BARCODE_1,
             right_on=PREFIX,

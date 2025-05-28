@@ -19,7 +19,7 @@ def standardize_barcode_design(
     prefix_length: Optional[int] = None,
     filter_func: Optional[Callable] = None,
     drop_duplicates: bool = True,
-    keep_extra_cols: bool = True,
+    keep_extra_cols: bool = False,
     handle_ampersand_genes: bool = True,
     standardize_nontargeting: bool = True,
     nontargeting_patterns: List[str] = ["nontargeting", "sg_nt", "non-targeting"],
@@ -53,7 +53,7 @@ def standardize_barcode_design(
         handle_ampersand_genes (bool): Whether to split ampersand-separated genes (default: True)
         standardize_nontargeting (bool): Whether to standardize non-targeting controls (default: True)
         nontargeting_patterns (List[str]): Patterns to identify non-targeting controls
-            Case-insensitive matching against gene symbols (default: ["nontargeting", "NTC", "sg_nt", "non-targeting", "negative"])
+            Case-insensitive matching against gene symbols (default: ["nontargeting", "sg_nt", "non-targeting"])
         nontargeting_format (str): Format string for standardized non-targeting names
             Use {prefix} placeholder for barcode prefix, {original} for original name
         uniprot_data_path (str): Path to UniProt annotation file (REQUIRED for gene validation)
@@ -367,10 +367,8 @@ def standardize_nontargeting_controls(
     df: pd.DataFrame,
     nontargeting_patterns: List[str] = [
         "nontargeting",
-        "NTC",
         "sg_nt",
         "non-targeting",
-        "negative",
     ],
     nontargeting_format: str = "nontargeting_{prefix}",
     gene_symbol_col: str = "gene_symbol",
@@ -642,11 +640,11 @@ def validate_gene_symbols(
     return pd.DataFrame(validation_results).sort_values("gene_symbol")
 
 
-def get_barcode_list(df_pool: pd.DataFrame, use_prefix: bool = True) -> List[str]:
+def get_barcode_list(df_barcode_library: pd.DataFrame, use_prefix: bool = True) -> List[str]:
     """Extract list of barcodes for mapping validation.
 
     Args:
-        df_pool (pd.DataFrame): Standardized barcode design table
+        df_barcode_library (pd.DataFrame): Standardized barcode design table
         use_prefix (bool): Whether to return prefixes or full barcodes
 
     Returns:
@@ -655,14 +653,14 @@ def get_barcode_list(df_pool: pd.DataFrame, use_prefix: bool = True) -> List[str
     required_columns = ["sgRNA", "gene_symbol", "prefix", "uniprot_entry"]
 
     # Check required columns exist
-    missing_cols = [col for col in required_columns if col not in df_pool.columns]
+    missing_cols = [col for col in required_columns if col not in df_barcode_library.columns]
     if missing_cols:
         raise ValueError(f"Missing required columns: {missing_cols}")
 
     if use_prefix:
-        return df_pool["prefix"].tolist()
+        return df_barcode_library["prefix"].tolist()
     else:
-        return df_pool["sgRNA"].tolist()
+        return df_barcode_library["sgRNA"].tolist()
 
 
 # Helper functions for common manipulations

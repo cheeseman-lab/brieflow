@@ -8,29 +8,56 @@ version = "0.1.0"
 description = "Package for processing data from optical poooled screens."
 readme = "README.md"
 license = { file = "LICENSE" }
-dependencies = []
+dependencies = [
+    "snakemake==8.*",
+    "snakemake-executor-plugin-slurm",
+    "sphinx-rtd-theme",
+    "ipykernel",
+    "pandas",
+    "numpy",
+    "pyyaml",
+    "nd2",
+    "scikit-image",
+    "joblib",
+    "cellpose==3.1.0",
+    "tensorflow",
+    "csbdeep",
+    "microfilm",
+    "seaborn",
+    "tifffile",
+    "mahotas",
+    "python-igraph",
+    "leidenalg",
+    "phate",
+    "statsmodels",
+    "dill",
+    "xgboost==3.0.0",
+    "ruff==0.11.9",
+    "streamlit",
+    "plotly",
+    "pytest",
+    "matplotlib",
+    "adjusttext",
+    "torch",
+    "spotiflow",
+    "stardist==0.9.1",
+    "levenshtein",
+]
 
 [tool.setuptools]
 package-dir = {"" = "workflow"}
 packages = ["lib"]
 
-
 [tool.ruff]
 
 [tool.ruff.lint]
-# Configure pydocstyle settings under lint
 select = ["D"]
 pydocstyle = { convention = "google" }
 
 [tool.ruff.lint.per-file-ignores]
-# Ignore docstring check for script and notebook files
 "workflow/scripts/*.py" = ["D100", "D103"]
 "*.ipynb" = ["D100", "D103"]
-# Ignore all checks for external files
 "workflow/lib/external/*.py" = ["ALL"]
-# Ignore all checks for docs
 "docs/source/*.py" = ["ALL"]
-# Ignore all checks for tests
 "tests/*.py" = ["ALL"]
-# Visualization code
 "visualization/*.py" = ["ALL"]

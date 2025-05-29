@@ -18,6 +18,8 @@ rule align_sbs:
         method=config["sbs"]["alignment_method"],
         channel_names=config["sbs"]["channel_names"],
         upsample_factor=1,
+        skip_index=config["sbs"]["skip_cycles"],
+        manual_background_cycle=config["sbs"]["manual_background_cycle"],
     script:
         "../scripts/sbs/align_cycles.py"
 

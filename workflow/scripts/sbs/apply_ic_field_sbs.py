@@ -1,26 +1,23 @@
 from tifffile import imread, imwrite
-
 from lib.shared.illumination_correction import apply_ic_field, combine_ic_images
 
 # Load aligned image data
 aligned_image_data = imread(snakemake.input[0])
 aligned_image_data_segmentation_cycle = aligned_image_data[
-    snakemake.params.segmentation_cycle_index
+    snakemake.params.cyto_cycle_index
 ]
 
-# Check if we're using a cycle other than the first one for segmentation
-if snakemake.params.segmentation_cycle_index > 0:
-    # Load IC field from first cycle (for extra channels)
-    ic_field_first_cycle = imread(snakemake.input[1])
-    # Load IC field from segmentation cycle (for base channels)
-    ic_field_seg_cycle = imread(snakemake.input[2])
-    # Combine the IC fields, using ALL extra channels from first cycle
+# Logic based on whether DAPI and CYTO come from same or different cycles
+if snakemake.params.dapi_cycle != snakemake.params.cyto_cycle:
+    # Different cycles - combine IC fields
+    ic_field_dapi = imread(snakemake.input[1])    # DAPI cycle IC
+    ic_field_cyto = imread(snakemake.input[2])    # CYTO cycle IC
     ic_field = combine_ic_images(
-        [ic_field_first_cycle, ic_field_seg_cycle], 
+        [ic_field_dapi, ic_field_cyto], 
         [snakemake.params.extra_channel_indices, None]
     )
 else:
-    # Just use the IC field from the first cycle
+    # Same cycle - use one IC field (DAPI cycle IC)
     ic_field = imread(snakemake.input[1])
 
 # Apply illumination correction field

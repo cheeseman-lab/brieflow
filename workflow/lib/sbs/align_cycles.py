@@ -54,7 +54,7 @@ def align_cycles(
             background channel (0-based). Must be specified by user if needed.
             Defaults to None. If not specified, and extra channels are present,
             the cycle with the most extra channels will be used as the source for
-            propagating extra channels across cycles.
+            propagating extra channels across cycles. Only used if shapes vary across cycles.
             
     Returns:
         np.ndarray: SBS image aligned across cycles.

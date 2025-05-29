@@ -18,8 +18,8 @@ rule align_sbs:
         method=config["sbs"]["alignment_method"],
         channel_names=config["sbs"]["channel_names"],
         upsample_factor=1,
-        skip_index=config["sbs"]["skip_cycles"],
-        manual_background_cycle=config["sbs"]["manual_background_cycle"],
+        skip_index=config["sbs"]["skip_cycles_indices"],
+        manual_background_cycle=config["sbs"]["manual_background_cycle_index"],
     script:
         "../scripts/sbs/align_cycles.py"
 
@@ -84,7 +84,9 @@ rule apply_ic_field_sbs:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
-            subset_values={"cycle": 1},
+            subset_values={
+                "cycle": SBS_CYCLES[config["sbs"]["dapi_index"]]
+            },
             ancient_output=True,
         ),
         # illumination correction field from cycle of interest
@@ -92,14 +94,16 @@ rule apply_ic_field_sbs:
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
             subset_values={
-                "cycle": SBS_CYCLES[config["sbs"]["segmentation_cycle_index"]]
+                "cycle": SBS_CYCLES[config["sbs"]["cyto_cycle"]]
             },
             ancient_output=True,
         ),
     output:
         SBS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
-        segmentation_cycle_index=config["sbs"]["segmentation_cycle_index"],
+        dapi_cycle=config["sbs"]["dapi_cycle"],
+        cyto_cycle=config["sbs"]["cyto_cycle"],
+        cyto_cycle_index=config["sbs"]["cyto_cycle_index"],
         extra_channel_indices=config["sbs"]["extra_channel_indices"],
     script:
         "../scripts/sbs/apply_ic_field_sbs.py"

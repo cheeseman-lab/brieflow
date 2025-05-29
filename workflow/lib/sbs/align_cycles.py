@@ -25,10 +25,11 @@ def align_cycles(
     cutoff=1,
     q_norm=70,
     use_align_within_cycle=True,
-    cycle_files=None,
+    skip_cycles=None,
+    manual_background_cycle=None,
 ):
     """Rigid alignment of sequencing cycles and channels.
-
+    
     Args:
         image_data (np.ndarray or list of np.ndarray): Unaligned SBS image with dimensions
             (CYCLE, CHANNEL, I, J) or list of single cycle SBS images, each with dimensions
@@ -47,23 +48,35 @@ def align_cycles(
         q_norm (int, optional): Quantile for normalization to help deal with noise in images.
             Defaults to 70.
         use_align_within_cycle (bool, optional): Align SBS channels within cycles. Defaults to True.
-        cycle_files (list[int] or None, optional): Used for parsing sets of images where individual
-            channels are in separate files. Defaults to None.
-
+        skip_cycles (list[int] or None, optional): List of cycle indices to skip (0-based).
+            These cycles will be completely excluded from alignment. Defaults to None.
+        manual_background_cycle (int or None, optional): Specific cycle to use for 
+            background channel (0-based). Must be specified by user if needed.
+            Defaults to None. If not specified, and extra channels are present,
+            the cycle with the most extra channels will be used as the source for
+            propagating extra channels across cycles.
+            
     Returns:
         np.ndarray: SBS image aligned across cycles.
     """
-    # Handle case where cycle_files is provided
-    if cycle_files is not None:
-        arr = []
-        current = 0
-        for cycle in cycle_files:
-            if cycle == 1:
-                arr.append(image_data[current])
+    skip_cycles = skip_cycles or []
+    
+    # Handle cycle skipping
+    if skip_cycles:
+        print(f"Skipping cycles: {skip_cycles} out of {len(image_data)} total cycles")
+        processed_data = []
+        
+        for i, data in enumerate(image_data):
+            if i in skip_cycles:
+                print(f"Skipping cycle {i} with shape {data.shape}")
             else:
-                arr.append(np.array(image_data[current : current + cycle]))
-            current += cycle
-        image_data = arr
+                processed_data.append(data)
+        
+        if len(processed_data) == 0:
+            raise ValueError("All cycles were skipped - no data to process")
+        
+        image_data = processed_data
+        print(f"Processing {len(processed_data)} cycles after skipping {len(skip_cycles)}")
 
     # Determine the channel structure
     base_channels = ["G", "T", "A", "C"]
@@ -79,68 +92,67 @@ def align_cycles(
     base_indices = [i for i, ch in enumerate(channel_order) if ch in base_channels]
     extra_indices = [i for i, ch in enumerate(channel_order) if ch not in base_channels]
     
-    # Check if channels are consistent across cycles
-    channels_consistent = not isinstance(image_data, list) or all(x.shape == image_data[0].shape for x in image_data)
-
-    # Check if number of channels varies across cycles
-    if not channels_consistent:
+    # Handle channel inconsistencies - simplified approach
+    if not all(x.shape == image_data[0].shape for x in image_data):
         print("Warning: Number of channels varies across cycles.")
         
-        # Process cycles with inconsistent channels
-        stacked_cycles = []
-        ref_cycle = image_data[0]
-        ref_shape = ref_cycle.shape
+        # Keep only channels in common across all cycles
+        channels = [x.shape[-3] if x.ndim > 2 else 1 for x in image_data]
+        min_channels = min(channels)
+        print(f"Channel counts: {channels}, using minimum: {min_channels}")
         
-        for cycle_idx, cycle_data in enumerate(image_data):
-            current_cycle = cycle_data.copy()
+        stacked = np.array([x[-min_channels:] for x in image_data])
+        
+        # Automatically add back extra channels (propagate to all cycles)
+        extras = np.array(channels) - min_channels
+        if any(extras > 0):
+            print("Propagating extra channels to all cycles...")
+            arr = []
             
-            # Add missing extra channels from first cycle
-            if cycle_data.shape[-3] != ref_shape[-3] and cycle_idx > 0:
-                missing_extras = [i for i in extra_indices 
-                                 if i < ref_shape[-3] and 
-                                 (i >= cycle_data.shape[-3] or cycle_data.shape[-3] < ref_shape[-3])]
+            # Find the cycle with extra channels (manual_background_cycle or cycle with most extras)
+            source_cycle_idx = None
+            if manual_background_cycle is not None:
+                # Convert to processed cycle index after skipping
+                adjusted_idx = manual_background_cycle
+                for skip_idx in sorted(skip_cycles):
+                    if skip_idx <= manual_background_cycle:
+                        adjusted_idx -= 1
+                if 0 <= adjusted_idx < len(image_data) and extras[adjusted_idx] > 0:
+                    source_cycle_idx = adjusted_idx
+                    print(f"Using user-specified segmentation background cycle {manual_background_cycle} (processed index {adjusted_idx})")
+            
+            if source_cycle_idx is None:
+                # Find cycle with the most extra channels
+                max_extra_cycle = np.argmax(extras)
+                if extras[max_extra_cycle] > 0:
+                    source_cycle_idx = max_extra_cycle
+                    print(f"Auto-selected cycle {max_extra_cycle} as source (has {extras[max_extra_cycle]} extra channels)")
+            
+            if source_cycle_idx is not None:
+                # Get ALL extra channels from the source cycle
+                for extra_ch in range(int(extras[source_cycle_idx])):
+                    arr.append(image_data[source_cycle_idx][extra_ch])
                 
-                if missing_extras:
-                    # Get missing channels from first cycle
-                    missing_channels = np.stack([ref_cycle[i] for i in missing_extras])
-                    
-                    # Add missing channels to current cycle
-                    current_cycle = np.concatenate([missing_channels, current_cycle], axis=0)
-            
-            stacked_cycles.append(current_cycle)
-        
-        # Make sure all cycles have same shape
-        shapes = [c.shape for c in stacked_cycles]
-        if len(set(shapes)) > 1:
-            print(f"Warning: After processing, cycles still have different shapes")
-            
-            # Find max dimensions and ensure all cycles match
-            max_channels = max(s[-3] for s in shapes)
-            
-            for i, cycle in enumerate(stacked_cycles):
-                if cycle.shape[-3] < max_channels:
-                    # Add missing channels from first cycle or zeros if needed
-                    pad_channels = []
-                    for j in range(cycle.shape[-3], max_channels):
-                        if j < ref_cycle.shape[-3]:
-                            pad_channels.append(ref_cycle[j])
-                        else:
-                            pad_channels.append(np.zeros((cycle.shape[-2], cycle.shape[-1]), 
-                                                       dtype=cycle.dtype))
-                    
-                    pad_array = np.stack(pad_channels)
-                    stacked_cycles[i] = np.concatenate([cycle, pad_array], axis=0)
-        
-        stacked = np.stack(stacked_cycles)
+                propagate = np.array(arr)
+                print(f"Propagating {len(arr)} extra channels with shapes: {[ch.shape for ch in arr]}")
+                
+                # Add extra channels to the beginning of all cycles
+                stacked = np.concatenate(
+                    (np.array([propagate] * stacked.shape[0]), stacked), axis=1
+                )
     else:
         # All cycles have the same number of channels
-        stacked = np.stack(image_data) if isinstance(image_data, list) else image_data
+        stacked = np.array(image_data) if isinstance(image_data, list) else image_data
+    
+    # Debug print before final stacking
+    print(f"Final stacked shape before alignment: {stacked.shape}")
     
     assert stacked.ndim == 4, "Input image_data must have dimensions CYCLE, CHANNEL, I, J"
 
     # Automatically determine method if not provided
     if method is None:
-        if channels_consistent:
+        # Use DAPI if we have consistent channels, sbs_mean if inconsistent
+        if all(x.shape == image_data[0].shape for x in image_data):
             method = "DAPI"
         else:
             method = "sbs_mean"
@@ -196,7 +208,7 @@ def align_cycles(
 
 def align_within_cycle(data_, upsample_factor=4, window=1, q1=0, q2=90):
     """Align images within the same cycle.
-
+    
     Args:
         data_ (np.ndarray): Image data.
         upsample_factor (int, optional): Upsampling factor for cross-correlation. Defaults to 4.

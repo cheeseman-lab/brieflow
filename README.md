@@ -44,7 +44,7 @@ Look at [brieflow-analysis](https://github.com/cheeseman-lab/brieflow-analysis/)
 
 ### Conda Environment
 
-Use the following commands to set up the brieflow Conda environment (~20 min):
+Use the following commands to set up the brieflow Conda environment (~10 min):
 
 ```sh
 # create and activate brieflow_SCREEN_CONTEXT conda environment

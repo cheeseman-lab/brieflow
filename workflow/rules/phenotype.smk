@@ -62,7 +62,7 @@ rule extract_phenotype_info:
 
 
 # Combine phenotype info results from different tiles
-rule merge_phenotype_info:
+rule combine_phenotype_info:
     input:
         lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["extract_phenotype_info"],
@@ -71,7 +71,7 @@ rule merge_phenotype_info:
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_info"],
+        PHENOTYPE_OUTPUTS_MAPPED["combine_phenotype_info"],
     script:
         "../scripts/shared/combine_dfs.py"
 
@@ -91,6 +91,7 @@ rule extract_phenotype_cp:
     params:
         foci_channel=config["phenotype"]["foci_channel"],
         channel_names=config["phenotype"]["channel_names"],
+        cp_method=config["phenotype"]["cp_method"],
     script:
         "../scripts/phenotype/extract_phenotype_cp_multichannel.py"
 
@@ -124,7 +125,7 @@ rule eval_segmentation_phenotype:
         ),
         # paths to combined cell data
         cells_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype_info"][0],
+            PHENOTYPE_OUTPUTS["combine_phenotype_info"][0],
             wildcards=wildcards,
             expansion_values=["well"],
             metadata_combos=phenotype_wildcard_combos,
@@ -132,7 +133,7 @@ rule eval_segmentation_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
     params:
-        heatmap_shape="6W_ph"
+        heatmap_shape="6W_ph",
     script:
         "../scripts/shared/eval_segmentation.py"
 

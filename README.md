@@ -61,27 +61,20 @@ For rule-specific package consider creating a separate conda environment file an
 
 ### Tests
 
-Run the following commands to ensure your Brieflow is set up correctly:
+Run the following commands to ensure your Brieflow is set up correctly
+This process takes about 14 minutes on our machine.
 
 ```sh
 # activate brieflow env
 conda activate brieflow_main_env
-# enter test dir
-cd brieflow/tests/
+# enter small test analysis dir
+cd brieflow/tests/small_test_analysis
 # set up small test analysis
 python small_test_analysis_setup.py
-# enter small test anaylsis dir
-cd small_test_analysis
-# run snakemake
-snakemake \
-    --cores all \
-    --use-conda \
-    --snakefile "../../workflow/Snakefile" \
-    --configfile "config/config.yml" \
-    --until all_preprocess
-# return to brieflow dir
-cd ../../
+# run brieflow
+sh run_brieflow.sh
 # run tests
+cd ../../
 pytest
 ```
 
@@ -120,4 +113,4 @@ We use the following conventions:
 - [parquet](https://www.databricks.com/glossary/what-is-parquet) file format for saving large dataframes
 - Data location information (well, tile, cycle, etc) + `__` + type of information (cell features, phenotype info, etc) + `.` + file type. 
 Data is stored in its respective analysis directories. 
-For example: `analysis_root/preprocess/metadata/phenotype/P-1_W-A2_T-571__metadata.tsv`
+For example: `brieflow_output/preprocess/metadata/phenotype/P-1_W-A2_T-571__metadata.tsv`

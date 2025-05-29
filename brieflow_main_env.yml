@@ -33,6 +33,12 @@ dependencies:
   - joblib
   - dill
   - xgboost=3.0.0
+  - ruff=0.11.9
+  - streamlit
+  - plotly
+  - pytest
+  - matplotlib
+  - adjusttext
   - pip:
       - -e .
       - stardist==0.9.1

@@ -13,8 +13,9 @@ from lib.shared.file_utils import get_filename
 TEST_ANALYSIS_PATH = Path(__file__).resolve().parents[1] / "small_test_analysis"
 TEST_PLATE = 1
 TEST_WELL = "A1"
-TEST_TILE = 1
 TEST_CYCLE = 11
+TEST_TILE_SBS = 0
+TEST_TILE_PHENOTYPE = 5
 
 # load config file
 CONFIG_FILE_PATH = TEST_ANALYSIS_PATH / "config/config.yml"
@@ -22,7 +23,7 @@ with open(CONFIG_FILE_PATH, "r") as config_file:
     config = yaml.safe_load(config_file)
 
 
-ROOT_FP = TEST_ANALYSIS_PATH / "analysis_root"
+ROOT_FP = TEST_ANALYSIS_PATH / "brieflow_output"
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
 
@@ -71,7 +72,7 @@ def test_convert_sbs():
             {
                 "plate": TEST_PLATE,
                 "well": TEST_WELL,
-                "tile": TEST_TILE,
+                "tile": TEST_TILE_SBS,
                 "cycle": TEST_CYCLE,
             },
             "image",
@@ -88,7 +89,7 @@ def test_convert_phenotype():
         / "images"
         / "phenotype"
         / get_filename(
-            {"plate": TEST_PLATE, "well": TEST_WELL, "tile": TEST_TILE},
+            {"plate": TEST_PLATE, "well": TEST_WELL, "tile": TEST_TILE_PHENOTYPE},
             "image",
             "tiff",
         )
@@ -106,7 +107,7 @@ def test_calculate_ic_sbs():
             {
                 "plate": TEST_PLATE,
                 "well": TEST_WELL,
-                "cycle": TEST_TILE,
+                "cycle": TEST_CYCLE,
             },
             "ic_field",
             "tiff",

@@ -27,6 +27,7 @@ elif method == "spotiflow":
     prob_thresh = params["spotiflow_threshold"]
     cycle_idx = params["spotiflow_cycle_index"]
     min_distance = params["spotiflow_min_distance"]
+    remove_index = params["remove_index"]
 
     # Find peaks using spotiflow method
     peaks, _ = find_peaks_spotiflow(
@@ -35,6 +36,7 @@ elif method == "spotiflow":
         model=model,
         prob_thresh=prob_thresh,
         min_distance=min_distance,
+        remove_index=remove_index,
         verbose=False,
     )
 

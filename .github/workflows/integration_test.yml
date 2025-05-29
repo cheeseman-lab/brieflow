@@ -14,15 +14,48 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Cache micromamba environment based on env file AND your code
-      - name: Set up micromamba
-        uses: mamba-org/setup-micromamba@v1
+      # Set up Conda
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v2
         with:
-          environment-file: brieflow_main_env.yml
-          cache-downloads: true
-          cache-environment: true
-          cache-environment-key: brieflow_env-${{ hashFiles('brieflow_main_env.yml') }}
-          micromamba-version: 'latest'
+          auto-update-conda: true
+          python-version: 3.11
+          channels: conda-forge
+
+      # Cache conda environment
+      - name: Cache conda environment
+        uses: actions/cache@v3
+        id: conda-cache
+        with:
+          path: |
+            /usr/share/miniconda/envs/brieflow_ci
+            ~/.cache/pip
+          key: conda-env-${{ hashFiles('pyproject.toml') }}-${{ runner.os }}-python3.11
+          restore-keys: |
+            conda-env-${{ runner.os }}-python3.11-
+
+      # Set up environment (only if cache miss)
+      - name: Set up brieflow environment
+        if: steps.conda-cache.outputs.cache-hit != 'true'
+        shell: bash -l {0}
+        run: |
+          # Create conda environment
+          conda create -n brieflow_ci -c conda-forge python=3.11 uv pip -y
+          conda activate brieflow_ci
+          
+          # Install Python dependencies with uv
+          uv pip install -r pyproject.toml
+          uv pip install -e .
+          
+          # Install conda-only packages
+          conda install -c conda-forge micro_sam -y
+
+      # Activate environment for subsequent steps
+      - name: Initialize conda environment
+        shell: bash -l {0}
+        run: |
+          conda activate brieflow_ci
+          echo "CONDA_DEFAULT_ENV=brieflow_ci" >> $GITHUB_ENV
 
       # Cache the test data setup
       - name: Cache test data
@@ -37,15 +70,21 @@ jobs:
         if: steps.test-data-cache.outputs.cache-hit != 'true'
         shell: bash -l {0}
         working-directory: tests/small_test_analysis
-        run: python small_test_analysis_setup.py
+        run: |
+          conda activate brieflow_ci
+          python small_test_analysis_setup.py
 
       # Run Brieflow
       - name: Run Brieflow
         shell: bash -l {0}
         working-directory: tests/small_test_analysis
-        run: sh run_brieflow.sh
+        run: |
+          conda activate brieflow_ci
+          sh run_brieflow.sh
 
       # Run Pytest
       - name: Run pytest
         shell: bash -l {0}
-        run: pytest
+        run: |
+          conda activate brieflow_ci
+          pytest

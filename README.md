@@ -57,7 +57,7 @@ uv pip install -r pyproject.toml
 # install editable version of brieflow
 uv pip install -e .
 # install conda-only packages
-conda install -c conda-forge micro_sam -y
+conda install -c conda-forge micro_sam -y # skip if not using micro-sam for segmentation
 ```
 
 **Notes:**

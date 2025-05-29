@@ -318,7 +318,7 @@ def nd2_to_tiff(
                 # Keep only the first Z slice instead of full stack
                 if verbose:
                     print(
-                        "Warning: 'No_z' option with Z-stacks will take only the first Z slice."
+                        "Warning: 'no_z' option with Z-stacks will take only the first Z slice."
                     )
 
                 if "C" in image.dims:

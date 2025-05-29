@@ -319,7 +319,7 @@ def combine_ic_images(images, indices):
 
     Args:
         images: List of IC images [extra_channels_image, base_channels_image]
-        indices: List of indices [extra_channel_indices, base_channel_indices] 
+        indices: List of indices [extra_channel_indices, base_channel_indices]
                  where None means use all channels
 
     Returns:

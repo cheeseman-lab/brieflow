@@ -156,7 +156,7 @@ def normalize_by_percentile(data_, q_norm=70):
     return normed
 
 
-def apply_custom_offsets(data, offset_yx, channels):
+def apply_custom_offsets(data, offsets_dict):
     """Apply custom offsets to specific channels in image data.
 
     Applies a custom offset to specified channels. Useful for aligning channels with
@@ -171,8 +171,7 @@ def apply_custom_offsets(data, offset_yx, channels):
 
     Args:
         data (np.ndarray): Input image data.
-        offset_yx (tuple): Tuple of (y, x) pixel offsets to apply.
-        channels (int or list): Channel indices to apply the offset to.
+        offsets_dict (dict): Mapping of channel index to (y, x) offset.
 
     Returns:
         np.ndarray: Image data with custom offsets applied.
@@ -183,14 +182,11 @@ def apply_custom_offsets(data, offset_yx, channels):
     # Set up offsets array, initialized with zeros
     offsets = np.array([(0, 0) for i in range(data.shape[0])])
 
-    # Apply the specified offset to the specified channel(s)
-    if isinstance(channels, int):
-        offsets[channels] = offset_yx
-    elif isinstance(channels, (list, tuple)):
-        for channel in channels:
-            offsets[channel] = offset_yx
-    else:
-        raise ValueError("'channels' must be an int or tuple/list of ints")
+    # Set up full offsets array
+    offsets = np.array([(0, 0) for _ in range(data.shape[0])])
+
+    for channel, offset_yx in offsets_dict.items():
+        offsets[channel] = offset_yx
 
     # Apply the calculated offsets to data
     adjusted = apply_offsets(data, offsets)

@@ -90,6 +90,8 @@ rule convert_sbs:
         PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
     params:
         channel_order_flip=config["preprocess"]["sbs_channel_order_flip"],
+        best_focus_channel=config["preprocess"]["sbs_best_focus_channel"],
+        z_handling=config["preprocess"]["sbs_z_handling"],
     script:
         "../scripts/preprocess/nd2_to_tiff.py"
 
@@ -109,6 +111,8 @@ rule convert_phenotype:
         PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
     params:
         channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
+        best_focus_channel=config["preprocess"]["phenotype_best_focus_channel"],
+        z_handling=config["preprocess"]["phenotype_z_handling"],
     script:
         "../scripts/preprocess/nd2_to_tiff.py"
 

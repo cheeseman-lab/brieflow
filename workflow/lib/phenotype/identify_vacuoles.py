@@ -18,15 +18,13 @@ from skimage import filters, morphology, measure, segmentation, feature, util, e
 from skimage.segmentation import mark_boundaries
 import matplotlib.pyplot as plt
 from microfilm.microplot import Microimage
-
 from lib.shared.configuration_utils import create_micropanel
 
-
-import numpy as np
-import pandas as pd
-from scipy import ndimage
-from skimage import filters, feature, measure, segmentation, exposure
-
+def get_feret_diameters(coords):
+    cnt = coords.astype(np.int32)
+    rect = cv2.minAreaRect(cnt)
+    w, h = rect[1]
+    return min(w, h), max(w, h)
 
 def segment_vacuoles(
     image,
@@ -34,8 +32,8 @@ def segment_vacuoles(
     nuclei_channel_index=None,
     cell_masks=None,
     cytoplasm_masks=None,
-    min_size=20,
-    max_size=5000,
+    min_diameter=5,
+    max_diameter=80,
     threshold_smoothing_scale=1.3488,
     min_distance_between_maxima=20,
     max_objects_per_cell=120,
@@ -53,8 +51,8 @@ def segment_vacuoles(
         cell_masks (numpy.ndarray): Cell segmentation masks with unique integers for each cell.
         cytoplasm_masks (numpy.ndarray, optional): Cytoplasm segmentation masks with unique integers.
             If provided, vacuole regions will be removed from cytoplasm masks.
-        min_size (int, optional): Minimum size (in pixels) for a vacuole to be considered valid. Default is 20.
-        max_size (int, optional): Maximum size (in pixels) for a vacuole to be considered valid. Default is 5000.
+        min_diameter (float, optional): Minimum diameter (in pixels) for a vacuole to be considered valid. Default is 5.
+        max_diameter (float, optional): Maximum diameter (in pixels) for a vacuole to be considered valid. Default is 80.
         threshold_smoothing_scale (float, optional): Sigma for Gaussian smoothing before thresholding. Default is 1.3488.
         min_distance_between_maxima (int, optional): Minimum distance between local maxima for declumping vacuoles. Default is 20.
         max_objects_per_cell (int, optional): Maximum number of vacuoles allowed per cell. Default is 120.
@@ -108,12 +106,22 @@ def segment_vacuoles(
         filled = ndimage.binary_fill_holes(mask)
         declumped[filled] = label
 
-    # OPTIMIZED: Vectorized size filtering
+    # Vectorized diameter filtering
     regions = measure.regionprops(declumped)
-    valid_labels = [region.label for region in regions if min_size <= region.area <= max_size]
+    valid_labels = []
+    
+    for region in regions:
+    coords = region.coords[:, [1, 0]]  # Convert to (x, y) format
+    if len(coords) < 3:
+        continue
+
+    feret_min, feret_max = get_feret_diameters(coords)
+
+    if min_diameter <= feret_min and feret_max <= max_diameter:
+        valid_labels.append(region.label)
     
     if not valid_labels:
-        print("No valid vacuoles found after size filtering")
+        print("No valid vacuoles found after diameter filtering")
         return _create_empty_results(cell_masks, cytoplasm_masks)
     
     # Create valid vacuoles mask efficiently
@@ -138,7 +146,7 @@ def segment_vacuoles(
         else:
             nuclei_centroids_dict = nuclei_centroids
 
-    # OPTIMIZED: Pre-compute region properties for all vacuoles
+    # Pre-compute region properties for all vacuoles
     vacuole_regions = {region.label: region for region in measure.regionprops(labeled_vacuoles)}
 
     # Initialize tracking variables
@@ -155,6 +163,9 @@ def segment_vacuoles(
         vacuole_mask = labeled_vacuoles == vacuole_id
         vacuole_area = region.area
         vacuole_centroid = region.centroid
+        
+        # Calculate equivalent diameter for this vacuole
+        vacuole_diameter = 2 * np.sqrt(vacuole_area / np.pi)
 
         # Find nuclei peaks within this vacuole
         peaks = feature.peak_local_max(
@@ -186,7 +197,7 @@ def segment_vacuoles(
             
             min_distance_to_nucleus = min_dist if min_dist != np.inf else None
 
-        # OPTIMIZED: Find best overlapping cell more efficiently
+        # Find best overlapping cell
         best_cell_id = None
         best_overlap = 0
 
@@ -210,6 +221,7 @@ def segment_vacuoles(
                 "vacuole_id": vacuole_id,
                 "cell_id": best_cell_id,
                 "vacuole_area": vacuole_area,
+                "vacuole_diameter": vacuole_diameter,
                 "overlap_ratio": best_overlap,
                 "nuclei_count": nuclei_per_vacuole[vacuole_id]["count"],
                 "peak_coordinates": nuclei_per_vacuole[vacuole_id]["peak_coordinates"],
@@ -240,6 +252,9 @@ def segment_vacuoles(
                 valid_distances = cell_vacuoles["distance_to_nucleus"].dropna()
                 mean_distance = valid_distances.mean() if len(valid_distances) > 0 else None
                 
+                # Calculate mean diameter
+                mean_diameter = cell_vacuoles["vacuole_diameter"].mean()
+                
                 cell_summary.append({
                     "cell_id": cell_id,
                     "has_vacuole": True,
@@ -248,6 +263,7 @@ def segment_vacuoles(
                     "cell_area": cell_area,
                     "total_vacuole_area": total_vacuole_area,
                     "vacuole_area_ratio": total_vacuole_area / cell_area if cell_area > 0 else 0,
+                    "mean_vacuole_diameter": mean_diameter,
                     "total_nuclei_in_vacuoles": total_nuclei,
                     "multinucleated_vacuole_count": multinucleated_count,
                     "mean_distance_to_nucleus": mean_distance,
@@ -261,6 +277,7 @@ def segment_vacuoles(
                     "cell_area": cell_area,
                     "total_vacuole_area": 0,
                     "vacuole_area_ratio": 0,
+                    "mean_vacuole_diameter": None,
                     "total_nuclei_in_vacuoles": 0,
                     "multinucleated_vacuole_count": 0,
                     "mean_distance_to_nucleus": None,
@@ -278,6 +295,7 @@ def segment_vacuoles(
                 "cell_area": cell_area,
                 "total_vacuole_area": 0,
                 "vacuole_area_ratio": 0,
+                "mean_vacuole_diameter": None,
                 "total_nuclei_in_vacuoles": 0,
                 "multinucleated_vacuole_count": 0,
                 "mean_distance_to_nucleus": None,
@@ -301,7 +319,7 @@ def segment_vacuoles(
     total_kept = len(vacuole_cell_mapping)
     print(f"Kept {total_kept} out of {num_vacuoles} detected vacuoles "
           f"({total_kept / num_vacuoles * 100:.1f}%)")
-    print(f"Discarded {num_vacuoles - total_kept} vacuoles that didn't sufficiently overlap with cells")
+    print(f"Discarded {num_vacuoles - total_kept} vacuoles that didn't meet diameter criteria or cell overlap")
 
     # Process cytoplasm masks if provided
     updated_cytoplasm_masks = None
@@ -323,7 +341,6 @@ def segment_vacuoles(
         return associated_vacuoles, cell_vacuole_table, updated_cytoplasm_masks
     else:
         return associated_vacuoles, cell_vacuole_table
-
 
 def _create_empty_results(cell_masks, cytoplasm_masks):
     """Helper function to create empty results when no vacuoles are found."""

@@ -19,6 +19,7 @@ from skimage.segmentation import mark_boundaries
 import matplotlib.pyplot as plt
 from microfilm.microplot import Microimage
 from lib.shared.configuration_utils import create_micropanel
+import cv2
 
 def get_feret_diameters(coords):
     """Compute the minimum and maximum Feret diameters of a 2D shape.

@@ -21,6 +21,32 @@ from microfilm.microplot import Microimage
 from lib.shared.configuration_utils import create_micropanel
 
 def get_feret_diameters(coords):
+    """Compute the minimum and maximum Feret diameters of a 2D shape.
+
+    The Feret diameters are calculated using OpenCV's minAreaRect, which finds 
+    the smallest-area rotated bounding rectangle that encloses the input coordinates.
+
+    Parameters
+    ----------
+    coords : ndarray of shape (N, 2)
+        An array of (x, y) coordinates representing the pixels or contour of a region.
+
+    Returns:
+    -------
+    feret_min : float
+        The shortest distance between two parallel lines tangent to the object 
+        (i.e., the minimum Feret diameter).
+        
+    feret_max : float
+        The longest distance between two parallel lines tangent to the object 
+        (i.e., the maximum Feret diameter).
+    
+    Notes:
+    -----
+    - This method assumes the input coordinates define a planar shape (e.g., from a binary mask or regionprops).
+    - The returned values are in the same units as the input coordinates (typically pixels).
+    - Internally uses OpenCV's cv2.minAreaRect for fast and robust measurement.
+    """
     cnt = coords.astype(np.int32)
     rect = cv2.minAreaRect(cnt)
     w, h = rect[1]
@@ -111,14 +137,14 @@ def segment_vacuoles(
     valid_labels = []
     
     for region in regions:
-    coords = region.coords[:, [1, 0]]  # Convert to (x, y) format
-    if len(coords) < 3:
-        continue
+        coords = region.coords[:, [1, 0]]  # Convert to (x, y) format
+        if len(coords) < 3:
+            pass
+        else:
+            feret_min, feret_max = get_feret_diameters(coords)
 
-    feret_min, feret_max = get_feret_diameters(coords)
-
-    if min_diameter <= feret_min and feret_max <= max_diameter:
-        valid_labels.append(region.label)
+            if min_diameter <= feret_min and feret_max <= max_diameter:
+                valid_labels.append(region.label)
     
     if not valid_labels:
         print("No valid vacuoles found after diameter filtering")

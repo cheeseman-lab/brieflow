@@ -8,12 +8,45 @@ version = "0.1.0"
 description = "Package for processing data from optical poooled screens."
 readme = "README.md"
 license = { file = "LICENSE" }
-dependencies = []
+dependencies = [
+    "snakemake==8.*",
+    "snakemake-executor-plugin-slurm",
+    "sphinx-rtd-theme",
+    "ipykernel",
+    "pandas",
+    "numpy",
+    "pyyaml",
+    "nd2",
+    "scikit-image",
+    "joblib",
+    "cellpose==3.1.0",
+    "tensorflow",
+    "csbdeep",
+    "microfilm",
+    "seaborn",
+    "tifffile",
+    "mahotas",
+    "python-igraph",
+    "leidenalg",
+    "phate",
+    "statsmodels",
+    "dill",
+    "xgboost==3.0.0",
+    "ruff==0.11.9",
+    "streamlit",
+    "plotly",
+    "pytest",
+    "matplotlib",
+    "adjusttext",
+    "torch",
+    "spotiflow",
+    "stardist==0.9.1",
+    "levenshtein",
+]
 
 [tool.setuptools]
 package-dir = {"" = "workflow"}
 packages = ["lib"]
-
 
 [tool.ruff]
 

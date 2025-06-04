@@ -68,8 +68,12 @@ class VisualizationRenderer:
                                 tsv_path = os.path.join(root_dir, tsv_row["file_path"])
                                 if STATIC_ASSET_URL_ROOT and STATIC_ASSET_PATH:
                                     # Use nginx-served static files when configured
-                                    relative_path = tsv_path.replace(STATIC_ASSET_PATH, "")
-                                    static_url = f"{STATIC_ASSET_URL_ROOT}{relative_path}"
+                                    relative_path = tsv_path.replace(
+                                        STATIC_ASSET_PATH, ""
+                                    )
+                                    static_url = (
+                                        f"{STATIC_ASSET_URL_ROOT}{relative_path}"
+                                    )
                                     st.markdown(f"[Download TSV data]({static_url})")
                                 else:
                                     # Fall back to direct download when running locally

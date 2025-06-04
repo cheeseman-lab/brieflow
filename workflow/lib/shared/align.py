@@ -159,9 +159,9 @@ def normalize_by_percentile(data_, q_norm=70):
 def apply_custom_offsets(data, offsets_dict):
     """Apply custom offsets to specific channels in image data.
 
-    Applies a custom offset to specified channels. Useful for aligning channels with
-    systematic offsets due to lightpath/optical configuration differences (e.g., far red
-    channel like AF750 imaged without a PFS dichroic used for other channels).
+    Applies a custom offset to specified channels. Useful for aligning channels acquired
+    in different imaging rounds when automatic alignement fails or there is no common channel
+    to use as reference.
 
     Offset directions:
     - To shift left: +x

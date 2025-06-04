@@ -46,8 +46,9 @@ else:
 # Custom alignment process (applies after standard alignment)
 if align_config.get("custom_align", False):
     print("Applying custom channel offsets...")
-    print(f"Custom channels: {align_config['custom_channels']}")
-    print(f"Custom offset (y,x): {align_config['custom_offset_yx']}")
+    for index, (y, x) in align_config["offsets_dict"].items():
+        print(f"Channel index {index}")
+        print(f"  Custom offset (y, x): {y}, {x}")
 
     # Apply custom offsets directly using the channel indices from config
     aligned_data = apply_custom_offsets(

@@ -22,6 +22,12 @@ from microfilm.microplot import Microimage
 from lib.shared.configuration_utils import create_micropanel
 
 
+import numpy as np
+import pandas as pd
+from scipy import ndimage
+from skimage import filters, feature, measure, segmentation, exposure
+
+
 def segment_vacuoles(
     image,
     vacuole_channel_index,
@@ -35,7 +41,7 @@ def segment_vacuoles(
     max_objects_per_cell=120,
     overlap_threshold=0.1,
     nuclei_min_distance=5,
-    nuclei_centroids=None,  # Parameter for nuclei centroids from phenotype_minimal (i,j coordinates)
+    nuclei_centroids=None,
 ):
     """Segment vacuoles within cells using thresholding and declumping.
 
@@ -65,276 +71,189 @@ def segment_vacuoles(
               Only returned if cytoplasm_masks is provided.
     """
     # Extract the vacuole channel
-    vacuole_img = image[vacuole_channel_index].copy()
+    vacuole_img = image[vacuole_channel_index]
 
-    # Apply log transform as specified
+    # Apply log transform and smoothing
     vacuole_log = exposure.adjust_log(vacuole_img)
-
-    # Apply Gaussian smoothing with specified sigma
     vacuole_smooth = filters.gaussian(vacuole_log, sigma=threshold_smoothing_scale)
 
-    # Apply Otsu thresholding with two classes
+    # Apply Otsu thresholding
     thresh = filters.threshold_otsu(vacuole_smooth)
     binary_mask = vacuole_smooth > thresh
-
-    # Fill holes after thresholding
     filled_mask = ndimage.binary_fill_holes(binary_mask)
 
-    # Declumping based on shape
-    # 1. Distance transform
-    distance = ndimage.distance_transform_edt(filled_mask)
+    # Early exit if no objects found
+    if not np.any(filled_mask):
+        print("No objects detected after thresholding")
+        return _create_empty_results(cell_masks, cytoplasm_masks)
 
-    # 2. Find local maxima with minimum distance constraint
+    # Declumping with watershed
+    distance = ndimage.distance_transform_edt(filled_mask)
     local_max = feature.peak_local_max(
         distance, min_distance=min_distance_between_maxima, labels=filled_mask
     )
 
-    # 3. Create markers for watershed
+    # Create markers and apply watershed
     markers = np.zeros_like(filled_mask, dtype=int)
-    markers[tuple(local_max.T)] = np.arange(1, len(local_max) + 1)
+    if len(local_max) > 0:
+        markers[tuple(local_max.T)] = np.arange(1, len(local_max) + 1)
+        declumped = segmentation.watershed(-distance, markers, mask=filled_mask)
+    else:
+        declumped, _ = ndimage.label(filled_mask)
 
-    # 4. Apply watershed to declump
-    declumped = segmentation.watershed(-distance, markers, mask=filled_mask)
-
-    # Fill holes after declumping
-    for label in range(1, declumped.max() + 1):
+    # Fill holes after declumping - OPTIMIZED: vectorized approach
+    unique_labels = np.unique(declumped[declumped > 0])
+    for label in unique_labels:
         mask = declumped == label
         filled = ndimage.binary_fill_holes(mask)
         declumped[filled] = label
 
-    # Measure region properties
+    # OPTIMIZED: Vectorized size filtering
     regions = measure.regionprops(declumped)
+    valid_labels = [region.label for region in regions if min_size <= region.area <= max_size]
+    
+    if not valid_labels:
+        print("No valid vacuoles found after size filtering")
+        return _create_empty_results(cell_masks, cytoplasm_masks)
+    
+    # Create valid vacuoles mask efficiently
+    valid_vacuoles = np.isin(declumped, valid_labels) * declumped
+    labeled_vacuoles, num_vacuoles = ndimage.label(valid_vacuoles > 0)
 
-    # Filter by size
-    valid_vacuoles = np.zeros_like(declumped)
-    for region in regions:
-        if min_size <= region.area <= max_size:
-            valid_vacuoles[declumped == region.label] = region.label
+    # Get cell IDs once
+    cell_ids = np.unique(cell_masks[cell_masks > 0])
 
-    # Re-label the valid vacuoles
-    if np.any(valid_vacuoles):
-        labeled_vacuoles, num_vacuoles = ndimage.label(valid_vacuoles > 0)
-    else:
-        labeled_vacuoles = np.zeros_like(valid_vacuoles)
-        num_vacuoles = 0
+    # Determine nuclei channel
+    nuclei_channel_index = nuclei_channel_index or vacuole_channel_index
+    nuclei_img = image[nuclei_channel_index]
 
-    # Get cell IDs
-    cell_ids = np.unique(cell_masks)
-    cell_ids = cell_ids[cell_ids > 0]  # Remove background (0)
+    # Prepare nuclei centroids - OPTIMIZED: do this once
+    nuclei_centroids_dict = None
+    if nuclei_centroids is not None:
+        if isinstance(nuclei_centroids, pd.DataFrame):
+            nuclei_centroids_dict = {}
+            for idx, row in nuclei_centroids.iterrows():
+                nuc_id = row.get("nuclei_id", idx)
+                nuclei_centroids_dict[nuc_id] = (row["i"], row["j"])
+        else:
+            nuclei_centroids_dict = nuclei_centroids
 
-    # Initialize vacuole masks (will keep original vacuole IDs)
-    vacuole_masks = labeled_vacuoles.copy()
+    # OPTIMIZED: Pre-compute region properties for all vacuoles
+    vacuole_regions = {region.label: region for region in measure.regionprops(labeled_vacuoles)}
 
-    # List to store vacuole-cell mapping data
+    # Initialize tracking variables
     vacuole_cell_mapping = []
-
-    # Keep track of vacuoles per cell
     vacuoles_per_cell = {cell_id: 0 for cell_id in cell_ids}
-
-    # Identify intensity peaks within vacuoles (similar to IdentifyPrimaryObjects)
     nuclei_per_vacuole = {}
 
-    # Determine which channel to use for nuclei detection
-    if nuclei_channel_index is None:
-        nuclei_channel_index = vacuole_channel_index
-
-    # Get the nuclei channel image
-    nuclei_img = image[nuclei_channel_index].copy()
-
-    # Prepare nuclei centroids if provided
-    if nuclei_centroids is not None:
-        # Convert to dictionary format if it's a DataFrame
-        if isinstance(nuclei_centroids, pd.DataFrame):
-            # Assuming the DataFrame has a column for nuclei IDs (adjust if needed)
-            nuc_centroid_dict = {}
-            for idx, row in nuclei_centroids.iterrows():
-                # Assuming 'i' is y-coordinate and 'j' is x-coordinate
-                # Use index as ID if no explicit ID column exists
-                nuc_id = idx
-                if "nuclei_id" in row:
-                    nuc_id = row["nuclei_id"]
-                nuc_centroid_dict[nuc_id] = (row["i"], row["j"])
-            nuclei_centroids = nuc_centroid_dict
-
-    # For each vacuole, identify intensity peaks
+    # Process each vacuole
     for vacuole_id in range(1, num_vacuoles + 1):
-        vacuole_mask = labeled_vacuoles == vacuole_id
-
-        if np.sum(vacuole_mask) == 0:
-            # Skip empty vacuoles
-            nuclei_per_vacuole[vacuole_id] = {"count": 0, "peak_coordinates": []}
+        if vacuole_id not in vacuole_regions:
             continue
+            
+        region = vacuole_regions[vacuole_id]
+        vacuole_mask = labeled_vacuoles == vacuole_id
+        vacuole_area = region.area
+        vacuole_centroid = region.centroid
 
-        # Mask the nuclei image with this vacuole
-        masked_nuclei_img = np.zeros_like(nuclei_img)
-        masked_nuclei_img[vacuole_mask] = nuclei_img[vacuole_mask]
-
-        # Find local maxima within this vacuole
-        # Use minimum_distance to control sensitivity
+        # Find nuclei peaks within this vacuole
         peaks = feature.peak_local_max(
-            masked_nuclei_img,
+            nuclei_img,
             min_distance=nuclei_min_distance,
             labels=vacuole_mask,
             exclude_border=False,
         )
 
-        # Store the count and coordinates of peaks for this vacuole
         nuclei_per_vacuole[vacuole_id] = {
             "count": len(peaks),
             "peak_coordinates": peaks.tolist() if len(peaks) > 0 else [],
         }
 
-    # Associate vacuoles with cells
-    # Create a mask to track which vacuoles are assigned to cells
-    associated_vacuoles = np.zeros_like(labeled_vacuoles)
-
-    for vacuole_id in range(1, num_vacuoles + 1):
-        vacuole_mask = labeled_vacuoles == vacuole_id
-        vacuole_area = np.sum(vacuole_mask)
-
-        # Calculate vacuole centroid
-        vacuole_props = measure.regionprops(vacuole_mask.astype(int))
-        if len(vacuole_props) > 0:
-            vacuole_centroid = vacuole_props[0].centroid
-        else:
-            # If regionprops fails, calculate centroid manually
-            y_indices, x_indices = np.where(vacuole_mask)
-            if len(y_indices) > 0 and len(x_indices) > 0:
-                vacuole_centroid = (np.mean(y_indices), np.mean(x_indices))
-            else:
-                vacuole_centroid = None
-
-        # Calculate distance to nearest nucleus centroid if nuclei_centroids provided
-        min_distance_to_nucleus = np.inf
+        # Calculate distance to nearest nucleus centroid
+        min_distance_to_nucleus = None
         nearest_nucleus_id = None
 
-        if nuclei_centroids is not None and vacuole_centroid is not None:
-            for nuc_id, nuc_centroid in nuclei_centroids.items():
-                # Calculate Euclidean distance
+        if nuclei_centroids_dict is not None:
+            min_dist = np.inf
+            for nuc_id, nuc_centroid in nuclei_centroids_dict.items():
                 dist = np.sqrt(
                     (vacuole_centroid[0] - nuc_centroid[0]) ** 2
                     + (vacuole_centroid[1] - nuc_centroid[1]) ** 2
                 )
-
-                if dist < min_distance_to_nucleus:
-                    min_distance_to_nucleus = dist
+                if dist < min_dist:
+                    min_dist = dist
                     nearest_nucleus_id = nuc_id
+            
+            min_distance_to_nucleus = min_dist if min_dist != np.inf else None
 
-        # If no nucleus was found, set to None
-        if min_distance_to_nucleus == np.inf:
-            min_distance_to_nucleus = None
+        # OPTIMIZED: Find best overlapping cell more efficiently
+        best_cell_id = None
+        best_overlap = 0
 
-        # Find overlapping cells
-        overlapping_cells = {}
         for cell_id in cell_ids:
-            cell_mask = cell_masks == cell_id
-
-            # Skip cells that already have too many vacuoles
             if vacuoles_per_cell[cell_id] >= max_objects_per_cell:
                 continue
 
+            # Calculate overlap efficiently
+            cell_mask = cell_masks == cell_id
             overlap = np.sum(vacuole_mask & cell_mask)
+            
             if overlap > 0:
                 overlap_ratio = overlap / vacuole_area
-                overlapping_cells[cell_id] = overlap_ratio
+                if overlap_ratio >= overlap_threshold and overlap_ratio > best_overlap:
+                    best_overlap = overlap_ratio
+                    best_cell_id = cell_id
 
-        # Assign vacuole to the cell with maximum overlap if it meets the threshold
-        if overlapping_cells:
-            max_cell_id = max(overlapping_cells, key=overlapping_cells.get)
-            max_overlap = overlapping_cells[max_cell_id]
+        # Add successful associations
+        if best_cell_id is not None:
+            vacuole_cell_mapping.append({
+                "vacuole_id": vacuole_id,
+                "cell_id": best_cell_id,
+                "vacuole_area": vacuole_area,
+                "overlap_ratio": best_overlap,
+                "nuclei_count": nuclei_per_vacuole[vacuole_id]["count"],
+                "peak_coordinates": nuclei_per_vacuole[vacuole_id]["peak_coordinates"],
+                "distance_to_nucleus": min_distance_to_nucleus,
+                "nearest_nucleus_id": nearest_nucleus_id,
+            })
+            vacuoles_per_cell[best_cell_id] += 1
 
-            if max_overlap >= overlap_threshold:
-                # Add this mapping to our list
-                vacuole_cell_mapping.append(
-                    {
-                        "vacuole_id": vacuole_id,
-                        "cell_id": max_cell_id,
-                        "vacuole_area": vacuole_area,
-                        "overlap_ratio": max_overlap,
-                        "nuclei_count": nuclei_per_vacuole.get(vacuole_id, {}).get(
-                            "count", 0
-                        ),
-                        "peak_coordinates": nuclei_per_vacuole.get(vacuole_id, {}).get(
-                            "peak_coordinates", []
-                        ),
-                        "distance_to_nucleus": min_distance_to_nucleus,  # Added distance to nucleus
-                        "nearest_nucleus_id": nearest_nucleus_id,  # Added nearest nucleus ID
-                    }
-                )
-
-                # Mark this vacuole as associated with a cell
-                associated_vacuoles[vacuole_mask] = vacuole_id
-
-                # Increment the vacuole count for this cell
-                vacuoles_per_cell[max_cell_id] += 1
-
-    # Create the vacuole-cell mapping DataFrame
+    # Create vacuole-cell mapping DataFrame
     vacuole_cell_df = pd.DataFrame(vacuole_cell_mapping)
 
-    # Create a cell summary DataFrame
-    if vacuole_cell_mapping and "cell_id" in vacuole_cell_df.columns:
+    # OPTIMIZED: Create cell summary more efficiently
+    if vacuole_cell_mapping:
+        # Group by cell_id once for efficiency
+        grouped = vacuole_cell_df.groupby('cell_id') if not vacuole_cell_df.empty else None
+        
         cell_summary = []
         for cell_id in cell_ids:
-            # Get all vacuoles for this cell
-            cell_vacuoles = vacuole_cell_df[vacuole_cell_df["cell_id"] == cell_id]
-
-            # Calculate cell area
-            cell_mask = cell_masks == cell_id
-            cell_area = np.sum(cell_mask)
-
-            # Get total vacuole area for this cell
-            total_vacuole_area = (
-                cell_vacuoles["vacuole_area"].sum() if not cell_vacuoles.empty else 0
-            )
-
-            # Calculate mean distance to nucleus for this cell's vacuoles
-            mean_distance_to_nucleus = None
-            if (
-                not cell_vacuoles.empty
-                and "distance_to_nucleus" in cell_vacuoles.columns
-            ):
+            cell_area = np.sum(cell_masks == cell_id)
+            
+            if grouped is not None and cell_id in grouped.groups:
+                cell_vacuoles = grouped.get_group(cell_id)
+                total_vacuole_area = cell_vacuoles["vacuole_area"].sum()
+                total_nuclei = cell_vacuoles["nuclei_count"].sum()
+                multinucleated_count = len(cell_vacuoles[cell_vacuoles["nuclei_count"] > 1])
+                
+                # Calculate mean distance to nucleus
                 valid_distances = cell_vacuoles["distance_to_nucleus"].dropna()
-                if len(valid_distances) > 0:
-                    mean_distance_to_nucleus = valid_distances.mean()
-
-            cell_summary.append(
-                {
+                mean_distance = valid_distances.mean() if len(valid_distances) > 0 else None
+                
+                cell_summary.append({
                     "cell_id": cell_id,
-                    "has_vacuole": len(cell_vacuoles) > 0,
+                    "has_vacuole": True,
                     "num_vacuoles": len(cell_vacuoles),
-                    "vacuole_ids": list(cell_vacuoles["vacuole_id"])
-                    if not cell_vacuoles.empty
-                    else [],
+                    "vacuole_ids": list(cell_vacuoles["vacuole_id"]),
                     "cell_area": cell_area,
                     "total_vacuole_area": total_vacuole_area,
-                    "vacuole_area_ratio": total_vacuole_area / cell_area
-                    if cell_area > 0
-                    else 0,
-                    "total_nuclei_in_vacuoles": cell_vacuoles["nuclei_count"].sum()
-                    if not cell_vacuoles.empty
-                    else 0,
-                    "multinucleated_vacuole_count": len(
-                        cell_vacuoles[cell_vacuoles["nuclei_count"] > 1]
-                    )
-                    if not cell_vacuoles.empty
-                    else 0,
-                    "mean_distance_to_nucleus": mean_distance_to_nucleus,  # Added mean distance to nucleus
-                }
-            )
-
-    else:
-        # Handle the case where no vacuoles were detected
-        print(
-            "Warning: No vacuoles were found or associated with cells. Returning empty results."
-        )
-        cell_summary = []
-        for cell_id in cell_ids:
-            # Get cell area
-            cell_mask = cell_masks == cell_id
-            cell_area = np.sum(cell_mask)
-
-            cell_summary.append(
-                {
+                    "vacuole_area_ratio": total_vacuole_area / cell_area if cell_area > 0 else 0,
+                    "total_nuclei_in_vacuoles": total_nuclei,
+                    "multinucleated_vacuole_count": multinucleated_count,
+                    "mean_distance_to_nucleus": mean_distance,
+                })
+            else:
+                cell_summary.append({
                     "cell_id": cell_id,
                     "has_vacuole": False,
                     "num_vacuoles": 0,
@@ -345,59 +264,97 @@ def segment_vacuoles(
                     "total_nuclei_in_vacuoles": 0,
                     "multinucleated_vacuole_count": 0,
                     "mean_distance_to_nucleus": None,
-                }
-            )
+                })
+    else:
+        # Handle case with no vacuoles
+        cell_summary = []
+        for cell_id in cell_ids:
+            cell_area = np.sum(cell_masks == cell_id)
+            cell_summary.append({
+                "cell_id": cell_id,
+                "has_vacuole": False,
+                "num_vacuoles": 0,
+                "vacuole_ids": [],
+                "cell_area": cell_area,
+                "total_vacuole_area": 0,
+                "vacuole_area_ratio": 0,
+                "total_nuclei_in_vacuoles": 0,
+                "multinucleated_vacuole_count": 0,
+                "mean_distance_to_nucleus": None,
+            })
 
-    # Create the cell summary DataFrame
+    # Create final results
     cell_summary_df = pd.DataFrame(cell_summary)
-
-    # Combine the two DataFrames into a dictionary for return
     cell_vacuole_table = {
         "cell_summary": cell_summary_df,
         "vacuole_cell_mapping": vacuole_cell_df,
     }
 
-    # Update the vacuole masks to only include vacuoles associated with cells
-    vacuole_masks = associated_vacuoles
+    # Create associated vacuole masks
+    associated_vacuoles = np.zeros_like(labeled_vacuoles)
+    for mapping in vacuole_cell_mapping:
+        vacuole_id = mapping["vacuole_id"]
+        vacuole_mask = labeled_vacuoles == vacuole_id
+        associated_vacuoles[vacuole_mask] = vacuole_id
 
-    # Calculate how many vacuoles were discarded
-    total_detected = num_vacuoles
+    # Print statistics
     total_kept = len(vacuole_cell_mapping)
-    print(
-        f"Kept {total_kept} out of {total_detected} detected vacuoles ({total_kept / total_detected * 100:.1f}%)"
-    )
-    print(
-        f"Discarded {total_detected - total_kept} vacuoles that didn't sufficiently overlap with cells"
-    )
+    print(f"Kept {total_kept} out of {num_vacuoles} detected vacuoles "
+          f"({total_kept / num_vacuoles * 100:.1f}%)")
+    print(f"Discarded {num_vacuoles - total_kept} vacuoles that didn't sufficiently overlap with cells")
 
     # Process cytoplasm masks if provided
     updated_cytoplasm_masks = None
     if cytoplasm_masks is not None:
-        # Make a copy of the cytoplasm masks
         updated_cytoplasm_masks = cytoplasm_masks.copy()
-
-        # For each vacuole that was successfully mapped to a cell
-        for _, row in vacuole_cell_df.iterrows():
-            vacuole_id = row["vacuole_id"]
-            cell_id = row["cell_id"]
-
-            # Get the vacuole mask
-            vacuole_mask = vacuole_masks == vacuole_id
-
-            # Remove the vacuole region from the corresponding cytoplasm
+        
+        for mapping in vacuole_cell_mapping:
+            vacuole_id = mapping["vacuole_id"]
+            cell_id = mapping["cell_id"]
+            
+            vacuole_mask = associated_vacuoles == vacuole_id
             cytoplasm_mask = updated_cytoplasm_masks == cell_id
             updated_cytoplasm_masks[cytoplasm_mask & vacuole_mask] = 0
 
-        print(
-            f"Updated cytoplasm masks by removing {len(vacuole_cell_df)} vacuole regions"
-        )
+        print(f"Updated cytoplasm masks by removing {len(vacuole_cell_mapping)} vacuole regions")
 
-    # Return the appropriate tuple based on whether cytoplasm_masks was provided
+    # Return results
     if updated_cytoplasm_masks is not None:
-        return vacuole_masks, cell_vacuole_table, updated_cytoplasm_masks
+        return associated_vacuoles, cell_vacuole_table, updated_cytoplasm_masks
     else:
-        return vacuole_masks, cell_vacuole_table
+        return associated_vacuoles, cell_vacuole_table
 
+
+def _create_empty_results(cell_masks, cytoplasm_masks):
+    """Helper function to create empty results when no vacuoles are found."""
+    cell_ids = np.unique(cell_masks[cell_masks > 0])
+    empty_vacuole_masks = np.zeros_like(cell_masks)
+    
+    cell_summary = []
+    for cell_id in cell_ids:
+        cell_area = np.sum(cell_masks == cell_id)
+        cell_summary.append({
+            "cell_id": cell_id,
+            "has_vacuole": False,
+            "num_vacuoles": 0,
+            "vacuole_ids": [],
+            "cell_area": cell_area,
+            "total_vacuole_area": 0,
+            "vacuole_area_ratio": 0,
+            "total_nuclei_in_vacuoles": 0,
+            "multinucleated_vacuole_count": 0,
+            "mean_distance_to_nucleus": None,
+        })
+    
+    cell_vacuole_table = {
+        "cell_summary": pd.DataFrame(cell_summary),
+        "vacuole_cell_mapping": pd.DataFrame()
+    }
+    
+    if cytoplasm_masks is not None:
+        return empty_vacuole_masks, cell_vacuole_table, cytoplasm_masks
+    else:
+        return empty_vacuole_masks, cell_vacuole_table
 
 def create_vacuole_boundary_visualization(
     image,

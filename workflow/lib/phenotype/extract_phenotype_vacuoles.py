@@ -58,11 +58,15 @@ def extract_phenotype_vacuoles(
             vacuole_channels = list(range(data_phenotype.shape[-3]))
         except:
             vacuole_channels = [0]
-            
+
     # Ensure channel_names has enough entries for the channels
     if len(channel_names) < len(vacuole_channels):
-        print(f"Warning: channel_names length ({len(channel_names)}) is less than the number of channels ({len(vacuole_channels)}). Extending with default names.")
-        channel_names = list(channel_names) + [f"Ch{i}" for i in range(len(channel_names), max(vacuole_channels) + 1)]
+        print(
+            f"Warning: channel_names length ({len(channel_names)}) is less than the number of channels ({len(vacuole_channels)}). Extending with default names."
+        )
+        channel_names = list(channel_names) + [
+            f"Ch{i}" for i in range(len(channel_names), max(vacuole_channels) + 1)
+        ]
 
     dfs = []
 
@@ -90,14 +94,24 @@ def extract_phenotype_vacuoles(
                 iterator = permutations
             else:
                 iterator = combinations
-            
+
             safe_columns = {}
-            for n, (renamed, (first, second)) in enumerate(product(out, iterator(channels, 2))):
+            for n, (renamed, (first, second)) in enumerate(
+                product(out, iterator(channels, 2))
+            ):
                 # Make sure channel indices are valid
-                first_name = channel_names[first] if first < len(channel_names) else f"Ch{first}"
-                second_name = channel_names[second] if second < len(channel_names) else f"Ch{second}"
-                safe_columns[f"{feat}_{n}"] = renamed.format(first=first_name, second=second_name)
-            
+                first_name = (
+                    channel_names[first] if first < len(channel_names) else f"Ch{first}"
+                )
+                second_name = (
+                    channel_names[second]
+                    if second < len(channel_names)
+                    else f"Ch{second}"
+                )
+                safe_columns[f"{feat}_{n}"] = renamed.format(
+                    first=first_name, second=second_name
+                )
+
             columns.update(safe_columns)
         # Add shape columns
         columns.update(shape_columns)
@@ -105,7 +119,6 @@ def extract_phenotype_vacuoles(
 
     # Create column map for vacuoles
     vacuole_columns = make_column_map(vacuole_channels)
-
 
     # Extract vacuole features for all channels
     dfs.append(
@@ -124,18 +137,16 @@ def extract_phenotype_vacuoles(
     # Extract foci features within vacuoles if foci channel is provided
     if foci_channel is not None:
         foci = find_foci_in_vacuoles(
-            data_phenotype[..., foci_channel, :, :], 
-            vacuoles, 
-            remove_border_foci=True
+            data_phenotype[..., foci_channel, :, :], vacuoles, remove_border_foci=True
         )
-        
+
         if foci is not None:
             dfs.append(
                 extract_features_bare(foci, vacuoles, features=foci_features)
                 .set_index("label")
                 .add_prefix(f"vacuole_{channel_names[foci_channel]}_")
             )
-    
+
     # Extract vacuole neighbor measurements
     dfs.append(
         neighbor_measurements(vacuoles, distances=[1])
@@ -151,13 +162,15 @@ def extract_phenotype_vacuoles(
         vacuole_cell_mapping_df,
         vacuole_features.rename(columns={"label": "vacuole_id"}),
         on="vacuole_id",
-        how="left"
+        how="left",
     )
 
     return vacuole_df
 
 
-def find_foci_in_vacuoles(data, vacuoles, radius=3, threshold=10, remove_border_foci=False):
+def find_foci_in_vacuoles(
+    data, vacuoles, radius=3, threshold=10, remove_border_foci=False
+):
     """Detect foci within vacuoles using a white tophat filter and other processing steps.
 
     Args:
@@ -173,14 +186,14 @@ def find_foci_in_vacuoles(data, vacuoles, radius=3, threshold=10, remove_border_
     # If no vacuoles, return None
     if np.sum(vacuoles) == 0:
         return None
-    
+
     # Create a binary mask for all vacuoles
     vacuole_mask = vacuoles > 0
-    
+
     # Mask the input data to only consider pixels within vacuoles
     masked_data = np.zeros_like(data)
     masked_data[vacuole_mask] = data[vacuole_mask]
-    
+
     # Apply white tophat filter to highlight foci
     tophat = skimage.morphology.white_tophat(
         masked_data, footprint=skimage.morphology.disk(radius)
@@ -194,7 +207,7 @@ def find_foci_in_vacuoles(data, vacuoles, radius=3, threshold=10, remove_border_
 
     # Remove small objects from the mask
     mask = skimage.morphology.remove_small_objects(mask, min_size=(radius**2))
-    
+
     # Ensure we only keep foci within vacuoles
     mask = mask & vacuole_mask
 
@@ -222,11 +235,11 @@ def apply_watershed(img, smooth=4):
 
     Returns:
         result (numpy.ndarray): Labeled image after watershed segmentation.
-    """   
+    """
     # If empty image, return as is
     if np.sum(img) == 0:
         return img
-    
+
     # Compute the distance transform of the image
     distance = ndi.distance_transform_edt(img)
 
@@ -242,7 +255,9 @@ def apply_watershed(img, smooth=4):
     # Create a boolean mask for peaks
     local_max = np.zeros_like(distance, dtype=bool)
     if len(local_max_coords) > 0:  # Check if any peaks were found
-        local_max[tuple(local_max_coords.T)] = True  # Convert coordinates to a boolean mask
+        local_max[tuple(local_max_coords.T)] = (
+            True  # Convert coordinates to a boolean mask
+        )
 
         # Label the local maxima
         markers = ndi.label(local_max)[0]
@@ -285,7 +300,9 @@ def remove_border(labels, mask, dilate=2):
 foci_features = {
     "foci_count": lambda r: count_labels(r.intensity_image),
     "foci_area": lambda r: (r.intensity_image > 0).sum(),
-    "foci_area_ratio": lambda r: (r.intensity_image > 0).sum() / r.area if r.area > 0 else 0,
+    "foci_area_ratio": lambda r: (r.intensity_image > 0).sum() / r.area
+    if r.area > 0
+    else 0,
 }
 
 
@@ -299,7 +316,7 @@ def count_labels(labels, return_list=False):
     Returns:
         int or tuple: Number of unique non-zero labels. If return_list is True, returns a tuple containing the count
       and the list of unique labels.
-    """    
+    """
     # Get unique labels in the segmentation mask
     uniques = np.unique(labels)
     # Remove the background label (0)

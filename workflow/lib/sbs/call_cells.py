@@ -35,6 +35,7 @@ def call_cells(
     df_barcode_library=None,
     q_min=0,
     barcode_col="sgRNA",
+    prefix_col=None,
     df_UMI=None,
     error_correct=False,
     **kwargs,
@@ -48,7 +49,11 @@ def call_cells(
         reads_data (DataFrame): DataFrame containing read information.
         df_barcode_library (DataFrame, optional): DataFrame containing barcode library information. Default is None.
         q_min (int, optional): Minimum quality threshold. Default is 0.
-        barcode_col (str, optional): Column in df_barcode_library with barcodes. Default is 'sgRNA' (e.g. CROPseq)
+        barcode_col (str, optional): Column in df_barcode_library with full barcode sequences for dynamic prefix creation.
+            Default is 'sgRNA'. Only used if prefix_col is None.
+        prefix_col (str, optional): Column in df_barcode_library with pre-computed prefixes for barcode matching.
+            If specified, uses these prefixes directly instead of creating them from barcode_col.
+            Useful for cycle-skipping scenarios. Default is None.
         df_UMI (DataFrame, optional): DataFrame containing UMI reads. Default is None.
         error_correct (bool, optional): Whether to perform error correction on barcodes. Default is False.
         **kwargs: Additional arguments passed to error_correct_reads if error_correct is True.
@@ -57,7 +62,7 @@ def call_cells(
                  - distance_metric (str): Type of distance ('hamming' or 'levenshtein')
 
     Returns:
-        DataFrame: DataFrame containing corrected cells.
+        DataFrame: DataFrame containing cell-level barcode calling results.
     """
     # Check if df_reads is None and return if so
     if reads_data.empty:
@@ -100,12 +105,22 @@ def call_cells(
         # Filter reads by quality threshold and call cells no ref
         df_cells = reads_data.query("Q_min >= @q_min").pipe(call_cells_no_ref)
     else:
-        # Determine the experimental prefix length
-        prefix_length = len(reads_data.iloc[0].barcode)
-        # Add prefix to the pool DataFrame
-        df_barcode_library[PREFIX] = df_barcode_library.apply(
-            lambda x: x[barcode_col][:prefix_length], axis=1
-        )
+        if prefix_col is not None:
+            # Use pre-computed prefixes from the library
+            if prefix_col not in df_barcode_library.columns:
+                raise ValueError(f"Column '{prefix_col}' not found in barcode library")
+            df_barcode_library[PREFIX] = df_barcode_library[prefix_col]
+            print(f"Using pre-computed prefixes from '{prefix_col}' column")
+        else:
+            # Determine the experimental prefix length and create prefixes
+            prefix_length = len(reads_data.iloc[0].barcode)
+            df_barcode_library[PREFIX] = df_barcode_library.apply(
+                lambda x: x[barcode_col][:prefix_length], axis=1
+            )
+            print(
+                f"Created prefixes by truncating '{barcode_col}' to length {prefix_length}"
+            )
+
         # Filter reads by quality threshold and call cells mapping
         df_cells = reads_data.query("Q_min >= @q_min").pipe(
             call_cells_mapping,

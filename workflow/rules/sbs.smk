@@ -17,9 +17,9 @@ rule align_sbs:
     params:
         method=config["sbs"]["alignment_method"],
         channel_names=config["sbs"]["channel_names"],
-        upsample_factor=1,
-        skip_index=config["sbs"]["skip_cycles_indices"],
-        manual_background_cycle=config["sbs"]["manual_background_cycle_index"],
+        upsample_factor=config["sbs"]["upsample_factor"],
+        skip_cycles_indices=config["sbs"]["skip_cycles_indices"],
+        manual_background_cycle_index=config["sbs"]["manual_background_cycle_index"],
     script:
         "../scripts/sbs/align_cycles.py"
 
@@ -74,9 +74,6 @@ rule max_filter:
 
 
 # Apply illumination correction field from segmentation cycle
-SBS_CYCLES = sorted(sbs_wildcard_combos["cycle"].unique(), key=int)
-
-
 rule apply_ic_field_sbs:
     input:
         SBS_OUTPUTS["align_sbs"],
@@ -85,7 +82,7 @@ rule apply_ic_field_sbs:
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
             subset_values={
-                "cycle": SBS_CYCLES[config["sbs"]["dapi_index"]]
+                "cycle": str(config["sbs"]["dapi_cycle"])
             },
             ancient_output=True,
         ),
@@ -94,7 +91,7 @@ rule apply_ic_field_sbs:
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
             subset_values={
-                "cycle": SBS_CYCLES[config["sbs"]["cyto_cycle"]]
+                "cycle": str(config["sbs"]["cyto_cycle"]),
             },
             ancient_output=True,
         ),
@@ -160,6 +157,7 @@ rule call_cells:
         df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
         q_min=config["sbs"]["q_min"],
         barcode_col=config["sbs"]["barcode_col"],
+        prefix_col=config["sbs"]["prefix_col"],
         error_correct=config["sbs"]["error_correct"],        
     script:
         "../scripts/sbs/call_cells.py"

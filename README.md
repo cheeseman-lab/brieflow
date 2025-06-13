@@ -122,3 +122,6 @@ We use the following conventions:
 - Data location information (well, tile, cycle, etc) + `__` + type of information (cell features, phenotype info, etc) + `.` + file type. 
 Data is stored in its respective analysis directories. 
 For example: `brieflow_output/preprocess/metadata/phenotype/P-1_W-A2_T-571__metadata.tsv`
+- We use [semantic versioning](https://semver.org/) for brieflow and brieflow-analysis versions.
+These two repositories should always have the same version.
+Small version changes are only tracked in the [pyproject.toml](pyproject.toml) file of brieflow (not in brieflow-analysis).

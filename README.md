@@ -2,7 +2,9 @@
 
 Extensible tool for processing optical pooled screens data.
 
-**Note**: Read [brieflow.readthedocs.io](https://brieflow.readthedocs.io/) before starting to get a good grasp of brieflow and brieflow-analysis!
+**Notes**: 
+- Read [brieflow.readthedocs.io](https://brieflow.readthedocs.io/) before starting to get a good grasp of brieflow and brieflow-analysis!
+- Join the brieflow [Discord](https://discord.gg/yrEh6GP8JJ) to ask questions, share ideas, and get help from other users and developers.
 
 ## Definitions
 

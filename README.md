@@ -2,6 +2,8 @@
 
 Extensible tool for processing optical pooled screens data.
 
+**Note**: Read [brieflow.readthedocs.io](https://brieflow.readthedocs.io/) before starting to get a good grasp of brieflow and brieflow-analysis!
+
 ## Definitions
 
 Terms mentioned throughout the code and documentation include:
@@ -72,7 +74,7 @@ This process takes about 14 minutes on our machine.
 
 ```sh
 # activate brieflow env
-conda activate brieflow_main_env
+conda activate brieflow_SCREEN_CONTEXT
 # enter small test analysis dir
 cd brieflow/tests/small_test_analysis
 # set up small test analysis

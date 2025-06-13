@@ -211,7 +211,7 @@ def align_cycles(
             )
             method = "sbs_mean"  # Fall back to sbs_mean method
 
-    if method == "sbs_mean":
+    elif method == "sbs_mean":
         # Calculate cycle offsets using ONLY the base channels (ignore extra channels)
         if base_indices:
             sbs_channels = base_indices

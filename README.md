@@ -2,6 +2,10 @@
 
 Extensible tool for processing optical pooled screens data.
 
+**Notes**: 
+- Read [brieflow.readthedocs.io](https://brieflow.readthedocs.io/) before starting to get a good grasp of brieflow and brieflow-analysis!
+- Join the brieflow [Discord](https://discord.gg/yrEh6GP8JJ) to ask questions, share ideas, and get help from other users and developers.
+
 ## Definitions
 
 Terms mentioned throughout the code and documentation include:
@@ -72,7 +76,7 @@ This process takes about 14 minutes on our machine.
 
 ```sh
 # activate brieflow env
-conda activate brieflow_main_env
+conda activate brieflow_SCREEN_CONTEXT
 # enter small test analysis dir
 cd brieflow/tests/small_test_analysis
 # set up small test analysis
@@ -120,3 +124,6 @@ We use the following conventions:
 - Data location information (well, tile, cycle, etc) + `__` + type of information (cell features, phenotype info, etc) + `.` + file type. 
 Data is stored in its respective analysis directories. 
 For example: `brieflow_output/preprocess/metadata/phenotype/P-1_W-A2_T-571__metadata.tsv`
+- We use [semantic versioning](https://semver.org/) for brieflow and brieflow-analysis versions.
+These two repositories should always have the same version.
+Small version changes are only tracked in the [pyproject.toml](pyproject.toml) file of brieflow (not in brieflow-analysis).

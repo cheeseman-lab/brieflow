@@ -14,6 +14,7 @@ cells_data = call_cells(
     df_barcode_library=df_barcode_library,
     q_min=snakemake.params.q_min,
     barcode_col=snakemake.params.barcode_col,
+    prefix_col=snakemake.params.prefix_col,
     error_correct=snakemake.params.error_correct,
 )
 

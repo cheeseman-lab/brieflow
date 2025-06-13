@@ -40,11 +40,10 @@ def standardize_barcode_design(
             If None, will create empty gene_symbol column
         gene_id_col (str, optional): Name of column containing gene IDs.
             Optional - only included if user wants additional gene identifiers
-        prefix_func (callable, optional): Custom function to generate prefix.
-            Function should take a row and return the prefix string.
-            If None, uses simple truncation with prefix_length.
+        prefix_func (callable, optional): Custom function to generate prefixes that match
+            experimental read structure. Function should take a row and return the prefix string.
         prefix_length (int, optional): Length of barcode prefix for simple truncation.
-            If None, uses full barcode length. Ignored if prefix_func is provided.
+            Should match the length of experimental read barcodes. Ignored if prefix_func is provided.
         filter_func (callable, optional): Custom function to filter rows.
             Function should take dataframe and return filtered dataframe.
             If None, no filtering is applied.
@@ -707,24 +706,37 @@ def create_dynamic_prefix_function(prefix_length_col: str = "prefix_length"):
     return prefix_func
 
 
-def create_concatenation_prefix(
-    col1: str, col2: str, col1_slice: Optional[slice] = None
+def create_skip_cycles_prefix_function(
+    skip_cycles, prefix_length: Optional[int] = None
 ):
-    """Create prefix function that concatenates two columns."""
+    """Create a prefix function that skips specified cycles when building prefixes.
+
+    Args:
+        skip_cycles (list): List of cycle numbers to skip (1-based, e.g., [1, 5])
+        prefix_length (int, optional): Length of prefix to return. If None, returns full prefix.
+
+    Returns:
+        callable: Function that can be used as prefix_func in standardize_barcode_design
+    """
 
     def prefix_func(row):
-        val1 = row[col1]
-        if col1_slice is not None:
-            val1 = val1[col1_slice]
-        return str(val1) + str(row[col2])
+        sgRNA = row["sgRNA"]
 
-    return prefix_func
+        # Convert 1-based cycle numbers to 0-based indices
+        skip_indices = [cycle - 1 for cycle in skip_cycles]
 
+        # Create list of characters, skipping the specified cycles
+        prefix_chars = []
+        for i, char in enumerate(sgRNA):
+            if i not in skip_indices:
+                prefix_chars.append(char)
 
-def create_truncation_prefix(length: int):
-    """Create prefix function that truncates sgRNA column."""
+        # Join the characters to form the prefix
+        prefix = "".join(prefix_chars)
 
-    def prefix_func(row):
-        return row["sgRNA"][:length]
+        # Truncate the prefix if the length is specified
+        prefix = prefix[:prefix_length] if prefix_length is not None else prefix
+
+        return prefix
 
     return prefix_func

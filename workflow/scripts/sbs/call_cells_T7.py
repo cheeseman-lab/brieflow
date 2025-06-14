@@ -1,5 +1,5 @@
 import pandas as pd
-from lib.sbs.call_cells_T7 import call_cells_T7, prep_T7_reads
+from lib.sbs.call_cells_multi import call_cells_multi, prep_multi_reads
 
 # Load reads data
 reads_data = pd.read_csv(snakemake.input[0], sep="\t")
@@ -10,8 +10,8 @@ df_pool = df_design.drop(columns=['Unnamed: 0']).rename(columns={'target':'gene_
 df_pool['prefix_map'] = df_pool['iBAR_2']
 df_pool['prefix_recomb'] = df_pool['iBAR_1'].str.slice(0,3)
 
-# Prepare T7 reads
-df_reads = prep_T7_reads(
+# Prepare multi reads
+df_reads = prep_multi_reads(
     reads_data,
     map_start=snakemake.params.map_start,
     map_end=snakemake.params.map_end,
@@ -22,7 +22,7 @@ df_reads = prep_T7_reads(
 )
 
 # Call cells
-cells_data = call_cells_T7(
+cells_data = call_cells_multi(
     reads_data=df_reads,
     df_pool=df_pool,
     q_min=snakemake.params.q_min,

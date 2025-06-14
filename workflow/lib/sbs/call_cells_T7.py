@@ -1,4 +1,4 @@
-"""Utility functions for calling cells from T7 sequencing reads."""
+"""Utility functions for calling cells from multi-barcode sequencing reads."""
 import pandas as pd
 import numpy as np
 import Levenshtein
@@ -24,7 +24,7 @@ from lib.sbs.constants import (
 )
 
 
-def call_cells_T7(
+def call_cells_multi(
     reads_data, 
     df_pool=None, 
     q_min=0,
@@ -36,10 +36,10 @@ def call_cells_T7(
     barcode_info_cols=[GENE_SYMBOL],
     **kwargs
 ):
-    """Process T7 sequencing reads to identify cell barcodes, optionally mapping them to a pool design.
+    """Process multi-barcode sequencing reads to identify cell barcodes, optionally mapping them to a pool design.
     
-    This function takes T7 sequencing read data and identifies the top barcodes for each cell,
-    prioritizing the brightest spots per cell. Intended for T7 IVT detection protocols.
+    This function takes multi-barcode sequencing read data and identifies the top barcodes for each cell,
+    prioritizing the brightest spots per cell. Intended for multi-barcode IVT detection protocols.
     
     Args:
         reads_data (DataFrame): DataFrame containing read information.
@@ -81,10 +81,10 @@ def call_cells_T7(
     # Process with appropriate helper function based on whether df_pool is provided
     if df_pool is None:
         # Use helper function for no mapping case
-        return call_cells_T7_helper(df_reads)
+        return call_cells_multi_helper(df_reads)
     else:
         # Use mapping function when a reference pool is provided
-        return call_cells_T7_mapping(
+        return call_cells_multi_mapping(
             df_reads, 
             df_pool, 
             map_col=map_col, 
@@ -96,7 +96,7 @@ def call_cells_T7(
             **kwargs
         )
 
-def call_cells_T7_helper(df_reads):
+def call_cells_multi_helper(df_reads):
     """Determine the top barcodes for each cell based on peak intensity without mapping to a reference.
 
     Parameters:
@@ -126,7 +126,7 @@ def call_cells_T7_helper(df_reads):
     
     return df_cells
 
-def call_cells_T7_mapping(
+def call_cells_multi_mapping(
     df_reads, 
     df_pool, 
     map_col='prefix_map', 
@@ -386,9 +386,9 @@ def barcode_distance_matrix(barcodes_1, barcodes_2=False, distance_metric='hammi
     return bc_distance_matrix
 
 
-def prep_T7_reads(df_reads, map_start, map_end, recomb_start, recomb_end, 
+def prep_multi_reads(df_reads, map_start, map_end, recomb_start, recomb_end, 
                  map_col='prefix_map', recomb_col='prefix_recomb'):
-    """Prepare reads DataFrame for T7 cell calling by creating necessary columns for mapping and recombination detection.
+    """Prepare reads DataFrame for multi cell calling by creating necessary columns for mapping and recombination detection.
     
     Args:
         df_reads (DataFrame): DataFrame containing raw sequencing reads

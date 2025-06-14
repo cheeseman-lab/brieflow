@@ -147,7 +147,7 @@ rule call_reads:
         "../scripts/sbs/call_reads.py"
 
 
-# Call cells using T7 protocol
+# Call cells using multi protocol
 rule call_cells:
     input:
         SBS_OUTPUTS["call_reads"],
@@ -156,7 +156,7 @@ rule call_cells:
     params:
         # Pool design parameters
         df_design_path=config["sbs"]["df_design_path"],
-        # T7 read preparation parameters
+        # multi read preparation parameters
         map_start=config["sbs"]["map_start"],
         map_end=config["sbs"]["map_end"],
         recomb_start=config["sbs"]["recomb_start"],
@@ -171,7 +171,7 @@ rule call_cells:
         barcode_info_cols=config["sbs"]["barcode_info_cols"],
         max_distance=config["sbs"]["max_distance"],
     script:
-        "../scripts/sbs/call_cells_T7.py"
+        "../scripts/sbs/call_cells_multi.py"
 
 # Extract minimal sbs info
 rule extract_sbs_info:

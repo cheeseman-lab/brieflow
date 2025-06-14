@@ -16,8 +16,10 @@ rule align_sbs:
         SBS_OUTPUTS_MAPPED["align_sbs"],
     params:
         method=config["sbs"]["alignment_method"],
-        upsample_factor=1,
-        keep_extras=config["sbs"]["keep_extras"],
+        channel_names=config["sbs"]["channel_names"],
+        upsample_factor=config["sbs"]["upsample_factor"],
+        skip_cycles_indices=config["sbs"]["skip_cycles_indices"],
+        manual_background_cycle_index=config["sbs"]["manual_background_cycle_index"],
     script:
         "../scripts/sbs/align_cycles.py"
 
@@ -29,7 +31,7 @@ rule log_filter:
     output:
         SBS_OUTPUTS_MAPPED["log_filter"],
     params:
-        skip_index=0,
+        skip_index=config["sbs"]["extra_channel_indices"],
     script:
         "../scripts/sbs/log_filter.py"
 
@@ -41,7 +43,7 @@ rule compute_standard_deviation:
     output:
         SBS_OUTPUTS_MAPPED["compute_standard_deviation"],
     params:
-        remove_index=0,
+        remove_index=config["sbs"]["extra_channel_indices"],
     script:
         "../scripts/sbs/compute_standard_deviation.py"
 
@@ -66,23 +68,22 @@ rule max_filter:
         SBS_OUTPUTS_MAPPED["max_filter"],
     params:
         width=config["sbs"]["max_filter_width"],
-        remove_index=0,
+        remove_index=config["sbs"]["extra_channel_indices"],
     script:
         "../scripts/sbs/max_filter.py"
 
 
 # Apply illumination correction field from segmentation cycle
-SBS_CYCLES = sorted(sbs_wildcard_combos["cycle"].unique(), key=int)
-
-
 rule apply_ic_field_sbs:
     input:
         SBS_OUTPUTS["align_sbs"],
-        # dapi illumination correction field
+        # extra channel illumination correction field
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
-            subset_values={"cycle": 1},
+            subset_values={
+                "cycle": str(config["sbs"]["dapi_cycle"])
+            },
             ancient_output=True,
         ),
         # illumination correction field from cycle of interest
@@ -90,16 +91,17 @@ rule apply_ic_field_sbs:
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
             subset_values={
-                "cycle": SBS_CYCLES[config["sbs"]["segmentation_cycle_index"]]
+                "cycle": str(config["sbs"]["cyto_cycle"]),
             },
             ancient_output=True,
         ),
     output:
         SBS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
-        segmentation_cycle_index=config["sbs"]["segmentation_cycle_index"],
-        keep_extras=config["sbs"]["keep_extras"],
-        dapi_index=config["sbs"]["dapi_index"],
+        dapi_cycle=config["sbs"]["dapi_cycle"],
+        cyto_cycle=config["sbs"]["cyto_cycle"],
+        cyto_cycle_index=config["sbs"]["cyto_cycle_index"],
+        extra_channel_indices=config["sbs"]["extra_channel_indices"],
     script:
         "../scripts/sbs/apply_ic_field_sbs.py"
 
@@ -144,21 +146,6 @@ rule call_reads:
     script:
         "../scripts/sbs/call_reads.py"
 
-'''
-# Call cells (to be merged to main)
-rule call_cells:
-    input:
-        SBS_OUTPUTS["call_reads"],
-    output:
-        SBS_OUTPUTS_MAPPED["call_cells"],
-    params:
-        df_design_path=config["sbs"]["df_design_path"],
-        q_min=config["sbs"]["q_min"],
-        barcode_col=config["sbs"]["barcode_col"],
-        error_correct=config["sbs"]["error_correct"],        
-    script:
-        "../scripts/sbs/call_cells.py"
-'''
 
 # Call cells using T7 protocol
 rule call_cells:
@@ -289,7 +276,7 @@ rule eval_mapping:
     output:
         SBS_OUTPUTS_MAPPED["eval_mapping"],
     params:
-        df_design_path=config["sbs"]["df_design_path"],
+        df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
     script:
         "../scripts/sbs/eval_mapping.py"
 

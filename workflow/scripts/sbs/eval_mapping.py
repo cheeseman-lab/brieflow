@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from lib.sbs.standardize_barcode_design import get_barcode_list
 from lib.sbs.eval_mapping import (
     plot_mapping_vs_threshold,
     plot_read_mapping_heatmap,
@@ -11,11 +12,8 @@ from lib.sbs.eval_mapping import (
 )
 
 # Read barcodes
-df_design = pd.read_csv(snakemake.params.df_design_path, index_col=None)
-df_pool = df_design.drop(columns=['Unnamed: 0']).rename(columns={'target':'gene_symbol'})
-df_pool['prefix_map'] = df_pool['iBAR_2']
-df_pool['prefix_recomb'] = df_pool['iBAR_1'].str.slice(0,3)
-barcodes = df_pool["prefix_recomb"] + df_pool["prefix_map"]
+df_barcode_library = pd.read_csv(snakemake.params.df_barcode_library_fp, sep="\t")
+barcodes = get_barcode_list(df_barcode_library)
 
 # Load SBS processing files
 reads = pd.concat(

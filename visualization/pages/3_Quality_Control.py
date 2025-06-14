@@ -19,6 +19,7 @@ def find_eval_files(root_dir):
     all_files = glob.glob(pattern, recursive=True)
     return [f for f in all_files if f.endswith(".png") or f.endswith(".tsv")]
 
+
 @st.cache_data
 def load_data(root_dir):
     global filtered_df
@@ -43,7 +44,11 @@ def apply_all_filters(df, sidebar):
     selected_values = {}
 
     for column, label in filters:
-        selected_value = create_filter_radio(filtered_df, column, sidebar, label)
+        # Create a unique key for each filter based on the column name
+        key = f"filter_{column}"
+        selected_value = create_filter_radio(
+            filtered_df, column, sidebar, label, key=key
+        )
         filtered_df = apply_filter(filtered_df, column, selected_value)
         selected_values[column] = selected_value
 

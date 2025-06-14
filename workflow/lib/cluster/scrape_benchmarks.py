@@ -13,7 +13,6 @@ Key functions:
     - get_corum_data / get_string_data: Download raw benchmark inputs.
     - select_gene_variants: Harmonize variant gene names with clustering outputs.
     - filter_complexes: Curate benchmark gene groups with coverage and overlap filters.
-    - simplify_ampersand_genes: Standardize gene names by removing concatenated forms.
 """
 
 import re
@@ -379,29 +378,3 @@ def filter_complexes(
 
     filtered = group_df[group_df["group"].isin(final_complexes)]
     return filtered
-
-
-# TODO: eventually, take care of ampersand genes during the SBS step and this can be removed
-def simplify_ampersand_genes(df, perturbation_name_col="gene_symbol_0"):
-    """Simplifies gene names by replacing ampersand-containing gene names with just the first gene in the list.
-
-    Args:
-        df (pd.DataFrame): The DataFrame containing gene names.
-        perturbation_name_col (str): The column name in the DataFrame containing gene names.
-
-    Returns:
-        pd.DataFrame: A DataFrame with simplified gene names.
-    """
-    # Create a copy to avoid modifying the original dataframe
-    result_df = df.copy()
-
-    # Find rows with ampersands in the perturbation name column
-    mask = result_df[perturbation_name_col].astype(str).str.contains("&")
-
-    # For those rows, replace with just the first gene name before the ampersand
-    if mask.any():
-        result_df.loc[mask, perturbation_name_col] = result_df.loc[
-            mask, perturbation_name_col
-        ].apply(lambda x: x.split("&")[0].strip() if isinstance(x, str) else x)
-
-    return result_df

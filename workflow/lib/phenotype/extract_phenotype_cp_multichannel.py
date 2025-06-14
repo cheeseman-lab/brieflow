@@ -22,6 +22,7 @@ from lib.external.cp_emulator import (
 )
 from lib.shared.feature_extraction import extract_features, extract_features_bare
 from lib.shared.log_filter import log_ndi
+from lib.phenotype.constants import DEFAULT_METADATA_COLS
 
 
 def extract_phenotype_cp_multichannel(
@@ -38,20 +39,7 @@ def extract_phenotype_cp_multichannel(
 ):
     """Extract phenotype features from CellProfiler-like data with multi-channel functionality.
 
-    Args:
-        data_phenotype (numpy.ndarray): Phenotype data array of shape (..., CHANNELS, I, J).
-        nuclei (numpy.ndarray): Nuclei segmentation data.
-        cells (numpy.ndarray): Cell segmentation data.
-        cytoplasms (numpy.ndarray, optional): Cytoplasmic segmentation data.
-        wildcards (dict): Dictionary containing wildcards.
-        nucleus_channels (str or list): List of nucleus channel indices to consider or 'all'.
-        cytoplasm_channels (str or list): List of cytoplasm channel indices to consider or 'all'.
-        cell_channels (str or list): List of cell channel indices to consider or 'all'.
-        foci_channel (int): Index of the channel containing foci information.
-        channel_names (list): List of channel names.
-
-    Returns:
-        pandas.DataFrame: DataFrame containing extracted phenotype features.
+    Updated version with proper column ordering.
     """
     # If nuclei or cells are empty, return an empty DataFrame
     if np.sum(nuclei) == 0 or np.sum(cells) == 0:
@@ -79,7 +67,7 @@ def extract_phenotype_cp_multichannel(
     dfs = []
 
     # Define features
-    features = grayscale_features_multichannel
+    features = grayscale_features_multichannel.copy()
     features.update(correlation_features_multichannel)
     features.update(shape_features)
 
@@ -123,13 +111,13 @@ def extract_phenotype_cp_multichannel(
         extract_features(
             data_phenotype[..., nucleus_channels, :, :],
             nuclei,
-            wildcards,
+            dict(),
             features,
             multichannel=True,
         )
         .rename(columns=nucleus_columns)
         .set_index("label")
-        .rename(columns=lambda x: "nucleus_" + x if x not in wildcards.keys() else x)
+        .add_prefix("nucleus_")
     )
 
     # Extract cell features
@@ -185,6 +173,7 @@ def extract_phenotype_cp_multichannel(
         .set_index("label")
         .add_prefix("cell_")
     )
+
     if cytoplasms is not None:
         dfs.append(
             neighbor_measurements(cytoplasms, distances=[1])
@@ -193,7 +182,66 @@ def extract_phenotype_cp_multichannel(
         )
 
     # Concatenate data frames and reset index
-    return pd.concat(dfs, axis=1, join="outer", sort=True).reset_index()
+    result_df = pd.concat(dfs, axis=1, join="outer", sort=False).reset_index()
+
+    # Add wildcards metadata at the END (they'll be reordered later)
+    for k, v in sorted(wildcards.items()):
+        result_df[k] = v
+
+    # Apply column ordering
+    result_df = order_dataframe_columns(result_df)
+
+    return result_df
+
+
+def order_dataframe_columns(df, metadata_cols=None, label_col="label"):
+    """Reorder DataFrame columns to put metadata first, then features.
+
+    Args:
+        df (pandas.DataFrame): DataFrame to reorder
+        metadata_cols (list): List of metadata column names to put first
+        label_col (str): Name of the label column
+
+    Returns:
+        pandas.DataFrame: DataFrame with reordered columns
+    """
+    if metadata_cols is None:
+        metadata_cols = DEFAULT_METADATA_COLS
+
+    # Start with label column
+    ordered_cols = []
+    if label_col in df.columns:
+        ordered_cols.append(label_col)
+
+    # Add metadata columns that exist in the DataFrame
+    for col in metadata_cols:
+        if col in df.columns and col not in ordered_cols:
+            ordered_cols.append(col)
+
+    # Categorize remaining feature columns
+    remaining_cols = [col for col in df.columns if col not in ordered_cols]
+
+    # Group features by type
+    nucleus_features = [col for col in remaining_cols if col.startswith("nucleus_")]
+    cell_features = [col for col in remaining_cols if col.startswith("cell_")]
+    cytoplasm_features = [col for col in remaining_cols if col.startswith("cytoplasm_")]
+
+    # Add any other columns that don't fit the above patterns
+    other_features = [
+        col
+        for col in remaining_cols
+        if not any(
+            col.startswith(prefix) for prefix in ["nucleus_", "cell_", "cytoplasm_"]
+        )
+    ]
+
+    # Combine in desired order
+    ordered_cols.extend(other_features)  # Any additional metadata/wildcards
+    ordered_cols.extend(nucleus_features)
+    ordered_cols.extend(cell_features)
+    ordered_cols.extend(cytoplasm_features)
+
+    return df[ordered_cols]
 
 
 def find_foci(data, radius=3, threshold=10, remove_border_foci=False):

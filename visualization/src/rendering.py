@@ -6,6 +6,7 @@ import uuid
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from workflow.lib.shared.file_utils import parse_filename
+from src.config import STATIC_ASSET_URL_ROOT, STATIC_ASSET_PATH
 
 
 class VisualizationRenderer:
@@ -65,13 +66,24 @@ class VisualizationRenderer:
                             if has_tsv:
                                 tsv_row = group_df[group_df["ext"] == "tsv"].iloc[0]
                                 tsv_path = os.path.join(root_dir, tsv_row["file_path"])
-                                with open(tsv_path, "rb") as f:
-                                    st.download_button(
-                                        label="Download TSV data",
-                                        data=f,
-                                        file_name=os.path.basename(tsv_path),
-                                        key=f"download_{str(uuid.uuid4())}",
+                                if STATIC_ASSET_URL_ROOT and STATIC_ASSET_PATH:
+                                    # Use nginx-served static files when configured
+                                    relative_path = tsv_path.replace(
+                                        STATIC_ASSET_PATH, ""
                                     )
+                                    static_url = (
+                                        f"{STATIC_ASSET_URL_ROOT}{relative_path}"
+                                    )
+                                    st.markdown(f"[Download TSV data]({static_url})")
+                                else:
+                                    # Fall back to direct download when running locally
+                                    with open(tsv_path, "rb") as f:
+                                        st.download_button(
+                                            label="Download TSV data",
+                                            data=f,
+                                            file_name=os.path.basename(tsv_path),
+                                            key=f"download_{str(uuid.uuid4())}",
+                                        )
 
                         elif row["ext"] == "tsv" and not has_png:
                             # Only show TSV if there's no PNG

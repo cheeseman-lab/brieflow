@@ -157,12 +157,20 @@ def run_leiden_clustering(weights, resolution=1.0, seed=42):
 
 
 def plot_phate_leiden_clusters(
-    phate_leiden_clustering, perturbation_name_col, control_key, figsize=(8, 8)
+    phate_leiden_clustering,
+    perturbation_name_col,
+    control_key,
+    figsize=(8, 8),
+    clusters_of_interest=None,
+    highlight_palette="Set2",
+    non_highlight_color="gray",
+    control_color_highlight="#4575b4",
 ):
     """Create a scatter plot visualization of PHATE embedding colored by Leiden clusters.
 
     Generates a visualization showing the 2D PHATE embedding with points colored by
-    cluster assignment, with control samples highlighted in gray.
+    cluster assignment, with control samples highlighted. Can optionally highlight
+    specific clusters of interest while dimming others.
 
     Args:
         phate_leiden_clustering (pd.DataFrame): Output from phate_leiden_pipeline with
@@ -170,11 +178,24 @@ def plot_phate_leiden_clusters(
         perturbation_name_col (str): Column name containing perturbation identifiers.
         control_key (str): Prefix or value in perturbation_name_col that identifies controls.
         figsize (tuple, optional): Figure dimensions (width, height). Defaults to (8, 8).
+        clusters_of_interest (list or int, optional): Cluster ID(s) to highlight. If None,
+            all clusters are colored. Defaults to None.
+        highlight_palette (str or list, optional): Color palette for highlighted clusters.
+            Defaults to "Set2".
+        non_highlight_color (str, optional): Color for non-highlighted clusters.
+            Defaults to "gray".
+        control_color_highlight (str, optional): Color for controls when highlighting clusters.
+            Defaults to "#4575b4".
 
     Returns:
         matplotlib.figure.Figure: The figure object for further customization or saving.
     """
     fig, ax = plt.subplots(figsize=figsize)
+
+    # Ensure clusters_of_interest is a list
+    if clusters_of_interest is not None:
+        if not isinstance(clusters_of_interest, list):
+            clusters_of_interest = [clusters_of_interest]
 
     # Split data into experimental and control groups
     control_mask = phate_leiden_clustering[perturbation_name_col].str.startswith(
@@ -183,32 +204,101 @@ def plot_phate_leiden_clusters(
     control_data = phate_leiden_clustering[control_mask]
     exp_data = phate_leiden_clustering[~control_mask]
 
-    # Plot experimental data colored by cluster
-    sns.scatterplot(
-        data=exp_data,
-        x="PHATE_0",
-        y="PHATE_1",
-        hue="cluster",
-        palette="husl",
-        alpha=0.7,
-        legend=False,
-        ax=ax,
-    )
+    if clusters_of_interest is None:
+        # Original behavior - plot all experimental data colored by cluster
+        sns.scatterplot(
+            data=exp_data,
+            x="PHATE_0",
+            y="PHATE_1",
+            hue="cluster",
+            palette="husl",
+            alpha=0.7,
+            legend=False,
+            ax=ax,
+        )
 
-    # Plot control data in gray
-    sns.scatterplot(
-        data=control_data,
-        x="PHATE_0",
-        y="PHATE_1",
-        color="gray",
-        alpha=0.5,
-        label="control",
-        ax=ax,
-    )
+        # Plot control data in gray (original behavior)
+        sns.scatterplot(
+            data=control_data,
+            x="PHATE_0",
+            y="PHATE_1",
+            color="gray",
+            alpha=0.5,
+            label="control",
+            ax=ax,
+        )
+    else:
+        # New behavior - highlight specific clusters
+        # Plot non-highlighted clusters first in gray
+        non_highlight_mask = ~exp_data["cluster"].isin(clusters_of_interest)
+        non_highlight_data = exp_data[non_highlight_mask]
+
+        if len(non_highlight_data) > 0:
+            sns.scatterplot(
+                data=non_highlight_data,
+                x="PHATE_0",
+                y="PHATE_1",
+                color=non_highlight_color,
+                alpha=0.3,
+                label="Other clusters",
+                ax=ax,
+                legend=False,
+            )
+
+        # Plot highlighted clusters with colors
+        highlight_data = exp_data[exp_data["cluster"].isin(clusters_of_interest)]
+
+        if len(highlight_data) > 0:
+            # Use sns.scatterplot with the hue parameter for consistency
+            sns.scatterplot(
+                data=highlight_data,
+                x="PHATE_0",
+                y="PHATE_1",
+                hue="cluster",
+                palette=highlight_palette,
+                alpha=0.7,
+                ax=ax,
+                legend="brief",
+            )
+
+            # Rename legend entries to include "Cluster" prefix
+            handles, labels = ax.get_legend_handles_labels()
+            new_labels = [
+                f"Cluster {label}"
+                if label.isdigit() or (isinstance(label, (int, float)))
+                else label
+                for label in labels
+            ]
+            ax.legend(handles, new_labels, loc="upper right")
+
+        # Plot control data in blue when highlighting
+        if len(control_data) > 0:
+            sns.scatterplot(
+                data=control_data,
+                x="PHATE_0",
+                y="PHATE_1",
+                color=control_color_highlight,
+                alpha=0.5,
+                label="Control",
+                ax=ax,
+            )
+
+            # Update legend to include controls if not already present
+            if len(highlight_data) > 0:
+                handles, labels = ax.get_legend_handles_labels()
+                # Remove duplicate "Control" entries if any
+                seen = set()
+                new_handles, new_labels = [], []
+                for h, l in zip(handles, labels):
+                    if l not in seen:
+                        seen.add(l)
+                        new_handles.append(h)
+                        new_labels.append(l)
+                ax.legend(new_handles, new_labels, loc="upper right")
 
     # Format plot
-    plt.legend(loc="upper right")
-    plt.tight_layout()
+    if clusters_of_interest is None or len(highlight_data) > 0 or len(control_data) > 0:
+        plt.legend(loc="upper right")
 
     return fig
 

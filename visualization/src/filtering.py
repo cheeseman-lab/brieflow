@@ -1,5 +1,6 @@
 import streamlit as st
 
+
 def create_filter_radio(df, column, container, label=None, include_all=True, key=None):
     """
     Create a radio button for filtering based on a column.
@@ -40,15 +41,9 @@ def create_filter_radio(df, column, container, label=None, include_all=True, key
             index = 0
             if st.session_state[state_key] in options:
                 index = options.index(st.session_state[state_key])
-            
+
             # Create the radio button with the callback
-            container.radio(
-                label,
-                options,
-                index=index,
-                key=key,
-                on_change=on_change
-            )
+            container.radio(label, options, index=index, key=key, on_change=on_change)
 
     return st.session_state[state_key]
 

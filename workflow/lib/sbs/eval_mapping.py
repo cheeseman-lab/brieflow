@@ -369,6 +369,11 @@ def plot_cell_metric_histogram(df, sort_by="count", x_cutoff=None):
     else:
         raise ValueError(f"sort_by must be 'count' or 'peak', got '{sort_by}'")
 
+    # Auto-determine x_cutoff if not provided
+    if x_cutoff is None:
+        # Set cutoff to max of metric column
+        x_cutoff = df[metric_col].max()
+
     # Create bins from 0 to x_cutoff (inclusive)
     bins = range(int(x_cutoff) + 1)
 

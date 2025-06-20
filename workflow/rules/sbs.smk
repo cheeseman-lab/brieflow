@@ -268,6 +268,7 @@ rule eval_mapping:
         SBS_OUTPUTS_MAPPED["eval_mapping"],
     params:
         df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
+        sort_by=config["sbs"]["sort_calls"],      
     script:
         "../scripts/sbs/eval_mapping.py"
 

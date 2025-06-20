@@ -38,7 +38,7 @@ def call_cells(
     prefix_col=None,
     df_UMI=None,
     error_correct=False,
-    sort_by='count',  # 'count' or 'peak'
+    sort_by="count",  # 'count' or 'peak'
     **kwargs,
 ):
     """Process sequencing reads to identify cell barcodes, optionally mapping them to a pool design.
@@ -204,11 +204,11 @@ def call_cells_mapping(
     df_barcode_library,
     barcode_info_cols=[SGRNA, GENE_SYMBOL, GENE_ID],
     error_correct=False,
-    sort_by='count',
+    sort_by="count",
     **kwargs,
 ):
     """Determine the count of top barcodes, with prioritization given to barcodes mapping to the given pool design.
-    
+
     Args:
         df_reads (DataFrame): DataFrame containing read data.
         df_barcode_library (DataFrame): DataFrame containing barcode library information.
@@ -244,12 +244,12 @@ def call_cells_mapping(
 
     # Choose top 2 barcodes, priority given by (mapped, count) or (mapped, peak)
     cols = [WELL, TILE, CELL]
-    
-    if sort_by == 'peak':
+
+    if sort_by == "peak":
         # Sort by peak intensity
         s = (
             df_mapped.drop_duplicates([WELL, TILE, READ])
-            .sort_values(['mapped', 'peak'], ascending=[False, False])
+            .sort_values(["mapped", "peak"], ascending=[False, False])
             .groupby(cols)
         )
     else:
@@ -265,18 +265,18 @@ def call_cells_mapping(
         )
 
     # Create DataFrame containing top barcodes and their metrics
-    if sort_by == 'peak':
+    if sort_by == "peak":
         # Peak-based output
         df_cells = (
             df_reads.join(
-                s.nth(0)[cols + [BARCODE, 'peak']]
-                .rename(columns={BARCODE: BARCODE_0, 'peak': 'peak_0'})
+                s.nth(0)[cols + [BARCODE, "peak"]]
+                .rename(columns={BARCODE: BARCODE_0, "peak": "peak_0"})
                 .set_index(cols),
                 on=cols,
             )
             .join(
-                s.nth(1)[cols + [BARCODE, 'peak']]
-                .rename(columns={BARCODE: BARCODE_1, 'peak': 'peak_1'})
+                s.nth(1)[cols + [BARCODE, "peak"]]
+                .rename(columns={BARCODE: BARCODE_1, "peak": "peak_1"})
                 .set_index(cols),
                 on=cols,
             )

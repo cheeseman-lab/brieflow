@@ -327,7 +327,7 @@ def plot_cell_mapping_heatmap(
         return None
 
 
-def plot_cell_metric_histogram(df, sort_by='count', x_cutoff=None):
+def plot_cell_metric_histogram(df, sort_by="count", x_cutoff=None):
     """Plot a histogram of cell metrics (reads per cell or peak intensity per cell).
 
     Args:
@@ -348,19 +348,21 @@ def plot_cell_metric_histogram(df, sort_by='count', x_cutoff=None):
     sns.set_style("white")
 
     # Determine metric column and labels based on sort_by parameter
-    if sort_by == 'count':
-        if 'barcode_count' not in df.columns:
-            raise ValueError("DataFrame must contain 'barcode_count' column when sort_by='count'")
-        metric_col = 'barcode_count'
+    if sort_by == "count":
+        if "barcode_count" not in df.columns:
+            raise ValueError(
+                "DataFrame must contain 'barcode_count' column when sort_by='count'"
+            )
+        metric_col = "barcode_count"
         title = "Histogram of Barcode Count"
         xlabel = "Number of ISS reads per cell"
-    elif sort_by == 'peak':
+    elif sort_by == "peak":
         # Create combined peak intensity metric
-        peak_0 = df.get('peak_0', 0).fillna(0)
-        peak_1 = df.get('peak_1', 0).fillna(0)
+        peak_0 = df.get("peak_0", 0).fillna(0)
+        peak_1 = df.get("peak_1", 0).fillna(0)
         df_temp = df.copy()
-        df_temp['peak_intensity_total'] = peak_0 + peak_1
-        metric_col = 'peak_intensity_total'
+        df_temp["peak_intensity_total"] = peak_0 + peak_1
+        metric_col = "peak_intensity_total"
         title = "Histogram of Peak Intensity"
         xlabel = "Total peak intensity per cell"
         df = df_temp
@@ -371,7 +373,7 @@ def plot_cell_metric_histogram(df, sort_by='count', x_cutoff=None):
     bins = range(int(x_cutoff) + 1)
 
     # Plot the histogram
-    color = "skyblue" if sort_by == 'count' else "lightcoral"
+    color = "skyblue" if sort_by == "count" else "lightcoral"
     sns.histplot(
         data=df, x=metric_col, bins=bins, color=color, edgecolor="black", ax=ax
     )

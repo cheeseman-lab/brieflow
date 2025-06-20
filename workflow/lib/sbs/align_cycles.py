@@ -94,18 +94,24 @@ def align_cycles(
             image_data,
             current_channel_orders=manual_channel_mapping,
             target_channel_order=channel_order,
-            fill_method='smart',
-            source_cycle_priority=[manual_background_cycle] if manual_background_cycle is not None else None,
+            fill_method="smart",
+            source_cycle_priority=[manual_background_cycle]
+            if manual_background_cycle is not None
+            else None,
         )
-        
+
         # Define base_indices for the target channel order
         base_channels = ["G", "T", "A", "C"]
         base_indices = [i for i, ch in enumerate(channel_order) if ch in base_channels]
-        extra_indices = [i for i, ch in enumerate(channel_order) if ch not in base_channels]
-        
+        extra_indices = [
+            i for i, ch in enumerate(channel_order) if ch not in base_channels
+        ]
+
         # Set method if not provided
         if method is None:
-            method = "DAPI" if channel_order and channel_order[0] == "DAPI" else "sbs_mean"
+            method = (
+                "DAPI" if channel_order and channel_order[0] == "DAPI" else "sbs_mean"
+            )
             print(f"Method not provided. Using '{method}' for manual channel mapping.")
 
     # If no manual mapping is provided, determine channel structure automatically
@@ -119,12 +125,16 @@ def align_cycles(
                 n_channels = image_data.shape[1]
 
             channel_order = (
-                ["DAPI"] + base_channels[: n_channels - 1] if n_channels > 1 else ["DAPI"]
+                ["DAPI"] + base_channels[: n_channels - 1]
+                if n_channels > 1
+                else ["DAPI"]
             )
 
         # Identify base channels and extra channels
         base_indices = [i for i, ch in enumerate(channel_order) if ch in base_channels]
-        extra_indices = [i for i, ch in enumerate(channel_order) if ch not in base_channels]
+        extra_indices = [
+            i for i, ch in enumerate(channel_order) if ch not in base_channels
+        ]
 
         # Handle channel inconsistencies - simplified approach
         if not all(x.shape == image_data[0].shape for x in image_data):
@@ -182,7 +192,9 @@ def align_cycles(
                     )
         else:
             # All cycles have the same number of channels
-            stacked = np.array(image_data) if isinstance(image_data, list) else image_data
+            stacked = (
+                np.array(image_data) if isinstance(image_data, list) else image_data
+            )
 
         # Debug print before final stacking
         print(f"Final stacked shape before alignment: {stacked.shape}")
@@ -321,30 +333,33 @@ def align_between_cycles(
         return aligned
 
 
-def manual_fill_channels(image_data, current_channel_orders, target_channel_order, 
-                        fill_method='smart', source_cycle_priority=None):
-    """
-    Fill cycles to match target channel order by mapping channels by name.
-    
+def manual_fill_channels(
+    image_data,
+    current_channel_orders,
+    target_channel_order,
+    fill_method="smart",
+    source_cycle_priority=None,
+):
+    """Fill cycles to match target channel order by mapping channels by name.
+
     Args:
         image_data: List of cycle arrays, each with shape (CHANNEL, I, J)
         current_channel_orders: List of channel names for each cycle
         target_channel_order: Final desired channel order
         fill_method: 'zeros', 'smart' (copy from other cycles), or specific fill value
         source_cycle_priority: List of cycle indices to prioritize when copying channels
-    
+
     Returns:
         np.ndarray: Stacked array with shape (CYCLE, len(target_channel_order), I, J)
     """
     n_cycles = len(image_data)
     target_n_channels = len(target_channel_order)
     spatial_shape = image_data[0].shape[1:]
-    
+
     aligned_data = np.zeros(
-        (n_cycles, target_n_channels) + spatial_shape, 
-        dtype=image_data[0].dtype
+        (n_cycles, target_n_channels) + spatial_shape, dtype=image_data[0].dtype
     )
-    
+
     # Build a map of which cycles have which channels
     channel_sources = {}  # {channel_name: [cycle_indices_that_have_it]}
     for cycle_idx, current_order in enumerate(current_channel_orders):
@@ -352,34 +367,45 @@ def manual_fill_channels(image_data, current_channel_orders, target_channel_orde
             if channel_name not in channel_sources:
                 channel_sources[channel_name] = []
             channel_sources[channel_name].append(cycle_idx)
-    
+
     # Fill each cycle
-    for cycle_idx, (cycle_data, current_order) in enumerate(zip(image_data, current_channel_orders)):
+    for cycle_idx, (cycle_data, current_order) in enumerate(
+        zip(image_data, current_channel_orders)
+    ):
         print(f"Cycle {cycle_idx}: {current_order} -> {target_channel_order}")
-        
+
         for target_idx, channel_name in enumerate(target_channel_order):
             if channel_name in current_order:
                 # Copy from current cycle
                 source_idx = current_order.index(channel_name)
                 aligned_data[cycle_idx, target_idx] = cycle_data[source_idx]
-                print(f"  {channel_name}: copied from current cycle position {source_idx}")
-            elif fill_method == 'smart' and channel_name in channel_sources:
+                print(
+                    f"  {channel_name}: copied from current cycle position {source_idx}"
+                )
+            elif fill_method == "smart" and channel_name in channel_sources:
                 # Copy from another cycle that has this channel
                 source_cycles = channel_sources[channel_name]
-                
+
                 # Choose source cycle (prioritize user preference, then first available)
                 if source_cycle_priority:
-                    chosen_cycle = next((c for c in source_cycle_priority if c in source_cycles), source_cycles[0])
+                    chosen_cycle = next(
+                        (c for c in source_cycle_priority if c in source_cycles),
+                        source_cycles[0],
+                    )
                 else:
                     chosen_cycle = source_cycles[0]
-                
+
                 source_order = current_channel_orders[chosen_cycle]
                 source_idx = source_order.index(channel_name)
-                aligned_data[cycle_idx, target_idx] = image_data[chosen_cycle][source_idx]
-                print(f"  {channel_name}: copied from cycle {chosen_cycle} position {source_idx}")
+                aligned_data[cycle_idx, target_idx] = image_data[chosen_cycle][
+                    source_idx
+                ]
+                print(
+                    f"  {channel_name}: copied from cycle {chosen_cycle} position {source_idx}"
+                )
             else:
                 # Fill with zeros or specified value
-                fill_val = 0 if fill_method == 'smart' else fill_method
+                fill_val = 0 if fill_method == "smart" else fill_method
                 print(f"  {channel_name}: filled with {fill_val}")
-    
+
     return aligned_data

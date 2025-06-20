@@ -38,7 +38,7 @@ def call_cells(
     prefix_col=None,
     df_UMI=None,
     error_correct=False,
-    sort_by="count",  # 'count' or 'peak'
+    sort_calls="count",
     **kwargs,
 ):
     """Process sequencing reads to identify cell barcodes, optionally mapping them to a pool design.
@@ -57,7 +57,7 @@ def call_cells(
             Useful for cycle-skipping scenarios. Default is None.
         df_UMI (DataFrame, optional): DataFrame containing UMI reads. Default is None.
         error_correct (bool, optional): Whether to perform error correction on barcodes. Default is False.
-        sort_by (str, optional): Sorting criterion for barcode prioritization - 'count' or 'peak'. Default is 'count'.
+        sort_calls (str, optional): Sorting criterion for barcode prioritization - 'count' or 'peak'. Default is 'count'.
         **kwargs: Additional arguments passed to error_correct_reads if error_correct is True.
                  Common options include:
                  - max_distance (int): Maximum distance threshold for correction (default: 2)
@@ -128,7 +128,7 @@ def call_cells(
             call_cells_mapping,
             df_barcode_library,
             error_correct=error_correct,
-            sort_by=sort_by,
+            sort_calls=sort_calls,
             **kwargs,
         )
 
@@ -204,7 +204,7 @@ def call_cells_mapping(
     df_barcode_library,
     barcode_info_cols=[SGRNA, GENE_SYMBOL, GENE_ID],
     error_correct=False,
-    sort_by="count",
+    sort_calls="count",
     **kwargs,
 ):
     """Determine the count of top barcodes, with prioritization given to barcodes mapping to the given pool design.
@@ -214,7 +214,7 @@ def call_cells_mapping(
         df_barcode_library (DataFrame): DataFrame containing barcode library information.
         barcode_info_cols (list, optional): Columns related to guide information. Default is [SGRNA, GENE_SYMBOL, GENE_ID].
         error_correct (bool, optional): Whether to perform error correction. Default is False.
-        sort_by (str, optional): Sorting criterion - 'count' or 'peak'. Default is 'count'.
+        sort_calls (str, optional): Sorting criterion - 'count' or 'peak'. Default is 'count'.
         **kwargs: Additional arguments passed to error_correct_reads if error_correct is True.
 
     Returns:
@@ -245,7 +245,7 @@ def call_cells_mapping(
     # Choose top 2 barcodes, priority given by (mapped, count) or (mapped, peak)
     cols = [WELL, TILE, CELL]
 
-    if sort_by == "peak":
+    if sort_calls == "peak":
         # Sort by peak intensity
         s = (
             df_mapped.drop_duplicates([WELL, TILE, READ])
@@ -265,7 +265,7 @@ def call_cells_mapping(
         )
 
     # Create DataFrame containing top barcodes and their metrics
-    if sort_by == "peak":
+    if sort_calls == "peak":
         # Peak-based output
         df_cells = (
             df_reads.join(

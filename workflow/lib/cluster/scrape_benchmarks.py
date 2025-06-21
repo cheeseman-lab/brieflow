@@ -192,7 +192,7 @@ def get_uniprot_data():
     url = "https://rest.uniprot.org/uniprotkb/search"
     # Query for human reviewed entries with specific fields
     params = {
-        "query": "organism_id:9606 AND reviewed:true",
+        "query": "organism_id:507601",
         "fields": "accession,gene_names,cc_function,xref_kegg,xref_complexportal,xref_string",
         "format": "tsv",
         "size": 500,

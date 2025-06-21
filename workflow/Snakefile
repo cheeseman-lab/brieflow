@@ -101,7 +101,7 @@ if plate_filter is not None:
 
 
 include: "targets/preprocess.smk"
-# include: "rules/preprocess.smk"
+include: "rules/preprocess.smk"
 
 
 if "sbs" in config and len(sbs_wildcard_combos) > 0:

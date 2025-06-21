@@ -350,6 +350,14 @@ def combine_ic_images(images, indices):
         # Smart selection: all channels EXCEPT the extra channel indices
         all_indices = list(range(target_channels))
         base_indices = [i for i in all_indices if i not in extra_indices_used]
+        # If the base image has fewer channels than needed, adjust indices
+        if (
+            max(base_indices) >= base_img.shape[0]
+        ):  # base indices is out of bounds of base_img
+            base_indices = list(
+                range(len(base_indices))
+            )  # the length of the base indices starting from 0
+        # Extract base channels using the adjusted indices
         base_channels = base_img[base_indices]
 
     # Ensure both are 3D and concatenate

@@ -58,6 +58,7 @@ sbs:
   q_min: 0
   barcode_col: sgRNA
   prefix_col: null
+  sort_calls: count
   error_correct: false
   mode: null
   peak_width: 5

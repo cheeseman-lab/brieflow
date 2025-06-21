@@ -16,6 +16,7 @@ cells_data = call_cells(
     barcode_col=snakemake.params.barcode_col,
     prefix_col=snakemake.params.prefix_col,
     error_correct=snakemake.params.error_correct,
+    sort_calls=snakemake.params.sort_calls,
 )
 
 # save cells data

@@ -5,7 +5,7 @@ from lib.sbs.eval_mapping import (
     plot_mapping_vs_threshold,
     plot_read_mapping_heatmap,
     plot_cell_mapping_heatmap,
-    plot_reads_per_cell_histogram,
+    plot_cell_metric_histogram,
     plot_gene_symbol_histogram,
     mapping_overview,
 )
@@ -58,7 +58,7 @@ df_summary_any, fig = plot_cell_mapping_heatmap(
 df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")
 fig.savefig(snakemake.output[6])
 
-_, fig = plot_reads_per_cell_histogram(cells, x_cutoff=20)
+_, fig = plot_cell_metric_histogram(cells, sort_by=snakemake.params.sort_by)
 fig.savefig(snakemake.output[7])
 
 _, fig = plot_gene_symbol_histogram(cells)

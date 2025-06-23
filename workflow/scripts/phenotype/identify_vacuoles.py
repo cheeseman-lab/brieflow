@@ -22,9 +22,10 @@ vacuole_masks, cell_vacuole_table, updated_cytoplasm_masks = segment_vacuoles(
     nuclei_channel_index=vacuole_channel_index,
     cell_masks=cells,
     cytoplasm_masks=cytoplasms,
-    min_size=min_size,
-    max_size=max_size,
+    min_diameter=min_diameter,
+    max_diameter=max_diameter,
     nuclei_centroids=phenotype_info,
+    nuclei_detection=nuclei_detection,
 )
 
 # Save outputs

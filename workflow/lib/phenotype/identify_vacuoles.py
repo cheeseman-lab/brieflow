@@ -59,14 +59,15 @@ def segment_vacuoles(
     nuclei_channel_index=None,
     cell_masks=None,
     cytoplasm_masks=None,
-    min_diameter=5,
-    max_diameter=80,
+    min_diameter=10,
+    max_diameter=200,
     threshold_smoothing_scale=1.3488,
     min_distance_between_maxima=20,
     max_objects_per_cell=120,
     overlap_threshold=0.1,
     nuclei_min_distance=5,
     nuclei_centroids=None,
+    nuclei_detection=False,
 ):
     """Segment vacuoles within cells using thresholding and declumping.
 
@@ -78,8 +79,8 @@ def segment_vacuoles(
         cell_masks (numpy.ndarray): Cell segmentation masks with unique integers for each cell.
         cytoplasm_masks (numpy.ndarray, optional): Cytoplasm segmentation masks with unique integers.
             If provided, vacuole regions will be removed from cytoplasm masks.
-        min_diameter (float, optional): Minimum diameter (in pixels) for a vacuole to be considered valid. Default is 5.
-        max_diameter (float, optional): Maximum diameter (in pixels) for a vacuole to be considered valid. Default is 80.
+        min_diameter (float, optional): Minimum diameter (in pixels) for a vacuole to be considered valid. Default is 10.
+        max_diameter (float, optional): Maximum diameter (in pixels) for a vacuole to be considered valid. Default is 200.
         threshold_smoothing_scale (float, optional): Sigma for Gaussian smoothing before thresholding. Default is 1.3488.
         min_distance_between_maxima (int, optional): Minimum distance between local maxima for declumping vacuoles. Default is 20.
         max_objects_per_cell (int, optional): Maximum number of vacuoles allowed per cell. Default is 120.
@@ -87,16 +88,18 @@ def segment_vacuoles(
         nuclei_min_distance (int, optional): Minimum distance between peaks when identifying nuclei within vacuoles. Default is 5.
         nuclei_centroids (dict or pandas.DataFrame, optional): Dictionary or DataFrame containing nuclei centroids
             with keys/columns 'i', 'j' for y and x coordinates. Used to calculate distance from vacuoles to nuclei.
+        nuclei_detection (bool, optional): Whether to perform nuclei detection within vacuoles. Default is False.
 
     Returns:
         tuple: A tuple containing:
             - vacuole_masks (numpy.ndarray): Labeled mask of vacuoles with their original unique IDs.
             - cell_vacuole_table (dict): Dictionary with DataFrames containing cell-vacuole associations and measurements.
-            - (optional) updated_cytoplasm_masks (numpy.ndarray): Updated cytoplasm masks with vacuole regions removed.
+            - Updated_cytoplasm_masks (numpy.ndarray): Updated cytoplasm masks with vacuole regions removed.
               Only returned if cytoplasm_masks is provided.
     """
     # Extract the vacuole channel
     vacuole_img = image[vacuole_channel_index]
+    vacuole_img = np.clip(vacuole_img, a_min=0, a_max=None)
 
     # Apply log transform and smoothing
     vacuole_log = exposure.adjust_log(vacuole_img)
@@ -123,6 +126,13 @@ def segment_vacuoles(
     if len(local_max) > 0:
         markers[tuple(local_max.T)] = np.arange(1, len(local_max) + 1)
         declumped = segmentation.watershed(-distance, markers, mask=filled_mask)
+        # Recover unassigned regions (label == 0) with connected component labeling
+        missing = (declumped == 0) & filled_mask
+        if np.any(missing):
+            labeled_missing, _ = ndimage.label(missing)
+            # Shift labels so they don’t overlap with watershed labels
+            labeled_missing[labeled_missing > 0] += declumped.max()
+            declumped += labeled_missing
     else:
         declumped, _ = ndimage.label(filled_mask)
 
@@ -151,25 +161,29 @@ def segment_vacuoles(
         print("No valid vacuoles found after diameter filtering")
         return _create_empty_results(cell_masks, cytoplasm_masks)
     
-    # Create valid vacuoles mask efficiently
-    valid_vacuoles = np.isin(declumped, valid_labels) * declumped
-    labeled_vacuoles, num_vacuoles = ndimage.label(valid_vacuoles > 0)
+    # Create valid vacuoles mask
+    labeled_vacuoles = np.zeros_like(declumped)
+    for i, lbl in enumerate(valid_labels, start=1):
+        labeled_vacuoles[declumped == lbl] = i
+    num_vacuoles = len(valid_labels)
 
     # Get cell IDs once
     cell_ids = np.unique(cell_masks[cell_masks > 0])
 
-    # Determine nuclei channel
-    nuclei_channel_index = nuclei_channel_index or vacuole_channel_index
-    nuclei_img = image[nuclei_channel_index]
+    # Determine nuclei channel and prepare nuclei centroids only if nuclei_detection is True
+    nuclei_channel_index = (
+        vacuole_channel_index if nuclei_channel_index is None else nuclei_channel_index
+    )
+    nuclei_img = image[nuclei_channel_index] if nuclei_detection else None
 
     # Prepare nuclei centroids - OPTIMIZED: do this once
     nuclei_centroids_dict = None
-    if nuclei_centroids is not None:
+    if nuclei_detection and nuclei_centroids is not None:
         if isinstance(nuclei_centroids, pd.DataFrame):
-            nuclei_centroids_dict = {}
-            for idx, row in nuclei_centroids.iterrows():
-                nuc_id = row.get("nuclei_id", idx)
-                nuclei_centroids_dict[nuc_id] = (row["i"], row["j"])
+            nuclei_centroids_dict = {
+                row.get("nuclei_id", idx): (row["i"], row["j"])
+                for idx, row in nuclei_centroids.iterrows()
+            }
         else:
             nuclei_centroids_dict = nuclei_centroids
 
@@ -195,17 +209,22 @@ def segment_vacuoles(
         vacuole_diameter = 2 * np.sqrt(vacuole_area / np.pi)
 
         # Find nuclei peaks within this vacuole
-        peaks = feature.peak_local_max(
-            nuclei_img,
-            min_distance=nuclei_min_distance,
-            labels=vacuole_mask,
-            exclude_border=False,
-        )
-
-        nuclei_per_vacuole[vacuole_id] = {
-            "count": len(peaks),
-            "peak_coordinates": peaks.tolist() if len(peaks) > 0 else [],
-        }
+        if nuclei_detection and nuclei_img is not None:
+            peaks = feature.peak_local_max(
+                nuclei_img,
+                min_distance=nuclei_min_distance,
+                labels=vacuole_mask,
+                exclude_border=False,
+            )
+            nuclei_per_vacuole[vacuole_id] = {
+                "count": len(peaks),
+                "peak_coordinates": peaks.tolist() if len(peaks) > 0 else [],
+            }
+        else:
+            nuclei_per_vacuole[vacuole_id] = {
+                "count": 0,
+                "peak_coordinates": [],
+            }
 
         # Calculate distance to nearest nucleus centroid
         min_distance_to_nucleus = None
@@ -260,28 +279,28 @@ def segment_vacuoles(
     # Create vacuole-cell mapping DataFrame
     vacuole_cell_df = pd.DataFrame(vacuole_cell_mapping)
 
-    # OPTIMIZED: Create cell summary more efficiently
+    # Create cell summary
     if vacuole_cell_mapping:
         # Group by cell_id once for efficiency
-        grouped = vacuole_cell_df.groupby('cell_id') if not vacuole_cell_df.empty else None
+        grouped = vacuole_cell_df.groupby('cell_id')
         
         cell_summary = []
         for cell_id in cell_ids:
             cell_area = np.sum(cell_masks == cell_id)
-            
-            if grouped is not None and cell_id in grouped.groups:
+            # Check if cell_id has associated vacuoles
+            if cell_id in grouped.groups:
                 cell_vacuoles = grouped.get_group(cell_id)
+                # Calculate cell-level statistics
                 total_vacuole_area = cell_vacuoles["vacuole_area"].sum()
                 total_nuclei = cell_vacuoles["nuclei_count"].sum()
                 multinucleated_count = len(cell_vacuoles[cell_vacuoles["nuclei_count"] > 1])
-                
-                # Calculate mean distance to nucleus
-                valid_distances = cell_vacuoles["distance_to_nucleus"].dropna()
-                mean_distance = valid_distances.mean() if len(valid_distances) > 0 else None
-                
-                # Calculate mean diameter
+                mean_distance = (
+                    cell_vacuoles["distance_to_nucleus"].dropna().mean()
+                    if not cell_vacuoles["distance_to_nucleus"].dropna().empty
+                    else None
+                )
                 mean_diameter = cell_vacuoles["vacuole_diameter"].mean()
-                
+                # Append cell summary
                 cell_summary.append({
                     "cell_id": cell_id,
                     "has_vacuole": True,
@@ -295,7 +314,7 @@ def segment_vacuoles(
                     "multinucleated_vacuole_count": multinucleated_count,
                     "mean_distance_to_nucleus": mean_distance,
                 })
-            else:
+            else: # Append empty summary for cells without vacuoles
                 cell_summary.append({
                     "cell_id": cell_id,
                     "has_vacuole": False,

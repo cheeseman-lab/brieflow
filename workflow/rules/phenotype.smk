@@ -96,8 +96,9 @@ rule identify_vacuoles:
         PHENOTYPE_OUTPUTS_MAPPED["identify_vacuoles"][2],
     params:
         vacuole_channel_index=config["phenotype"]["vacuole_channel_index"],
-        min_size=config["phenotype"]["vacuole_min_size"],
-        max_size=config["phenotype"]["vacuole_max_size"],
+        min_diameter=config["phenotype"]["min_diameter"],
+        max_diameter=config["phenotype"]["max_diameter"],
+        nuclei_detection["phenotype"]["nuclei_detection"],
     script:
         "../scripts/phenotype/identify_vacuoles.py"
 

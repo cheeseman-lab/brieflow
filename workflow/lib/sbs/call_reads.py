@@ -65,7 +65,9 @@ def call_reads(
     df_reads : pandas DataFrame
         Table of all reads with base calls resulting from SBS compensation and related metadata.
     """
-    if bases_data.empty or (correction_only_in_cells and len(bases_data.query("cell > 0")) == 0):
+    if bases_data.empty or (
+        correction_only_in_cells and len(bases_data.query("cell > 0")) == 0
+    ):
         # Get number of cycles from the most common value in the cycle column
         # Default to 0 if no cycles are found
         cycles = len(set(bases_data["cycle"])) if not bases_data.empty else 0

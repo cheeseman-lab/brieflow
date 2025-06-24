@@ -22,9 +22,10 @@ vacuole_masks, cell_vacuole_table, updated_cytoplasm_masks = segment_vacuoles(
     nuclei_channel_index=vacuole_channel_index,
     cell_masks=cells,
     cytoplasm_masks=cytoplasms,
-    min_size=min_size,
-    max_size=max_size,
-    nuclei_centroids=phenotype_info
+    min_diameter=min_diameter,
+    max_diameter=max_diameter,
+    nuclei_centroids=phenotype_info,
+    nuclei_detection=nuclei_detection,
 )
 
 # Save outputs
@@ -33,16 +34,22 @@ imwrite(snakemake.output[0], vacuole_masks)
 
 # Save cell-vacuole table as TSV
 # It has two DataFrames, save both
-cell_summary_df = cell_vacuole_table['cell_summary']
-vacuole_cell_mapping_df = cell_vacuole_table['vacuole_cell_mapping']
+cell_summary_df = cell_vacuole_table["cell_summary"]
+vacuole_cell_mapping_df = cell_vacuole_table["vacuole_cell_mapping"]
 
 # Combine into one DataFrame with a 'table_type' column for filtering
-cell_summary_df['table_type'] = 'cell_summary'
-vacuole_cell_mapping_df['table_type'] = 'vacuole_cell_mapping'
+cell_summary_df["table_type"] = "cell_summary"
+vacuole_cell_mapping_df["table_type"] = "vacuole_cell_mapping"
 
 # Ensure no column conflicts by prefixing with table type
-cell_summary_cols = {col: f'cell_summary_{col}' for col in cell_summary_df.columns if col != 'table_type'}
-vacuole_mapping_cols = {col: f'vacuole_mapping_{col}' for col in vacuole_cell_mapping_df.columns if col != 'table_type'}
+cell_summary_cols = {
+    col: f"cell_summary_{col}" for col in cell_summary_df.columns if col != "table_type"
+}
+vacuole_mapping_cols = {
+    col: f"vacuole_mapping_{col}"
+    for col in vacuole_cell_mapping_df.columns
+    if col != "table_type"
+}
 
 cell_summary_df = cell_summary_df.rename(columns=cell_summary_cols)
 vacuole_cell_mapping_df = vacuole_cell_mapping_df.rename(columns=vacuole_mapping_cols)

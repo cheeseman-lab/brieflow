@@ -19,7 +19,9 @@ arr_reads = Parallel(n_jobs=snakemake.threads)(
 valid_dfs = [df for df in arr_reads if df is not None]
 if valid_dfs:
     vacuole_phenotype = pd.concat(valid_dfs)
-    print(f"Combined {len(valid_dfs)} files with a total of {len(vacuole_phenotype)} vacuole records")
+    print(
+        f"Combined {len(valid_dfs)} files with a total of {len(vacuole_phenotype)} vacuole records"
+    )
 else:
     print("Warning: No valid data files found!")
     vacuole_phenotype = pd.DataFrame()

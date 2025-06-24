@@ -19,7 +19,8 @@ Please also link to any relevant issues that your code is associated with.
 
 Please ensure that all boxes are checked before indicating that a pull request is ready for review.
 
-- [ ] My code follows the style guidelines of this project.
+- [ ] My code follows the [conventions](https://github.com/cheeseman-lab/brieflow?tab=readme-ov-file#conventions) of this project.
+- [ ] I have updated the `pyproject.toml` to reflect the change as designated by [semantic versioning](https://semver.org/).
 - [ ] I have checked linting and formatting with `ruff check` and `ruff format`.
 - [ ] I have performed a self-review of my own code.
 - [ ] I have commented my code, particularly in hard-to-understand areas.

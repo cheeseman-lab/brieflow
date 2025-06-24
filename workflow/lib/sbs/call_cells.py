@@ -32,11 +32,13 @@ from lib.sbs.constants import (
 
 def call_cells(
     reads_data,
-    df_pool=None,
+    df_barcode_library=None,
     q_min=0,
     barcode_col="sgRNA",
+    prefix_col=None,
     df_UMI=None,
     error_correct=False,
+    sort_calls="count",
     **kwargs,
 ):
     """Process sequencing reads to identify cell barcodes, optionally mapping them to a pool design.
@@ -46,18 +48,23 @@ def call_cells(
 
     Args:
         reads_data (DataFrame): DataFrame containing read information.
-        df_pool (DataFrame, optional): DataFrame containing pool information. Default is None.
+        df_barcode_library (DataFrame, optional): DataFrame containing barcode library information. Default is None.
         q_min (int, optional): Minimum quality threshold. Default is 0.
-        barcode_col (str, optional): Column in df_pool with barcodes. Default is 'sgRNA' (e.g. CROPseq)
+        barcode_col (str, optional): Column in df_barcode_library with full barcode sequences for dynamic prefix creation.
+            Default is 'sgRNA'. Only used if prefix_col is None.
+        prefix_col (str, optional): Column in df_barcode_library with pre-computed prefixes for barcode matching.
+            If specified, uses these prefixes directly instead of creating them from barcode_col.
+            Useful for cycle-skipping scenarios. Default is None.
         df_UMI (DataFrame, optional): DataFrame containing UMI reads. Default is None.
         error_correct (bool, optional): Whether to perform error correction on barcodes. Default is False.
+        sort_calls (str, optional): Sorting criterion for barcode prioritization - 'count' or 'peak'. Default is 'count'.
         **kwargs: Additional arguments passed to error_correct_reads if error_correct is True.
                  Common options include:
                  - max_distance (int): Maximum distance threshold for correction (default: 2)
                  - distance_metric (str): Type of distance ('hamming' or 'levenshtein')
 
     Returns:
-        DataFrame: DataFrame containing corrected cells.
+        DataFrame: DataFrame containing cell-level barcode calling results.
     """
     # Check if df_reads is None and return if so
     if reads_data.empty:
@@ -95,20 +102,34 @@ def call_cells(
     # Columns for grouping
     cols = [WELL, TILE, CELL]
 
-    # Check if df_pool is None
-    if df_pool is None:
+    # Check if df_barcode_library is None
+    if df_barcode_library is None:
         # Filter reads by quality threshold and call cells no ref
         df_cells = reads_data.query("Q_min >= @q_min").pipe(call_cells_no_ref)
     else:
-        # Determine the experimental prefix length
-        prefix_length = len(reads_data.iloc[0].barcode)
-        # Add prefix to the pool DataFrame
-        df_pool[PREFIX] = df_pool.apply(
-            lambda x: x[barcode_col][:prefix_length], axis=1
-        )
+        if prefix_col is not None:
+            # Use pre-computed prefixes from the library
+            if prefix_col not in df_barcode_library.columns:
+                raise ValueError(f"Column '{prefix_col}' not found in barcode library")
+            df_barcode_library[PREFIX] = df_barcode_library[prefix_col]
+            print(f"Using pre-computed prefixes from '{prefix_col}' column")
+        else:
+            # Determine the experimental prefix length and create prefixes
+            prefix_length = len(reads_data.iloc[0].barcode)
+            df_barcode_library[PREFIX] = df_barcode_library.apply(
+                lambda x: x[barcode_col][:prefix_length], axis=1
+            )
+            print(
+                f"Created prefixes by truncating '{barcode_col}' to length {prefix_length}"
+            )
+
         # Filter reads by quality threshold and call cells mapping
         df_cells = reads_data.query("Q_min >= @q_min").pipe(
-            call_cells_mapping, df_pool, error_correct=error_correct, **kwargs
+            call_cells_mapping,
+            df_barcode_library,
+            error_correct=error_correct,
+            sort_calls=sort_calls,
+            **kwargs,
         )
 
     # If UMI data is provided, add UMI information to the cell data
@@ -180,34 +201,40 @@ def call_cells_no_ref(df_reads):
 
 def call_cells_mapping(
     df_reads,
-    df_pool,
+    df_barcode_library,
     barcode_info_cols=[SGRNA, GENE_SYMBOL, GENE_ID],
     error_correct=False,
+    sort_calls="count",
     **kwargs,
 ):
     """Determine the count of top barcodes, with prioritization given to barcodes mapping to the given pool design.
 
     Args:
         df_reads (DataFrame): DataFrame containing read data.
-        df_pool (DataFrame): DataFrame containing pool design information.
+        df_barcode_library (DataFrame): DataFrame containing barcode library information.
         barcode_info_cols (list, optional): Columns related to guide information. Default is [SGRNA, GENE_SYMBOL, GENE_ID].
         error_correct (bool, optional): Whether to perform error correction. Default is False.
+        sort_calls (str, optional): Sorting criterion - 'count' or 'peak'. Default is 'count'.
         **kwargs: Additional arguments passed to error_correct_reads if error_correct is True.
 
     Returns:
-        DataFrame: DataFrame containing the count of top barcodes along with merged guide information.
+        DataFrame: DataFrame containing the top barcodes along with merged guide information.
     """
     # Optionally perform error correction
     if error_correct:
         print("performing error correction")
         df_reads[BARCODE] = error_correct_reads(
-            df_reads[BARCODE], df_pool[PREFIX], **kwargs
+            df_reads[BARCODE], df_barcode_library[PREFIX], **kwargs
         )
 
     # Map reads to the pool design
     df_mapped = (
         pd.merge(
-            df_reads, df_pool[[PREFIX]], how="left", left_on=BARCODE, right_on=PREFIX
+            df_reads,
+            df_barcode_library[[PREFIX]],
+            how="left",
+            left_on=BARCODE,
+            right_on=PREFIX,
         )
         .assign(
             mapped=lambda x: pd.notnull(x[PREFIX])
@@ -215,62 +242,94 @@ def call_cells_mapping(
         .drop(PREFIX, axis=1)  # Drop the temporary prefix column
     )
 
-    # Choose top 2 barcodes, priority given by (mapped, count)
+    # Choose top 2 barcodes, priority given by (mapped, count) or (mapped, peak)
     cols = [WELL, TILE, CELL]
-    s = (
-        df_mapped.drop_duplicates([WELL, TILE, READ])
-        .groupby(cols + ["mapped"])[BARCODE]
-        .value_counts()
-        .rename("count")
-        .reset_index()
-        .sort_values(["mapped", "count"], ascending=False)
-        .groupby(cols)
-    )
 
-    # Create DataFrame containing top barcodes and their counts
-    df_cells = (
-        df_reads.join(
-            s.nth(0)[["well", "tile", "cell", "barcode"]]
-            .rename(columns={"barcode": BARCODE_0})
-            .set_index(cols),
-            on=cols,
+    if sort_calls == "peak":
+        # Sort by peak intensity
+        s = (
+            df_mapped.drop_duplicates([WELL, TILE, READ])
+            .sort_values(["mapped", "peak"], ascending=[False, False])
+            .groupby(cols)
         )
-        .join(
-            s.nth(0)[["well", "tile", "cell", "count"]]
-            .rename(columns={"count": BARCODE_COUNT_0})
-            .set_index(cols),
-            on=cols,
+    else:
+        # Sort by count (original behavior)
+        s = (
+            df_mapped.drop_duplicates([WELL, TILE, READ])
+            .groupby(cols + ["mapped"])[BARCODE]
+            .value_counts()
+            .rename("count")
+            .reset_index()
+            .sort_values(["mapped", "count"], ascending=False)
+            .groupby(cols)
         )
-        .join(
-            s.nth(1)[["well", "tile", "cell", "barcode"]]
-            .rename(columns={"barcode": BARCODE_1})
-            .set_index(cols),
-            on=cols,
+
+    # Create DataFrame containing top barcodes and their metrics
+    if sort_calls == "peak":
+        # Peak-based output
+        df_cells = (
+            df_reads.join(
+                s.nth(0)[cols + [BARCODE, "peak"]]
+                .rename(columns={BARCODE: BARCODE_0, "peak": "peak_0"})
+                .set_index(cols),
+                on=cols,
+            )
+            .join(
+                s.nth(1)[cols + [BARCODE, "peak"]]
+                .rename(columns={BARCODE: BARCODE_1, "peak": "peak_1"})
+                .set_index(cols),
+                on=cols,
+            )
+            .drop_duplicates(cols)  # Remove duplicate rows
+            .drop([READ, BARCODE], axis=1)  # Drop unnecessary columns
+            .drop([POSITION_I, POSITION_J], axis=1)  # Drop the read coordinates
+            .query("cell > 0")  # Remove reads not in a cell
         )
-        .join(
-            s.nth(1)[["well", "tile", "cell", "count"]]
-            .rename(columns={"count": BARCODE_COUNT_1})
-            .set_index(cols),
-            on=cols,
+    else:
+        # Count-based output (original behavior)
+        df_cells = (
+            df_reads.join(
+                s.nth(0)[["well", "tile", "cell", "barcode"]]
+                .rename(columns={"barcode": BARCODE_0})
+                .set_index(cols),
+                on=cols,
+            )
+            .join(
+                s.nth(0)[["well", "tile", "cell", "count"]]
+                .rename(columns={"count": BARCODE_COUNT_0})
+                .set_index(cols),
+                on=cols,
+            )
+            .join(
+                s.nth(1)[["well", "tile", "cell", "barcode"]]
+                .rename(columns={"barcode": BARCODE_1})
+                .set_index(cols),
+                on=cols,
+            )
+            .join(
+                s.nth(1)[["well", "tile", "cell", "count"]]
+                .rename(columns={"count": BARCODE_COUNT_1})
+                .set_index(cols),
+                on=cols,
+            )
+            .join(s["count"].sum().rename(BARCODE_COUNT), on=cols)
+            .assign(
+                **{
+                    BARCODE_COUNT_0: lambda x: x[BARCODE_COUNT_0].fillna(0),
+                    BARCODE_COUNT_1: lambda x: x[BARCODE_COUNT_1].fillna(0),
+                }
+            )
+            .drop_duplicates(cols)  # Remove duplicate rows
+            .drop([READ, BARCODE], axis=1)  # Drop unnecessary columns
+            .drop([POSITION_I, POSITION_J], axis=1)  # Drop the read coordinates
+            .query("cell > 0")  # Remove reads not in a cell
         )
-        .join(s["count"].sum().rename(BARCODE_COUNT), on=cols)
-        .assign(
-            **{
-                BARCODE_COUNT_0: lambda x: x[BARCODE_COUNT_0].fillna(0),
-                BARCODE_COUNT_1: lambda x: x[BARCODE_COUNT_1].fillna(0),
-            }
-        )
-        .drop_duplicates(cols)  # Remove duplicate rows
-        .drop([READ, BARCODE], axis=1)  # Drop unnecessary columns
-        .drop([POSITION_I, POSITION_J], axis=1)  # Drop the read coordinates
-        .query("cell > 0")  # Remove reads not in a cell
-    )
 
     # Merge guide information for barcode 0
     df_cells = (
         pd.merge(
             df_cells,
-            df_pool[[PREFIX] + barcode_info_cols],
+            df_barcode_library[[PREFIX] + barcode_info_cols],
             how="left",
             left_on=BARCODE_0,
             right_on=PREFIX,
@@ -284,7 +343,7 @@ def call_cells_mapping(
     df_cells = (
         pd.merge(
             df_cells,
-            df_pool[[PREFIX] + barcode_info_cols],
+            df_barcode_library[[PREFIX] + barcode_info_cols],
             how="left",
             left_on=BARCODE_1,
             right_on=PREFIX,

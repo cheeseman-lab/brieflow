@@ -1,19 +1,18 @@
 import pandas as pd
 
+from lib.sbs.standardize_barcode_design import get_barcode_list
 from lib.sbs.eval_mapping import (
     plot_mapping_vs_threshold,
     plot_read_mapping_heatmap,
     plot_cell_mapping_heatmap,
-    plot_reads_per_cell_histogram,
+    plot_cell_metric_histogram,
     plot_gene_symbol_histogram,
     mapping_overview,
 )
 
 # Read barcodes
-df_design = pd.read_csv(snakemake.params.df_design_path, sep="\t")
-df_pool = df_design.query("dialout==[0,1]").drop_duplicates("sgRNA")
-df_pool["prefix"] = df_pool.apply(lambda x: x.sgRNA[: x.prefix_length], axis=1)
-barcodes = df_pool["prefix"]
+df_barcode_library = pd.read_csv(snakemake.params.df_barcode_library_fp, sep="\t")
+barcodes = get_barcode_list(df_barcode_library)
 
 # Load SBS processing files
 reads = pd.concat(
@@ -59,7 +58,7 @@ df_summary_any, fig = plot_cell_mapping_heatmap(
 df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")
 fig.savefig(snakemake.output[6])
 
-_, fig = plot_reads_per_cell_histogram(cells, x_cutoff=20)
+_, fig = plot_cell_metric_histogram(cells, sort_by=snakemake.params.sort_by)
 fig.savefig(snakemake.output[7])
 
 _, fig = plot_gene_symbol_histogram(cells)

@@ -8,9 +8,11 @@ image_data = [imread(file_path) for file_path in snakemake.input]
 # align cycles
 aligned_data = align_cycles(
     image_data,
+    channel_order=snakemake.params.channel_names,
     method=snakemake.params.method,
     upsample_factor=snakemake.params.upsample_factor,
-    keep_extras=snakemake.params.keep_extras,
+    skip_cycles=snakemake.params.skip_cycles_indices,
+    manual_background_cycle=snakemake.params.manual_background_cycle_index,
 )
 
 # Save the aligned data as a .tiff file

@@ -160,7 +160,7 @@ def segment_cellpose(
 
 
 def prepare_cellpose(
-    data, dapi_index, cyto_index, helper_index, logscale=True, log_kwargs=dict()
+    data, dapi_index, cyto_index, helper_index, logscale=True, percentile=False, log_kwargs=dict()
 ):
     """Prepare a three-channel RGB image for use with the Cellpose GUI.
 
@@ -172,6 +172,7 @@ def prepare_cellpose(
             segment cells. This optional helper channel is meant to provide additional information to
             define cell boundaries.
         logscale (bool, optional): Whether to apply log scaling to the cytoplasmic channel. Default is True.
+        percentile (bool, optional): Whether to apply percentile scaling to the DAPI channel. Default is False.
         log_kwargs (dict, optional): Additional keyword arguments for log scaling.
 
     Returns:
@@ -189,11 +190,27 @@ def prepare_cellpose(
         cyto /= cyto.max()  # Normalize the image for uint8 conversion
         helper = image_log_scale(helper, **log_kwargs)
         helper /= helper.max()  # Normalize the image for uint8 conversion
+            # DAPI: log or percentile normalization depending on `percentile`
+        if not percentile:
+            dapi = image_log_scale(dapi, **log_kwargs)
+            dapi -= dapi.min()
+            if dapi.max() > 0:
+                dapi /= dapi.max()
+        else:
+            dapi_upper = np.percentile(dapi, 99.5)
+            dapi = dapi / dapi_upper
+            dapi[dapi > 1] = 1
+    else:
+        # No logscale, optionally apply percentile normalization to DAPI
+        if percentile:
+            dapi_upper = np.percentile(dapi, 99.5)
+            dapi = dapi / dapi_upper
+            dapi[dapi > 1] = 1
+        else:
+            dapi = dapi / dapi.max()
 
-    # Normalize the intensity of the DAPI channel and scale it to the range [0, 1]
-    dapi_upper = np.percentile(dapi, 99.5)
-    dapi = dapi / dapi_upper
-    dapi[dapi > 1] = 1
+        cyto = cyto / cyto.max()
+        helper = helper / helper.max()
 
     # Convert the channels to uint8 format for RGB image creation
     red, green, blue = img_as_ubyte(helper), img_as_ubyte(cyto), img_as_ubyte(dapi)

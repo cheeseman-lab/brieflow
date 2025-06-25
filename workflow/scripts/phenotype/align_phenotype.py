@@ -51,10 +51,14 @@ if align_config.get("custom_align", False):
         print(f"  Custom offset (y, x): {y}, {x}")
 
     # Apply custom offsets directly using the channel indices from config
-    aligned_data = apply_custom_offsets(
-        aligned_data,
-        offsets_dict=align_config["custom_offset_yx"],
-    )
+    if "offsets_dict" not in align_config:
+        raise ValueError("custom_align=True but no offsets_dict found in config!")
+
+    offsets_dict = {
+        int(k): tuple(v) for k, v in align_config["offsets_dict"].items()
+    }
+
+    aligned_data = apply_custom_offsets(aligned_data, offsets_dict=offsets_dict)
     
     # Optional: remove channels after custom alignment
     if align_config.get("remove_channel_custom") is not None:

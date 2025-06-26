@@ -78,6 +78,31 @@ PHENOTYPE_OUTPUTS = {
             "tsv",
         ),
     ],
+    "extract_phenotype_vacuoles": [
+        PHENOTYPE_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "phenotype_vacuoles",
+            "tsv",
+        ),
+    ],
+    "merge_phenotype_vacuoles": [
+        PHENOTYPE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_vacuoles", "parquet"
+        ),
+    ],
+    "merge_vacuoles_phenotype_cp": [
+        PHENOTYPE_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "phenotype_with_vacuoles",
+            "tsv",
+        ),
+    ],
     "merge_phenotype_cp": [
         PHENOTYPE_FP
         / "parquets"
@@ -129,6 +154,9 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "extract_phenotype_info": temp,
     "combine_phenotype_info": None,
     "extract_phenotype_cp": temp,
+    "extract_phenotype_vacuoles": temp,
+    "merge_phenotype_vacuoles": None,
+    "merge_vacuoles_phenotype_cp": None,
     "merge_phenotype_cp": None,
     "eval_segmentation_phenotype": None,
     "eval_features": None,

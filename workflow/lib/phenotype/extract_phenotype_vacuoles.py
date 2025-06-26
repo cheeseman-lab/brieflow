@@ -22,6 +22,7 @@ from lib.external.cp_emulator import (
 )
 from lib.shared.feature_extraction import extract_features, extract_features_bare
 from lib.shared.log_filter import log_ndi
+from lib.phenotype.constants import DEFAULT_METADATA_COLS
 
 
 def extract_phenotype_vacuoles(
@@ -34,6 +35,8 @@ def extract_phenotype_vacuoles(
     channel_names=["dapi", "tubulin", "gh2ax", "phalloidin"],
 ):
     """Extract phenotype features for vacuoles with multi-channel functionality.
+
+    Updated version with proper column ordering matching cp_multichannel.
 
     Args:
         data_phenotype (numpy.ndarray): Phenotype data array of shape (..., CHANNELS, I, J).
@@ -59,19 +62,10 @@ def extract_phenotype_vacuoles(
         except:
             vacuole_channels = [0]
 
-    # Ensure channel_names has enough entries for the channels
-    if len(channel_names) < len(vacuole_channels):
-        print(
-            f"Warning: channel_names length ({len(channel_names)}) is less than the number of channels ({len(vacuole_channels)}). Extending with default names."
-        )
-        channel_names = list(channel_names) + [
-            f"Ch{i}" for i in range(len(channel_names), max(vacuole_channels) + 1)
-        ]
-
     dfs = []
 
     # Define features
-    features = grayscale_features_multichannel
+    features = grayscale_features_multichannel.copy()
     features.update(correlation_features_multichannel)
     features.update(shape_features)
 
@@ -80,39 +74,28 @@ def extract_phenotype_vacuoles(
         columns = {}
         # Create columns for grayscale features
         for feat, out in grayscale_columns_multichannel.items():
-            safe_columns = {}
-            for n, (renamed, ch) in enumerate(product(out, channels)):
-                # Make sure channel index is valid
-                if ch < len(channel_names):
-                    safe_columns[f"{feat}_{n}"] = f"{channel_names[ch]}_{renamed}"
-                else:
-                    safe_columns[f"{feat}_{n}"] = f"Ch{ch}_{renamed}"
-            columns.update(safe_columns)
+            columns.update(
+                {
+                    f"{feat}_{n}": f"{channel_names[ch]}_{renamed}"
+                    for n, (renamed, ch) in enumerate(product(out, channels))
+                }
+            )
         # Create columns for correlation features
         for feat, out in correlation_columns_multichannel.items():
             if feat == "lstsq_slope":
                 iterator = permutations
             else:
                 iterator = combinations
-
-            safe_columns = {}
-            for n, (renamed, (first, second)) in enumerate(
-                product(out, iterator(channels, 2))
-            ):
-                # Make sure channel indices are valid
-                first_name = (
-                    channel_names[first] if first < len(channel_names) else f"Ch{first}"
-                )
-                second_name = (
-                    channel_names[second]
-                    if second < len(channel_names)
-                    else f"Ch{second}"
-                )
-                safe_columns[f"{feat}_{n}"] = renamed.format(
-                    first=first_name, second=second_name
-                )
-
-            columns.update(safe_columns)
+            columns.update(
+                {
+                    f"{feat}_{n}": renamed.format(
+                        first=channel_names[first], second=channel_names[second]
+                    )
+                    for n, (renamed, (first, second)) in enumerate(
+                        product(out, iterator(channels, 2))
+                    )
+                }
+            )
         # Add shape columns
         columns.update(shape_columns)
         return columns
@@ -125,13 +108,13 @@ def extract_phenotype_vacuoles(
         extract_features(
             data_phenotype[..., vacuole_channels, :, :],
             vacuoles,
-            wildcards,
+            dict(),  # Pass empty dict instead of wildcards here
             features,
             multichannel=True,
         )
         .rename(columns=vacuole_columns)
         .set_index("label")
-        .rename(columns=lambda x: "vacuole_" + x if x not in wildcards.keys() else x)
+        .add_prefix("vacuole_")
     )
 
     # Extract foci features within vacuoles if foci channel is provided
@@ -155,7 +138,7 @@ def extract_phenotype_vacuoles(
     )
 
     # Concatenate vacuole features
-    vacuole_features = pd.concat(dfs, axis=1, join="outer", sort=True).reset_index()
+    vacuole_features = pd.concat(dfs, axis=1, join="outer", sort=False).reset_index()
 
     # Combine with vacuole_cell_mapping_df
     vacuole_df = pd.merge(
@@ -165,7 +148,57 @@ def extract_phenotype_vacuoles(
         how="left",
     )
 
+    # Add wildcards metadata at the END (they'll be reordered later)
+    for k, v in sorted(wildcards.items()):
+        vacuole_df[k] = v
+
+    # Apply column ordering
+    vacuole_df = order_dataframe_columns_vacuoles(vacuole_df)
+
     return vacuole_df
+
+
+def order_dataframe_columns_vacuoles(
+    df, metadata_cols=None, label_cols=["vacuole_id", "cell_id"]
+):
+    """Reorder DataFrame columns to put metadata first, then features for vacuoles.
+
+    Args:
+        df (pandas.DataFrame): DataFrame to reorder
+        metadata_cols (list): List of metadata column names to put first
+        label_cols (list): Names of the label columns (vacuole_id, cell_id)
+
+    Returns:
+        pandas.DataFrame: DataFrame with reordered columns
+    """
+    if metadata_cols is None:
+        metadata_cols = DEFAULT_METADATA_COLS
+
+    # Start with label columns
+    ordered_cols = []
+    for col in label_cols:
+        if col in df.columns:
+            ordered_cols.append(col)
+
+    # Add metadata columns that exist in the DataFrame
+    for col in metadata_cols:
+        if col in df.columns and col not in ordered_cols:
+            ordered_cols.append(col)
+
+    # Categorize remaining feature columns
+    remaining_cols = [col for col in df.columns if col not in ordered_cols]
+
+    # Group features by type
+    vacuole_features = [col for col in remaining_cols if col.startswith("vacuole_")]
+
+    # Add any other columns that don't fit the above patterns
+    other_features = [col for col in remaining_cols if not col.startswith("vacuole_")]
+
+    # Combine in desired order
+    ordered_cols.extend(other_features)  # Any additional metadata/wildcards
+    ordered_cols.extend(vacuole_features)
+
+    return df[ordered_cols]
 
 
 def find_foci_in_vacuoles(

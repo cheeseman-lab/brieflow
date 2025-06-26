@@ -76,6 +76,34 @@ rule combine_phenotype_info:
         "../scripts/shared/combine_dfs.py"
 
 
+# Identify vacuoles from aligned phenotype image and cell segmentation
+rule identify_vacuoles:
+    input:
+        # aligned phenotype image
+        PHENOTYPE_OUTPUTS["align_phenotype"],
+        # cell segmentation map
+        PHENOTYPE_OUTPUTS["segment_phenotype"][1],
+        # cytoplasm mask
+        PHENOTYPE_OUTPUTS["identify_cytoplasm"],
+        # phenotype info with nuclei centroids
+        PHENOTYPE_OUTPUTS["extract_phenotype_info"],
+    output:
+        # vacuole mask
+        PHENOTYPE_OUTPUTS_MAPPED["identify_vacuoles"][0],
+        # cell vacuole table
+        PHENOTYPE_OUTPUTS_MAPPED["identify_vacuoles"][1],
+        # updated cytoplasm masks
+        PHENOTYPE_OUTPUTS_MAPPED["identify_vacuoles"][2],
+    params:
+        vacuole_channel_index=config["phenotype"]["vacuole_channel_index"],
+        vacuole_min_size=config["phenotype"]["vacuole_min_size"],
+        vacuole_max_size=config["phenotype"]["vacuole_max_size"],
+        nuclei_detection=config["phenotype"]["nuclei_detection"],
+        min_distance_between_maxima=config["phenotype"]["min_distance_between_maxima"],
+    script:
+        "../scripts/phenotype/identify_vacuoles.py"
+
+
 # Extract full phenotype information using CellProfiler from phenotype images
 rule extract_phenotype_cp:
     input:
@@ -85,7 +113,8 @@ rule extract_phenotype_cp:
         PHENOTYPE_OUTPUTS["segment_phenotype"][0],
         # cells segmentation map
         PHENOTYPE_OUTPUTS["segment_phenotype"][1],
-        PHENOTYPE_OUTPUTS["identify_cytoplasm"],
+        # updated cytoplasm mask
+        PHENOTYPE_OUTPUTS["identify_vacuoles"][2],
     output:
         PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_cp"],
     params:
@@ -96,11 +125,59 @@ rule extract_phenotype_cp:
         "../scripts/phenotype/extract_phenotype_cp_multichannel.py"
 
 
+# Extract vacuole phenotype features
+rule extract_phenotype_vacuoles:
+    input:
+        # aligned phenotype image
+        PHENOTYPE_OUTPUTS["align_phenotype"],
+        # vacuole mask
+        PHENOTYPE_OUTPUTS["identify_vacuoles"][0],
+        # cell vacuole table
+        PHENOTYPE_OUTPUTS["identify_vacuoles"][1],
+    output:
+        PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_vacuoles"],
+    params:
+        foci_channel=config["phenotype"]["foci_channel"],
+        channel_names=config["phenotype"]["channel_names"],
+    script:
+        "../scripts/phenotype/extract_phenotype_vacuoles.py"
+
+
+# Combine vacuole phenotype results from different tiles
+rule merge_phenotype_vacuoles:
+    input:
+        lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["extract_phenotype_vacuoles"],
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
+        ),
+    params:
+        channel_names=config["phenotype"]["channel_names"],
+    output:
+        PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_vacuoles"],
+    script:
+        "../scripts/phenotype/merge_phenotype_vacuoles.py"
+
+
+# Merge vacuole data with main phenotype data
+rule merge_vacuoles_phenotype_cp:
+    input:
+        # main phenotype data (tile-level)
+        PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
+        # vacuole data (tile-level) 
+        PHENOTYPE_OUTPUTS["extract_phenotype_vacuoles"], 
+    output:
+        PHENOTYPE_OUTPUTS_MAPPED["merge_vacuoles_phenotype_cp"],
+    script:
+        "../scripts/phenotype/merge_vacuoles_phenotype_cp.py"
+
+
 # Combine phenotype results from different tiles
 rule merge_phenotype_cp:
     input:
         lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
+            PHENOTYPE_OUTPUTS["merge_vacuoles_phenotype_cp"],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=phenotype_wildcard_combos,

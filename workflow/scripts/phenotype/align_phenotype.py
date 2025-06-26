@@ -2,6 +2,7 @@ from tifffile import imread, imwrite
 
 from lib.phenotype.align_channels import align_phenotype_channels
 from lib.shared.align import apply_custom_offsets
+from lib.shared.image_utils import remove_channels
 
 # Load image data
 image_data = imread(snakemake.input[0])
@@ -46,15 +47,25 @@ else:
 # Custom alignment process (applies after standard alignment)
 if align_config.get("custom_align", False):
     print("Applying custom channel offsets...")
-    print(f"Custom channels: {align_config['custom_channels']}")
-    print(f"Custom offset (y,x): {align_config['custom_offset_yx']}")
+    for index, (y, x) in align_config["offsets_dict"].items():
+        print(f"Channel index {index}")
+        print(f"  Custom offset (y, x): {y}, {x}")
 
     # Apply custom offsets directly using the channel indices from config
-    aligned_data = apply_custom_offsets(
-        aligned_data,
-        offset_yx=align_config["custom_offset_yx"],
-        channels=align_config["custom_channels"],
-    )
+    if "offsets_dict" not in align_config:
+        raise ValueError("custom_align=True but no offsets_dict found in config!")
+
+    offsets_dict = {
+        int(k): tuple(v) for k, v in align_config["offsets_dict"].items()
+    }
+
+    aligned_data = apply_custom_offsets(aligned_data, offsets_dict=offsets_dict)
+    
+    # Optional: remove channels after custom alignment
+    if align_config.get("remove_channel_custom") is not None:
+        print(f"Removing channels after custom alignment: {align_config['remove_channel_custom']}")
+        aligned_data = remove_channels(aligned_data, align_config["remove_channel_custom"])
+
 
 # Save the aligned/unaligned data as a .tiff file
 imwrite(snakemake.output[0], aligned_data)

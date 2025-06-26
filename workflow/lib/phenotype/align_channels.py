@@ -18,6 +18,7 @@ def align_phenotype_channels(
     upsample_factor=2,
     window=2,
     remove_channel=False,
+    debug=True,  # New debug parameter
 ):
     """Rigid alignment of phenotype channels based on target and source channels.
 
@@ -34,9 +35,12 @@ def align_phenotype_channels(
             Defaults to 2.
         remove_channel (str or bool, optional): Specifies whether to remove channels after alignment.
             Options are {'target', 'source', False}. Defaults to False.
+        debug (bool, optional): Whether to print debugging information. Defaults to False.
 
     Returns:
-        np.ndarray: Phenotype data aligned across specified channels.
+        tuple: (aligned_data, offsets_info) where:
+            - aligned_data (np.ndarray): Phenotype data aligned across specified channels.
+            - offsets_info (dict): Dictionary containing offset information for debugging.
     """
     # Handle stacked vs unstacked data
     if image_data.ndim == 4:
@@ -56,6 +60,20 @@ def align_phenotype_channels(
     full_offsets = np.zeros((data_.shape[0], 2))
     full_offsets[[source] + riders] = offsets[1]
 
+    # Debug: Print offsets information
+    if debug:
+        print(f"Target channel: {target}")
+        print(f"Source channel: {source}")
+        print(f"Rider channels: {riders}")
+        print(f"Calculated offset for source: {offsets[1]}")
+        print(f"Full offsets array: {full_offsets}")
+
+        # Additional details about the magnitude of shifts
+        shift_magnitudes = np.sqrt(np.sum(full_offsets**2, axis=1))
+        print(f"Shift magnitudes (pixels): {shift_magnitudes}")
+        channels_being_moved = [i for i, mag in enumerate(shift_magnitudes) if mag > 0]
+        print(f"Channels being moved: {channels_being_moved}")
+
     # Apply alignment
     if stack:
         aligned = np.array(
@@ -74,4 +92,14 @@ def align_phenotype_channels(
     elif remove_channel == "source":
         aligned = remove_channels(aligned, source)
 
-    return aligned
+    # Create offsets info dictionary for debugging
+    offsets_info = {
+        "target_channel": target,
+        "source_channel": source,
+        "rider_channels": riders,
+        "calculated_offset_for_source": offsets[1],
+        "full_offsets_array": full_offsets,
+        "shift_magnitudes": np.sqrt(np.sum(full_offsets**2, axis=1)),
+    }
+
+    return aligned, offsets_info

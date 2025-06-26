@@ -41,14 +41,10 @@ def get_alignment_params(wildcards, config):
         }
 
         # Add custom alignment parameters if they exist
-        if "custom_align" in plate_config:
+        if plate_config.get("custom_align", False):
             alignment_params["custom_align"] = True
-            alignment_params["custom_channels"] = plate_config.get(
-                "custom_channels", []
-            )
-            alignment_params["custom_offset_yx"] = plate_config.get(
-                "custom_offset_yx", (0, 0)
-            )
+            alignment_params["offsets_dict"] = plate_config.get("offsets_dict", {})
+            alignment_params["remove_channel_custom"] = plate_config.get("remove_channel_custom", None)
         else:
             alignment_params["custom_align"] = False
 
@@ -65,12 +61,10 @@ def get_alignment_params(wildcards, config):
     }
 
     # Add global custom alignment parameters if they exist
-    if "custom_align" in config["phenotype"]:
-        base_params["custom_align"] = config["phenotype"].get("custom_align", False)
-        base_params["custom_channels"] = config["phenotype"].get("custom_channels", [])
-        base_params["custom_offset_yx"] = config["phenotype"].get(
-            "custom_offset_yx", (0, 0)
-        )
+    if config["phenotype"].get("custom_align", False):
+        base_params["custom_align"] = True
+        base_params["offsets_dict"] = config["phenotype"].get("offsets_dict", {})
+        base_params["remove_channel_custom"] = config["phenotype"].get("remove_channel_custom", None)
     else:
         base_params["custom_align"] = False
 
@@ -151,7 +145,8 @@ def get_segmentation_params(module, config):
     if segmentation_method == "cellpose":
         params.update(
             {
-                "cellpose_model": module_config.get("cellpose_model", "cyto3"),
+                "cellpose_model": module_config.get("cellpose_model", "cpsam"),
+                "helper_index": module_config.get("helper_index"),
                 "nuclei_diameter": module_config.get("nuclei_diameter"),
                 "cell_diameter": module_config.get("cell_diameter"),
                 "flow_threshold": module_config.get("flow_threshold", 0.4),

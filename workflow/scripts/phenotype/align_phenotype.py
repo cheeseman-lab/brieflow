@@ -2,6 +2,7 @@ from tifffile import imread, imwrite
 
 from lib.phenotype.align_channels import align_phenotype_channels
 from lib.shared.align import apply_custom_offsets
+from lib.shared.image_utils import remove_channels
 
 # Load image data
 image_data = imread(snakemake.input[0])

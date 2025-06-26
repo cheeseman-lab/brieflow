@@ -10,22 +10,18 @@ cells = imread(snakemake.input[1])
 cytoplasms = imread(snakemake.input[2])
 phenotype_info = pd.read_csv(snakemake.input[3], sep="\t")
 
-# Get parameters from snakemake
-vacuole_channel_index = snakemake.params.vacuole_channel_index
-min_size = snakemake.params.min_size
-max_size = snakemake.params.max_size
-
 # Segment vacuoles
 vacuole_masks, cell_vacuole_table, updated_cytoplasm_masks = segment_vacuoles(
     image=data_phenotype,
-    vacuole_channel_index=vacuole_channel_index,
-    nuclei_channel_index=vacuole_channel_index,
+    vacuole_channel_index=snakemake.params.vacuole_channel_index,
+    nuclei_channel_index=snakemake.params.vacuole_channel_index,
     cell_masks=cells,
     cytoplasm_masks=cytoplasms,
-    min_diameter=min_diameter,
-    max_diameter=max_diameter,
+    vacuole_min_size=snakemake.params.vacuole_min_size,
+    vacuole_max_size=snakemake.params.vacuole_max_size,
     nuclei_centroids=phenotype_info,
-    nuclei_detection=nuclei_detection,
+    nuclei_detection=snakemake.params.nuclei_detection,
+    nuclei_min_distance=snakemake.params.min_distance_between_maxima,
 )
 
 # Save outputs

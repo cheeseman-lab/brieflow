@@ -27,9 +27,9 @@ def segment_cellpose(
     data,
     dapi_index,
     cyto_index,
-    helper_index,
-    nuclei_diameter,
-    cell_diameter,
+    helper_index=None,
+    nuclei_diameter=100,
+    cell_diameter=300,
     cyto_model="cpsam",
     cellpose_kwargs=dict(
         flow_threshold=0.4,
@@ -160,7 +160,7 @@ def segment_cellpose(
 
 
 def prepare_cellpose(
-    data, dapi_index, cyto_index, helper_index, logscale=True, percentile=False, log_kwargs=dict()
+    data, dapi_index, cyto_index, helper_index=None, logscale=True, percentile=False, log_kwargs=dict()
 ):
     """Prepare a three-channel RGB image for use with the Cellpose GUI.
 
@@ -182,7 +182,12 @@ def prepare_cellpose(
     # Extract DAPI and cytoplasmic channel images from the data
     dapi = data[dapi_index]
     cyto = data[cyto_index]
-    helper = data[helper_index]
+    
+    #Extract optional helper channel
+    if helper_index is not None:
+        helper = data[helper_index]
+    else:
+        helper = np.zeros_like(cyto)  # fallback if helper is missing
 
     # Apply log scaling to the cytoplasmic channel if specified
     if logscale:

@@ -195,7 +195,8 @@ def prepare_cellpose(
         cyto /= cyto.max()  # Normalize the image for uint8 conversion
         helper = image_log_scale(helper, **log_kwargs)
         helper /= helper.max()  # Normalize the image for uint8 conversion
-            # DAPI: log or percentile normalization depending on `percentile`
+
+        # DAPI: log or percentile normalization depending on `percentile`
         if not percentile:
             dapi = image_log_scale(dapi, **log_kwargs)
             dapi -= dapi.min()
@@ -562,6 +563,10 @@ def image_log_scale(data, bottom_percentile=10, floor_threshold=50, ignore_zero=
         numpy.ndarray: Scaled image data after log scaling.
     """
     import numpy as np
+    
+    # Skip processing if data is empty or all zeros
+    if data.size == 0 or np.all(data == 0):
+        return data  
 
     # Convert input data to float
     data = data.astype(float)

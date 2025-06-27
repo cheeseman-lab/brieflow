@@ -142,7 +142,7 @@ def segment_stardist(
             return nuclei, counts_df
         else:
             return nuclei
-
+        
 
 def prepare_channel(data):
     """Prepare channel data for segmentation using StarDist's normalization.
@@ -192,6 +192,14 @@ def segment_stardist_multichannel(
     # Initialize StarDist models for nuclei and cytoplasmic segmentation
     model_nuclei = StarDist2D.from_pretrained(model_type)
     model_cells = StarDist2D.from_pretrained(model_type)
+    
+    # Set default kwargs if not provided
+    if nuclei_kwargs is None:
+        nuclei_kwargs = kwargs.copy()
+    if cell_kwargs is None:
+        cell_kwargs = kwargs.copy()
+
+    counts = {}
 
     # Set default kwargs if not provided
     if nuclei_kwargs is None:

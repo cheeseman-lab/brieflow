@@ -168,7 +168,6 @@ def apply_custom_offsets(data, offsets_dict):
     - To shift right: -x
     - To shift up: +y
     - To shift down: -y
-
     Args:
         data (np.ndarray): Input image data.
         offsets_dict (dict): Mapping of channel index to (y, x) offset.

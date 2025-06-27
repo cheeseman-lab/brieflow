@@ -102,7 +102,6 @@ def segment_watershed(
         nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
         counts["reconciled_nuclei"] = len(np.unique(nuclei)) - 1
         counts["reconciled_cells"] = len(np.unique(cells)) - 1
-
     if return_counts:
         counts_df = pd.DataFrame([counts])
         return nuclei, cells, counts_df
@@ -286,7 +285,6 @@ def find_nuclei(
 
     # Fill holes in the labeled mask
     filled = ndi.binary_fill_holes(labeled)
-
     # Label the differences between filled and original labeled regions
     difference = label(filled != labeled)
 
@@ -339,7 +337,6 @@ def filter_by_region(labeled, score, threshold, intensity_image=None, relabel=Tr
 
     # Remove identified regions from the labeled image
     labeled.flat[np.in1d(labeled.flat[:], cut)] = 0
-
     if relabel:
         # Relabel the regions sequentially
         labeled, _, _ = relabel_sequential(labeled)

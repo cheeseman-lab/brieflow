@@ -62,7 +62,6 @@ def call_cells(
                  Common options include:
                  - max_distance (int): Maximum distance threshold for correction (default: 2)
                  - distance_metric (str): Type of distance ('hamming' or 'levenshtein')
-
     Returns:
         DataFrame: DataFrame containing cell-level barcode calling results.
     """
@@ -208,7 +207,7 @@ def call_cells_mapping(
     **kwargs,
 ):
     """Determine the count of top barcodes, with prioritization given to barcodes mapping to the given pool design.
-
+    
     Args:
         df_reads (DataFrame): DataFrame containing read data.
         df_barcode_library (DataFrame): DataFrame containing barcode library information.
@@ -359,12 +358,10 @@ def call_cells_mapping(
 
 def call_cells_add_UMIs(df_cells, df_UMI, cols=[WELL, TILE, CELL]):
     """Add UMI (Unique Molecular Identifier) information to called cells.
-
     Args:
         df_cells (DataFrame): DataFrame containing called cells.
         df_UMI (DataFrame): DataFrame containing UMI reads.
         cols (list, optional): List of columns to use to merge DataFrames. Default is [WELL, TILE, CELL].
-
     Returns:
         DataFrame: df_cells DataFrame with top UMI counts.
     """
@@ -377,7 +374,6 @@ def call_cells_add_UMIs(df_cells, df_UMI, cols=[WELL, TILE, CELL]):
         .reset_index()  # Reset the index
         .groupby(cols)  # Group again by well, tile, and cell
     )
-
     df_cells_UMI = (
         df_UMI.join(
             s.nth(0)[["well", "tile", "cell", "barcode"]]
@@ -487,7 +483,6 @@ def barcode_distance_matrix(barcodes_1, barcodes_2=False, distance_metric="hammi
             If False, uses barcodes_1 for both sets. Default is False.
         distance_metric (str, optional): Type of distance to calculate.
             Options are 'hamming' or 'levenshtein'. Default is 'hamming'.
-
     Returns:
         numpy.ndarray: Matrix of distances between barcode pairs
     """

@@ -166,7 +166,7 @@ rule merge_vacuoles_phenotype_cp:
         # main phenotype data (tile-level)
         PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
         # vacuole data (tile-level) 
-        PHENOTYPE_OUTPUTS["extract_phenotype_vacuoles"], 
+        PHENOTYPE_OUTPUTS["identify_vacuoles"][1], 
     output:
         PHENOTYPE_OUTPUTS_MAPPED["merge_vacuoles_phenotype_cp"],
     script:

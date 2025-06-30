@@ -62,16 +62,6 @@ def get_alignment_params(wildcards, config):
     }
     
     # Add global custom alignment parameters if they exist
-    if "custom_align" in config["phenotype"]:
-        base_params["custom_align"] = config["phenotype"].get("custom_align", False)
-        base_params["custom_channels"] = config["phenotype"].get("custom_channels", [])
-        base_params["custom_offset_yx"] = config["phenotype"].get("custom_offset_yx", (0, 0))
-    else:
-        base_params["custom_align"] = False
-        
-    return base_params
-
-    # Add global custom alignment parameters if they exist
     if config["phenotype"].get("custom_align", False):
         base_params["custom_align"] = True
         base_params["offsets_dict"] = config["phenotype"].get("offsets_dict", {})

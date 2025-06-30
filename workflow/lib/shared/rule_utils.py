@@ -40,15 +40,6 @@ def get_alignment_params(wildcards, config):
             "remove_channel": plate_config["remove_channel"],
         }
         
-        # Add custom alignment parameters if they exist
-        if "custom_align" in plate_config:
-            alignment_params["custom_align"] = True
-            alignment_params["custom_channels"] = plate_config.get("custom_channels", [])
-            alignment_params["custom_offset_yx"] = plate_config.get("custom_offset_yx", (0, 0))
-        else:
-            alignment_params["custom_align"] = False
-            
-        return alignment_params
 
         # Add custom alignment parameters if they exist
         if plate_config.get("custom_align", False):

@@ -1,6 +1,7 @@
 """Helper functions for using Snakemake rules for use with Brieflow."""
 
 from pathlib import Path
+import re
 
 from lib.shared.file_utils import parse_filename
 
@@ -39,15 +40,19 @@ def get_alignment_params(wildcards, config):
             "riders": plate_config["riders"],
             "remove_channel": plate_config["remove_channel"],
         }
-        
+
         # Add custom alignment parameters if they exist
         if "custom_align" in plate_config:
             alignment_params["custom_align"] = True
-            alignment_params["custom_channels"] = plate_config.get("custom_channels", [])
-            alignment_params["custom_offset_yx"] = plate_config.get("custom_offset_yx", (0, 0))
+            alignment_params["custom_channels"] = plate_config.get(
+                "custom_channels", []
+            )
+            alignment_params["custom_offset_yx"] = plate_config.get(
+                "custom_offset_yx", (0, 0)
+            )
         else:
             alignment_params["custom_align"] = False
-            
+
         return alignment_params
 
         # Add custom alignment parameters if they exist
@@ -73,15 +78,17 @@ def get_alignment_params(wildcards, config):
         "riders": config["phenotype"].get("riders", []),
         "remove_channel": config["phenotype"].get("remove_channel", False),
     }
-    
+
     # Add global custom alignment parameters if they exist
     if "custom_align" in config["phenotype"]:
         base_params["custom_align"] = config["phenotype"].get("custom_align", False)
         base_params["custom_channels"] = config["phenotype"].get("custom_channels", [])
-        base_params["custom_offset_yx"] = config["phenotype"].get("custom_offset_yx", (0, 0))
+        base_params["custom_offset_yx"] = config["phenotype"].get(
+            "custom_offset_yx", (0, 0)
+        )
     else:
         base_params["custom_align"] = False
-        
+
     return base_params
 
     # Add global custom alignment parameters if they exist
@@ -262,9 +269,9 @@ def get_montage_inputs(
     output_files = []
     for montage_data_file in montage_data_files:
         # parse gene, sgrna from filename
-        file_metadata = parse_filename(montage_data_file)[0]
-        gene = file_metadata["gene"]
-        sgrna = file_metadata["sgrna"]
+        match = re.match(r".*G-(.+?)_SG-(.+?)__montage_data.*", montage_data_file.name)
+        gene = match.group(1)
+        sgrna = match.group(2)
 
         for channel in channels:
             # Generate the output file path using the template

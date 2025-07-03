@@ -15,7 +15,7 @@ df_reads = prep_multi_reads(
     recomb_start=snakemake.params.recomb_start,
     recomb_end=snakemake.params.recomb_end,
     map_col=snakemake.params.map_col,
-    recomb_col=snakemake.params.recomb_col
+    recomb_col=snakemake.params.recomb_col,
 )
 
 # Call cells
@@ -29,7 +29,7 @@ cells_data = call_cells_multi(
     recomb_q_thresh=snakemake.params.recomb_q_thresh,
     error_correct=snakemake.params.error_correct,
     barcode_info_cols=snakemake.params.barcode_info_cols,
-    max_distance=snakemake.params.max_distance
+    max_distance=snakemake.params.max_distance,
 )
 
 # Save cells data

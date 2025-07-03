@@ -323,6 +323,7 @@ def transform_percentiles(X):
         Y (numpy.ndarray): Transformed array.
         W (numpy.ndarray): Transformation matrix.
     """
+
     def get_percentiles(X):
         arr = []
         for i in range(X.shape[1]):

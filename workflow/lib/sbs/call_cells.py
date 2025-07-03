@@ -208,7 +208,7 @@ def call_cells_mapping(
     **kwargs,
 ):
     """Determine the count of top barcodes, with prioritization given to barcodes mapping to the given pool design.
-    
+
     Args:
         df_reads (DataFrame): DataFrame containing read data.
         df_barcode_library (DataFrame): DataFrame containing barcode library information.

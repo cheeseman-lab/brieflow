@@ -39,15 +39,19 @@ def get_alignment_params(wildcards, config):
             "riders": plate_config["riders"],
             "remove_channel": plate_config["remove_channel"],
         }
-        
+
         # Add custom alignment parameters if they exist
         if "custom_align" in plate_config:
             alignment_params["custom_align"] = True
-            alignment_params["custom_channels"] = plate_config.get("custom_channels", [])
-            alignment_params["custom_offset_yx"] = plate_config.get("custom_offset_yx", (0, 0))
+            alignment_params["custom_channels"] = plate_config.get(
+                "custom_channels", []
+            )
+            alignment_params["custom_offset_yx"] = plate_config.get(
+                "custom_offset_yx", (0, 0)
+            )
         else:
             alignment_params["custom_align"] = False
-            
+
         return alignment_params
 
         # Add custom alignment parameters if they exist
@@ -73,15 +77,17 @@ def get_alignment_params(wildcards, config):
         "riders": config["phenotype"].get("riders", []),
         "remove_channel": config["phenotype"].get("remove_channel", False),
     }
-    
+
     # Add global custom alignment parameters if they exist
     if "custom_align" in config["phenotype"]:
         base_params["custom_align"] = config["phenotype"].get("custom_align", False)
         base_params["custom_channels"] = config["phenotype"].get("custom_channels", [])
-        base_params["custom_offset_yx"] = config["phenotype"].get("custom_offset_yx", (0, 0))
+        base_params["custom_offset_yx"] = config["phenotype"].get(
+            "custom_offset_yx", (0, 0)
+        )
     else:
         base_params["custom_align"] = False
-        
+
     return base_params
 
     # Add global custom alignment parameters if they exist

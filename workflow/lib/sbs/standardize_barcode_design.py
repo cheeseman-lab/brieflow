@@ -180,7 +180,9 @@ def standardize_barcode_design(
         else:
             prefix_length = map_prefix_length
         prefix_func_map = create_skip_cycles_prefix_function(
-            skip_cycles=skip_cycles_map, prefix_length=prefix_length, column_name="prefix_map"
+            skip_cycles=skip_cycles_map,
+            prefix_length=prefix_length,
+            column_name="prefix_map",
         )
         df["prefix_map"] = df.apply(prefix_func_map, axis=1)
         if verbose:
@@ -194,10 +196,14 @@ def standardize_barcode_design(
             barcode_lengths = df["prefix_map"].astype(str).str.len()
             map_prefix_length = int(barcode_lengths.mode()[0])  # Most common length
             if verbose:
-                print(f"Using full barcode length ({map_prefix_length}) for 'prefix_map'")
+                print(
+                    f"Using full barcode length ({map_prefix_length}) for 'prefix_map'"
+                )
         df["prefix_map"] = df["prefix_map"].astype(str).str[:map_prefix_length]
         if verbose:
-            print(f"Modified 'prefix_map' using truncation (length={map_prefix_length})")
+            print(
+                f"Modified 'prefix_map' using truncation (length={map_prefix_length})"
+            )
 
     # Generate prefix_recomb column if present
     if "prefix_recomb" in df.columns:
@@ -213,7 +219,9 @@ def standardize_barcode_design(
             else:
                 prefix_length = recomb_prefix_length
             prefix_func_recomb = create_skip_cycles_prefix_function(
-                skip_cycles=skip_cycles_recomb, prefix_length=prefix_length, column_name="prefix_recomb"
+                skip_cycles=skip_cycles_recomb,
+                prefix_length=prefix_length,
+                column_name="prefix_recomb",
             )
             df["prefix_recomb"] = df.apply(prefix_func_recomb, axis=1)
             if verbose:
@@ -221,9 +229,13 @@ def standardize_barcode_design(
                     f"Modified 'prefix_recomb' using skip_cycles_prefix_function (skip_cycles={skip_cycles_recomb}, length={recomb_prefix_length})"
                 )
         elif recomb_prefix_length is not None:
-            df["prefix_recomb"] = df["prefix_recomb"].astype(str).str[:recomb_prefix_length]
+            df["prefix_recomb"] = (
+                df["prefix_recomb"].astype(str).str[:recomb_prefix_length]
+            )
             if verbose:
-                print(f"Modified 'prefix_recomb' using truncation (length={recomb_prefix_length})")
+                print(
+                    f"Modified 'prefix_recomb' using truncation (length={recomb_prefix_length})"
+                )
 
     # Validate prefix generation
     if df["prefix_map"].isna().any():
@@ -266,7 +278,9 @@ def standardize_barcode_design(
     # Organize columns
     required_cols = ["prefix_map", "gene_symbol", "uniprot_entry"]
     if "gene_id" in df.columns:
-        required_cols.insert(2, "gene_id")  # Insert gene_id after gene_symbol if present
+        required_cols.insert(
+            2, "gene_id"
+        )  # Insert gene_id after gene_symbol if present
     if "prefix_recomb" in df.columns:
         required_cols.append("prefix_recomb")
 
@@ -703,14 +717,14 @@ def validate_gene_symbols(
 def get_barcode_list(
     df_barcode_library: pd.DataFrame,
     use_prefix: bool = True,
-    sequencing_order: str = "map_recomb"
+    sequencing_order: str = "map_recomb",
 ) -> List[str]:
     """Extract list of barcodes for mapping validation.
 
     Args:
         df_barcode_library (pd.DataFrame): Standardized barcode design table
         use_prefix (bool): Whether to return prefixes or full barcodes
-        sequencing_order (str): Order of concatenating prefixes. Options: 
+        sequencing_order (str): Order of concatenating prefixes. Options:
                                 'map_recomb' or 'recomb_map'.
 
     Returns:
@@ -727,14 +741,19 @@ def get_barcode_list(
 
     if use_prefix:
         if sequencing_order == "map_recomb":
-            return (df_barcode_library["prefix_map"] + df_barcode_library["prefix_recomb"]).tolist()
+            return (
+                df_barcode_library["prefix_map"] + df_barcode_library["prefix_recomb"]
+            ).tolist()
         elif sequencing_order == "recomb_map":
-            return (df_barcode_library["prefix_recomb"] + df_barcode_library["prefix_map"]).tolist()
+            return (
+                df_barcode_library["prefix_recomb"] + df_barcode_library["prefix_map"]
+            ).tolist()
         else:
-            raise ValueError(f"Invalid sequencing_order: {sequencing_order}. Must be 'map_recomb' or 'recomb_map'.")
+            raise ValueError(
+                f"Invalid sequencing_order: {sequencing_order}. Must be 'map_recomb' or 'recomb_map'."
+            )
     else:
         return df_barcode_library["prefix_map"].tolist()
-
 
 
 # Helper functions for common manipulations
@@ -747,7 +766,9 @@ def create_dialout_filter(dialout_values: List):
     return filter_func
 
 
-def create_dynamic_prefix_function(prefix_length_col: str = "prefix_length", column_name: str = "prefix_map"):
+def create_dynamic_prefix_function(
+    prefix_length_col: str = "prefix_length", column_name: str = "prefix_map"
+):
     """Create a prefix function that uses a column to determine prefix length for each row.
 
     Args:
@@ -804,7 +825,7 @@ def create_skip_cycles_prefix_function(
                 f"Column '{column_name}' not found in row. "
                 f"Available columns: {list(row.index)}"
             )
-            
+
         barcode = row[column_name]
 
         # Convert 1-based cycle numbers to 0-based indices

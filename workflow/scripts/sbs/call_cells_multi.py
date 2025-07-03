@@ -6,9 +6,11 @@ reads_data = pd.read_csv(snakemake.input[0], sep="\t")
 
 # Load and process df_pool
 df_design = pd.read_csv(snakemake.params.df_design_path, index_col=None)
-df_pool = df_design.drop(columns=['Unnamed: 0']).rename(columns={'target':'gene_symbol'})
-df_pool['prefix_map'] = df_pool['iBAR_2']
-df_pool['prefix_recomb'] = df_pool['iBAR_1'].str.slice(0,3)
+df_pool = df_design.drop(columns=["Unnamed: 0"]).rename(
+    columns={"target": "gene_symbol"}
+)
+df_pool["prefix_map"] = df_pool["iBAR_2"]
+df_pool["prefix_recomb"] = df_pool["iBAR_1"].str.slice(0, 3)
 
 # Prepare multi reads
 df_reads = prep_multi_reads(
@@ -18,7 +20,7 @@ df_reads = prep_multi_reads(
     recomb_start=snakemake.params.recomb_start,
     recomb_end=snakemake.params.recomb_end,
     map_col=snakemake.params.map_col,
-    recomb_col=snakemake.params.recomb_col
+    recomb_col=snakemake.params.recomb_col,
 )
 
 # Call cells
@@ -32,7 +34,7 @@ cells_data = call_cells_multi(
     recomb_q_thresh=snakemake.params.recomb_q_thresh,
     error_correct=snakemake.params.error_correct,
     barcode_info_cols=snakemake.params.barcode_info_cols,
-    max_distance=snakemake.params.max_distance
+    max_distance=snakemake.params.max_distance,
 )
 
 # Save cells data

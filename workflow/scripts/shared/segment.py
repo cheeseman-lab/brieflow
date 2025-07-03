@@ -148,6 +148,7 @@ elif method == "watershed":
             cells=True,
             reconcile=params.get("reconcile"),
             return_counts=params.get("return_counts", True),
+            log_transform=params.get("log_transform", False),
         )
     else:
         nuclei_data, counts_df = segment_watershed(
@@ -158,6 +159,7 @@ elif method == "watershed":
             cell_threshold=params["threshold_cell"],
             return_counts=params.get("return_counts", True),
             cells=segment_cells,
+            log_transform=params.get("log_transform", False),
         )
         cells_data = np.zeros_like(nuclei_data)
 else:

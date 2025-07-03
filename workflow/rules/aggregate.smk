@@ -194,4 +194,4 @@ rule initiate_montage:
 rule all_aggregate:
     input:
         AGGREGATE_TARGETS_ALL,
-        # MONTAGE_TARGETS_ALL,
+        MONTAGE_TARGETS_ALL,

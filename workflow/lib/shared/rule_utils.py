@@ -1,6 +1,7 @@
 """Helper functions for using Snakemake rules for use with Brieflow."""
 
 from pathlib import Path
+import re
 
 from lib.shared.file_utils import parse_filename
 
@@ -238,9 +239,9 @@ def get_montage_inputs(
     output_files = []
     for montage_data_file in montage_data_files:
         # parse gene, sgrna from filename
-        file_metadata = parse_filename(montage_data_file)[0]
-        gene = file_metadata["gene"]
-        sgrna = file_metadata["sgrna"]
+        match = re.match(r".*G-(.+?)_SG-(.+?)__montage_data.*", montage_data_file.name)
+        gene = match.group(1)
+        sgrna = match.group(2)
 
         for channel in channels:
             # Generate the output file path using the template

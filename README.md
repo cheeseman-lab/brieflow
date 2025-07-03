@@ -51,11 +51,11 @@ Look at [brieflow-analysis](https://github.com/cheeseman-lab/brieflow-analysis/)
 Use the following commands to set up the brieflow Conda environment (~10 min):
 
 ```sh
-# create and activate brieflow_SCREEN_CONTEXT conda environment
-# NOTE: replace SCREEN_CONTEXT with the name of your screen context to ensure a context-specific installation
-# using this context-specific installation will refer to library code in ./brieflow/workflow/lib
-conda create -n brieflow_SCREEN_CONTEXT -c conda-forge python=3.11 uv pip -y
-conda activate brieflow_SCREEN_CONTEXT
+# create and activate brieflow_SCREEN_NAME conda environment
+# NOTE: replace brieflow_SCREEN_NAME with the name of your screen to ensure a screen-specific installation
+# using this screen-specific installation will refer to library code in ./brieflow/workflow/lib
+conda create -n brieflow_SCREEN_NAME -c conda-forge python=3.11 uv pip -y
+conda activate brieflow_SCREEN_NAME
 # install external packages
 uv pip install -r pyproject.toml
 # install editable version of brieflow
@@ -65,7 +65,7 @@ conda install -c conda-forge micro_sam -y # skip if not using micro-sam for segm
 ```
 
 **Notes:**
-- We recommend a SCREEN_CONTEXT-specific installation because changes to this particular `./brieflow/workflow/lib` code will live within this specific installation of brieflow, and an explicit name helps keep track of different brieflow installations.
+- We recommend a screen-specific installation because changes to this particular `./brieflow/workflow/lib` code will live within this specific installation of brieflow, and an explicit name helps keep track of different brieflow installations.
 One could also install one version of brieflow that is used across brieflow-analysis repositories.
 - For a rule-specific package consider creating a separate conda environment file and using it for the particular rule as described in the [Snakemake integrated package management notes](https://snakemake.readthedocs.io/en/stable/snakefiles/deployment.html#integrated-package-management).
 
@@ -76,7 +76,7 @@ This process takes about 14 minutes on our machine.
 
 ```sh
 # activate brieflow env
-conda activate brieflow_SCREEN_CONTEXT
+conda activate brieflow_SCREEN_NAME
 # enter small test analysis dir
 cd brieflow/tests/small_test_analysis
 # set up small test analysis

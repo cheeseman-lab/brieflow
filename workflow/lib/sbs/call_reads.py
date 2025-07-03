@@ -224,6 +224,7 @@ def do_percentile_call(
         cycles (int): Number of sequencing cycles.
         channels (int): Number of sequencing channels.
         correction_only_in_cells (bool): Flag specifying whether correction is based on reads within cells or all reads.
+
     Returns:
         pandas.DataFrame: DataFrame containing the called reads.
     """
@@ -322,6 +323,7 @@ def transform_percentiles(X):
         Y (numpy.ndarray): Transformed array.
         W (numpy.ndarray): Transformation matrix.
     """
+
     def get_percentiles(X):
         arr = []
         for i in range(X.shape[1]):

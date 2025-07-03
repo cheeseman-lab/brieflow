@@ -61,7 +61,7 @@ def get_alignment_params(wildcards, config):
         "riders": config["phenotype"].get("riders", []),
         "remove_channel": config["phenotype"].get("remove_channel", False),
     }
-    
+
     # Add global custom alignment parameters if they exist
     if config["phenotype"].get("custom_align", False):
         base_params["custom_align"] = True

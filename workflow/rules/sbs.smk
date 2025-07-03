@@ -155,7 +155,7 @@ rule call_cells:
         SBS_OUTPUTS_MAPPED["call_cells"],
     params:
         # Pool design parameters
-        df_design_path=config["sbs"]["df_design_path"],
+        df_design_path=config["sbs"]["df_barcode_library_fp"],
         # multi read preparation parameters
         map_start=config["sbs"]["map_start"],
         map_end=config["sbs"]["map_end"],

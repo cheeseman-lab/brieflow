@@ -43,6 +43,7 @@ def segment_watershed(
     radius=15,
     return_counts=False,
     reconcile=None,
+    log_transform=False,
 ):
     """Segment cells using watershed method.
 
@@ -57,11 +58,16 @@ def segment_watershed(
         radius (float, optional): Radius of disk for local thresholding. Default is 15.
         return_counts (bool, optional): Whether to return counts of nuclei and cells. Default is False.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is None.
+        log_transform (bool, optional): Whether to apply log scaling to the input data. Default is False.
 
     Returns:
         tuple or numpy.ndarray: If 'cells' is True, returns tuple of nuclei and cell segmentation masks,
         otherwise returns only nuclei segmentation mask. If return_counts is True, includes a dictionary of counts.
     """
+    # Optional log transform
+    if log_transform:
+        data = image_log_scale(data)
+
     # If SBS data, image will have 4 dimensions
     if data.ndim == 4:
         # Select first cycle

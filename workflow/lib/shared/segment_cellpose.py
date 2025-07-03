@@ -160,7 +160,7 @@ def segment_cellpose(
 
 
 def prepare_cellpose(
-    data, dapi_index, cyto_index, helper_index, logscale=True, log_kwargs=dict()
+    data, dapi_index, cyto_index, helper_index=None, logscale=True, log_kwargs=dict()
 ):
     """Prepare a three-channel RGB image for use with the Cellpose GUI.
 
@@ -168,9 +168,7 @@ def prepare_cellpose(
         data (list or numpy.ndarray): List or array containing DAPI and cytoplasmic channel images.
         dapi_index (int): Index of the DAPI channel.
         cyto_index (int): Index of the cytoplasmic channel.
-        helper_index (int): Index of the helper channel. Note: CPSAM uses up to 3 channels holistically to
-            segment cells. This optional helper channel is meant to provide additional information to
-            define cell boundaries.
+        helper_index (int or None): Index of the helper channel. If None, the red channel will be zeros.
         logscale (bool, optional): Whether to apply log scaling to the cytoplasmic channel. Default is True.
         log_kwargs (dict, optional): Additional keyword arguments for log scaling.
 
@@ -181,19 +179,27 @@ def prepare_cellpose(
     # Extract DAPI and cytoplasmic channel images from the data
     dapi = data[dapi_index]
     cyto = data[cyto_index]
-    helper = data[helper_index]
 
-    # Apply log scaling to the cytoplasmic channel if specified
+    # Prepare helper channel if provided, else use zeros
+    if helper_index is not None:
+        helper = data[helper_index]
+    else:
+        helper = np.zeros_like(cyto)
+
+    # Apply log scaling to the cytoplasmic and helper channels if specified
     if logscale:
         cyto = image_log_scale(cyto, **log_kwargs)
-        cyto /= cyto.max()  # Normalize the image for uint8 conversion
+        if cyto.max() > 0:
+            cyto = cyto / cyto.max()  # Normalize for uint8 conversion
         helper = image_log_scale(helper, **log_kwargs)
-        helper /= helper.max()  # Normalize the image for uint8 conversion
+        if helper.max() > 0:
+            helper = helper / helper.max()  # Normalize for uint8 conversion
 
     # Normalize the intensity of the DAPI channel and scale it to the range [0, 1]
     dapi_upper = np.percentile(dapi, 99.5)
-    dapi = dapi / dapi_upper
-    dapi[dapi > 1] = 1
+    if dapi_upper > 0:
+        dapi = dapi / dapi_upper
+    dapi = np.clip(dapi, 0, 1)
 
     # Convert the channels to uint8 format for RGB image creation
     red, green, blue = img_as_ubyte(helper), img_as_ubyte(cyto), img_as_ubyte(dapi)
@@ -540,6 +546,10 @@ def image_log_scale(data, bottom_percentile=10, floor_threshold=50, ignore_zero=
         numpy.ndarray: Scaled image data after log scaling.
     """
     import numpy as np
+
+    # Skip processing if data is empty or all zeros
+    if data.size == 0 or np.all(data == 0):
+        return data
 
     # Convert input data to float
     data = data.astype(float)

@@ -4,13 +4,8 @@ from lib.sbs.call_cells_multi import call_cells_multi, prep_multi_reads
 # Load reads data
 reads_data = pd.read_csv(snakemake.input[0], sep="\t")
 
-# Load and process df_pool
-df_design = pd.read_csv(snakemake.params.df_design_path, index_col=None)
-df_pool = df_design.drop(columns=["Unnamed: 0"]).rename(
-    columns={"target": "gene_symbol"}
-)
-df_pool["prefix_map"] = df_pool["iBAR_2"]
-df_pool["prefix_recomb"] = df_pool["iBAR_1"].str.slice(0, 3)
+# load df_barcode_library
+df_barcode_library = pd.read_csv(snakemake.params.df_barcode_library_fp, sep="\t")
 
 # Prepare multi reads
 df_reads = prep_multi_reads(

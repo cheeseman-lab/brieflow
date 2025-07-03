@@ -1,0 +1,3 @@
+[submodule "tests/branch_tests/brieflow"]
+	path = tests/branch_tests/brieflow
+	url = https://github.com/cheeseman-lab/brieflow

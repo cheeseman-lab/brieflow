@@ -30,6 +30,8 @@ from skimage.feature import peak_local_max
 from skimage.filters import threshold_local, gaussian, rank
 from scipy import ndimage as ndi
 from skimage.util import img_as_ubyte
+from skimage.exposure import rescale_intensity
+
 
 
 def segment_watershed(
@@ -67,6 +69,7 @@ def segment_watershed(
     # Optional log transform
     if log_transform:
         data = image_log_scale(data)
+        data = rescale_intensity(data, in_range="image", out_range=(0, 1))
 
     # If SBS data, image will have 4 dimensions
     if data.ndim == 4:

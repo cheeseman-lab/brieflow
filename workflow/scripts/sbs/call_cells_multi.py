@@ -21,7 +21,7 @@ df_reads = prep_multi_reads(
 # Call cells
 cells_data = call_cells_multi(
     reads_data=df_reads,
-    df_pool=df_pool,
+    df_barcode_library=df_barcode_library,
     q_min=snakemake.params.q_min,
     map_col=snakemake.params.map_col,
     recomb_col=snakemake.params.recomb_col,

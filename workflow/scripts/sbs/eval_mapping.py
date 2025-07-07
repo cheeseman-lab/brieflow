@@ -13,7 +13,9 @@ from lib.sbs.eval_mapping import (
 
 # Read barcodes
 df_barcode_library = pd.read_csv(snakemake.params.df_barcode_library_fp, sep="\t")
-barcodes = get_barcode_list(df_barcode_library)
+barcodes = get_barcode_list(
+    df_barcode_library, sequencing_order=snakemake.params.sequencing_order
+)
 
 # Load SBS processing files
 reads = pd.concat(
@@ -65,6 +67,7 @@ fig.savefig(snakemake.output[7])
 _, fig = plot_gene_symbol_histogram(cells)
 fig.savefig(snakemake.output[8])
 
-# mapping_overview_df = mapping_overview(sbs_info, cells)
-mapping_overview_df = pd.DataFrame()
+mapping_overview_df = mapping_overview(
+    sbs_info, cells, sort_by=snakemake.params.sort_by
+)
 mapping_overview_df.to_csv(snakemake.output[9], sep="\t", index=False)

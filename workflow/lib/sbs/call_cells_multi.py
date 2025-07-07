@@ -27,7 +27,7 @@ from lib.sbs.constants import (
 
 def call_cells_multi(
     reads_data,
-    df_pool=None,
+    df_barcode_library=None,
     q_min=0,
     map_col="prefix_map",
     error_correct=False,
@@ -44,18 +44,18 @@ def call_cells_multi(
 
     Args:
         reads_data (DataFrame): DataFrame containing read information.
-        df_pool (DataFrame, optional): DataFrame containing pool information. Default is None.
+        df_barcode_library (DataFrame, optional): DataFrame containing pool information. Default is None.
         q_min (int, optional): Minimum quality threshold. Default is 0.
-        map_col (str, optional): The column within df_reads and df_pool containing the barcode for mapping.
+        map_col (str, optional): The column within df_reads and df_barcode_library containing the barcode for mapping.
             Default is 'prefix_map'.
         error_correct (bool, optional): Whether to perform error correction of barcodes. Default is False.
-        recomb_col (None, str, optional): The column within df_reads and df_pool containing the barcode for
+        recomb_col (None, str, optional): The column within df_reads and df_barcode_library containing the barcode for
             determining barcode recombination. Default is None.
         recomb_filter_col (None, str, optional): Column to use for filtering recombination identification confidence.
             Default is None.
         recomb_q_thresh (float, optional): Threshold for recomb_filter_col below which recombination events
             will be indeterminate. Default is 0.1.
-        barcode_info_cols (list, optional): List of columns from df_pool to maintain. Default is [GENE_SYMBOL].
+        barcode_info_cols (list, optional): List of columns from df_barcode_library to maintain. Default is [GENE_SYMBOL].
         **kwargs: Additional arguments passed to error_correct_reads if error_correct is True.
 
     Returns:
@@ -79,15 +79,15 @@ def call_cells_multi(
     # Apply quality filter
     df_reads = reads_data.query("Q_min >= @q_min")
 
-    # Process with appropriate helper function based on whether df_pool is provided
-    if df_pool is None:
+    # Process with appropriate helper function based on whether df_barcode_library is provided
+    if df_barcode_library is None:
         # Use helper function for no mapping case
         return call_cells_multi_helper(df_reads)
     else:
         # Use mapping function when a reference pool is provided
         return call_cells_multi_mapping(
             df_reads,
-            df_pool,
+            df_barcode_library,
             map_col=map_col,
             recomb_col=recomb_col,
             recomb_filter_col=recomb_filter_col,
@@ -139,7 +139,7 @@ def call_cells_multi_helper(df_reads):
 
 def call_cells_multi_mapping(
     df_reads,
-    df_pool,
+    df_barcode_library,
     map_col="prefix_map",
     recomb_col=None,
     recomb_filter_col=None,
@@ -152,13 +152,13 @@ def call_cells_multi_mapping(
 
     Parameters:
         df_reads (pandas.DataFrame): DataFrame containing sequencing reads.
-        df_pool (pandas.DataFrame): DataFrame containing the reference barcode sequences.
-        map_col (str): The column within df_reads and df_pool containing the barcode for mapping.
+        df_barcode_library (pandas.DataFrame): DataFrame containing the reference barcode sequences.
+        map_col (str): The column within df_reads and df_barcode_library containing the barcode for mapping.
         recomb_col (None, str): Optional. The column for determining barcode recombination.
         recomb_filter_col (None, str): Column for filtering recombination identification confidence.
         recomb_q_thresh (float): Threshold for recomb_filter_col below which recombination events are indeterminate.
         error_correct (bool): Whether to perform error correction of barcodes.
-        barcode_info_cols (list): List of columns from df_pool to maintain.
+        barcode_info_cols (list): List of columns from df_barcode_library to maintain.
 
     Returns:
         pandas.DataFrame: DataFrame with the top barcodes for each cell mapped to reference.
@@ -175,16 +175,16 @@ def call_cells_multi_mapping(
         # Perform error correction
         df_reads[map_col] = error_correct_reads(
             df_reads[map_col],
-            df_pool[map_col],
+            df_barcode_library[map_col],
             **kwargs,
         )
 
     # Map reads to the reference pool
-    df_pool["map_temp"] = df_pool[map_col]
+    df_barcode_library["map_temp"] = df_barcode_library[map_col]
     df_mapped = (
         pd.merge(
             df_reads,
-            df_pool[["map_temp"]],
+            df_barcode_library[["map_temp"]],
             how="left",
             left_on=map_col,
             right_on="map_temp",
@@ -198,7 +198,7 @@ def call_cells_multi_mapping(
     # Handle recombination detection if specified
     if recomb_col is not None:
         # Create mapping of expected recombination values
-        recomb_map = df_pool.set_index(map_col)[recomb_col].to_dict()
+        recomb_map = df_barcode_library.set_index(map_col)[recomb_col].to_dict()
         # Flag sequences where actual recombination matches expected recombination
         df_mapped["no_recomb"] = (df_mapped[map_col].map(recomb_map)) == (
             df_mapped[recomb_col]
@@ -305,7 +305,7 @@ def call_cells_multi_mapping(
     df_cells = (
         pd.merge(
             df_cells,
-            df_pool[[map_col] + barcode_info_cols],
+            df_barcode_library[[map_col] + barcode_info_cols],
             how="left",
             left_on=BARCODE_0,
             right_on=map_col,
@@ -320,7 +320,7 @@ def call_cells_multi_mapping(
     df_cells = (
         pd.merge(
             df_cells,
-            df_pool[[map_col] + barcode_info_cols],
+            df_barcode_library[[map_col] + barcode_info_cols],
             how="left",
             left_on=BARCODE_1,
             right_on=map_col,

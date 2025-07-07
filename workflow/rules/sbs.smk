@@ -155,7 +155,7 @@ rule call_cells:
         SBS_OUTPUTS_MAPPED["call_cells"],
     params:
         # Pool design parameters
-        df_design_path=config["sbs"]["df_barcode_library_fp"],
+        df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
         # multi read preparation parameters
         map_start=config["sbs"]["map_start"],
         map_end=config["sbs"]["map_end"],
@@ -277,6 +277,7 @@ rule eval_mapping:
         SBS_OUTPUTS_MAPPED["eval_mapping"],
     params:
         df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
+        sequencing_order=config["sbs"]["sequencing_order"],
         sort_by=config["sbs"]["sort_calls"],      
     script:
         "../scripts/sbs/eval_mapping.py"

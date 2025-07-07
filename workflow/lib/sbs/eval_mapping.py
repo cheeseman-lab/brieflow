@@ -468,7 +468,7 @@ def plot_gene_symbol_histogram(df, x_cutoff=None):
     return outliers, fig
 
 
-def mapping_overview(sbs_info, cells):
+def mapping_overview(sbs_info, cells, sort_by="count"):
     """Generate an overview of cell counts and mapping statistics per well.
 
     This function calculates the total number of cells per well and determines the counts and
@@ -483,7 +483,9 @@ def mapping_overview(sbs_info, cells):
     Args:
         sbs_info (pandas.DataFrame): DataFrame with information on cells, including the 'well' column.
         cells (pandas.DataFrame): DataFrame containing cell data with 'well', 'barcode_count', 'gene_symbol_0',
-                                  and 'gene_symbol_1' columns.
+                                  'gene_symbol_1', 'cell_barcode_0', and 'cell_barcode_1' columns.
+        sort_by (str, optional): Type of metric to analyze. 'count' uses barcode_count, 'peak' uses
+                                presence of valid barcode values. Defaults to 'count'.
 
     Returns:
         pandas.DataFrame: A summary DataFrame with mapping counts and percentages per well.
@@ -491,25 +493,55 @@ def mapping_overview(sbs_info, cells):
     # Count the total number of cells per well
     cell_counts = sbs_info.groupby("well").size().reset_index(name="total_cells__count")
 
-    # Count and calculate percent of cells with 1 barcode mapping per well
-    one_barcode_mapping = (
-        cells[cells["barcode_count"] == 1]
-        .groupby("well")
-        .size()
-        .reset_index(name="1_barcode_cells__count")
+    # For both count and peak modes, use the actual barcode columns to assess mapping
+    # Check if cell_barcode_0 and cell_barcode_1 are valid (not NaN and not empty)
+    cells_temp = cells.copy()
+    cells_temp["has_barcode_0"] = (~cells_temp["cell_barcode_0"].isna()) & (
+        cells_temp["cell_barcode_0"] != ""
     )
+    cells_temp["has_barcode_1"] = (~cells_temp["cell_barcode_1"].isna()) & (
+        cells_temp["cell_barcode_1"] != ""
+    )
+    cells_temp["barcode_mapping_count"] = cells_temp["has_barcode_0"].astype(
+        int
+    ) + cells_temp["has_barcode_1"].astype(int)
+
+    if sort_by == "count":
+        # Use the existing barcode_count column for count mode
+        one_barcode_mapping = (
+            cells[cells["barcode_count"] == 1]
+            .groupby("well")
+            .size()
+            .reset_index(name="1_barcode_cells__count")
+        )
+        multiple_barcode_mapping = (
+            cells[cells["barcode_count"] >= 1]
+            .groupby("well")
+            .size()
+            .reset_index(name="1_or_more_barcodes__count")
+        )
+    elif sort_by == "peak":
+        # Use the presence of valid barcodes for peak mode
+        one_barcode_mapping = (
+            cells_temp[cells_temp["barcode_mapping_count"] == 1]
+            .groupby("well")
+            .size()
+            .reset_index(name="1_barcode_cells__count")
+        )
+        multiple_barcode_mapping = (
+            cells_temp[cells_temp["barcode_mapping_count"] >= 1]
+            .groupby("well")
+            .size()
+            .reset_index(name="1_or_more_barcodes__count")
+        )
+    else:
+        raise ValueError(f"sort_by must be 'count' or 'peak', got '{sort_by}'")
+
+    # Calculate percentages
     one_barcode_mapping["1_barcode_cells__percent"] = (
         one_barcode_mapping["1_barcode_cells__count"]
         / cell_counts["total_cells__count"]
         * 100
-    )
-
-    # Count and calculate percent of cells with >=1 barcode mapping per well
-    multiple_barcode_mapping = (
-        cells[cells["barcode_count"] >= 1]
-        .groupby("well")
-        .size()
-        .reset_index(name="1_or_more_barcodes__count")
     )
     multiple_barcode_mapping["1_or_more_barcodes__percent"] = (
         multiple_barcode_mapping["1_or_more_barcodes__count"]

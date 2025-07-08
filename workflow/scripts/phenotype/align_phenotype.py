@@ -55,16 +55,18 @@ if align_config.get("custom_align", False):
     if "offsets_dict" not in align_config:
         raise ValueError("custom_align=True but no offsets_dict found in config!")
 
-    offsets_dict = {
-        int(k): tuple(v) for k, v in align_config["offsets_dict"].items()
-    }
+    offsets_dict = {int(k): tuple(v) for k, v in align_config["offsets_dict"].items()}
 
     aligned_data = apply_custom_offsets(aligned_data, offsets_dict=offsets_dict)
-    
+
     # Optional: remove channels after custom alignment
     if align_config.get("remove_channel_custom") is not None:
-        print(f"Removing channels after custom alignment: {align_config['remove_channel_custom']}")
-        aligned_data = remove_channels(aligned_data, align_config["remove_channel_custom"])
+        print(
+            f"Removing channels after custom alignment: {align_config['remove_channel_custom']}"
+        )
+        aligned_data = remove_channels(
+            aligned_data, align_config["remove_channel_custom"]
+        )
 
 
 # Save the aligned/unaligned data as a .tiff file

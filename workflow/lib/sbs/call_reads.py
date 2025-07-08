@@ -229,13 +229,19 @@ def do_percentile_call(
         pandas.DataFrame: DataFrame containing the called reads.
     """
     if correction_only_in_cells:
-        # First obtain transformation matrix W
-        X_ = dataframe_to_values(df_bases.query("cell > 0"))
-        _, W = transform_percentiles(X_.reshape(-1, channels))
+        try:
+            # First obtain transformation matrix W
+            X_ = dataframe_to_values(df_bases.query("cell > 0"))
+            _, W = transform_percentiles(X_.reshape(-1, channels))
 
-        # Then apply to all data
-        X = dataframe_to_values(df_bases)
-        Y = W.dot(X.reshape(-1, channels).T).T.astype(int)
+            # Then apply to all data
+            X = dataframe_to_values(df_bases)
+            Y = W.dot(X.reshape(-1, channels).T).T.astype(int)
+        except (ValueError, np.linalg.LinAlgError):
+            # Return "fake" Y with correct shape and dtype, but full of NaNs cast to int
+            num_reads = df_bases[["well", "tile", "read"]].drop_duplicates().shape[0]
+            Y = np.full((num_reads * cycles, channels), np.nan).astype(int)
+
     else:
         X = dataframe_to_values(df_bases)
         Y, W = transform_percentiles(X.reshape(-1, channels))

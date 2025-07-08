@@ -33,7 +33,6 @@ from skimage.util import img_as_ubyte
 from skimage.exposure import rescale_intensity
 
 
-
 def segment_watershed(
     data,
     nuclei_threshold,

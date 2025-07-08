@@ -108,7 +108,7 @@ def entropy_focus(image):
 
     The function first ensures the input image is in grayscale and
     uint8 format, then calculates the Shannon entropy, which serves
-    as a measure of image focus. In this dataset, low entropy values 
+    as a measure of image focus. In this dataset, low entropy values
     indicate a more focused (sharper) image.
 
     Args:

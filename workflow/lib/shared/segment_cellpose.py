@@ -547,10 +547,10 @@ def image_log_scale(data, bottom_percentile=10, floor_threshold=50, ignore_zero=
         numpy.ndarray: Scaled image data after log scaling.
     """
     import numpy as np
-    
+
     # Skip processing if data is empty or all zeros
     if data.size == 0 or np.all(data == 0):
-        return data  
+        return data
 
     # Skip processing if data is empty or all zeros
     if data.size == 0 or np.all(data == 0):

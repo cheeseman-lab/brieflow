@@ -28,6 +28,8 @@ if align_config["align"]:
                 source=step["source"],
                 riders=step.get("riders", []),
                 remove_channel=step["remove_channel"],
+                upsample_factor=30,
+                window=15,
             )
     else:
         # Handle single-step alignment

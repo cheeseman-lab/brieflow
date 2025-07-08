@@ -446,12 +446,47 @@ def prep_multi_reads(
         recomb_end (int): Ending cycle number for recombination detection (1-indexed, inclusive)
         map_col (str, optional): Name for the mapping column. Default is 'prefix_map'
         recomb_col (str, optional): Name for the recombination column. Default is 'prefix_recomb'
-
     Returns:
         DataFrame: Prepared reads DataFrame with mapping and recombination columns
     """
     # Make a copy to avoid modifying the original DataFrame
     df = df_reads.copy()
+
+    # Handle empty DataFrame case
+    if df.empty:
+        print(
+            "Warning: DataFrame is empty, returning empty DataFrame with required columns"
+        )
+        # Add the required columns with appropriate dtypes
+        df[map_col] = pd.Series(dtype="object")
+        df[recomb_col] = pd.Series(dtype="object")
+        df["Q_recomb"] = pd.Series(dtype="float64")
+        return df
+
+    # Check what quality columns are available
+    available_q_cols = [
+        col for col in df.columns if col.startswith("Q_") and col[2:].isdigit()
+    ]
+    max_cycle = (
+        max([int(col[2:]) for col in available_q_cols]) + 1 if available_q_cols else 0
+    )
+
+    print(f"Available quality columns: {sorted(available_q_cols)}")
+    print(f"Maximum cycle available: {max_cycle}")
+    print(f"Requested mapping range: cycles {map_start}-{map_end}")
+    print(f"Requested recombination range: cycles {recomb_start}-{recomb_end}")
+
+    # Validate mapping range
+    if map_end > max_cycle:
+        raise ValueError(
+            f"Mapping end cycle {map_end} exceeds available cycles (max: {max_cycle})"
+        )
+
+    # Validate recombination range
+    if recomb_end > max_cycle:
+        raise ValueError(
+            f"Recombination end cycle {recomb_end} exceeds available cycles (max: {max_cycle})"
+        )
 
     # Create mapping column from specified cycles (adjust for 0-indexing)
     df[map_col] = df["barcode"].str.slice(map_start - 1, map_end)
@@ -461,6 +496,15 @@ def prep_multi_reads(
 
     # Create quality column for recombination detection
     recomb_cycles = list(range(recomb_start, recomb_end + 1))
-    df["Q_recomb"] = df[[f"Q_{c - 1}" for c in recomb_cycles]].min(axis=1)
+    recomb_q_cols = [f"Q_{c - 1}" for c in recomb_cycles]
+
+    # Check if all required quality columns exist
+    missing_cols = [col for col in recomb_q_cols if col not in df.columns]
+    if missing_cols:
+        raise ValueError(
+            f"Missing quality columns for recombination detection: {missing_cols}"
+        )
+
+    df["Q_recomb"] = df[recomb_q_cols].min(axis=1)
 
     return df

@@ -46,21 +46,15 @@ else:
 # Custom alignment process (applies after standard alignment)
 if align_config.get("custom_align", False):
     print("Applying custom channel offsets...")
-    for index, (y, x) in align_config["offsets_dict"].items():
-        print(f"Channel index {index}")
-        print(f"  Custom offset (y, x): {y}, {x}")
+    print(f"Custom channels: {align_config['custom_channels']}")
+    print(f"Custom offset (y,x): {align_config['custom_offset_yx']}")
 
     # Apply custom offsets directly using the channel indices from config
     aligned_data = apply_custom_offsets(
         aligned_data,
-        offsets_dict=align_config["custom_offset_yx"],
+        offset_yx=align_config["custom_offset_yx"],
+        channels=align_config["custom_channels"],
     )
-    
-    # Optional: remove channels after custom alignment
-    if align_config.get("remove_channel_custom") is not None:
-        print(f"Removing channels after custom alignment: {align_config['remove_channel_custom']}")
-        aligned_data = remove_channels(aligned_data, align_config["remove_channel_custom"])
-
 
 # Save the aligned/unaligned data as a .tiff file
 imwrite(snakemake.output[0], aligned_data)

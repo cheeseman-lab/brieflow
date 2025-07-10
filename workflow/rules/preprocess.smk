@@ -107,7 +107,7 @@ rule convert_phenotype:
         channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
     script:
         "../scripts/preprocess/nd2_to_tiff_well.py"
-        
+
 
 # Calculate illumination correction function for SBS files
 rule calculate_ic_sbs:

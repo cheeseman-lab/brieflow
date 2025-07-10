@@ -201,14 +201,6 @@ def segment_stardist_multichannel(
 
     counts = {}
 
-    # Set default kwargs if not provided
-    if nuclei_kwargs is None:
-        nuclei_kwargs = kwargs.copy()
-    if cell_kwargs is None:
-        cell_kwargs = kwargs.copy()
-
-    counts = {}
-
     if gpu:
         model_nuclei.config.use_gpu = True
         model_cells.config.use_gpu = True

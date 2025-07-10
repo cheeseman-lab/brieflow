@@ -239,6 +239,7 @@ def do_percentile_call(
     else:
         X = dataframe_to_values(df_bases)
         Y, W = transform_percentiles(X.reshape(-1, channels))
+
     df_reads = call_barcodes(df_bases, Y, cycles=cycles, channels=channels)
 
     return df_reads

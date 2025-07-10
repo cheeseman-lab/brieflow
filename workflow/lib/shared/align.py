@@ -168,6 +168,7 @@ def apply_custom_offsets(data, offset_yx, channels):
     - To shift right: -x
     - To shift up: +y
     - To shift down: -y
+
     Args:
         data (np.ndarray): Input image data.
         offset_yx (tuple): Tuple of (y, x) pixel offsets to apply.
@@ -181,6 +182,7 @@ def apply_custom_offsets(data, offset_yx, channels):
     """
     # Set up offsets array, initialized with zeros
     offsets = np.array([(0, 0) for i in range(data.shape[0])])
+    
     # Apply the specified offset to the specified channel(s)
     if isinstance(channels, int):
         offsets[channels] = offset_yx

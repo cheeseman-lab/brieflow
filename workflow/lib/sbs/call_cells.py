@@ -377,6 +377,7 @@ def call_cells_add_UMIs(df_cells, df_UMI, cols=[WELL, TILE, CELL]):
         .reset_index()  # Reset the index
         .groupby(cols)  # Group again by well, tile, and cell
     )
+    
     df_cells_UMI = (
         df_UMI.join(
             s.nth(0)[["well", "tile", "cell", "barcode"]]

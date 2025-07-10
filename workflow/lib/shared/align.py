@@ -182,7 +182,7 @@ def apply_custom_offsets(data, offset_yx, channels):
     """
     # Set up offsets array, initialized with zeros
     offsets = np.array([(0, 0) for i in range(data.shape[0])])
-    
+
     # Apply the specified offset to the specified channel(s)
     if isinstance(channels, int):
         offsets[channels] = offset_yx

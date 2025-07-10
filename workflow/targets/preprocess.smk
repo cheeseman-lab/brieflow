@@ -1,6 +1,7 @@
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
+
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
 PREPROCESS_OUTPUTS = {

@@ -1,5 +1,4 @@
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from lib.sbs.standardize_barcode_design import get_barcode_list
 from lib.sbs.eval_mapping import (

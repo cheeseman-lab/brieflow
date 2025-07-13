@@ -35,6 +35,7 @@ for cell_class in snakemake.params.cell_classes:
 
     # split features into channel combos
     for channel_combo in snakemake.params.channel_combos:
+        print(f"Processing cell class: {cell_class}, channel combo: {channel_combo}")
         channel_combo_list = channel_combo.split("_")
         channel_combo_features = channel_combo_subset(
             cell_class_features, channel_combo_list, all_channels
@@ -47,6 +48,8 @@ for cell_class in snakemake.params.cell_classes:
 
         # Save data
         dataset_fp = [
-            f for f in snakemake.output if cell_class in f and channel_combo in f
+            f for f in snakemake.output 
+            if f"CeCl-{cell_class}_ChCo-{channel_combo}__" in f
         ][0]
+        print(f"Saving dataset to {dataset_fp}")
         cell_class_data.to_parquet(dataset_fp, index=False)

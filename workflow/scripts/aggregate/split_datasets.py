@@ -47,6 +47,8 @@ for cell_class in snakemake.params.cell_classes:
 
         # Save data
         dataset_fp = [
-            f for f in snakemake.output if cell_class in f and channel_combo in f
+            f
+            for f in snakemake.output
+            if f"CeCl-{cell_class}_ChCo-{channel_combo}__" in f
         ][0]
         cell_class_data.to_parquet(dataset_fp, index=False)

@@ -29,6 +29,7 @@ def standardize_barcode_design(
     standardize_nontargeting: bool = True,
     nontargeting_patterns: List[str] = ["nontargeting", "sg_nt", "non-targeting"],
     nontargeting_format: str = "nontargeting_{prefix}",
+    nontargeting_pattern_map: Optional[dict] = None,
     uniprot_data_path: str = None,
     verbose: bool = True,
 ) -> pd.DataFrame:
@@ -67,6 +68,12 @@ def standardize_barcode_design(
             Case-insensitive matching against gene symbols (default: ["nontargeting", "sg_nt", "non-targeting"])
         nontargeting_format (str): Format string for standardized non-targeting names
             Use {prefix} placeholder for barcode prefix, {original} for original name
+        nontargeting_pattern_map (dict, optional): Mapping of specific patterns to custom formats
+            Example: {
+                "intergenic": "nontargeting_intergenic_{prefix}",
+                "nontargeting": "nontargeting_noncutting_{prefix}"
+            }
+            If None, uses default nontargeting_format for all patterns
         uniprot_data_path (str): Path to UniProt annotation file (REQUIRED for gene validation)
         verbose (bool): Whether to print processing information (default: True)
 
@@ -152,7 +159,6 @@ def standardize_barcode_design(
         warnings.warn(
             f"Gene ID column '{gene_id_col}' not found. Skipping gene_id column."
         )
-    # Note: gene_id column is optional, so we don't create an empty one if not provided
 
     # Remove any rows with missing barcodes
     initial_count = len(df)
@@ -167,6 +173,7 @@ def standardize_barcode_design(
         if len(df) < initial_count and verbose:
             print(f"Removed {initial_count - len(df)} duplicate barcodes")
 
+    # [PREFIX GENERATION CODE REMAINS THE SAME...]
     # Generate prefix_map column for mapping (truncate or modify in place)
     if prefix_map_func is not None:
         # Use custom prefix function
@@ -249,12 +256,13 @@ def standardize_barcode_design(
             df, gene_symbol_col="gene_symbol", verbose=verbose
         )
 
-    # Standardize non-targeting controls if requested (BEFORE UniProt annotation)
+    # Standardize non-targeting controls with pattern mapping
     if standardize_nontargeting and "gene_symbol" in df.columns:
         df = standardize_nontargeting_controls(
             df,
             nontargeting_patterns=nontargeting_patterns,
             nontargeting_format=nontargeting_format,
+            nontargeting_pattern_map=nontargeting_pattern_map,
             verbose=verbose,
         )
 
@@ -448,21 +456,29 @@ def standardize_nontargeting_controls(
         "non-targeting",
     ],
     nontargeting_format: str = "nontargeting_{prefix}",
+    nontargeting_pattern_map: Optional[dict] = None,
     gene_symbol_col: str = "gene_symbol",
     prefix_col: str = "prefix_map",
     verbose: bool = True,
 ) -> pd.DataFrame:
-    """Standardize non-targeting control naming and annotation.
+    """Standardize non-targeting control naming and annotation with support for different control types.
 
     Identifies non-targeting controls based on patterns in gene symbols and standardizes
-    their naming to a consistent format. Also handles their UniProt annotation specially.
+    their naming to a consistent format. Supports mapping different patterns to different
+    standardized formats (e.g., intergenic_controls -> nontargeting_intergenic).
 
     Args:
         df (pd.DataFrame): DataFrame with gene symbols and prefixes
-        nontargeting_patterns (List[str]): Patterns to identify non-targeting controls
+        nontargeting_patterns (List[str]): Default patterns to identify non-targeting controls
             Case-insensitive matching against gene symbols
-        nontargeting_format (str): Format string for standardized names
+        nontargeting_format (str): Default format string for standardized names
             Use {prefix} placeholder for barcode prefix, {original} for original name
+        nontargeting_pattern_map (dict, optional): Mapping of specific patterns to custom formats
+            Example: {
+                "intergenic": "nontargeting_intergenic_{prefix}",
+                "nontargeting": "nontargeting_noncutting_{prefix}"
+            }
+            If None, uses default nontargeting_format for all patterns
         gene_symbol_col (str): Column containing gene symbols (default: "gene_symbol")
         prefix_col (str): Column containing barcode prefixes (default: "prefix_map")
         verbose (bool): Whether to print processing information
@@ -471,14 +487,17 @@ def standardize_nontargeting_controls(
         pd.DataFrame: DataFrame with standardized non-targeting control names
 
     Examples:
-        # Detect common patterns and rename
+        # Basic usage (backward compatible)
         df = standardize_nontargeting_controls(df)
 
-        # Custom patterns and format
+        # Enhanced usage with pattern mapping
         df = standardize_nontargeting_controls(
             df,
-            nontargeting_patterns=["neg", "scramble", "control"],
-            nontargeting_format="ctrl_{prefix}"
+            nontargeting_patterns=["nontargeting", "intergenic_controls"],
+            nontargeting_pattern_map={
+                "intergenic": "nontargeting_intergenic_{prefix}",
+                "nontargeting": "nontargeting_noncutting_{prefix}"
+            }
         )
     """
     result_df = df.copy()
@@ -495,45 +514,115 @@ def standardize_nontargeting_controls(
         )
         return result_df
 
-    # Create case-insensitive pattern matching - fix the regex construction
-    # Join patterns first, then add the case-insensitive flag
-    pattern_regex = "|".join(nontargeting_patterns)
+    # Store original names for reference
+    if "original_gene_symbol" not in result_df.columns:
+        result_df["original_gene_symbol"] = result_df[gene_symbol_col].copy()
 
-    # Find non-targeting controls using case-insensitive matching
-    nontargeting_mask = (
-        result_df[gene_symbol_col]
-        .astype(str)
-        .str.contains(pattern_regex, na=False, regex=True, case=False)
-    )
+    total_processed = 0
+    pattern_counts = {}
 
-    if nontargeting_mask.any():
-        n_nontargeting = nontargeting_mask.sum()
+    # If pattern_map is provided, process each pattern individually
+    if nontargeting_pattern_map is not None:
+        for pattern, custom_format in nontargeting_pattern_map.items():
+            # Find matches for this specific pattern (case-insensitive)
+            pattern_mask = (
+                result_df[gene_symbol_col]
+                .astype(str)
+                .str.contains(pattern, na=False, regex=True, case=False)
+            )
 
-        # Store original names for reference
-        if "original_gene_symbol" not in result_df.columns:
-            result_df["original_gene_symbol"] = result_df[gene_symbol_col].copy()
+            if pattern_mask.any():
+                n_matches = pattern_mask.sum()
+                pattern_counts[pattern] = n_matches
+                total_processed += n_matches
 
-        # Generate standardized names
-        standardized_names = []
-        for _, row in result_df[nontargeting_mask].iterrows():
-            prefix = str(row[prefix_col])
-            original = str(row[gene_symbol_col])
+                # Generate standardized names for this pattern
+                standardized_names = []
+                for _, row in result_df[pattern_mask].iterrows():
+                    prefix = str(row[prefix_col])
+                    original = str(row[gene_symbol_col])
+                    # Format the new name using custom format for this pattern
+                    new_name = custom_format.format(prefix=prefix, original=original)
+                    standardized_names.append(new_name)
 
-            # Format the new name
-            new_name = nontargeting_format.format(prefix=prefix, original=original)
-            standardized_names.append(new_name)
+                # Apply standardized names
+                result_df.loc[pattern_mask, gene_symbol_col] = standardized_names
 
-        # Apply standardized names
-        result_df.loc[nontargeting_mask, gene_symbol_col] = standardized_names
+                if verbose:
+                    print(
+                        f"Applied pattern '{pattern}' → '{custom_format}': {n_matches} controls"
+                    )
 
-        if verbose:
-            print(f"Standardized {n_nontargeting} non-targeting controls:")
-            print(f"  - Detected patterns: {nontargeting_patterns}")
-            print(f"  - New format: {nontargeting_format}")
-            for old, new in zip(
-                result_df.loc[nontargeting_mask, "original_gene_symbol"].head(3),
-                result_df.loc[nontargeting_mask, gene_symbol_col].head(3),
-            ):
+    # Process any remaining patterns not covered by pattern_map using default format
+    if nontargeting_patterns:
+        # Create a combined pattern for remaining matches, excluding already processed patterns
+        remaining_patterns = nontargeting_patterns.copy()
+
+        # Remove patterns already processed via pattern_map
+        if nontargeting_pattern_map is not None:
+            for processed_pattern in nontargeting_pattern_map.keys():
+                # Remove exact matches and partial matches
+                remaining_patterns = [
+                    p for p in remaining_patterns if processed_pattern not in p.lower()
+                ]
+
+        if remaining_patterns:
+            # Create regex for remaining patterns
+            pattern_regex = "|".join(remaining_patterns)
+
+            # Find matches that haven't been processed yet
+            remaining_mask = (
+                result_df[gene_symbol_col]
+                .astype(str)
+                .str.contains(pattern_regex, na=False, regex=True, case=False)
+            )
+
+            # Exclude already processed entries (those that have been standardized)
+            already_standardized = result_df[gene_symbol_col].str.startswith(
+                "nontargeting_", na=False
+            )
+            remaining_mask = remaining_mask & ~already_standardized
+
+            if remaining_mask.any():
+                n_remaining = remaining_mask.sum()
+                total_processed += n_remaining
+
+                # Generate standardized names using default format
+                standardized_names = []
+                for _, row in result_df[remaining_mask].iterrows():
+                    prefix = str(row[prefix_col])
+                    original = str(row[gene_symbol_col])
+                    # Format the new name using default format
+                    new_name = nontargeting_format.format(
+                        prefix=prefix, original=original
+                    )
+                    standardized_names.append(new_name)
+
+                # Apply standardized names
+                result_df.loc[remaining_mask, gene_symbol_col] = standardized_names
+
+                if verbose:
+                    print(
+                        f"Applied default format to remaining patterns: {n_remaining} controls"
+                    )
+                    print(f"  - Patterns: {remaining_patterns}")
+                    print(f"  - Format: {nontargeting_format}")
+
+    if verbose and total_processed > 0:
+        print(f"\nTotal standardized non-targeting controls: {total_processed}")
+        if pattern_counts:
+            for pattern, count in pattern_counts.items():
+                print(f"  - {pattern}: {count} controls")
+
+        # Show examples
+        nontargeting_examples = result_df[
+            result_df[gene_symbol_col].str.startswith("nontargeting_", na=False)
+        ]
+        if len(nontargeting_examples) > 0:
+            print(f"\nExample transformations:")
+            for i, (_, row) in enumerate(nontargeting_examples.head(3).iterrows()):
+                old = row.get("original_gene_symbol", "N/A")
+                new = row[gene_symbol_col]
                 print(f"    '{old}' → '{new}'")
 
     return result_df

@@ -451,7 +451,6 @@ def prep_multi_reads(
     """
     # Make a copy to avoid modifying the original DataFrame
     df = df_reads.copy()
-
     # Handle empty DataFrame case
     if df.empty:
         print(
@@ -462,7 +461,6 @@ def prep_multi_reads(
         df[recomb_col] = pd.Series(dtype="object")
         df["Q_recomb"] = pd.Series(dtype="float64")
         return df
-
     # Check what quality columns are available
     available_q_cols = [
         col for col in df.columns if col.startswith("Q_") and col[2:].isdigit()
@@ -470,41 +468,27 @@ def prep_multi_reads(
     max_cycle = (
         max([int(col[2:]) for col in available_q_cols]) + 1 if available_q_cols else 0
     )
-
     print(f"Available quality columns: {sorted(available_q_cols)}")
     print(f"Maximum cycle available: {max_cycle}")
     print(f"Requested mapping range: cycles {map_start}-{map_end}")
     print(f"Requested recombination range: cycles {recomb_start}-{recomb_end}")
 
-    # Validate mapping range
-    if map_end > max_cycle:
-        raise ValueError(
-            f"Mapping end cycle {map_end} exceeds available cycles (max: {max_cycle})"
-        )
-
-    # Validate recombination range
-    if recomb_end > max_cycle:
-        raise ValueError(
-            f"Recombination end cycle {recomb_end} exceeds available cycles (max: {max_cycle})"
-        )
-
     # Create mapping column from specified cycles (adjust for 0-indexing)
     df[map_col] = df["barcode"].str.slice(map_start - 1, map_end)
-
     # Create recombination column from specified cycles (adjust for 0-indexing)
     df[recomb_col] = df["barcode"].str.slice(recomb_start - 1, recomb_end)
-
     # Create quality column for recombination detection
     recomb_cycles = list(range(recomb_start, recomb_end + 1))
     recomb_q_cols = [f"Q_{c - 1}" for c in recomb_cycles]
-
     # Check if all required quality columns exist
     missing_cols = [col for col in recomb_q_cols if col not in df.columns]
     if missing_cols:
-        raise ValueError(
-            f"Missing quality columns for recombination detection: {missing_cols}"
-        )
-
-    df["Q_recomb"] = df[recomb_q_cols].min(axis=1)
-
+        print(f"Warning: Missing quality columns: {missing_cols}")
+        available_cols = [col for col in recomb_q_cols if col in df.columns]
+        if available_cols:
+            df["Q_recomb"] = df[available_cols].min(axis=1)
+        else:
+            df["Q_recomb"] = pd.Series([np.nan] * len(df))
+    else:
+        df["Q_recomb"] = df[recomb_q_cols].min(axis=1)
     return df

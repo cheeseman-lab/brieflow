@@ -116,6 +116,60 @@ PREPROCESS_OUTPUTS = {
             "tiff",
         ),
     ],
+    "extract_metadata_segmentation": [
+        PREPROCESS_FP
+        / "metadata"
+        / "segmentation"
+        / get_filename(
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "tile": "{tile}",
+            },
+            "metadata",
+            "tsv",
+        ),
+    ],
+    "combine_metadata_segmentation": [
+        PREPROCESS_FP
+        / "metadata"
+        / "segmentation"
+        / get_filename(
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+            },
+            "combined_metadata",
+            "parquet",
+        ),
+    ],
+    "convert_segmentation": [
+        PREPROCESS_FP
+        / "images"
+        / "segmentation"
+        / get_filename(
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "tile": "{tile}",
+            },
+            "image",
+            "tiff",
+        ),
+    ],
+    "calculate_ic_segmentation": [
+        PREPROCESS_FP
+        / "ic_fields"
+        / "segmentation"
+        / get_filename(
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+            },
+            "ic_field",
+            "tiff",
+        ),
+    ],
 }
 
 PREPROCESS_OUTPUT_MAPPINGS = {
@@ -127,6 +181,10 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "convert_phenotype": None,
     "calculate_ic_sbs": None,
     "calculate_ic_phenotype": None,
+    "extract_metadata_segmentation": temp,
+    "combine_metadata_segmentation": None,
+    "convert_segmentation": None,
+    "calculate_ic_segmentation": None,
 }
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 
@@ -150,5 +208,15 @@ PREPROCESS_TARGETS_PHENOTYPE = outputs_to_targets(
     PREPROCESS_OUTPUTS_PHENOTYPE, phenotype_wildcard_combos, PREPROCESS_OUTPUT_MAPPINGS
 )
 
+# Generate segmentation preprocessing targets
+PREPROCESS_OUTPUTS_SEGMENTATION = {
+    rule_name: templates
+    for rule_name, templates in PREPROCESS_OUTPUTS.items()
+    if "segmentation" in rule_name
+}
+PREPROCESS_TARGETS_SEGMENTATION = outputs_to_targets(
+    PREPROCESS_OUTPUTS_SEGMENTATION, segmentation_wildcard_combos, PREPROCESS_OUTPUT_MAPPINGS
+)
+
 # Combine all preprocessing targets
-PREPROCESS_TARGETS_ALL = PREPROCESS_TARGETS_SBS + PREPROCESS_TARGETS_PHENOTYPE
+PREPROCESS_TARGETS_ALL = PREPROCESS_TARGETS_SBS + PREPROCESS_TARGETS_PHENOTYPE + PREPROCESS_TARGETS_SEGMENTATION

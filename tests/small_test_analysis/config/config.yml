@@ -23,6 +23,10 @@ preprocess:
   sbs_channel_order_flip: true
   sbs_combo_fp: config/sbs_combo.tsv
   sbs_samples_fp: config/sbs_samples.tsv
+  segmentation_channel_order: null
+  segmentation_channel_order_flip: true
+  segmentation_samples_fp: config/segmentation_samples.tsv
+  segmentation_combo_fp: config/segmentation_combo.tsv
 sbs:
   alignment_method: null
   channel_names:

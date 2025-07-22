@@ -60,7 +60,7 @@ rule extract_metadata_phenotype:
         "../scripts/preprocess/extract_tile_metadata.py"
 
 
-# Comine metadata for phenotype images on well level
+# Combine metadata for phenotype images on well level
 rule combine_metadata_phenotype:
     input:
         lambda wildcards: output_to_input(
@@ -71,6 +71,41 @@ rule combine_metadata_phenotype:
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
+    script:
+        "../scripts/shared/combine_dfs.py"
+
+
+# Extract metadata for segmentation images
+rule extract_metadata_segmentation:
+    input:
+        lambda wildcards: get_sample_fps(
+            segmentation_samples_df,
+            plate=wildcards.plate,
+            well=wildcards.well,
+            tile=wildcards.tile,
+            channel_order=config["preprocess"]["segmentation_channel_order"],
+        ),
+    output:
+        PREPROCESS_OUTPUTS_MAPPED["extract_metadata_segmentation"],
+    params:
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: wildcards.well,
+        tile=lambda wildcards: wildcards.tile,
+    script:
+        "../scripts/preprocess/extract_tile_metadata.py"
+
+
+# Combine metadata for segmentation images on well level
+rule combine_metadata_segmentation:
+    input:
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["extract_metadata_segmentation"],
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=segmentation_wildcard_combos,
+        ),
+    output:
+        PREPROCESS_OUTPUTS_MAPPED["combine_metadata_segmentation"],
     script:
         "../scripts/shared/combine_dfs.py"
 
@@ -113,6 +148,24 @@ rule convert_phenotype:
         "../scripts/preprocess/nd2_to_tiff.py"
 
 
+# Convert segmentation ND2 files to TIFF
+rule convert_segmentation:
+    input:
+        lambda wildcards: get_sample_fps(
+            segmentation_samples_df,
+            plate=wildcards.plate,
+            well=wildcards.well,
+            tile=wildcards.tile,
+            channel_order=config["preprocess"]["segmentation_channel_order"],
+        ),
+    output:
+        PREPROCESS_OUTPUTS_MAPPED["convert_segmentation"],
+    params:
+        channel_order_flip=config["preprocess"]["segmentation_channel_order_flip"],
+    script:
+        "../scripts/preprocess/nd2_to_tiff.py"
+
+
 # Calculate illumination correction function for SBS files
 rule calculate_ic_sbs:
     input:
@@ -142,6 +195,23 @@ rule calculate_ic_phenotype:
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],
+    params:
+        threading=True,
+        sample_fraction=config["preprocess"]["sample_fraction"],
+    script:
+        "../scripts/preprocess/calculate_ic_field.py"
+
+# Calculate illumination correction for segmentation files
+rule calculate_ic_segmentation:
+    input:
+        lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["convert_segmentation"],
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=segmentation_wildcard_combos,
+        ),
+    output:
+        PREPROCESS_OUTPUTS_MAPPED["calculate_ic_segmentation"],
     params:
         threading=True,
         sample_fraction=config["preprocess"]["sample_fraction"],

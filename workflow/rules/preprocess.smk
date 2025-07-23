@@ -83,7 +83,7 @@ rule extract_metadata_segmentation:
             plate=wildcards.plate,
             well=wildcards.well,
             tile=wildcards.tile,
-            channel_order=config["preprocess"]["segmentation_channel_order"],
+            channel_order=config["preprocess"]["segment_order"],
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_segmentation"],
@@ -156,12 +156,12 @@ rule convert_segmentation:
             plate=wildcards.plate,
             well=wildcards.well,
             tile=wildcards.tile,
-            channel_order=config["preprocess"]["segmentation_channel_order"],
+            channel_order=config["preprocess"]["segment_order"],
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_segmentation"],
     params:
-        channel_order_flip=config["preprocess"]["segmentation_channel_order_flip"],
+        channel_order_flip=config["preprocess"]["segment_channel_order_flip"],
     script:
         "../scripts/preprocess/nd2_to_tiff.py"
 

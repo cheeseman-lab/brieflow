@@ -15,6 +15,68 @@ from lib.shared.align import (
     filter_percentiles,
 )
 
+def align_seg_to_sbs(
+    seg_stack,                  # (CHANNEL, Y, X) array for ONE segmentation image
+    ref_dapi,                   # (Y, X) array – the aligned SBS DAPI you trust
+    dapi_index=0,               # which channel inside seg_stack is DAPI
+    upsample_factor=2,
+    window=2,
+):
+    """
+    Rigidly register an external *segmentation image stack* to the SBS
+    coordinate frame using an already‑aligned SBS DAPI reference.
+
+    The function builds a *pseudo two‑cycle stack* (cycle 0 = reference
+    DAPI copied into every channel; cycle 1 = actual segmentation stack)
+    and re‑uses :pyfunc:`align_between_cycles` to estimate and apply the
+    sub‑pixel translation that best aligns the two DAPI images.  The same
+    shift is then applied to **all** channels in ``seg_stack``.
+
+    Parameters
+    ----------
+    seg_stack : np.ndarray
+        The unaligned segmentation image with shape ``(CHANNEL, Y, X)``.
+        Must contain a DAPI (nuclear) channel at ``dapi_index`` that
+        matches the SBS DAPI contrast.
+    ref_dapi : np.ndarray
+        A single *aligned* SBS DAPI frame (shape ``(Y, X)``) that serves
+        as the reference coordinate system.
+    dapi_index : int, default 0
+        Index of the DAPI channel inside ``seg_stack``.
+    upsample_factor : int, default 2
+        Sub‑pixel registration factor passed through to
+        :pyfunc:`calculate_offsets`.  Values > 1 improve precision at the
+        cost of speed.
+    window : int or float, default 2
+        Size of the centered window used by :pyfunc:`apply_window` during
+        cross‑correlation.  A value > 1 restricts alignment to the
+        central region, which can help when image borders are noisy.
+
+    Returns
+    -------
+    np.ndarray
+        The segmentation stack, rigidly aligned to the SBS frame.
+        Shape is identical to the input ``seg_stack``.
+    """
+    # 1)  Build a pseudo‑cycle stack: [reference, segmentation]
+    pseudo = np.stack(
+        [
+            np.stack([ref_dapi]*seg_stack.shape[0]),  # fake cycle 0: every channel = ref
+            seg_stack                                # fake cycle 1: actual segmentation
+        ],
+        axis=0,   # shape (2, CHANNEL, Y, X)
+    )
+
+    # 2)  Align the two “cycles” using *existing* helper
+    aligned_pair = align_between_cycles(
+        pseudo,
+        channel_index=dapi_index,        # use DAPI for the cross‑correlation
+        upsample_factor=upsample_factor,
+        window=window,
+    )
+
+    # 3)  Keep only the second cycle (= segmentation, now aligned)
+    return aligned_pair[1]
 
 def align_cycles(
     image_data,

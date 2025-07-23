@@ -14,8 +14,8 @@ SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])
 SBS_COMBO_FP = Path(config["preprocess"]["sbs_combo_fp"])
 PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 PHENOTYPE_COMBO_FP = Path(config["preprocess"]["phenotype_combo_fp"])
-SEGMENTATION_SAMPLES_FP = Path(config["preprocess"].get("segmentation_samples_fp", ""))
-SEGMENTATION_COMBO_FP = Path(config["preprocess"].get("segmentation_combo_fp", ""))
+SEGMENTATION_SAMPLES_FP = Path(config["preprocess"]["segment_samples_fp"])
+SEGMENTATION_COMBO_FP = Path(config["preprocess"]["segment_combo_fp"])
 
 # Load sbs samples if the file exists
 if SBS_SAMPLES_FP.exists():

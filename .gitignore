@@ -1,11 +1,10 @@
 # files related to local development/usage
 .DS_Store
-*/.ipynb_checkpoints
+*.ipynb_checkpoints
 */.snakemake
 __pycache__/
 *.egg-info/
 .ruff_cache/
-
 # docs
 docs/build/
 

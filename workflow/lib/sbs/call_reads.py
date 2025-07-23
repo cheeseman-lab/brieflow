@@ -624,7 +624,7 @@ def plot_normalization_comparison(
                     data_all.loc[mask, "median_" + base2],
                     data_all.loc[mask, "median_" + base1],
                     color=base_colors[base],
-                    alpha=0.5,
+                    alpha=0.3,
                     s=10,
                     label=f"'{base}' base call",
                 )
@@ -653,7 +653,7 @@ def plot_normalization_comparison(
                     data_all.loc[mask, "percentile_" + base2],
                     data_all.loc[mask, "percentile_" + base1],
                     color=base_colors[base],
-                    alpha=0.5,
+                    alpha=0.3,
                     s=10,
                     label=f"'{base}' base call",
                 )

@@ -9,8 +9,8 @@ cell_summary_df = combined_vacuole_df[
     combined_vacuole_df["table_type"] == "cell_summary"
 ].copy()
 
-# Check if we have any cell summary data
-if len(cell_summary_df) > 0:
+# Check if we have phenotype data and cell summary data
+if len(phenotype_data) > 0 and len(cell_summary_df) > 0:
     # Filter to only keep cell_summary columns (and table_type)
     cell_summary_columns = [
         col
@@ -42,12 +42,17 @@ if len(cell_summary_df) > 0:
         f"Merged {len(phenotype_data)} phenotype records with {len(cell_summary_df)} vacuole records"
     )
 
-else:
+elif len(phenotype_data) > 0:
     # No cell summary data available, just use phenotype data
     merged_data = phenotype_data.copy()
     print(
         f"No vacuole data available - using phenotype data only ({len(phenotype_data)} records)"
     )
+
+else:
+    # Both datasets are empty - create an empty DataFrame
+    merged_data = pd.DataFrame()
+    print("Both phenotype and vacuole datasets are empty - creating empty output")
 
 # Save the merged dataset
 merged_data.to_csv(snakemake.output[0], sep="\t", index=False)

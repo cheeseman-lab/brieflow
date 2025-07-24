@@ -84,6 +84,40 @@ AGGREGATE_OUTPUTS = {
             "png",
         ),
     ],
+    "prep_bootstrap": [
+        AGGREGATE_FP
+        / "bootstrap"
+        / "inputs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "controls_arr",
+            "npy",
+        ),
+        AGGREGATE_FP
+        / "bootstrap"
+        / "inputs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "construct_features_arr",
+            "npy",
+        ),
+        AGGREGATE_FP
+        / "bootstrap"
+        / "inputs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "sample_sizes",
+            "csv",
+        ),
+        AGGREGATE_FP
+        / "bootstrap"
+        / "inputs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "feature_names",
+            "npy",
+        ),
+    ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
@@ -93,6 +127,7 @@ AGGREGATE_OUTPUT_MAPPINGS = {
     "aggregate": None,
     "eval_aggregate": None,
     "generate_feature_table": None,
+    "prep_bootstrap": None,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
@@ -148,4 +183,64 @@ cell_classes = aggregate_wildcard_combos["cell_class"].unique()
 MONTAGE_TARGETS_ALL = [
     str(MONTAGE_OUTPUTS["montage_flag"]).format(cell_class=cell_class)
     for cell_class in cell_classes
+]
+
+
+# Define bootstrap outputs
+# These are special because we dynamically derive outputs
+BOOTSTRAP_OUTPUTS = {
+    "bootstrap_data_dir": AGGREGATE_FP / "bootstrap" / "{cell_class}_{channel_combo}__bootstrap_data",
+    "construct_data": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}_{channel_combo}__bootstrap_data"
+    / get_filename(
+        {"construct": "{construct}"},
+        "construct_data",
+        "csv",
+    ),
+    "bootstrap_construct_nulls": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}_{channel_combo}__constructs"
+    / get_filename(
+        {"construct": "{construct}"},
+        "nulls",
+        "npy",
+    ),
+    "bootstrap_construct_pvals": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}_{channel_combo}__constructs"
+    / get_filename(
+        {"construct": "{construct}"},
+        "pvals",
+        "csv",
+    ),
+    "bootstrap_gene_nulls": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}_{channel_combo}__genes"
+    / get_filename(
+        {"gene": "{gene}"},
+        "nulls",
+        "npy",
+    ),
+    "bootstrap_gene_pvals": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}_{channel_combo}__genes"
+    / get_filename(
+        {"gene": "{gene}"},
+        "pvals",
+        "csv",
+    ),
+    "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}_{channel_combo}__bootstrap_complete.flag",
+}
+
+# Create bootstrap targets following montage pattern
+cell_classes = aggregate_wildcard_combos["cell_class"].unique()
+channel_combos = aggregate_wildcard_combos["channel_combo"].unique()
+BOOTSTRAP_TARGETS_ALL = [
+    str(BOOTSTRAP_OUTPUTS["bootstrap_flag"]).format(
+        cell_class=cell_class, 
+        channel_combo=channel_combo
+    )
+    for cell_class in cell_classes 
+    for channel_combo in channel_combos
 ]

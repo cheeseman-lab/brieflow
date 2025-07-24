@@ -289,3 +289,125 @@ def get_montage_inputs(
     output_files.append(overlay_file)
 
     return output_files
+
+
+def get_construct_nulls_for_gene(
+    checkpoint, 
+    construct_nulls_pattern, 
+    cell_class, 
+    channel_combo, 
+    gene
+):
+    """Get all construct null files for a specific gene (similar to get_montage_inputs).
+    
+    Args:
+        checkpoint: Checkpoint object containing bootstrap data directory information.
+        construct_nulls_pattern: Template string for generating construct null file paths.
+        cell_class: Cell class for bootstrap analysis.
+        channel_combo: Channel combination for bootstrap analysis.
+        gene: Gene for which to get construct null files.
+        
+    Returns:
+        list: List of construct null file paths for the gene.
+    """
+    import glob
+    from pathlib import Path
+    
+    # Get the checkpoint output directory
+    bootstrap_data_dir = checkpoint.get(
+        cell_class=cell_class, 
+        channel_combo=channel_combo
+    ).output[0]
+    
+    # Find all construct data files for this gene
+    construct_pattern = f"{bootstrap_data_dir}/*{gene}.*_construct_data.csv"
+    construct_files = glob.glob(construct_pattern)
+    
+    # Convert to corresponding null files
+    null_files = []
+    for construct_file in construct_files:
+        construct_name = Path(construct_file).stem.replace("_construct_data", "")
+        null_file = str(construct_nulls_pattern).format(
+            cell_class=cell_class,
+            channel_combo=channel_combo,
+            construct=construct_name
+        )
+        null_files.append(null_file)
+    
+    return null_files
+
+
+def get_bootstrap_inputs(
+    checkpoint, 
+    construct_nulls_pattern,
+    construct_pvals_pattern,
+    gene_nulls_pattern,
+    gene_pvals_pattern,
+    cell_class, 
+    channel_combo
+):
+    """Get all bootstrap inputs for completion flag (similar to get_montage_inputs).
+    
+    Args:
+        checkpoint: Checkpoint object containing bootstrap data directory information.
+        construct_nulls_pattern: Template string for construct null files.
+        construct_pvals_pattern: Template string for construct p-value files.
+        gene_nulls_pattern: Template string for gene null files.
+        gene_pvals_pattern: Template string for gene p-value files.
+        cell_class: Cell class for bootstrap analysis.
+        channel_combo: Channel combination for bootstrap analysis.
+        
+    Returns:
+        list: List of all bootstrap output file paths.
+    """
+    import glob
+    from pathlib import Path
+    
+    # Get all construct data files
+    bootstrap_data_dir = checkpoint.get(
+        cell_class=cell_class,
+        channel_combo=channel_combo
+    ).output[0]
+    
+    construct_files = glob.glob(f"{bootstrap_data_dir}/*_construct_data.csv")
+    
+    # Get all outputs
+    outputs = []
+    genes_seen = set()
+    
+    for construct_file in construct_files:
+        construct_name = Path(construct_file).stem.replace("_construct_data", "")
+        
+        # Add construct outputs
+        outputs.extend([
+            str(construct_nulls_pattern).format(
+                cell_class=cell_class,
+                channel_combo=channel_combo,
+                construct=construct_name
+            ),
+            str(construct_pvals_pattern).format(
+                cell_class=cell_class,
+                channel_combo=channel_combo,
+                construct=construct_name
+            ),
+        ])
+        
+        # Extract gene name and add gene outputs (avoid duplicates)
+        if '.' in construct_name:
+            gene = construct_name.split('.')[0]
+            if gene not in genes_seen:
+                genes_seen.add(gene)
+                outputs.extend([
+                    str(gene_nulls_pattern).format(
+                        cell_class=cell_class,
+                        channel_combo=channel_combo,
+                        gene=gene
+                    ),
+                    str(gene_pvals_pattern).format(
+                        cell_class=cell_class,
+                        channel_combo=channel_combo,
+                        gene=gene
+                    ),
+                ])
+    
+    return outputs

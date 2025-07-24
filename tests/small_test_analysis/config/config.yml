@@ -126,6 +126,9 @@ aggregate:
   perturbation_name_col: gene_symbol_0
   variance_or_ncomp: 0.99
   num_align_batches: 1
+  num_sims: 100000
+  exclusion_string: null  
+  aggregate_genes: true
 cluster:
   cluster_combo_fp: config/cluster_combo.tsv
   uniprot_data_fp: config/benchmark_clusters/uniprot_data.tsv

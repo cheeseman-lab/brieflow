@@ -200,8 +200,15 @@ rule initiate_montage:
 # Prepare bootstrap data and create a checkpoint
 checkpoint prepare_bootstrap_data:
     input:
-        AGGREGATE_OUTPUTS_MAPPED["generate_feature_table"],
-    output:
+        lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS_MAPPED["filter"],
+            wildcards={
+                "cell_class": wildcards.cell_class,
+                "channel_combo": wildcards.channel_combo,
+            },
+            expansion_values=["plate", "well"],
+            metadata_combos=aggregate_wildcard_combos,
+        ),
         directory(BOOTSTRAP_OUTPUTS["bootstrap_data_dir"]),
         # Also create the arrays as outputs of this rule
         controls_arr=AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
@@ -221,9 +228,9 @@ checkpoint prepare_bootstrap_data:
             "feature_names", "npy"
         ),
     params:
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         control_key=config["aggregate"]["control_key"],
-        sample_size_column=config.get("bootstrap", {}).get("sample_size_column", "cell_count"),
         exclusion_string=config.get("bootstrap", {}).get("exclusion_string", None),
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"

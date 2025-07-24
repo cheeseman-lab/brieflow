@@ -15,7 +15,7 @@ output_dir.mkdir(parents=True, exist_ok=True)
 # Load cell data
 montage_columns = [
     "gene_symbol_0",
-    "cell_barcode_0",
+    "sgRNA_0",
     "plate",
     "well",
     "tile",
@@ -31,9 +31,7 @@ cell_data = cell_data.to_pandas()
 prepared_cell_data = add_filenames(cell_data, Path(snakemake.params.root_fp))
 
 # Group rows by gene + sgRNA
-gene_sgrna_groups = prepared_cell_data.groupby(
-    ["gene_symbol_0", "cell_barcode_0"], sort=False
-)
+gene_sgrna_groups = prepared_cell_data.groupby(["gene_symbol_0", "sgRNA_0"], sort=False)
 
 print(f"Saving {gene_sgrna_groups.ngroups} gene/sgRNA combos to {output_dir}")
 print(f"Using {multiprocessing.cpu_count()} CPUs")

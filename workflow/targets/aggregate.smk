@@ -163,7 +163,6 @@ BOOTSTRAP_OUTPUTS = {
         "construct_data",
         "csv",
     ),
-    # Add the array paths that are now created by the checkpoint:
     "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
         "controls_arr", "npy"

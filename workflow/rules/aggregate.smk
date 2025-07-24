@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
-from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs
+from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_construct_nulls_for_gene
 
 
 # Create datasets with cell classes and channel combos
@@ -209,24 +209,14 @@ checkpoint prepare_bootstrap_data:
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
         ),
+    output:
+        # Directory should be in output, not input
         directory(BOOTSTRAP_OUTPUTS["bootstrap_data_dir"]),
         # Also create the arrays as outputs of this rule
-        controls_arr=AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "controls_arr", "npy"
-        ),
-        construct_features_arr=AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "construct_features_arr", "npy"
-        ),
-        sample_sizes=AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "sample_sizes", "csv"
-        ),
-        feature_names=AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "feature_names", "npy"
-        ),
+        controls_arr=BOOTSTRAP_OUTPUTS["controls_arr"],
+        construct_features_arr=BOOTSTRAP_OUTPUTS["construct_features_arr"],
+        sample_sizes=BOOTSTRAP_OUTPUTS["sample_sizes"],
+        feature_names=BOOTSTRAP_OUTPUTS["feature_names"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
@@ -240,23 +230,23 @@ checkpoint prepare_bootstrap_data:
 rule bootstrap_construct:
     input:
         construct_data=BOOTSTRAP_OUTPUTS["construct_data"],
-        controls_arr=lambda wildcards: str(AGGREGATE_OUTPUTS["prep_bootstrap"][0]).format(
+        # Reference the checkpoint outputs, not the removed prep_bootstrap
+        controls_arr=lambda wildcards: str(BOOTSTRAP_OUTPUTS["controls_arr"]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
-        construct_features_arr=lambda wildcards: str(AGGREGATE_OUTPUTS["prep_bootstrap"][1]).format(
+        construct_features_arr=lambda wildcards: str(BOOTSTRAP_OUTPUTS["construct_features_arr"]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
-        sample_sizes=lambda wildcards: str(AGGREGATE_OUTPUTS["prep_bootstrap"][2]).format(
+        sample_sizes=lambda wildcards: str(BOOTSTRAP_OUTPUTS["sample_sizes"]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
-        feature_names=lambda wildcards: str(AGGREGATE_OUTPUTS["prep_bootstrap"][3]).format(
+        feature_names=lambda wildcards: str(BOOTSTRAP_OUTPUTS["feature_names"]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
     output:
         BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
         BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
     params:
-        sample_size_column=config.get("bootstrap", {}).get("sample_size_column", "cell_count"),
         num_sims=config.get("bootstrap", {}).get("num_sims", 100000),
     script:
         "../scripts/aggregate/bootstrap_construct.py"
@@ -272,10 +262,11 @@ rule bootstrap_gene:
             wildcards.channel_combo,
             wildcards.gene,
         ),
-        construct_features_arr=lambda wildcards: str(AGGREGATE_OUTPUTS["prep_bootstrap"][1]).format(
+        # Reference the checkpoint outputs, not the removed prep_bootstrap
+        construct_features_arr=lambda wildcards: str(BOOTSTRAP_OUTPUTS["construct_features_arr"]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
-        feature_names=lambda wildcards: str(AGGREGATE_OUTPUTS["prep_bootstrap"][3]).format(
+        feature_names=lambda wildcards: str(BOOTSTRAP_OUTPUTS["feature_names"]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
     output:

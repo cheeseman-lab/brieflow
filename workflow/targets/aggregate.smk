@@ -84,40 +84,6 @@ AGGREGATE_OUTPUTS = {
             "png",
         ),
     ],
-    "prep_bootstrap": [
-        AGGREGATE_FP
-        / "bootstrap"
-        / "inputs"
-        / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "controls_arr",
-            "npy",
-        ),
-        AGGREGATE_FP
-        / "bootstrap"
-        / "inputs"
-        / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "construct_features_arr",
-            "npy",
-        ),
-        AGGREGATE_FP
-        / "bootstrap"
-        / "inputs"
-        / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "sample_sizes",
-            "csv",
-        ),
-        AGGREGATE_FP
-        / "bootstrap"
-        / "inputs"
-        / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "feature_names",
-            "npy",
-        ),
-    ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
@@ -127,7 +93,6 @@ AGGREGATE_OUTPUT_MAPPINGS = {
     "aggregate": None,
     "eval_aggregate": None,
     "generate_feature_table": None,
-    "prep_bootstrap": None,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
@@ -197,6 +162,23 @@ BOOTSTRAP_OUTPUTS = {
         {"construct": "{construct}"},
         "construct_data",
         "csv",
+    ),
+    # Add the array paths that are now created by the checkpoint:
+    "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "controls_arr", "npy"
+    ),
+    "construct_features_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "construct_features_arr", "npy"
+    ),
+    "sample_sizes": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "sample_sizes", "csv"
+    ),
+    "feature_names": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "feature_names", "npy"
     ),
     "bootstrap_construct_nulls": AGGREGATE_FP
     / "bootstrap"

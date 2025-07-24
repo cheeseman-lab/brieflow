@@ -197,36 +197,34 @@ rule initiate_montage:
 # Then create a flag once bootstrap analysis is done
 
 
-# Bootstrap preparation rule
-rule prep_bootstrap:
+# Prepare bootstrap data and create a checkpoint
+checkpoint prepare_bootstrap_data:
     input:
-        # Use the feature table from generate_feature_table step
         AGGREGATE_OUTPUTS_MAPPED["generate_feature_table"],
     output:
-        AGGREGATE_OUTPUTS_MAPPED["prep_bootstrap"],
+        directory(BOOTSTRAP_OUTPUTS["bootstrap_data_dir"]),
+        # Also create the arrays as outputs of this rule
+        controls_arr=AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "controls_arr", "npy"
+        ),
+        construct_features_arr=AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "construct_features_arr", "npy"
+        ),
+        sample_sizes=AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "sample_sizes", "csv"
+        ),
+        feature_names=AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "feature_names", "npy"
+        ),
     params:
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         control_key=config["aggregate"]["control_key"],
         sample_size_column=config.get("bootstrap", {}).get("sample_size_column", "cell_count"),
         exclusion_string=config.get("bootstrap", {}).get("exclusion_string", None),
-    script:
-        "../scripts/aggregate/prep_bootstrap.py"
-
-
-# Prepare bootstrap data and create a checkpoint (like montage)
-checkpoint prepare_bootstrap_data:
-    input:
-        lambda wildcards: output_to_input(
-            AGGREGATE_OUTPUTS["prep_bootstrap"],
-            wildcards={
-                "cell_class": wildcards.cell_class,
-                "channel_combo": wildcards.channel_combo,
-            },
-            expansion_values=[],
-            metadata_combos=aggregate_wildcard_combos,
-        ),
-    output:
-        directory(BOOTSTRAP_OUTPUTS["bootstrap_data_dir"]),
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 

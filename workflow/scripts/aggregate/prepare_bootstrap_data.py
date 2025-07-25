@@ -77,7 +77,7 @@ print(f"Sample sizes dataframe shape: {sample_sizes_df.shape}")
 print("Saving bootstrap arrays...")
 np.save(snakemake.output.controls_arr, controls_arr)
 np.save(snakemake.output.construct_features_arr, construct_features_arr)
-sample_sizes_df.to_csv(snakemake.output.sample_sizes, index=False)
+sample_sizes_df.to_csv(snakemake.output.sample_sizes, sep='\t', index=False)
 
 # Create checkpoint directory and construct data files
 output_dir = Path(snakemake.output[0])  # Directory output
@@ -101,8 +101,8 @@ def write_construct_data(construct_id):
     })
     
     # Save construct data file with simple naming
-    output_file = output_dir / f"{construct_id}_construct_data.csv"
-    construct_data.to_csv(output_file, index=False)
+    output_file = output_dir / f"{construct_id}_construct_data.tsv"
+    construct_data.to_csv(output_file, sep='\t', index=False)
 
 # Process all constructs in parallel
 with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:

@@ -163,11 +163,11 @@ BOOTSTRAP_OUTPUTS = {
     
     "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-        "controls_arr", "tsv"
+        "controls_arr", "npy"
     ),
     "construct_features_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-        "construct_features_arr", "tsv"
+        "construct_features_arr", "npy"
     ),
     "sample_sizes": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},

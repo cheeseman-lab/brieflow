@@ -58,6 +58,6 @@ print("Saving gene-level bootstrap results...")
 np.save(snakemake.output[0], median_null_medians)
 
 # Save p-values
-pval_df.to_csv(snakemake.output[1], index=False)
+pval_df.to_csv(snakemake.output[1], sep='\t', index=False)
 
 print(f"Gene-level bootstrap analysis for {gene_id} complete!")

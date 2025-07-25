@@ -8,7 +8,7 @@ from lib.aggregate.bootstrap import (
 )
 
 # Load construct data to get construct ID
-construct_data = pd.read_csv(snakemake.input.construct_data)
+construct_data = pd.read_csv(snakemake.input.construct_data, sep='\t')
 construct_id = construct_data['construct_id'].iloc[0]
 print(f"Running bootstrap analysis for construct: {construct_id}")
 
@@ -16,7 +16,7 @@ print(f"Running bootstrap analysis for construct: {construct_id}")
 print("Loading bootstrap input arrays...")
 controls_arr = np.load(snakemake.input.controls_arr, allow_pickle=True)
 construct_features_arr = np.load(snakemake.input.construct_features_arr, allow_pickle=True)
-sample_sizes_df = pd.read_csv(snakemake.input.sample_sizes)
+sample_sizes_df = pd.read_csv(snakemake.input.sample_sizes, sep='\t')
 
 # Get feature names from construct_features_arr (excluding first column which is construct ID)
 feature_names = [f"feature_{i}" for i in range(construct_features_arr.shape[1] - 1)]
@@ -62,6 +62,7 @@ print("Saving bootstrap results...")
 np.save(snakemake.output[0], null_medians_arr)
 
 # Save p-values
-pval_df.to_csv(snakemake.output[1], index=False)
+pval_df.to_csv(snakemake.output[1], sep='\t', index=False)
+
 
 print(f"Bootstrap analysis for {construct_id} complete!")

@@ -299,7 +299,8 @@ rule combine_bootstrap:
     input:
         bootstrap_flag=BOOTSTRAP_OUTPUTS["bootstrap_flag"],
     output:
-        BOOTSTRAP_OUTPUTS["combined_bootstrap_results"],
+        BOOTSTRAP_OUTPUTS["combined_construct_results"],
+        BOOTSTRAP_OUTPUTS["combined_gene_results"],
     params:
         constructs_dir=lambda wildcards: str(AGGREGATE_FP / "bootstrap" / f"{wildcards.cell_class}__{wildcards.channel_combo}__constructs"),
         genes_dir=lambda wildcards: str(AGGREGATE_FP / "bootstrap" / f"{wildcards.cell_class}__{wildcards.channel_combo}__genes"),

@@ -289,3 +289,143 @@ def get_montage_inputs(
     output_files.append(overlay_file)
 
     return output_files
+
+
+def get_bootstrap_inputs(
+    checkpoint,
+    construct_nulls_pattern,
+    construct_pvals_pattern,
+    gene_nulls_pattern,
+    gene_pvals_pattern,
+    cell_class,
+    channel_combo,
+):
+    """Get all bootstrap inputs for completion flag (similar to get_montage_inputs).
+    Args:
+        checkpoint: Checkpoint object containing bootstrap data directory information.
+        construct_nulls_pattern: Template string for construct null files.
+        construct_pvals_pattern: Template string for construct p-value files.
+        gene_nulls_pattern: Template string for gene null files.
+        gene_pvals_pattern: Template string for gene p-value files.
+        cell_class: Cell class for bootstrap analysis.
+        channel_combo: Channel combination for bootstrap analysis.
+    Returns:
+        list: List of all bootstrap output file paths.
+    """
+    # Get all construct data files from checkpoint
+    bootstrap_data_dir = checkpoint.get(
+        cell_class=cell_class, channel_combo=channel_combo
+    ).output[0]
+
+    construct_files = glob.glob(f"{bootstrap_data_dir}/*_construct_data.tsv")
+
+    outputs = []
+    genes_seen = set()
+
+    for construct_file in construct_files:
+        # Extract gene_construct from filename
+        construct_filename = Path(construct_file).stem.replace("_construct_data", "")
+
+        # UPDATED: Parse the gene_construct format
+        if "_" in construct_filename:
+            # Split on underscore: gene_sgRNA -> [gene, sgRNA]
+            parts = construct_filename.split("_")
+            gene = parts[0]  # First part is gene
+            construct = "_".join(
+                parts[1:]
+            )  # Rest is construct (in case sgRNA has underscores)
+        else:
+            # Fallback: treat whole thing as construct, try to read from file
+            try:
+                import pandas as pd
+
+                construct_data = pd.read_csv(construct_file, sep="\t")
+                gene = construct_data["gene"].iloc[0]
+                construct = construct_data["construct_id"].iloc[0]
+            except:
+                # Last resort: skip this file
+                continue
+
+        # Add construct outputs
+        outputs.extend(
+            [
+                str(construct_nulls_pattern).format(
+                    cell_class=cell_class,
+                    channel_combo=channel_combo,
+                    gene=gene,
+                    construct=construct,
+                ),
+                str(construct_pvals_pattern).format(
+                    cell_class=cell_class,
+                    channel_combo=channel_combo,
+                    gene=gene,
+                    construct=construct,
+                ),
+            ]
+        )
+
+        # Add gene outputs (avoid duplicates)
+        if gene not in genes_seen:
+            genes_seen.add(gene)
+            outputs.extend(
+                [
+                    str(gene_nulls_pattern).format(
+                        cell_class=cell_class, channel_combo=channel_combo, gene=gene
+                    ),
+                    str(gene_pvals_pattern).format(
+                        cell_class=cell_class, channel_combo=channel_combo, gene=gene
+                    ),
+                ]
+            )
+
+    return outputs
+
+
+def get_construct_nulls_for_gene(
+    checkpoint_output, bootstrap_nulls_pattern, cell_class, channel_combo, gene
+):
+    """Get all construct null files for a specific gene.
+    Args:
+        checkpoint_output: Checkpoint object containing bootstrap data directory information.
+        bootstrap_nulls_pattern (str): Template string for construct null files.
+        cell_class (str): Cell class for bootstrap analysis.
+        channel_combo (str): Channel combination for bootstrap analysis.
+        gene (str): Gene name to find construct files for.
+    Returns:
+        list: List of expected construct null file paths for the specified gene.
+    """
+    # Get the checkpoint directory
+    checkpoint_dir = checkpoint_output.get(
+        cell_class=cell_class, channel_combo=channel_combo
+    ).output[0]
+
+    # Find all construct data files for this gene
+    construct_files = glob.glob(f"{checkpoint_dir}/{gene}_*_construct_data.tsv")
+
+    if not construct_files:
+        raise ValueError(f"No construct data files found for gene {gene}")
+
+    # Extract construct IDs and build expected null file paths
+    expected_null_files = []
+
+    for construct_file in construct_files:
+        # Extract gene_construct from filename
+        filename = Path(construct_file).stem.replace("_construct_data", "")
+
+        # Parse gene_construct format
+        if filename.startswith(f"{gene}_"):
+            construct_part = filename[len(gene) + 1 :]  # Remove "gene_" prefix
+
+            # Build expected null file path
+            null_file = str(bootstrap_nulls_pattern).format(
+                cell_class=cell_class,
+                channel_combo=channel_combo,
+                gene=gene,
+                construct=construct_part,
+            )
+            expected_null_files.append(null_file)
+
+    if not expected_null_files:
+        raise ValueError(f"No construct files found for gene {gene}")
+
+    return expected_null_files

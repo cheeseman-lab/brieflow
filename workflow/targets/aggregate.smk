@@ -159,39 +159,39 @@ BOOTSTRAP_OUTPUTS = {
     "construct_data": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__bootstrap_data"
-    / "{construct}_construct_data.csv",
+    / "{construct}_construct_data.tsv",
     
     "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-        "controls_arr", "npy"
+        "controls_arr", "tsv"
     ),
     "construct_features_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-        "construct_features_arr", "npy"
+        "construct_features_arr", "tsv"
     ),
     "sample_sizes": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-        "sample_sizes", "csv"
+        "sample_sizes", "tsv"
     ),
     "bootstrap_construct_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__constructs"
-    / "{construct}_nulls.npy",
+    / "{construct}_nulls.tsv",
     
     "bootstrap_construct_pvals": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__constructs"
-    / "{construct}_pvals.csv",
+    / "{construct}_pvals.tsv",
     
     "bootstrap_gene_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__genes"
-    / "{gene}_nulls.npy",
+    / "{gene}_nulls.tsv",
     
     "bootstrap_gene_pvals": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__genes"
-    / "{gene}_pvals.csv",
+    / "{gene}_pvals.tsv",
     
     "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_complete.flag",
 }

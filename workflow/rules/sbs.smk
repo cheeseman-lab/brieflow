@@ -20,6 +20,10 @@ rule align_sbs:
         upsample_factor=config["sbs"]["upsample_factor"],
         skip_cycles_indices=config["sbs"]["skip_cycles_indices"],
         manual_background_cycle_index=config["sbs"]["manual_background_cycle_index"],
+        # New resize parameters
+        resize_cycles=config["sbs"]["resize_cycles"],
+        target_spatial_shape=config["sbs"]["target_spatial_shape"],
+        resize_method=config["sbs"]["resize_method"],
     script:
         "../scripts/sbs/align_cycles.py"
 

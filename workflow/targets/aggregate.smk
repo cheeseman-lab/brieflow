@@ -42,6 +42,13 @@ AGGREGATE_OUTPUTS = {
             "feature_table",
             "tsv",
         ),
+        AGGREGATE_FP
+        / "tsvs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "construct_table",
+            "tsv",
+        ),
     ],
     "align": [
         AGGREGATE_FP
@@ -153,26 +160,31 @@ MONTAGE_TARGETS_ALL = [
 
 # Define bootstrap outputs
 # These are special because we dynamically derive outputs
+# Define bootstrap outputs
 BOOTSTRAP_OUTPUTS = {
     "bootstrap_data_dir": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_data",
-    # Update to use simple naming pattern
+    
+    # Construct data files for job spawning
     "construct_data": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__bootstrap_data"
     / "{construct}_construct_data.tsv",
     
+    # Input arrays (TSV format)
     "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-        "controls_arr", "npy"
+        "controls_arr", "tsv"
     ),
     "construct_features_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-        "construct_features_arr", "npy"
+        "construct_features_arr", "tsv"
     ),
     "sample_sizes": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
         "sample_sizes", "tsv"
     ),
+    
+    # Construct-level outputs
     "bootstrap_construct_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__constructs"
@@ -183,6 +195,7 @@ BOOTSTRAP_OUTPUTS = {
     / "{cell_class}__{channel_combo}__constructs"
     / "{construct}_pvals.tsv",
     
+    # Gene-level outputs
     "bootstrap_gene_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__genes"
@@ -192,6 +205,15 @@ BOOTSTRAP_OUTPUTS = {
     / "bootstrap"
     / "{cell_class}__{channel_combo}__genes"
     / "{gene}_pvals.tsv",
+    
+    # Combined outputs
+    "bootstrap_construct_combined": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}__{channel_combo}__construct_results_combined.tsv",
+    
+    "bootstrap_gene_combined": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}__{channel_combo}__gene_results_combined.tsv",
     
     "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_complete.flag",
 }

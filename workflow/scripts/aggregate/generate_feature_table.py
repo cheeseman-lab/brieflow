@@ -14,6 +14,7 @@ from lib.aggregate.cell_data_utils import (
 
 # get snakemake parameters
 pert_col = snakemake.params.perturbation_name_col
+pert_id_col = snakemake.params.perturbation_id_col  
 control_key = snakemake.params.control_key
 
 # Load cell data using PyArrow dataset
@@ -46,7 +47,7 @@ metadata, features = prepare_alignment_data(
     snakemake.params.batch_cols,
     pert_col,
     control_key,
-    snakemake.params.perturbation_id_col,
+    pert_id_col,
 )
 features = features.astype(np.float32)
 
@@ -59,26 +60,68 @@ features = centerscale_on_controls(
     "batch_values",
 ).astype(np.float32)
 
-# Calculate sample sizes before aggregation
-sample_sizes = metadata.groupby(pert_col, observed=True).size().reset_index(name='cell_count')
+# TABLE 1: Construct-level table (one row per sgRNA)
+print("Creating construct-level table...")
 
-# Calculate average cells per sgRNA for each gene
-sgrna_sizes = metadata.groupby([pert_col, snakemake.params.perturbation_id_col], observed=True).size().reset_index(name='sgrna_cell_count')
-avg_cells_per_sgrna = sgrna_sizes.groupby(pert_col, observed=True)['sgrna_cell_count'].mean().reset_index()
-avg_cells_per_sgrna.columns = [pert_col, 'avg_cells_per_sgrna']
+# Calculate sample sizes at sgRNA level
+construct_sample_sizes = metadata.groupby(pert_id_col, observed=True).size().reset_index(name='cell_count')
 
-# get the median of each perturbation
+# Get corresponding gene for each sgRNA
+construct_gene_map = metadata.groupby(pert_id_col, observed=True)[pert_col].first().reset_index()
+
+# Get median features at sgRNA level
 features = pd.DataFrame(features, columns=feature_cols)
-features[pert_col] = metadata[pert_col].values
-features_aggregated = features.groupby(pert_col, sort=False, observed=True).median()
-features_aggregated = features_aggregated.reset_index()
+features[pert_id_col] = metadata[pert_id_col].values
 
-# Merge sample sizes and average cells per sgRNA with aggregated features
-features_with_counts = pd.merge(features_aggregated, sample_sizes, on=pert_col, how='left')
-features_final = pd.merge(features_with_counts, avg_cells_per_sgrna, on=pert_col, how='left')
+construct_features = features.groupby(pert_id_col, sort=False, observed=True).median()
+construct_features = construct_features.reset_index()
 
-# Reorder columns to put count columns at the beginning
-column_order = [pert_col, 'cell_count', 'avg_cells_per_sgrna'] + [col for col in features_final.columns if col not in [pert_col, 'cell_count', 'avg_cells_per_sgrna']]
-features_final = features_final[column_order]
+# Merge everything for construct table
+construct_table = pd.merge(construct_features, construct_sample_sizes, on=pert_id_col, how='left')
+construct_table = pd.merge(construct_table, construct_gene_map, on=pert_id_col, how='left')
 
-features_final.to_csv(snakemake.output[0], sep="\t", index=False)
+# Reorder columns: sgRNA, gene, cell_count, features
+construct_columns = [pert_id_col, pert_col, 'cell_count'] + feature_cols
+construct_table = construct_table[construct_columns]
+
+print(f"Construct table shape: {construct_table.shape}")
+
+# TABLE 2: Gene-level table (median of construct medians)
+print("Creating gene-level table...")
+
+# Filter out controls for gene-level aggregation
+non_control_constructs = construct_table[~construct_table[pert_col].str.contains(control_key, na=False)]
+
+# Calculate gene-level sample sizes (sum of construct cell counts)
+gene_sample_sizes = non_control_constructs.groupby(pert_col, observed=True)['cell_count'].sum().reset_index()
+gene_sample_sizes.columns = [pert_col, 'cell_count']
+
+# Calculate gene-level medians (median of construct medians)
+gene_features = non_control_constructs.groupby(pert_col, sort=False, observed=True)[feature_cols].median()
+gene_features = gene_features.reset_index()
+
+# Merge gene features with sample sizes
+gene_table = pd.merge(gene_features, gene_sample_sizes, on=pert_col, how='left')
+
+# Add controls to gene table (controls are their own "genes")
+control_constructs = construct_table[construct_table[pert_col].str.contains(control_key, na=False)]
+control_gene_table = control_constructs[[pert_col, 'cell_count'] + feature_cols].copy()
+
+# Combine gene table with controls
+final_gene_table = pd.concat([gene_table, control_gene_table], ignore_index=True)
+
+# Reorder columns: gene, cell_count, features
+gene_columns = [pert_col, 'cell_count'] + feature_cols
+final_gene_table = final_gene_table[gene_columns]
+
+print(f"Gene table shape: {final_gene_table.shape}")
+
+# Save both tables
+construct_output = snakemake.output[0].replace('feature_table.tsv', 'construct_table.tsv')
+gene_output = snakemake.output[0]  # Keep original name for gene table
+
+construct_table.to_csv(construct_output, sep="\t", index=False)
+final_gene_table.to_csv(gene_output, sep="\t", index=False)
+
+print(f"Saved construct table to: {construct_output}")
+print(f"Saved gene table to: {gene_output}")

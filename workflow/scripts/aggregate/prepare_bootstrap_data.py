@@ -8,18 +8,19 @@ from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
 from lib.shared.file_utils import get_filename
 
 # Get parameters
-perturbation_col = snakemake.params.perturbation_name_col
+perturbation_col = snakemake.params.perturbation_name_col 
+perturbation_id_col = snakemake.params.perturbation_id_col
 control_key = snakemake.params.control_key
 exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp
 
-print("Loading feature table with perturbation-level medians...")
-# The first input should be the feature table from generate_feature_table
-feature_table = pd.read_csv(snakemake.input[0], sep='\t')
-print(f"Feature table shape: {feature_table.shape}")
+print("Loading construct table...")
+# Load the construct table (sgRNA-level data) - this is the first input
+construct_table = pd.read_csv(snakemake.input[0], sep='\t')
+print(f"Construct table shape: {construct_table.shape}")
 
 print("Loading individual control cells for bootstrap sampling...")
-# Remaining inputs are filtered parquet files containing individual cells
+# Load individual control cells from filtered parquet files
 combined_controls = []
 for input_file in snakemake.input[1:]:  # Skip the feature table
     print(f"Loading control cells from {input_file}")
@@ -41,9 +42,9 @@ print(f"Total control cells for bootstrap sampling: {len(all_control_cells)}")
 metadata_cols = load_metadata_cols(metadata_cols_fp, include_classification_cols=True)
 controls_metadata, controls_features = split_cell_data(all_control_cells, metadata_cols)
 
-# Get available features from feature table (excluding metadata columns)
-available_features = [col for col in feature_table.columns 
-                     if col not in [perturbation_col, 'cell_count', 'avg_cells_per_sgrna']]
+# Get available features from construct table (excluding metadata columns)
+available_features = [col for col in construct_table.columns 
+                     if col not in [perturbation_id_col, perturbation_col, 'cell_count']]
 
 print(f"Using {len(available_features)} features for bootstrap analysis")
 
@@ -54,53 +55,67 @@ controls_features_selected = controls_features[available_features]
 controls_data = pd.concat([controls_metadata[[perturbation_col]], controls_features_selected], axis=1)
 controls_arr = controls_data.values
 
-# Create construct features array from feature table
-# Filter out controls and exclusion strings from feature table
-construct_mask = ~feature_table[perturbation_col].str.contains(control_key, na=False)
+# Create construct features array from construct table
+# Filter out controls
+construct_mask = ~construct_table[perturbation_col].str.contains(control_key, na=False)
 if exclusion_string is not None:
-    construct_mask = construct_mask & ~feature_table[perturbation_col].str.contains(exclusion_string, na=False)
+    construct_mask = construct_mask & ~construct_table[perturbation_col].str.contains(exclusion_string, na=False)
 
-construct_features_df = feature_table[construct_mask]
+construct_features_df = construct_table[construct_mask]
 
-# Create construct features array (perturbation ID + median features)
-construct_data_cols = [perturbation_col] + available_features
+# Create construct features array (sgRNA_ID + features)
+construct_data_cols = [perturbation_id_col] + available_features
 construct_features_arr = construct_features_df[construct_data_cols].values
 
-# Create sample sizes dataframe
-sample_sizes_df = construct_features_df[[perturbation_col, 'cell_count']].copy()
+# Create sample sizes dataframe (sgRNA_ID + cell_count)
+sample_sizes_df = construct_features_df[[perturbation_id_col, 'cell_count']].copy()
 
 print(f"Controls array shape: {controls_arr.shape}")
 print(f"Construct features array shape: {construct_features_arr.shape}")
 print(f"Sample sizes dataframe shape: {sample_sizes_df.shape}")
 
-# Save bootstrap arrays
+# Save bootstrap arrays as TSV
 print("Saving bootstrap arrays...")
-np.save(snakemake.output.controls_arr, controls_arr)
-np.save(snakemake.output.construct_features_arr, construct_features_arr)
+# Controls as TSV
+controls_df = pd.DataFrame(controls_arr)
+controls_df.columns = [perturbation_col] + available_features
+controls_df.to_csv(snakemake.output.controls_arr, sep='\t', index=False)
+
+# Construct features as TSV
+construct_features_df_export = pd.DataFrame(construct_features_arr)
+construct_features_df_export.columns = [perturbation_id_col] + available_features
+construct_features_df_export.to_csv(snakemake.output.construct_features_arr, sep='\t', index=False)
+
+# Sample sizes as TSV
 sample_sizes_df.to_csv(snakemake.output.sample_sizes, sep='\t', index=False)
 
 # Create checkpoint directory and construct data files
 output_dir = Path(snakemake.output[0])  # Directory output
 output_dir.mkdir(parents=True, exist_ok=True)
 
-# Extract construct IDs from the array
+# Extract construct IDs (sgRNA IDs) from the array
 construct_ids = [str(row[0]) for row in construct_features_arr if not pd.isna(row[0])]
 print(f"Found {len(construct_ids)} unique constructs")
 
-# Create simple construct data files (just the construct ID for snakemake)
+# Create construct data files for snakemake job spawning
 print(f"Saving {len(construct_ids)} construct data files to {output_dir}")
 
 def write_construct_data(construct_id):
-    """Write construct data file for a single construct."""
-    print(f"Processing construct: {construct_id}")
+    """Write construct data file for a single sgRNA."""
+    # Get the gene for this construct
+    construct_row = construct_features_df[construct_features_df[perturbation_id_col] == construct_id]
+    if len(construct_row) > 0:
+        gene = construct_row[perturbation_col].iloc[0]
+    else:
+        gene = "unknown"
     
     # Create metadata file for the construct
     construct_data = pd.DataFrame({
         'construct_id': [construct_id],
-        'gene': [construct_id.split('.')[0] if '.' in construct_id else construct_id]
+        'gene': [gene]
     })
     
-    # Save construct data file with simple naming
+    # Save construct data file
     output_file = output_dir / f"{construct_id}_construct_data.tsv"
     construct_data.to_csv(output_file, sep='\t', index=False)
 

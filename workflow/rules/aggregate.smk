@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
-from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_construct_nulls_for_gene
+from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_construct_nulls_for_gene, get_all_construct_bootstrap_results, get_all_gene_bootstrap_results
 
 
 # Create datasets with cell classes and channel combos
@@ -196,12 +196,11 @@ rule initiate_montage:
 # Then we initiate bootstrap analysis based on the checkpoint
 # Then create a flag once bootstrap analysis is done
 
-
 # Prepare bootstrap data and create a checkpoint
 checkpoint prepare_bootstrap_data:
     input:
-        # Feature table should be the first input
-        feature_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][0]).format(
+        # Construct table should be the first input (sgRNA-level data)
+        construct_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][1]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
         # Filtered cell data for control sampling
@@ -224,17 +223,17 @@ checkpoint prepare_bootstrap_data:
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
         exclusion_string=config.get("aggregate", {}).get("exclusion_string", None),
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 
-
-# Bootstrap individual constructs
+# Bootstrap individual constructs (sgRNAs)
 rule bootstrap_construct:
     input:
         construct_data=BOOTSTRAP_OUTPUTS["construct_data"],
-        # Reference the checkpoint outputs, not the removed prep_bootstrap
+        # Reference the checkpoint outputs
         controls_arr=lambda wildcards: str(BOOTSTRAP_OUTPUTS["controls_arr"]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
@@ -248,10 +247,9 @@ rule bootstrap_construct:
         BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
         BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
     params:
-        num_sims=config.get("aggregate", {}).get("num_sims", 100000),
+        num_sims=config.get("bootstrap", {}).get("num_sims", 100000),
     script:
         "../scripts/aggregate/bootstrap_construct.py"
-
 
 # Aggregate bootstrap results to gene level
 rule bootstrap_gene:
@@ -263,8 +261,8 @@ rule bootstrap_gene:
             wildcards.channel_combo,
             wildcards.gene,
         ),
-        # Reference the checkpoint outputs, not the removed prep_bootstrap
-        construct_features_arr=lambda wildcards: str(BOOTSTRAP_OUTPUTS["construct_features_arr"]).format(
+        # Need gene table for observed gene medians
+        gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][0]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
     output:
@@ -275,19 +273,45 @@ rule bootstrap_gene:
     script:
         "../scripts/aggregate/bootstrap_gene.py"
 
-
-# Initiate bootstrap creation based on checkpoint
-rule initiate_bootstrap:
+# Combine construct-level results
+rule combine_construct_bootstrap:
     input:
-        lambda wildcards: get_bootstrap_inputs(
+        lambda wildcards: get_all_construct_bootstrap_results(
             checkpoints.prepare_bootstrap_data,
-            BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
             BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
-            BOOTSTRAP_OUTPUTS["bootstrap_gene_nulls"],
+            wildcards.cell_class,
+            wildcards.channel_combo,
+        ),
+    output:
+        BOOTSTRAP_OUTPUTS["bootstrap_construct_combined"],
+    params:
+        output_type="tsv"
+    threads: 4
+    script:
+        "../scripts/shared/combine_dfs.py"
+
+# Combine gene-level results
+rule combine_gene_bootstrap:
+    input:
+        lambda wildcards: get_all_gene_bootstrap_results(
+            checkpoints.prepare_bootstrap_data,
             BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
             wildcards.cell_class,
             wildcards.channel_combo,
         ),
+    output:
+        BOOTSTRAP_OUTPUTS["bootstrap_gene_combined"],
+    params:
+        output_type="tsv"
+    threads: 4
+    script:
+        "../scripts/shared/combine_dfs.py"
+
+# Update initiate_bootstrap to depend on both combined results
+rule initiate_bootstrap:
+    input:
+        BOOTSTRAP_OUTPUTS["bootstrap_construct_combined"],
+        BOOTSTRAP_OUTPUTS["bootstrap_gene_combined"],
     output:
         touch(BOOTSTRAP_OUTPUTS["bootstrap_flag"]),
 

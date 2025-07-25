@@ -9,10 +9,10 @@ phenotype_info = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 sbs_info = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 
 # Load stitch configurations
-with open(snakemake.input[2], 'r') as f:  # Third input (phenotype_stitch_config)
+with open(snakemake.input[2], "r") as f:  # Third input (phenotype_stitch_config)
     phenotype_config = yaml.safe_load(f)
 
-with open(snakemake.input[3], 'r') as f:  # Fourth input (sbs_stitch_config)
+with open(snakemake.input[3], "r") as f:  # Fourth input (sbs_stitch_config)
     sbs_config = yaml.safe_load(f)
 
 # Get parameters
@@ -23,14 +23,10 @@ print(f"Starting well-level merge for Plate {plate}, Well {well}")
 
 # Filter to specific plate and well
 phenotype_well = phenotype_info[
-    (phenotype_info['plate'] == int(plate)) & 
-    (phenotype_info['well'] == well)
+    (phenotype_info["plate"] == int(plate)) & (phenotype_info["well"] == well)
 ]
 
-sbs_well = sbs_info[
-    (sbs_info['plate'] == int(plate)) & 
-    (sbs_info['well'] == well)
-]
+sbs_well = sbs_info[(sbs_info["plate"] == int(plate)) & (sbs_info["well"] == well)]
 
 print(f"Found {len(phenotype_well)} phenotype cells, {len(sbs_well)} SBS cells")
 
@@ -43,7 +39,7 @@ merged_cells, alignment_df = well_merge_pipeline(
     well=well,
     det_range=snakemake.params.det_range,
     score_threshold=snakemake.params.score,
-    distance_threshold=snakemake.params.threshold
+    distance_threshold=snakemake.params.threshold,
 )
 
 # Save results

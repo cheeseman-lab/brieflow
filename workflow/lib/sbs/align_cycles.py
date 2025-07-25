@@ -31,7 +31,7 @@ def align_cycles(
     manual_channel_mapping=None,
     resize_cycles=True,
     target_spatial_shape=None,
-    resize_method='downsample_majority',
+    resize_method="downsample_majority",
 ):
     """Rigid alignment of sequencing cycles and channels.
 
@@ -71,7 +71,7 @@ def align_cycles(
         target_spatial_shape (tuple or None, optional): Target spatial shape (I, J) to resize all cycles to.
             If None, will be determined automatically based on resize_method. Defaults to None.
         resize_method (str, optional): Method to determine target spatial shape when target_spatial_shape is None.
-            Options: 'downsample_majority' (resize to most common smaller size), 
+            Options: 'downsample_majority' (resize to most common smaller size),
                     'upsample_majority' (resize to most common larger size),
                     'smallest' (resize to smallest dimensions),
                     'largest' (resize to largest dimensions).
@@ -297,57 +297,69 @@ def align_cycles(
     return aligned
 
 
-def handle_spatial_mismatches(image_data, target_spatial_shape=None, resize_method='downsample_majority'):
+def handle_spatial_mismatches(
+    image_data, target_spatial_shape=None, resize_method="downsample_majority"
+):
     """Handle cycles with different spatial dimensions by resizing them.
-    
+
     Args:
         image_data: List of cycle arrays
         target_spatial_shape: Target (I, J) shape, or None to determine automatically
         resize_method: Method to determine target shape if not specified
-        
+
     Returns:
         List of resized cycle arrays
     """
     # Check if all cycles have the same spatial dimensions
     spatial_shapes = [data.shape[-2:] for data in image_data]
     unique_shapes = list(set(spatial_shapes))
-    
+
     if len(unique_shapes) == 1:
         print("All cycles have matching spatial dimensions - no resizing needed")
         return image_data
-    
+
     print(f"Found {len(unique_shapes)} different spatial shapes: {unique_shapes}")
-    print(f"Shape counts: {[(shape, spatial_shapes.count(shape)) for shape in unique_shapes]}")
-    
+    print(
+        f"Shape counts: {[(shape, spatial_shapes.count(shape)) for shape in unique_shapes]}"
+    )
+
     # Determine target shape
     if target_spatial_shape is None:
-        if resize_method == 'downsample_majority':
+        if resize_method == "downsample_majority":
             # Find the most common shape, prefer smaller if tied
-            shape_counts = [(shape, spatial_shapes.count(shape)) for shape in unique_shapes]
+            shape_counts = [
+                (shape, spatial_shapes.count(shape)) for shape in unique_shapes
+            ]
             max_count = max(count for _, count in shape_counts)
-            most_common_shapes = [shape for shape, count in shape_counts if count == max_count]
+            most_common_shapes = [
+                shape for shape, count in shape_counts if count == max_count
+            ]
             # Among most common, choose the one with smallest total pixels
             target_spatial_shape = min(most_common_shapes, key=lambda s: s[0] * s[1])
-            
-        elif resize_method == 'upsample_majority':
+
+        elif resize_method == "upsample_majority":
             # Find the most common shape, prefer larger if tied
-            shape_counts = [(shape, spatial_shapes.count(shape)) for shape in unique_shapes]
+            shape_counts = [
+                (shape, spatial_shapes.count(shape)) for shape in unique_shapes
+            ]
             max_count = max(count for _, count in shape_counts)
-            most_common_shapes = [shape for shape, count in shape_counts if count == max_count]
+            most_common_shapes = [
+                shape for shape, count in shape_counts if count == max_count
+            ]
             # Among most common, choose the one with largest total pixels
             target_spatial_shape = max(most_common_shapes, key=lambda s: s[0] * s[1])
-            
-        elif resize_method == 'smallest':
+
+        elif resize_method == "smallest":
             target_spatial_shape = min(unique_shapes, key=lambda s: s[0] * s[1])
-            
-        elif resize_method == 'largest':
+
+        elif resize_method == "largest":
             target_spatial_shape = max(unique_shapes, key=lambda s: s[0] * s[1])
-            
+
         else:
             raise ValueError(f"Unknown resize_method: {resize_method}")
-    
+
     print(f"Target spatial shape: {target_spatial_shape}")
-    
+
     # Resize cycles that don't match target shape
     resized_data = []
     for i, data in enumerate(image_data):
@@ -357,22 +369,22 @@ def handle_spatial_mismatches(image_data, target_spatial_shape=None, resize_meth
             resized_data.append(data)
         else:
             print(f"Cycle {i}: resizing from {current_shape} to {target_spatial_shape}")
-            
+
             # Resize each channel separately to preserve dtype and avoid artifacts
             resized_channels = []
             for ch in range(data.shape[0]):
                 resized_ch = resize(
-                    data[ch], 
-                    target_spatial_shape, 
+                    data[ch],
+                    target_spatial_shape,
                     preserve_range=True,
                     anti_aliasing=True,
-                    order=1  # bilinear interpolation
+                    order=1,  # bilinear interpolation
                 ).astype(data.dtype)
                 resized_channels.append(resized_ch)
-            
+
             resized_cycle = np.stack(resized_channels, axis=0)
             resized_data.append(resized_cycle)
-    
+
     return resized_data
 
 

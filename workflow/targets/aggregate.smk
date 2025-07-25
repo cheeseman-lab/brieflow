@@ -207,16 +207,29 @@ BOOTSTRAP_OUTPUTS = {
     / "{gene}_pvals.tsv",
     
     "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_complete.flag",
+
+    # Combined results files
+    "combined_construct_results": AGGREGATE_FP / "bootstrap" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "all_construct_bootstrap_results", "tsv"
+    ),
+    
+    "combined_gene_results": AGGREGATE_FP / "bootstrap" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "all_gene_bootstrap_results", "tsv"
+    ),
 }
 
 # Create bootstrap targets following montage pattern
 cell_classes = aggregate_wildcard_combos["cell_class"].unique()
 channel_combos = aggregate_wildcard_combos["channel_combo"].unique()
+
 BOOTSTRAP_TARGETS_ALL = [
-    str(BOOTSTRAP_OUTPUTS["bootstrap_flag"]).format(
-        cell_class=cell_class, 
-        channel_combo=channel_combo
-    )
+    str(output_path).format(cell_class=cell_class, channel_combo=channel_combo)
     for cell_class in cell_classes 
     for channel_combo in channel_combos
+    for output_path in [
+        BOOTSTRAP_OUTPUTS["combined_construct_results"],
+        BOOTSTRAP_OUTPUTS["combined_gene_results"]
+    ]
 ]

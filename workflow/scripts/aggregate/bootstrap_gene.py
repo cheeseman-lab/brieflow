@@ -4,7 +4,7 @@ import pandas as pd
 from lib.aggregate.bootstrap import (
     load_construct_null_arrays,
     calculate_pvals,
-    format_gene_results
+    format_gene_results,
 )
 
 # Get gene ID from wildcards
@@ -18,15 +18,16 @@ construct_null_arrays = load_construct_null_arrays(construct_null_paths)
 print(f"Loaded {len(construct_null_arrays)} construct null distributions")
 
 # Load gene table to get observed gene median
-gene_table = pd.read_csv(snakemake.input.gene_table, sep='\t')
-gene_row = gene_table[gene_table['gene_symbol_0'] == gene_id]
+gene_table = pd.read_csv(snakemake.input.gene_table, sep="\t")
+gene_row = gene_table[gene_table["gene_symbol_0"] == gene_id]
 
 if len(gene_row) == 0:
     raise ValueError(f"Gene {gene_id} not found in gene table")
 
 # Get feature names (excluding metadata columns)
-feature_names = [col for col in gene_table.columns 
-                if col not in ['gene_symbol_0', 'cell_count']]
+feature_names = [
+    col for col in gene_table.columns if col not in ["gene_symbol_0", "cell_count"]
+]
 
 # Get observed gene medians (from gene table)
 observed_gene_medians = gene_row[feature_names].values[0].astype(float)
@@ -37,13 +38,15 @@ print(f"Number of features: {len(feature_names)}")
 
 # Get parameters
 num_sims = snakemake.params.num_sims
-total_cells = int(gene_row['cell_count'].iloc[0])
+total_cells = int(gene_row["cell_count"].iloc[0])
 
 # Aggregate construct null distributions to gene level
 print("Aggregating construct bootstrap results to gene level...")
 
 # Stack all construct null distributions
-stacked_nulls = np.stack(construct_null_arrays)  # Shape: (num_constructs, num_sims, num_features)
+stacked_nulls = np.stack(
+    construct_null_arrays
+)  # Shape: (num_constructs, num_sims, num_features)
 
 # Take median across constructs for each simulation
 gene_null_medians = np.median(stacked_nulls, axis=0)  # Shape: (num_sims, num_features)
@@ -63,14 +66,14 @@ pval_df = format_gene_results(
     p_vals,
     feature_names,
     len(construct_null_arrays),  # num_constructs
-    num_sims
+    num_sims,
 )
 
 # Add total cell count
-pval_df['total_cells'] = total_cells
+pval_df["total_cells"] = total_cells
 
 # Reorder columns
-column_order = ['gene', 'num_constructs', 'total_cells', 'num_sims'] + feature_names
+column_order = ["gene", "num_constructs", "total_cells", "num_sims"] + feature_names
 pval_df = pval_df[column_order]
 
 # Save outputs
@@ -80,6 +83,6 @@ print("Saving gene-level bootstrap results...")
 np.save(snakemake.output[0], gene_null_medians)
 
 # Save p-values as TSV
-pval_df.to_csv(snakemake.output[1], sep='\t', index=False)
+pval_df.to_csv(snakemake.output[1], sep="\t", index=False)
 
 print(f"Gene-level bootstrap analysis for {gene_id} complete!")

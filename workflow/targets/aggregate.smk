@@ -42,6 +42,13 @@ AGGREGATE_OUTPUTS = {
             "feature_table",
             "tsv",
         ),
+        AGGREGATE_FP
+        / "tsvs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "construct_table",
+            "tsv",
+        ),
     ],
     "align": [
         AGGREGATE_FP
@@ -148,4 +155,81 @@ cell_classes = aggregate_wildcard_combos["cell_class"].unique()
 MONTAGE_TARGETS_ALL = [
     str(MONTAGE_OUTPUTS["montage_flag"]).format(cell_class=cell_class)
     for cell_class in cell_classes
+]
+
+
+# Define bootstrap outputs
+# These are special because we dynamically derive outputs
+# Define bootstrap outputs
+BOOTSTRAP_OUTPUTS = {
+    "bootstrap_data_dir": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_data",
+    
+    # Construct data files for job spawning
+    "construct_data": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}__{channel_combo}__bootstrap_data"
+    / "{gene}_{construct}_construct_data.tsv",  
+    
+    # Input arrays (TSV format)
+    "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "controls_arr", "tsv"
+    ),
+    "construct_features_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "construct_features_arr", "tsv"
+    ),
+    "sample_sizes": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "sample_sizes", "tsv"
+    ),   
+
+    # Construct-level outputs  
+    "bootstrap_construct_nulls": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}__{channel_combo}__constructs"
+    / "{gene}_{construct}_nulls.npy",  
+    
+    "bootstrap_construct_pvals": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}__{channel_combo}__constructs"
+    / "{gene}_{construct}_pvals.tsv",  
+    
+    # Gene-level outputs stay the same
+    "bootstrap_gene_nulls": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}__{channel_combo}__genes"
+    / "{gene}_nulls.npy",
+    
+    "bootstrap_gene_pvals": AGGREGATE_FP
+    / "bootstrap"
+    / "{cell_class}__{channel_combo}__genes"
+    / "{gene}_pvals.tsv",
+    
+    "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_complete.flag",
+
+    # Combined results files
+    "combined_construct_results": AGGREGATE_FP / "bootstrap" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "all_construct_bootstrap_results", "tsv"
+    ),
+    
+    "combined_gene_results": AGGREGATE_FP / "bootstrap" / get_filename(
+        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+        "all_gene_bootstrap_results", "tsv"
+    ),
+}
+
+# Create bootstrap targets following montage pattern
+cell_classes = aggregate_wildcard_combos["cell_class"].unique()
+channel_combos = aggregate_wildcard_combos["channel_combo"].unique()
+
+BOOTSTRAP_TARGETS_ALL = [
+    str(output_path).format(cell_class=cell_class, channel_combo=channel_combo)
+    for cell_class in cell_classes 
+    for channel_combo in channel_combos
+    for output_path in [
+        BOOTSTRAP_OUTPUTS["combined_construct_results"],
+        BOOTSTRAP_OUTPUTS["combined_gene_results"]
+    ]
 ]

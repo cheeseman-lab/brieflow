@@ -168,7 +168,7 @@ BOOTSTRAP_OUTPUTS = {
     "construct_data": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__bootstrap_data"
-    / "{construct}_construct_data.tsv",
+    / "{gene}_{construct}_construct_data.tsv",  
     
     # Input arrays (TSV format)
     "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
@@ -182,20 +182,20 @@ BOOTSTRAP_OUTPUTS = {
     "sample_sizes": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
         "sample_sizes", "tsv"
-    ),
-    
-    # Construct-level outputs
+    ),   
+
+    # Construct-level outputs  
     "bootstrap_construct_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__constructs"
-    / "{construct}_nulls.npy",
+    / "{gene}_{construct}_nulls.npy",  
     
     "bootstrap_construct_pvals": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__constructs"
-    / "{construct}_pvals.tsv",
+    / "{gene}_{construct}_pvals.tsv",  
     
-    # Gene-level outputs
+    # Gene-level outputs stay the same
     "bootstrap_gene_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__genes"

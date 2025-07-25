@@ -121,11 +121,16 @@ def write_construct_data(construct_id):
     else:
         gene = "unknown"
 
-    # Create metadata file for the construct
-    construct_data = pd.DataFrame({"construct_id": [construct_id], "gene": [gene]})
+    # Create gene_sgRNA combined ID
+    combined_id = f"{gene}_{construct_id}"
 
-    # Save construct data file
-    output_file = output_dir / f"{construct_id}_construct_data.tsv"
+    # Create metadata file for the construct
+    construct_data = pd.DataFrame(
+        {"construct_id": [construct_id], "gene": [gene], "combined_id": [combined_id]}
+    )
+
+    # Save using combined_id for filename
+    output_file = output_dir / f"{combined_id}_construct_data.tsv"
     construct_data.to_csv(output_file, sep="\t", index=False)
 
 

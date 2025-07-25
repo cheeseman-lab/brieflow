@@ -196,6 +196,7 @@ rule initiate_montage:
 # Then we initiate bootstrap analysis based on the checkpoint
 # Then create a flag once bootstrap analysis is done
 
+
 # Prepare bootstrap data and create a checkpoint
 checkpoint prepare_bootstrap_data:
     input:
@@ -229,11 +230,11 @@ checkpoint prepare_bootstrap_data:
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 
+
 # Bootstrap individual constructs (sgRNAs)
 rule bootstrap_construct:
     input:
         construct_data=BOOTSTRAP_OUTPUTS["construct_data"],
-        # Reference the checkpoint outputs
         controls_arr=lambda wildcards: str(BOOTSTRAP_OUTPUTS["controls_arr"]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
@@ -250,6 +251,7 @@ rule bootstrap_construct:
         num_sims=config.get("aggregate", {}).get("num_sims", 100000),
     script:
         "../scripts/aggregate/bootstrap_construct.py"
+
 
 # Aggregate bootstrap results to gene level
 rule bootstrap_gene:
@@ -274,6 +276,8 @@ rule bootstrap_gene:
         "../scripts/aggregate/bootstrap_gene.py"
 
 
+# Initiate bootstrap based on checkpoint
+# Create a flag to indicate bootstrap is done
 rule initiate_bootstrap:
     input:
         # This should trigger all the individual bootstrap jobs

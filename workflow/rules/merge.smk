@@ -1,6 +1,70 @@
 from lib.shared.target_utils import output_to_input
 
 
+rule estimate_stitch:
+    input:
+        # Metadata files needed for stitching
+        phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
+        sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
+    output:
+        phenotype_stitch_config=MERGE_OUTPUTS_MAPPED["estimate_stitch_phenotype"],
+        sbs_stitch_config=MERGE_OUTPUTS_MAPPED["estimate_stitch_sbs"],
+    params:
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: wildcards.well,
+        # Stitching parameters
+        flipud=config.get("stitch", {}).get("flipud", False),
+        fliplr=config.get("stitch", {}).get("fliplr", False), 
+        rot90=config.get("stitch", {}).get("rot90", 0),
+        channel=config.get("stitch", {}).get("channel", 0),
+        tile_size=config.get("stitch", {}).get("tile_size", [2048, 2048]),
+    script:
+        "../scripts/merge/estimate_stitch.py"
+
+
+rule stitch_wells:
+    input:
+        # Metadata and stitch configurations
+        phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
+        sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
+        phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"],
+        sbs_stitch_config=MERGE_OUTPUTS["estimate_stitch_sbs"],
+    output:
+        phenotype_stitched=MERGE_OUTPUTS_MAPPED["stitch_phenotype"],
+        sbs_stitched=MERGE_OUTPUTS_MAPPED["stitch_sbs"],
+    params:
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: wildcards.well,
+        # Stitching parameters
+        flipud=config.get("stitch", {}).get("flipud", False),
+        fliplr=config.get("stitch", {}).get("fliplr", False),
+        rot90=config.get("stitch", {}).get("rot90", 0),
+        overlap_percent=config.get("stitch", {}).get("overlap_percent", 0.1),
+    script:
+        "../scripts/merge/stitch_wells.py"
+
+
+# Well-level merge using stitched images
+rule well_merge:
+    input:
+        # phenotype and sbs info files with cell locations
+        ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
+        ancient(SBS_OUTPUTS["combine_sbs_info"]),
+        # stitch configurations with tile shifts
+        phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"],
+        sbs_stitch_config=MERGE_OUTPUTS["estimate_stitch_sbs"],
+    output:
+        MERGE_OUTPUTS_MAPPED["well_merge"],
+    params:
+        det_range=config["merge"]["det_range"],
+        score=config["merge"]["score"],
+        threshold=config["merge"]["threshold"],
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: wildcards.well,
+    script:
+        "../scripts/merge/well_merge.py"
+
+
 # Complete fast alignment process
 rule fast_alignment:
     input:

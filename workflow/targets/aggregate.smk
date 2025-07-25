@@ -154,15 +154,13 @@ MONTAGE_TARGETS_ALL = [
 # Define bootstrap outputs
 # These are special because we dynamically derive outputs
 BOOTSTRAP_OUTPUTS = {
-    "bootstrap_data_dir": AGGREGATE_FP / "bootstrap" / "{cell_class}_{channel_combo}__bootstrap_data",
+    "bootstrap_data_dir": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_data",
+    # Update to use simple naming pattern
     "construct_data": AGGREGATE_FP
     / "bootstrap"
-    / "{cell_class}_{channel_combo}__bootstrap_data"
-    / get_filename(
-        {"construct": "{construct}"},
-        "construct_data",
-        "csv",
-    ),
+    / "{cell_class}__{channel_combo}__bootstrap_data"
+    / "{construct}_construct_data.csv",
+    
     "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
         "controls_arr", "npy"
@@ -181,37 +179,25 @@ BOOTSTRAP_OUTPUTS = {
     ),
     "bootstrap_construct_nulls": AGGREGATE_FP
     / "bootstrap"
-    / "{cell_class}_{channel_combo}__constructs"
-    / get_filename(
-        {"construct": "{construct}"},
-        "nulls",
-        "npy",
-    ),
+    / "{cell_class}__{channel_combo}__constructs"
+    / "{construct}_nulls.npy",
+    
     "bootstrap_construct_pvals": AGGREGATE_FP
     / "bootstrap"
-    / "{cell_class}_{channel_combo}__constructs"
-    / get_filename(
-        {"construct": "{construct}"},
-        "pvals",
-        "csv",
-    ),
+    / "{cell_class}__{channel_combo}__constructs"
+    / "{construct}_pvals.csv",
+    
     "bootstrap_gene_nulls": AGGREGATE_FP
     / "bootstrap"
-    / "{cell_class}_{channel_combo}__genes"
-    / get_filename(
-        {"gene": "{gene}"},
-        "nulls",
-        "npy",
-    ),
+    / "{cell_class}__{channel_combo}__genes"
+    / "{gene}_nulls.npy",
+    
     "bootstrap_gene_pvals": AGGREGATE_FP
     / "bootstrap"
-    / "{cell_class}_{channel_combo}__genes"
-    / get_filename(
-        {"gene": "{gene}"},
-        "pvals",
-        "csv",
-    ),
-    "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}_{channel_combo}__bootstrap_complete.flag",
+    / "{cell_class}__{channel_combo}__genes"
+    / "{gene}_pvals.csv",
+    
+    "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_complete.flag",
 }
 
 # Create bootstrap targets following montage pattern

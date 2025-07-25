@@ -126,7 +126,7 @@ aggregate:
   perturbation_name_col: gene_symbol_0
   variance_or_ncomp: 0.99
   num_align_batches: 1
-  num_sims: 100000
+  num_sims: 100
   exclusion_string: null  
   aggregate_genes: true
 cluster:

@@ -221,7 +221,7 @@ checkpoint prepare_bootstrap_data:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         control_key=config["aggregate"]["control_key"],
-        exclusion_string=config.get("bootstrap", {}).get("exclusion_string", None),
+        exclusion_string=config.get("aggregate", {}).get("exclusion_string", None),
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 
@@ -247,7 +247,7 @@ rule bootstrap_construct:
         BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
         BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
     params:
-        num_sims=config.get("bootstrap", {}).get("num_sims", 100000),
+        num_sims=config.get("aggregate", {}).get("num_sims", 100000),
     script:
         "../scripts/aggregate/bootstrap_construct.py"
 

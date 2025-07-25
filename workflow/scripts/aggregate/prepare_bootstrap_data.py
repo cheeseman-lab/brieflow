@@ -10,12 +10,29 @@ from lib.shared.file_utils import get_filename
 
 # Load and combine all filtered cell data
 print("Loading and combining filtered cell data...")
+print(f"Input files: {snakemake.input}")
+
 combined_data = []
 
-for input_file in snakemake.input:
+# snakemake.input is a list of file paths
+input_files = list(snakemake.input)
+print(f"Found {len(input_files)} input files")
+
+if len(input_files) == 0:
+    raise ValueError("No input files provided to prepare_bootstrap_data")
+
+for input_file in input_files:
     print(f"Loading {input_file}")
-    df = pd.read_parquet(input_file)
-    combined_data.append(df)
+    try:
+        df = pd.read_parquet(input_file)
+        print(f"  Loaded {len(df)} rows")
+        combined_data.append(df)
+    except Exception as e:
+        print(f"  Failed to load {input_file}: {e}")
+        continue
+
+if len(combined_data) == 0:
+    raise ValueError("No data could be loaded from input files")
 
 # Combine all dataframes
 cell_data = pd.concat(combined_data, ignore_index=True)
@@ -28,12 +45,21 @@ exclusion_string = snakemake.params.exclusion_string
 
 # Load metadata columns and split cell data
 metadata_cols = load_metadata_cols(
-    "/path/to/metadata_cols_fp",  # You'll need to pass this as a parameter
+    snakemake.params.metadata_cols_fp,
     include_classification_cols=True
 )
 
 # Split into metadata and features
 metadata, features = split_cell_data(cell_data, metadata_cols)
+
+# IMPORTANT: Select only bootstrap-relevant features BEFORE creating arrays
+from lib.aggregate.bootstrap import select_bootstrap_features
+selected_features = select_bootstrap_features(features.columns.tolist())
+print(f"Selected {len(selected_features)} features for bootstrap analysis")
+
+# Filter features to only selected ones
+features = features[selected_features]
+print(f"Filtered features shape: {features.shape}")
 
 # For bootstrap, we need to count cells per perturbation to get sample sizes
 sample_sizes_df = metadata.groupby(perturbation_col).size().reset_index(name='cell_count')
@@ -58,15 +84,11 @@ construct_features_arr = np.array(perturbation_features, dtype=object)
 # Get controls data (individual cells from control perturbations)
 controls_mask = metadata[perturbation_col].str.contains(control_key, na=False)
 controls_metadata = metadata[controls_mask]
-controls_features = features[controls_mask]
+controls_features = features[controls_mask]  # Already filtered to selected features
 
 # Combine control metadata and features for bootstrap sampling
 controls_data = pd.concat([controls_metadata[[perturbation_col]], controls_features], axis=1)
 controls_arr = controls_data.values
-
-# Get selected feature names (same logic as bootstrap feature selection)
-from lib.aggregate.bootstrap import select_bootstrap_features
-selected_features = select_bootstrap_features(features.columns.tolist())
 
 print(f"Controls array shape: {controls_arr.shape}")
 print(f"Construct features array shape: {construct_features_arr.shape}")
@@ -107,12 +129,8 @@ def write_construct_data(construct_id):
         'gene': [construct_id.split('.')[0] if '.' in construct_id else construct_id]
     })
     
-    # Save construct data file
-    output_file = output_dir / get_filename(
-        {"construct": construct_id}, 
-        "construct_data", 
-        "csv"
-    )
+    # Save construct data file with simple naming
+    output_file = output_dir / f"{construct_id}_construct_data.csv"
     construct_data.to_csv(output_file, index=False)
 
 # Process all constructs in parallel

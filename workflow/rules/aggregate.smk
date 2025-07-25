@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
-from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_construct_nulls_for_gene, get_all_construct_bootstrap_results, get_all_gene_bootstrap_results
+from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_construct_nulls_for_gene
 
 
 # Create datasets with cell classes and channel combos

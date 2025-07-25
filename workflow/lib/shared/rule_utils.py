@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import re
+import glob
 
 from lib.shared.file_utils import parse_filename
 
@@ -288,9 +289,6 @@ def get_bootstrap_inputs(
     Returns:
         list: List of all bootstrap output file paths.
     """
-    import glob
-    from pathlib import Path
-
     # Get all construct data files from checkpoint
     bootstrap_data_dir = checkpoint.get(
         cell_class=cell_class, channel_combo=channel_combo
@@ -360,91 +358,21 @@ def get_bootstrap_inputs(
     return outputs
 
 
-def get_all_construct_bootstrap_results(
-    checkpoint_output, bootstrap_pattern, cell_class, channel_combo
-):
-    """Get all construct bootstrap result files for combining."""
-    import glob
-    from pathlib import Path
-
-    # Get the checkpoint directory - using the same pattern as get_montage_inputs
-    checkpoint_dir = checkpoint_output.get(
-        cell_class=cell_class, channel_combo=channel_combo
-    ).output[0]
-
-    # Find all construct files
-    construct_files = glob.glob(f"{checkpoint_dir}/*_construct_data.tsv")
-
-    # Extract construct IDs
-    construct_ids = []
-    for f in construct_files:
-        construct_id = Path(f).stem.replace("_construct_data", "")
-        construct_ids.append(construct_id)
-
-    # Generate expected bootstrap result paths
-    expected_files = []
-    for construct_id in construct_ids:
-        result_file = str(bootstrap_pattern).format(
-            cell_class=cell_class, channel_combo=channel_combo, construct=construct_id
-        )
-        expected_files.append(result_file)
-
-    return expected_files
-
-
-def get_all_gene_bootstrap_results(
-    checkpoint_output, bootstrap_pattern, cell_class, channel_combo
-):
-    """Get all gene bootstrap result files for combining."""
-    import glob
-    from pathlib import Path
-
-    # Get the checkpoint directory - using the same pattern as get_montage_inputs
-    checkpoint_dir = checkpoint_output.get(
-        cell_class=cell_class, channel_combo=channel_combo
-    ).output[0]
-
-    # Find all construct files
-    construct_files = glob.glob(f"{checkpoint_dir}/*_construct_data.tsv")
-
-    # Extract gene IDs from construct files
-    gene_ids = set()
-    for f in construct_files:
-        # Read the construct file to get the gene
-        try:
-            import pandas as pd
-
-            construct_data = pd.read_csv(f, sep="\t")
-            if "gene" in construct_data.columns:
-                gene = construct_data["gene"].iloc[0]
-                gene_ids.add(gene)
-        except:
-            # Fallback: assume construct_id format is gene.sgrna or just gene
-            construct_id = Path(f).stem.replace("_construct_data", "")
-            if "." in construct_id:
-                gene = construct_id.split(".")[0]
-            else:
-                gene = construct_id
-            gene_ids.add(gene)
-
-    # Generate expected bootstrap result paths
-    expected_files = []
-    for gene_id in gene_ids:
-        result_file = str(bootstrap_pattern).format(
-            cell_class=cell_class, channel_combo=channel_combo, gene=gene_id
-        )
-        expected_files.append(result_file)
-
-    return expected_files
-
-
 def get_construct_nulls_for_gene(
     checkpoint_output, bootstrap_nulls_pattern, cell_class, channel_combo, gene
 ):
-    """Get all construct null files for a specific gene."""
-    import glob
-    from pathlib import Path
+    """Get all construct null files for a specific gene.
 
+    Args:
+        checkpoint_output: Checkpoint object containing bootstrap data directory information.
+        bootstrap_nulls_pattern (str): Template string for construct null files.
+        cell_class (str): Cell class for bootstrap analysis.
+        channel_combo (str): Channel combination for bootstrap analysis.
+        gene (str): Gene name to find construct files for.
+
+    Returns:
+        list: List of expected construct null file paths for the specified gene.
+    """
     # Get the checkpoint directory
     checkpoint_dir = checkpoint_output.get(
         cell_class=cell_class, channel_combo=channel_combo

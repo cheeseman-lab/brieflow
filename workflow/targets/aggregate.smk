@@ -206,15 +206,6 @@ BOOTSTRAP_OUTPUTS = {
     / "{cell_class}__{channel_combo}__genes"
     / "{gene}_pvals.tsv",
     
-    # Combined outputs
-    "bootstrap_construct_combined": AGGREGATE_FP
-    / "bootstrap"
-    / "{cell_class}__{channel_combo}__construct_results_combined.tsv",
-    
-    "bootstrap_gene_combined": AGGREGATE_FP
-    / "bootstrap"
-    / "{cell_class}__{channel_combo}__gene_results_combined.tsv",
-    
     "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_complete.flag",
 }
 

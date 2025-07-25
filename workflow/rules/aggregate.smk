@@ -247,7 +247,7 @@ rule bootstrap_construct:
         BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
         BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
     params:
-        num_sims=config.get("bootstrap", {}).get("num_sims", 100000),
+        num_sims=config.get("aggregate", {}).get("num_sims", 100000),
     script:
         "../scripts/aggregate/bootstrap_construct.py"
 
@@ -269,49 +269,23 @@ rule bootstrap_gene:
         BOOTSTRAP_OUTPUTS["bootstrap_gene_nulls"],
         BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
     params:
-        num_sims=config.get("bootstrap", {}).get("num_sims", 100000),
+        num_sims=config.get("aggregate", {}).get("num_sims", 100000),
     script:
         "../scripts/aggregate/bootstrap_gene.py"
 
-# Combine construct-level results
-rule combine_construct_bootstrap:
-    input:
-        lambda wildcards: get_all_construct_bootstrap_results(
-            checkpoints.prepare_bootstrap_data,
-            BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
-            wildcards.cell_class,
-            wildcards.channel_combo,
-        ),
-    output:
-        BOOTSTRAP_OUTPUTS["bootstrap_construct_combined"],
-    params:
-        output_type="tsv"
-    threads: 4
-    script:
-        "../scripts/shared/combine_dfs.py"
 
-# Combine gene-level results
-rule combine_gene_bootstrap:
+rule initiate_bootstrap:
     input:
-        lambda wildcards: get_all_gene_bootstrap_results(
+        # This should trigger all the individual bootstrap jobs
+        lambda wildcards: get_bootstrap_inputs(
             checkpoints.prepare_bootstrap_data,
+            BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
+            BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
+            BOOTSTRAP_OUTPUTS["bootstrap_gene_nulls"],
             BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
             wildcards.cell_class,
             wildcards.channel_combo,
         ),
-    output:
-        BOOTSTRAP_OUTPUTS["bootstrap_gene_combined"],
-    params:
-        output_type="tsv"
-    threads: 4
-    script:
-        "../scripts/shared/combine_dfs.py"
-
-# Update initiate_bootstrap to depend on both combined results
-rule initiate_bootstrap:
-    input:
-        BOOTSTRAP_OUTPUTS["bootstrap_construct_combined"],
-        BOOTSTRAP_OUTPUTS["bootstrap_gene_combined"],
     output:
         touch(BOOTSTRAP_OUTPUTS["bootstrap_flag"]),
 

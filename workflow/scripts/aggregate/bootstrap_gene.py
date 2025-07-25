@@ -17,9 +17,11 @@ construct_null_paths = snakemake.input.construct_nulls
 construct_null_arrays = load_construct_null_arrays(construct_null_paths)
 print(f"Loaded {len(construct_null_arrays)} construct null distributions")
 
-# Load gene features array and feature names
+# Load gene features array
 construct_features_arr = np.load(snakemake.input.construct_features_arr, allow_pickle=True)
-feature_names = np.load(snakemake.input.feature_names, allow_pickle=True).tolist()
+
+# Get feature names from construct_features_arr (excluding first column which is construct ID)
+feature_names = [f"feature_{i}" for i in range(construct_features_arr.shape[1] - 1)]
 
 print(f"Gene features array shape: {construct_features_arr.shape}")
 print(f"Number of features: {len(feature_names)}")

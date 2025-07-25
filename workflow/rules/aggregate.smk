@@ -200,7 +200,12 @@ rule initiate_montage:
 # Prepare bootstrap data and create a checkpoint
 checkpoint prepare_bootstrap_data:
     input:
-        lambda wildcards: output_to_input(
+        # Feature table should be the first input
+        feature_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][0]).format(
+            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
+        ),
+        # Filtered cell data for control sampling
+        filtered_data=lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS_MAPPED["filter"],
             wildcards={
                 "cell_class": wildcards.cell_class,
@@ -216,7 +221,6 @@ checkpoint prepare_bootstrap_data:
         controls_arr=BOOTSTRAP_OUTPUTS["controls_arr"],
         construct_features_arr=BOOTSTRAP_OUTPUTS["construct_features_arr"],
         sample_sizes=BOOTSTRAP_OUTPUTS["sample_sizes"],
-        feature_names=BOOTSTRAP_OUTPUTS["feature_names"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
@@ -240,9 +244,6 @@ rule bootstrap_construct:
         sample_sizes=lambda wildcards: str(BOOTSTRAP_OUTPUTS["sample_sizes"]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
-        feature_names=lambda wildcards: str(BOOTSTRAP_OUTPUTS["feature_names"]).format(
-            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
-        ),
     output:
         BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
         BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
@@ -264,9 +265,6 @@ rule bootstrap_gene:
         ),
         # Reference the checkpoint outputs, not the removed prep_bootstrap
         construct_features_arr=lambda wildcards: str(BOOTSTRAP_OUTPUTS["construct_features_arr"]).format(
-            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
-        ),
-        feature_names=lambda wildcards: str(BOOTSTRAP_OUTPUTS["feature_names"]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
     output:

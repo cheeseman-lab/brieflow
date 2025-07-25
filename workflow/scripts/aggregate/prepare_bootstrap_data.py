@@ -4,102 +4,80 @@ import numpy as np
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 
-from lib.aggregate.bootstrap import prep_bootstrap_data, parse_gene_construct_mapping
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
 from lib.shared.file_utils import get_filename
-
-# Load and combine all filtered cell data
-print("Loading and combining filtered cell data...")
-print(f"Input files: {snakemake.input}")
-
-combined_data = []
-
-# snakemake.input is a list of file paths
-input_files = list(snakemake.input)
-print(f"Found {len(input_files)} input files")
-
-if len(input_files) == 0:
-    raise ValueError("No input files provided to prepare_bootstrap_data")
-
-for input_file in input_files:
-    print(f"Loading {input_file}")
-    try:
-        df = pd.read_parquet(input_file)
-        print(f"  Loaded {len(df)} rows")
-        combined_data.append(df)
-    except Exception as e:
-        print(f"  Failed to load {input_file}: {e}")
-        continue
-
-if len(combined_data) == 0:
-    raise ValueError("No data could be loaded from input files")
-
-# Combine all dataframes
-cell_data = pd.concat(combined_data, ignore_index=True)
-print(f"Combined cell data shape: {cell_data.shape}")
 
 # Get parameters
 perturbation_col = snakemake.params.perturbation_name_col
 control_key = snakemake.params.control_key
 exclusion_string = snakemake.params.exclusion_string
+metadata_cols_fp = snakemake.params.metadata_cols_fp
 
-# Load metadata columns and split cell data
-metadata_cols = load_metadata_cols(
-    snakemake.params.metadata_cols_fp,
-    include_classification_cols=True
-)
+print("Loading feature table with perturbation-level medians...")
+# The first input should be the feature table from generate_feature_table
+feature_table = pd.read_csv(snakemake.input[0], sep='\t')
+print(f"Feature table shape: {feature_table.shape}")
 
-# Split into metadata and features
-metadata, features = split_cell_data(cell_data, metadata_cols)
-
-# IMPORTANT: Select only bootstrap-relevant features BEFORE creating arrays
-from lib.aggregate.bootstrap import select_bootstrap_features
-selected_features = select_bootstrap_features(features.columns.tolist())
-print(f"Selected {len(selected_features)} features for bootstrap analysis")
-
-# Filter features to only selected ones
-features = features[selected_features]
-print(f"Filtered features shape: {features.shape}")
-
-# For bootstrap, we need to count cells per perturbation to get sample sizes
-sample_sizes_df = metadata.groupby(perturbation_col).size().reset_index(name='cell_count')
-
-# Now we need to create construct-level data for bootstrap
-# Get unique perturbations and their median features
-perturbation_features = []
-for perturbation in metadata[perturbation_col].unique():
-    if pd.isna(perturbation):
-        continue
-        
-    pert_mask = metadata[perturbation_col] == perturbation
-    pert_features = features[pert_mask].median().values  # Use median like generate_feature_table
+print("Loading individual control cells for bootstrap sampling...")
+# Remaining inputs are filtered parquet files containing individual cells
+combined_controls = []
+for input_file in snakemake.input[1:]:  # Skip the feature table
+    print(f"Loading control cells from {input_file}")
+    df = pd.read_parquet(input_file)
     
-    # Combine perturbation ID with its median features
-    pert_row = np.concatenate([[perturbation], pert_features])
-    perturbation_features.append(pert_row)
+    # Filter for control cells only
+    control_mask = df[perturbation_col].str.contains(control_key, na=False)
+    control_cells = df[control_mask]
+    if len(control_cells) > 0:
+        combined_controls.append(control_cells)
 
-# Convert to array for bootstrap functions
-construct_features_arr = np.array(perturbation_features, dtype=object)
+if not combined_controls:
+    raise ValueError("No control cells found for bootstrap sampling")
 
-# Get controls data (individual cells from control perturbations)
-controls_mask = metadata[perturbation_col].str.contains(control_key, na=False)
-controls_metadata = metadata[controls_mask]
-controls_features = features[controls_mask]  # Already filtered to selected features
+all_control_cells = pd.concat(combined_controls, ignore_index=True)
+print(f"Total control cells for bootstrap sampling: {len(all_control_cells)}")
 
-# Combine control metadata and features for bootstrap sampling
-controls_data = pd.concat([controls_metadata[[perturbation_col]], controls_features], axis=1)
+# Load metadata columns and split control cell data
+metadata_cols = load_metadata_cols(metadata_cols_fp, include_classification_cols=True)
+controls_metadata, controls_features = split_cell_data(all_control_cells, metadata_cols)
+
+# Get available features from feature table (excluding metadata columns)
+available_features = [col for col in feature_table.columns 
+                     if col not in [perturbation_col, 'cell_count', 'avg_cells_per_sgrna']]
+
+print(f"Using {len(available_features)} features for bootstrap analysis")
+
+# Filter control features to match available features
+controls_features_selected = controls_features[available_features]
+
+# Create controls array (individual cells for sampling)
+controls_data = pd.concat([controls_metadata[[perturbation_col]], controls_features_selected], axis=1)
 controls_arr = controls_data.values
+
+# Create construct features array from feature table
+# Filter out controls and exclusion strings from feature table
+construct_mask = ~feature_table[perturbation_col].str.contains(control_key, na=False)
+if exclusion_string is not None:
+    construct_mask = construct_mask & ~feature_table[perturbation_col].str.contains(exclusion_string, na=False)
+
+construct_features_df = feature_table[construct_mask]
+
+# Create construct features array (perturbation ID + median features)
+construct_data_cols = [perturbation_col] + available_features
+construct_features_arr = construct_features_df[construct_data_cols].values
+
+# Create sample sizes dataframe
+sample_sizes_df = construct_features_df[[perturbation_col, 'cell_count']].copy()
 
 print(f"Controls array shape: {controls_arr.shape}")
 print(f"Construct features array shape: {construct_features_arr.shape}")
-print(f"Selected {len(selected_features)} features for bootstrap analysis")
+print(f"Sample sizes dataframe shape: {sample_sizes_df.shape}")
 
 # Save bootstrap arrays
 print("Saving bootstrap arrays...")
 np.save(snakemake.output.controls_arr, controls_arr)
 np.save(snakemake.output.construct_features_arr, construct_features_arr)
 sample_sizes_df.to_csv(snakemake.output.sample_sizes, index=False)
-np.save(snakemake.output.feature_names, np.array(selected_features))
 
 # Create checkpoint directory and construct data files
 output_dir = Path(snakemake.output[0])  # Directory output
@@ -107,17 +85,10 @@ output_dir.mkdir(parents=True, exist_ok=True)
 
 # Extract construct IDs from the array
 construct_ids = [str(row[0]) for row in construct_features_arr if not pd.isna(row[0])]
-# Filter out controls
-construct_ids = [cid for cid in construct_ids if control_key not in cid]
 print(f"Found {len(construct_ids)} unique constructs")
 
-# Parse gene-construct mapping
-gene_construct_mapping = parse_gene_construct_mapping(construct_ids)
-print(f"Found {len(gene_construct_mapping)} genes")
-
-# Create construct data files
+# Create simple construct data files (just the construct ID for snakemake)
 print(f"Saving {len(construct_ids)} construct data files to {output_dir}")
-print(f"Using {multiprocessing.cpu_count()} CPUs")
 
 def write_construct_data(construct_id):
     """Write construct data file for a single construct."""

@@ -50,14 +50,6 @@ metadata, features = prepare_alignment_data(
 )
 features = features.astype(np.float32)
 
-# Modify pert col for nontargeting entries by appending pert id value
-control_ind = metadata[pert_col].str.startswith(control_key).to_list()
-metadata.loc[control_ind, pert_col] = (
-    metadata.loc[control_ind, pert_col]
-    + "_"
-    + metadata.loc[control_ind, snakemake.params.perturbation_id_col]
-)
-
 # centerscale features on controls
 features = centerscale_on_controls(
     features,
@@ -67,10 +59,26 @@ features = centerscale_on_controls(
     "batch_values",
 ).astype(np.float32)
 
+# Calculate sample sizes before aggregation
+sample_sizes = metadata.groupby(pert_col, observed=True).size().reset_index(name='cell_count')
+
+# Calculate average cells per sgRNA for each gene
+sgrna_sizes = metadata.groupby([pert_col, snakemake.params.perturbation_id_col], observed=True).size().reset_index(name='sgrna_cell_count')
+avg_cells_per_sgrna = sgrna_sizes.groupby(pert_col, observed=True)['sgrna_cell_count'].mean().reset_index()
+avg_cells_per_sgrna.columns = [pert_col, 'avg_cells_per_sgrna']
+
 # get the median of each perturbation
 features = pd.DataFrame(features, columns=feature_cols)
 features[pert_col] = metadata[pert_col].values
-features = features.groupby(pert_col, sort=False, observed=True).median()
-features = features.reset_index()
+features_aggregated = features.groupby(pert_col, sort=False, observed=True).median()
+features_aggregated = features_aggregated.reset_index()
 
-features.to_csv(snakemake.output[0], sep="\t", index=False)
+# Merge sample sizes and average cells per sgRNA with aggregated features
+features_with_counts = pd.merge(features_aggregated, sample_sizes, on=pert_col, how='left')
+features_final = pd.merge(features_with_counts, avg_cells_per_sgrna, on=pert_col, how='left')
+
+# Reorder columns to put count columns at the beginning
+column_order = [pert_col, 'cell_count', 'avg_cells_per_sgrna'] + [col for col in features_final.columns if col not in [pert_col, 'cell_count', 'avg_cells_per_sgrna']]
+features_final = features_final[column_order]
+
+features_final.to_csv(snakemake.output[0], sep="\t", index=False)

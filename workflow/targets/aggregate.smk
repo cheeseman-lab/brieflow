@@ -173,10 +173,6 @@ BOOTSTRAP_OUTPUTS = {
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
         "sample_sizes", "csv"
     ),
-    "feature_names": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
-        {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-        "feature_names", "npy"
-    ),
     "bootstrap_construct_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__constructs"

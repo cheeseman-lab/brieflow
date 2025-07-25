@@ -176,7 +176,7 @@ BOOTSTRAP_OUTPUTS = {
     "bootstrap_construct_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__constructs"
-    / "{construct}_nulls.tsv",
+    / "{construct}_nulls.npy",
     
     "bootstrap_construct_pvals": AGGREGATE_FP
     / "bootstrap"
@@ -186,7 +186,7 @@ BOOTSTRAP_OUTPUTS = {
     "bootstrap_gene_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__genes"
-    / "{gene}_nulls.tsv",
+    / "{gene}_nulls.npy",
     
     "bootstrap_gene_pvals": AGGREGATE_FP
     / "bootstrap"

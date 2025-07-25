@@ -343,7 +343,7 @@ def get_bootstrap_inputs(
         channel_combo=channel_combo
     ).output[0]
     
-    construct_files = glob.glob(f"{bootstrap_data_dir}/*_construct_data.csv")
+    construct_files = glob.glob(f"{bootstrap_data_dir}/*_construct_data.tsv")
     
     # Get all outputs
     outputs = []

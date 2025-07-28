@@ -173,6 +173,49 @@ SBS_OUTPUTS = {
         / "mapping"
         / get_filename({"plate": "{plate}"}, "mapping_overview", "tsv"),
     ],
+    # Add parameter search outputs (only when in parameter search mode)
+if config["sbs"]["mode"] == "read_calling_paramsearch":
+    SBS_OUTPUTS.update({
+        "sbs_parameter_search": [
+            SBS_FP
+            / "parameter_search"
+            / get_filename(
+                {"plate": "{plate}", "well": "{well}"}, "optimal_parameters", "tsv"
+            ),
+            SBS_FP
+            / "parameter_search" 
+            / get_filename(
+                {"plate": "{plate}", "well": "{well}"}, "global_results", "tsv"
+            ),
+            SBS_FP
+            / "parameter_search"
+            / get_filename(
+                {"plate": "{plate}", "well": "{well}"}, "global_cells", "parquet"
+            ),
+            SBS_FP
+            / "parameter_search"
+            / get_filename(
+                {"plate": "{plate}", "well": "{well}"}, "search_metadata", "json"
+            ),
+            SBS_FP
+            / "parameter_search"
+            / get_filename(
+                {"plate": "{plate}", "well": "{well}"}, "parameter_heatmaps", "png"
+            ),
+        ],
+        "summarize_sbs_parameter_search": [
+            SBS_FP / "parameter_search" / "summary" / "parameter_search_summary.tsv",
+            SBS_FP / "parameter_search" / "summary" / "parameter_search_by_well.tsv", 
+            SBS_FP / "parameter_search" / "summary" / "parameter_recommendations.txt",
+            SBS_FP / "parameter_search" / "summary" / "parameter_comparison_plots.png",
+        ],
+    })
+
+    # Add output mappings
+    SBS_OUTPUT_MAPPINGS.update({
+        "sbs_parameter_search": None,  # Keep parameter search results
+        "summarize_sbs_parameter_search": None,  # Keep summary results
+    })
 }
 
 SBS_OUTPUT_MAPPINGS = {

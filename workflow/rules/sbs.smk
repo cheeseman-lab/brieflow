@@ -287,6 +287,87 @@ rule eval_mapping:
         "../scripts/sbs/eval_mapping.py"
 
 
+# Conditional rule for parameter search mode
+if config["sbs"]["mode"] == "read_calling_paramsearch":
+    rule sbs_parameter_search:
+        input:
+            # Need aligned images and segmentation for all tiles in the well
+            aligned_images=lambda wildcards: output_to_input(
+                SBS_OUTPUTS["align_sbs"],
+                wildcards=wildcards,
+                expansion_values=["tile"],
+                metadata_combos=sbs_wildcard_combos,
+            ),
+            nuclei_masks=lambda wildcards: output_to_input(
+                SBS_OUTPUTS["segment_sbs"][0],  # nuclei segmentation
+                wildcards=wildcards,
+                expansion_values=["tile"], 
+                metadata_combos=sbs_wildcard_combos,
+            ),
+            cell_masks=lambda wildcards: output_to_input(
+                SBS_OUTPUTS["segment_sbs"][1],  # cell segmentation
+                wildcards=wildcards,
+                expansion_values=["tile"],
+                metadata_combos=sbs_wildcard_combos,
+            ),
+        output:
+            SBS_OUTPUTS_MAPPED["sbs_parameter_search"],
+        params:
+            # Barcode library and related parameters
+            df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
+            bases=config["sbs"]["bases"],
+            extra_channel_indices=config["sbs"]["extra_channel_indices"],
+            
+            # Cycle boundaries for barcode mapping
+            map_start=config["sbs"]["map_start"],
+            map_end=config["sbs"]["map_end"],
+            recomb_start=config["sbs"]["recomb_start"],
+            recomb_end=config["sbs"]["recomb_end"],
+            map_col=config["sbs"]["map_col"],
+            recomb_col=config["sbs"]["recomb_col"],
+            recomb_filter_col=config["sbs"]["recomb_filter_col"],
+            
+            # Global parameter search settings
+            sample_fraction=config["sbs"].get("param_search_sample_fraction", 0.2),
+            min_tiles=config["sbs"].get("param_search_min_tiles", 5),
+            max_tiles=config["sbs"].get("param_search_max_tiles", 50),
+            random_seed=config["sbs"].get("param_search_random_seed", 42),
+            use_cells_for_segmentation=config["sbs"].get("segment_cells", False),
+            priority=config["sbs"].get("param_search_priority", "balanced"),
+            
+            # Parameter search ranges
+            peak_width_range=config["sbs"].get("peak_width_range", [5, 10, 15, 20]),
+            threshold_range=config["sbs"].get("threshold_range", [50, 100, 150, 200, 250]),
+            
+            # Processing parameters
+            max_filter_width=config["sbs"]["max_filter_width"],
+            call_reads_method=config["sbs"]["call_reads_method"],
+            q_min=config["sbs"]["q_min"],
+            error_correct=config["sbs"]["error_correct"],
+            recomb_q_thresh=config["sbs"]["recomb_q_thresh"],
+            
+            # Output settings
+            verbose=True,
+        script:
+            "../scripts/sbs/sbs_parameter_search.py"
+
+    # Summary rule for parameter search results across all wells
+    rule summarize_sbs_parameter_search:
+        input:
+            lambda wildcards: output_to_input(
+                SBS_OUTPUTS["sbs_parameter_search"],
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=sbs_wildcard_combos,
+            ),
+        output:
+            SBS_OUTPUTS_MAPPED["summarize_sbs_parameter_search"],
+        params:
+            priority=config["sbs"].get("param_search_priority", "balanced"),
+        script:
+            "../scripts/sbs/summarize_parameter_search.py"
+
+
 # TODO: test and implement segmentation paramsearch for updated brieflow setup
 # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
 #     rule segment_sbs_paramsearch:

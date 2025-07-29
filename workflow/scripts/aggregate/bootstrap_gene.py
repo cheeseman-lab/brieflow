@@ -13,11 +13,16 @@ print(f"Running gene-level bootstrap aggregation for: {gene_id}")
 # Load construct null arrays for this gene
 print("Loading construct null distributions...")
 construct_null_paths = snakemake.input.construct_nulls
-print(f"Type: {type(construct_null_paths)}")
-print(f"Value: {construct_null_paths}")
-print(f"Length: {len(construct_null_paths)}")
+
+# The construct_nulls is now a Namedlist - convert to regular list
 if hasattr(construct_null_paths, '__iter__'):
-    print(f"First few items: {list(construct_null_paths)[:3]}")
+    construct_null_paths = list(construct_null_paths)
+
+print(f"Number of construct null files: {len(construct_null_paths)}")
+print(f"Construct null file paths: {construct_null_paths}")
+
+# Load the arrays using the correct function
+construct_null_arrays = load_construct_null_arrays(construct_null_paths)
 
 # Load gene table to get observed gene median
 gene_table = pd.read_csv(snakemake.input.gene_table, sep="\t")

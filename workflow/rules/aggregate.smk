@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
-from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_construct_nulls_for_gene
+from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_construct_nulls_for_gene, get_gene_construct_nulls_simple
 
 
 # Create datasets with cell classes and channel combos
@@ -254,13 +254,7 @@ rule bootstrap_construct:
 # Aggregate bootstrap results to gene level
 rule bootstrap_gene:
     input:
-        construct_nulls=lambda wildcards: get_construct_nulls_for_gene(
-            checkpoints.prepare_bootstrap_data,
-            BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
-            wildcards.cell_class,
-            wildcards.channel_combo,
-            wildcards.gene,
-        ),
+        construct_nulls=get_gene_construct_nulls_simple,  # Use simple function instead
         gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][2]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),

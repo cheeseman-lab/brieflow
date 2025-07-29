@@ -391,12 +391,23 @@ def get_construct_nulls_for_gene(
     print(f"Cell class: {cell_class}")
     print(f"Channel combo: {channel_combo}")
     print(f"Bootstrap nulls pattern: {bootstrap_nulls_pattern}")
+    print(f"Checkpoint output type: {type(checkpoint_output)}")
     
-    # Get the checkpoint directory
-    checkpoint_dir = checkpoint_output.get(
-        cell_class=cell_class, channel_combo=channel_combo
-    ).output[0]
-    print(f"Checkpoint dir: {checkpoint_dir}")
+    try:
+        # Get the checkpoint directory
+        checkpoint_dir = checkpoint_output.get(
+            cell_class=cell_class, channel_combo=channel_combo
+        ).output[0]
+        print(f"Checkpoint dir: {checkpoint_dir}")
+    except Exception as e:
+        print(f"ERROR getting checkpoint directory: {e}")
+        print(f"Checkpoint output: {checkpoint_output}")
+        raise
+    
+    # Verify the directory exists
+    if not Path(checkpoint_dir).exists():
+        print(f"ERROR: Checkpoint directory does not exist: {checkpoint_dir}")
+        raise ValueError(f"Checkpoint directory does not exist: {checkpoint_dir}")
 
     # Find all construct data files for this gene
     construct_files = glob.glob(f"{checkpoint_dir}/{gene}_*_construct_data.tsv")
@@ -438,3 +449,20 @@ def get_construct_nulls_for_gene(
         raise ValueError(f"No construct files found for gene {gene}")
 
     return expected_null_files
+
+def get_gene_construct_nulls_simple(wildcards):
+    """Get construct null files for a gene without using checkpoint."""
+    import glob
+    from pathlib import Path
+    
+    # Build the pattern for construct null files for this gene
+    pattern = f"brieflow_output/aggregate/bootstrap/{wildcards.cell_class}__{wildcards.channel_combo}__constructs/{wildcards.gene}_*_nulls.npy"
+    
+    # Find all matching files
+    null_files = glob.glob(pattern)
+    
+    if not null_files:
+        raise ValueError(f"No construct null files found for gene {wildcards.gene} with pattern: {pattern}")
+    
+    print(f"Found {len(null_files)} construct null files for gene {wildcards.gene}")
+    return null_files

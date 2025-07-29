@@ -60,6 +60,13 @@ features = centerscale_on_controls(
     "batch_values",
 ).astype(np.float32)
 
+# OUTPUT 1: Save center-scaled single-cell data for bootstrap
+print("Saving center-scaled single-cell data for bootstrap...")
+aligned_cell_data = pd.concat([metadata, pd.DataFrame(features, columns=feature_cols)], axis=1)
+aligned_output = snakemake.output[0]
+aligned_cell_data.to_parquet(aligned_output, index=False)
+print(f"Saved aligned cell data to: {aligned_output}")
+
 # TABLE 1: Construct-level table (one row per sgRNA)
 print("Creating construct-level table...")
 
@@ -74,10 +81,10 @@ construct_gene_map = (
 )
 
 # Get median features at sgRNA level
-features = pd.DataFrame(features, columns=feature_cols)
-features[pert_id_col] = metadata[pert_id_col].values
+features_df = pd.DataFrame(features, columns=feature_cols)
+features_df[pert_id_col] = metadata[pert_id_col].values
 
-construct_features = features.groupby(pert_id_col, sort=False, observed=True).median()
+construct_features = features_df.groupby(pert_id_col, sort=False, observed=True).median()
 construct_features = construct_features.reset_index()
 
 # Merge everything for construct table
@@ -134,14 +141,12 @@ final_gene_table = final_gene_table[gene_columns]
 
 print(f"Gene table shape: {final_gene_table.shape}")
 
-# Save both tables
-construct_output = snakemake.output[0].replace(
-    "feature_table.tsv", "construct_table.tsv"
-)
-gene_output = snakemake.output[0]  # Keep original name for gene table
+# OUTPUT 2 & 3: Save both tables
+construct_output = snakemake.output[1]
+gene_output = snakemake.output[2]  
 
 construct_table.to_csv(construct_output, sep="\t", index=False)
 final_gene_table.to_csv(gene_output, sep="\t", index=False)
 
-print(f"Saved construct table to: {construct_output}")
 print(f"Saved gene table to: {gene_output}")
+print(f"Saved construct table to: {construct_output}")

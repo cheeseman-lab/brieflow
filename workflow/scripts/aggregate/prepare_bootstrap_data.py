@@ -5,7 +5,6 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
-from lib.shared.file_utils import get_filename
 
 # Get parameters
 perturbation_col = snakemake.params.perturbation_name_col
@@ -14,33 +13,29 @@ control_key = snakemake.params.control_key
 exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp
 
+print("Loading center-scaled single-cell features data...")
+# Load center-scaled single-cell features data (input 0)
+all_features_cells = pd.read_parquet(snakemake.input[0])
+print(f"Features single-cell data shape: {all_features_cells.shape}")
+
 print("Loading construct table...")
-# Load the construct table (sgRNA-level data) - this is the first input
-construct_table = pd.read_csv(snakemake.input[0], sep="\t")
+# Load construct table (input 1)
+construct_table = pd.read_csv(snakemake.input[1], sep="\t")
 print(f"Construct table shape: {construct_table.shape}")
 
-print("Loading individual control cells for bootstrap sampling...")
-# Load individual control cells from filtered parquet files
-combined_controls = []
-for input_file in snakemake.input[1:]:  # Skip the feature table
-    print(f"Loading control cells from {input_file}")
-    df = pd.read_parquet(input_file)
+print("Loading gene table...")
+# Load gene table (input 2)
+gene_table = pd.read_csv(snakemake.input[2], sep="\t")
+print(f"Gene table shape: {gene_table.shape}")
 
-    # Filter for control cells only
-    control_mask = df[perturbation_col].str.contains(control_key, na=False)
-    control_cells = df[control_mask]
-    if len(control_cells) > 0:
-        combined_controls.append(control_cells)
-
-if not combined_controls:
-    raise ValueError("No control cells found for bootstrap sampling")
-
-all_control_cells = pd.concat(combined_controls, ignore_index=True)
-print(f"Total control cells for bootstrap sampling: {len(all_control_cells)}")
+# Filter for control cells only (these are already center-scaled)
+control_mask = all_features_cells[perturbation_col].str.contains(control_key, na=False)
+control_cells = all_features_cells[control_mask]
+print(f"Center-scaled control cells for bootstrap sampling: {len(control_cells)}")
 
 # Load metadata columns and split control cell data
 metadata_cols = load_metadata_cols(metadata_cols_fp, include_classification_cols=True)
-controls_metadata, controls_features = split_cell_data(all_control_cells, metadata_cols)
+controls_metadata, controls_features = split_cell_data(control_cells, metadata_cols)
 
 # Get available features from construct table (excluding metadata columns)
 available_features = [
@@ -54,7 +49,7 @@ print(f"Using {len(available_features)} features for bootstrap analysis")
 # Filter control features to match available features
 controls_features_selected = controls_features[available_features]
 
-# Create controls array (individual cells for sampling)
+# Create controls array (individual cells for sampling) - ALREADY CENTER-SCALED
 controls_data = pd.concat(
     [controls_metadata[[perturbation_col]], controls_features_selected], axis=1
 )

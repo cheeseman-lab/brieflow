@@ -200,19 +200,17 @@ rule initiate_montage:
 # Prepare bootstrap data and create a checkpoint
 checkpoint prepare_bootstrap_data:
     input:
-        # Construct table should be the first input (sgRNA-level data)
+        # Single-cell features data (center-scaled, feature space)
+        features_singlecell=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][0]).format(
+            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
+        ),
+        # Construct table 
         construct_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][1]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
-        # Filtered cell data for control sampling
-        filtered_data=lambda wildcards: output_to_input(
-            AGGREGATE_OUTPUTS_MAPPED["filter"],
-            wildcards={
-                "cell_class": wildcards.cell_class,
-                "channel_combo": wildcards.channel_combo,
-            },
-            expansion_values=["plate", "well"],
-            metadata_combos=aggregate_wildcard_combos,
+        # Gene table
+        gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][2]).format(
+            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
     output:
         # Directory should be in output, not input
@@ -260,11 +258,10 @@ rule bootstrap_gene:
             checkpoints.prepare_bootstrap_data,
             BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
             wildcards.cell_class,
-            wildcards.channel_combo,
+            wildcards.cell_combo,
             wildcards.gene,
         ),
-        # Need gene table for observed gene medians
-        gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][0]).format(
+        gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][2]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
     output:

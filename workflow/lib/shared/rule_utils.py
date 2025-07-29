@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import re
+import glob
 
 from lib.shared.file_utils import parse_filename
 
@@ -384,25 +385,27 @@ def get_bootstrap_inputs(
 def get_construct_nulls_for_gene(
     checkpoint_output, bootstrap_nulls_pattern, cell_class, channel_combo, gene
 ):
-    """Get all construct null files for a specific gene.
-    Args:
-        checkpoint_output: Checkpoint object containing bootstrap data directory information.
-        bootstrap_nulls_pattern (str): Template string for construct null files.
-        cell_class (str): Cell class for bootstrap analysis.
-        channel_combo (str): Channel combination for bootstrap analysis.
-        gene (str): Gene name to find construct files for.
-    Returns:
-        list: List of expected construct null file paths for the specified gene.
-    """
+    """Get all construct null files for a specific gene."""
+    print(f"=== DEBUG get_construct_nulls_for_gene ===")
+    print(f"Gene: {gene}")
+    print(f"Cell class: {cell_class}")
+    print(f"Channel combo: {channel_combo}")
+    print(f"Bootstrap nulls pattern: {bootstrap_nulls_pattern}")
+    
     # Get the checkpoint directory
     checkpoint_dir = checkpoint_output.get(
         cell_class=cell_class, channel_combo=channel_combo
     ).output[0]
+    print(f"Checkpoint dir: {checkpoint_dir}")
 
     # Find all construct data files for this gene
     construct_files = glob.glob(f"{checkpoint_dir}/{gene}_*_construct_data.tsv")
+    print(f"Found construct files: {construct_files}")
 
     if not construct_files:
+        # Let's see what files ARE in the directory
+        all_files = glob.glob(f"{checkpoint_dir}/*")
+        print(f"All files in checkpoint dir: {all_files}")
         raise ValueError(f"No construct data files found for gene {gene}")
 
     # Extract construct IDs and build expected null file paths
@@ -411,10 +414,12 @@ def get_construct_nulls_for_gene(
     for construct_file in construct_files:
         # Extract gene_construct from filename
         filename = Path(construct_file).stem.replace("_construct_data", "")
+        print(f"Processing file: {construct_file}, stem: {filename}")
 
         # Parse gene_construct format
         if filename.startswith(f"{gene}_"):
             construct_part = filename[len(gene) + 1 :]  # Remove "gene_" prefix
+            print(f"Construct part: {construct_part}")
 
             # Build expected null file path
             null_file = str(bootstrap_nulls_pattern).format(
@@ -423,7 +428,11 @@ def get_construct_nulls_for_gene(
                 gene=gene,
                 construct=construct_part,
             )
+            print(f"Expected null file: {null_file}")
             expected_null_files.append(null_file)
+
+    print(f"Final expected null files: {expected_null_files}")
+    print("=== END DEBUG ===")
 
     if not expected_null_files:
         raise ValueError(f"No construct files found for gene {gene}")

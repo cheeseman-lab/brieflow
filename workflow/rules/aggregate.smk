@@ -258,7 +258,7 @@ rule bootstrap_gene:
             checkpoints.prepare_bootstrap_data,
             BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
             wildcards.cell_class,
-            wildcards.cell_combo,
+            wildcards.channel_combo,
             wildcards.gene,
         ),
         gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][2]).format(

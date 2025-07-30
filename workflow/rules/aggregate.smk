@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
-from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_construct_nulls_for_gene, get_gene_construct_nulls_simple
+from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_construct_nulls_for_gene, get_gene_construct_nulls_simple, get_bootstrap_construct_outputs
 
 
 # Create datasets with cell classes and channel combos
@@ -251,10 +251,27 @@ rule bootstrap_construct:
         "../scripts/aggregate/bootstrap_construct.py"
 
 
-# Aggregate bootstrap results to gene level
+# Add this rule to create the construct bootstrap completion flag
+rule construct_bootstrap_complete:
+    input:
+        # Get all construct bootstrap outputs dynamically
+        lambda wildcards: get_bootstrap_construct_outputs(
+            checkpoints.prepare_bootstrap_data,
+            BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
+            BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
+            wildcards.cell_class,
+            wildcards.channel_combo,
+        ),
+    output:
+        touch(AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__construct_bootstrap_complete.flag"),
+
+
+# Modified bootstrap_gene rule
 rule bootstrap_gene:
     input:
-        construct_nulls=get_gene_construct_nulls_simple,  # Use simple function instead
+        # Wait for ALL construct bootstrap to complete via the flag
+        construct_flag=AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__construct_bootstrap_complete.flag",
+        # Gene table for observed values
         gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][2]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
@@ -263,6 +280,12 @@ rule bootstrap_gene:
         BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
     params:
         num_sims=config.get("aggregate", {}).get("num_sims", 100000),
+        construct_nulls_pattern=lambda wildcards: str(BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"]).format(
+            cell_class=wildcards.cell_class,
+            channel_combo=wildcards.channel_combo,
+            gene=wildcards.gene,
+            construct="{construct}"  
+        ),
     script:
         "../scripts/aggregate/bootstrap_gene.py"
 

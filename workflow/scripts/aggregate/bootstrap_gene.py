@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import glob
+from pathlib import Path
 
 from lib.aggregate.bootstrap import (
     load_construct_null_arrays,
@@ -8,18 +10,40 @@ from lib.aggregate.bootstrap import (
 
 # Get gene ID from wildcards
 gene_id = snakemake.wildcards.gene
+cell_class = snakemake.wildcards.cell_class
+channel_combo = snakemake.wildcards.channel_combo
+
 print(f"Running gene-level bootstrap aggregation for: {gene_id}")
 
-# Load construct null arrays for this gene
-print("Loading construct null distributions...")
-construct_null_paths = snakemake.input.construct_nulls
+# Build the pattern using the template from params
+construct_nulls_pattern = snakemake.params.construct_nulls_pattern
+# Replace {construct} with * for glob pattern
+pattern = construct_nulls_pattern.replace("{construct}", "*")
 
-# The construct_nulls is now a Namedlist - convert to regular list
-if hasattr(construct_null_paths, '__iter__'):
-    construct_null_paths = list(construct_null_paths)
+print(f"Looking for construct null files with pattern: {pattern}")
+construct_null_paths = glob.glob(pattern)
 
-print(f"Number of construct null files: {len(construct_null_paths)}")
-print(f"Construct null file paths: {construct_null_paths}")
+if not construct_null_paths:
+    print(f"No construct null files found for gene {gene_id} with pattern: {pattern}")
+    
+    # Check what files do exist in the constructs directory
+    constructs_dir = f"brieflow_output/aggregate/bootstrap/{cell_class}__{channel_combo}__constructs"
+    if Path(constructs_dir).exists():
+        all_files = glob.glob(f"{constructs_dir}/*_nulls.npy")
+        print(f"Available null files: {[Path(f).name for f in all_files[:10]]}")
+    else:
+        print(f"Constructs directory does not exist: {constructs_dir}")
+    
+    # Create empty output files - this gene has no constructs
+    np.save(snakemake.output[0], np.array([]))
+    pd.DataFrame({"gene": [gene_id], "error": ["No construct files found"]}).to_csv(
+        snakemake.output[1], sep="\t", index=False
+    )
+    print("Created empty output files for gene with no constructs")
+    exit(0)
+
+print(f"Found {len(construct_null_paths)} construct null files for gene {gene_id}")
+print(f"Files: {[Path(f).name for f in construct_null_paths]}")
 
 # Load the arrays using the correct function
 construct_null_arrays = load_construct_null_arrays(construct_null_paths)

@@ -168,14 +168,15 @@ MONTAGE_TARGETS_ALL = [
 # Define bootstrap outputs
 # These are special because we dynamically derive outputs
 # Define bootstrap outputs
+# In workflow/targets/aggregate.smk - update the BOOTSTRAP_OUTPUTS
 BOOTSTRAP_OUTPUTS = {
     "bootstrap_data_dir": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_data",
     
-    # Construct data files for job spawning
+    # Construct data files for job spawning - use clear separator
     "construct_data": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__bootstrap_data"
-    / "{gene}_{construct}_construct_data.tsv",  
+    / "{gene}__{construct}__construct_data.tsv",  # gene__construct format
     
     # Input arrays (TSV format)
     "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
@@ -191,27 +192,27 @@ BOOTSTRAP_OUTPUTS = {
         "sample_sizes", "tsv"
     ),   
 
-    # Construct-level outputs  
+    # Construct-level outputs - use clear separator
     "bootstrap_construct_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__constructs"
-    / "{gene}_{construct}_nulls.npy",  
+    / "{gene}__{construct}__nulls.npy",  # gene__construct format
     
     "bootstrap_construct_pvals": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__constructs"
-    / "{gene}_{construct}_pvals.tsv",  
+    / "{gene}__{construct}__pvals.tsv",  # gene__construct format
     
-    # Gene-level outputs stay the same
+    # Gene-level outputs - single gene wildcard
     "bootstrap_gene_nulls": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__genes"
-    / "{gene}_nulls.npy",
+    / "{gene}__nulls.npy",  # Just gene, no construct
     
     "bootstrap_gene_pvals": AGGREGATE_FP
     / "bootstrap"
     / "{cell_class}__{channel_combo}__genes"
-    / "{gene}_pvals.tsv",
+    / "{gene}__pvals.tsv",  # Just gene, no construct
     
     "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_complete.flag",
 

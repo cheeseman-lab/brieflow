@@ -112,12 +112,12 @@ def write_construct_data(construct_id):
         construct_features_df[perturbation_id_col] == construct_id
     ]
     if len(construct_row) > 0:
-        gene = construct_row[perturbation_col].iloc[0]
+        gene = construct_row[perturbation_col].iloc[0]  # This gets the full gene name
     else:
         gene = "unknown"
 
-    # Create gene_sgRNA combined ID
-    combined_id = f"{gene}_{construct_id}"
+    # Create gene__construct combined ID using double underscore separator
+    combined_id = f"{gene}__{construct_id}"  # Clear separator: gene__construct
 
     # Create metadata file for the construct
     construct_data = pd.DataFrame(
@@ -125,7 +125,7 @@ def write_construct_data(construct_id):
     )
 
     # Save using combined_id for filename
-    output_file = output_dir / f"{combined_id}_construct_data.tsv"
+    output_file = output_dir / f"{combined_id}__construct_data.tsv"  # gene__construct__construct_data.tsv
     construct_data.to_csv(output_file, sep="\t", index=False)
 
 

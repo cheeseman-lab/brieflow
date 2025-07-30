@@ -8,7 +8,7 @@ from lib.aggregate.bootstrap import (
     calculate_pvals,
 )
 
-# Get gene ID from wildcards
+# Get gene ID from wildcards - now this will be the full gene name!
 gene_id = snakemake.wildcards.gene
 cell_class = snakemake.wildcards.cell_class
 channel_combo = snakemake.wildcards.channel_combo
@@ -29,7 +29,7 @@ if not construct_null_paths:
     # Check what files do exist in the constructs directory
     constructs_dir = f"brieflow_output/aggregate/bootstrap/{cell_class}__{channel_combo}__constructs"
     if Path(constructs_dir).exists():
-        all_files = glob.glob(f"{constructs_dir}/*_nulls.npy")
+        all_files = glob.glob(f"{constructs_dir}/*__nulls.npy")
         print(f"Available null files: {[Path(f).name for f in all_files[:10]]}")
     else:
         print(f"Constructs directory does not exist: {constructs_dir}")
@@ -53,6 +53,8 @@ gene_table = pd.read_csv(snakemake.input.gene_table, sep="\t")
 gene_row = gene_table[gene_table["gene_symbol_0"] == gene_id]
 
 if len(gene_row) == 0:
+    print(f"Gene {gene_id} not found in gene table")
+    print(f"Available genes: {sorted(gene_table['gene_symbol_0'].unique())}")
     raise ValueError(f"Gene {gene_id} not found in gene table")
 
 # Get feature names (excluding metadata columns)

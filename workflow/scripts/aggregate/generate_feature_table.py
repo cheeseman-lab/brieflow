@@ -62,7 +62,9 @@ features = centerscale_on_controls(
 
 # OUTPUT 1: Save center-scaled single-cell data for bootstrap
 print("Saving center-scaled single-cell data for bootstrap...")
-aligned_cell_data = pd.concat([metadata, pd.DataFrame(features, columns=feature_cols)], axis=1)
+aligned_cell_data = pd.concat(
+    [metadata, pd.DataFrame(features, columns=feature_cols)], axis=1
+)
 aligned_output = snakemake.output[0]
 aligned_cell_data.to_parquet(aligned_output, index=False)
 print(f"Saved aligned cell data to: {aligned_output}")
@@ -84,7 +86,9 @@ construct_gene_map = (
 features_df = pd.DataFrame(features, columns=feature_cols)
 features_df[pert_id_col] = metadata[pert_id_col].values
 
-construct_features = features_df.groupby(pert_id_col, sort=False, observed=True).median()
+construct_features = features_df.groupby(
+    pert_id_col, sort=False, observed=True
+).median()
 construct_features = construct_features.reset_index()
 
 # Merge everything for construct table
@@ -143,7 +147,7 @@ print(f"Gene table shape: {final_gene_table.shape}")
 
 # OUTPUT 2 & 3: Save both tables
 construct_output = snakemake.output[1]
-gene_output = snakemake.output[2]  
+gene_output = snakemake.output[2]
 
 construct_table.to_csv(construct_output, sep="\t", index=False)
 final_gene_table.to_csv(gene_output, sep="\t", index=False)

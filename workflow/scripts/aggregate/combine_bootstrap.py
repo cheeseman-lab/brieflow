@@ -1,6 +1,9 @@
+"""Combine bootstrap results from all constructs and genes."""
+
 import pandas as pd
 import glob
 
+# Get directory parameters
 constructs_dir = snakemake.params.constructs_dir
 genes_dir = snakemake.params.genes_dir
 
@@ -8,7 +11,7 @@ print("Combining all bootstrap results...")
 
 # Combine construct results
 print("Loading construct results...")
-construct_pval_files = glob.glob(f"{constructs_dir}/*_pvals.tsv")
+construct_pval_files = glob.glob(f"{constructs_dir}/*__pvals.tsv")
 print(f"Found {len(construct_pval_files)} construct result files")
 
 if not construct_pval_files:
@@ -24,7 +27,7 @@ construct_df = construct_df.sort_values(["gene", "construct"])
 
 # Combine gene results
 print("Loading gene results...")
-gene_pval_files = glob.glob(f"{genes_dir}/*_pvals.tsv")
+gene_pval_files = glob.glob(f"{genes_dir}/*__pvals.tsv")
 print(f"Found {len(gene_pval_files)} gene result files")
 
 if not gene_pval_files:
@@ -38,15 +41,11 @@ for pval_file in gene_pval_files:
 gene_df = pd.concat(gene_results, ignore_index=True)
 gene_df = gene_df.sort_values("gene")
 
-# Save the two output files
+# Save combined results
 print("Saving combined results...")
-
-# Output 1: Construct results
 construct_df.to_csv(snakemake.output[0], sep="\t", index=False)
-print(f"Saved combined construct results to: {snakemake.output[0]}")
-
-# Output 2: Gene results
 gene_df.to_csv(snakemake.output[1], sep="\t", index=False)
-print(f"Saved combined gene results to: {snakemake.output[1]}")
 
+print(f"Saved combined construct results: {snakemake.output[0]}")
+print(f"Saved combined gene results: {snakemake.output[1]}")
 print("Bootstrap combination complete!")

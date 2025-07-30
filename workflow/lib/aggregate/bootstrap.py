@@ -8,7 +8,7 @@ p-value calculation at both construct and gene levels.
 
 import numpy as np
 import pandas as pd
-from typing import Tuple, List, Optional, Dict, Any
+from typing import Tuple, List
 
 
 def get_construct_features(
@@ -42,13 +42,16 @@ def run_single_bootstrap_simulation(
     Returns:
         Median values from the simulation.
     """
+    # Select a random control construct
     control_id = controls_arr[
         np.random.choice(controls_arr.shape[0], 1, replace=False)
     ][0][0]
+
+    # Get all cells from this control construct
     indices = np.where(controls_arr[:, 0] == control_id)[0]
     control_construct_arr = controls_arr[indices]
 
-    # Sample from this control construct
+    # Sample cells with replacement
     sample_arr = control_construct_arr[
         np.random.choice(control_construct_arr.shape[0], sample_size, replace=True)
     ]
@@ -69,7 +72,7 @@ def calculate_pvals(
     Returns:
         Array of two-tailed p-values.
     """
-    # One-tailed p-values
+    # Calculate one-tailed p-values
     pvals_one_tail = (null_medians_arr > observed_medians).mean(axis=0)
 
     # Convert to two-tailed by taking minimum and doubling
@@ -111,7 +114,7 @@ def run_construct_bootstrap(
         median_arr = run_single_bootstrap_simulation(controls_arr, sample_size)
         null_medians_arr[i, :] = median_arr
 
-    # Verify simulations ran properly (no all-zero rows)
+    # Verify simulations ran properly (no constant values)
     all_same = np.max(null_medians_arr, axis=1) == np.min(null_medians_arr, axis=1)
     if len(null_medians_arr[all_same]) > 0:
         raise ValueError(
@@ -134,39 +137,3 @@ def load_construct_null_arrays(file_paths: List[str]) -> List[np.ndarray]:
         List of loaded numpy arrays.
     """
     return [np.load(path, allow_pickle=False) for path in file_paths]
-
-
-def aggregate_gene_results(
-    gene_id: str, construct_null_arrays: List[np.ndarray], gene_features_arr: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray, int]:
-    """Aggregate construct-level bootstrap results to gene level.
-
-    Args:
-        gene_id: Identifier for the gene.
-        construct_null_arrays: List of null distribution arrays from constructs.
-        gene_features_arr: Array containing gene-level features.
-
-    Returns:
-        Tuple containing:
-        - median_null_medians: Median of construct null distributions
-        - p_vals: Gene-level p-values
-        - num_constructs: Number of constructs aggregated
-    """
-    print(f"Processing gene: {gene_id}")
-
-    # Get observed gene medians
-    gene_medians = get_construct_features(gene_id, gene_features_arr)
-
-    print(
-        f"Construct null array shapes: {[arr.shape for arr in construct_null_arrays]}"
-    )
-    print(f"Gene medians shape: {gene_medians.shape}")
-
-    # Stack and take median across constructs
-    stacked_medians_arr = np.stack(construct_null_arrays)
-    median_null_medians = np.median(stacked_medians_arr, axis=0)
-
-    # Calculate p-values
-    p_vals = calculate_pvals(median_null_medians, gene_medians)
-
-    return median_null_medians, p_vals, len(construct_null_arrays)

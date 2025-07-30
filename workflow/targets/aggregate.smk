@@ -167,18 +167,12 @@ MONTAGE_TARGETS_ALL = [
 
 # Define bootstrap outputs
 # These are special because we dynamically derive outputs
-# Define bootstrap outputs
-# In workflow/targets/aggregate.smk - update the BOOTSTRAP_OUTPUTS
 BOOTSTRAP_OUTPUTS = {
+    # Data preparation outputs
     "bootstrap_data_dir": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_data",
+    "construct_data": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_data" / "{gene}__{construct}__construct_data.tsv",
     
-    # Construct data files for job spawning - use clear separator
-    "construct_data": AGGREGATE_FP
-    / "bootstrap"
-    / "{cell_class}__{channel_combo}__bootstrap_data"
-    / "{gene}__{construct}__construct_data.tsv",  # gene__construct format
-    
-    # Input arrays (TSV format)
+    # Input arrays
     "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
         "controls_arr", "tsv"
@@ -190,43 +184,31 @@ BOOTSTRAP_OUTPUTS = {
     "sample_sizes": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
         "sample_sizes", "tsv"
-    ),   
+    ),
 
-    # Construct-level outputs - use clear separator
-    "bootstrap_construct_nulls": AGGREGATE_FP
-    / "bootstrap"
-    / "{cell_class}__{channel_combo}__constructs"
-    / "{gene}__{construct}__nulls.npy",  # gene__construct format
+    # Construct-level outputs
+    "bootstrap_construct_nulls": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__constructs" / "{gene}__{construct}__nulls.npy",
+    "bootstrap_construct_pvals": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__constructs" / "{gene}__{construct}__pvals.tsv",
     
-    "bootstrap_construct_pvals": AGGREGATE_FP
-    / "bootstrap"
-    / "{cell_class}__{channel_combo}__constructs"
-    / "{gene}__{construct}__pvals.tsv",  # gene__construct format
+    # Gene-level outputs
+    "bootstrap_gene_nulls": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__genes" / "{gene}__nulls.npy",
+    "bootstrap_gene_pvals": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__genes" / "{gene}__pvals.tsv",
     
-    # Gene-level outputs - single gene wildcard
-    "bootstrap_gene_nulls": AGGREGATE_FP
-    / "bootstrap"
-    / "{cell_class}__{channel_combo}__genes"
-    / "{gene}__nulls.npy",  # Just gene, no construct
-    
-    "bootstrap_gene_pvals": AGGREGATE_FP
-    / "bootstrap"
-    / "{cell_class}__{channel_combo}__genes"
-    / "{gene}__pvals.tsv",  # Just gene, no construct
-    
+    # Completion flags
     "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__bootstrap_complete.flag",
 
-    # Combined results files
+    # Combined results
     "combined_construct_results": AGGREGATE_FP / "bootstrap" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
         "all_construct_bootstrap_results", "tsv"
     ),
-    
     "combined_gene_results": AGGREGATE_FP / "bootstrap" / get_filename(
         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
         "all_gene_bootstrap_results", "tsv"
     ),
 }
+
+# Bootstrap target combinations
 bootstrap_combos = config.get("aggregate", {}).get("bootstrap_combinations", [])
 BOOTSTRAP_TARGETS_ALL = [
     str(output_path).format(cell_class=combo["cell_class"], channel_combo=combo["channel_combo"])

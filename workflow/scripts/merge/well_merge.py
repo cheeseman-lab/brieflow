@@ -2,47 +2,152 @@ import pandas as pd
 import yaml
 
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.merge_well import well_merge_pipeline
+from lib.merge.merge_well import stitched_well_alignment, merge_stitched_cells
 
-# Load cell information
-phenotype_info = validate_dtypes(pd.read_parquet(snakemake.input[0]))
-sbs_info = validate_dtypes(pd.read_parquet(snakemake.input[1]))
-
-# Load stitch configurations
-with open(snakemake.input[2], "r") as f:  # Third input (phenotype_stitch_config)
-    phenotype_config = yaml.safe_load(f)
-
-with open(snakemake.input[3], "r") as f:  # Fourth input (sbs_stitch_config)
-    sbs_config = yaml.safe_load(f)
+# Load cell positions from stitched masks (these are the new inputs)
+phenotype_positions = validate_dtypes(pd.read_parquet(snakemake.input[0]))  # phenotype_positions
+sbs_positions = validate_dtypes(pd.read_parquet(snakemake.input[1]))         # sbs_positions
 
 # Get parameters
 plate = snakemake.params.plate
 well = snakemake.params.well
 
-print(f"Starting well-level merge for Plate {plate}, Well {well}")
+print(f"=== Starting Enhanced Well-Level Merge ===")
+print(f"Plate {plate}, Well {well}")
+print(f"Phenotype cells: {len(phenotype_positions)}")
+print(f"SBS cells: {len(sbs_positions)}")
 
-# Filter to specific plate and well
-phenotype_well = phenotype_info[
-    (phenotype_info["plate"] == int(plate)) & (phenotype_info["well"] == well)
-]
+# Check if we have sufficient data
+if len(phenotype_positions) < 4 or len(sbs_positions) < 4:
+    print("Insufficient cells for triangulation and alignment")
+    
+    # Create empty output
+    empty_merge = pd.DataFrame(columns=[
+        "plate", "well", "cell_0", "i_0", "j_0", "area_0",
+        "cell_1", "i_1", "j_1", "area_1", "distance"
+    ])
+    empty_merge.to_parquet(snakemake.output[0])
+    
+    print("Created empty merge results")
+    exit(0)
 
-sbs_well = sbs_info[(sbs_info["plate"] == int(plate)) & (sbs_info["well"] == well)]
+# Filter to the specific well if not already filtered
+if 'well' in phenotype_positions.columns:
+    phenotype_well = phenotype_positions[phenotype_positions["well"] == well]
+else:
+    phenotype_well = phenotype_positions
 
-print(f"Found {len(phenotype_well)} phenotype cells, {len(sbs_well)} SBS cells")
+if 'well' in sbs_positions.columns:
+    sbs_well = sbs_positions[sbs_positions["well"] == well]
+else:
+    sbs_well = sbs_positions
 
-# Perform well-level merge
-merged_cells, alignment_df = well_merge_pipeline(
-    phenotype_info=phenotype_well,
-    sbs_info=sbs_well,
-    phenotype_shifts=phenotype_config["total_translation"],
-    sbs_shifts=sbs_config["total_translation"],
-    well=well,
-    det_range=snakemake.params.det_range,
-    score_threshold=snakemake.params.score,
-    distance_threshold=snakemake.params.threshold,
-)
+print(f"After filtering: {len(phenotype_well)} phenotype cells, {len(sbs_well)} SBS cells")
+
+if len(phenotype_well) == 0 or len(sbs_well) == 0:
+    print("No cells found for this well after filtering")
+    empty_merge = pd.DataFrame(columns=[
+        "plate", "well", "cell_0", "i_0", "j_0", "area_0",
+        "cell_1", "i_1", "j_1", "area_1", "distance"
+    ])
+    empty_merge.to_parquet(snakemake.output[0])
+    exit(0)
+
+# Perform alignment using actual cell positions from stitched masks
+print("\n=== Performing Triangle Hash Alignment ===")
+try:
+    alignment_df = stitched_well_alignment(
+        phenotype_positions=phenotype_well,
+        sbs_positions=sbs_well,
+        det_range=snakemake.params.det_range,
+        score_threshold=snakemake.params.score,
+    )
+    
+    if len(alignment_df) == 0:
+        print("❌ Alignment failed - no valid alignment found")
+        empty_merge = pd.DataFrame(columns=[
+            "plate", "well", "cell_0", "i_0", "j_0", "area_0",
+            "cell_1", "i_1", "j_1", "area_1", "distance"
+        ])
+        empty_merge.to_parquet(snakemake.output[0])
+        exit(0)
+    
+    alignment = alignment_df.iloc[0]
+    print(f"✅ Alignment successful:")
+    print(f"   Score: {alignment['score']:.3f}")
+    print(f"   Determinant: {alignment['determinant']:.3f}")
+    print(f"   Matched triangles: {alignment.get('n_triangles_matched', 'N/A')}")
+    
+except Exception as e:
+    print(f"❌ Alignment failed with error: {e}")
+    empty_merge = pd.DataFrame(columns=[
+        "plate", "well", "cell_0", "i_0", "j_0", "area_0",
+        "cell_1", "i_1", "j_1", "area_1", "distance"
+    ])
+    empty_merge.to_parquet(snakemake.output[0])
+    exit(0)
+
+# Check alignment quality
+if (
+    alignment["determinant"] < snakemake.params.det_range[0]
+    or alignment["determinant"] > snakemake.params.det_range[1]
+    or alignment["score"] < snakemake.params.score
+):
+    print(f"⚠️  Alignment quality insufficient:")
+    print(f"   Determinant: {alignment['determinant']:.3f} (required: {snakemake.params.det_range[0]}-{snakemake.params.det_range[1]})")
+    print(f"   Score: {alignment['score']:.3f} (required: >{snakemake.params.score})")
+    
+    # Still save empty result but with a warning
+    empty_merge = pd.DataFrame(columns=[
+        "plate", "well", "cell_0", "i_0", "j_0", "area_0",
+        "cell_1", "i_1", "j_1", "area_1", "distance"
+    ])
+    empty_merge.to_parquet(snakemake.output[0])
+    exit(0)
+
+# Merge cells based on alignment
+print("\n=== Merging Cells ===")
+try:
+    merged_cells = merge_stitched_cells(
+        phenotype_positions=phenotype_well,
+        sbs_positions=sbs_well,
+        alignment=alignment,
+        threshold=snakemake.params.threshold
+    )
+    
+    if len(merged_cells) == 0:
+        print("⚠️  No cells merged (no matches within distance threshold)")
+    else:
+        print(f"✅ Successfully merged {len(merged_cells)} cells")
+        print(f"   Distance threshold: {snakemake.params.threshold}")
+        print(f"   Mean distance: {merged_cells['distance'].mean():.2f}")
+        print(f"   Max distance: {merged_cells['distance'].max():.2f}")
+    
+    # Add plate information if missing
+    if 'plate' not in merged_cells.columns or merged_cells['plate'].isna().all():
+        merged_cells['plate'] = int(plate)
+    
+    # Ensure well information is correct
+    merged_cells['well'] = well
+    
+except Exception as e:
+    print(f"❌ Cell merging failed with error: {e}")
+    merged_cells = pd.DataFrame(columns=[
+        "plate", "well", "cell_0", "i_0", "j_0", "area_0",
+        "cell_1", "i_1", "j_1", "area_1", "distance"
+    ])
 
 # Save results
 merged_cells.to_parquet(snakemake.output[0])
+print(f"\n=== Results Saved ===")
+print(f"Output file: {snakemake.output[0]}")
+print(f"Final merged cells: {len(merged_cells)}")
 
-print(f"Well-level merge completed. Merged {len(merged_cells)} cells.")
+if len(merged_cells) > 0:
+    print(f"Distance statistics:")
+    print(f"   Mean: {merged_cells['distance'].mean():.3f}")
+    print(f"   Std:  {merged_cells['distance'].std():.3f}")
+    print(f"   Min:  {merged_cells['distance'].min():.3f}")
+    print(f"   Max:  {merged_cells['distance'].max():.3f}")
+
+print("Enhanced well-level merge completed successfully!")

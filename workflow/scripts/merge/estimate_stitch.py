@@ -29,6 +29,23 @@ phenotype_metadata = validate_dtypes(
 )
 sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input.sbs_metadata))
 
+# Apply metadata filters (especially important for SBS which has multiple cycles)
+phenotype_filters = snakemake.params.get("phenotype_metadata_filters", None)
+if phenotype_filters is not None:
+    for filter_key, filter_value in phenotype_filters.items():
+        phenotype_metadata = phenotype_metadata[
+            phenotype_metadata[filter_key] == filter_value
+        ]
+
+sbs_filters = snakemake.params.get("sbs_metadata_filters", None)
+if sbs_filters is not None:
+    for filter_key, filter_value in sbs_filters.items():
+        print(f"Filtering SBS metadata: {filter_key} == {filter_value}")
+        sbs_metadata = sbs_metadata[sbs_metadata[filter_key] == filter_value]
+
+print(f"After filtering:")
+print(f"Phenotype metadata: {len(phenotype_metadata)} entries")
+print(f"SBS metadata: {len(sbs_metadata)} entries")
 
 # Filter to specific plate and well
 plate = snakemake.params.plate
@@ -42,36 +59,23 @@ sbs_well_metadata = sbs_metadata[
     (sbs_metadata["plate"] == int(plate)) & (sbs_metadata["well"] == well)
 ]
 
-# DEBUG PRINT
-print(f"=== DEBUGGING WELL {well} ===")
+print(f"=== Estimating Stitching for Plate {plate}, Well {well} ===")
 print(f"Phenotype tiles: {len(phenotype_well_metadata)}")
-if len(phenotype_well_metadata) > 0:
-    print(
-        f"Phenotype x_pos range: {phenotype_well_metadata['x_pos'].min()} to {phenotype_well_metadata['x_pos'].max()}"
-    )
-    print(
-        f"Phenotype y_pos range: {phenotype_well_metadata['y_pos'].min()} to {phenotype_well_metadata['y_pos'].max()}"
-    )
-    print(f"Unique x positions: {len(phenotype_well_metadata['x_pos'].unique())}")
-    print(f"Unique y positions: {len(phenotype_well_metadata['y_pos'].unique())}")
-    print(
-        f"Sample positions:\n{phenotype_well_metadata[['tile', 'x_pos', 'y_pos']].head(10)}"
-    )
-
 print(f"SBS tiles: {len(sbs_well_metadata)}")
-if len(sbs_well_metadata) > 0:
-    print(
-        f"SBS x_pos range: {sbs_well_metadata['x_pos'].min()} to {sbs_well_metadata['x_pos'].max()}"
-    )
-    print(
-        f"SBS y_pos range: {sbs_well_metadata['y_pos'].min()} to {sbs_well_metadata['y_pos'].max()}"
-    )
-    print(f"Unique x positions: {len(sbs_well_metadata['x_pos'].unique())}")
-    print(f"Unique y positions: {len(sbs_well_metadata['y_pos'].unique())}")
-    print(
-        f"Sample positions:\n{sbs_well_metadata[['tile', 'x_pos', 'y_pos']].head(10)}"
-    )
-print("=" * 50)
+
+if len(phenotype_well_metadata) == 0 or len(sbs_well_metadata) == 0:
+    print("Warning: No tiles found for this well")
+    # Create empty configs
+    empty_config = {"total_translation": {}, "confidence": {well: {}}}
+    
+    with open(snakemake.output[0], "w") as f:
+        yaml.dump(convert_numpy_types(empty_config), f)
+    
+    with open(snakemake.output[1], "w") as f:
+        yaml.dump(convert_numpy_types(empty_config), f)
+    
+    print("Created empty stitching configurations")
+    exit(0)
 
 # Estimate stitching for phenotype data
 print(f"Estimating stitching for phenotype data - Plate {plate}, Well {well}")
@@ -83,7 +87,7 @@ phenotype_stitch_result = estimate_stitch_aligned_tiff(
     fliplr=snakemake.params.fliplr,
     rot90=snakemake.params.rot90,
     channel=snakemake.params.channel,
-    tile_size=tuple(snakemake.params.tile_size),
+    tile_size=(2400, 2400),  # Phenotype tile size
 )
 
 # Estimate stitching for SBS data
@@ -96,7 +100,7 @@ sbs_stitch_result = estimate_stitch_aligned_tiff(
     fliplr=snakemake.params.fliplr,
     rot90=snakemake.params.rot90,
     channel=snakemake.params.channel,
-    tile_size=tuple(snakemake.params.tile_size),
+    tile_size=(1200, 1200),  # SBS tile size
 )
 
 # Save results
@@ -107,3 +111,5 @@ with open(snakemake.output[1], "w") as f:
     yaml.dump(convert_numpy_types(sbs_stitch_result), f)
 
 print("Stitching estimation completed successfully")
+print(f"Phenotype config saved to: {snakemake.output[0]}")
+print(f"SBS config saved to: {snakemake.output[1]}")

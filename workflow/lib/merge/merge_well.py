@@ -18,7 +18,7 @@ from lib.merge.hash import get_vectors, get_vc, nearest_neighbors
 from lib.merge.stitch_well import (
     estimate_stitch_aligned_tiff,
     assemble_aligned_tiff_well,
-    assemble_stitched_masks,
+    assemble_stitched_masks_optimized,
     extract_cell_positions_from_stitched_mask
 )
 
@@ -359,7 +359,7 @@ def full_stitching_pipeline(
     # Step 3: Assemble stitched masks
     print("Assembling stitched masks...")
     try:
-        stitched_mask = assemble_stitched_masks(
+        stitched_mask = assemble_stitched_masks_optimized(
             metadata_df=metadata_df,
             shifts=shifts,
             well=well,

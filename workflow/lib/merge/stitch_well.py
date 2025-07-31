@@ -193,7 +193,7 @@ class MaskTileCache:
 def metadata_to_grid_positions(
     metadata_df: pd.DataFrame, well: str, grid_spacing_tolerance: float = 1.0
 ) -> Dict[int, Tuple[int, int]]:
-    """Convert metadata to tile positions preserving actual well geometry."""
+    """Convert metadata to tile positions preserving actual well geometry with proper spacing detection."""
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
 
     if len(well_metadata) == 0:
@@ -204,24 +204,29 @@ def metadata_to_grid_positions(
     
     print(f"Processing {len(tile_ids)} tiles preserving circular well geometry")
     
-    # Use our previously debugged coordinate spacing analysis
-    x_coords = coords[:, 0]
-    y_coords = coords[:, 1]
+    # FIXED: Use actual tile spacing, not measurement precision noise
+    from scipy.spatial.distance import pdist
+    distances = pdist(coords)
     
-    # Detect grid spacing (using our proven method)
-    x_diffs = np.diff(np.sort(np.unique(x_coords)))
-    y_diffs = np.diff(np.sort(np.unique(y_coords)))
+    # Use 10th percentile of distances as typical neighbor spacing
+    actual_spacing = np.percentile(distances[distances > 0], 10)
     
-    # Filter out large jumps (use our proven tolerance)
-    x_spacing = np.median(x_diffs[x_diffs <= grid_spacing_tolerance]) if len(x_diffs[x_diffs <= grid_spacing_tolerance]) > 0 else 3.0
-    y_spacing = np.median(y_diffs[y_diffs <= grid_spacing_tolerance]) if len(y_diffs[y_diffs <= grid_spacing_tolerance]) > 0 else 3.0
+    print(f"Stage coordinate ranges:")
+    print(f"  X: {coords[:, 0].min():.1f} to {coords[:, 0].max():.1f} μm")
+    print(f"  Y: {coords[:, 1].min():.1f} to {coords[:, 1].max():.1f} μm")
+    print(f"Detected actual tile spacing: {actual_spacing:.1f} μm")
     
-    print(f"Grid spacing detected: X={x_spacing:.2f}, Y={y_spacing:.2f}")
+    # Use the actual spacing for both X and Y
+    x_spacing = actual_spacing
+    y_spacing = actual_spacing
     
     # Convert to grid coordinates preserving relative positions
     x_min, y_min = coords.min(axis=0)
     
     tile_positions = {}
+    max_grid_x = 0
+    max_grid_y = 0
+    
     for i, tile_id in enumerate(tile_ids):
         x_pos, y_pos = coords[i]
         
@@ -230,16 +235,20 @@ def metadata_to_grid_positions(
         grid_y = int(round((y_pos - y_min) / y_spacing))
         
         tile_positions[tile_id] = (grid_y, grid_x)  # (row, col) format
+        
+        max_grid_x = max(max_grid_x, grid_x)
+        max_grid_y = max(max_grid_y, grid_y)
     
+    print(f"Grid coordinate ranges: Y=0 to {max_grid_y}, X=0 to {max_grid_x}")
     print(f"Created grid positions for {len(tile_positions)} tiles")
     
     # Verify we preserved circular geometry
-    if len(tile_positions) > 10:
+    if len(tile_positions) > 4:
         positions = np.array(list(tile_positions.values()))
         center_y, center_x = positions.mean(axis=0)
-        distances = np.sqrt((positions[:, 0] - center_y)**2 + (positions[:, 1] - center_x)**2)
+        distances_grid = np.sqrt((positions[:, 0] - center_y)**2 + (positions[:, 1] - center_x)**2)
         
-        cv = distances.std() / distances.mean() if distances.mean() > 0 else 1.0
+        cv = distances_grid.std() / distances_grid.mean() if distances_grid.mean() > 0 else 1.0
         if cv < 0.4:
             print("✅ Preserved circular well geometry")
         else:
@@ -505,7 +514,7 @@ def optimal_positions_tiff(
     well: str,
     tile_size: Tuple[int, int],
 ) -> Dict[str, List[int]]:
-    """Calculate optimal tile positions using least squares optimization."""
+    """Calculate optimal tile positions using least squares optimization with proper unit handling."""
     if len(edge_list) == 0:
         return {}
 
@@ -517,9 +526,12 @@ def optimal_positions_tiff(
     y_i = np.zeros(n_edges + 1, dtype=np.float32)
     y_j = np.zeros(n_edges + 1, dtype=np.float32)
 
-    # Initial guess
-    x_guess = np.array([tile_positions[tile_id][0] * tile_size[1] for tile_id in tile_ids], dtype=np.float32)
-    y_guess = np.array([tile_positions[tile_id][1] * tile_size[0] for tile_id in tile_ids], dtype=np.float32)
+    # FIXED: Use grid positions directly, not multiplied by tile size
+    # The optimization works in grid coordinate space, then we convert to pixels later
+    x_guess = np.array([tile_positions[tile_id][1] for tile_id in tile_ids], dtype=np.float32)  # Grid X (col)
+    y_guess = np.array([tile_positions[tile_id][0] for tile_id in tile_ids], dtype=np.float32)  # Grid Y (row)
+
+    print(f"Initial grid position ranges: Y=[{y_guess.min():.0f}, {y_guess.max():.0f}], X=[{x_guess.min():.0f}, {x_guess.max():.0f}]")
 
     # Build constraint matrix
     a = scipy.sparse.lil_matrix((n_edges + 1, n_tiles), dtype=np.float32)
@@ -529,8 +541,11 @@ def optimal_positions_tiff(
         tile_b_idx = tile_lut[edge.tile_b_id]
         a[c, tile_a_idx] = -1
         a[c, tile_b_idx] = 1
-        y_i[c] = edge.model.shift_vector[0]
-        y_j[c] = edge.model.shift_vector[1]
+        
+        # IMPORTANT: Scale the shift vectors to grid units, not pixel units
+        # The edge.model.shift_vector is in pixels, convert to grid units
+        y_i[c] = edge.model.shift_vector[0] / tile_size[0]  # Convert pixels to grid units
+        y_j[c] = edge.model.shift_vector[1] / tile_size[1]  # Convert pixels to grid units
 
     # Fix first tile at origin
     y_i[-1] = 0
@@ -538,7 +553,7 @@ def optimal_positions_tiff(
     a[-1, 0] = 1
     a = a.tocsr()
 
-    # Optimization
+    # Optimization in grid space
     tolerance = 1e-5
     try:
         opt_i = linsolve(a, y_i, tolerance=tolerance, x0=y_guess, maxiter=int(1e8))
@@ -548,17 +563,35 @@ def optimal_positions_tiff(
         opt_i = y_guess
         opt_j = x_guess
 
-    # Combine and zero minimum
+    # Combine and zero minimum (still in grid space)
     opt_shifts = np.vstack((opt_i, opt_j)).T
     opt_shifts_zeroed = opt_shifts - np.min(opt_shifts, axis=0)
+    
+    print(f"Optimized grid position ranges: Y=[{opt_shifts_zeroed[:, 0].min():.0f}, {opt_shifts_zeroed[:, 0].max():.0f}], X=[{opt_shifts_zeroed[:, 1].min():.0f}, {opt_shifts_zeroed[:, 1].max():.0f}]")
 
-    # Create output dictionary
+    # NOW convert to pixel coordinates
     opt_shifts_dict = {}
     for i, tile_id in enumerate(tile_ids):
-        opt_shifts_dict[f"{well}/{tile_id}"] = [
-            int(opt_shifts_zeroed[i, 0]),
-            int(opt_shifts_zeroed[i, 1]),
-        ]
+        # Convert from grid units to pixel coordinates
+        pixel_y = int(opt_shifts_zeroed[i, 0] * tile_size[0])  # Grid Y * tile height
+        pixel_x = int(opt_shifts_zeroed[i, 1] * tile_size[1])  # Grid X * tile width
+        
+        opt_shifts_dict[f"{well}/{tile_id}"] = [pixel_y, pixel_x]
+
+    # Verify reasonable output
+    final_y_shifts = [s[0] for s in opt_shifts_dict.values()]
+    final_x_shifts = [s[1] for s in opt_shifts_dict.values()]
+    
+    max_y_range = max(final_y_shifts) - min(final_y_shifts)
+    max_x_range = max(final_x_shifts) - min(final_x_shifts)
+    
+    print(f"Final pixel shift ranges: Y={max_y_range}, X={max_x_range}")
+    
+    # Sanity check
+    if max_y_range > 100000 or max_x_range > 100000:  # 100K pixels = reasonable large well
+        print(f"⚠️  Warning: Very large shift ranges detected")
+    else:
+        print(f"✅ Shift ranges look reasonable")
 
     return opt_shifts_dict
 
@@ -869,3 +902,180 @@ def assemble_stitched_masks_chunked(
     
     print(f"Creating downsampled mask: {downsampled_shape} (4x smaller)")
     return np.zeros(downsampled_shape, dtype=np.uint32)
+
+def estimate_stitch_phenotype(
+    metadata_df: pd.DataFrame,
+    well: str,
+    flipud: bool = False,
+    fliplr: bool = False,
+    rot90: int = 0,
+    channel: int = 0,
+) -> Dict[str, Dict]:
+    """Optimized stitching estimation for phenotype data (works via image registration)."""
+    
+    tile_positions = metadata_to_grid_positions(metadata_df, well)
+    
+    if len(tile_positions) == 0:
+        print(f"No phenotype tiles found for well {well}")
+        return {"total_translation": {}, "confidence": {well: {}}}
+
+    tile_size = (2400, 2400)
+    print(f"Phenotype tile size: {tile_size}")
+
+    # Phenotype-optimized connectivity (proven to work)
+    well_metadata = metadata_df[metadata_df["well"] == well].copy()
+    coords = well_metadata[['x_pos', 'y_pos']].values
+    tile_ids = well_metadata['tile'].values
+    
+    edges = create_phenotype_connectivity(tile_positions, coords, tile_ids)
+    
+    if len(edges) == 0:
+        print("No edges created for phenotype")
+        return {"total_translation": {}, "confidence": {well: {}}}
+
+    print(f"Created {len(edges)} phenotype-optimized edges")
+    
+    # Process edges with phenotype-tuned cache
+    tile_cache = AlignedTiffTileCache(metadata_df, well, "phenotype", flipud, fliplr, rot90, channel)
+    edge_list = []
+    confidence_dict = {}
+    pos_to_tile = {pos: tile_id for tile_id, pos in tile_positions.items()}
+
+    print(f"Processing {len(edges)} edges for phenotype...")
+    for key, (pos_a, pos_b) in tqdm(edges.items(), desc="Computing phenotype shifts"):
+        tile_a_id = pos_to_tile[pos_a]
+        tile_b_id = pos_to_tile[pos_b]
+
+        try:
+            edge = AlignedTiffEdge(tile_a_id, tile_b_id, tile_cache, tile_positions)
+            edge_list.append(edge)
+            confidence_dict[key] = [list(pos_a), list(pos_b), float(edge.model.confidence)]
+        except Exception as e:
+            print(f"Failed to process phenotype edge {tile_a_id}-{tile_b_id}: {e}")
+            continue
+
+    # Optimize positions
+    opt_shift_dict = optimal_positions_tiff(edge_list, tile_positions, well, tile_size)
+
+    return {"total_translation": opt_shift_dict, "confidence": {well: confidence_dict}}
+
+
+def estimate_stitch_sbs_coordinate_based(
+    metadata_df: pd.DataFrame,
+    well: str,
+    flipud: bool = False,
+    fliplr: bool = False,
+    rot90: int = 0,
+    channel: int = 0,
+) -> Dict[str, Dict]:
+    """Coordinate-based stitching for SBS data (bypasses problematic image registration)."""
+    
+    well_metadata = metadata_df[metadata_df["well"] == well].copy()
+    
+    if len(well_metadata) == 0:
+        print(f"No SBS tiles found for well {well}")
+        return {"total_translation": {}, "confidence": {well: {}}}
+    
+    coords = well_metadata[['x_pos', 'y_pos']].values
+    tile_ids = well_metadata['tile'].values
+    tile_size = (1200, 1200)
+    
+    print(f"Creating coordinate-based SBS stitch config for {len(tile_ids)} tiles")
+    
+    # Use proven spacing detection
+    from scipy.spatial.distance import pdist
+    distances = pdist(coords)
+    actual_spacing = np.percentile(distances[distances > 0], 10)  # 10th percentile
+    
+    print(f"SBS spacing: {actual_spacing:.1f} μm")
+    print(f"SBS tile size: {tile_size}")
+    
+    # Convert stage coordinates directly to pixel positions
+    # Scale so tiles overlap slightly (90% of spacing)
+    pixels_per_micron = tile_size[0] * 0.9 / actual_spacing
+    
+    print(f"SBS scale factor: {pixels_per_micron:.3f} pixels/μm")
+    
+    x_min, y_min = coords.min(axis=0)
+    
+    total_translation = {}
+    confidence = {}
+    
+    for i, tile_id in enumerate(tile_ids):
+        x_pos, y_pos = coords[i]
+        
+        # Convert directly to pixel coordinates
+        pixel_x = int((x_pos - x_min) * pixels_per_micron)
+        pixel_y = int((y_pos - y_min) * pixels_per_micron)
+        
+        total_translation[f"{well}/{tile_id}"] = [pixel_y, pixel_x]
+        
+        # High confidence since using direct coordinates
+        confidence[f"coord_{i}"] = [[pixel_y, pixel_x], [pixel_y, pixel_x], 0.9]
+    
+    print(f"Generated {len(total_translation)} SBS coordinate-based positions")
+    
+    # Verify output size
+    y_shifts = [shift[0] for shift in total_translation.values()]
+    x_shifts = [shift[1] for shift in total_translation.values()]
+    
+    final_size = (max(y_shifts) + tile_size[0], max(x_shifts) + tile_size[1])
+    memory_gb = final_size[0] * final_size[1] * 2 / 1e9
+    
+    print(f"SBS final image size: {final_size}")
+    print(f"SBS memory estimate: {memory_gb:.1f} GB")
+    
+    return {"total_translation": total_translation, "confidence": {well: confidence}}
+
+
+def create_phenotype_connectivity(tile_positions, coords, tile_ids):
+    """Phenotype-specific connectivity (proven to work)"""
+    from scipy.spatial.distance import pdist, squareform
+    distances = squareform(pdist(coords))
+    
+    # Phenotype-optimized thresholds (from our testing)
+    min_distance = distances[distances > 0].min()
+    proximity_threshold = min_distance * 1.005
+    max_neighbors = 3
+    
+    print(f"Phenotype connectivity: threshold={proximity_threshold:.1f}, max_neighbors={max_neighbors}")
+    
+    edges = {}
+    edge_idx = 0
+    
+    for i in range(len(tile_ids)):
+        neighbor_distances = [(j, distances[i, j]) for j in range(len(tile_ids)) 
+                            if j != i and distances[i, j] < proximity_threshold]
+        
+        neighbor_distances.sort(key=lambda x: x[1])
+        neighbors_to_use = neighbor_distances[:max_neighbors]
+        
+        for j, dist in neighbors_to_use:
+            if i < j:
+                pos_a = tile_positions[tile_ids[i]]
+                pos_b = tile_positions[tile_ids[j]]
+                edges[f"{edge_idx}"] = [pos_a, pos_b]
+                edge_idx += 1
+    
+    return edges
+
+
+def estimate_stitch_data_type_specific(
+    metadata_df: pd.DataFrame,
+    well: str,
+    data_type: str = "phenotype",
+    flipud: bool = False,
+    fliplr: bool = False,
+    rot90: int = 0,
+    channel: int = 0,
+    tile_size: Optional[Tuple[int, int]] = None,
+) -> Dict[str, Dict]:
+    """Route to data-type-specific optimized functions."""
+    
+    if data_type == "phenotype":
+        return estimate_stitch_phenotype(metadata_df, well, flipud, fliplr, rot90, channel)
+    elif data_type == "sbs":
+        return estimate_stitch_sbs_coordinate_based(metadata_df, well, flipud, fliplr, rot90, channel)
+    else:
+        # Fallback to original approach
+        return estimate_stitch_aligned_tiff(metadata_df, well, data_type, flipud, fliplr, rot90, channel, tile_size)

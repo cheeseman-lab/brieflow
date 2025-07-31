@@ -3,7 +3,7 @@ import yaml
 from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.stitch_well import estimate_stitch_aligned_tiff
+from lib.merge.stitch_well import estimate_stitch_data_type_specific
 import numpy as np
 
 
@@ -79,7 +79,7 @@ if len(phenotype_well_metadata) == 0 or len(sbs_well_metadata) == 0:
 
 # Estimate stitching for phenotype data
 print(f"Estimating stitching for phenotype data - Plate {plate}, Well {well}")
-phenotype_stitch_result = estimate_stitch_aligned_tiff(
+phenotype_stitch_result = estimate_stitch_data_type_specific(
     metadata_df=phenotype_well_metadata,
     well=well,
     data_type="phenotype",
@@ -92,7 +92,7 @@ phenotype_stitch_result = estimate_stitch_aligned_tiff(
 
 # Estimate stitching for SBS data
 print(f"Estimating stitching for SBS data - Plate {plate}, Well {well}")
-sbs_stitch_result = estimate_stitch_aligned_tiff(
+sbs_stitch_result = estimate_stitch_data_type_specific(
     metadata_df=sbs_well_metadata,
     well=well,
     data_type="sbs",

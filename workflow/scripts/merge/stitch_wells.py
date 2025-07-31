@@ -1,11 +1,34 @@
 import pandas as pd
 import numpy as np
 import yaml
+import gc
+import psutil
+import os
 from pathlib import Path
 from skimage import io
 
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.merge_well import full_stitching_pipeline
+from lib.merge.stitch_well import (
+    assemble_aligned_tiff_well,
+    extract_cell_positions_from_stitched_mask
+)
+from lib.merge.merge_well import create_stitched_overlay
+
+# Import the optimized mask assembly function
+try:
+    from lib.merge.stitch_well import assemble_stitched_masks_optimized
+except ImportError:
+    # Fallback to original if optimized version not available
+    from lib.merge.stitch_well import assemble_stitched_masks as assemble_stitched_masks_optimized
+
+
+def print_memory_usage(stage=""):
+    """Print current memory usage"""
+    process = psutil.Process(os.getpid())
+    memory_gb = process.memory_info().rss / 1e9
+    print(f"Memory usage {stage}: {memory_gb:.1f} GB")
+    return memory_gb
+
 
 def check_mask_files_exist(metadata_df, well, data_type):
     """Check if nuclei mask files exist for this well"""
@@ -20,7 +43,6 @@ def check_mask_files_exist(metadata_df, well, data_type):
     for _, row in well_metadata.head(5).iterrows():  # Check first 5 tiles
         plate = row["plate"]
         tile_id = row["tile"]
-        # Nuclei masks are at: analysis_root/{data_type}/images/P-{plate}_W-{well}_T-{tile}__nuclei.tiff
         mask_path = f"analysis_root/{data_type}/images/P-{plate}_W-{well}_T-{tile_id}__nuclei.tiff"
         
         if Path(mask_path).exists():
@@ -30,207 +52,263 @@ def check_mask_files_exist(metadata_df, well, data_type):
     
     masks_exist = len(existing_masks) > 0
     print(f"Nuclei mask check for {data_type}: {len(existing_masks)} exist, {len(missing_masks)} missing")
-    if missing_masks:
-        print(f"Example missing mask: {missing_masks[0]}")
     
     return masks_exist, existing_masks
 
-# Load metadata
-phenotype_metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
-sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 
-# Load stitch configurations
-with open(snakemake.input[2], "r") as f:
-    phenotype_config = yaml.safe_load(f)
-
-with open(snakemake.input[3], "r") as f:
-    sbs_config = yaml.safe_load(f)
-
-# Filter metadata to specific plate and well
-plate = snakemake.params.plate
-well = snakemake.params.well
-
-phenotype_well_metadata = phenotype_metadata[
-    (phenotype_metadata["plate"] == int(plate)) & (phenotype_metadata["well"] == well)
-]
-
-sbs_well_metadata = sbs_metadata[
-    (sbs_metadata["plate"] == int(plate)) & (sbs_metadata["well"] == well)
-]
-
-print(f"=== Stitching Wells for Plate {plate}, Well {well} ===")
-print(f"Phenotype tiles: {len(phenotype_well_metadata)}")
-print(f"SBS tiles: {len(sbs_well_metadata)}")
-
-# Check if mask files exist
-phenotype_masks_exist, _ = check_mask_files_exist(phenotype_well_metadata, well, "phenotype")
-sbs_masks_exist, _ = check_mask_files_exist(sbs_well_metadata, well, "sbs")
-
-print(f"Phenotype masks available: {phenotype_masks_exist}")
-print(f"SBS masks available: {sbs_masks_exist}")
-
-if len(phenotype_well_metadata) == 0 or len(sbs_well_metadata) == 0:
-    print("Warning: No tiles found for this well")
-    # Create empty outputs
-    empty_image = np.zeros((100, 100), dtype=np.uint16)
-    empty_mask = np.zeros((100, 100), dtype=np.uint16)
-    empty_positions = pd.DataFrame(columns=['well', 'cell', 'i', 'j', 'area', 'data_type'])
-    
-    # Save empty outputs
-    np.save(snakemake.output[0], empty_image)  # phenotype_stitched_image
-    np.save(snakemake.output[1], empty_mask)   # phenotype_stitched_mask
-    empty_positions.to_parquet(snakemake.output[2])  # phenotype_positions
-    np.save(snakemake.output[3], empty_image)  # sbs_stitched_image
-    np.save(snakemake.output[4], empty_mask)   # sbs_stitched_mask
-    empty_positions.to_parquet(snakemake.output[5])  # sbs_positions
-    
-    # Create empty overlays
-    empty_overlay = np.zeros((100, 100, 3), dtype=np.uint8)
-    io.imsave(snakemake.output[6], empty_overlay)  # phenotype_overlay
-    io.imsave(snakemake.output[7], empty_overlay)  # sbs_overlay
-    
-    print("Created empty outputs due to missing tiles")
-    exit(0)
-
-# Create a custom stitching function that handles missing masks
-def safe_stitching_pipeline(metadata_df, well, data_type, stitch_config, masks_exist):
-    """Stitching pipeline that handles missing masks gracefully"""
-    
-    print(f"\n=== Processing {data_type.title()} Stitching ===")
-    
-    results = {
-        'stitched_image': None,
-        'stitched_mask': None,
-        'cell_positions': None,
-        'overlay': None
+def create_empty_outputs(data_type):
+    """Create empty outputs when processing fails"""
+    return {
+        'stitched_image': np.zeros((100, 100), dtype=np.uint16),
+        'stitched_mask': np.zeros((100, 100), dtype=np.uint16),
+        'cell_positions': pd.DataFrame(columns=['well', 'cell', 'i', 'j', 'area', 'data_type']),
+        'overlay': np.zeros((100, 100, 3), dtype=np.uint8)
     }
+
+
+def aggressive_memory_cleanup():
+    """Aggressive memory cleanup"""
+    gc.collect()
+    gc.collect()  # Call twice for better cleanup
+    gc.collect()
+
+
+def process_modality_with_disk_offload(metadata_df, stitch_config, plate, well, data_type, params):
+    """
+    Process modality with immediate disk offloading to manage memory.
+    Save results immediately and clear from memory.
+    """
+    
+    print(f"\n=== Processing {data_type.upper()} with Disk Offloading ===")
+    print(f"Plate {plate}, Well {well}")
+    print_memory_usage("start")
+    
+    # Filter metadata to specific plate and well
+    well_metadata = metadata_df[
+        (metadata_df["plate"] == int(plate)) & (metadata_df["well"] == well)
+    ]
+    
+    print(f"{data_type.capitalize()} tiles: {len(well_metadata)}")
+    
+    if len(well_metadata) == 0:
+        print(f"Warning: No {data_type} tiles found for this well")
+        return create_empty_outputs(data_type)
+    
+    # Check if mask files exist
+    masks_exist, _ = check_mask_files_exist(well_metadata, well, data_type)
+    print(f"{data_type.capitalize()} masks available: {masks_exist}")
+    
+    # Create temporary directory for intermediate files
+    temp_dir = Path(f"/tmp/stitch_{data_type}_{plate}_{well}_{os.getpid()}")
+    temp_dir.mkdir(exist_ok=True)
     
     try:
-        # Always try to create stitched image
-        from lib.merge.stitch_well import assemble_aligned_tiff_well
-        
+        # Step 1: Assemble stitched image
         print("Assembling stitched image...")
+        print_memory_usage("before image assembly")
+        
         stitched_image = assemble_aligned_tiff_well(
-            metadata_df=metadata_df,
+            metadata_df=well_metadata,
             shifts=stitch_config["total_translation"],
             well=well,
             data_type=data_type,
-            flipud=snakemake.params.flipud,
-            fliplr=snakemake.params.fliplr,
-            rot90=snakemake.params.rot90,
-            overlap_percent=snakemake.params.get("overlap_percent", 0.05),
+            flipud=params.flipud,
+            fliplr=params.fliplr,
+            rot90=params.rot90,
+            overlap_percent=params.overlap_percent,
         )
-        results['stitched_image'] = stitched_image
+        
         print(f"✅ Stitched image successful: {stitched_image.shape}")
+        print_memory_usage("after image assembly")
+        
+        # IMMEDIATELY save image to temp file and clear from memory
+        temp_image_path = temp_dir / "stitched_image.npy"
+        np.save(temp_image_path, stitched_image)
+        image_shape = stitched_image.shape  # Keep shape for later
+        del stitched_image  # Clear from memory
+        aggressive_memory_cleanup()
+        print_memory_usage("after image cleanup")
+        
+        # Step 2: Assemble stitched masks (only if masks exist)
+        if masks_exist:
+            print("Assembling stitched masks...")
+            print_memory_usage("before mask assembly")
+            
+            try:
+                stitched_mask = assemble_stitched_masks_optimized(
+                    metadata_df=well_metadata,
+                    shifts=stitch_config["total_translation"],
+                    well=well,
+                    data_type=data_type,
+                    flipud=params.flipud,
+                    fliplr=params.fliplr,
+                    rot90=params.rot90
+                )
+                
+                print(f"✅ Stitched mask successful: {stitched_mask.shape}, max label: {stitched_mask.max()}")
+                print_memory_usage("after mask assembly")
+                
+                # IMMEDIATELY save mask to temp file
+                temp_mask_path = temp_dir / "stitched_mask.npy"
+                np.save(temp_mask_path, stitched_mask)
+                mask_shape = stitched_mask.shape
+                mask_max_label = stitched_mask.max()
+                
+                # Extract cell positions BEFORE clearing mask
+                if mask_max_label > 0:
+                    print("Extracting cell positions...")
+                    cell_positions = extract_cell_positions_from_stitched_mask(
+                        stitched_mask, well, data_type
+                    )
+                    print(f"✅ Extracted {len(cell_positions)} cell positions")
+                else:
+                    cell_positions = pd.DataFrame(columns=['well', 'cell', 'i', 'j', 'area', 'data_type'])
+                
+                del stitched_mask  # Clear mask from memory
+                aggressive_memory_cleanup()
+                print_memory_usage("after mask cleanup")
+                
+            except Exception as e:
+                print(f"❌ Mask stitching failed: {e}")
+                # Create empty mask file
+                empty_mask = np.zeros(image_shape, dtype=np.uint16)
+                temp_mask_path = temp_dir / "stitched_mask.npy"
+                np.save(temp_mask_path, empty_mask)
+                del empty_mask
+                cell_positions = pd.DataFrame(columns=['well', 'cell', 'i', 'j', 'area', 'data_type'])
+                aggressive_memory_cleanup()
+        else:
+            print("⚠️  Skipping mask stitching - no mask files found")
+            empty_mask = np.zeros(image_shape, dtype=np.uint16)
+            temp_mask_path = temp_dir / "stitched_mask.npy"
+            np.save(temp_mask_path, empty_mask)
+            del empty_mask
+            cell_positions = pd.DataFrame(columns=['well', 'cell', 'i', 'j', 'area', 'data_type'])
+            aggressive_memory_cleanup()
+        
+        # Step 3: Create overlay (load both image and mask temporarily)
+        if params.create_overlay:
+            print("Creating overlay...")
+            print_memory_usage("before overlay creation")
+            
+            try:
+                # Load image and mask temporarily
+                temp_image = np.load(temp_image_path)
+                temp_mask = np.load(temp_mask_path)
+                
+                if temp_mask.max() > 0:
+                    overlay = create_stitched_overlay(temp_image, temp_mask)
+                else:
+                    # Create empty overlay
+                    h, w = temp_image.shape
+                    overlay = np.zeros((h, w, 3), dtype=np.uint8)
+                
+                # Clear temporary arrays immediately
+                del temp_image, temp_mask
+                aggressive_memory_cleanup()
+                print_memory_usage("after overlay creation")
+                
+            except Exception as e:
+                print(f"❌ Overlay creation failed: {e}")
+                overlay = np.zeros((100, 100, 3), dtype=np.uint8)
+        else:
+            overlay = np.zeros((image_shape[0], image_shape[1], 3), dtype=np.uint8)
+        
+        # Return file paths instead of data
+        return {
+            'temp_image_path': temp_image_path,
+            'temp_mask_path': temp_mask_path,
+            'cell_positions': cell_positions,
+            'overlay': overlay,
+            'temp_dir': temp_dir
+        }
         
     except Exception as e:
-        print(f"❌ Image stitching failed: {e}")
-        results['stitched_image'] = np.zeros((100, 100), dtype=np.uint16)
+        print(f"❌ Processing failed: {e}")
+        return create_empty_outputs(data_type)
+
+
+# Main execution
+def main():
+    data_type = snakemake.params.data_type
     
-    # Only try mask stitching if masks exist
-    if masks_exist:
-        try:
-            from lib.merge.stitch_well import assemble_stitched_masks, extract_cell_positions_from_stitched_mask
+    print(f"=== MEMORY-OPTIMIZED {data_type.upper()} STITCHING ===")
+    print_memory_usage("initial")
+    
+    # Load appropriate metadata and config based on data type
+    if data_type == "phenotype":
+        metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
+        with open(snakemake.input[1], "r") as f:
+            stitch_config = yaml.safe_load(f)
+        outputs = snakemake.output[:4]
+    else:  # SBS
+        metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
+        with open(snakemake.input[1], "r") as f:
+            stitch_config = yaml.safe_load(f)
+        outputs = snakemake.output[:4]
+    
+    # Get parameters
+    plate = snakemake.params.plate
+    well = snakemake.params.well
+    
+    print(f"Plate {plate}, Well {well}")
+    print(f"Memory allocation: 400GB")
+    print(f"Output files:")
+    for i, output in enumerate(outputs):
+        print(f"  {i}: {output}")
+    
+    # Process with disk offloading
+    results = process_modality_with_disk_offload(
+        metadata, stitch_config, plate, well, data_type, snakemake.params
+    )
+    
+    # Save final outputs
+    print(f"\n=== Saving Final {data_type.upper()} Outputs ===")
+    print_memory_usage("before final save")
+    
+    try:
+        if 'temp_image_path' in results:
+            # Move temp files to final locations
+            import shutil
             
-            print("Assembling stitched masks...")
-            stitched_mask = assemble_stitched_masks(
-                metadata_df=metadata_df,
-                shifts=stitch_config["total_translation"],
-                well=well,
-                data_type=data_type,
-                flipud=snakemake.params.flipud,
-                fliplr=snakemake.params.fliplr,
-                rot90=snakemake.params.rot90
-            )
-            results['stitched_mask'] = stitched_mask
-            print(f"✅ Stitched mask successful: {stitched_mask.shape}, max label: {stitched_mask.max()}")
+            # Copy image
+            shutil.move(str(results['temp_image_path']), outputs[0])
+            print(f"✅ Moved stitched image: {outputs[0]}")
             
-            # Extract cell positions
-            if stitched_mask is not None and stitched_mask.max() > 0:
-                print("Extracting cell positions...")
-                cell_positions = extract_cell_positions_from_stitched_mask(
-                    stitched_mask, well, data_type
-                )
-                results['cell_positions'] = cell_positions
-                print(f"✅ Extracted {len(cell_positions)} cell positions")
+            # Copy mask
+            shutil.move(str(results['temp_mask_path']), outputs[1])
+            print(f"✅ Moved stitched mask: {outputs[1]}")
             
-        except Exception as e:
-            print(f"❌ Mask stitching failed: {e}")
-            results['stitched_mask'] = np.zeros_like(results['stitched_image'], dtype=np.uint16)
-    else:
-        print("⚠️  Skipping mask stitching - no mask files found")
-        results['stitched_mask'] = np.zeros_like(results['stitched_image'], dtype=np.uint16)
-    
-    # Create empty cell positions if masks failed
-    if results['cell_positions'] is None:
-        results['cell_positions'] = pd.DataFrame(columns=['well', 'cell', 'i', 'j', 'area', 'data_type'])
-        print("⚠️  Created empty cell positions")
-    
-    # Create overlay if both image and mask exist
-    if (results['stitched_image'] is not None and 
-        results['stitched_mask'] is not None and 
-        results['stitched_mask'].max() > 0):
-        try:
-            from lib.merge.merge_well import create_stitched_overlay
-            overlay = create_stitched_overlay(results['stitched_image'], results['stitched_mask'])
-            results['overlay'] = overlay
-            print("✅ Created overlay image")
-        except Exception as e:
-            print(f"❌ Overlay creation failed: {e}")
-    
-    if results['overlay'] is None:
-        # Create empty overlay
-        if results['stitched_image'] is not None:
-            h, w = results['stitched_image'].shape
-            results['overlay'] = np.zeros((h, w, 3), dtype=np.uint8)
+            # Save cell positions
+            results['cell_positions'].to_parquet(outputs[2])
+            print(f"✅ Saved cell positions: {outputs[2]} ({len(results['cell_positions'])} cells)")
+            
+            # Save overlay
+            io.imsave(outputs[3], results['overlay'])
+            print(f"✅ Saved overlay: {outputs[3]}")
+            
+            # Cleanup temp directory
+            if results['temp_dir'].exists():
+                import shutil
+                shutil.rmtree(results['temp_dir'])
+                print("🗑️  Cleaned up temporary files")
+        
         else:
-            results['overlay'] = np.zeros((100, 100, 3), dtype=np.uint8)
+            # Fallback to empty outputs
+            for i, output in enumerate(outputs):
+                if output.endswith('.npy'):
+                    np.save(output, results[list(results.keys())[i]])
+                elif output.endswith('.parquet'):
+                    results['cell_positions'].to_parquet(output)
+                elif output.endswith('.png'):
+                    io.imsave(output, results['overlay'])
     
-    return results
+    except Exception as e:
+        print(f"❌ Final save failed: {e}")
+    
+    print_memory_usage("final")
+    print(f"\n🎉 === {data_type.upper()} STITCHING COMPLETED! ===")
 
-# Process phenotype stitching
-phenotype_results = safe_stitching_pipeline(
-    phenotype_well_metadata, well, "phenotype", phenotype_config, phenotype_masks_exist
-)
 
-# Process SBS stitching  
-sbs_results = safe_stitching_pipeline(
-    sbs_well_metadata, well, "sbs", sbs_config, sbs_masks_exist
-)
-
-# Save all outputs
-print("\n=== Saving Outputs ===")
-
-# Save phenotype outputs
-np.save(snakemake.output[0], phenotype_results['stitched_image'])
-print(f"Saved phenotype stitched image: {snakemake.output[0]}")
-
-np.save(snakemake.output[1], phenotype_results['stitched_mask'])
-print(f"Saved phenotype stitched mask: {snakemake.output[1]}")
-
-phenotype_results['cell_positions'].to_parquet(snakemake.output[2])
-print(f"Saved phenotype cell positions: {snakemake.output[2]} ({len(phenotype_results['cell_positions'])} cells)")
-
-# Save SBS outputs
-np.save(snakemake.output[3], sbs_results['stitched_image'])
-print(f"Saved SBS stitched image: {snakemake.output[3]}")
-
-np.save(snakemake.output[4], sbs_results['stitched_mask'])
-print(f"Saved SBS stitched mask: {snakemake.output[4]}")
-
-sbs_results['cell_positions'].to_parquet(snakemake.output[5])
-print(f"Saved SBS cell positions: {snakemake.output[5]} ({len(sbs_results['cell_positions'])} cells)")
-
-# Save overlays
-io.imsave(snakemake.output[6], phenotype_results['overlay'])
-print(f"Saved phenotype overlay: {snakemake.output[6]}")
-
-io.imsave(snakemake.output[7], sbs_results['overlay'])
-print(f"Saved SBS overlay: {snakemake.output[7]}")
-
-print("Well stitching completed successfully!")
-
-# Summary
-print(f"\n=== Final Summary ===")
-print(f"Phenotype: {phenotype_results['stitched_image'].shape} image, {len(phenotype_results['cell_positions'])} cells")
-print(f"SBS: {sbs_results['stitched_image'].shape} image, {len(sbs_results['cell_positions'])} cells")
+if __name__ == "__main__":
+    main()

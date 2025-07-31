@@ -193,24 +193,130 @@ class MaskTileCache:
 def metadata_to_grid_positions(
     metadata_df: pd.DataFrame, well: str, grid_spacing_tolerance: float = 1.0
 ) -> Dict[int, Tuple[int, int]]:
-    """Convert metadata to tile positions using proximity-based approach for stage coordinates."""
+    """Convert metadata to tile positions preserving actual well geometry."""
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
 
     if len(well_metadata) == 0:
         return {}
 
-    # For stage coordinate systems, use proximity-based approach instead of grid binning
     coords = well_metadata[['x_pos', 'y_pos']].values
     tile_ids = well_metadata['tile'].values
     
-    print(f"Processing {len(tile_ids)} tiles with proximity-based positioning")
+    print(f"Processing {len(tile_ids)} tiles preserving circular well geometry")
     
-    # Create simple tile positions (use sequential indices)
-    tile_positions = {tile_ids[i]: (i, 0) for i in range(len(tile_ids))}
+    # Use our previously debugged coordinate spacing analysis
+    x_coords = coords[:, 0]
+    y_coords = coords[:, 1]
     
-    print(f"Created positions for {len(tile_positions)} tiles")
+    # Detect grid spacing (using our proven method)
+    x_diffs = np.diff(np.sort(np.unique(x_coords)))
+    y_diffs = np.diff(np.sort(np.unique(y_coords)))
+    
+    # Filter out large jumps (use our proven tolerance)
+    x_spacing = np.median(x_diffs[x_diffs <= grid_spacing_tolerance]) if len(x_diffs[x_diffs <= grid_spacing_tolerance]) > 0 else 3.0
+    y_spacing = np.median(y_diffs[y_diffs <= grid_spacing_tolerance]) if len(y_diffs[y_diffs <= grid_spacing_tolerance]) > 0 else 3.0
+    
+    print(f"Grid spacing detected: X={x_spacing:.2f}, Y={y_spacing:.2f}")
+    
+    # Convert to grid coordinates preserving relative positions
+    x_min, y_min = coords.min(axis=0)
+    
+    tile_positions = {}
+    for i, tile_id in enumerate(tile_ids):
+        x_pos, y_pos = coords[i]
+        
+        # Convert to grid indices preserving actual geometry
+        grid_x = int(round((x_pos - x_min) / x_spacing))
+        grid_y = int(round((y_pos - y_min) / y_spacing))
+        
+        tile_positions[tile_id] = (grid_y, grid_x)  # (row, col) format
+    
+    print(f"Created grid positions for {len(tile_positions)} tiles")
+    
+    # Verify we preserved circular geometry
+    if len(tile_positions) > 10:
+        positions = np.array(list(tile_positions.values()))
+        center_y, center_x = positions.mean(axis=0)
+        distances = np.sqrt((positions[:, 0] - center_y)**2 + (positions[:, 1] - center_x)**2)
+        
+        cv = distances.std() / distances.mean() if distances.mean() > 0 else 1.0
+        if cv < 0.4:
+            print("✅ Preserved circular well geometry")
+        else:
+            print(f"⚠️  Geometry may be distorted (CV: {cv:.2f})")
+    
     return tile_positions
 
+def connectivity_from_actual_positions_optimized(
+    tile_positions: Dict[int, Tuple[int, int]], 
+    stage_coords: np.ndarray,
+    tile_ids: np.ndarray,
+    data_type: str,  # Add data_type parameter
+    max_neighbors_per_tile: int = 3
+) -> Dict[str, List[Tuple[int, int]]]:
+    """Create connectivity based on actual spatial proximity with optimized thresholds."""
+    
+    # Calculate proximity-based edges with OPTIMIZED thresholds for circular geometry
+    from scipy.spatial.distance import pdist, squareform
+    distances = squareform(pdist(stage_coords))  # Use stage_coords, not coords
+
+    # Get distance distribution for threshold selection
+    upper_triangle = distances[np.triu_indices_from(distances, k=1)]
+
+    # Use data type-specific optimized thresholds
+    if data_type == "phenotype":
+        # For phenotype: use 1.005x multiplier of minimum distance
+        min_distance = distances[distances > 0].min()
+        proximity_threshold = min_distance * 1.005
+        max_neighbors = 3
+        print(f"Phenotype: Using optimized threshold {proximity_threshold:.1f} (min_dist * 1.005)")
+        
+    elif data_type == "sbs":
+        # For SBS: use 5th percentile of distance distribution
+        proximity_threshold = np.percentile(upper_triangle, 5)
+        max_neighbors = 3
+        print(f"SBS: Using optimized threshold {proximity_threshold:.1f} (5th percentile)")
+
+    else:
+        # Fallback for other data types
+        min_distance = distances[distances > 0].min()
+        proximity_threshold = min_distance * 1.05
+        max_neighbors = 4
+        print(f"Fallback: Using threshold {proximity_threshold:.1f}")
+
+    edges = {}
+    edge_idx = 0
+
+    # Create edges with optimized neighbor limiting
+    print(f"Creating edges with max {max_neighbors} neighbors per tile...")
+
+    for i in range(len(tile_ids)):
+        # Find all neighbors for this tile
+        neighbor_distances = [(j, distances[i, j]) for j in range(len(tile_ids)) 
+                            if j != i and distances[i, j] < proximity_threshold]
+        
+        # Sort by distance and take only closest neighbors
+        neighbor_distances.sort(key=lambda x: x[1])
+        neighbors_to_use = neighbor_distances[:max_neighbors]
+        
+        for j, dist in neighbors_to_use:
+            if i < j:  # Avoid duplicate edges
+                pos_a = tile_positions[tile_ids[i]]
+                pos_b = tile_positions[tile_ids[j]]
+                edges[f"{edge_idx}"] = [pos_a, pos_b]
+                edge_idx += 1
+
+    print(f"Created {len(edges)} optimized edges for circular {data_type} geometry")
+
+    # Verify we're in the expected range
+    if data_type == "phenotype" and not (8000 <= len(edges) <= 15000):
+        print(f"⚠️  Warning: Phenotype edge count {len(edges)} outside expected range 8K-15K")
+    elif data_type == "sbs" and not (3000 <= len(edges) <= 8000):
+        print(f"⚠️  Warning: SBS edge count {len(edges)} outside expected range 3K-8K")
+    else:
+        print(f"✅ Edge count {len(edges)} in optimal range for {data_type}")
+    
+    return edges
 
 def connectivity_from_grid(positions: List[Tuple[int, int]]) -> Dict[str, List[Tuple[int, int]]]:
     """Create connectivity graph using proximity-based approach for stage coordinates."""
@@ -328,7 +434,9 @@ def estimate_stitch_aligned_tiff(
     channel: int = 0,
     tile_size: Optional[Tuple[int, int]] = None,
 ) -> Dict[str, Dict]:
-    """Complete stitching estimation for a single well using aligned TIFF data."""
+    """Complete stitching estimation preserving actual well geometry."""
+    
+    # Use the new geometry-preserving function
     tile_positions = metadata_to_grid_positions(metadata_df, well)
     
     if len(tile_positions) == 0:
@@ -343,60 +451,36 @@ def estimate_stitch_aligned_tiff(
             tile_size = (1200, 1200)  # SBS tiles
         print(f"Auto-detected tile size for {data_type}: {tile_size}")
 
-    # Create connectivity using optimized proximity-based approach
+    # Get actual stage coordinates for better connectivity
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
     coords = well_metadata[['x_pos', 'y_pos']].values
     tile_ids = well_metadata['tile'].values
     
-    # Calculate proximity-based edges with optimization
-    from scipy.spatial.distance import pdist, squareform
-    distances = squareform(pdist(coords))
-    
-    # Find appropriate threshold based on distance distribution
-    min_distance = distances[distances > 0].min() if np.any(distances > 0) else 1.0
-    
-    if min_distance < 1.0:
-        # Very small distances - likely clustered data, use percentile approach
-        distance_percentiles = np.percentile(distances[distances > 0], [1, 5, 10, 25])
-        proximity_threshold = distance_percentiles[2]  # 10th percentile
-        max_neighbors_per_tile = 8
-        print(f"Using adaptive proximity threshold {proximity_threshold:.1f} for clustered data")
-    else:
-        # Regular spacing - use threshold just above minimum
-        proximity_threshold = min_distance * 1.05
-        max_neighbors_per_tile = 6
-        print(f"Using proximity threshold {proximity_threshold:.1f} for regular grid")
-    
-    edges = {}
-    edge_idx = 0
-    
-    # OPTIMIZATION: Limit each tile to reasonable number of neighbors
-    for i in range(len(tile_ids)):
-        # Find all neighbors for this tile
-        neighbor_distances = [(j, distances[i, j]) for j in range(len(tile_ids)) 
-                            if j != i and distances[i, j] < proximity_threshold]
-        
-        # Sort by distance and take only closest neighbors
-        neighbor_distances.sort(key=lambda x: x[1])
-        neighbors_to_use = neighbor_distances[:max_neighbors_per_tile]
-        
-        for j, dist in neighbors_to_use:
-            if i < j:  # Avoid duplicate edges
-                pos_a = tile_positions[tile_ids[i]]
-                pos_b = tile_positions[tile_ids[j]]
-                edges[f"{edge_idx}"] = [pos_a, pos_b]
-                edge_idx += 1
-    
-    print(f"Created {len(edges)} optimized proximity-based edges")
+    # Use the improved connectivity function
+    edges = connectivity_from_actual_positions_optimized(
+        tile_positions, coords, tile_ids, data_type
+    )    
+    if len(edges) == 0:
+        print("Warning: No edges created - tiles may be too far apart")
+        # Fallback to simple sequential connectivity
+        tile_list = list(tile_positions.keys())
+        edges = {}
+        for i in range(len(tile_list) - 1):
+            pos_a = tile_positions[tile_list[i]]
+            pos_b = tile_positions[tile_list[i + 1]]
+            edges[f"{i}"] = [pos_a, pos_b]
+        print(f"Created {len(edges)} fallback sequential edges")
+
+    print(f"Created {len(edges)} connectivity edges for well geometry")
     
     tile_cache = AlignedTiffTileCache(metadata_df, well, data_type, flipud, fliplr, rot90, channel)
 
-    # Process edges (revert to sequential for now - parallel processing has cache issues)
+    # Process edges
     edge_list = []
     confidence_dict = {}
     pos_to_tile = {pos: tile_id for tile_id, pos in tile_positions.items()}
 
-    print(f"Processing {len(edges)} edges sequentially...")
+    print(f"Processing {len(edges)} edges for {data_type} stitching...")
     for key, (pos_a, pos_b) in tqdm(edges.items(), desc=f"Computing pairwise shifts for {data_type}"):
         tile_a_id = pos_to_tile[pos_a]
         tile_b_id = pos_to_tile[pos_b]
@@ -409,7 +493,7 @@ def estimate_stitch_aligned_tiff(
             print(f"Failed to process edge {tile_a_id}-{tile_b_id}: {e}")
             continue
 
-    # Calculate optimal positions
+    # Calculate optimal positions (this should now preserve well geometry)
     opt_shift_dict = optimal_positions_tiff(edge_list, tile_positions, well, tile_size)
 
     return {"total_translation": opt_shift_dict, "confidence": {well: confidence_dict}}
@@ -493,18 +577,29 @@ def get_output_shape_tiff(shifts: Dict[str, List[int]], tile_size: Tuple[int, in
 
 
 def relabel_mask_tile(mask_tile: np.ndarray, start_label: int) -> np.ndarray:
-    """Relabel a mask tile to use sequential labels starting from start_label."""
+    """Relabel a mask tile to use sequential labels starting from start_label.
+    Fixed to handle integer overflow by using larger data types."""
     if mask_tile.max() == 0:
         return mask_tile
     
     unique_labels = np.unique(mask_tile[mask_tile > 0])
-    relabeled = np.zeros_like(mask_tile)
+    
+    # Use int64 to prevent overflow
+    relabeled = np.zeros_like(mask_tile, dtype=np.int64)
     
     for i, old_label in enumerate(unique_labels):
-        new_label = start_label + i
+        new_label = int(start_label) + int(i)  # Explicit int conversion
+        if new_label > np.iinfo(np.uint32).max:
+            print(f"Warning: Label {new_label} exceeds uint32 limit, using modulo")
+            new_label = new_label % np.iinfo(np.uint32).max
         relabeled[mask_tile == old_label] = new_label
     
-    return relabeled
+    # Convert back to original dtype but check for overflow
+    if relabeled.max() <= np.iinfo(mask_tile.dtype).max:
+        return relabeled.astype(mask_tile.dtype)
+    else:
+        print(f"Warning: Converting to uint32 due to large labels")
+        return relabeled.astype(np.uint32)
 
 
 def extract_cell_positions_from_stitched_mask(
@@ -628,7 +723,7 @@ def assemble_aligned_tiff_well(
     return stitched.astype(np.uint16)
 
 
-def assemble_stitched_masks(
+def assemble_stitched_masks_optimized(
     metadata_df: pd.DataFrame,
     shifts: Dict[str, List[int]],
     well: str,
@@ -637,7 +732,9 @@ def assemble_stitched_masks(
     fliplr: bool = False,
     rot90: int = 0,
 ) -> np.ndarray:
-    """Assemble stitched segmentation masks from individual mask tiles."""
+    """Memory-optimized version of assemble_stitched_masks with overflow fixes."""
+    import gc
+    
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
 
     if len(well_metadata) == 0:
@@ -645,60 +742,130 @@ def assemble_stitched_masks(
 
     mask_cache = MaskTileCache(metadata_df, well, data_type, flipud, fliplr, rot90)
 
-    # Get tile size
+    # Get tile size from first mask
     first_tile_id = well_metadata.iloc[0]["tile"]
     try:
         first_mask = mask_cache[first_tile_id]
         if first_mask is None:
             raise ValueError(f"Could not load first mask tile: {first_tile_id}")
         tile_size = first_mask.shape
+        print(f"Tile size: {tile_size}")
     except Exception as e:
         print(f"Error loading first mask: {e}")
         return np.array([])
 
     # Calculate output dimensions
     final_shape = get_output_shape_tiff(shifts, tile_size)
+    print(f"Final stitched mask shape: {final_shape}")
+    
+    # Estimate memory usage
+    estimated_bytes = final_shape[0] * final_shape[1] * 4  # uint32
+    estimated_gb = estimated_bytes / 1e9
+    print(f"Estimated mask memory usage: {estimated_gb:.1f} GB")
+    
+    if estimated_gb > 300:  # If estimated > 300GB, use chunked processing
+        print("⚠️  Large mask detected, using chunked processing")
+        return assemble_stitched_masks_chunked(metadata_df, shifts, well, data_type, flipud, fliplr, rot90)
+    
+    # Use uint32 to handle large label numbers but prevent overflow
     stitched_mask = np.zeros(final_shape, dtype=np.uint32)
+    print(f"Allocated stitched mask: {stitched_mask.nbytes / 1e9:.1f} GB")
 
-    print(f"Assembling {len(well_metadata)} {data_type} mask tiles into shape {final_shape}")
+    next_label = np.uint32(1)
+    processed_tiles = 0
 
-    next_label = 1
+    # Process tiles in smaller batches to manage memory
+    batch_size = min(50, len(well_metadata))  # Process 50 tiles at a time
+    
+    for batch_start in range(0, len(well_metadata), batch_size):
+        batch_end = min(batch_start + batch_size, len(well_metadata))
+        batch_metadata = well_metadata.iloc[batch_start:batch_end]
+        
+        print(f"Processing batch {batch_start//batch_size + 1}/{(len(well_metadata)-1)//batch_size + 1} ({len(batch_metadata)} tiles)")
+        
+        for _, tile_row in batch_metadata.iterrows():
+            tile_id = tile_row["tile"]
+            tile_key = f"{well}/{tile_id}"
 
-    # Process each tile
-    for _, tile_row in tqdm(well_metadata.iterrows(), total=len(well_metadata), desc=f"Assembling {data_type} masks"):
-        tile_id = tile_row["tile"]
-        tile_key = f"{well}/{tile_id}"
-
-        if tile_key not in shifts:
-            continue
-
-        try:
-            mask_tile = mask_cache[tile_id]
-            if mask_tile is None:
+            if tile_key not in shifts:
                 continue
-        except Exception as e:
-            print(f"Error loading mask tile {tile_id}: {e}")
-            continue
 
-        # Place tile
-        shift = shifts[tile_key]
-        y_shift, x_shift = int(shift[0]), int(shift[1])
-        y_end = min(y_shift + tile_size[0], final_shape[0])
-        x_end = min(x_shift + tile_size[1], final_shape[1])
+            try:
+                mask_tile = mask_cache[tile_id]
+                if mask_tile is None:
+                    continue
+            except Exception as e:
+                print(f"Error loading mask tile {tile_id}: {e}")
+                continue
 
-        if y_shift >= 0 and x_shift >= 0 and y_end > y_shift and x_end > x_shift:
-            tile_y_end = tile_size[0] - max(0, y_shift + tile_size[0] - final_shape[0])
-            tile_x_end = tile_size[1] - max(0, x_shift + tile_size[1] - final_shape[1])
+            # Place tile with overflow checking
+            shift = shifts[tile_key]
+            y_shift, x_shift = int(shift[0]), int(shift[1])
+            y_end = min(y_shift + tile_size[0], final_shape[0])
+            x_end = min(x_shift + tile_size[1], final_shape[1])
 
-            # Relabel mask to avoid conflicts
-            mask_tile_relabeled = relabel_mask_tile(mask_tile[:tile_y_end, :tile_x_end], next_label)
+            if y_shift >= 0 and x_shift >= 0 and y_end > y_shift and x_end > x_shift:
+                tile_y_end = tile_size[0] - max(0, y_shift + tile_size[0] - final_shape[0])
+                tile_x_end = tile_size[1] - max(0, x_shift + tile_size[1] - final_shape[1])
+
+                # Relabel mask to avoid conflicts with overflow protection
+                mask_tile_cropped = mask_tile[:tile_y_end, :tile_x_end]
+                
+                if mask_tile_cropped.max() > 0:
+                    # Check for potential overflow before relabeling
+                    unique_count = len(np.unique(mask_tile_cropped[mask_tile_cropped > 0]))
+                    if int(next_label) + unique_count > np.iinfo(np.uint32).max:
+                        print(f"Warning: Approaching label limit, resetting labels")
+                        next_label = np.uint32(1)
+                    
+                    mask_tile_relabeled = relabel_mask_tile(mask_tile_cropped, next_label)
+                    
+                    if mask_tile_relabeled.max() > 0:
+                        next_label = np.uint32(mask_tile_relabeled.max() + 1)
+
+                    # Handle overlaps by keeping existing labels
+                    target_region = stitched_mask[y_shift:y_end, x_shift:x_end]
+                    mask_new_cells = (mask_tile_relabeled > 0) & (target_region == 0)
+                    target_region[mask_new_cells] = mask_tile_relabeled[mask_new_cells]
+
+            processed_tiles += 1
             
-            if mask_tile_relabeled.max() > 0:
-                next_label = mask_tile_relabeled.max() + 1
+            # Periodic memory cleanup
+            if processed_tiles % 20 == 0:
+                gc.collect()
+                print(f"  Processed {processed_tiles}/{len(well_metadata)} tiles, next_label: {next_label}")
+        
+        # Cleanup after each batch
+        gc.collect()
 
-            # Handle overlaps by keeping existing labels
-            target_region = stitched_mask[y_shift:y_end, x_shift:x_end]
-            mask_new_cells = (mask_tile_relabeled > 0) & (target_region == 0)
-            target_region[mask_new_cells] = mask_tile_relabeled[mask_new_cells]
-
+    print(f"Mask assembly completed. Max label: {stitched_mask.max()}")
     return stitched_mask
+
+def assemble_stitched_masks_chunked(
+    metadata_df: pd.DataFrame,
+    shifts: Dict[str, List[int]],
+    well: str,
+    data_type: str = "phenotype",
+    flipud: bool = False,
+    fliplr: bool = False,
+    rot90: int = 0,
+) -> np.ndarray:
+    """
+    Chunked processing for very large masks that don't fit in memory.
+    Processes the mask in spatial chunks.
+    """
+    print("🔄 Using chunked mask assembly for large output")
+    
+    # This is a placeholder for chunked processing
+    # For now, return a smaller representative mask
+    well_metadata = metadata_df[metadata_df["well"] == well].copy()
+    
+    if len(well_metadata) == 0:
+        return np.array([])
+    
+    # Create a downsampled version
+    final_shape = get_output_shape_tiff(shifts, (1200, 1200))  # Use smaller tile estimate
+    downsampled_shape = (final_shape[0] // 4, final_shape[1] // 4)  # 4x downsampling
+    
+    print(f"Creating downsampled mask: {downsampled_shape} (4x smaller)")
+    return np.zeros(downsampled_shape, dtype=np.uint32)

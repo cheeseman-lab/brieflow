@@ -23,32 +23,81 @@ rule estimate_stitch:
         "../scripts/merge/estimate_stitch.py"
 
 
-rule stitch_wells:
+# Replace your existing stitch_wells rule with these two separate rules:
+
+rule stitch_phenotype_well:
     input:
         phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
-        sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
         phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"],
-        sbs_stitch_config=MERGE_OUTPUTS["estimate_stitch_sbs"],
     output:
         phenotype_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_phenotype_image"],
         phenotype_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_phenotype_mask"],
         phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype_positions"],
-        sbs_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_sbs_image"],
-        sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs_mask"],
-        sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs_positions"],
         phenotype_overlay=MERGE_OUTPUTS_MAPPED["stitch_phenotype_overlay"],
-        sbs_overlay=MERGE_OUTPUTS_MAPPED["stitch_sbs_overlay"],
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
+        data_type="phenotype",
         flipud=config.get("stitch", {}).get("flipud", False),
         fliplr=config.get("stitch", {}).get("fliplr", False),
         rot90=config.get("stitch", {}).get("rot90", 0),
         overlap_percent=config.get("stitch", {}).get("overlap_percent", 0.05),
         create_overlay=config.get("stitch", {}).get("create_overlay", True),
+    resources:
+        mem_mb=400000,     # 400GB for maximum safety margin
+        cpus_per_task=8,
+        runtime=180,       # 3 hours
+        partition="20"     # Force high-memory nodes
     script:
         "../scripts/merge/stitch_wells.py"
 
+
+rule stitch_sbs_well:
+    input:
+        sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
+        sbs_stitch_config=MERGE_OUTPUTS["estimate_stitch_sbs"],
+    output:
+        sbs_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_sbs_image"],
+        sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs_mask"],
+        sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs_positions"],
+        sbs_overlay=MERGE_OUTPUTS_MAPPED["stitch_sbs_overlay"],
+    params:
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: wildcards.well,
+        data_type="sbs",
+        flipud=config.get("stitch", {}).get("flipud", False),
+        fliplr=config.get("stitch", {}).get("fliplr", False),
+        rot90=config.get("stitch", {}).get("rot90", 0),
+        overlap_percent=config.get("stitch", {}).get("overlap_percent", 0.05),
+        create_overlay=config.get("stitch", {}).get("create_overlay", True),
+    resources:
+        mem_mb=400000,     # 400GB for maximum safety margin
+        cpus_per_task=8,
+        runtime=180,       # 3 hours
+        partition="20"     # Force high-memory nodes
+    script:
+        "../scripts/merge/stitch_wells.py"
+
+
+rule stitch_wells_combined:
+    input:
+        phenotype_image=MERGE_OUTPUTS["stitch_phenotype_image"],
+        phenotype_mask=MERGE_OUTPUTS["stitch_phenotype_mask"],
+        phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"],
+        phenotype_overlay=MERGE_OUTPUTS["stitch_phenotype_overlay"],
+        sbs_image=MERGE_OUTPUTS["stitch_sbs_image"],
+        sbs_mask=MERGE_OUTPUTS["stitch_sbs_mask"],
+        sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"],
+        sbs_overlay=MERGE_OUTPUTS["stitch_sbs_overlay"],
+    output:
+        completion_flag=MERGE_FP / "flags" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "stitching_complete", "flag"
+        ),
+    run:
+        # Create completion flag
+        Path(output.completion_flag).parent.mkdir(parents=True, exist_ok=True)
+        Path(output.completion_flag).touch()
+        print(f"Both phenotype and SBS stitching completed for {wildcards.plate}/{wildcards.well}")
 
 # Original fast alignment approach (kept for backwards compatibility)
 rule fast_alignment:
@@ -70,7 +119,6 @@ rule fast_alignment:
         "../scripts/merge/fast_alignment.py"
 
 
-# Enhanced well merge using stitched cell positions
 rule enhanced_well_merge:
     input:
         phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"],
@@ -83,6 +131,10 @@ rule enhanced_well_merge:
         threshold=config["merge"]["threshold"],
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
+    resources:
+        mem_mb=16000,      # Much less memory needed for just merging positions
+        cpus_per_task=2,
+        runtime=30         # Should be much faster
     script:
         "../scripts/merge/well_merge.py"
 

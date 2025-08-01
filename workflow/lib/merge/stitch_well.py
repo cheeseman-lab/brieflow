@@ -1079,3 +1079,142 @@ def estimate_stitch_data_type_specific(
     else:
         # Fallback to original approach
         return estimate_stitch_aligned_tiff(metadata_df, well, data_type, flipud, fliplr, rot90, channel, tile_size)
+
+def assemble_stitched_masks_simple(
+    metadata_df: pd.DataFrame,
+    shifts: Dict[str, List[int]],
+    well: str,
+    data_type: str = "phenotype",
+    flipud: bool = False,
+    fliplr: bool = False,
+    rot90: int = 0,
+) -> np.ndarray:
+    """Simplified mask assembly - prioritize reliability over memory optimization."""
+    
+    well_metadata = metadata_df[metadata_df["well"] == well].copy()
+
+    if len(well_metadata) == 0:
+        raise ValueError(f"No metadata found for well {well}")
+
+    print(f"Simple mask assembly for {len(well_metadata)} {data_type} tiles")
+
+    # Get tile size from first mask
+    first_tile_id = well_metadata.iloc[0]["tile"]
+    first_tile_row = well_metadata.iloc[0]
+    plate = first_tile_row["plate"]
+    
+    mask_path = f"analysis_root/{data_type}/images/P-{plate}_W-{well}_T-{first_tile_id}__nuclei.tiff"
+    
+    try:
+        from skimage import io
+        first_mask = io.imread(mask_path)
+        if len(first_mask.shape) > 2:
+            first_mask = first_mask[0] if first_mask.shape[0] == 1 else first_mask
+        tile_size = first_mask.shape
+        print(f"Tile size: {tile_size}")
+    except Exception as e:
+        print(f"Error loading first mask: {e}")
+        return np.array([])
+
+    # Calculate output dimensions
+    final_shape = get_output_shape_tiff(shifts, tile_size)
+    print(f"Final mask shape: {final_shape}")
+    
+    # Use uint32 for large label numbers
+    stitched_mask = np.zeros(final_shape, dtype=np.uint32)
+    next_label = 1
+    
+    processed_count = 0
+    failed_count = 0
+    
+    print(f"Processing {len(well_metadata)} mask tiles...")
+    
+    # Process all tiles in one go (no batching)
+    for idx, (_, tile_row) in enumerate(well_metadata.iterrows()):
+        tile_id = tile_row["tile"]
+        tile_key = f"{well}/{tile_id}"
+
+        if tile_key not in shifts:
+            print(f"  Tile {tile_id}: no shift found")
+            failed_count += 1
+            continue
+
+        # Load mask tile
+        plate = tile_row["plate"]
+        mask_path = f"analysis_root/{data_type}/images/P-{plate}_W-{well}_T-{tile_id}__nuclei.tiff"
+        
+        try:
+            mask_tile = io.imread(mask_path)
+            if len(mask_tile.shape) > 2:
+                mask_tile = mask_tile[0] if mask_tile.shape[0] == 1 else mask_tile
+            
+            # Apply augmentations
+            if flipud:
+                mask_tile = np.flip(mask_tile, axis=0)
+            if fliplr:
+                mask_tile = np.flip(mask_tile, axis=1)
+            if rot90:
+                mask_tile = np.rot90(mask_tile, k=rot90)
+                
+        except Exception as e:
+            print(f"  Tile {tile_id}: failed to load - {e}")
+            failed_count += 1
+            continue
+
+        if mask_tile.max() == 0:
+            processed_count += 1
+            continue  # Empty mask, but count as processed
+
+        # Get shift and place tile
+        shift = shifts[tile_key]
+        y_shift, x_shift = int(shift[0]), int(shift[1])
+        
+        # Calculate placement bounds
+        y_end = min(y_shift + tile_size[0], final_shape[0])
+        x_end = min(x_shift + tile_size[1], final_shape[1])
+
+        if y_shift < 0 or x_shift < 0 or y_end <= y_shift or x_end <= x_shift:
+            print(f"  Tile {tile_id}: invalid placement ({y_shift}, {x_shift})")
+            failed_count += 1
+            continue
+
+        # Calculate tile cropping
+        tile_y_end = tile_size[0] - max(0, y_shift + tile_size[0] - final_shape[0])
+        tile_x_end = tile_size[1] - max(0, x_shift + tile_size[1] - final_shape[1])
+        
+        mask_tile_cropped = mask_tile[:tile_y_end, :tile_x_end]
+        
+        # Simple relabeling - just add offset to avoid conflicts
+        mask_relabeled = mask_tile_cropped.copy().astype(np.uint32)
+        nonzero_mask = mask_relabeled > 0
+        
+        if nonzero_mask.any():
+            # Add offset to all non-zero labels
+            mask_relabeled[nonzero_mask] += next_label
+            next_label += mask_tile_cropped.max() + 1
+            
+            # Place in stitched mask - simple overwrite (no overlap handling)
+            target_region = stitched_mask[y_shift:y_end, x_shift:x_end]
+            
+            # Only write where target is currently zero (first come, first served)
+            write_mask = (target_region == 0) & (mask_relabeled > 0)
+            target_region[write_mask] = mask_relabeled[write_mask]
+
+        processed_count += 1
+        
+        # Progress update
+        if (idx + 1) % 500 == 0:
+            print(f"  Processed {idx + 1}/{len(well_metadata)} tiles")
+
+    print(f"Mask assembly complete:")
+    print(f"  Processed: {processed_count}/{len(well_metadata)}")
+    print(f"  Failed: {failed_count}")
+    print(f"  Success rate: {processed_count/(processed_count+failed_count)*100:.1f}%")
+    print(f"  Max label: {stitched_mask.max()}")
+    print(f"  Non-zero pixels: {(stitched_mask > 0).sum():,}")
+
+    return stitched_mask
+
+
+# Add this alias to replace the optimized version
+assemble_stitched_masks_reliable = assemble_stitched_masks_simple

@@ -2,12 +2,31 @@ from lib.shared.target_utils import output_to_input
 
 
 # Stitching rules (always available for enhanced approach)
-rule estimate_stitch:
+rule estimate_stitch_phenotype:
     input:
         phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
-        sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
     output:
         phenotype_stitch_config=MERGE_OUTPUTS_MAPPED["estimate_stitch_phenotype"],
+    params:
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: wildcards.well,
+        flipud=config.get("stitch", {}).get("flipud", False),
+        fliplr=config.get("stitch", {}).get("fliplr", False), 
+        rot90=config.get("stitch", {}).get("rot90", 0),
+        channel=config.get("stitch", {}).get("channel", 0),
+        data_type="phenotype",
+    resources:
+        mem_mb=15000,
+        cpus_per_task=8,
+        runtime=180,  # 3 hours for phenotype (image registration)
+    script:
+        "../scripts/merge/estimate_stitch_phenotype.py"
+
+
+rule estimate_stitch_sbs:
+    input:
+        sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
+    output:
         sbs_stitch_config=MERGE_OUTPUTS_MAPPED["estimate_stitch_sbs"],
     params:
         plate=lambda wildcards: wildcards.plate,
@@ -16,11 +35,15 @@ rule estimate_stitch:
         fliplr=config.get("stitch", {}).get("fliplr", False), 
         rot90=config.get("stitch", {}).get("rot90", 0),
         channel=config.get("stitch", {}).get("channel", 0),
-        # Add SBS cycle filtering like fast_alignment
+        data_type="sbs",
+        # SBS-specific params
         sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
-    threads: 8
+    resources:
+        mem_mb=8000,   # Less memory needed for coordinate-based approach
+        cpus_per_task=4,   # Fewer CPUs needed
+        runtime=60,    # 1 hour should be plenty for coordinate-based
     script:
-        "../scripts/merge/estimate_stitch.py"
+        "../scripts/merge/estimate_stitch_sbs.py"
 
 
 # Replace your existing stitch_wells rule with these two separate rules:

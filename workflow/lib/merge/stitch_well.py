@@ -635,42 +635,128 @@ def relabel_mask_tile(mask_tile: np.ndarray, start_label: int) -> np.ndarray:
         return relabeled.astype(np.uint32)
 
 
+
 def extract_cell_positions_from_stitched_mask(
     stitched_mask: np.ndarray,
     well: str,
-    data_type: str = "phenotype"
+    data_type: str = "phenotype",
+    metadata_df: pd.DataFrame = None,
+    shifts: Dict[str, List[int]] = None,
+    tile_size: Tuple[int, int] = None
 ) -> pd.DataFrame:
     """
-    Extract cell positions and properties from stitched mask.
-
-    Args:
-        stitched_mask: Stitched segmentation mask
-        well: Well identifier
-        data_type: "phenotype" or "sbs"
-
-    Returns:
-        DataFrame with cell positions and properties
+    Extract cell positions and properties from stitched mask WITH tile information.
+    Enhanced to preserve tile metadata for QC purposes.
     """
-    print(f"Extracting cell positions from {data_type} stitched mask...")
+    print(f"Extracting cell positions from {data_type} stitched mask with tile info...")
     
     # Get region properties
     props = measure.regionprops(stitched_mask)
     
+    # If metadata and shifts provided, add tile information
+    add_tile_info = (metadata_df is not None and shifts is not None)
+    
+    if add_tile_info:
+        # Auto-detect tile size if not provided
+        if tile_size is None:
+            tile_size = (2400, 2400) if data_type == "phenotype" else (1200, 1200)
+        
+        # Get well metadata for tile info
+        well_metadata = metadata_df[metadata_df["well"] == well].copy()
+        
+        # Create tile boundary lookup for efficient tile assignment
+        tile_boundaries = {}
+        for _, tile_row in well_metadata.iterrows():
+            tile_id = tile_row["tile"]
+            tile_key = f"{well}/{tile_id}"
+            
+            if tile_key in shifts:
+                shift = shifts[tile_key]
+                y_start, x_start = shift[0], shift[1]
+                y_end = y_start + tile_size[0]
+                x_end = x_start + tile_size[1]
+                
+                tile_boundaries[tile_id] = {
+                    'y_range': (y_start, y_end),
+                    'x_range': (x_start, x_end),
+                    'tile_metadata': tile_row.to_dict()
+                }
+        
+        print(f"Created boundaries for {len(tile_boundaries)} tiles")
+    
     cell_data = []
+    cells_without_tiles = 0
+    
     for prop in props:
         centroid_y, centroid_x = prop.centroid
         
-        cell_data.append({
+        # Base cell information
+        cell_info = {
             'well': well,
             'cell': prop.label,
-            'i': centroid_y,  # y-coordinate
-            'j': centroid_x,  # x-coordinate
+            'i': centroid_y,  # Global stitched coordinates
+            'j': centroid_x,  # Global stitched coordinates
             'area': prop.area,
             'data_type': data_type
-        })
+        }
+        
+        # Add tile information if available
+        if add_tile_info:
+            # Find which tile this cell belongs to
+            assigned_tile = None
+            assigned_tile_metadata = {}
+            
+            for tile_id, boundaries in tile_boundaries.items():
+                y_range = boundaries['y_range']
+                x_range = boundaries['x_range']
+                
+                if (y_range[0] <= centroid_y < y_range[1] and 
+                    x_range[0] <= centroid_x < x_range[1]):
+                    assigned_tile = tile_id
+                    assigned_tile_metadata = boundaries['tile_metadata']
+                    break
+            
+            if assigned_tile is None:
+                cells_without_tiles += 1
+                assigned_tile = -1
+                assigned_tile_metadata = {}
+            
+            # Calculate relative position within tile
+            if assigned_tile != -1:
+                tile_y_start = tile_boundaries[assigned_tile]['y_range'][0]
+                tile_x_start = tile_boundaries[assigned_tile]['x_range'][0]
+                relative_y = centroid_y - tile_y_start
+                relative_x = centroid_x - tile_x_start
+            else:
+                relative_y = -1
+                relative_x = -1
+            
+            # Add tile-specific columns
+            cell_info.update({
+                'tile': assigned_tile,
+                'tile_i': relative_y,  # Position within original tile
+                'tile_j': relative_x,  # Position within original tile
+                'stage_x': assigned_tile_metadata.get('x_pos', np.nan),
+                'stage_y': assigned_tile_metadata.get('y_pos', np.nan),
+                'tile_row': assigned_tile_metadata.get('tile_row', -1),
+                'tile_col': assigned_tile_metadata.get('tile_col', -1),
+            })
+        
+        cell_data.append(cell_info)
     
     df = pd.DataFrame(cell_data)
+    
     print(f"Extracted {len(df)} cells from {data_type} stitched mask")
+    
+    if add_tile_info:
+        print(f"  - {len(df) - cells_without_tiles} cells assigned to tiles")
+        print(f"  - {cells_without_tiles} cells in overlap regions or boundaries")
+        
+        # QC: Show tile distribution
+        if len(df) > 0:
+            tile_counts = df['tile'].value_counts()
+            print(f"  - Cells per tile: min={tile_counts.min()}, max={tile_counts.max()}, mean={tile_counts.mean():.1f}")
+            print(f"  - Active tiles: {len(tile_counts[tile_counts > 0])}")
     
     return df
 
@@ -911,53 +997,64 @@ def estimate_stitch_phenotype(
     rot90: int = 0,
     channel: int = 0,
 ) -> Dict[str, Dict]:
-    """Optimized stitching estimation for phenotype data (works via image registration)."""
+    """Coordinate-based stitching for phenotype data (same approach as working SBS)."""
     
-    tile_positions = metadata_to_grid_positions(metadata_df, well)
+    well_metadata = metadata_df[metadata_df["well"] == well].copy()
     
-    if len(tile_positions) == 0:
+    if len(well_metadata) == 0:
         print(f"No phenotype tiles found for well {well}")
         return {"total_translation": {}, "confidence": {well: {}}}
-
-    tile_size = (2400, 2400)
-    print(f"Phenotype tile size: {tile_size}")
-
-    # Phenotype-optimized connectivity (proven to work)
-    well_metadata = metadata_df[metadata_df["well"] == well].copy()
+    
     coords = well_metadata[['x_pos', 'y_pos']].values
     tile_ids = well_metadata['tile'].values
+    tile_size = (2400, 2400)  # Phenotype tile size
     
-    edges = create_phenotype_connectivity(tile_positions, coords, tile_ids)
+    print(f"Creating coordinate-based phenotype stitch config for {len(tile_ids)} tiles")
     
-    if len(edges) == 0:
-        print("No edges created for phenotype")
-        return {"total_translation": {}, "confidence": {well: {}}}
-
-    print(f"Created {len(edges)} phenotype-optimized edges")
+    # Use proven spacing detection from SBS approach
+    from scipy.spatial.distance import pdist
+    distances = pdist(coords)
+    actual_spacing = np.percentile(distances[distances > 0], 10)  # 10th percentile
     
-    # Process edges with phenotype-tuned cache
-    tile_cache = AlignedTiffTileCache(metadata_df, well, "phenotype", flipud, fliplr, rot90, channel)
-    edge_list = []
-    confidence_dict = {}
-    pos_to_tile = {pos: tile_id for tile_id, pos in tile_positions.items()}
-
-    print(f"Processing {len(edges)} edges for phenotype...")
-    for key, (pos_a, pos_b) in tqdm(edges.items(), desc="Computing phenotype shifts"):
-        tile_a_id = pos_to_tile[pos_a]
-        tile_b_id = pos_to_tile[pos_b]
-
-        try:
-            edge = AlignedTiffEdge(tile_a_id, tile_b_id, tile_cache, tile_positions)
-            edge_list.append(edge)
-            confidence_dict[key] = [list(pos_a), list(pos_b), float(edge.model.confidence)]
-        except Exception as e:
-            print(f"Failed to process phenotype edge {tile_a_id}-{tile_b_id}: {e}")
-            continue
-
-    # Optimize positions
-    opt_shift_dict = optimal_positions_tiff(edge_list, tile_positions, well, tile_size)
-
-    return {"total_translation": opt_shift_dict, "confidence": {well: confidence_dict}}
+    print(f"Phenotype spacing: {actual_spacing:.1f} μm")
+    print(f"Phenotype tile size: {tile_size}")
+    
+    # Convert stage coordinates directly to pixel positions
+    # Scale so tiles overlap slightly (85% of spacing = 15% overlap)
+    pixels_per_micron = tile_size[0] * 0.85 / actual_spacing
+    
+    print(f"Phenotype scale factor: {pixels_per_micron:.3f} pixels/μm")
+    
+    x_min, y_min = coords.min(axis=0)
+    
+    total_translation = {}
+    confidence = {}
+    
+    for i, tile_id in enumerate(tile_ids):
+        x_pos, y_pos = coords[i]
+        
+        # Convert directly to pixel coordinates
+        pixel_x = int((x_pos - x_min) * pixels_per_micron)
+        pixel_y = int((y_pos - y_min) * pixels_per_micron)
+        
+        total_translation[f"{well}/{tile_id}"] = [pixel_y, pixel_x]
+        
+        # High confidence since using direct coordinates
+        confidence[f"coord_{i}"] = [[pixel_y, pixel_x], [pixel_y, pixel_x], 0.9]
+    
+    print(f"Generated {len(total_translation)} phenotype coordinate-based positions")
+    
+    # Verify output size
+    y_shifts = [shift[0] for shift in total_translation.values()]
+    x_shifts = [shift[1] for shift in total_translation.values()]
+    
+    final_size = (max(y_shifts) + tile_size[0], max(x_shifts) + tile_size[1])
+    memory_gb = final_size[0] * final_size[1] * 2 / 1e9
+    
+    print(f"Phenotype final image size: {final_size}")
+    print(f"Phenotype memory estimate: {memory_gb:.1f} GB")
+    
+    return {"total_translation": total_translation, "confidence": {well: confidence}}
 
 
 def estimate_stitch_sbs_coordinate_based(
@@ -1028,36 +1125,36 @@ def estimate_stitch_sbs_coordinate_based(
     return {"total_translation": total_translation, "confidence": {well: confidence}}
 
 
-def create_phenotype_connectivity(tile_positions, coords, tile_ids):
-    """Phenotype-specific connectivity (proven to work)"""
-    from scipy.spatial.distance import pdist, squareform
-    distances = squareform(pdist(coords))
+# def create_phenotype_connectivity(tile_positions, coords, tile_ids):
+#     """Phenotype-specific connectivity (proven to work)"""
+#     from scipy.spatial.distance import pdist, squareform
+#     distances = squareform(pdist(coords))
     
-    # Phenotype-optimized thresholds (from our testing)
-    min_distance = distances[distances > 0].min()
-    proximity_threshold = min_distance * 1.005
-    max_neighbors = 3
+#     # Phenotype-optimized thresholds (from our testing)
+#     min_distance = distances[distances > 0].min()
+#     proximity_threshold = min_distance * 1.005
+#     max_neighbors = 3
     
-    print(f"Phenotype connectivity: threshold={proximity_threshold:.1f}, max_neighbors={max_neighbors}")
+#     print(f"Phenotype connectivity: threshold={proximity_threshold:.1f}, max_neighbors={max_neighbors}")
     
-    edges = {}
-    edge_idx = 0
+#     edges = {}
+#     edge_idx = 0
     
-    for i in range(len(tile_ids)):
-        neighbor_distances = [(j, distances[i, j]) for j in range(len(tile_ids)) 
-                            if j != i and distances[i, j] < proximity_threshold]
+#     for i in range(len(tile_ids)):
+#         neighbor_distances = [(j, distances[i, j]) for j in range(len(tile_ids)) 
+#                             if j != i and distances[i, j] < proximity_threshold]
         
-        neighbor_distances.sort(key=lambda x: x[1])
-        neighbors_to_use = neighbor_distances[:max_neighbors]
+#         neighbor_distances.sort(key=lambda x: x[1])
+#         neighbors_to_use = neighbor_distances[:max_neighbors]
         
-        for j, dist in neighbors_to_use:
-            if i < j:
-                pos_a = tile_positions[tile_ids[i]]
-                pos_b = tile_positions[tile_ids[j]]
-                edges[f"{edge_idx}"] = [pos_a, pos_b]
-                edge_idx += 1
+#         for j, dist in neighbors_to_use:
+#             if i < j:
+#                 pos_a = tile_positions[tile_ids[i]]
+#                 pos_b = tile_positions[tile_ids[j]]
+#                 edges[f"{edge_idx}"] = [pos_a, pos_b]
+#                 edge_idx += 1
     
-    return edges
+#     return edges
 
 
 def estimate_stitch_data_type_specific(

@@ -10,7 +10,8 @@ from skimage import io
 from lib.shared.file_utils import validate_dtypes
 from lib.merge.stitch_well import (
     assemble_aligned_tiff_well,
-    extract_cell_positions_from_stitched_mask
+    extract_cell_positions_from_stitched_mask, create_tile_arrangement_qc_plot,
+    assemble_stitched_masks_simple
 )
 from lib.merge.merge_well import create_stitched_overlay
 
@@ -135,14 +136,15 @@ def process_modality_with_disk_offload(metadata_df, stitch_config, plate, well, 
             print_memory_usage("before mask assembly")
             
             try:
-                stitched_mask = assemble_stitched_masks_optimized(
+                stitched_mask = assemble_stitched_masks_simple(
                     metadata_df=well_metadata,
                     shifts=stitch_config["total_translation"],
                     well=well,
                     data_type=data_type,
                     flipud=params.flipud,
                     fliplr=params.fliplr,
-                    rot90=params.rot90
+                    rot90=params.rot90,
+                    return_cell_mapping=True
                 )
                 
                 print(f"✅ Stitched mask successful: {stitched_mask.shape}, max label: {stitched_mask.max()}")
@@ -158,9 +160,22 @@ def process_modality_with_disk_offload(metadata_df, stitch_config, plate, well, 
                 if mask_max_label > 0:
                     print("Extracting cell positions...")
                     cell_positions = extract_cell_positions_from_stitched_mask(
-                        stitched_mask, well, data_type
+                        stitched_mask=stitched_mask,
+                        well=well,
+                        data_type=data_type,
+                        metadata_df=well_metadata,  # Add this line
+                        shifts=stitch_config["total_translation"],  # Add this line
+                        tile_size=None,  # Add this line (define tile_size first - see below)
+                        cell_id_mapping=cell_id_mapping
                     )
                     print(f"✅ Extracted {len(cell_positions)} cell positions")
+                    
+                    # Add QC plot creation
+                    if len(cell_positions) > 0 and 'tile' in cell_positions.columns:
+                        temp_qc_path = temp_dir / f"{well}_{data_type}_tile_qc.png"
+                        create_tile_arrangement_qc_plot(cell_positions, str(temp_qc_path), data_type)
+                        print(f"✅ Created QC plot: {temp_qc_path}")
+                        
                 else:
                     cell_positions = pd.DataFrame(columns=['well', 'cell', 'i', 'j', 'area', 'data_type'])
                 
@@ -286,6 +301,15 @@ def main():
             # Save overlay
             io.imsave(outputs[3], results['overlay'])
             print(f"✅ Saved overlay: {outputs[3]}")
+
+            # QC Plot
+            temp_qc_path = results['temp_dir'] / f"{well}_{data_type}_tile_qc.png"
+            if temp_qc_path.exists():
+                qc_output_path = Path(outputs[2]).parent.parent / "qc_plots" / f"{plate}_{well}_{data_type}_tile_qc.png"
+                qc_output_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(str(temp_qc_path), str(qc_output_path))
+                print(f"✅ Saved QC plot: {qc_output_path}")
+
             
             # Cleanup temp directory
             if results['temp_dir'].exists():

@@ -80,6 +80,16 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "sbs_overlay", "png"
         ),
     ],
+    "stitch_phenotype_qc": [
+        MERGE_FP / "qc_plots" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_tile_qc", "png"
+        ),
+    ],
+    "stitch_sbs_qc": [
+        MERGE_FP / "qc_plots" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "sbs_tile_qc", "png"
+        ),
+    ],
     
     # Merge approach outputs
     "enhanced_well_merge": [

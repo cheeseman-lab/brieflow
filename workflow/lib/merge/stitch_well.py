@@ -6,7 +6,7 @@ Handles both images and segmentation masks with actual stitching.
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Union
 from tqdm import tqdm
 import scipy
 from pathlib import Path

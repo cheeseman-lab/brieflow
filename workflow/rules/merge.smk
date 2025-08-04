@@ -283,19 +283,6 @@ rule eval_merge:
         "../scripts/merge/eval_merge.py"
 
 
-# Comparison rule to compare both approaches (optional)
-rule compare_approaches:
-    input:
-        legacy=MERGE_OUTPUTS["merge_legacy"],
-        enhanced=MERGE_OUTPUTS["enhanced_well_merge"],
-    output:
-        MERGE_FP / "comparison" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "approach_comparison", "parquet"
-        ),
-    script:
-        "../scripts/merge/compare_approaches.py"
-
-
 # Rule for all merge processing steps
 rule all_merge:
     input:

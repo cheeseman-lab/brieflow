@@ -211,7 +211,7 @@ def get_merge_targets_by_approach():
             "stitch_phenotype_image", "stitch_phenotype_mask", "stitch_phenotype_positions",
             "stitch_sbs_image", "stitch_sbs_mask", "stitch_sbs_positions", 
             "stitch_phenotype_overlay", "stitch_sbs_overlay",
-            "enhanced_well_merge", "well_merge"
+            "enhanced_well_merge"
         ]
     else:
         # Legacy approach targets

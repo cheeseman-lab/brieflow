@@ -136,7 +136,7 @@ def process_modality_with_disk_offload(metadata_df, stitch_config, plate, well, 
             print_memory_usage("before mask assembly")
             
             try:
-                stitched_mask = assemble_stitched_masks_simple(
+                stitched_mask, cell_id_mapping = assemble_stitched_masks_simple(
                     metadata_df=well_metadata,
                     shifts=stitch_config["total_translation"],
                     well=well,
@@ -148,6 +148,7 @@ def process_modality_with_disk_offload(metadata_df, stitch_config, plate, well, 
                 )
                 
                 print(f"✅ Stitched mask successful: {stitched_mask.shape}, max label: {stitched_mask.max()}")
+                print(f"✅ Cell ID mapping created: {len(cell_id_mapping)} mappings")
                 print_memory_usage("after mask assembly")
                 
                 # IMMEDIATELY save mask to temp file
@@ -159,13 +160,26 @@ def process_modality_with_disk_offload(metadata_df, stitch_config, plate, well, 
                 # Extract cell positions BEFORE clearing mask
                 if mask_max_label > 0:
                     print("Extracting cell positions...")
+                    # First, check what assemble_stitched_masks_simple returns
+                    if isinstance(stitched_mask, tuple):
+                        # If it returns (mask, cell_mapping)
+                        stitched_mask_array, cell_id_mapping = stitched_mask
+                    else:
+                        # If it just returns the mask
+                        stitched_mask_array = stitched_mask
+                        cell_id_mapping = None
+
+                    # Define tile_size based on data type
+                    tile_size = (2400, 2400) if data_type == "phenotype" else (1200, 1200)
+
+                    # Extract cell positions with tile tracking
                     cell_positions = extract_cell_positions_from_stitched_mask(
-                        stitched_mask=stitched_mask,
+                        stitched_mask=stitched_mask_array,
                         well=well,
                         data_type=data_type,
-                        metadata_df=well_metadata,  # Add this line
-                        shifts=stitch_config["total_translation"],  # Add this line
-                        tile_size=None,  # Add this line (define tile_size first - see below)
+                        metadata_df=well_metadata,
+                        shifts=stitch_config["total_translation"],
+                        tile_size=tile_size,
                         cell_id_mapping=cell_id_mapping
                     )
                     print(f"✅ Extracted {len(cell_positions)} cell positions")

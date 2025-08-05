@@ -3,7 +3,7 @@ import yaml
 from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.stitch_well import estimate_stitch_phenotype
+from lib.merge.stitch_well import estimate_stitch_phenotype_coordinate_based
 import numpy as np
 
 
@@ -54,7 +54,7 @@ if len(phenotype_well_metadata) == 0:
 
 # Estimate stitching for phenotype data using optimized phenotype-specific function
 print(f"Using optimized phenotype estimation (image registration approach)")
-phenotype_stitch_result = estimate_stitch_phenotype(
+phenotype_stitch_result = estimate_stitch_phenotype_coordinate_based(
     metadata_df=phenotype_well_metadata,
     well=well,
     flipud=snakemake.params.flipud,

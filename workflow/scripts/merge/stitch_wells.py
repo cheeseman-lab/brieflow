@@ -15,13 +15,6 @@ from lib.merge.stitch_well import (
 )
 from lib.merge.merge_well import create_stitched_overlay
 
-# Import the optimized mask assembly function
-try:
-    from lib.merge.stitch_well import assemble_stitched_masks_optimized
-except ImportError:
-    # Fallback to original if optimized version not available
-    from lib.merge.stitch_well import assemble_stitched_masks as assemble_stitched_masks_optimized
-
 
 def print_memory_usage(stage=""):
     """Print current memory usage"""

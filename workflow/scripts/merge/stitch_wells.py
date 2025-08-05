@@ -153,14 +153,7 @@ def process_modality_with_disk_offload(metadata_df, stitch_config, plate, well, 
                 # Extract cell positions BEFORE clearing mask
                 if mask_max_label > 0:
                     print("Extracting cell positions...")
-                    # First, check what assemble_stitched_masks_simple returns
-                    if isinstance(stitched_mask, tuple):
-                        # If it returns (mask, cell_mapping)
-                        stitched_mask_array, cell_id_mapping = stitched_mask
-                    else:
-                        # If it just returns the mask
-                        stitched_mask_array = stitched_mask
-                        cell_id_mapping = None
+                    stitched_mask_array = stitched_mask
 
                     # Define tile_size based on data type
                     tile_size = (2400, 2400) if data_type == "phenotype" else (1200, 1200)

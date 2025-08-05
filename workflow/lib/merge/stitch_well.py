@@ -1280,9 +1280,7 @@ def assemble_stitched_masks_simple(metadata_df, shifts, well, data_type,
                                   return_cell_mapping=False):
     """
     FIXED: Assemble stitched masks while preserving original cell IDs.
-    
     Key fix: Create mapping BEFORE relabeling, so original IDs are preserved.
-    Same function name, improved implementation.
     """
     
     print(f"🔧 MASK ASSEMBLY: {data_type} well {well}")
@@ -1413,6 +1411,152 @@ def assemble_stitched_masks_simple(metadata_df, shifts, well, data_type,
     else:
         return stitched_mask
 
+
+def extract_cell_positions_from_stitched_mask(
+    stitched_mask: np.ndarray,
+    well: str,
+    data_type: str = "phenotype",
+    metadata_df: pd.DataFrame = None,
+    shifts: Dict[str, List[int]] = None,
+    tile_size: Tuple[int, int] = None,
+    cell_id_mapping: Dict[int, Tuple[int, int]] = None
+) -> pd.DataFrame:
+    """
+    ENHANCED: Extract cell positions using preserved cell ID mapping.
+    Now requires cell_id_mapping for proper functionality.
+    """
+    
+    print(f"🔍 EXTRACTING CELL POSITIONS: {data_type} well {well}")
+    
+    # Get region properties from stitched mask
+    props = measure.regionprops(stitched_mask)
+    
+    if len(props) == 0:
+        print("⚠️  No cells found in stitched mask")
+        return pd.DataFrame(columns=[
+            'well', 'cell', 'stitched_cell_id', 'original_cell_id', 'original_tile_id',
+            'i', 'j', 'area', 'data_type', 'tile_i', 'tile_j', 'mapping_method'
+        ])
+    
+    print(f"Found {len(props)} cells in stitched mask")
+    
+    # Require the essential parameters
+    if cell_id_mapping is None:
+        raise ValueError("cell_id_mapping is required for preserved cell ID extraction")
+    if metadata_df is None:
+        raise ValueError("metadata_df is required for tile information")
+    if shifts is None:
+        raise ValueError("shifts is required for tile positioning")
+    
+    # Auto-detect tile size if not provided
+    if tile_size is None:
+        tile_size = (2400, 2400) if data_type == "phenotype" else (1200, 1200)
+    
+    print("✅ Using preserved cell ID mapping")
+    
+    # Create metadata lookup
+    well_metadata = metadata_df[metadata_df["well"] == well].copy()
+    tile_metadata_lookup = {}
+    tile_shift_lookup = {}
+    
+    for _, tile_row in well_metadata.iterrows():
+        tile_id = tile_row["tile"]
+        tile_metadata_lookup[tile_id] = tile_row.to_dict()
+        
+        tile_key = f"{well}/{tile_id}"
+        if tile_key in shifts:
+            tile_shift_lookup[tile_id] = shifts[tile_key]
+    
+    # Extract cell information using preserved mapping
+    cell_data = []
+    direct_mappings = 0
+    missing_mappings = 0
+    
+    for prop in props:
+        global_centroid_y, global_centroid_x = prop.centroid
+        stitched_label = prop.label
+        
+        # Base cell information
+        cell_info = {
+            'well': well,
+            'stitched_cell_id': stitched_label,
+            'i': global_centroid_y,  # Global stitched coordinates
+            'j': global_centroid_x,  # Global stitched coordinates
+            'area': prop.area,
+            'data_type': data_type
+        }
+        
+        # Use preserved mapping to get original tile and cell ID
+        if stitched_label in cell_id_mapping:
+            original_tile_id, original_cell_id = cell_id_mapping[stitched_label]
+            mapping_method = "preserved_mapping"
+            direct_mappings += 1
+            
+            # Calculate relative position within original tile
+            if original_tile_id in tile_shift_lookup:
+                tile_shift = tile_shift_lookup[original_tile_id]
+                relative_y = global_centroid_y - tile_shift[0]
+                relative_x = global_centroid_x - tile_shift[1]
+            else:
+                relative_y = -1
+                relative_x = -1
+            
+            # Get tile metadata
+            tile_metadata = tile_metadata_lookup.get(original_tile_id, {})
+            
+            # Complete cell information with preserved IDs
+            cell_info.update({
+                'cell': original_cell_id,  # For downstream compatibility
+                'original_cell_id': original_cell_id,
+                'original_tile_id': original_tile_id,
+                'tile': original_tile_id,  # For backward compatibility
+                'tile_i': relative_y,
+                'tile_j': relative_x,
+                'mapping_method': mapping_method,
+                'stage_x': tile_metadata.get('x_pos', np.nan),
+                'stage_y': tile_metadata.get('y_pos', np.nan),
+                'tile_row': tile_metadata.get('tile_row', -1),
+                'tile_col': tile_metadata.get('tile_col', -1),
+            })
+            
+        else:
+            # This shouldn't happen with the fixed approach
+            print(f"⚠️  Missing mapping for stitched label {stitched_label}")
+            missing_mappings += 1
+            
+            cell_info.update({
+                'cell': stitched_label,  # Fallback
+                'original_cell_id': None,
+                'original_tile_id': None,
+                'tile': -1,
+                'tile_i': -1,
+                'tile_j': -1,
+                'mapping_method': 'missing_mapping',
+                'stage_x': np.nan,
+                'stage_y': np.nan,
+                'tile_row': -1,
+                'tile_col': -1,
+            })
+        
+        cell_data.append(cell_info)
+    
+    df = pd.DataFrame(cell_data)
+    
+    print(f"✅ EXTRACTION COMPLETE:")
+    print(f"  Total cells: {len(df)}")
+    print(f"  Direct mappings: {direct_mappings}")
+    print(f"  Missing mappings: {missing_mappings}")
+    print(f"  Success rate: {direct_mappings/len(df)*100:.1f}%")
+    
+    # Show tile distribution
+    if len(df) > 0 and 'original_tile_id' in df.columns:
+        tile_counts = df['original_tile_id'].value_counts()
+        valid_tiles = tile_counts[tile_counts.index.notna() & (tile_counts.index != -1)]
+        if len(valid_tiles) > 0:
+            print(f"  Cells per tile: min={valid_tiles.min()}, max={valid_tiles.max()}, mean={valid_tiles.mean():.1f}")
+            print(f"  Active tiles: {len(valid_tiles)}")
+    
+    return df
 
 # Add this alias to replace the optimized version
 assemble_stitched_masks_reliable = assemble_stitched_masks_simple

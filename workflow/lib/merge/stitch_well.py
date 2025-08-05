@@ -1380,50 +1380,55 @@ def assemble_stitched_masks_simple(metadata_df, shifts, well, data_type,
                                   flipud=False, fliplr=False, rot90=0, 
                                   return_cell_mapping=False):
     """
-    Your existing function - just add proper cell ID conflict handling
-    
-    The fix: Add unique ID offset for each tile to prevent conflicts
+    Fixed version that handles the correct shift key format
     """
+    
+    print(f"🔧 MASK ASSEMBLY CALLED: {data_type} well {well}")
+    print(f"📊 Input: {len(metadata_df)} tiles, {len(shifts)} shifts")
     
     print(f"Assembling {data_type} masks with conflict resolution...")
     
-    # Calculate canvas size (your existing logic)
+    # Calculate canvas size
     max_x = max_y = 0
     tile_size = (2400, 2400) if data_type == "phenotype" else (1200, 1200)
     tile_height, tile_width = tile_size
     
-    for tile_id, (shift_x, shift_y) in shifts.items():
+    # FIXED: Handle the correct shift key format
+    for shift_key, (shift_y, shift_x) in shifts.items():
         max_x = max(max_x, shift_x + tile_width)
         max_y = max(max_y, shift_y + tile_height)
     
     print(f"Canvas size: {max_y} x {max_x}")
     
-    # Initialize stitched mask (your existing logic)
+    # Initialize stitched mask
     stitched_mask = np.zeros((max_y, max_x), dtype=np.uint32)
     
-    # ADD THIS: Cell ID management to prevent conflicts
+    # Cell ID management to prevent conflicts
     cell_id_mapping = {}
     next_available_id = 1
     
-    # Process each tile (your existing loop structure)
+    # Process each tile
     for _, row in metadata_df.iterrows():
         tile_id = row['tile']
         
-        if tile_id not in shifts:
-            print(f"Warning: No shift found for tile {tile_id}")
+        # FIXED: Create the correct shift key format
+        tile_key = f"{well}/{tile_id}"
+        
+        if tile_key not in shifts:
+            print(f"Warning: No shift found for tile {tile_id} (key: {tile_key})")
             continue
         
-        # Load tile mask (your existing logic)
+        # Load tile mask
         mask_path = f"analysis_root/{data_type}/images/P-{row['plate']}_W-{well}_T-{tile_id}__nuclei.tiff"
         
         if not Path(mask_path).exists():
-            print(f"Warning: Mask not found for tile {tile_id}")
+            print(f"Warning: Mask not found for tile {tile_id} at {mask_path}")
             continue
         
         try:
             tile_mask = io.imread(mask_path)
             
-            # Apply transformations (your existing logic)
+            # Apply transformations
             if flipud:
                 tile_mask = np.flipud(tile_mask)
             if fliplr:
@@ -1431,12 +1436,15 @@ def assemble_stitched_masks_simple(metadata_df, shifts, well, data_type,
             if rot90 > 0:
                 tile_mask = np.rot90(tile_mask, rot90)
             
-            # ADD THIS: Unique ID remapping to prevent conflicts
+            # Unique ID remapping to prevent conflicts
             unique_ids = np.unique(tile_mask)
             cell_ids = unique_ids[unique_ids > 0]  # Exclude background
             
             if len(cell_ids) == 0:
+                print(f"Tile {tile_id}: No cells found")
                 continue
+            
+            print(f"Tile {tile_id}: Processing {len(cell_ids)} cells (IDs {cell_ids.min()}-{cell_ids.max()})")
             
             # Remap each cell ID to a globally unique ID
             remapped_mask = np.zeros_like(tile_mask, dtype=np.uint32)
@@ -1446,17 +1454,14 @@ def assemble_stitched_masks_simple(metadata_df, shifts, well, data_type,
                 
                 # Update mapping
                 if return_cell_mapping:
-                    cell_id_mapping[new_global_id] = {
-                        'tile': tile_id,
-                        'original_id': original_id
-                    }
+                    cell_id_mapping[new_global_id] = (tile_id, original_id)  # Changed to tuple format
                 
                 # Remap pixels
                 remapped_mask[tile_mask == original_id] = new_global_id
                 next_available_id += 1
             
-            # Place remapped tile in stitched mask (your existing placement logic)
-            shift_x, shift_y = shifts[tile_id]
+            # FIXED: Use the correct shift format [shift_y, shift_x]
+            shift_y, shift_x = shifts[tile_key]
             end_y = min(shift_y + tile_height, max_y)
             end_x = min(shift_x + tile_width, max_x)
             
@@ -1473,17 +1478,17 @@ def assemble_stitched_masks_simple(metadata_df, shifts, well, data_type,
             if overlaps > 0:
                 print(f"Tile {tile_id}: {overlaps} overlap pixels (existing cells preserved)")
             
-            print(f"Tile {tile_id}: {len(cell_ids)} cells placed")
+            print(f"Tile {tile_id}: {len(cell_ids)} cells placed successfully")
             
         except Exception as e:
-            print(f"Error processing tile {tile_id}: {e}")
+            print(f"❌ Error processing tile {tile_id}: {e}")
             continue
     
     # Final statistics
     final_unique = np.unique(stitched_mask)
     final_cells = final_unique[final_unique > 0]
     
-    print(f"Stitching complete:")
+    print(f"🎉 Stitching complete:")
     print(f"  Final cell count: {len(final_cells):,}")
     print(f"  Max cell ID: {final_cells.max() if len(final_cells) > 0 else 0}")
     print(f"  ID efficiency: {len(final_cells) / final_cells.max() * 100:.1f}%" if len(final_cells) > 0 else "N/A")

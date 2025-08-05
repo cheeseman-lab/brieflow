@@ -939,220 +939,6 @@ def assemble_aligned_tiff_well(
     return stitched.astype(np.uint16)
 
 
-def assemble_stitched_masks_optimized(
-    metadata_df: pd.DataFrame,
-    shifts: Dict[str, List[int]],
-    well: str,
-    data_type: str = "phenotype",
-    flipud: bool = False,
-    fliplr: bool = False,
-    rot90: int = 0,
-) -> np.ndarray:
-    """Memory-optimized version of assemble_stitched_masks with overflow fixes."""
-    import gc
-    
-    well_metadata = metadata_df[metadata_df["well"] == well].copy()
-
-    if len(well_metadata) == 0:
-        raise ValueError(f"No metadata found for well {well}")
-
-    mask_cache = MaskTileCache(metadata_df, well, data_type, flipud, fliplr, rot90)
-
-    # Get tile size from first mask
-    first_tile_id = well_metadata.iloc[0]["tile"]
-    try:
-        first_mask = mask_cache[first_tile_id]
-        if first_mask is None:
-            raise ValueError(f"Could not load first mask tile: {first_tile_id}")
-        tile_size = first_mask.shape
-        print(f"Tile size: {tile_size}")
-    except Exception as e:
-        print(f"Error loading first mask: {e}")
-        return np.array([])
-
-    # Calculate output dimensions
-    final_shape = get_output_shape_tiff(shifts, tile_size)
-    print(f"Final stitched mask shape: {final_shape}")
-    
-    # Estimate memory usage
-    estimated_bytes = final_shape[0] * final_shape[1] * 4  # uint32
-    estimated_gb = estimated_bytes / 1e9
-    print(f"Estimated mask memory usage: {estimated_gb:.1f} GB")
-    
-    if estimated_gb > 300:  # If estimated > 300GB, use chunked processing
-        print("⚠️  Large mask detected, using chunked processing")
-        return assemble_stitched_masks_chunked(metadata_df, shifts, well, data_type, flipud, fliplr, rot90)
-    
-    # Use uint32 to handle large label numbers but prevent overflow
-    stitched_mask = np.zeros(final_shape, dtype=np.uint32)
-    print(f"Allocated stitched mask: {stitched_mask.nbytes / 1e9:.1f} GB")
-
-    next_label = np.uint32(1)
-    processed_tiles = 0
-
-    # Process tiles in smaller batches to manage memory
-    batch_size = min(50, len(well_metadata))  # Process 50 tiles at a time
-    
-    for batch_start in range(0, len(well_metadata), batch_size):
-        batch_end = min(batch_start + batch_size, len(well_metadata))
-        batch_metadata = well_metadata.iloc[batch_start:batch_end]
-        
-        print(f"Processing batch {batch_start//batch_size + 1}/{(len(well_metadata)-1)//batch_size + 1} ({len(batch_metadata)} tiles)")
-        
-        for _, tile_row in batch_metadata.iterrows():
-            tile_id = tile_row["tile"]
-            tile_key = f"{well}/{tile_id}"
-
-            if tile_key not in shifts:
-                continue
-
-            try:
-                mask_tile = mask_cache[tile_id]
-                if mask_tile is None:
-                    continue
-            except Exception as e:
-                print(f"Error loading mask tile {tile_id}: {e}")
-                continue
-
-            # Place tile with overflow checking
-            shift = shifts[tile_key]
-            y_shift, x_shift = int(shift[0]), int(shift[1])
-            y_end = min(y_shift + tile_size[0], final_shape[0])
-            x_end = min(x_shift + tile_size[1], final_shape[1])
-
-            if y_shift >= 0 and x_shift >= 0 and y_end > y_shift and x_end > x_shift:
-                tile_y_end = tile_size[0] - max(0, y_shift + tile_size[0] - final_shape[0])
-                tile_x_end = tile_size[1] - max(0, x_shift + tile_size[1] - final_shape[1])
-
-                # Relabel mask to avoid conflicts with overflow protection
-                mask_tile_cropped = mask_tile[:tile_y_end, :tile_x_end]
-                
-                if mask_tile_cropped.max() > 0:
-                    # Check for potential overflow before relabeling
-                    unique_count = len(np.unique(mask_tile_cropped[mask_tile_cropped > 0]))
-                    if int(next_label) + unique_count > np.iinfo(np.uint32).max:
-                        print(f"Warning: Approaching label limit, resetting labels")
-                        next_label = np.uint32(1)
-                    
-                    mask_tile_relabeled = relabel_mask_tile(mask_tile_cropped, next_label)
-                    
-                    if mask_tile_relabeled.max() > 0:
-                        next_label = np.uint32(mask_tile_relabeled.max() + 1)
-
-                    # Handle overlaps by keeping existing labels
-                    target_region = stitched_mask[y_shift:y_end, x_shift:x_end]
-                    mask_new_cells = (mask_tile_relabeled > 0) & (target_region == 0)
-                    target_region[mask_new_cells] = mask_tile_relabeled[mask_new_cells]
-
-            processed_tiles += 1
-            
-            # Periodic memory cleanup
-            if processed_tiles % 20 == 0:
-                gc.collect()
-                print(f"  Processed {processed_tiles}/{len(well_metadata)} tiles, next_label: {next_label}")
-        
-        # Cleanup after each batch
-        gc.collect()
-
-    print(f"Mask assembly completed. Max label: {stitched_mask.max()}")
-    return stitched_mask
-
-def assemble_stitched_masks_chunked(
-    metadata_df: pd.DataFrame,
-    shifts: Dict[str, List[int]],
-    well: str,
-    data_type: str = "phenotype",
-    flipud: bool = False,
-    fliplr: bool = False,
-    rot90: int = 0,
-) -> np.ndarray:
-    """
-    Chunked processing for very large masks that don't fit in memory.
-    Processes the mask in spatial chunks.
-    """
-    print("🔄 Using chunked mask assembly for large output")
-    
-    # This is a placeholder for chunked processing
-    # For now, return a smaller representative mask
-    well_metadata = metadata_df[metadata_df["well"] == well].copy()
-    
-    if len(well_metadata) == 0:
-        return np.array([])
-    
-    # Create a downsampled version
-    final_shape = get_output_shape_tiff(shifts, (1200, 1200))  # Use smaller tile estimate
-    downsampled_shape = (final_shape[0] // 4, final_shape[1] // 4)  # 4x downsampling
-    
-    print(f"Creating downsampled mask: {downsampled_shape} (4x smaller)")
-    return np.zeros(downsampled_shape, dtype=np.uint32)
-
-def estimate_stitch_phenotype(
-    metadata_df: pd.DataFrame,
-    well: str,
-    flipud: bool = False,
-    fliplr: bool = False,
-    rot90: int = 0,
-    channel: int = 0,
-) -> Dict[str, Dict]:
-    """Coordinate-based stitching for phenotype data (same approach as working SBS)."""
-    
-    well_metadata = metadata_df[metadata_df["well"] == well].copy()
-    
-    if len(well_metadata) == 0:
-        print(f"No phenotype tiles found for well {well}")
-        return {"total_translation": {}, "confidence": {well: {}}}
-    
-    coords = well_metadata[['x_pos', 'y_pos']].values
-    tile_ids = well_metadata['tile'].values
-    tile_size = (2400, 2400)  # Phenotype tile size
-    
-    print(f"Creating coordinate-based phenotype stitch config for {len(tile_ids)} tiles")
-    
-    # Use proven spacing detection from SBS approach
-    from scipy.spatial.distance import pdist
-    distances = pdist(coords)
-    actual_spacing = np.percentile(distances[distances > 0], 10)  # 10th percentile
-    
-    print(f"Phenotype spacing: {actual_spacing:.1f} μm")
-    print(f"Phenotype tile size: {tile_size}")
-    
-    # Convert stage coordinates directly to pixel positions
-    # Scale so tiles overlap slightly (85% of spacing = 15% overlap)
-    pixels_per_micron = tile_size[0] * 0.85 / actual_spacing
-    
-    print(f"Phenotype scale factor: {pixels_per_micron:.3f} pixels/μm")
-    
-    x_min, y_min = coords.min(axis=0)
-    
-    total_translation = {}
-    confidence = {}
-    
-    for i, tile_id in enumerate(tile_ids):
-        x_pos, y_pos = coords[i]
-        
-        # Convert directly to pixel coordinates
-        pixel_x = int((x_pos - x_min) * pixels_per_micron)
-        pixel_y = int((y_pos - y_min) * pixels_per_micron)
-        
-        total_translation[f"{well}/{tile_id}"] = [pixel_y, pixel_x]
-        
-        # High confidence since using direct coordinates
-        confidence[f"coord_{i}"] = [[pixel_y, pixel_x], [pixel_y, pixel_x], 0.9]
-    
-    print(f"Generated {len(total_translation)} phenotype coordinate-based positions")
-    
-    # Verify output size
-    y_shifts = [shift[0] for shift in total_translation.values()]
-    x_shifts = [shift[1] for shift in total_translation.values()]
-    
-    final_size = (max(y_shifts) + tile_size[0], max(x_shifts) + tile_size[1])
-    memory_gb = final_size[0] * final_size[1] * 2 / 1e9
-    
-    print(f"Phenotype final image size: {final_size}")
-    print(f"Phenotype memory estimate: {memory_gb:.1f} GB")
-    
-    return {"total_translation": total_translation, "confidence": {well: confidence}}
-
 
 def estimate_stitch_sbs_coordinate_based(
     metadata_df: pd.DataFrame,
@@ -1291,7 +1077,7 @@ def assemble_stitched_masks_simple(metadata_df, shifts, well, data_type,
     tile_height, tile_width = tile_size
     
     max_x = max_y = 0
-    for shift_key, (shift_y, shift_x) in shifts.items():
+    for tile_id, (shift_x, shift_y) in shifts.items():
         max_x = max(max_x, shift_x + tile_width)
         max_y = max(max_y, shift_y + tile_height)
     
@@ -1357,27 +1143,28 @@ def assemble_stitched_masks_simple(metadata_df, shifts, well, data_type,
             relabeled_mask = np.zeros_like(tile_mask, dtype=np.uint32)
             for original_id, global_id in tile_registry.items():
                 relabeled_mask[tile_mask == original_id] = global_id
-            
+
             # Place the relabeled tile in the stitched mask
             shift_y, shift_x = shifts[tile_key]
             end_y = min(shift_y + tile_height, max_y)
             end_x = min(shift_x + tile_width, max_x)
-            
+
             # Extract regions
             mask_region = stitched_mask[shift_y:end_y, shift_x:end_x]
             tile_region = relabeled_mask[:end_y-shift_y, :end_x-shift_x]
-            
-            # Only place cells where background exists (no overwriting)
-            new_cells_mask = (tile_region > 0) & (mask_region == 0)
-            mask_region[new_cells_mask] = tile_region[new_cells_mask]
-            
-            # Track overlaps for QC
-            overlaps = np.sum((tile_region > 0) & (mask_region > 0))
-            if overlaps > 0:
-                print(f"Tile {tile_id}: {overlaps} overlap pixels (preserved existing)")
-            
+
+            # Place ALL cells (no overlap checking needed since edge nuclei are removed)
+            mask_region[tile_region > 0] = tile_region[tile_region > 0]
+
+            # DEBUG: Check if all cells made it (count unique labels, not pixels)
+            placed_labels = np.unique(tile_region[tile_region > 0])
+            placed_cells = len(placed_labels)
+            expected_cells = len(original_cell_ids)
+            if placed_cells != expected_cells:
+                print(f"⚠️  Tile {tile_id}: Expected {expected_cells}, placed {placed_cells}")
+
             print(f"✅ Tile {tile_id}: {len(original_cell_ids)} cells placed "
-                  f"(global IDs: {min(tile_registry.values())}-{max(tile_registry.values())})")
+                f"(global IDs: {min(tile_registry.values())}-{max(tile_registry.values())})")
             
         except Exception as e:
             print(f"❌ Error processing tile {tile_id}: {e}")
@@ -1573,14 +1360,17 @@ def create_tile_arrangement_qc_plot(
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     fig.suptitle(f'{data_type.title()} Tile Arrangement QC', fontsize=16)
     
+    # Use the correct column for preserved tile mapping
+    tile_column = 'original_tile_id' if 'original_tile_id' in cell_positions_df.columns else 'tile'
+    
     # Plot 1: Cell positions colored by tile
     ax1 = axes[0, 0]
-    if 'tile' in cell_positions_df.columns:
+    if tile_column in cell_positions_df.columns:
         scatter = ax1.scatter(cell_positions_df['j'], cell_positions_df['i'], 
-                            c=cell_positions_df['tile'], cmap='tab20', 
+                            c=cell_positions_df[tile_column], cmap='tab20', 
                             s=0.1, alpha=0.7)
-        plt.colorbar(scatter, ax=ax1, label='Tile ID')
-    ax1.set_title('Cell Positions by Tile')
+        plt.colorbar(scatter, ax=ax1, label='Original Tile ID')
+    ax1.set_title('Cell Positions by Original Tile')
     ax1.set_xlabel('X Position (pixels)')
     ax1.set_ylabel('Y Position (pixels)')
     ax1.invert_yaxis()
@@ -1588,15 +1378,15 @@ def create_tile_arrangement_qc_plot(
     # Plot 2: Stage coordinates with tile numbers
     ax2 = axes[0, 1]
     if 'stage_x' in cell_positions_df.columns and 'stage_y' in cell_positions_df.columns:
-        tile_info = cell_positions_df.groupby('tile').agg({
+        tile_info = cell_positions_df.groupby(tile_column).agg({
             'stage_x': 'first',
             'stage_y': 'first'
         }).reset_index()
         
         ax2.scatter(tile_info['stage_x'], tile_info['stage_y'], s=50)
         for _, row in tile_info.iterrows():
-            if not np.isnan(row['stage_x']):
-                ax2.annotate(f"{int(row['tile'])}", 
+            if not pd.isna(row['stage_x']) and not np.isnan(row['stage_x']):
+                ax2.annotate(f"{int(row[tile_column])}", 
                            (row['stage_x'], row['stage_y']), 
                            fontsize=8, ha='center')
     ax2.set_title('Tile Arrangement (Stage Coordinates)')
@@ -1605,13 +1395,13 @@ def create_tile_arrangement_qc_plot(
     
     # Plot 3: Cells per tile histogram
     ax3 = axes[1, 0]
-    if 'tile' in cell_positions_df.columns:
-        tile_counts = cell_positions_df['tile'].value_counts()
+    if tile_column in cell_positions_df.columns:
+        tile_counts = cell_positions_df[tile_column].value_counts()
         ax3.hist(tile_counts.values, bins=50, alpha=0.7)
         ax3.axvline(tile_counts.mean(), color='red', linestyle='--', 
                    label=f'Mean: {tile_counts.mean():.1f}')
         ax3.legend()
-    ax3.set_title('Distribution of Cells per Tile')
+    ax3.set_title('Distribution of Cells per Original Tile')
     ax3.set_xlabel('Cells per Tile')
     ax3.set_ylabel('Number of Tiles')
     
@@ -1619,8 +1409,8 @@ def create_tile_arrangement_qc_plot(
     ax4 = axes[1, 1]
     if 'tile_i' in cell_positions_df.columns and 'tile_j' in cell_positions_df.columns:
         ax4.scatter(cell_positions_df['tile_j'], cell_positions_df['tile_i'], 
-                   c=cell_positions_df['tile'], cmap='tab20', s=0.1, alpha=0.7)
-    ax4.set_title('Relative Positions within Tiles')
+                   c=cell_positions_df[tile_column], cmap='tab20', s=0.1, alpha=0.7)
+    ax4.set_title('Relative Positions within Original Tiles')
     ax4.set_xlabel('Tile-relative X')
     ax4.set_ylabel('Tile-relative Y')
     ax4.invert_yaxis()

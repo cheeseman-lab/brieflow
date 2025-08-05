@@ -250,17 +250,23 @@ def main():
     print(f"=== MEMORY-OPTIMIZED {data_type.upper()} STITCHING ===")
     print_memory_usage("initial")
     
-    # Load appropriate metadata and config based on data type
-    if data_type == "phenotype":
-        metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
-        with open(snakemake.input[1], "r") as f:
-            stitch_config = yaml.safe_load(f)
-        outputs = snakemake.output[:4]
-    else:  # SBS
-        metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
-        with open(snakemake.input[1], "r") as f:
-            stitch_config = yaml.safe_load(f)
-        outputs = snakemake.output[:4]
+    # Load metadata first
+    metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
+    
+    # Apply filtering for SBS data type (same as in stitch config generation)
+    if data_type == "sbs":
+        # Get the same filter used in stitch config generation
+        sbs_filters = {"cycle": snakemake.config["merge"]["sbs_metadata_cycle"]}
+        for filter_key, filter_value in sbs_filters.items():
+            print(f"Filtering {data_type} metadata: {filter_key} == {filter_value}")
+            metadata = metadata[metadata[filter_key] == filter_value]
+        print(f"After filtering - {data_type} metadata: {len(metadata)} entries")
+    
+    # Load stitch config
+    with open(snakemake.input[1], "r") as f:
+        stitch_config = yaml.safe_load(f)
+    
+    outputs = snakemake.output[:4]
     
     # Get parameters
     plate = snakemake.params.plate

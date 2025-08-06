@@ -971,8 +971,7 @@ def estimate_stitch_sbs_coordinate_based(
     print(f"SBS tile size: {tile_size}")
     
     # Convert stage coordinates directly to pixel positions
-    # Scale so tiles overlap slightly (90% of spacing)
-    pixels_per_micron = tile_size[0] * 0.9 / actual_spacing
+    pixels_per_micron = tile_size[0] * 0.95 / actual_spacing
     
     print(f"SBS scale factor: {pixels_per_micron:.3f} pixels/μm")
     
@@ -1006,38 +1005,6 @@ def estimate_stitch_sbs_coordinate_based(
     print(f"SBS memory estimate: {memory_gb:.1f} GB")
     
     return {"total_translation": total_translation, "confidence": {well: confidence}}
-
-
-# def create_phenotype_connectivity(tile_positions, coords, tile_ids):
-#     """Phenotype-specific connectivity (proven to work)"""
-#     from scipy.spatial.distance import pdist, squareform
-#     distances = squareform(pdist(coords))
-    
-#     # Phenotype-optimized thresholds (from our testing)
-#     min_distance = distances[distances > 0].min()
-#     proximity_threshold = min_distance * 1.005
-#     max_neighbors = 3
-    
-#     print(f"Phenotype connectivity: threshold={proximity_threshold:.1f}, max_neighbors={max_neighbors}")
-    
-#     edges = {}
-#     edge_idx = 0
-    
-#     for i in range(len(tile_ids)):
-#         neighbor_distances = [(j, distances[i, j]) for j in range(len(tile_ids)) 
-#                             if j != i and distances[i, j] < proximity_threshold]
-        
-#         neighbor_distances.sort(key=lambda x: x[1])
-#         neighbors_to_use = neighbor_distances[:max_neighbors]
-        
-#         for j, dist in neighbors_to_use:
-#             if i < j:
-#                 pos_a = tile_positions[tile_ids[i]]
-#                 pos_b = tile_positions[tile_ids[j]]
-#                 edges[f"{edge_idx}"] = [pos_a, pos_b]
-#                 edge_idx += 1
-    
-#     return edges
 
 
 def estimate_stitch_data_type_specific(
@@ -1533,8 +1500,7 @@ def estimate_stitch_phenotype_coordinate_based(
     print(f"Phenotype tile size: {tile_size}")
     
     # Convert stage coordinates directly to pixel positions
-    # Scale so tiles overlap slightly (85% of spacing = 15% overlap)
-    pixels_per_micron = tile_size[0] * 0.85 / actual_spacing
+    pixels_per_micron = tile_size[0] * 0.95 / actual_spacing
     
     print(f"Phenotype scale factor: {pixels_per_micron:.3f} pixels/μm")
     

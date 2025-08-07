@@ -67,13 +67,13 @@ if len(phenotype_well_metadata) == 0 or len(sbs_well_metadata) == 0:
     print("Warning: No tiles found for this well")
     # Create empty configs
     empty_config = {"total_translation": {}, "confidence": {well: {}}}
-    
+
     with open(snakemake.output[0], "w") as f:
         yaml.dump(convert_numpy_types(empty_config), f)
-    
+
     with open(snakemake.output[1], "w") as f:
         yaml.dump(convert_numpy_types(empty_config), f)
-    
+
     print("Created empty stitching configurations")
     exit(0)
 

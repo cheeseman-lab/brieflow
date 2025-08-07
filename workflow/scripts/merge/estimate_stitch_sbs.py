@@ -50,10 +50,10 @@ if len(sbs_well_metadata) == 0:
     print("Warning: No SBS tiles found for this well")
     # Create empty config
     empty_config = {"total_translation": {}, "confidence": {well: {}}}
-    
+
     with open(snakemake.output.sbs_stitch_config, "w") as f:
         yaml.dump(convert_numpy_types(empty_config), f)
-    
+
     print("Created empty SBS stitching configuration")
     exit(0)
 
@@ -69,7 +69,7 @@ sbs_stitch_result = estimate_stitch_sbs_coordinate_based(
 )
 
 # Validate results
-shifts = sbs_stitch_result['total_translation']
+shifts = sbs_stitch_result["total_translation"]
 print(f"Generated {len(shifts)} SBS tile positions")
 
 coverage_percent = len(shifts) / len(sbs_well_metadata) * 100

@@ -45,10 +45,10 @@ if len(phenotype_well_metadata) == 0:
     print("Warning: No phenotype tiles found for this well")
     # Create empty config
     empty_config = {"total_translation": {}, "confidence": {well: {}}}
-    
+
     with open(snakemake.output[0], "w") as f:  # Use index [0]
         yaml.dump(convert_numpy_types(empty_config), f)
-    
+
     print("Created empty phenotype stitching configuration")
     exit(0)
 
@@ -64,17 +64,21 @@ phenotype_stitch_result = estimate_stitch_phenotype_coordinate_based(
 )
 
 # Validate results
-shifts = phenotype_stitch_result['total_translation']
+shifts = phenotype_stitch_result["total_translation"]
 print(f"Generated {len(shifts)} phenotype tile positions")
 
 if len(shifts) < len(phenotype_well_metadata) * 0.8:  # Less than 80% coverage
-    print(f"⚠️  Warning: Low coverage ({len(shifts)}/{len(phenotype_well_metadata)} = {len(shifts)/len(phenotype_well_metadata)*100:.1f}%)")
+    print(
+        f"⚠️  Warning: Low coverage ({len(shifts)}/{len(phenotype_well_metadata)} = {len(shifts) / len(phenotype_well_metadata) * 100:.1f}%)"
+    )
 else:
-    print(f"✅ Good coverage: {len(shifts)}/{len(phenotype_well_metadata)} = {len(shifts)/len(phenotype_well_metadata)*100:.1f}%")
+    print(
+        f"✅ Good coverage: {len(shifts)}/{len(phenotype_well_metadata)} = {len(shifts) / len(phenotype_well_metadata) * 100:.1f}%"
+    )
 
 # Save results
-with open(snakemake.output[0], "w") as f: 
+with open(snakemake.output[0], "w") as f:
     yaml.dump(convert_numpy_types(phenotype_stitch_result), f)
 
 print("Phenotype stitching estimation completed successfully")
-print(f"Config saved to: {snakemake.output[0]}") 
+print(f"Config saved to: {snakemake.output[0]}")

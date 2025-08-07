@@ -19,7 +19,7 @@ from lib.merge.stitch_well import (
     estimate_stitch_aligned_tiff,
     assemble_aligned_tiff_well,
     assemble_stitched_masks_simple,
-    extract_cell_positions_from_stitched_mask
+    extract_cell_positions_from_stitched_mask,
 )
 
 
@@ -35,7 +35,9 @@ def hash_stitched_cell_positions(cell_positions_df: pd.DataFrame) -> pd.DataFram
         DataFrame with triangle hash features
     """
     if len(cell_positions_df) < 4:
-        print(f"Warning: Only {len(cell_positions_df)} cells found, need at least 4 for triangulation")
+        print(
+            f"Warning: Only {len(cell_positions_df)} cells found, need at least 4 for triangulation"
+        )
         return pd.DataFrame()
 
     # Extract coordinates and compute Delaunay triangulation
@@ -93,7 +95,7 @@ def stitched_well_alignment(
     # Generate triangle hashes for both datasets
     phenotype_hash = hash_stitched_cell_positions(phenotype_positions)
     sbs_hash = hash_stitched_cell_positions(sbs_positions)
-    
+
     if len(phenotype_hash) == 0 or len(sbs_hash) == 0:
         print("Empty hash data, cannot perform alignment")
         return pd.DataFrame()
@@ -136,19 +138,27 @@ def stitched_well_alignment(
         determinant = np.linalg.det(rotation)
 
         # Create result
-        result = pd.DataFrame([{
-            "rotation_1": rotation[0] if len(rotation) > 0 else [0, 0],
-            "rotation_2": rotation[1] if len(rotation) > 1 else [0, 0], 
-            "translation": translation,
-            "score": score,
-            "determinant": determinant,
-            "well": phenotype_positions["well"].iloc[0] if len(phenotype_positions) > 0 else "unknown",
-            "n_triangles_matched": filt.sum(),
-            "n_triangles_phenotype": len(c_0),
-            "n_triangles_sbs": len(c_1)
-        }])
+        result = pd.DataFrame(
+            [
+                {
+                    "rotation_1": rotation[0] if len(rotation) > 0 else [0, 0],
+                    "rotation_2": rotation[1] if len(rotation) > 1 else [0, 0],
+                    "translation": translation,
+                    "score": score,
+                    "determinant": determinant,
+                    "well": phenotype_positions["well"].iloc[0]
+                    if len(phenotype_positions) > 0
+                    else "unknown",
+                    "n_triangles_matched": filt.sum(),
+                    "n_triangles_phenotype": len(c_0),
+                    "n_triangles_sbs": len(c_1),
+                }
+            ]
+        )
 
-        print(f"Alignment results: score={score:.3f}, determinant={determinant:.3f}, matched_triangles={filt.sum()}")
+        print(
+            f"Alignment results: score={score:.3f}, determinant={determinant:.3f}, matched_triangles={filt.sum()}"
+        )
 
         return result
 
@@ -168,7 +178,7 @@ def merge_stitched_cells(
 
     Args:
         phenotype_positions: Cell positions in phenotype well
-        sbs_positions: Cell positions in SBS well  
+        sbs_positions: Cell positions in SBS well
         alignment: Alignment parameters (rotation, translation)
         threshold: Maximum distance for cell matching
 
@@ -176,10 +186,21 @@ def merge_stitched_cells(
         DataFrame with merged cell identities
     """
     if len(phenotype_positions) == 0 or len(sbs_positions) == 0:
-        return pd.DataFrame(columns=[
-            "plate", "well", "cell_0", "i_0", "j_0", "area_0",
-            "cell_1", "i_1", "j_1", "area_1", "distance"
-        ])
+        return pd.DataFrame(
+            columns=[
+                "plate",
+                "well",
+                "cell_0",
+                "i_0",
+                "j_0",
+                "area_0",
+                "cell_1",
+                "i_1",
+                "j_1",
+                "area_1",
+                "distance",
+            ]
+        )
 
     try:
         # Build transformation model
@@ -208,45 +229,69 @@ def merge_stitched_cells(
 
         if filt.sum() == 0:
             print("No matches found within threshold")
-            return pd.DataFrame(columns=[
-                "plate", "well", "cell_0", "i_0", "j_0", "area_0",
-                "cell_1", "i_1", "j_1", "area_1", "distance"
-            ])
+            return pd.DataFrame(
+                columns=[
+                    "plate",
+                    "well",
+                    "cell_0",
+                    "i_0",
+                    "j_0",
+                    "area_0",
+                    "cell_1",
+                    "i_1",
+                    "j_1",
+                    "area_1",
+                    "distance",
+                ]
+            )
 
         # Create merged dataframe
         matched_phenotype = phenotype_positions[filt].reset_index(drop=True)
         matched_sbs = sbs_positions.iloc[ix[filt]].reset_index(drop=True)
 
-        merged_data = pd.DataFrame({
-            "plate": 1,  # You may need to extract this from your data
-            "well": matched_phenotype["well"],
-            "cell_0": matched_phenotype["cell"],
-            "i_0": matched_phenotype["i"],
-            "j_0": matched_phenotype["j"], 
-            "area_0": matched_phenotype["area"],
-            "cell_1": matched_sbs["cell"],
-            "i_1": matched_sbs["i"],
-            "j_1": matched_sbs["j"],
-            "area_1": matched_sbs["area"],
-            "distance": min_distances[filt]
-        })
+        merged_data = pd.DataFrame(
+            {
+                "plate": 1,  # You may need to extract this from your data
+                "well": matched_phenotype["well"],
+                "cell_0": matched_phenotype["cell"],
+                "i_0": matched_phenotype["i"],
+                "j_0": matched_phenotype["j"],
+                "area_0": matched_phenotype["area"],
+                "cell_1": matched_sbs["cell"],
+                "i_1": matched_sbs["i"],
+                "j_1": matched_sbs["j"],
+                "area_1": matched_sbs["area"],
+                "distance": min_distances[filt],
+            }
+        )
 
         print(f"Successfully merged {len(merged_data)} cells (threshold={threshold})")
         return merged_data
 
     except Exception as e:
         print(f"Merge failed: {e}")
-        return pd.DataFrame(columns=[
-            "plate", "well", "cell_0", "i_0", "j_0", "area_0", 
-            "cell_1", "i_1", "j_1", "area_1", "distance"
-        ])
+        return pd.DataFrame(
+            columns=[
+                "plate",
+                "well",
+                "cell_0",
+                "i_0",
+                "j_0",
+                "area_0",
+                "cell_1",
+                "i_1",
+                "j_1",
+                "area_1",
+                "distance",
+            ]
+        )
 
 
 def create_stitched_overlay(
     stitched_image: np.ndarray,
     stitched_mask: np.ndarray,
     overlay_alpha: float = 0.3,
-    mask_color: Tuple[int, int, int] = (255, 0, 0)  # Red
+    mask_color: Tuple[int, int, int] = (255, 0, 0),  # Red
 ) -> np.ndarray:
     """
     Create an overlay of segmentation mask on stitched image.
@@ -261,11 +306,14 @@ def create_stitched_overlay(
         RGB overlay image
     """
     import cv2
-    
+
     # Normalize image to 0-255
     if stitched_image.max() > 255:
-        image_norm = ((stitched_image - stitched_image.min()) / 
-                     (stitched_image.max() - stitched_image.min()) * 255).astype(np.uint8)
+        image_norm = (
+            (stitched_image - stitched_image.min())
+            / (stitched_image.max() - stitched_image.min())
+            * 255
+        ).astype(np.uint8)
     else:
         image_norm = stitched_image.astype(np.uint8)
 
@@ -274,13 +322,15 @@ def create_stitched_overlay(
 
     # Create mask overlay
     mask_binary = (stitched_mask > 0).astype(np.uint8)
-    
+
     # Create colored mask
     mask_colored = np.zeros_like(image_rgb)
     mask_colored[mask_binary == 1] = mask_color
 
     # Blend images
-    overlay = cv2.addWeighted(image_rgb, 1 - overlay_alpha, mask_colored, overlay_alpha, 0)
+    overlay = cv2.addWeighted(
+        image_rgb, 1 - overlay_alpha, mask_colored, overlay_alpha, 0
+    )
 
     return overlay
 
@@ -296,7 +346,7 @@ def full_stitching_pipeline(
     channel: int = 0,
     overlap_percent: float = 0.1,
     create_overlay: bool = True,
-    output_dir: Optional[Path] = None
+    output_dir: Optional[Path] = None,
 ) -> Dict:
     """
     Complete stitching pipeline for both images and masks.
@@ -318,9 +368,9 @@ def full_stitching_pipeline(
         Dictionary with results
     """
     print(f"Starting full stitching pipeline for {data_type} well {well}")
-    
+
     results = {}
-    
+
     # Step 1: Estimate stitching if config not provided
     if stitch_config is None:
         print("Estimating tile shifts...")
@@ -331,12 +381,12 @@ def full_stitching_pipeline(
             flipud=flipud,
             fliplr=fliplr,
             rot90=rot90,
-            channel=channel
+            channel=channel,
         )
-    
+
     shifts = stitch_config["total_translation"]
-    results['stitch_config'] = stitch_config
-    
+    results["stitch_config"] = stitch_config
+
     # Step 2: Assemble stitched image
     print("Assembling stitched image...")
     try:
@@ -348,14 +398,14 @@ def full_stitching_pipeline(
             flipud=flipud,
             fliplr=fliplr,
             rot90=rot90,
-            overlap_percent=overlap_percent
+            overlap_percent=overlap_percent,
         )
-        results['stitched_image'] = stitched_image
+        results["stitched_image"] = stitched_image
         print(f"Stitched image shape: {stitched_image.shape}")
     except Exception as e:
         print(f"Error assembling stitched image: {e}")
         stitched_image = None
-    
+
     # Step 3: Assemble stitched masks
     print("Assembling stitched masks...")
     try:
@@ -366,14 +416,16 @@ def full_stitching_pipeline(
             data_type=data_type,
             flipud=flipud,
             fliplr=fliplr,
-            rot90=rot90
+            rot90=rot90,
         )
-        results['stitched_mask'] = stitched_mask
-        print(f"Stitched mask shape: {stitched_mask.shape}, max label: {stitched_mask.max()}")
+        results["stitched_mask"] = stitched_mask
+        print(
+            f"Stitched mask shape: {stitched_mask.shape}, max label: {stitched_mask.max()}"
+        )
     except Exception as e:
         print(f"Error assembling stitched mask: {e}")
         stitched_mask = None
-    
+
     # Step 4: Extract cell positions
     if stitched_mask is not None:
         print("Extracting cell positions...")
@@ -381,46 +433,46 @@ def full_stitching_pipeline(
             cell_positions = extract_cell_positions_from_stitched_mask(
                 stitched_mask, well, data_type
             )
-            results['cell_positions'] = cell_positions
+            results["cell_positions"] = cell_positions
         except Exception as e:
             print(f"Error extracting cell positions: {e}")
-    
+
     # Step 5: Create overlay
     if create_overlay and stitched_image is not None and stitched_mask is not None:
         print("Creating overlay image...")
         try:
             overlay = create_stitched_overlay(stitched_image, stitched_mask)
-            results['overlay'] = overlay
+            results["overlay"] = overlay
         except Exception as e:
             print(f"Error creating overlay: {e}")
-    
+
     # Step 6: Save outputs
     if output_dir is not None:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         from skimage import io
-        
+
         if stitched_image is not None:
             image_path = output_dir / f"{well}_{data_type}_stitched.tiff"
             io.imsave(image_path, stitched_image)
             print(f"Saved stitched image to {image_path}")
-        
+
         if stitched_mask is not None:
             mask_path = output_dir / f"{well}_{data_type}_mask.tiff"
             io.imsave(mask_path, stitched_mask.astype(np.uint16))
             print(f"Saved stitched mask to {mask_path}")
-        
-        if 'overlay' in results:
+
+        if "overlay" in results:
             overlay_path = output_dir / f"{well}_{data_type}_overlay.png"
-            io.imsave(overlay_path, results['overlay'])
+            io.imsave(overlay_path, results["overlay"])
             print(f"Saved overlay to {overlay_path}")
-        
-        if 'cell_positions' in results:
+
+        if "cell_positions" in results:
             positions_path = output_dir / f"{well}_{data_type}_positions.parquet"
-            results['cell_positions'].to_parquet(positions_path)
+            results["cell_positions"].to_parquet(positions_path)
             print(f"Saved cell positions to {positions_path}")
-    
+
     print(f"Full stitching pipeline completed for {data_type} well {well}")
     return results
 
@@ -438,7 +490,7 @@ def stitched_well_merge_pipeline(
     flipud: bool = False,
     fliplr: bool = False,
     rot90: int = 0,
-    output_dir: Optional[str] = None
+    output_dir: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
     """
     Complete stitched well-level merge pipeline.
@@ -449,7 +501,7 @@ def stitched_well_merge_pipeline(
         well: Well identifier
         plate: Plate identifier
         phenotype_stitch_config: Phenotype stitching configuration
-        sbs_stitch_config: SBS stitching configuration  
+        sbs_stitch_config: SBS stitching configuration
         det_range: Valid determinant range for alignment
         score_threshold: Minimum alignment score
         distance_threshold: Maximum cell matching distance
@@ -465,13 +517,12 @@ def stitched_well_merge_pipeline(
 
     # Filter metadata
     phenotype_well = phenotype_metadata[
-        (phenotype_metadata["plate"] == int(plate)) &
-        (phenotype_metadata["well"] == well)
+        (phenotype_metadata["plate"] == int(plate))
+        & (phenotype_metadata["well"] == well)
     ]
-    
+
     sbs_well = sbs_metadata[
-        (sbs_metadata["plate"] == int(plate)) &
-        (sbs_metadata["well"] == well)
+        (sbs_metadata["plate"] == int(plate)) & (sbs_metadata["well"] == well)
     ]
 
     print(f"Found {len(phenotype_well)} phenotype tiles, {len(sbs_well)} SBS tiles")
@@ -490,7 +541,7 @@ def stitched_well_merge_pipeline(
         flipud=flipud,
         fliplr=fliplr,
         rot90=rot90,
-        output_dir=Path(output_dir) / "phenotype" if output_dir else None
+        output_dir=Path(output_dir) / "phenotype" if output_dir else None,
     )
 
     # Process SBS
@@ -503,21 +554,24 @@ def stitched_well_merge_pipeline(
         flipud=flipud,
         fliplr=fliplr,
         rot90=rot90,
-        output_dir=Path(output_dir) / "sbs" if output_dir else None
+        output_dir=Path(output_dir) / "sbs" if output_dir else None,
     )
 
     # Check if both processed successfully
-    if 'cell_positions' not in phenotype_results or 'cell_positions' not in sbs_results:
+    if "cell_positions" not in phenotype_results or "cell_positions" not in sbs_results:
         print("Failed to extract cell positions from one or both datasets")
-        return pd.DataFrame(), pd.DataFrame(), {
-            'phenotype': phenotype_results,
-            'sbs': sbs_results
-        }
+        return (
+            pd.DataFrame(),
+            pd.DataFrame(),
+            {"phenotype": phenotype_results, "sbs": sbs_results},
+        )
 
-    phenotype_positions = phenotype_results['cell_positions']
-    sbs_positions = sbs_results['cell_positions']
+    phenotype_positions = phenotype_results["cell_positions"]
+    sbs_positions = sbs_results["cell_positions"]
 
-    print(f"Extracted {len(phenotype_positions)} phenotype cells, {len(sbs_positions)} SBS cells")
+    print(
+        f"Extracted {len(phenotype_positions)} phenotype cells, {len(sbs_positions)} SBS cells"
+    )
 
     # Perform alignment
     print("\n=== Performing Alignment ===")
@@ -530,10 +584,11 @@ def stitched_well_merge_pipeline(
 
     if len(alignment_df) == 0:
         print("Alignment failed")
-        return pd.DataFrame(), pd.DataFrame(), {
-            'phenotype': phenotype_results,
-            'sbs': sbs_results
-        }
+        return (
+            pd.DataFrame(),
+            pd.DataFrame(),
+            {"phenotype": phenotype_results, "sbs": sbs_results},
+        )
 
     # Check alignment quality
     alignment = alignment_df.iloc[0]
@@ -542,11 +597,14 @@ def stitched_well_merge_pipeline(
         or alignment["determinant"] > det_range[1]
         or alignment["score"] < score_threshold
     ):
-        print(f"Alignment quality insufficient: det={alignment['determinant']:.3f}, score={alignment['score']:.3f}")
-        return pd.DataFrame(), alignment_df, {
-            'phenotype': phenotype_results,
-            'sbs': sbs_results
-        }
+        print(
+            f"Alignment quality insufficient: det={alignment['determinant']:.3f}, score={alignment['score']:.3f}"
+        )
+        return (
+            pd.DataFrame(),
+            alignment_df,
+            {"phenotype": phenotype_results, "sbs": sbs_results},
+        )
 
     # Merge cells
     print("\n=== Merging Cells ===")
@@ -556,10 +614,11 @@ def stitched_well_merge_pipeline(
 
     print(f"Stitched well-level merge completed. Merged {len(merged_cells)} cells.")
 
-    return merged_cells, alignment_df, {
-        'phenotype': phenotype_results,
-        'sbs': sbs_results
-    }
+    return (
+        merged_cells,
+        alignment_df,
+        {"phenotype": phenotype_results, "sbs": sbs_results},
+    )
 
 
 # For backward compatibility, keep this function name
@@ -580,12 +639,14 @@ def well_merge_pipeline(
     warnings.warn(
         "well_merge_pipeline is deprecated. Use stitched_well_merge_pipeline instead.",
         DeprecationWarning,
-        stacklevel=2
+        stacklevel=2,
     )
-    
+
     # For backward compatibility, we'll need the metadata to recreate the enhanced pipeline
     # This is a simplified version - you may need to adjust based on your data structure
-    print("Using deprecated well_merge_pipeline - consider upgrading to stitched_well_merge_pipeline")
-    
+    print(
+        "Using deprecated well_merge_pipeline - consider upgrading to stitched_well_merge_pipeline"
+    )
+
     # Return empty results for now - you'll need to provide metadata to use the enhanced version
     return pd.DataFrame(), pd.DataFrame()

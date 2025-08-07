@@ -18,6 +18,111 @@ warnings.filterwarnings("ignore")
 plt.style.use("default")
 sns.set_palette("husl")
 
+def analyze_stitch_config(config, metadata_df, well, data_type):
+    """Analyze if the stitch config preserves well geometry"""
+    
+    print(f"\n=== Analyzing {data_type.upper()} Stitch Config ===")
+    
+    shifts = config['total_translation']
+    confidence = config.get('confidence', {}).get(well, {})
+    
+    print(f"Total shifts computed: {len(shifts)}")
+    print(f"Confidence scores: {len(confidence)}")
+    
+    # Extract shift data
+    shift_data = []
+    for key, shift in shifts.items():
+        well_name, tile_id = key.split('/')
+        shift_data.append({
+            'tile': int(tile_id),
+            'y_shift': shift[0],
+            'x_shift': shift[1]
+        })
+    
+    shift_df = pd.DataFrame(shift_data)
+    
+    # Get original stage coordinates
+    well_metadata = metadata_df[metadata_df['well'] == well].copy()
+    original_coords = well_metadata[['tile', 'x_pos', 'y_pos']]
+    
+    # Merge with shifts
+    combined = original_coords.merge(shift_df, on='tile', how='inner')
+    
+    print(f"Matched {len(combined)} tiles between metadata and shifts")
+    
+    # Analysis
+    print(f"\nShift Statistics:")
+    print(f"  Y shifts: {shift_df['y_shift'].min()} to {shift_df['y_shift'].max()} (range: {shift_df['y_shift'].max() - shift_df['y_shift'].min()})")
+    print(f"  X shifts: {shift_df['x_shift'].min()} to {shift_df['x_shift'].max()} (range: {shift_df['x_shift'].max() - shift_df['x_shift'].min()})")
+    print(f"  Mean Y: {shift_df['y_shift'].mean():.1f}, Std: {shift_df['y_shift'].std():.1f}")
+    print(f"  Mean X: {shift_df['x_shift'].mean():.1f}, Std: {shift_df['x_shift'].std():.1f}")
+    
+    # Check if stitched positions preserve circular geometry
+    stitched_x = combined['x_shift']
+    stitched_y = combined['y_shift']
+    
+    # Center the stitched coordinates
+    center_x = stitched_x.mean()
+    center_y = stitched_y.mean()
+    
+    distances_stitched = np.sqrt((stitched_x - center_x)**2 + (stitched_y - center_y)**2)
+    cv_stitched = distances_stitched.std() / distances_stitched.mean()
+    
+    # Center the original coordinates for comparison
+    orig_center_x = combined['x_pos'].mean()
+    orig_center_y = combined['y_pos'].mean()
+    distances_orig = np.sqrt((combined['x_pos'] - orig_center_x)**2 + (combined['y_pos'] - orig_center_y)**2)
+    cv_orig = distances_orig.std() / distances_orig.mean()
+    
+    print(f"\nGeometry Preservation Check:")
+    print(f"  Original well CV: {cv_orig:.3f}")
+    print(f"  Stitched well CV: {cv_stitched:.3f}")
+    
+    if abs(cv_stitched - cv_orig) < 0.1:
+        print(f"  ✅ Circular geometry well preserved!")
+    elif cv_stitched < 0.3:
+        print(f"  ✅ Good circular geometry in stitched result")
+    else:
+        print(f"  ⚠️  Geometry may be distorted")
+    
+    # Plot comparison
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    
+    # Original stage coordinates
+    axes[0].scatter(combined['x_pos'], combined['y_pos'], c=combined['tile'], cmap='viridis', s=30)
+    axes[0].set_title(f'{data_type.title()} - Original Stage Coordinates')
+    axes[0].set_xlabel('X Position (μm)')
+    axes[0].set_ylabel('Y Position (μm)')
+    axes[0].axis('equal')
+    
+    # Computed shifts (stitched positions)
+    axes[1].scatter(combined['x_shift'], combined['y_shift'], c=combined['tile'], cmap='viridis', s=30)
+    axes[1].set_title(f'{data_type.title()} - Computed Stitch Positions')
+    axes[1].set_xlabel('X Shift (pixels)')
+    axes[1].set_ylabel('Y Shift (pixels)')
+    axes[1].axis('equal')
+    
+    # Overlay comparison (normalized)
+    # Normalize coordinates to same scale
+    orig_x_norm = (combined['x_pos'] - combined['x_pos'].min()) / (combined['x_pos'].max() - combined['x_pos'].min())
+    orig_y_norm = (combined['y_pos'] - combined['y_pos'].min()) / (combined['y_pos'].max() - combined['y_pos'].min())
+    
+    stitch_x_norm = (combined['x_shift'] - combined['x_shift'].min()) / (combined['x_shift'].max() - combined['x_shift'].min())
+    stitch_y_norm = (combined['y_shift'] - combined['y_shift'].min()) / (combined['y_shift'].max() - combined['y_shift'].min())
+    
+    axes[2].scatter(orig_x_norm, orig_y_norm, c='blue', alpha=0.6, s=20, label='Original')
+    axes[2].scatter(stitch_x_norm, stitch_y_norm, c='red', alpha=0.6, s=20, label='Stitched')
+    axes[2].set_title(f'{data_type.title()} - Geometry Comparison (Normalized)')
+    axes[2].set_xlabel('Normalized X')
+    axes[2].set_ylabel('Normalized Y')
+    axes[2].legend()
+    axes[2].axis('equal')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return combined
+
 
 class StitchQC:
     def __init__(self, base_path, plate, well):

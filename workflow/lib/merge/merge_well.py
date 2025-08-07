@@ -1,10 +1,10 @@
 """
-Memory-efficient additions for merge_well.py
-Add these functions to your existing merge_well.py file.
+Memory-efficient well-level merge functions using stitched cell positions.
+Only supports memory-efficient triangle hashing for large cell datasets.
 """
 
-import numpy as np
 import pandas as pd
+import numpy as np
 from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
 from sklearn.linear_model import RANSACRegressor, LinearRegression
@@ -12,7 +12,7 @@ import warnings
 import gc
 from typing import Tuple
 
-# Import existing functions (these should already be imported in your file)
+# Import existing functions
 from lib.merge.hash import get_vectors, get_vc
 
 
@@ -174,26 +174,43 @@ def chunked_nearest_neighbors(
     )
 
 
-def memory_efficient_well_alignment(
+def stitched_well_alignment(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
     det_range: Tuple[float, float] = (0.8, 1.2),
     score_threshold: float = 0.1,
     max_cells_for_hash: int = 50000,
     triangle_distance_threshold: float = 0.3,
-    min_matching_triangles: int = 10
+    min_matching_triangles: int = 10,
+    phenotype_pixel_size: float = None,
+    sbs_pixel_size: float = None
 ) -> pd.DataFrame:
     """
-    Memory-efficient alignment between phenotype and SBS using subsampled triangle hashing.
+    Memory-efficient alignment with adaptive triangle filtering based on actual data distribution.
     """
     if len(phenotype_positions) == 0 or len(sbs_positions) == 0:
         print("Empty position data, cannot perform alignment")
         return pd.DataFrame()
     
-    print(f"Starting memory-efficient alignment:")
+    print(f"Starting adaptive triangle filtering alignment:")
     print(f"  Phenotype cells: {len(phenotype_positions)}")
     print(f"  SBS cells: {len(sbs_positions)}")
     print(f"  Max cells for hashing: {max_cells_for_hash}")
+    
+    # Analyze coordinate ranges
+    phenotype_i_range = phenotype_positions['i'].max() - phenotype_positions['i'].min()
+    phenotype_j_range = phenotype_positions['j'].max() - phenotype_positions['j'].min()
+    sbs_i_range = sbs_positions['i'].max() - sbs_positions['i'].min()
+    sbs_j_range = sbs_positions['j'].max() - sbs_positions['j'].min()
+    
+    empirical_scale_i = sbs_i_range / phenotype_i_range if phenotype_i_range > 0 else 1.0
+    empirical_scale_j = sbs_j_range / phenotype_j_range if phenotype_j_range > 0 else 1.0
+    empirical_scale = (empirical_scale_i + empirical_scale_j) / 2
+    
+    print(f"Coordinate analysis:")
+    print(f"  Phenotype range: i={phenotype_i_range:.0f}, j={phenotype_j_range:.0f}")
+    print(f"  SBS range: i={sbs_i_range:.0f}, j={sbs_j_range:.0f}")
+    print(f"  Empirical scale (SBS/phenotype): {empirical_scale:.3f}")
     
     # Generate triangle hashes with subsampling
     print("\n--- Generating phenotype triangle hash ---")
@@ -211,7 +228,7 @@ def memory_efficient_well_alignment(
         return pd.DataFrame()
     
     try:
-        print(f"\n--- Triangle matching ---")
+        print(f"\n--- Adaptive triangle analysis ---")
         print(f"Phenotype triangles: {len(phenotype_hash)}")
         print(f"SBS triangles: {len(sbs_hash)}")
         
@@ -219,61 +236,428 @@ def memory_efficient_well_alignment(
         V_0, c_0 = get_vc(phenotype_hash)
         V_1, c_1 = get_vc(sbs_hash)
         
-        # Use chunked nearest neighbors to avoid memory issues
-        chunk_size = min(10000, len(V_0))
-        i0, i1, distances = chunked_nearest_neighbors(V_0, V_1, chunk_size)
+        # Analyze actual triangle magnitudes in the data
+        V_0_magnitudes = np.linalg.norm(V_0, axis=1)
+        V_1_magnitudes = np.linalg.norm(V_1, axis=1)
         
-        # Filter based on distance threshold
-        filt = distances < triangle_distance_threshold
-        n_matching = filt.sum()
+        print(f"Triangle magnitude analysis:")
+        print(f"  Phenotype triangles:")
+        print(f"    Mean: {np.mean(V_0_magnitudes):.2f}")
+        print(f"    Median: {np.median(V_0_magnitudes):.2f}")
+        print(f"    Std: {np.std(V_0_magnitudes):.2f}")
+        print(f"    Min: {np.min(V_0_magnitudes):.2f}")
+        print(f"    Max: {np.max(V_0_magnitudes):.2f}")
+        print(f"    5th percentile: {np.percentile(V_0_magnitudes, 5):.2f}")
+        print(f"    95th percentile: {np.percentile(V_0_magnitudes, 95):.2f}")
         
-        print(f"Triangles within distance threshold: {n_matching}")
+        print(f"  SBS triangles:")
+        print(f"    Mean: {np.mean(V_1_magnitudes):.2f}")
+        print(f"    Median: {np.median(V_1_magnitudes):.2f}")
+        print(f"    Std: {np.std(V_1_magnitudes):.2f}")
+        print(f"    Min: {np.min(V_1_magnitudes):.2f}")
+        print(f"    Max: {np.max(V_1_magnitudes):.2f}")
+        print(f"    5th percentile: {np.percentile(V_1_magnitudes, 5):.2f}")
+        print(f"    95th percentile: {np.percentile(V_1_magnitudes, 95):.2f}")
+        
+        # Use adaptive thresholds based on actual data distribution
+        # Keep top 80% of triangles from each modality
+        phenotype_threshold = np.percentile(V_0_magnitudes, 20)  # Bottom 20% cutoff
+        sbs_threshold = np.percentile(V_1_magnitudes, 20)  # Bottom 20% cutoff
+        
+        # But don't go below very small values that might be noise
+        phenotype_threshold = max(phenotype_threshold, 0.1)
+        sbs_threshold = max(sbs_threshold, 0.1)
+        
+        V_0_valid = V_0_magnitudes > phenotype_threshold
+        V_1_valid = V_1_magnitudes > sbs_threshold
+        
+        print(f"Adaptive triangle filtering:")
+        print(f"  Phenotype: {V_0_valid.sum()}/{len(V_0)} valid (threshold: {phenotype_threshold:.3f})")
+        print(f"  SBS: {V_1_valid.sum()}/{len(V_1)} valid (threshold: {sbs_threshold:.3f})")
+        
+        if V_0_valid.sum() < 1000 or V_1_valid.sum() < 1000:
+            print(f"Still insufficient triangles, trying more permissive filtering...")
+            # Use top 90% instead
+            phenotype_threshold = np.percentile(V_0_magnitudes, 10)
+            sbs_threshold = np.percentile(V_1_magnitudes, 10)
+            
+            V_0_valid = V_0_magnitudes > phenotype_threshold
+            V_1_valid = V_1_magnitudes > sbs_threshold
+            
+            print(f"  Relaxed filtering:")
+            print(f"    Phenotype: {V_0_valid.sum()}/{len(V_0)} valid (threshold: {phenotype_threshold:.3f})")
+            print(f"    SBS: {V_1_valid.sum()}/{len(V_1)} valid (threshold: {sbs_threshold:.3f})")
+            
+            if V_0_valid.sum() < 500 or V_1_valid.sum() < 500:
+                print("Insufficient valid triangles even with relaxed filtering")
+                return pd.DataFrame()
+        
+        V_0_filtered = V_0[V_0_valid]
+        c_0_filtered = c_0[V_0_valid]
+        V_1_filtered = V_1[V_1_valid]
+        c_1_filtered = c_1[V_1_valid]
+        
+        # For triangle vector matching, normalize by their respective scales
+        # This helps match triangles of similar relative geometry
+        V_0_normalized = V_0_filtered / np.median(V_0_magnitudes[V_0_valid])
+        V_1_normalized = V_1_filtered / np.median(V_1_magnitudes[V_1_valid])
+        
+        print(f"Triangle vector normalization:")
+        print(f"  Phenotype normalization factor: {np.median(V_0_magnitudes[V_0_valid]):.3f}")
+        print(f"  SBS normalization factor: {np.median(V_1_magnitudes[V_1_valid]):.3f}")
+        
+        # Triangle matching with chunked processing
+        chunk_size = min(2000, len(V_0_normalized))  # Conservative chunk size
+        print(f"Triangle matching with chunk size: {chunk_size}")
+        
+        i0, i1, distances = chunked_nearest_neighbors(V_0_normalized, V_1_normalized, chunk_size)
+        
+        # Adaptive triangle distance threshold based on normalized vectors
+        # Start with provided threshold and increase if needed
+        distance_threshold = triangle_distance_threshold
+        
+        for attempt in range(3):
+            filt = distances < distance_threshold
+            n_matching = filt.sum()
+            
+            print(f"  Attempt {attempt + 1}: threshold={distance_threshold:.3f} → {n_matching} matches")
+            
+            if n_matching >= min_matching_triangles:
+                break
+            else:
+                distance_threshold *= 2  # Double the threshold and try again
         
         if n_matching < min_matching_triangles:
-            print(f"Only {n_matching} matching triangles found, need at least {min_matching_triangles}")
+            print(f"Insufficient matching triangles: {n_matching} < {min_matching_triangles}")
             return pd.DataFrame()
         
-        # Get matching triangle centers
-        X, Y = c_0[i0[filt]], c_1[i1[filt]]
+        # Get matching triangle centers for transformation (use original centers)
+        X, Y = c_0_filtered[i0[filt]], c_1_filtered[i1[filt]]
         
-        print(f"Using {len(X)} matching triangle centers for transformation")
+        print(f"Using {len(X)} triangle centers for transformation estimation")
         
-        # Fit transformation using RANSAC
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore")
-            model = RANSACRegressor(
-                min_samples=min(len(X), 10),
-                max_trials=1000,
-                residual_threshold=5.0
-            )
-            model.fit(X, Y)
+        # Analyze the actual coordinate relationship
+        print(f"\n--- Analyzing coordinate relationships ---")
+        
+        # Check if the coordinates are already very similar (near-identity transformation)
+        coord_diff = Y - X
+        diff_stats = {
+            'mean': np.mean(coord_diff, axis=0),
+            'std': np.std(coord_diff, axis=0),
+            'median': np.median(coord_diff, axis=0),
+            'max_abs': np.max(np.abs(coord_diff), axis=0)
+        }
+        
+        print(f"Coordinate differences (Y - X):")
+        print(f"  Mean: {diff_stats['mean']}")
+        print(f"  Std: {diff_stats['std']}")
+        print(f"  Median: {diff_stats['median']}")
+        print(f"  Max absolute: {diff_stats['max_abs']}")
+        
+        # Check if this looks like a near-identity transformation
+        mean_translation = diff_stats['mean']
+        translation_magnitude = np.linalg.norm(mean_translation)
+        coordinate_scale = np.mean([np.std(X), np.std(Y)])
+        relative_translation = translation_magnitude / coordinate_scale if coordinate_scale > 0 else 0
+        
+        print(f"Translation analysis:")
+        print(f"  Translation magnitude: {translation_magnitude:.2f}")
+        print(f"  Coordinate scale: {coordinate_scale:.2f}")
+        print(f"  Relative translation: {relative_translation:.6f}")
+        
+        # If the transformation appears to be primarily translation
+        if relative_translation < 0.1:  # Very small relative to coordinate scale
+            print("🔍 Detected near-identity transformation - using robust estimation")
+            
+            # Use simple median-based translation estimation
+            robust_translation = np.median(coord_diff, axis=0)
+            
+            # Check if rotation is needed by looking at correlation
+            try:
+                # Subtract the translation and check if there's significant rotation
+                X_centered = X - np.mean(X, axis=0)
+                Y_centered = Y - np.mean(Y, axis=0) - robust_translation
+                
+                # Simple rotation estimation using SVD
+                H = X_centered.T @ Y_centered
+                U, S, Vt = np.linalg.svd(H)
+                R = Vt.T @ U.T
+                
+                # Check if the rotation is significant
+                rotation_angle = np.arccos(np.clip((np.trace(R) - 1) / 2, -1, 1))
+                rotation_degrees = np.degrees(rotation_angle)
+                
+                print(f"Rotation analysis:")
+                print(f"  Rotation angle: {rotation_degrees:.3f} degrees")
+                print(f"  Rotation matrix determinant: {np.linalg.det(R):.6f}")
+                
+                if rotation_degrees < 5.0:  # Less than 5 degrees rotation
+                    print("  → Using translation-only transformation")
+                    final_rotation = np.eye(2)
+                    final_translation = robust_translation
+                    transformation_type = "translation_only"
+                    determinant = 1.0
+                else:
+                    print("  → Using translation + rotation transformation")
+                    final_rotation = R
+                    final_translation = robust_translation
+                    transformation_type = "translation_rotation"
+                    determinant = np.linalg.det(R)
+                
+            except Exception as e:
+                print(f"  SVD rotation estimation failed: {e}")
+                print("  → Falling back to translation-only")
+                final_rotation = np.eye(2)
+                final_translation = robust_translation
+                transformation_type = "translation_only_fallback"
+                determinant = 1.0
+                
+        else:
+            print("🔍 Non-trivial transformation detected - using RANSAC")
+            
+            # Continue with RANSAC approach but with adjusted parameters for near-singular cases
+            
+            # Check geometric diversity
+            X_std = np.std(X, axis=0)
+            Y_std = np.std(Y, axis=0)
+            
+            print(f"Triangle center spread:")
+            print(f"  X: std={X_std}")
+            print(f"  Y: std={Y_std}")
+            
+            # Use more robust RANSAC configuration for potentially ill-conditioned problems
+            avg_coordinate_scale = np.mean([np.mean(X_std), np.mean(Y_std)])
+            base_residual = max(50, avg_coordinate_scale * 0.02)  # More conservative
+            
+            # Add regularization by using a subset of well-distributed points
+            if len(X) > 5000:
+                # Select a geometrically diverse subset
+                n_subset = 5000
+                indices = np.random.choice(len(X), n_subset, replace=False)
+                X_subset = X[indices]
+                Y_subset = Y[indices]
+                print(f"Using subset of {n_subset} points for RANSAC stability")
+            else:
+                X_subset = X
+                Y_subset = Y
+            
+            # Modified RANSAC strategies for near-singular cases
+            ransac_strategies = [
+                # Use more samples to avoid degenerate cases
+                {"min_samples": 10, "residual_threshold": base_residual, "max_trials": 3000},
+                {"min_samples": 15, "residual_threshold": base_residual * 1.5, "max_trials": 4000},
+                {"min_samples": 20, "residual_threshold": base_residual * 2, "max_trials": 5000},
+                
+                # Fall back to fewer samples with higher thresholds
+                {"min_samples": 6, "residual_threshold": base_residual * 3, "max_trials": 5000},
+                {"min_samples": 4, "residual_threshold": base_residual * 5, "max_trials": 8000},
+                {"min_samples": 3, "residual_threshold": base_residual * 10, "max_trials": 10000},
+            ]
+            
+            print(f"RANSAC base residual threshold: {base_residual:.1f}")
+            
+            model = None
+            transformation_type = "full"
+            
+            for i, config in enumerate(ransac_strategies):
+                try:
+                    print(f"RANSAC strategy {i+1}: min_samples={config['min_samples']}, residual_threshold={config['residual_threshold']:.1f}")
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore")
+                        test_model = RANSACRegressor(**config)
+                        test_model.fit(X_subset, Y_subset)
+                    
+                    rotation = test_model.estimator_.coef_
+                    determinant = np.linalg.det(rotation)
+                    
+                    print(f"  Result: determinant={determinant:.6f}")
+                    
+                    # More lenient determinant check
+                    if abs(determinant) > 0.1:
+                        model = test_model
+                        transformation_type = "full"
+                        print(f"  ✅ Accepted (determinant > 0.1)")
+                        break
+                    elif abs(determinant) > 0.01:
+                        model = test_model
+                        transformation_type = "low_confidence"
+                        print(f"  ⚠️  Accepted with low confidence (determinant > 0.01)")
+                        break
+                    else:
+                        print(f"  ❌ Determinant too close to zero")
+                        
+                except Exception as e:
+                    print(f"  ❌ RANSAC failed: {e}")
+                    continue
+            
+            if model is None:
+                print("All RANSAC strategies failed, falling back to robust translation estimation")
+                # Final fallback to translation-only
+                final_rotation = np.eye(2)
+                final_translation = np.median(coord_diff, axis=0)
+                transformation_type = "translation_fallback"
+                determinant = 1.0
+            else:
+                final_rotation = model.estimator_.coef_
+                final_translation = model.estimator_.intercept_
+                determinant = np.linalg.det(final_rotation)
+        
+        # Score the final transformation
+        print(f"\n--- Scoring final transformation ---")
+        print(f"Transformation type: {transformation_type}")
+        print(f"Rotation determinant: {determinant:.6f}")
+        print(f"Translation: {final_translation}")
+        
+        # Apply transformation and score
+        n_score = min(2000, len(X))
+        if n_score < len(X):
+            score_indices = np.random.choice(len(X), n_score, replace=False)
+            X_score = X[score_indices]
+        else:
+            X_score = X
+        
+        # Apply the transformation
+        if transformation_type.startswith("translation"):
+            predicted_centers = X_score + final_translation
+        else:
+            predicted_centers = X_score @ final_rotation.T + final_translation
+        
+        tree = cKDTree(c_1_filtered)
+        distances_score, _ = tree.query(predicted_centers)
+        
+        # Adaptive scoring thresholds based on transformation type
+        if transformation_type.startswith("translation"):
+            # More lenient for translation-only
+            score_threshold_region = coordinate_scale * 0.5
+            score_threshold_match = coordinate_scale * 0.25
+        else:
+            # Standard thresholds for full transformation
+            score_threshold_region = coordinate_scale * 1.0
+            score_threshold_match = coordinate_scale * 0.5
+        
+        filt_score = distances_score < score_threshold_region
+        score = (distances_score[filt_score] < score_threshold_match).mean() if filt_score.sum() > 0 else 0
+        
+        print(f"Scoring thresholds: region={score_threshold_region:.1f}, match={score_threshold_match:.1f}")
+        print(f"Score: {score:.3f} ({filt_score.sum()}/{len(distances_score)} centers in region)")
+        
+        # Create result
+        result = pd.DataFrame([{
+            'rotation_1': final_rotation[0] if final_rotation.shape[0] > 0 else [1, 0],
+            'rotation_2': final_rotation[1] if final_rotation.shape[0] > 1 else [0, 1], 
+            'translation': final_translation,
+            'score': score,
+            'determinant': determinant,
+            'well': phenotype_positions['well'].iloc[0] if len(phenotype_positions) > 0 else 'unknown',
+            'n_triangles_matched': n_matching,
+            'n_triangles_phenotype': len(c_0_filtered),
+            'n_triangles_sbs': len(c_1_filtered),
+            'cells_used_phenotype': len(phenotype_hash),
+            'cells_used_sbs': len(sbs_hash),
+            'empirical_scale_factor': empirical_scale,
+            'transformation_type': transformation_type,
+            'relative_translation': relative_translation,
+            'coordinate_scale': coordinate_scale,
+            'phenotype_pixel_size': phenotype_pixel_size,
+            'sbs_pixel_size': sbs_pixel_size
+        }])
+        
+        print(f"✅ Near-identity transformation alignment results:")
+        print(f"   Score: {score:.3f}")
+        print(f"   Determinant: {determinant:.6f}")
+        print(f"   Transformation type: {transformation_type}")
+        print(f"   Translation: {final_translation}")
+        print(f"   Relative translation: {relative_translation:.6f}")
+        print(f"   Matched triangles: {n_matching}")
+        print(f"   Cells used: {len(phenotype_hash)} phenotype, {len(sbs_hash)} SBS")
+        
+        return result
+        
+        # If we get here, try RANSAC with the (possibly improved) triangle selection
+        avg_coordinate_scale = (np.mean(X_std) + np.mean(Y_std)) / 2
+        base_residual = max(100, avg_coordinate_scale * 0.05)  # More conservative scaling
+        
+        # Try different RANSAC strategies
+        ransac_strategies = [
+            # Strategy 1: Standard RANSAC with conservative thresholds
+            {"min_samples": 3, "residual_threshold": base_residual, "max_trials": 2000},
+            {"min_samples": 4, "residual_threshold": base_residual * 1.5, "max_trials": 3000},
+            {"min_samples": 5, "residual_threshold": base_residual * 2, "max_trials": 4000},
+            
+            # Strategy 2: More permissive residuals
+            {"min_samples": 3, "residual_threshold": base_residual * 3, "max_trials": 3000},
+            {"min_samples": 3, "residual_threshold": base_residual * 5, "max_trials": 5000},
+            
+            # Strategy 3: Very permissive as last resort
+            {"min_samples": 3, "residual_threshold": base_residual * 10, "max_trials": 8000},
+        ]
+        
+        print(f"RANSAC base residual threshold: {base_residual:.1f}")
+        
+        model = None
+        transformation_type = "full"
+        
+        for i, config in enumerate(ransac_strategies):
+            try:
+                print(f"RANSAC strategy {i+1}: min_samples={config['min_samples']}, residual_threshold={config['residual_threshold']:.1f}")
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore")
+                    test_model = RANSACRegressor(**config)
+                    test_model.fit(X, Y)
+                
+                rotation = test_model.estimator_.coef_
+                determinant = np.linalg.det(rotation)
+                
+                print(f"  Result: determinant={determinant:.6f}")
+                
+                # More permissive determinant check - accept if not too close to zero
+                if abs(determinant) > 0.01:  # Increased from 0.001
+                    model = test_model
+                    print(f"  ✅ Accepted (determinant > 0.01)")
+                    break
+                elif abs(determinant) > 0.001:  # Try to use it anyway with warning
+                    model = test_model
+                    transformation_type = "low_confidence"
+                    print(f"  ⚠️  Accepted with low confidence (determinant > 0.001)")
+                    break
+                else:
+                    print(f"  ❌ Determinant too close to zero")
+                    
+            except Exception as e:
+                print(f"  ❌ RANSAC failed: {e}")
+                continue
+        
+        if model is None:
+            print("All RANSAC strategies failed")
+            return pd.DataFrame()
         
         rotation = model.estimator_.coef_
         translation = model.estimator_.intercept_
+        determinant = np.linalg.det(rotation)
         
-        # Score the transformation more efficiently
+        # Score the transformation
         print("--- Scoring transformation ---")
         
-        # Use a subset of centers for scoring to avoid memory issues
-        max_centers_for_scoring = 5000
-        if len(c_0) > max_centers_for_scoring:
-            score_indices = np.random.choice(len(c_0), max_centers_for_scoring, replace=False)
-            c_0_score = c_0[score_indices]
+        n_score = min(1000, len(X))
+        if n_score < len(X):
+            score_indices = np.random.choice(len(X), n_score, replace=False)
+            X_score = X[score_indices]
         else:
-            c_0_score = c_0
+            X_score = X
         
-        predicted_centers = model.predict(c_0_score)
-        
-        # Use KDTree for efficient nearest neighbor search
-        tree = cKDTree(c_1)
+        predicted_centers = X_score @ rotation.T + translation
+        tree = cKDTree(c_1_filtered)
         distances_score, _ = tree.query(predicted_centers)
         
-        threshold_region = 50
-        filt_score = distances_score < threshold_region
-        score = (distances_score[filt_score] < 2).mean() if filt_score.sum() > 0 else 0
+        # Scale-aware scoring thresholds
+        score_threshold_region = avg_coordinate_scale * 1.5
+        score_threshold_match = avg_coordinate_scale * 0.75
         
-        # Calculate determinant
-        determinant = np.linalg.det(rotation)
+        filt_score = distances_score < score_threshold_region
+        score = (distances_score[filt_score] < score_threshold_match).mean() if filt_score.sum() > 0 else 0
+        
+        print(f"Scoring thresholds: region={score_threshold_region:.1f}, match={score_threshold_match:.1f}")
+        print(f"Score calculation: {filt_score.sum()}/{len(distances_score)} centers in region, score={score:.3f}")
         
         # Create result
         result = pd.DataFrame([{
@@ -284,28 +668,134 @@ def memory_efficient_well_alignment(
             'determinant': determinant,
             'well': phenotype_positions['well'].iloc[0] if len(phenotype_positions) > 0 else 'unknown',
             'n_triangles_matched': n_matching,
-            'n_triangles_phenotype': len(c_0),
-            'n_triangles_sbs': len(c_1),
+            'n_triangles_phenotype': len(c_0_filtered),
+            'n_triangles_sbs': len(c_1_filtered),
             'cells_used_phenotype': len(phenotype_hash),
-            'cells_used_sbs': len(sbs_hash)
+            'cells_used_sbs': len(sbs_hash),
+            'empirical_scale_factor': empirical_scale,
+            'phenotype_triangle_threshold': phenotype_threshold,
+            'sbs_triangle_threshold': sbs_threshold,
+            'distance_threshold_used': distance_threshold,
+            'transformation_type': transformation_type,
+            'x_aspect_ratio': x_aspect_ratio,
+            'y_aspect_ratio': y_aspect_ratio,
+            'phenotype_pixel_size': phenotype_pixel_size,
+            'sbs_pixel_size': sbs_pixel_size
         }])
         
-        print(f"✅ Alignment results:")
+        print(f"✅ Geometric diversity-aware alignment results:")
         print(f"   Score: {score:.3f}")
-        print(f"   Determinant: {determinant:.3f}")
+        print(f"   Determinant: {determinant:.6f}")
+        print(f"   Transformation type: {transformation_type}")
+        print(f"   Empirical scale factor: {empirical_scale:.3f}")
+        print(f"   Aspect ratios: X={x_aspect_ratio:.2f}, Y={y_aspect_ratio:.2f}")
         print(f"   Matched triangles: {n_matching}")
         print(f"   Cells used: {len(phenotype_hash)} phenotype, {len(sbs_hash)} SBS")
         
         return result
         
     except Exception as e:
-        print(f"Alignment failed: {e}")
+        print(f"Adaptive triangle filtering alignment failed: {e}")
         import traceback
         traceback.print_exc()
         return pd.DataFrame()
 
 
-def memory_efficient_merge_cells(
+def subsample_cells_for_alignment(
+    cell_positions: pd.DataFrame, 
+    max_cells: int = 50000,
+    spatial_bins: int = 15,  # Increased from 10 to 15 for better distribution
+    random_state: int = 42
+) -> pd.DataFrame:
+    """
+    Subsample cells while preserving spatial distribution.
+    
+    Args:
+        cell_positions: DataFrame with cell positions
+        max_cells: Maximum number of cells to keep
+        spatial_bins: Number of spatial bins per dimension for stratified sampling
+        random_state: Random seed for reproducibility
+        
+    Returns:
+        Subsampled DataFrame
+    """
+    if len(cell_positions) <= max_cells:
+        return cell_positions
+    
+    print(f"Subsampling from {len(cell_positions)} to {max_cells} cells")
+    
+    # Create spatial bins with some padding to avoid edge effects
+    i_min, i_max = cell_positions['i'].min(), cell_positions['i'].max()
+    j_min, j_max = cell_positions['j'].min(), cell_positions['j'].max()
+    
+    # Add 5% padding to avoid edge effects
+    i_range = i_max - i_min
+    j_range = j_max - j_min
+    i_bins = pd.cut(
+        cell_positions['i'], 
+        bins=np.linspace(i_min - 0.05*i_range, i_max + 0.05*i_range, spatial_bins + 1), 
+        labels=False,
+        include_lowest=True
+    )
+    j_bins = pd.cut(
+        cell_positions['j'], 
+        bins=np.linspace(j_min - 0.05*j_range, j_max + 0.05*j_range, spatial_bins + 1), 
+        labels=False,
+        include_lowest=True
+    )
+    
+    cell_positions = cell_positions.copy()
+    cell_positions['spatial_bin'] = i_bins * spatial_bins + j_bins
+    
+    # Remove any NaN bins
+    cell_positions = cell_positions.dropna(subset=['spatial_bin'])
+    
+    # Stratified sampling within each spatial bin
+    np.random.seed(random_state)
+    
+    subsampled_parts = []
+    cells_per_bin = max_cells // (spatial_bins * spatial_bins)
+    
+    # Also add some random sampling to fill up to max_cells
+    total_sampled = 0
+    
+    for bin_id in range(spatial_bins * spatial_bins):
+        bin_cells = cell_positions[cell_positions['spatial_bin'] == bin_id]
+        if len(bin_cells) > 0:
+            n_sample = min(len(bin_cells), max(cells_per_bin, 1))
+            subsampled = bin_cells.sample(n=n_sample, random_state=random_state + bin_id)
+            subsampled_parts.append(subsampled)
+            total_sampled += len(subsampled)
+    
+    if subsampled_parts:
+        result = pd.concat(subsampled_parts, ignore_index=True)
+        result = result.drop('spatial_bin', axis=1)
+        
+        # If we're still under max_cells, add some random additional cells
+        if total_sampled < max_cells and total_sampled < len(cell_positions):
+            remaining_cells = max_cells - total_sampled
+            # Get cells not already selected
+            selected_indices = set(result.index) if hasattr(result, 'index') else set()
+            available_cells = cell_positions[~cell_positions.index.isin(selected_indices)]
+            
+            if len(available_cells) > 0:
+                additional_sample_size = min(remaining_cells, len(available_cells))
+                additional_cells = available_cells.sample(
+                    n=additional_sample_size, 
+                    random_state=random_state + 999
+                ).drop('spatial_bin', axis=1)
+                result = pd.concat([result, additional_cells], ignore_index=True)
+        
+        print(f"Subsampled to {len(result)} cells")
+        return result
+    else:
+        print("No cells found in any spatial bin, using random sampling")
+        # Fallback to simple random sampling
+        sample_size = min(max_cells, len(cell_positions))
+        return cell_positions.sample(n=sample_size, random_state=random_state)
+
+
+def merge_stitched_cells(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame, 
     alignment: pd.Series,
@@ -314,6 +804,16 @@ def memory_efficient_merge_cells(
 ) -> pd.DataFrame:
     """
     Memory-efficient cell merging using chunked processing.
+    
+    Args:
+        phenotype_positions: Cell positions in phenotype well
+        sbs_positions: Cell positions in SBS well
+        alignment: Alignment parameters
+        threshold: Maximum distance for cell matching
+        chunk_size: Size of chunks for processing
+        
+    Returns:
+        DataFrame with merged cell identities
     """
     if len(phenotype_positions) == 0 or len(sbs_positions) == 0:
         return pd.DataFrame(columns=[
@@ -418,256 +918,3 @@ def memory_efficient_merge_cells(
             'plate', 'well', 'cell_0', 'i_0', 'j_0', 'area_0',
             'cell_1', 'i_1', 'j_1', 'area_1', 'distance'
         ])
-    
-
-def stitched_well_alignment(
-    phenotype_positions: pd.DataFrame,
-    sbs_positions: pd.DataFrame,
-    det_range: Tuple[float, float] = (0.8, 1.2),
-    score_threshold: float = 0.1,
-) -> pd.DataFrame:
-    """
-    Perform alignment between phenotype and SBS stitched wells using actual cell positions.
-    
-    This function automatically detects if memory-efficient processing is needed.
-
-    Args:
-        phenotype_positions: Cell positions in phenotype stitched well
-        sbs_positions: Cell positions in SBS stitched well
-        det_range: Acceptable range for transformation determinant
-        score_threshold: Minimum score for valid alignment
-
-    Returns:
-        DataFrame with alignment parameters
-    """
-    # Automatically use memory-efficient approach for large datasets
-    total_cells = len(phenotype_positions) + len(sbs_positions)
-    memory_threshold = 100000  # Use memory-efficient approach if > 100k total cells
-    
-    if total_cells > memory_threshold:
-        print(f"Large dataset detected ({total_cells} total cells), using memory-efficient approach")
-        return memory_efficient_well_alignment(
-            phenotype_positions=phenotype_positions,
-            sbs_positions=sbs_positions,
-            det_range=det_range,
-            score_threshold=score_threshold,
-            max_cells_for_hash=50000,  # Conservative limit
-            triangle_distance_threshold=0.3,
-            min_matching_triangles=10
-        )
-    
-    # Original approach for smaller datasets (your existing code below)
-    if len(phenotype_positions) == 0 or len(sbs_positions) == 0:
-        print("Empty position data, cannot perform alignment")
-        return pd.DataFrame()
-
-    # Generate triangle hashes for both datasets
-    phenotype_hash = hash_stitched_cell_positions(phenotype_positions)
-    sbs_hash = hash_stitched_cell_positions(sbs_positions)
-
-    if len(phenotype_hash) == 0 or len(sbs_hash) == 0:
-        print("Empty hash data, cannot perform alignment")
-        return pd.DataFrame()
-
-    try:
-        # Extract vectors and centers
-        V_0, c_0 = get_vc(phenotype_hash)
-        V_1, c_1 = get_vc(sbs_hash)
-
-        # Find nearest neighbors between triangle vectors
-        i0, i1, distances = nearest_neighbors(V_0, V_1)
-
-        # Filter based on distance threshold
-        triangle_threshold = 0.3  # Triangle matching threshold
-        filt = distances < triangle_threshold
-        if filt.sum() < 5:
-            print(f"Only {filt.sum()} matching triangles found, need at least 5")
-            return pd.DataFrame()
-
-        # Get matching triangle centers
-        X, Y = c_0[i0[filt]], c_1[i1[filt]]
-
-        # Fit transformation using RANSAC
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore")
-            model = RANSACRegressor(min_samples=5, max_trials=1000)
-            model.fit(X, Y)
-
-        rotation = model.estimator_.coef_
-        translation = model.estimator_.intercept_
-
-        # Score the transformation
-        predicted_centers = model.predict(c_0)
-        distances_score = cdist(predicted_centers, c_1, metric="sqeuclidean")
-        threshold_region = 50
-        filt_score = np.sqrt(distances_score.min(axis=0)) < threshold_region
-        score = (np.sqrt(distances_score.min(axis=0))[filt_score] < 2).mean()
-
-        # Calculate determinant
-        determinant = np.linalg.det(rotation)
-
-        # Create result
-        result = pd.DataFrame(
-            [
-                {
-                    "rotation_1": rotation[0] if len(rotation) > 0 else [0, 0],
-                    "rotation_2": rotation[1] if len(rotation) > 1 else [0, 0],
-                    "translation": translation,
-                    "score": score,
-                    "determinant": determinant,
-                    "well": phenotype_positions["well"].iloc[0]
-                    if len(phenotype_positions) > 0
-                    else "unknown",
-                    "n_triangles_matched": filt.sum(),
-                    "n_triangles_phenotype": len(c_0),
-                    "n_triangles_sbs": len(c_1),
-                }
-            ]
-        )
-
-        print(
-            f"Alignment results: score={score:.3f}, determinant={determinant:.3f}, matched_triangles={filt.sum()}"
-        )
-
-        return result
-
-    except Exception as e:
-        print(f"Alignment failed: {e}")
-        return pd.DataFrame()
-
-
-def merge_stitched_cells(
-    phenotype_positions: pd.DataFrame,
-    sbs_positions: pd.DataFrame,
-    alignment: pd.Series,
-    threshold: float = 2.0,
-) -> pd.DataFrame:
-    """
-    Merge cell positions between phenotype and SBS stitched wells.
-    
-    This function automatically detects if memory-efficient processing is needed.
-
-    Args:
-        phenotype_positions: Cell positions in phenotype well
-        sbs_positions: Cell positions in SBS well
-        alignment: Alignment parameters (rotation, translation)
-        threshold: Maximum distance for cell matching
-
-    Returns:
-        DataFrame with merged cell identities
-    """
-    # Automatically use memory-efficient approach for large datasets
-    total_cells = len(phenotype_positions) + len(sbs_positions)
-    memory_threshold = 100000  # Use memory-efficient approach if > 100k total cells
-    
-    if total_cells > memory_threshold:
-        print(f"Large dataset detected ({total_cells} total cells), using memory-efficient merge")
-        return memory_efficient_merge_cells(
-            phenotype_positions=phenotype_positions,
-            sbs_positions=sbs_positions,
-            alignment=alignment,
-            threshold=threshold,
-            chunk_size=50000  # Conservative chunk size
-        )
-    
-    # Original approach for smaller datasets (your existing code below)
-    if len(phenotype_positions) == 0 or len(sbs_positions) == 0:
-        return pd.DataFrame(
-            columns=[
-                "plate",
-                "well",
-                "cell_0",
-                "i_0",
-                "j_0",
-                "area_0",
-                "cell_1",
-                "i_1",
-                "j_1",
-                "area_1",
-                "distance",
-            ]
-        )
-
-    try:
-        # Build transformation model
-        rotation = np.array([alignment["rotation_1"], alignment["rotation_2"]])
-        translation = alignment["translation"]
-        model = LinearRegression()
-        model.coef_ = rotation
-        model.intercept_ = translation
-
-        # Extract coordinates
-        X = phenotype_positions[["i", "j"]].values
-        Y = sbs_positions[["i", "j"]].values
-
-        # Apply transformation to phenotype coordinates
-        X_transformed = model.predict(X)
-
-        # Calculate distances between transformed phenotype and SBS
-        distances = cdist(X_transformed, Y, metric="euclidean")
-
-        # Find nearest neighbors
-        ix = distances.argmin(axis=1)
-        min_distances = distances.min(axis=1)
-
-        # Filter by threshold
-        filt = min_distances < threshold
-
-        if filt.sum() == 0:
-            print("No matches found within threshold")
-            return pd.DataFrame(
-                columns=[
-                    "plate",
-                    "well",
-                    "cell_0",
-                    "i_0",
-                    "j_0",
-                    "area_0",
-                    "cell_1",
-                    "i_1",
-                    "j_1",
-                    "area_1",
-                    "distance",
-                ]
-            )
-
-        # Create merged dataframe
-        matched_phenotype = phenotype_positions[filt].reset_index(drop=True)
-        matched_sbs = sbs_positions.iloc[ix[filt]].reset_index(drop=True)
-
-        merged_data = pd.DataFrame(
-            {
-                "plate": 1,  # You may need to extract this from your data
-                "well": matched_phenotype["well"],
-                "cell_0": matched_phenotype["cell"],
-                "i_0": matched_phenotype["i"],
-                "j_0": matched_phenotype["j"],
-                "area_0": matched_phenotype["area"],
-                "cell_1": matched_sbs["cell"],
-                "i_1": matched_sbs["i"],
-                "j_1": matched_sbs["j"],
-                "area_1": matched_sbs["area"],
-                "distance": min_distances[filt],
-            }
-        )
-
-        print(f"Successfully merged {len(merged_data)} cells (threshold={threshold})")
-        return merged_data
-
-    except Exception as e:
-        print(f"Merge failed: {e}")
-        return pd.DataFrame(
-            columns=[
-                "plate",
-                "well",
-                "cell_0",
-                "i_0",
-                "j_0",
-                "area_0",
-                "cell_1",
-                "i_1",
-                "j_1",
-                "area_1",
-                "distance",
-            ]
-        )

@@ -146,6 +146,8 @@ rule enhanced_well_merge:
     input:
         phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"],
         sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"],
+        phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
+        sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
     output:
         MERGE_OUTPUTS_MAPPED["enhanced_well_merge"],
     params:
@@ -155,9 +157,9 @@ rule enhanced_well_merge:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
     resources:
-        mem_mb=16000,      # Much less memory needed for just merging positions
-        cpus_per_task=2,
-        runtime=30         # Should be much faster
+        mem_mb=32000,      # 32GB for safety with memory-efficient approach
+        cpus_per_task=4,
+        runtime=60
     script:
         "../scripts/merge/well_merge.py"
 

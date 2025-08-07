@@ -2,7 +2,12 @@ import pandas as pd
 import yaml
 
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.merge_well import stitched_well_alignment, merge_stitched_cells
+from lib.merge.merge_well import (
+    stitched_well_alignment, 
+    merge_stitched_cells,
+    memory_efficient_well_alignment,
+    memory_efficient_merge_cells
+)
 
 # Load cell positions from stitched masks (these are the new inputs)
 phenotype_positions = validate_dtypes(
@@ -95,15 +100,34 @@ if len(phenotype_well) == 0 or len(sbs_well) == 0:
     empty_merge.to_parquet(snakemake.output[0])
     exit(0)
 
-# Perform alignment using actual cell positions from stitched masks
+# Determine which alignment approach to use based on data size
+total_cells = len(phenotype_well) + len(sbs_well)
+memory_threshold = 100000  # Use memory-efficient approach if > 100k total cells
+
+print(f"Total cells: {total_cells:,}")
+
+# Perform alignment using appropriate approach
 print("\n=== Performing Triangle Hash Alignment ===")
 try:
-    alignment_df = stitched_well_alignment(
-        phenotype_positions=phenotype_well,
-        sbs_positions=sbs_well,
-        det_range=snakemake.params.det_range,
-        score_threshold=snakemake.params.score,
-    )
+    if total_cells > memory_threshold:
+        print(f"Large dataset detected, using memory-efficient alignment")
+        alignment_df = memory_efficient_well_alignment(
+            phenotype_positions=phenotype_well,
+            sbs_positions=sbs_well,
+            det_range=snakemake.params.det_range,
+            score_threshold=snakemake.params.score,
+            max_cells_for_hash=50000,  # Conservative limit to fit in 900GB memory
+            triangle_distance_threshold=0.3,
+            min_matching_triangles=10
+        )
+    else:
+        print(f"Standard dataset size, using original alignment")
+        alignment_df = stitched_well_alignment(
+            phenotype_positions=phenotype_well,
+            sbs_positions=sbs_well,
+            det_range=snakemake.params.det_range,
+            score_threshold=snakemake.params.score,
+        )
 
     if len(alignment_df) == 0:
         print("❌ Alignment failed - no valid alignment found")
@@ -136,9 +160,16 @@ try:
     print(f"   Score: {alignment['score']:.3f}")
     print(f"   Determinant: {alignment['determinant']:.3f}")
     print(f"   Matched triangles: {alignment.get('n_triangles_matched', 'N/A')}")
+    
+    # Print memory efficiency stats if available
+    if 'cells_used_phenotype' in alignment:
+        print(f"   Cells used for alignment: {alignment['cells_used_phenotype']} phenotype, {alignment['cells_used_sbs']} SBS")
 
 except Exception as e:
     print(f"❌ Alignment failed with error: {e}")
+    import traceback
+    traceback.print_exc()
+    
     empty_merge = pd.DataFrame(
         columns=[
             "plate",
@@ -200,15 +231,26 @@ if (
     empty_merge.to_parquet(snakemake.output[0])
     exit(0)
 
-# Merge cells based on alignment
+# Merge cells based on alignment using appropriate approach
 print("\n=== Merging Cells ===")
 try:
-    merged_cells = merge_stitched_cells(
-        phenotype_positions=phenotype_well,
-        sbs_positions=sbs_well,
-        alignment=alignment,
-        threshold=snakemake.params.threshold,
-    )
+    if total_cells > memory_threshold:
+        print(f"Large dataset detected, using memory-efficient merge")
+        merged_cells = memory_efficient_merge_cells(
+            phenotype_positions=phenotype_well,
+            sbs_positions=sbs_well,
+            alignment=alignment,
+            threshold=snakemake.params.threshold,
+            chunk_size=50000  # Conservative chunk size
+        )
+    else:
+        print(f"Standard dataset size, using original merge")
+        merged_cells = merge_stitched_cells(
+            phenotype_positions=phenotype_well,
+            sbs_positions=sbs_well,
+            alignment=alignment,
+            threshold=snakemake.params.threshold,
+        )
 
     if len(merged_cells) == 0:
         print("⚠️  No cells merged (no matches within distance threshold)")
@@ -271,6 +313,9 @@ try:
 
 except Exception as e:
     print(f"❌ Cell merging failed with error: {e}")
+    import traceback
+    traceback.print_exc()
+    
     merged_cells = pd.DataFrame(
         columns=[
             "plate",

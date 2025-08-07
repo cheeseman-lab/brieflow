@@ -212,6 +212,101 @@ def stitched_well_alignment(
     print(f"  SBS range: i={sbs_i_range:.0f}, j={sbs_j_range:.0f}")
     print(f"  Empirical scale (SBS/phenotype): {empirical_scale:.3f}")
     
+    # Calculate well centers for initial translation estimate
+    pheno_center = [phenotype_positions['i'].mean(), phenotype_positions['j'].mean()]
+    sbs_center = [sbs_positions['i'].mean(), sbs_positions['j'].mean()]
+
+    print(f"Well centers:")
+    print(f"  Phenotype: ({pheno_center[0]:.0f}, {pheno_center[1]:.0f})")
+    print(f"  SBS: ({sbs_center[0]:.0f}, {sbs_center[1]:.0f})")
+
+    # Calculate initial translation estimate from well centers
+    initial_translation_estimate = np.array(sbs_center) - np.array(pheno_center)
+    print(f"  Initial translation estimate from centers: {initial_translation_estimate}")
+
+    # Then in your triangle matching section, replace the transformation estimation part with:
+
+    # After getting the triangle matches (X, Y = c_0_filtered[i0[filt]], c_1_filtered[i1[filt]]):
+
+    print(f"Using {len(X)} triangle centers for transformation estimation")
+
+    # Analyze the coordinate relationships
+    coord_diff = Y - X
+    median_translation = np.median(coord_diff, axis=0)
+    translation_std = np.std(coord_diff, axis=0)
+    translation_mad = np.median(np.abs(coord_diff - median_translation), axis=0)
+
+    print(f"Triangle-based transformation analysis:")
+    print(f"  Median translation: {median_translation}")
+    print(f"  Translation std: {translation_std}")
+    print(f"  Translation MAD: {translation_mad}")
+
+    # Compare with center-based estimate
+    distance_from_center_estimate = np.linalg.norm(median_translation - initial_translation_estimate)
+    print(f"  Distance from center-based estimate: {distance_from_center_estimate:.0f}")
+
+    # Choose between robust median estimation and RANSAC
+    if np.all(translation_mad < 2000):  # Good consistency in triangle matching
+        print("Using robust median translation (consistent triangle alignment)")
+        final_rotation = np.eye(2)
+        final_translation = median_translation
+        transformation_type = "robust_translation"
+        determinant = 1.0
+        
+    elif distance_from_center_estimate < 10000:  # Triangle estimate close to center estimate
+        print("Triangle estimate agrees with center estimate - using median translation")
+        final_rotation = np.eye(2) 
+        final_translation = median_translation
+        transformation_type = "center_validated_translation"
+        determinant = 1.0
+        
+    else:
+        print("Inconsistent estimates - attempting RANSAC for robust estimation")
+        
+        # Multiple RANSAC strategies
+        ransac_configs = [
+            {"min_samples": 20, "residual_threshold": 500, "max_trials": 3000},
+            {"min_samples": 15, "residual_threshold": 1000, "max_trials": 5000},
+            {"min_samples": 10, "residual_threshold": 2000, "max_trials": 8000},
+        ]
+        
+        model = None
+        for i, config in enumerate(ransac_configs):
+            try:
+                print(f"RANSAC attempt {i+1}: {config}")
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore")
+                    test_model = RANSACRegressor(**config)
+                    test_model.fit(X, Y)
+                
+                rotation = test_model.estimator_.coef_
+                determinant = np.linalg.det(rotation)
+                
+                print(f"  Result: determinant={determinant:.6f}")
+                
+                if abs(determinant) > 0.01:
+                    model = test_model
+                    transformation_type = "ransac_full"
+                    print(f"  ✅ Accepted")
+                    break
+                else:
+                    print(f"  ❌ Determinant too close to zero")
+                    
+            except Exception as e:
+                print(f"  ❌ RANSAC failed: {e}")
+                continue
+        
+        if model is None:
+            print("All RANSAC attempts failed, using robust median translation")
+            final_rotation = np.eye(2)
+            final_translation = median_translation
+            transformation_type = "robust_translation_fallback"
+            determinant = 1.0
+        else:
+            final_rotation = model.estimator_.coef_
+            final_translation = model.estimator_.intercept_
+            determinant = np.linalg.det(final_rotation)
+
     # Generate triangle hashes with subsampling
     print("\n--- Generating phenotype triangle hash ---")
     phenotype_hash = hash_cell_positions_memory_efficient(
@@ -703,96 +798,97 @@ def stitched_well_alignment(
 
 def subsample_cells_for_alignment(
     cell_positions: pd.DataFrame, 
-    max_cells: int = 50000,
-    spatial_bins: int = 15,  # Increased from 10 to 15 for better distribution
+    max_cells: int = 75000,  # Increased from 50k
+    center_weight: float = 0.7,  # 70% from center, 30% from edges
+    spatial_bins: int = 15,  # Keep this parameter for compatibility
     random_state: int = 42
 ) -> pd.DataFrame:
     """
-    Subsample cells while preserving spatial distribution.
+    Subsample cells with bias toward the center of the well to improve alignment.
+    Replaces the old spatial binning approach with center-focused sampling.
     
     Args:
         cell_positions: DataFrame with cell positions
         max_cells: Maximum number of cells to keep
-        spatial_bins: Number of spatial bins per dimension for stratified sampling
+        center_weight: Fraction of cells to sample from center region (0.0-1.0)
+        spatial_bins: Kept for compatibility (not used in this version)
         random_state: Random seed for reproducibility
         
     Returns:
-        Subsampled DataFrame
+        Subsampled DataFrame with center bias
     """
     if len(cell_positions) <= max_cells:
         return cell_positions
     
-    print(f"Subsampling from {len(cell_positions)} to {max_cells} cells")
+    print(f"Center-focused subsampling from {len(cell_positions)} to {max_cells} cells")
     
-    # Create spatial bins with some padding to avoid edge effects
+    # Calculate well center and dimensions
     i_min, i_max = cell_positions['i'].min(), cell_positions['i'].max()
     j_min, j_max = cell_positions['j'].min(), cell_positions['j'].max()
     
-    # Add 5% padding to avoid edge effects
-    i_range = i_max - i_min
-    j_range = j_max - j_min
-    i_bins = pd.cut(
-        cell_positions['i'], 
-        bins=np.linspace(i_min - 0.05*i_range, i_max + 0.05*i_range, spatial_bins + 1), 
-        labels=False,
-        include_lowest=True
-    )
-    j_bins = pd.cut(
-        cell_positions['j'], 
-        bins=np.linspace(j_min - 0.05*j_range, j_max + 0.05*j_range, spatial_bins + 1), 
-        labels=False,
-        include_lowest=True
-    )
+    center_i = (i_min + i_max) / 2
+    center_j = (j_min + j_max) / 2
+    range_i = i_max - i_min
+    range_j = j_max - j_min
     
+    print(f"Well center: ({center_i:.0f}, {center_j:.0f})")
+    print(f"Well dimensions: {range_i:.0f} × {range_j:.0f}")
+    
+    # Calculate distance from center for each cell
     cell_positions = cell_positions.copy()
-    cell_positions['spatial_bin'] = i_bins * spatial_bins + j_bins
+    cell_positions['dist_from_center'] = np.sqrt(
+        ((cell_positions['i'] - center_i) / range_i) ** 2 + 
+        ((cell_positions['j'] - center_j) / range_j) ** 2
+    )
     
-    # Remove any NaN bins
-    cell_positions = cell_positions.dropna(subset=['spatial_bin'])
+    # Define center region (inner portion of well)
+    center_radius = 0.35  # This captures ~49% of area (π × 0.35²)
+    center_mask = cell_positions['dist_from_center'] <= center_radius
+    edge_mask = ~center_mask
     
-    # Stratified sampling within each spatial bin
+    center_cells = cell_positions[center_mask]
+    edge_cells = cell_positions[edge_mask]
+    
+    print(f"Cells in center region: {len(center_cells):,} ({100*len(center_cells)/len(cell_positions):.1f}%)")
+    print(f"Cells in edge region: {len(edge_cells):,} ({100*len(edge_cells)/len(cell_positions):.1f}%)")
+    
+    # Calculate sampling counts
+    n_center = min(int(max_cells * center_weight), len(center_cells))
+    n_edge = min(max_cells - n_center, len(edge_cells))
+    
+    # If center region has too few cells, take more from edges
+    if n_center < int(max_cells * center_weight) and len(edge_cells) > 0:
+        additional_from_edge = min(int(max_cells * center_weight) - n_center, len(edge_cells) - n_edge)
+        n_edge += additional_from_edge
+    
+    print(f"Sampling plan: {n_center:,} from center, {n_edge:,} from edges")
+    
+    # Sample cells
     np.random.seed(random_state)
-    
     subsampled_parts = []
-    cells_per_bin = max_cells // (spatial_bins * spatial_bins)
     
-    # Also add some random sampling to fill up to max_cells
-    total_sampled = 0
+    if n_center > 0 and len(center_cells) > 0:
+        if n_center >= len(center_cells):
+            center_sample = center_cells
+        else:
+            center_sample = center_cells.sample(n=n_center, random_state=random_state)
+        subsampled_parts.append(center_sample)
     
-    for bin_id in range(spatial_bins * spatial_bins):
-        bin_cells = cell_positions[cell_positions['spatial_bin'] == bin_id]
-        if len(bin_cells) > 0:
-            n_sample = min(len(bin_cells), max(cells_per_bin, 1))
-            subsampled = bin_cells.sample(n=n_sample, random_state=random_state + bin_id)
-            subsampled_parts.append(subsampled)
-            total_sampled += len(subsampled)
+    if n_edge > 0 and len(edge_cells) > 0:
+        if n_edge >= len(edge_cells):
+            edge_sample = edge_cells
+        else:
+            edge_sample = edge_cells.sample(n=n_edge, random_state=random_state + 1)
+        subsampled_parts.append(edge_sample)
     
     if subsampled_parts:
         result = pd.concat(subsampled_parts, ignore_index=True)
-        result = result.drop('spatial_bin', axis=1)
-        
-        # If we're still under max_cells, add some random additional cells
-        if total_sampled < max_cells and total_sampled < len(cell_positions):
-            remaining_cells = max_cells - total_sampled
-            # Get cells not already selected
-            selected_indices = set(result.index) if hasattr(result, 'index') else set()
-            available_cells = cell_positions[~cell_positions.index.isin(selected_indices)]
-            
-            if len(available_cells) > 0:
-                additional_sample_size = min(remaining_cells, len(available_cells))
-                additional_cells = available_cells.sample(
-                    n=additional_sample_size, 
-                    random_state=random_state + 999
-                ).drop('spatial_bin', axis=1)
-                result = pd.concat([result, additional_cells], ignore_index=True)
-        
-        print(f"Subsampled to {len(result)} cells")
+        result = result.drop(['dist_from_center'], axis=1)
+        print(f"Center-focused subsampled to {len(result)} cells")
         return result
     else:
-        print("No cells found in any spatial bin, using random sampling")
-        # Fallback to simple random sampling
-        sample_size = min(max_cells, len(cell_positions))
-        return cell_positions.sample(n=sample_size, random_state=random_state)
+        print("No cells found, using random sampling fallback")
+        return cell_positions.sample(n=min(max_cells, len(cell_positions)), random_state=random_state)
 
 
 def merge_stitched_cells(

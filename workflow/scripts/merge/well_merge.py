@@ -65,14 +65,6 @@ try:
         print(f"alignment['determinant'] = {alignment['determinant']}")
         print(f"alignment['score'] = {alignment['score']}")
 
-        # DEBUG: Print what's actually being passed
-        print(f"=== DEBUG: Parameter Passing ===")
-        print(f"snakemake.params.det_range = {snakemake.params.det_range}")
-        print(f"type(snakemake.params.det_range) = {type(snakemake.params.det_range)}")
-        print(f"snakemake.params.score = {snakemake.params.score}")
-        print(f"alignment['determinant'] = {alignment['determinant']}")
-        print(f"alignment['score'] = {alignment['score']}")
-
         print(f"✅ Triangle-hash alignment successful:")
         print(f"   Score: {alignment['score']:.3f}")
         print(f"   Determinant: {alignment['determinant']:.3f}")

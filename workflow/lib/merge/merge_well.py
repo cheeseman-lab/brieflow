@@ -66,6 +66,9 @@ def well_level_triangle_hash(positions_df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+# REPLACE this function in your merge_well.py file
+# It's around lines 70-120 in your current file
+
 def evaluate_well_match(
     vec_centers_0: pd.DataFrame, 
     vec_centers_1: pd.DataFrame, 
@@ -73,7 +76,7 @@ def evaluate_well_match(
     threshold_point: float = 2.0
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], float]:
     """
-    Evaluate match, finding the BEST transformation with positive determinant (no flips).
+    Evaluate match using SINGLE fixed seed (42) for reproducible, fast results.
     """
     V_0, c_0 = get_vc(vec_centers_0)
     V_1, c_1 = get_vc(vec_centers_1)
@@ -85,76 +88,50 @@ def evaluate_well_match(
     if sum(filt) < 5:
         return None, None, -1
 
-    # Try multiple RANSAC runs and collect all positive determinant results
-    valid_results = []
+    # Use ONLY seed 42 for fast, reproducible results
+    print(f"Using single RANSAC seed (42) for fast evaluation...")
     
-    for random_seed in range(42, 1042, 25):  # Try 40 different seeds
-        try:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore")
-                model = RANSACRegressor(
-                    random_state=random_seed,
-                    min_samples=max(5, len(X) // 10),
-                    max_trials=1000
-                )
-                model.fit(X, Y)
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            model = RANSACRegressor(
+                random_state=42,  # Single fixed seed instead of 40 different seeds
+                min_samples=max(5, len(X) // 10),
+                max_trials=1000
+            )
+            model.fit(X, Y)
 
-            rotation = model.estimator_.coef_
-            translation = model.estimator_.intercept_
-            determinant = np.linalg.det(rotation)
+        rotation = model.estimator_.coef_
+        translation = model.estimator_.intercept_
+        determinant = np.linalg.det(rotation)
+        
+        # Calculate score
+        distances = cdist(model.predict(c_0), c_1, metric="sqeuclidean")
+        threshold_region = 50
+        filt_score = np.sqrt(distances.min(axis=0)) < threshold_region
+        score = (np.sqrt(distances.min(axis=0))[filt_score] < threshold_point).mean()
+        
+        print(f"✅ Single seed (42) result: det={determinant:.6f}, score={score:.3f}")
+        
+        return rotation, translation, score
             
-            # Only consider positive determinants
-            if determinant <= 0:
-                continue
-            
-            # Calculate score for this positive determinant result
-            distances = cdist(model.predict(c_0), c_1, metric="sqeuclidean")
-            threshold_region = 50
-            filt_score = np.sqrt(distances.min(axis=0)) < threshold_region
-            score = (np.sqrt(distances.min(axis=0))[filt_score] < threshold_point).mean()
-            
-            # Store this valid result
-            valid_results.append({
-                'rotation': rotation,
-                'translation': translation,
-                'score': score,
-                'determinant': determinant,
-                'seed': random_seed
-            })
-                
-        except Exception:
-            continue
-    
-    if not valid_results:
-        print("❌ Could not find any transformation with positive determinant")
+    except Exception as e:
+        print(f"❌ RANSAC with seed 42 failed: {e}")
         return None, None, -1
-    
-    # Find the result with the highest score
-    best_result = max(valid_results, key=lambda x: x['score'])
-    
-    print(f"Found {len(valid_results)} valid transformations with positive determinants:")
-    for result in sorted(valid_results, key=lambda x: x['score'], reverse=True)[:3]:
-        print(f"  Seed {result['seed']}: det={result['determinant']:.3f}, score={result['score']:.3f}")
-    
-    print(f"✅ Selected BEST: det={best_result['determinant']:.3f}, score={best_result['score']:.3f}")
-    
-    return best_result['rotation'], best_result['translation'], best_result['score']
 
+# FIX 1: Make center radius consistent in triangle_hash_well_alignment
 
 def triangle_hash_well_alignment(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
     max_cells_for_hash: int = 75000,
-    threshold_triangle: float = 0.1,  # Same as tile-by-tile
-    threshold_point: float = 2.0,     # Same as tile-by-tile
-    min_score: float = 0.1,           # Same as tile-by-tile default
-    **kwargs  # For compatibility with other parameters
+    threshold_triangle: float = 0.1,
+    threshold_point: float = 2.0,
+    min_score: float = 0.1,
+    **kwargs
 ) -> pd.DataFrame:
     """
-    Well-level alignment using the exact same proven approach as tile-by-tile.
-    
-    Now uses geographic constrained sampling with fixed seed for reproducible results.
-    This automatically handles the 8x scale difference via RANSAC, no hardcoding needed.
+    Fast triangle hash with consistent center sampling.
     """
     print(f"Starting proven triangle hash alignment with {len(phenotype_positions):,} phenotype and {len(sbs_positions):,} SBS cells")
     
@@ -162,38 +139,32 @@ def triangle_hash_well_alignment(
         print("Insufficient cells for triangulation")
         return pd.DataFrame()
     
-    # Use geographic constrained sampling with fixed seed for reproducible results
+    # Use CONSISTENT center radius for both modalities
+    CENTER_RADIUS = 0.4  # 40% for both
+    
     if len(phenotype_positions) > max_cells_for_hash:
-        print(f"Subsampling phenotype cells from {len(phenotype_positions):,} to {max_cells_for_hash:,}")
+        print(f"Center sampling phenotype cells from {len(phenotype_positions):,} to {max_cells_for_hash:,}")
         pheno_subset = geographic_constrained_sampling(
             phenotype_positions,
             max_cells=max_cells_for_hash,
-            center_radius=0.2,      # Focus on center 20% region
-            center_max_cells=int(max_cells_for_hash * 0.4),    # 40% from center
-            edge_max_cells=int(max_cells_for_hash * 0.2),      # 20% from edges
-            mid_max_cells=int(max_cells_for_hash * 0.27),      # 27% from middle
-            random_max_cells=int(max_cells_for_hash * 0.13),   # 13% random fill
-            random_state=42         # Fixed seed for reproducibility
+            center_radius=CENTER_RADIUS,  # Consistent 40%
+            random_state=42
         )
     else:
         pheno_subset = phenotype_positions.copy()
         
     if len(sbs_positions) > max_cells_for_hash:
-        print(f"Subsampling SBS cells from {len(sbs_positions):,} to {max_cells_for_hash:,}")
+        print(f"Center sampling SBS cells from {len(sbs_positions):,} to {max_cells_for_hash:,}")
         sbs_subset = geographic_constrained_sampling(
             sbs_positions,
             max_cells=max_cells_for_hash,
-            center_radius=0.2,      # Same geographic constraints
-            center_max_cells=int(max_cells_for_hash * 0.4),
-            edge_max_cells=int(max_cells_for_hash * 0.2),
-            mid_max_cells=int(max_cells_for_hash * 0.27),
-            random_max_cells=int(max_cells_for_hash * 0.13),
-            random_state=42         # Same seed for consistent spatial patterns
+            center_radius=CENTER_RADIUS,  # Same 40% for consistency
+            random_state=42
         )
     else:
         sbs_subset = sbs_positions.copy()
     
-    # Generate triangle hashes using proven approach
+    # Rest of function stays the same...
     print("Generating triangle hashes using proven nine-edge approach...")
     pheno_triangles = well_level_triangle_hash(pheno_subset)
     sbs_triangles = well_level_triangle_hash(sbs_subset)
@@ -204,8 +175,7 @@ def triangle_hash_well_alignment(
     
     print(f"Generated {len(pheno_triangles)} phenotype and {len(sbs_triangles)} SBS triangles")
     
-    # Evaluate match using exact tile-by-tile logic
-    print("Evaluating match using proven approach...")
+    print("Evaluating match using FAST approach...")
     rotation, translation, score = evaluate_well_match(
         pheno_triangles, sbs_triangles, 
         threshold_triangle=threshold_triangle,
@@ -218,34 +188,23 @@ def triangle_hash_well_alignment(
     
     determinant = np.linalg.det(rotation)
     
-    print(f"✅ Proven approach successful:")
+    print(f"✅ FAST approach successful:")
     print(f"   Score: {score:.3f}")
-    print(f"   Determinant: {determinant:.3f}")
+    print(f"   Determinant: {determinant:.6f}")
     print(f"   Translation: [{translation[0]:.1f}, {translation[1]:.1f}]")
-    print(f"   RANSAC automatically handled 8x scale difference!")
     
-    # Build result in same format as other approaches
+    # Build result
     alignment = {
         'rotation': rotation,
         'translation': translation,
         'score': score,
         'determinant': determinant,
-        'transformation_type': 'proven_nine_edge_hash',
-        'n_triangles_matched': len(pheno_triangles),  # All triangles used
-        'cells_used_phenotype': len(pheno_subset),
-        'cells_used_sbs': len(sbs_subset),
-        'triangles_generated_phenotype': len(pheno_triangles),
-        'triangles_generated_sbs': len(sbs_triangles),
-        'triangles_matched': sum(nearest_neighbors(get_vc(pheno_triangles)[0], get_vc(sbs_triangles)[0])[2] < threshold_triangle),
-        'approach': 'proven_tile_by_tile_method',
-        'sampling_method': 'geographic_constrained',
-        'sampling_seed': 42,
-        'center_radius_used': 0.2
+        'transformation_type': 'proven_nine_edge_hash_fast',
+        'triangles_matched': len(pheno_triangles),
+        'approach': 'fast_fixed_seed'
     }
     
-    result_df = pd.DataFrame([alignment])
-    return result_df
-
+    return pd.DataFrame([alignment])
 
 def merge_stitched_cells(
     phenotype_positions: pd.DataFrame,
@@ -282,14 +241,18 @@ def merge_stitched_cells(
         translation = np.array(translation).flatten()[:2]
     
     print(f"Using transformation: rotation det={np.linalg.det(rotation):.3f}, translation={translation}")
-    
+
     # Get coordinates
     pheno_coords = phenotype_positions[['i', 'j']].values
     sbs_coords = sbs_positions[['i', 'j']].values
-    
+
+    # NOW add debug calls (after coordinates are defined):
+    scale_factor = debug_transformation_matrix(rotation, translation)
+    has_overlap, overlap_frac = debug_coordinate_transformation(pheno_coords, sbs_coords, rotation, translation)
+
     # Transform phenotype coordinates to SBS coordinate system
     transformed_coords = pheno_coords @ rotation.T + translation
-    
+     
     print(f"Coordinate ranges after transformation:")
     print(f"  Transformed phenotype: i=[{transformed_coords[:, 0].min():.0f}, {transformed_coords[:, 0].max():.0f}], j=[{transformed_coords[:, 1].min():.0f}, {transformed_coords[:, 1].max():.0f}]")
     print(f"  SBS: i=[{sbs_coords[:, 0].min():.0f}, {sbs_coords[:, 0].max():.0f}], j=[{sbs_coords[:, 1].min():.0f}, {sbs_coords[:, 1].max():.0f}]")
@@ -367,6 +330,88 @@ def merge_stitched_cells(
             'cell_0', 'i_0', 'j_0', 'area_0',
             'cell_1', 'i_1', 'j_1', 'area_1', 'distance'
         ])
+
+def debug_transformation_matrix(rotation, translation):
+    """Debug what's actually in the transformation matrix."""
+    print(f"\n=== Transformation Matrix Debug ===")
+    print(f"Rotation matrix:")
+    print(f"  [{rotation[0, 0]:.6f}, {rotation[0, 1]:.6f}]")
+    print(f"  [{rotation[1, 0]:.6f}, {rotation[1, 1]:.6f}]")
+    print(f"Translation: [{translation[0]:.2f}, {translation[1]:.2f}]")
+    
+    # Calculate scale factors
+    scale_x = np.linalg.norm(rotation[0, :])
+    scale_y = np.linalg.norm(rotation[1, :])
+    avg_scale = (scale_x + scale_y) / 2
+    
+    print(f"Scale factors extracted from matrix:")
+    print(f"  X-direction: {scale_x:.6f}")
+    print(f"  Y-direction: {scale_y:.6f}")
+    print(f"  Average: {avg_scale:.6f}")
+    print(f"  Expected scale: ~{1/8:.6f} (1/8 for phenotype→SBS)")
+    
+    # Check if it's close to expected scaling
+    expected_scale = 1/8
+    if abs(avg_scale - expected_scale) < 0.01:
+        print("✅ Scale factor looks correct!")
+    else:
+        print(f"⚠️ Scale factor mismatch! Expected ~{expected_scale:.6f}, got {avg_scale:.6f}")
+    
+    # Check rotation component
+    if scale_x > 0 and scale_y > 0:
+        normalized_rotation = rotation / avg_scale
+        print(f"Normalized rotation matrix (scale removed):")
+        print(f"  [{normalized_rotation[0, 0]:.6f}, {normalized_rotation[0, 1]:.6f}]")
+        print(f"  [{normalized_rotation[1, 0]:.6f}, {normalized_rotation[1, 1]:.6f}]")
+        
+        # Check if it's close to identity (no rotation)
+        if np.allclose(normalized_rotation, np.eye(2), atol=0.1):
+            print("✅ Pure scaling transformation (no significant rotation)")
+        else:
+            print("🔄 Scaling + rotation transformation")
+    
+    return avg_scale
+
+# Also add this to check coordinate transformation results
+def debug_coordinate_transformation(pheno_coords, sbs_coords, rotation, translation):
+    """Debug the coordinate transformation results."""
+    print(f"\n=== Coordinate Transformation Debug ===")
+    
+    # Apply transformation
+    transformed_coords = pheno_coords @ rotation.T + translation
+    
+    # Compare coordinate ranges
+    print(f"Original phenotype range:")
+    print(f"  i: [{pheno_coords[:, 0].min():.0f}, {pheno_coords[:, 0].max():.0f}] (range: {pheno_coords[:, 0].max() - pheno_coords[:, 0].min():.0f})")
+    print(f"  j: [{pheno_coords[:, 1].min():.0f}, {pheno_coords[:, 1].max():.0f}] (range: {pheno_coords[:, 1].max() - pheno_coords[:, 1].min():.0f})")
+    
+    print(f"Transformed phenotype range:")
+    print(f"  i: [{transformed_coords[:, 0].min():.0f}, {transformed_coords[:, 0].max():.0f}] (range: {transformed_coords[:, 0].max() - transformed_coords[:, 0].min():.0f})")
+    print(f"  j: [{transformed_coords[:, 1].min():.0f}, {transformed_coords[:, 1].max():.0f}] (range: {transformed_coords[:, 1].max() - transformed_coords[:, 1].min():.0f})")
+    
+    print(f"SBS coordinate range:")
+    print(f"  i: [{sbs_coords[:, 0].min():.0f}, {sbs_coords[:, 0].max():.0f}] (range: {sbs_coords[:, 0].max() - sbs_coords[:, 0].min():.0f})")
+    print(f"  j: [{sbs_coords[:, 1].min():.0f}, {sbs_coords[:, 1].max():.0f}] (range: {sbs_coords[:, 1].max() - sbs_coords[:, 1].min():.0f})")
+    
+    # Calculate overlap
+    overlap_i_min = max(transformed_coords[:, 0].min(), sbs_coords[:, 0].min())
+    overlap_i_max = min(transformed_coords[:, 0].max(), sbs_coords[:, 0].max())
+    overlap_j_min = max(transformed_coords[:, 1].min(), sbs_coords[:, 1].min())
+    overlap_j_max = min(transformed_coords[:, 1].max(), sbs_coords[:, 1].max())
+    
+    has_overlap = overlap_i_max > overlap_i_min and overlap_j_max > overlap_j_min
+    
+    if has_overlap:
+        overlap_area = (overlap_i_max - overlap_i_min) * (overlap_j_max - overlap_j_min)
+        sbs_area = (sbs_coords[:, 0].max() - sbs_coords[:, 0].min()) * (sbs_coords[:, 1].max() - sbs_coords[:, 1].min())
+        overlap_fraction = overlap_area / sbs_area if sbs_area > 0 else 0
+        
+        print(f"Overlap region: i=[{overlap_i_min:.0f}, {overlap_i_max:.0f}], j=[{overlap_j_min:.0f}, {overlap_j_max:.0f}]")
+        print(f"Overlap fraction: {overlap_fraction:.1%} of SBS area")
+    else:
+        print("❌ NO OVERLAP between transformed phenotype and SBS coordinates!")
+    
+    return has_overlap, overlap_fraction if has_overlap else 0
 
 
 # Legacy Compatibility Functions - kept for backwards compatibility
@@ -663,34 +708,29 @@ from typing import Tuple
 def geographic_constrained_sampling(
     cell_positions: pd.DataFrame,
     max_cells: int = 75000,
-    center_radius: float = 0.2,      # 20% of well radius for center region
-    center_max_cells: int = 30000,   # Max cells from center (40% of total)
-    edge_max_cells: int = 15000,     # Max cells from edge regions (20% of total)
-    mid_max_cells: int = 20000,      # Max cells from middle regions (26.7% of total)
-    random_max_cells: int = 10000,   # Remaining for random (13.3% of total)
+    center_radius: float = 0.4,      # % of well radius for center region
+    center_max_cells: int = 75000,   # Take ALL cells from center (up to max)
+    edge_max_cells: int = 0,         # NO edge cells
+    mid_max_cells: int = 0,          # NO middle cells
+    random_max_cells: int = 0,       # NO random fill
     random_state: int = 42           # Fixed seed for reproducibility
 ) -> pd.DataFrame:
     """
-    Geographic constrained sampling with fixed seed for consistent results.
-    
-    Strategy:
-    1. Center region (20% radius): Up to 30k cells - highest overlap probability
-    2. Edge regions: Up to 15k cells - define well boundaries  
-    3. Middle regions: Up to 20k cells - coverage between center and edge
-    4. Random fill: Up to 10k cells - ensure we hit target if needed
+    Sample cells ONLY from the center region for full overlap scenarios.
+    Modified to focus entirely on center region.
     
     Args:
         cell_positions: DataFrame with cell positions
         max_cells: Total maximum cells to sample
-        center_radius: Fraction of well radius defining center region (0.2 = 20%)
-        center_max_cells: Maximum cells from center region
-        edge_max_cells: Maximum cells from edge regions
-        mid_max_cells: Maximum cells from middle regions
-        random_max_cells: Maximum random cells to fill gaps
+        center_radius: Fraction of well radius defining center region (0.5 = 50%)
+        center_max_cells: Maximum cells from center region (set to max_cells)
+        edge_max_cells: Set to 0 (no edge sampling)
+        mid_max_cells: Set to 0 (no middle sampling)  
+        random_max_cells: Set to 0 (no random sampling)
         random_state: Fixed random seed
         
     Returns:
-        Geographically constrained sample with fixed seed
+        DataFrame with cells sampled only from center region
     """
     if len(cell_positions) <= max_cells:
         return cell_positions
@@ -698,15 +738,12 @@ def geographic_constrained_sampling(
     # Set fixed seed for reproducibility
     np.random.seed(random_state)
     
-    print(f"=== Geographic Constrained Sampling (Seed: {random_state}) ===")
+    print(f"=== Center-Only Sampling (Seed: {random_state}) ===")
     print(f"Original cells: {len(cell_positions):,}")
     print(f"Target total: {max_cells:,}")
-    print(f"Center region: {center_radius:.0%} radius, max {center_max_cells:,} cells")
-    print(f"Edge regions: max {edge_max_cells:,} cells")
-    print(f"Middle regions: max {mid_max_cells:,} cells") 
-    print(f"Random fill: max {random_max_cells:,} cells")
+    print(f"Center region: {center_radius:.0%} radius, taking ALL cells from center")
     
-    # Calculate well boundaries and regions
+    # Calculate well boundaries and center
     i_min, i_max = cell_positions['i'].min(), cell_positions['i'].max()
     j_min, j_max = cell_positions['j'].min(), cell_positions['j'].max()
     i_range = i_max - i_min
@@ -719,7 +756,7 @@ def geographic_constrained_sampling(
     print(f"Well center: ({center_i:.0f}, {center_j:.0f})")
     print(f"Well dimensions: {i_range:.0f} × {j_range:.0f}")
     
-    # Add geographic metrics
+    # Add distance from center
     df = cell_positions.copy()
     
     # Normalized distance from center (0 = center, 1 = corner)
@@ -728,137 +765,37 @@ def geographic_constrained_sampling(
         ((df['j'] - center_j) / j_range) ** 2
     )
     
-    # Distance to nearest edge (0 = on edge, 0.5 = center)
-    df['dist_to_edge'] = np.minimum(
-        np.minimum(
-            (df['i'] - i_min) / i_range,  # Distance to left edge
-            (i_max - df['i']) / i_range   # Distance to right edge
-        ),
-        np.minimum(
-            (df['j'] - j_min) / j_range,  # Distance to bottom edge
-            (j_max - df['j']) / j_range   # Distance to top edge
-        )
-    )
-    
-    sampled_parts = []
-    
-    # Region 1: Center region (highest priority - most likely overlap)
+    # Take ONLY cells from center region
     center_mask = df['dist_from_center'] <= center_radius
     center_cells = df[center_mask]
     
-    if len(center_cells) > 0:
-        n_center = min(center_max_cells, len(center_cells))
-        if len(center_cells) > n_center:
-            # Prioritize cells closest to true center
-            center_sample = center_cells.nsmallest(n_center, 'dist_from_center')
-        else:
-            center_sample = center_cells
-        
-        sampled_parts.append(center_sample)
-        print(f"Center region: {len(center_sample):,} cells ({100*len(center_sample)/len(center_cells):.1f}% of {len(center_cells):,} available)")
+    print(f"Cells in center region: {len(center_cells):,} ({100*len(center_cells)/len(cell_positions):.1f}% of total)")
+    
+    if len(center_cells) == 0:
+        print("❌ No cells found in center region! Try increasing center_radius")
+        return pd.DataFrame()
+    
+    # Sample from center region only
+    if len(center_cells) > max_cells:
+        # Sample max_cells from center, prioritizing cells closest to true center
+        print(f"Sampling {max_cells:,} cells closest to center")
+        center_sample = center_cells.nsmallest(max_cells, 'dist_from_center')
     else:
-        center_sample = pd.DataFrame()
-        print(f"Center region: 0 cells (no cells in center)")
+        # Take all center cells if we don't have enough
+        print(f"Taking all {len(center_cells):,} center cells (less than target)")
+        center_sample = center_cells
     
-    # Region 2: Edge regions (define well boundaries)
-    edge_thickness = 0.15  # Outer 15% of well
-    edge_mask = (df['dist_to_edge'] <= edge_thickness) & ~df.index.isin(center_sample.index)
-    edge_cells = df[edge_mask]
+    # Remove temporary columns
+    final_sample = center_sample.drop(columns=['dist_from_center'], errors='ignore')
     
-    if len(edge_cells) > 0:
-        n_edge = min(edge_max_cells, len(edge_cells))
-        if len(edge_cells) > n_edge:
-            # Random sample from edge cells (with fixed seed)
-            edge_sample = edge_cells.sample(n=n_edge, random_state=random_state)
-        else:
-            edge_sample = edge_cells
-        
-        sampled_parts.append(edge_sample)
-        print(f"Edge regions: {len(edge_sample):,} cells ({100*len(edge_sample)/len(edge_cells):.1f}% of {len(edge_cells):,} available)")
-    else:
-        edge_sample = pd.DataFrame()
-        print(f"Edge regions: 0 cells")
-    
-    # Region 3: Middle regions (between center and edge)
-    excluded_indices = set()
-    if len(center_sample) > 0:
-        excluded_indices.update(center_sample.index)
-    if len(edge_sample) > 0:
-        excluded_indices.update(edge_sample.index)
-    
-    mid_mask = (df['dist_from_center'] > center_radius) & (df['dist_to_edge'] > edge_thickness) & ~df.index.isin(excluded_indices)
-    mid_cells = df[mid_mask]
-    
-    if len(mid_cells) > 0:
-        n_mid = min(mid_max_cells, len(mid_cells))
-        if len(mid_cells) > n_mid:
-            # Stratified sampling by distance rings for even coverage
-            mid_cells_copy = mid_cells.copy()
-            mid_cells_copy['distance_ring'] = pd.cut(mid_cells_copy['dist_from_center'], bins=5, labels=False)
-            
-            mid_samples = []
-            cells_per_ring = n_mid // 5
-            
-            for ring in range(5):
-                ring_cells = mid_cells_copy[mid_cells_copy['distance_ring'] == ring]
-                if len(ring_cells) > 0:
-                    n_from_ring = min(cells_per_ring, len(ring_cells))
-                    ring_sample = ring_cells.sample(n=n_from_ring, random_state=random_state + ring)
-                    mid_samples.append(ring_sample)
-            
-            if mid_samples:
-                mid_sample = pd.concat(mid_samples).head(n_mid)
-            else:
-                mid_sample = mid_cells.sample(n=n_mid, random_state=random_state)
-        else:
-            mid_sample = mid_cells
-        
-        sampled_parts.append(mid_sample)
-        print(f"Middle regions: {len(mid_sample):,} cells ({100*len(mid_sample)/len(mid_cells):.1f}% of {len(mid_cells):,} available)")
-    else:
-        mid_sample = pd.DataFrame()
-        print(f"Middle regions: 0 cells")
-    
-    # Region 4: Random fill to reach target (if needed)
-    current_total = sum(len(part) for part in sampled_parts)
-    remaining_target = max_cells - current_total
-    
-    if remaining_target > 0:
-        all_excluded = set()
-        for part in sampled_parts:
-            if len(part) > 0:
-                all_excluded.update(part.index)
-        
-        remaining_cells = df[~df.index.isin(all_excluded)]
-        
-        if len(remaining_cells) > 0:
-            n_random = min(random_max_cells, remaining_target, len(remaining_cells))
-            random_sample = remaining_cells.sample(n=n_random, random_state=random_state + 100)
-            sampled_parts.append(random_sample)
-            print(f"Random fill: {len(random_sample):,} cells ({100*len(random_sample)/len(remaining_cells):.1f}% of {len(remaining_cells):,} available)")
-        else:
-            print(f"Random fill: 0 cells (no cells remaining)")
-    
-    # Combine all parts
-    if sampled_parts:
-        final_sample = pd.concat(sampled_parts, ignore_index=True)
-        # Remove temporary columns
-        final_sample = final_sample.drop(columns=['dist_from_center', 'dist_to_edge'], errors='ignore')
-        if 'distance_ring' in final_sample.columns:
-            final_sample = final_sample.drop(columns=['distance_ring'])
-    else:
-        # Fallback: systematic sampling with fixed seed
-        np.random.seed(random_state)
-        final_sample = cell_positions.sample(n=min(max_cells, len(cell_positions)), random_state=random_state)
-    
-    print(f"=== Final Sample Summary ===")
+    print(f"=== Center-Only Sample Summary ===")
     print(f"Total sampled: {len(final_sample):,} / {max_cells:,} target")
+    print(f"All cells from center {center_radius:.0%} region")
     print(f"Sampling efficiency: {100*len(final_sample)/len(cell_positions):.1f}% of original")
     
-    # Verify deterministic behavior
+    # Verify coverage
     i_range_sample = final_sample['i'].max() - final_sample['i'].min()
     j_range_sample = final_sample['j'].max() - final_sample['j'].min()
     print(f"Sample coverage: i={i_range_sample:.0f} ({100*i_range_sample/i_range:.1f}%), j={j_range_sample:.0f} ({100*j_range_sample/j_range:.1f}%)")
     
     return final_sample
-

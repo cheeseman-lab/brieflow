@@ -153,6 +153,7 @@ def triangle_hash_well_alignment(
     """
     Well-level alignment using the exact same proven approach as tile-by-tile.
     
+    Now uses geographic constrained sampling with fixed seed for reproducible results.
     This automatically handles the 8x scale difference via RANSAC, no hardcoding needed.
     """
     print(f"Starting proven triangle hash alignment with {len(phenotype_positions):,} phenotype and {len(sbs_positions):,} SBS cells")
@@ -161,18 +162,34 @@ def triangle_hash_well_alignment(
         print("Insufficient cells for triangulation")
         return pd.DataFrame()
     
-    # Subsample if necessary to manage memory
+    # Use geographic constrained sampling with fixed seed for reproducible results
     if len(phenotype_positions) > max_cells_for_hash:
         print(f"Subsampling phenotype cells from {len(phenotype_positions):,} to {max_cells_for_hash:,}")
-        step = len(phenotype_positions) // max_cells_for_hash
-        pheno_subset = phenotype_positions.iloc[::step][:max_cells_for_hash].copy()
+        pheno_subset = geographic_constrained_sampling(
+            phenotype_positions,
+            max_cells=max_cells_for_hash,
+            center_radius=0.2,      # Focus on center 20% region
+            center_max_cells=int(max_cells_for_hash * 0.4),    # 40% from center
+            edge_max_cells=int(max_cells_for_hash * 0.2),      # 20% from edges
+            mid_max_cells=int(max_cells_for_hash * 0.27),      # 27% from middle
+            random_max_cells=int(max_cells_for_hash * 0.13),   # 13% random fill
+            random_state=42         # Fixed seed for reproducibility
+        )
     else:
         pheno_subset = phenotype_positions.copy()
         
     if len(sbs_positions) > max_cells_for_hash:
         print(f"Subsampling SBS cells from {len(sbs_positions):,} to {max_cells_for_hash:,}")
-        step = len(sbs_positions) // max_cells_for_hash
-        sbs_subset = sbs_positions.iloc[::step][:max_cells_for_hash].copy()
+        sbs_subset = geographic_constrained_sampling(
+            sbs_positions,
+            max_cells=max_cells_for_hash,
+            center_radius=0.2,      # Same geographic constraints
+            center_max_cells=int(max_cells_for_hash * 0.4),
+            edge_max_cells=int(max_cells_for_hash * 0.2),
+            mid_max_cells=int(max_cells_for_hash * 0.27),
+            random_max_cells=int(max_cells_for_hash * 0.13),
+            random_state=42         # Same seed for consistent spatial patterns
+        )
     else:
         sbs_subset = sbs_positions.copy()
     
@@ -220,7 +237,10 @@ def triangle_hash_well_alignment(
         'triangles_generated_phenotype': len(pheno_triangles),
         'triangles_generated_sbs': len(sbs_triangles),
         'triangles_matched': sum(nearest_neighbors(get_vc(pheno_triangles)[0], get_vc(sbs_triangles)[0])[2] < threshold_triangle),
-        'approach': 'proven_tile_by_tile_method'
+        'approach': 'proven_tile_by_tile_method',
+        'sampling_method': 'geographic_constrained',
+        'sampling_seed': 42,
+        'center_radius_used': 0.2
     }
     
     result_df = pd.DataFrame([alignment])
@@ -631,3 +651,214 @@ print("1. Replace your current alignment quality check")
 print("2. Remove fallback to other alignment methods") 
 print("3. Accept first triangle hash result that meets basic criteria")
 print("4. Optionally make det_range more permissive: [1e-6, 1e6]")
+
+"""
+Geographic constrained cell sampling with fixed seed for consistent triangle hash alignment
+"""
+
+import pandas as pd
+import numpy as np
+from typing import Tuple
+
+def geographic_constrained_sampling(
+    cell_positions: pd.DataFrame,
+    max_cells: int = 75000,
+    center_radius: float = 0.2,      # 20% of well radius for center region
+    center_max_cells: int = 30000,   # Max cells from center (40% of total)
+    edge_max_cells: int = 15000,     # Max cells from edge regions (20% of total)
+    mid_max_cells: int = 20000,      # Max cells from middle regions (26.7% of total)
+    random_max_cells: int = 10000,   # Remaining for random (13.3% of total)
+    random_state: int = 42           # Fixed seed for reproducibility
+) -> pd.DataFrame:
+    """
+    Geographic constrained sampling with fixed seed for consistent results.
+    
+    Strategy:
+    1. Center region (20% radius): Up to 30k cells - highest overlap probability
+    2. Edge regions: Up to 15k cells - define well boundaries  
+    3. Middle regions: Up to 20k cells - coverage between center and edge
+    4. Random fill: Up to 10k cells - ensure we hit target if needed
+    
+    Args:
+        cell_positions: DataFrame with cell positions
+        max_cells: Total maximum cells to sample
+        center_radius: Fraction of well radius defining center region (0.2 = 20%)
+        center_max_cells: Maximum cells from center region
+        edge_max_cells: Maximum cells from edge regions
+        mid_max_cells: Maximum cells from middle regions
+        random_max_cells: Maximum random cells to fill gaps
+        random_state: Fixed random seed
+        
+    Returns:
+        Geographically constrained sample with fixed seed
+    """
+    if len(cell_positions) <= max_cells:
+        return cell_positions
+    
+    # Set fixed seed for reproducibility
+    np.random.seed(random_state)
+    
+    print(f"=== Geographic Constrained Sampling (Seed: {random_state}) ===")
+    print(f"Original cells: {len(cell_positions):,}")
+    print(f"Target total: {max_cells:,}")
+    print(f"Center region: {center_radius:.0%} radius, max {center_max_cells:,} cells")
+    print(f"Edge regions: max {edge_max_cells:,} cells")
+    print(f"Middle regions: max {mid_max_cells:,} cells") 
+    print(f"Random fill: max {random_max_cells:,} cells")
+    
+    # Calculate well boundaries and regions
+    i_min, i_max = cell_positions['i'].min(), cell_positions['i'].max()
+    j_min, j_max = cell_positions['j'].min(), cell_positions['j'].max()
+    i_range = i_max - i_min
+    j_range = j_max - j_min
+    
+    center_i = (i_min + i_max) / 2
+    center_j = (j_min + j_max) / 2
+    
+    print(f"Well boundaries: i=[{i_min:.0f}, {i_max:.0f}], j=[{j_min:.0f}, {j_max:.0f}]")
+    print(f"Well center: ({center_i:.0f}, {center_j:.0f})")
+    print(f"Well dimensions: {i_range:.0f} × {j_range:.0f}")
+    
+    # Add geographic metrics
+    df = cell_positions.copy()
+    
+    # Normalized distance from center (0 = center, 1 = corner)
+    df['dist_from_center'] = np.sqrt(
+        ((df['i'] - center_i) / i_range) ** 2 + 
+        ((df['j'] - center_j) / j_range) ** 2
+    )
+    
+    # Distance to nearest edge (0 = on edge, 0.5 = center)
+    df['dist_to_edge'] = np.minimum(
+        np.minimum(
+            (df['i'] - i_min) / i_range,  # Distance to left edge
+            (i_max - df['i']) / i_range   # Distance to right edge
+        ),
+        np.minimum(
+            (df['j'] - j_min) / j_range,  # Distance to bottom edge
+            (j_max - df['j']) / j_range   # Distance to top edge
+        )
+    )
+    
+    sampled_parts = []
+    
+    # Region 1: Center region (highest priority - most likely overlap)
+    center_mask = df['dist_from_center'] <= center_radius
+    center_cells = df[center_mask]
+    
+    if len(center_cells) > 0:
+        n_center = min(center_max_cells, len(center_cells))
+        if len(center_cells) > n_center:
+            # Prioritize cells closest to true center
+            center_sample = center_cells.nsmallest(n_center, 'dist_from_center')
+        else:
+            center_sample = center_cells
+        
+        sampled_parts.append(center_sample)
+        print(f"Center region: {len(center_sample):,} cells ({100*len(center_sample)/len(center_cells):.1f}% of {len(center_cells):,} available)")
+    else:
+        center_sample = pd.DataFrame()
+        print(f"Center region: 0 cells (no cells in center)")
+    
+    # Region 2: Edge regions (define well boundaries)
+    edge_thickness = 0.15  # Outer 15% of well
+    edge_mask = (df['dist_to_edge'] <= edge_thickness) & ~df.index.isin(center_sample.index)
+    edge_cells = df[edge_mask]
+    
+    if len(edge_cells) > 0:
+        n_edge = min(edge_max_cells, len(edge_cells))
+        if len(edge_cells) > n_edge:
+            # Random sample from edge cells (with fixed seed)
+            edge_sample = edge_cells.sample(n=n_edge, random_state=random_state)
+        else:
+            edge_sample = edge_cells
+        
+        sampled_parts.append(edge_sample)
+        print(f"Edge regions: {len(edge_sample):,} cells ({100*len(edge_sample)/len(edge_cells):.1f}% of {len(edge_cells):,} available)")
+    else:
+        edge_sample = pd.DataFrame()
+        print(f"Edge regions: 0 cells")
+    
+    # Region 3: Middle regions (between center and edge)
+    excluded_indices = set()
+    if len(center_sample) > 0:
+        excluded_indices.update(center_sample.index)
+    if len(edge_sample) > 0:
+        excluded_indices.update(edge_sample.index)
+    
+    mid_mask = (df['dist_from_center'] > center_radius) & (df['dist_to_edge'] > edge_thickness) & ~df.index.isin(excluded_indices)
+    mid_cells = df[mid_mask]
+    
+    if len(mid_cells) > 0:
+        n_mid = min(mid_max_cells, len(mid_cells))
+        if len(mid_cells) > n_mid:
+            # Stratified sampling by distance rings for even coverage
+            mid_cells_copy = mid_cells.copy()
+            mid_cells_copy['distance_ring'] = pd.cut(mid_cells_copy['dist_from_center'], bins=5, labels=False)
+            
+            mid_samples = []
+            cells_per_ring = n_mid // 5
+            
+            for ring in range(5):
+                ring_cells = mid_cells_copy[mid_cells_copy['distance_ring'] == ring]
+                if len(ring_cells) > 0:
+                    n_from_ring = min(cells_per_ring, len(ring_cells))
+                    ring_sample = ring_cells.sample(n=n_from_ring, random_state=random_state + ring)
+                    mid_samples.append(ring_sample)
+            
+            if mid_samples:
+                mid_sample = pd.concat(mid_samples).head(n_mid)
+            else:
+                mid_sample = mid_cells.sample(n=n_mid, random_state=random_state)
+        else:
+            mid_sample = mid_cells
+        
+        sampled_parts.append(mid_sample)
+        print(f"Middle regions: {len(mid_sample):,} cells ({100*len(mid_sample)/len(mid_cells):.1f}% of {len(mid_cells):,} available)")
+    else:
+        mid_sample = pd.DataFrame()
+        print(f"Middle regions: 0 cells")
+    
+    # Region 4: Random fill to reach target (if needed)
+    current_total = sum(len(part) for part in sampled_parts)
+    remaining_target = max_cells - current_total
+    
+    if remaining_target > 0:
+        all_excluded = set()
+        for part in sampled_parts:
+            if len(part) > 0:
+                all_excluded.update(part.index)
+        
+        remaining_cells = df[~df.index.isin(all_excluded)]
+        
+        if len(remaining_cells) > 0:
+            n_random = min(random_max_cells, remaining_target, len(remaining_cells))
+            random_sample = remaining_cells.sample(n=n_random, random_state=random_state + 100)
+            sampled_parts.append(random_sample)
+            print(f"Random fill: {len(random_sample):,} cells ({100*len(random_sample)/len(remaining_cells):.1f}% of {len(remaining_cells):,} available)")
+        else:
+            print(f"Random fill: 0 cells (no cells remaining)")
+    
+    # Combine all parts
+    if sampled_parts:
+        final_sample = pd.concat(sampled_parts, ignore_index=True)
+        # Remove temporary columns
+        final_sample = final_sample.drop(columns=['dist_from_center', 'dist_to_edge'], errors='ignore')
+        if 'distance_ring' in final_sample.columns:
+            final_sample = final_sample.drop(columns=['distance_ring'])
+    else:
+        # Fallback: systematic sampling with fixed seed
+        np.random.seed(random_state)
+        final_sample = cell_positions.sample(n=min(max_cells, len(cell_positions)), random_state=random_state)
+    
+    print(f"=== Final Sample Summary ===")
+    print(f"Total sampled: {len(final_sample):,} / {max_cells:,} target")
+    print(f"Sampling efficiency: {100*len(final_sample)/len(cell_positions):.1f}% of original")
+    
+    # Verify deterministic behavior
+    i_range_sample = final_sample['i'].max() - final_sample['i'].min()
+    j_range_sample = final_sample['j'].max() - final_sample['j'].min()
+    print(f"Sample coverage: i={i_range_sample:.0f} ({100*i_range_sample/i_range:.1f}%), j={j_range_sample:.0f} ({100*j_range_sample/j_range:.1f}%)")
+    
+    return final_sample
+

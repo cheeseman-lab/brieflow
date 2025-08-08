@@ -163,7 +163,7 @@ try:
         sbs_positions=sbs_well,
         det_range=snakemake.params.det_range,
         score_threshold=snakemake.params.score,
-        max_cells_for_hash=50000,
+        max_cells_for_hash=75000,
         triangle_distance_threshold=0.3,
         min_matching_triangles=10,
         phenotype_pixel_size=phenotype_pixel_size,
@@ -269,3 +269,185 @@ print(f"✅ Alignment quality check passed:")
 print(f"   Determinant: {alignment['determinant']:.3f} (within bounds {adjusted_det_lower:.3f}-{adjusted_det_upper:.3f})")
 print(f"   Score: {alignment['score']:.3f} (above threshold {score_min})")
 print(f"   Transformation type: {transformation_type}")
+# ADD THIS ENTIRE SECTION TO THE END OF YOUR SCRIPT:
+
+print(f"\n=== DEBUG: About to start cell merging ===")
+print(f"Phenotype well cells: {len(phenotype_well)}")
+print(f"SBS well cells: {len(sbs_well)}")
+print(f"Alignment object type: {type(alignment)}")
+print(f"Output file path: {snakemake.output[0]}")
+
+import os
+output_dir = os.path.dirname(snakemake.output[0])
+print(f"Output directory: {output_dir}")
+print(f"Output directory exists: {os.path.exists(output_dir)}")
+if not os.path.exists(output_dir):
+    print("Creating output directory...")
+    os.makedirs(output_dir, exist_ok=True)
+
+# Try running with these improved parameters in your script:
+
+# 1. First, let's add some diagnostics before merging:
+print(f"\n=== Pre-Merge Diagnostics ===")
+print(f"Alignment translation: {alignment['translation']}")
+translation = alignment['translation']
+
+# Check coordinate ranges after transformation
+phenotype_coords = phenotype_well[['i', 'j']].values
+sbs_coords = sbs_well[['i', 'j']].values
+
+# Apply the transformation to see overlap
+transformed_phenotype = phenotype_coords + translation
+
+print(f"Original coordinate ranges:")
+print(f"  Phenotype: i=[{phenotype_coords[:, 0].min():.0f}, {phenotype_coords[:, 0].max():.0f}], j=[{phenotype_coords[:, 1].min():.0f}, {phenotype_coords[:, 1].max():.0f}]")
+print(f"  SBS: i=[{sbs_coords[:, 0].min():.0f}, {sbs_coords[:, 0].max():.0f}], j=[{sbs_coords[:, 1].min():.0f}, {sbs_coords[:, 1].max():.0f}]")
+
+print(f"After transformation:")
+print(f"  Transformed phenotype: i=[{transformed_phenotype[:, 0].min():.0f}, {transformed_phenotype[:, 0].max():.0f}], j=[{transformed_phenotype[:, 1].min():.0f}, {transformed_phenotype[:, 1].max():.0f}]")
+
+# Calculate overlap regions
+overlap_i_min = max(transformed_phenotype[:, 0].min(), sbs_coords[:, 0].min())
+overlap_i_max = min(transformed_phenotype[:, 0].max(), sbs_coords[:, 0].max())
+overlap_j_min = max(transformed_phenotype[:, 1].min(), sbs_coords[:, 1].min())
+overlap_j_max = min(transformed_phenotype[:, 1].max(), sbs_coords[:, 1].max())
+
+overlap_area = (overlap_i_max - overlap_i_min) * (overlap_j_max - overlap_j_min) if overlap_i_max > overlap_i_min and overlap_j_max > overlap_j_min else 0
+
+print(f"Overlap region: i=[{overlap_i_min:.0f}, {overlap_i_max:.0f}], j=[{overlap_j_min:.0f}, {overlap_j_max:.0f}]")
+print(f"Overlap area: {overlap_area:.0f} square pixels")
+
+if overlap_area <= 0:
+    print("⚠️  WARNING: No coordinate overlap detected after transformation!")
+    print("   This could explain the low merge rate.")
+
+# Count cells in overlap region
+phenotype_in_overlap = ((transformed_phenotype[:, 0] >= overlap_i_min) & (transformed_phenotype[:, 0] <= overlap_i_max) & 
+                       (transformed_phenotype[:, 1] >= overlap_j_min) & (transformed_phenotype[:, 1] <= overlap_j_max)).sum()
+
+sbs_in_overlap = ((sbs_coords[:, 0] >= overlap_i_min) & (sbs_coords[:, 0] <= overlap_i_max) & 
+                  (sbs_coords[:, 1] >= overlap_j_min) & (sbs_coords[:, 1] <= overlap_j_max)).sum()
+
+print(f"Cells in overlap region:")
+print(f"  Phenotype: {phenotype_in_overlap:,} ({100*phenotype_in_overlap/len(phenotype_well):.1f}%)")
+print(f"  SBS: {sbs_in_overlap:,} ({100*sbs_in_overlap/len(sbs_well):.1f}%)")
+
+expected_max_matches = min(phenotype_in_overlap, sbs_in_overlap)
+print(f"Expected max possible matches: {expected_max_matches:,}")
+
+if expected_max_matches > 0:
+    actual_merge_rate = 250 / expected_max_matches
+    print(f"Actual merge rate within overlap: {actual_merge_rate:.3f} ({100*actual_merge_rate:.1f}%)")
+
+# Merge cells using memory-efficient approach
+print("\n=== Merging Cells ===")
+try:
+    merged_cells = merge_stitched_cells(
+        phenotype_positions=phenotype_well,
+        sbs_positions=sbs_well,
+        alignment=alignment,
+        threshold=snakemake.params.threshold,
+        chunk_size=50000
+    )
+    print(f"✅ Cell merging completed successfully")
+    print(f"Merged cells type: {type(merged_cells)}")
+    print(f"Merged cells length: {len(merged_cells)}")
+
+    if len(merged_cells) == 0:
+        print("⚠️  No cells merged (no matches within distance threshold)")
+    else:
+        print(f"✅ Successfully merged {len(merged_cells):,} cells")
+        print(f"   Distance threshold: {snakemake.params.threshold}")
+        print(f"   Mean distance: {merged_cells['distance'].mean():.2f}")
+        print(f"   Max distance: {merged_cells['distance'].max():.2f}")
+
+    # Add metadata
+    if "plate" not in merged_cells.columns or merged_cells["plate"].isna().all():
+        merged_cells["plate"] = int(plate)
+    merged_cells["well"] = well
+
+    # Add tile and site columns for downstream compatibility
+    print("\n=== Adding Tile/Site Compatibility ===")
+    if "tile" not in merged_cells.columns:
+        merged_cells["tile"] = 1
+        print("✅ Using default tile=1 (stitched well-level data)")
+
+    if "site" not in merged_cells.columns:
+        merged_cells["site"] = 1
+        print("✅ Using default site=1 (stitched well-level data)")
+
+    # Verify critical columns
+    required_columns = ["plate", "well", "cell_0", "cell_1", "tile", "site"]
+    missing_required = [col for col in required_columns if col not in merged_cells.columns]
+
+    if missing_required:
+        print(f"❌ ERROR: Missing required columns: {missing_required}")
+    else:
+        print("✅ All required columns present for format_merge.py")
+
+    # Show sample
+    if len(merged_cells) > 0:
+        sample_cols = ["plate", "well", "cell_0", "cell_1", "tile", "site", "distance"]
+        print("Sample merged data:")
+        print(merged_cells[sample_cols].head())
+
+except Exception as e:
+    print(f"❌ Cell merging failed with error: {e}")
+    import traceback
+    traceback.print_exc()
+    
+    merged_cells = pd.DataFrame(columns=[
+        "plate", "well", "cell_0", "i_0", "j_0", "area_0",
+        "cell_1", "i_1", "j_1", "area_1", "distance", "tile", "site"
+    ])
+
+# Save results with debug output
+print(f"\n=== DEBUG: About to save results ===")
+print(f"Final merged_cells type: {type(merged_cells)}")
+print(f"Final merged_cells length: {len(merged_cells)}")
+print(f"Final merged_cells columns: {list(merged_cells.columns) if hasattr(merged_cells, 'columns') else 'No columns'}")
+print(f"Output file path: {snakemake.output[0]}")
+
+output_dir = os.path.dirname(snakemake.output[0])
+print(f"Output directory exists: {os.path.exists(output_dir)}")
+print(f"Output directory writable: {os.access(output_dir, os.W_OK) if os.path.exists(output_dir) else 'Directory does not exist'}")
+
+# Save results with error handling
+try:
+    print("Attempting to save parquet file...")
+    merged_cells.to_parquet(snakemake.output[0])
+    print(f"✅ Successfully saved to: {snakemake.output[0]}")
+    
+    # Verify file was created
+    if os.path.exists(snakemake.output[0]):
+        file_size = os.path.getsize(snakemake.output[0])
+        print(f"✅ Output file confirmed: {file_size} bytes")
+    else:
+        print(f"❌ Output file was not created!")
+        
+except Exception as e:
+    print(f"❌ Failed to save parquet file: {e}")
+    import traceback
+    traceback.print_exc()
+    
+    # Try alternative save methods
+    try:
+        print("Trying to save as CSV instead...")
+        csv_path = snakemake.output[0].replace('.parquet', '.csv')
+        merged_cells.to_csv(csv_path)
+        print(f"✅ Saved as CSV: {csv_path}")
+    except Exception as e2:
+        print(f"❌ CSV save also failed: {e2}")
+
+print(f"\n=== Results Saved ===")
+print(f"Output file: {snakemake.output[0]}")
+print(f"Final merged cells: {len(merged_cells):,}")
+
+if len(merged_cells) > 0:
+    print(f"Distance statistics:")
+    print(f"   Mean: {merged_cells['distance'].mean():.3f}")
+    print(f"   Std:  {merged_cells['distance'].std():.3f}")
+    print(f"   Min:  {merged_cells['distance'].min():.3f}")
+    print(f"   Max:  {merged_cells['distance'].max():.3f}")
+
+print("Metadata-aware well-level merge completed successfully!")

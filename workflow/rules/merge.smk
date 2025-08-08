@@ -151,13 +151,13 @@ rule enhanced_well_merge:
     output:
         MERGE_OUTPUTS_MAPPED["enhanced_well_merge"],
     params:
-        det_range=config["merge"]["det_range"],
-        score=config["merge"]["score"],
-        threshold=config["merge"]["threshold"],
+        det_range=config["merge"]["det_range"],           
+        score=config["merge"]["score"],                   
+        threshold=config["merge"]["threshold"],           
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
     resources:
-        mem_mb=32000,      # 32GB for safety with memory-efficient approach
+        mem_mb=32000,
         cpus_per_task=4,
         runtime=60
     script:

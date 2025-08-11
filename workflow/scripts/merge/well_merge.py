@@ -102,7 +102,8 @@ try:
             sbs_positions=sbs_well,
             alignment=alignment,
             threshold=snakemake.params.threshold,
-            chunk_size=50000
+            chunk_size=50000,
+            output_path=snakemake.output[0]
         )
         print(f"✅ Used triangle-hash alignment for merging")
         

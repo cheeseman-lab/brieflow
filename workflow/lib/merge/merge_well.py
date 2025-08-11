@@ -210,8 +210,9 @@ def merge_stitched_cells(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
     alignment: Dict[str, Any],
-    threshold: float = 2.0,
-    chunk_size: int = 50000
+    threshold: float = 10.0,
+    chunk_size: int = 50000,
+    output_path: str = None
 ) -> pd.DataFrame:
     """
     Merge cells using alignment transformation with memory-efficient processing.
@@ -315,11 +316,20 @@ def merge_stitched_cells(
     
     # Combine all chunks
     if all_matches:
-        merged_cells = pd.concat(all_matches, ignore_index=True)
+        merged_cells_raw = pd.concat(all_matches, ignore_index=True)
+        
+        print(f"Before deduplication: {len(merged_cells_raw):,} matches")
+        print(f"Duplicate phenotype cells: {merged_cells_raw['cell_0'].duplicated().sum():,}")
+        
+        # SAVE PRE-DEDUPLICATION MATCHES
+        raw_matches_path = snakemake.output[0].replace('.parquet', '_raw_matches.parquet')
+        merged_cells_raw.to_parquet(raw_matches_path)
+        print(f"✅ Saved raw matches (before deduplication) to: {raw_matches_path}")
         
         # Remove duplicate phenotype cells (keep best matches)
-        merged_cells = merged_cells.sort_values('distance').drop_duplicates('cell_0', keep='first')
+        merged_cells = merged_cells_raw.sort_values('distance').drop_duplicates('cell_0', keep='first')
         
+        print(f"After deduplication: {len(merged_cells):,} matches")
         print(f"Successfully merged {len(merged_cells):,} cells")
         print(f"Distance statistics: mean={merged_cells['distance'].mean():.2f}, max={merged_cells['distance'].max():.2f}")
         
@@ -697,40 +707,32 @@ print("2. Remove fallback to other alignment methods")
 print("3. Accept first triangle hash result that meets basic criteria")
 print("4. Optionally make det_range more permissive: [1e-6, 1e6]")
 
-"""
-Geographic constrained cell sampling with fixed seed for consistent triangle hash alignment
-"""
 
-import pandas as pd
-import numpy as np
-from typing import Tuple
 
 def geographic_constrained_sampling(
     cell_positions: pd.DataFrame,
     max_cells: int = 75000,
-    center_radius: float = 0.4,      # % of well radius for center region
-    center_max_cells: int = 75000,   # Take ALL cells from center (up to max)
-    edge_max_cells: int = 0,         # NO edge cells
-    mid_max_cells: int = 0,          # NO middle cells
-    random_max_cells: int = 0,       # NO random fill
+    center_radius: float = 0.4,      # Now used as OUTER boundary (keep for compatibility)
+    center_max_cells: int = 75000,   # Ignored in donut version
+    edge_max_cells: int = 0,         # Ignored in donut version
+    mid_max_cells: int = 0,          # Ignored in donut version
+    random_max_cells: int = 0,       # Ignored in donut version
     random_state: int = 42           # Fixed seed for reproducibility
 ) -> pd.DataFrame:
     """
-    Sample cells ONLY from the center region for full overlap scenarios.
-    Modified to focus entirely on center region.
+    Sample cells ONLY from the OUTER ring (donut shape) for better edge coverage.
+    
+    FIXED: Now properly calculates donut for each dataset's own coordinate system.
+    Each dataset (phenotype/SBS) gets its own circle calculation based on its actual cell positions.
     
     Args:
         cell_positions: DataFrame with cell positions
         max_cells: Total maximum cells to sample
-        center_radius: Fraction of well radius defining center region (0.5 = 50%)
-        center_max_cells: Maximum cells from center region (set to max_cells)
-        edge_max_cells: Set to 0 (no edge sampling)
-        mid_max_cells: Set to 0 (no middle sampling)  
-        random_max_cells: Set to 0 (no random sampling)
+        center_radius: Now interpreted as OUTER boundary (for compatibility)
         random_state: Fixed random seed
         
     Returns:
-        DataFrame with cells sampled only from center region
+        DataFrame with cells sampled from outer ring (donut shape)
     """
     if len(cell_positions) <= max_cells:
         return cell_positions
@@ -738,64 +740,98 @@ def geographic_constrained_sampling(
     # Set fixed seed for reproducibility
     np.random.seed(random_state)
     
-    print(f"=== Center-Only Sampling (Seed: {random_state}) ===")
+    # Define donut boundaries - OUTER ring sampling
+    inner_radius = 0.6   # Exclude inner 60% (dense center)
+    outer_radius = 1.0   # Include to edge (100%)
+    
+    print(f"=== Donut Sampling (Seed: {random_state}) ===")
     print(f"Original cells: {len(cell_positions):,}")
     print(f"Target total: {max_cells:,}")
-    print(f"Center region: {center_radius:.0%} radius, taking ALL cells from center")
+    print(f"FIXED: Calculating donut independently for this dataset's coordinate system")
+    print(f"Sampling OUTER {inner_radius:.0%}-{outer_radius:.0%} ring")
     
-    # Calculate well boundaries and center
-    i_min, i_max = cell_positions['i'].min(), cell_positions['i'].max()
-    j_min, j_max = cell_positions['j'].min(), cell_positions['j'].max()
+    # Calculate well boundaries and center FOR THIS SPECIFIC DATASET
+    i_coords = cell_positions['i'].values
+    j_coords = cell_positions['j'].values
+    
+    i_min, i_max = i_coords.min(), i_coords.max()
+    j_min, j_max = j_coords.min(), j_coords.max()
     i_range = i_max - i_min
     j_range = j_max - j_min
     
     center_i = (i_min + i_max) / 2
     center_j = (j_min + j_max) / 2
     
-    print(f"Well boundaries: i=[{i_min:.0f}, {i_max:.0f}], j=[{j_min:.0f}, {j_max:.0f}]")
-    print(f"Well center: ({center_i:.0f}, {center_j:.0f})")
-    print(f"Well dimensions: {i_range:.0f} × {j_range:.0f}")
+    print(f"Dataset boundaries: i=[{i_min:.0f}, {i_max:.0f}], j=[{j_min:.0f}, {j_max:.0f}]")
+    print(f"Dataset center: ({center_i:.0f}, {center_j:.0f})")
+    print(f"Dataset dimensions: {i_range:.0f} × {j_range:.0f}")
     
-    # Add distance from center
+    # FIXED: Calculate circular distance properly for each dataset
+    # Use the maximum of i_range and j_range to define the "radius" of the well
+    well_radius = max(i_range, j_range) / 2
+    print(f"Well radius: {well_radius:.0f} pixels")
+    
+    # Add distance from center in PIXELS (not normalized)
     df = cell_positions.copy()
-    
-    # Normalized distance from center (0 = center, 1 = corner)
-    df['dist_from_center'] = np.sqrt(
-        ((df['i'] - center_i) / i_range) ** 2 + 
-        ((df['j'] - center_j) / j_range) ** 2
+    df['dist_from_center_pixels'] = np.sqrt(
+        (df['i'] - center_i) ** 2 + (df['j'] - center_j) ** 2
     )
     
-    # Take ONLY cells from center region
-    center_mask = df['dist_from_center'] <= center_radius
-    center_cells = df[center_mask]
+    # Convert to normalized distance (0 = center, 1 = edge of well)
+    df['dist_from_center_norm'] = df['dist_from_center_pixels'] / well_radius
     
-    print(f"Cells in center region: {len(center_cells):,} ({100*len(center_cells)/len(cell_positions):.1f}% of total)")
+    print(f"Distance range: {df['dist_from_center_norm'].min():.3f} to {df['dist_from_center_norm'].max():.3f}")
+    print(f"Cells at various distances:")
+    print(f"  0-20%: {(df['dist_from_center_norm'] <= 0.2).sum():,}")
+    print(f"  20-40%: {((df['dist_from_center_norm'] > 0.2) & (df['dist_from_center_norm'] <= 0.4)).sum():,}")
+    print(f"  40-60%: {((df['dist_from_center_norm'] > 0.4) & (df['dist_from_center_norm'] <= 0.6)).sum():,}")
+    print(f"  60-80%: {((df['dist_from_center_norm'] > 0.6) & (df['dist_from_center_norm'] <= 0.8)).sum():,}")
+    print(f"  80-100%: {((df['dist_from_center_norm'] > 0.8) & (df['dist_from_center_norm'] <= 1.0)).sum():,}")
+    print(f"  >100%: {(df['dist_from_center_norm'] > 1.0).sum():,}")
     
-    if len(center_cells) == 0:
-        print("❌ No cells found in center region! Try increasing center_radius")
-        return pd.DataFrame()
+    # Take ONLY cells from donut region (OUTER ring)
+    donut_mask = (df['dist_from_center_norm'] >= inner_radius) & (df['dist_from_center_norm'] <= outer_radius)
+    donut_cells = df[donut_mask]
     
-    # Sample from center region only
-    if len(center_cells) > max_cells:
-        # Sample max_cells from center, prioritizing cells closest to true center
-        print(f"Sampling {max_cells:,} cells closest to center")
-        center_sample = center_cells.nsmallest(max_cells, 'dist_from_center')
+    print(f"Cells in outer ring ({inner_radius:.0%}-{outer_radius:.0%}): {len(donut_cells):,} ({100*len(donut_cells)/len(cell_positions):.1f}% of total)")
+    
+    if len(donut_cells) == 0:
+        print("❌ No cells found in outer ring! Trying wider range...")
+        # Try a wider range if no cells found
+        wider_inner = 0.4  # Try 40% instead of 60%
+        donut_mask_wider = (df['dist_from_center_norm'] >= wider_inner) & (df['dist_from_center_norm'] <= outer_radius)
+        donut_cells = df[donut_mask_wider]
+        print(f"Trying {wider_inner:.0%}-{outer_radius:.0%}: {len(donut_cells):,} cells")
+        
+        if len(donut_cells) == 0:
+            print("❌ Still no cells! Falling back to all cells")
+            donut_cells = df
+    
+    # Sample from outer ring
+    if len(donut_cells) > max_cells:
+        # Sample max_cells from outer ring, prioritizing middle of ring
+        target_radius = (inner_radius + outer_radius) / 2  # Target ~80% radius
+        donut_cells['dist_from_target'] = abs(donut_cells['dist_from_center_norm'] - target_radius)
+        print(f"Sampling {max_cells:,} cells closest to target radius {target_radius:.0%}")
+        donut_sample = donut_cells.nsmallest(max_cells, 'dist_from_target')
+        donut_sample = donut_sample.drop(columns=['dist_from_target'])
     else:
-        # Take all center cells if we don't have enough
-        print(f"Taking all {len(center_cells):,} center cells (less than target)")
-        center_sample = center_cells
+        # Take all outer ring cells if we don't have enough
+        print(f"Taking all {len(donut_cells):,} outer ring cells (less than target)")
+        donut_sample = donut_cells
     
     # Remove temporary columns
-    final_sample = center_sample.drop(columns=['dist_from_center'], errors='ignore')
+    final_sample = donut_sample.drop(columns=['dist_from_center_pixels', 'dist_from_center_norm'], errors='ignore')
     
-    print(f"=== Center-Only Sample Summary ===")
+    print(f"=== Donut Sample Summary ===")
     print(f"Total sampled: {len(final_sample):,} / {max_cells:,} target")
-    print(f"All cells from center {center_radius:.0%} region")
+    print(f"All cells from OUTER ring of THIS dataset's coordinate system")
     print(f"Sampling efficiency: {100*len(final_sample)/len(cell_positions):.1f}% of original")
     
     # Verify coverage
-    i_range_sample = final_sample['i'].max() - final_sample['i'].min()
-    j_range_sample = final_sample['j'].max() - final_sample['j'].min()
-    print(f"Sample coverage: i={i_range_sample:.0f} ({100*i_range_sample/i_range:.1f}%), j={j_range_sample:.0f} ({100*j_range_sample/j_range:.1f}%)")
+    if len(final_sample) > 0:
+        i_range_sample = final_sample['i'].max() - final_sample['i'].min()
+        j_range_sample = final_sample['j'].max() - final_sample['j'].min()
+        print(f"Sample coverage: i={i_range_sample:.0f} ({100*i_range_sample/i_range:.1f}%), j={j_range_sample:.0f} ({100*j_range_sample/j_range:.1f}%)")
     
     return final_sample

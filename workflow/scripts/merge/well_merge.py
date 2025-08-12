@@ -96,13 +96,22 @@ def main():
         
         # Create empty alignment file
         empty_alignment = pd.DataFrame([{
-            'rotation': [[1.0, 0.0], [0.0, 1.0]],
-            'translation': [0.0, 0.0],
+            'rotation_matrix_flat': [1.0, 0.0, 0.0, 1.0],
+            'translation_vector': [0.0, 0.0],
             'score': 0.0,
             'determinant': 1.0,
             'transformation_type': 'failed_triangulation',
-            'scale_factor': scale_factor,
-            'approach': 'triangulation_failed'
+            'scale_factor': float(scale_factor),
+            'approach': 'triangulation_failed',
+            'overlap_fraction': 0.0,
+            'validation_mean_distance': 0.0,
+            'validation_median_distance': 0.0,
+            'has_overlap': False,
+            'score_2px': 0.0,
+            'score_5px': 0.0,
+            'score_10px': 0.0,
+            'score_20px': 0.0,
+            'score_50px': 0.0
         }])
         empty_alignment.to_parquet(snakemake.output.alignment_params)
         
@@ -184,7 +193,11 @@ def main():
             'determinant': 1.0,
             'transformation_type': 'identity_after_scaling',
             'scale_factor': scale_factor,
-            'approach': 'identity_fallback'
+            'approach': 'identity_fallback',
+            'overlap_fraction': overlap_fraction,
+            'validation_mean_distance': min_distances.mean(),
+            'validation_median_distance': np.median(min_distances),
+            'has_overlap': has_overlap
         }
         alignment_approach = "identity_fallback"
         
@@ -193,7 +206,7 @@ def main():
     print(f"✅ Using {alignment_approach} alignment approach")
     
     if alignment_result.empty:
-        print("❌ Pure scaling alignment failed")
+        print("❌ Alignment failed")
         # Create empty outputs
         empty_df = pd.DataFrame(columns=[
             'cell_0', 'i_0', 'j_0', 'area_0',
@@ -203,13 +216,22 @@ def main():
         
         # Create empty alignment file with proper structure
         empty_alignment = pd.DataFrame([{
-            'rotation': [[1.0, 0.0], [0.0, 1.0]],  # Identity matrix as list
-            'translation': [0.0, 0.0],  # Zero translation as list
+            'rotation_matrix_flat': [1.0, 0.0, 0.0, 1.0],
+            'translation_vector': [0.0, 0.0],
             'score': 0.0,
             'determinant': 1.0,
             'transformation_type': 'failed_alignment',
-            'scale_factor': scale_factor,
-            'approach': 'alignment_failed'
+            'scale_factor': float(scale_factor),
+            'approach': 'alignment_failed',
+            'overlap_fraction': 0.0,
+            'validation_mean_distance': 0.0,
+            'validation_median_distance': 0.0,
+            'has_overlap': False,
+            'score_2px': 0.0,
+            'score_5px': 0.0,
+            'score_10px': 0.0,
+            'score_20px': 0.0,
+            'score_50px': 0.0
         }])
         empty_alignment.to_parquet(snakemake.output.alignment_params)
         
@@ -220,33 +242,64 @@ def main():
     
     best_alignment = alignment_result.iloc[0]
     print(f"✅ Alignment successful:")
-    scale_factor = best_alignment.get('scale_factor', 'N/A')
-    print(f"   Scale factor: {scale_factor}")
-    print(f"   Score (10px): {best_alignment['score']:.3f}")
-    mean_dist = best_alignment.get('validation_mean_distance', 0)
-    print(f"   Mean distance: {mean_dist if mean_dist != 'N/A' else 'N/A'}")
-    print(f"   Overlap: {best_alignment.get('overlap_fraction', 0)*100:.1f}%")
+    
+    # Safe printing with proper handling of missing keys
+    alignment_scale_factor = best_alignment.get('scale_factor', scale_factor)
+    print(f"   Scale factor: {alignment_scale_factor}")
+    print(f"   Score (10px): {best_alignment.get('score', 0):.3f}")
+    
+    mean_dist = best_alignment.get('validation_mean_distance', 0.0)
+    if isinstance(mean_dist, (int, float)) and mean_dist > 0:
+        print(f"   Mean distance: {mean_dist:.2f} px")
+    else:
+        print(f"   Mean distance: N/A")
+    
+    overlap_frac = best_alignment.get('overlap_fraction', 0.0)
+    print(f"   Overlap: {overlap_frac*100:.1f}%")
     
     # Save alignment parameters as separate output
-    # Extract only the essential parameters for Parquet serialization
+    # Extract only the essential parameters for Parquet serialization with safe conversions
+    rotation_matrix = best_alignment.get('rotation', np.eye(2))
+    if not isinstance(rotation_matrix, np.ndarray):
+        rotation_matrix = np.eye(2)
+    
+    translation_vector = best_alignment.get('translation', np.array([0.0, 0.0]))
+    if not isinstance(translation_vector, np.ndarray):
+        translation_vector = np.array([0.0, 0.0])
+    
+    # Safe conversion with proper defaults
+    def safe_float(value, default=0.0):
+        """Safely convert value to float, return default if not possible."""
+        try:
+            if isinstance(value, str) and value.lower() in ['n/a', 'na', 'none']:
+                return default
+            return float(value)
+        except (ValueError, TypeError):
+            return default
+    
+    # Get scores by threshold safely
+    scores_by_threshold = best_alignment.get('scores_by_threshold', {})
+    if not isinstance(scores_by_threshold, dict):
+        scores_by_threshold = {}
+    
     essential_alignment = pd.DataFrame([{
-        'rotation_matrix_flat': best_alignment['rotation'].flatten().tolist(),  # Flatten 2x2 matrix to list
-        'translation_vector': best_alignment['translation'].tolist(),
-        'scale_factor': float(best_alignment.get('scale_factor', 'N/A')),
-        'score': float(best_alignment['score']),
-        'determinant': float(best_alignment['determinant']),
-        'transformation_type': str(best_alignment['transformation_type']),
-        'approach': str(best_alignment['approach']),
-        'overlap_fraction': float(best_alignment.get('overlap_fraction', 0)),
-        'validation_mean_distance': float(best_alignment.get('validation_mean_distance', 0.0)),
-        'validation_median_distance': float(best_alignment.get('validation_median_distance', 0.0)),
-        'has_overlap': bool(best_alignment.get('has_overlap', True)),
+        'rotation_matrix_flat': rotation_matrix.flatten().tolist(),
+        'translation_vector': translation_vector.tolist(),
+        'scale_factor': safe_float(alignment_scale_factor, scale_factor),
+        'score': safe_float(best_alignment.get('score', 0)),
+        'determinant': safe_float(best_alignment.get('determinant', 1)),
+        'transformation_type': str(best_alignment.get('transformation_type', 'unknown')),
+        'approach': str(best_alignment.get('approach', 'unknown')),
+        'overlap_fraction': safe_float(best_alignment.get('overlap_fraction', overlap_fraction)),
+        'validation_mean_distance': safe_float(best_alignment.get('validation_mean_distance', 0.0)),
+        'validation_median_distance': safe_float(best_alignment.get('validation_median_distance', 0.0)),
+        'has_overlap': bool(best_alignment.get('has_overlap', has_overlap)),
         # Save individual threshold scores as separate columns
-        'score_2px': float(best_alignment.get('scores_by_threshold', {}).get(2, 0.0)),
-        'score_5px': float(best_alignment.get('scores_by_threshold', {}).get(5, 0.0)),
-        'score_10px': float(best_alignment.get('scores_by_threshold', {}).get(10, 0.0)),
-        'score_20px': float(best_alignment.get('scores_by_threshold', {}).get(20, 0.0)),
-        'score_50px': float(best_alignment.get('scores_by_threshold', {}).get(50, 0.0))
+        'score_2px': safe_float(scores_by_threshold.get(2, 0.0)),
+        'score_5px': safe_float(scores_by_threshold.get(5, 0.0)),
+        'score_10px': safe_float(scores_by_threshold.get(10, 0.0)),
+        'score_20px': safe_float(scores_by_threshold.get(20, 0.0)),
+        'score_50px': safe_float(scores_by_threshold.get(50, 0.0))
     }])
     
     essential_alignment.to_parquet(snakemake.output.alignment_params)
@@ -320,17 +373,17 @@ def main():
         'plate': plate,
         'well': well,
         'processing_parameters': {
-            'scale_factor': scale_factor,
-            'distance_threshold_pixels': threshold
+            'scale_factor': float(scale_factor),
+            'distance_threshold_pixels': float(threshold)
         },
         'input_data': {
             'phenotype_cells_total': len(phenotype_positions),
             'phenotype_cells_scaled': len(phenotype_scaled),
             'sbs_cells_total': len(sbs_positions),
-            'coordinate_overlap_fraction': overlap_fraction
+            'coordinate_overlap_fraction': float(overlap_fraction)
         },
         'step1_coordinate_scaling': {
-            'scale_factor': scale_factor,
+            'scale_factor': float(scale_factor),
             'phenotype_range_original': {
                 'i_min': float(phenotype_positions['i'].min()),
                 'i_max': float(phenotype_positions['i'].max()),
@@ -343,7 +396,7 @@ def main():
                 'j_min': float(phenotype_scaled['j'].min()),
                 'j_max': float(phenotype_scaled['j'].max())
             },
-            'overlap_fraction': overlap_fraction
+            'overlap_fraction': float(overlap_fraction)
         },
         'step2_triangle_hashing': {
             'phenotype_triangles': len(phenotype_triangles),
@@ -352,9 +405,9 @@ def main():
         },
         'step3_alignment': {
             'approach_used': alignment_approach,
-            'scale_factor_used': float(best_alignment.get('scale_factor', scale_factor)),
-            'alignment_score': float(best_alignment.get('score', 0)),
-            'determinant': float(best_alignment.get('determinant', 1)),
+            'scale_factor_used': safe_float(best_alignment.get('scale_factor', scale_factor)),
+            'alignment_score': safe_float(best_alignment.get('score', 0)),
+            'determinant': safe_float(best_alignment.get('determinant', 1)),
             'transformation_type': str(best_alignment.get('transformation_type', 'unknown'))
         },
         'step4_cell_merging': {

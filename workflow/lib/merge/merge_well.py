@@ -123,45 +123,51 @@ def triangle_hash_well_alignment(
     max_cells_for_hash: int = 75000,
     threshold_triangle: float = 0.1,
     threshold_point: float = 2.0,
-    min_score: float = 0.1,
+    min_score: float = 0.05,
     **kwargs
 ) -> pd.DataFrame:
     """
-    Fast triangle hash with consistent center sampling.
+    Triangle hash alignment for well-level data.
+    
+    Args:
+        phenotype_positions: Phenotype cell positions (should be pre-scaled)
+        sbs_positions: SBS cell positions
+        max_cells_for_hash: Maximum cells to use for triangle generation
+        threshold_triangle: Triangle similarity threshold
+        threshold_point: Point distance threshold
+        min_score: Minimum score to accept alignment
+        
+    Returns:
+        DataFrame with alignment parameters or empty DataFrame if failed
     """
-    print(f"Starting proven triangle hash alignment with {len(phenotype_positions):,} phenotype and {len(sbs_positions):,} SBS cells")
+    print(f"Triangle hash alignment with {len(phenotype_positions):,} phenotype and {len(sbs_positions):,} SBS cells")
     
     if len(phenotype_positions) < 4 or len(sbs_positions) < 4:
         print("Insufficient cells for triangulation")
         return pd.DataFrame()
     
-    # Use CONSISTENT center radius for both modalities
-    CENTER_RADIUS = 0.4  # 40% for both
-    
+    # Sample cells if datasets are too large
     if len(phenotype_positions) > max_cells_for_hash:
-        print(f"Center sampling phenotype cells from {len(phenotype_positions):,} to {max_cells_for_hash:,}")
         pheno_subset = geographic_constrained_sampling(
             phenotype_positions,
             max_cells=max_cells_for_hash,
-            center_radius=CENTER_RADIUS,  # Consistent 40%
+            center_radius=0.4,
             random_state=42
         )
     else:
         pheno_subset = phenotype_positions.copy()
         
     if len(sbs_positions) > max_cells_for_hash:
-        print(f"Center sampling SBS cells from {len(sbs_positions):,} to {max_cells_for_hash:,}")
         sbs_subset = geographic_constrained_sampling(
             sbs_positions,
             max_cells=max_cells_for_hash,
-            center_radius=CENTER_RADIUS,  # Same 40% for consistency
+            center_radius=0.4,
             random_state=42
         )
     else:
         sbs_subset = sbs_positions.copy()
     
-    # Rest of function stays the same...
-    print("Generating triangle hashes using proven nine-edge approach...")
+    # Generate triangle hashes
     pheno_triangles = well_level_triangle_hash(pheno_subset)
     sbs_triangles = well_level_triangle_hash(sbs_subset)
     
@@ -171,7 +177,7 @@ def triangle_hash_well_alignment(
     
     print(f"Generated {len(pheno_triangles)} phenotype and {len(sbs_triangles)} SBS triangles")
     
-    print("Evaluating match using FAST approach...")
+    # Evaluate triangle hash match
     rotation, translation, score = evaluate_well_match(
         pheno_triangles, sbs_triangles, 
         threshold_triangle=threshold_triangle,
@@ -179,15 +185,14 @@ def triangle_hash_well_alignment(
     )
     
     if rotation is None or score < min_score:
-        print(f"Match evaluation failed: score={score:.3f} < {min_score}")
+        print(f"Triangle hash match failed: score={score:.3f} < {min_score}")
         return pd.DataFrame()
     
     determinant = np.linalg.det(rotation)
     
-    print(f"✅ FAST approach successful:")
+    print(f"✅ Triangle hash alignment successful:")
     print(f"   Score: {score:.3f}")
     print(f"   Determinant: {determinant:.6f}")
-    print(f"   Translation: [{translation[0]:.1f}, {translation[1]:.1f}]")
     
     # Build result
     alignment = {
@@ -195,9 +200,9 @@ def triangle_hash_well_alignment(
         'translation': translation,
         'score': score,
         'determinant': determinant,
-        'transformation_type': 'proven_nine_edge_hash_fast',
+        'transformation_type': 'triangle_hash_well_level',
         'triangles_matched': len(pheno_triangles),
-        'approach': 'fast_fixed_seed'
+        'approach': 'triangle_hash_after_scaling'
     }
     
     return pd.DataFrame([alignment])
@@ -318,9 +323,12 @@ def merge_stitched_cells(
         print(f"Duplicate phenotype cells: {merged_cells_raw['cell_0'].duplicated().sum():,}")
         
         # SAVE PRE-DEDUPLICATION MATCHES
-        raw_matches_path = snakemake.output[0].replace('.parquet', '_raw_matches.parquet')
-        merged_cells_raw.to_parquet(raw_matches_path)
-        print(f"✅ Saved raw matches (before deduplication) to: {raw_matches_path}")
+        if output_path:
+            raw_matches_path = output_path.replace('.parquet', '_raw_matches.parquet')
+            merged_cells_raw.to_parquet(raw_matches_path)
+            print(f"✅ Saved raw matches (before deduplication) to: {raw_matches_path}")
+        else:
+            print("⚠️ No output path provided - skipping raw matches save")
         
         # Remove duplicate phenotype cells (keep best matches)
         merged_cells = merged_cells_raw.sort_values('distance').drop_duplicates('cell_0', keep='first')
@@ -680,27 +688,27 @@ def enhanced_well_merge_no_fallback(
 def geographic_constrained_sampling(
     cell_positions: pd.DataFrame,
     max_cells: int = 75000,
-    center_radius: float = 0.4,      # Now used as OUTER boundary (keep for compatibility)
-    center_max_cells: int = 75000,   # Ignored in donut version
-    edge_max_cells: int = 0,         # Ignored in donut version
-    mid_max_cells: int = 0,          # Ignored in donut version
-    random_max_cells: int = 0,       # Ignored in donut version
+    center_radius: float = 0.4,      # Use center region instead of donut
+    center_max_cells: int = 75000,   # Take ALL cells from center (up to max)
+    edge_max_cells: int = 0,         # NO edge cells
+    mid_max_cells: int = 0,          # NO middle cells
+    random_max_cells: int = 0,       # NO random fill
     random_state: int = 42           # Fixed seed for reproducibility
 ) -> pd.DataFrame:
     """
-    Sample cells ONLY from the OUTER ring (donut shape) for better edge coverage.
+    Sample cells from the CENTER region for stable triangle hash alignment.
     
-    FIXED: Now properly calculates donut for each dataset's own coordinate system.
-    Each dataset (phenotype/SBS) gets its own circle calculation based on its actual cell positions.
+    CHANGED BACK: Now sampling from center region instead of outer donut.
+    Center cells provide more stable triangulation for alignment.
     
     Args:
         cell_positions: DataFrame with cell positions
         max_cells: Total maximum cells to sample
-        center_radius: Now interpreted as OUTER boundary (for compatibility)
+        center_radius: Fraction of well radius defining center region (0.4 = 40%)
         random_state: Fixed random seed
         
     Returns:
-        DataFrame with cells sampled from outer ring (donut shape)
+        DataFrame with cells sampled from center region
     """
     if len(cell_positions) <= max_cells:
         return cell_positions
@@ -708,15 +716,10 @@ def geographic_constrained_sampling(
     # Set fixed seed for reproducibility
     np.random.seed(random_state)
     
-    # Define donut boundaries - OUTER ring sampling
-    inner_radius = 0.7   # Exclude inner 60% (dense center)
-    outer_radius = 1.0   # Include to edge (100%)
-    
-    print(f"=== Donut Sampling (Seed: {random_state}) ===")
+    print(f"=== Center Sampling (Seed: {random_state}) ===")
     print(f"Original cells: {len(cell_positions):,}")
     print(f"Target total: {max_cells:,}")
-    print(f"FIXED: Calculating donut independently for this dataset's coordinate system")
-    print(f"Sampling OUTER {inner_radius:.0%}-{outer_radius:.0%} ring")
+    print(f"CHANGED BACK: Now sampling CENTER {center_radius:.0%} region (not donut)")
     
     # Calculate well boundaries and center FOR THIS SPECIFIC DATASET
     i_coords = cell_positions['i'].values
@@ -734,8 +737,7 @@ def geographic_constrained_sampling(
     print(f"Dataset center: ({center_i:.0f}, {center_j:.0f})")
     print(f"Dataset dimensions: {i_range:.0f} × {j_range:.0f}")
     
-    # FIXED: Calculate circular distance properly for each dataset
-    # Use the maximum of i_range and j_range to define the "radius" of the well
+    # Calculate circular distance for each dataset independently
     well_radius = max(i_range, j_range) / 2
     print(f"Well radius: {well_radius:.0f} pixels")
     
@@ -757,43 +759,40 @@ def geographic_constrained_sampling(
     print(f"  80-100%: {((df['dist_from_center_norm'] > 0.8) & (df['dist_from_center_norm'] <= 1.0)).sum():,}")
     print(f"  >100%: {(df['dist_from_center_norm'] > 1.0).sum():,}")
     
-    # Take ONLY cells from donut region (OUTER ring)
-    donut_mask = (df['dist_from_center_norm'] >= inner_radius) & (df['dist_from_center_norm'] <= outer_radius)
-    donut_cells = df[donut_mask]
+    # Take ONLY cells from CENTER region
+    center_mask = df['dist_from_center_norm'] <= center_radius
+    center_cells = df[center_mask]
     
-    print(f"Cells in outer ring ({inner_radius:.0%}-{outer_radius:.0%}): {len(donut_cells):,} ({100*len(donut_cells)/len(cell_positions):.1f}% of total)")
+    print(f"Cells in center region (0%-{center_radius:.0%}): {len(center_cells):,} ({100*len(center_cells)/len(cell_positions):.1f}% of total)")
     
-    if len(donut_cells) == 0:
-        print("❌ No cells found in outer ring! Trying wider range...")
+    if len(center_cells) == 0:
+        print("❌ No cells found in center region! Trying wider range...")
         # Try a wider range if no cells found
-        wider_inner = 0.4  # Try 40% instead of 60%
-        donut_mask_wider = (df['dist_from_center_norm'] >= wider_inner) & (df['dist_from_center_norm'] <= outer_radius)
-        donut_cells = df[donut_mask_wider]
-        print(f"Trying {wider_inner:.0%}-{outer_radius:.0%}: {len(donut_cells):,} cells")
+        wider_radius = 0.6  # Try 60% instead of 40%
+        center_mask_wider = df['dist_from_center_norm'] <= wider_radius
+        center_cells = df[center_mask_wider]
+        print(f"Trying 0%-{wider_radius:.0%}: {len(center_cells):,} cells")
         
-        if len(donut_cells) == 0:
+        if len(center_cells) == 0:
             print("❌ Still no cells! Falling back to all cells")
-            donut_cells = df
+            center_cells = df
     
-    # Sample from outer ring
-    if len(donut_cells) > max_cells:
-        # Sample max_cells from outer ring, prioritizing middle of ring
-        target_radius = (inner_radius + outer_radius) / 2  # Target ~80% radius
-        donut_cells['dist_from_target'] = abs(donut_cells['dist_from_center_norm'] - target_radius)
-        print(f"Sampling {max_cells:,} cells closest to target radius {target_radius:.0%}")
-        donut_sample = donut_cells.nsmallest(max_cells, 'dist_from_target')
-        donut_sample = donut_sample.drop(columns=['dist_from_target'])
+    # Sample from center region
+    if len(center_cells) > max_cells:
+        # Sample max_cells from center, prioritizing cells closest to true center
+        print(f"Sampling {max_cells:,} cells closest to center")
+        center_sample = center_cells.nsmallest(max_cells, 'dist_from_center_norm')
     else:
-        # Take all outer ring cells if we don't have enough
-        print(f"Taking all {len(donut_cells):,} outer ring cells (less than target)")
-        donut_sample = donut_cells
+        # Take all center cells if we don't have enough
+        print(f"Taking all {len(center_cells):,} center cells (less than target)")
+        center_sample = center_cells
     
     # Remove temporary columns
-    final_sample = donut_sample.drop(columns=['dist_from_center_pixels', 'dist_from_center_norm'], errors='ignore')
+    final_sample = center_sample.drop(columns=['dist_from_center_pixels', 'dist_from_center_norm'], errors='ignore')
     
-    print(f"=== Donut Sample Summary ===")
+    print(f"=== Center Sample Summary ===")
     print(f"Total sampled: {len(final_sample):,} / {max_cells:,} target")
-    print(f"All cells from OUTER ring of THIS dataset's coordinate system")
+    print(f"All cells from CENTER region of THIS dataset's coordinate system")
     print(f"Sampling efficiency: {100*len(final_sample)/len(cell_positions):.1f}% of original")
     
     # Verify coverage
@@ -804,7 +803,6 @@ def geographic_constrained_sampling(
     
     return final_sample
 
-    # ADD this new function to your merge_well.py library
 
 def hardcoded_scale_alignment(
     phenotype_positions: pd.DataFrame,
@@ -1326,10 +1324,14 @@ def test_multiple_scale_factors(
         best_idx = results_df['score'].idxmax()
         best_result = results_df.iloc[best_idx:best_idx+1].copy()
         
-        print(f"\n✅ Best scale factor: {best_result.iloc[0]['scale_factor']:.6f}")
-        print(f"   Score: {best_result.iloc[0]['score']:.3f}")
-        print(f"   Mean distance: {best_result.iloc[0]['validation_mean_distance']:.1f} px")
-        print(f"   Overlap: {best_result.iloc[0]['overlap_fraction']*100:.1f}%")
+        # Fix: Use best_result instead of best_alignment
+        best_alignment = best_result.iloc[0]  # Get the series
+        scale_factor = best_alignment.get('scale_factor', 'N/A')
+        mean_distance = best_alignment.get('validation_mean_distance', 'N/A')
+        print(f"\n✅ Best scale factor: {scale_factor}")
+        print(f"   Score: {best_alignment.get('score', 'N/A'):.3f}")
+        print(f"   Mean distance: {mean_distance}")
+        print(f"   Overlap: {best_alignment.get('overlap_fraction', 0)*100:.1f}%")
         
         return best_result
     else:

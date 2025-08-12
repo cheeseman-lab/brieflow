@@ -141,28 +141,27 @@ rule fast_alignment:
     script:
         "../scripts/merge/fast_alignment.py"
 
-
 rule enhanced_well_merge:
     input:
         phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"],
         sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"],
-        phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
-        sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
     output:
-        MERGE_OUTPUTS_MAPPED["enhanced_well_merge"],
+        merged_cells=MERGE_OUTPUTS_MAPPED["enhanced_well_merge"],
+        phenotype_triangles=MERGE_FP / "triangle_hashes" / "{plate}" / "{well}" / "phenotype_triangles.parquet",
+        sbs_triangles=MERGE_FP / "triangle_hashes" / "{plate}" / "{well}" / "sbs_triangles.parquet", 
+        alignment_params=MERGE_FP / "alignments" / "{plate}" / "{well}" / "alignment.parquet",
+        merge_summary=MERGE_FP / "summaries" / "{plate}" / "{well}" / "merge_summary.yaml",
     params:
-        det_range=config["merge"]["det_range"],           
-        score=config["merge"]["score"],                   
         threshold=config["merge"]["threshold"],           
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
+        scale_factor=config.get("merge", {}).get("scale_factor", 0.125),
     resources:
         mem_mb=32000,
         cpus_per_task=4,
         runtime=60
     script:
         "../scripts/merge/well_merge.py"
-
 
 # Original merge approach (tile-by-tile)
 rule merge_legacy:

@@ -65,10 +65,6 @@ def well_level_triangle_hash(positions_df: pd.DataFrame) -> pd.DataFrame:
         print(f"Triangle hash generation failed: {e}")
         return pd.DataFrame()
 
-
-# REPLACE this function in your merge_well.py file
-# It's around lines 70-120 in your current file
-
 def evaluate_well_match(
     vec_centers_0: pd.DataFrame, 
     vec_centers_1: pd.DataFrame, 
@@ -681,34 +677,6 @@ def enhanced_well_merge_no_fallback(
         return pd.DataFrame()
 
 
-# Simple replacement for your current merge function
-def replace_current_merge_logic():
-    """
-    Instructions for replacing your current merge logic:
-    
-    1. Replace your current alignment quality check with:
-       check_alignment_quality_permissive()
-       
-    2. Remove any fallback alignment attempts
-    
-    3. Use the first triangle hash result that meets your criteria
-    
-    4. If you want to be even more permissive, just check:
-       - det > 0 (positive determinant)
-       - score > your_threshold
-       And ignore the det_range entirely
-    """
-    pass
-
-print("=== Usage Instructions ===")
-print("To implement this change:")
-print("1. Replace your current alignment quality check")
-print("2. Remove fallback to other alignment methods") 
-print("3. Accept first triangle hash result that meets basic criteria")
-print("4. Optionally make det_range more permissive: [1e-6, 1e6]")
-
-
-
 def geographic_constrained_sampling(
     cell_positions: pd.DataFrame,
     max_cells: int = 75000,
@@ -741,7 +709,7 @@ def geographic_constrained_sampling(
     np.random.seed(random_state)
     
     # Define donut boundaries - OUTER ring sampling
-    inner_radius = 0.6   # Exclude inner 60% (dense center)
+    inner_radius = 0.7   # Exclude inner 60% (dense center)
     outer_radius = 1.0   # Include to edge (100%)
     
     print(f"=== Donut Sampling (Seed: {random_state}) ===")
@@ -835,3 +803,559 @@ def geographic_constrained_sampling(
         print(f"Sample coverage: i={i_range_sample:.0f} ({100*i_range_sample/i_range:.1f}%), j={j_range_sample:.0f} ({100*j_range_sample/j_range:.1f}%)")
     
     return final_sample
+
+    # ADD this new function to your merge_well.py library
+
+def hardcoded_scale_alignment(
+    phenotype_positions: pd.DataFrame,
+    sbs_positions: pd.DataFrame,
+    scale_factor: float = 0.125,  # 1/8 for phenotype->SBS
+    max_cells_for_translation: int = 10000,
+    random_state: int = 42
+) -> pd.DataFrame:
+    """
+    Use hardcoded scale factor and only learn translation from data.
+    
+    Args:
+        phenotype_positions: Phenotype cell positions
+        sbs_positions: SBS cell positions  
+        scale_factor: Fixed scale factor (default 0.125 = 1/8)
+        max_cells_for_translation: Max cells to use for translation learning
+        random_state: Random seed for sampling
+        
+    Returns:
+        DataFrame with alignment result
+    """
+    print(f"=== Hardcoded Scale + Learned Translation ===")
+    print(f"Using fixed scale factor: {scale_factor}")
+    print(f"Learning translation from {max_cells_for_translation:,} cell pairs")
+    
+    # Sample cells for translation learning (use center cells for stability)
+    if len(phenotype_positions) > max_cells_for_translation:
+        pheno_sample = geographic_constrained_sampling(
+            phenotype_positions, 
+            max_cells=max_cells_for_translation,
+            center_radius=0.3,  # Use center 30% for stable translation
+            random_state=random_state
+        )
+    else:
+        pheno_sample = phenotype_positions.copy()
+        
+    if len(sbs_positions) > max_cells_for_translation:
+        sbs_sample = geographic_constrained_sampling(
+            sbs_positions, 
+            max_cells=max_cells_for_translation,
+            center_radius=0.3,  # Same center region
+            random_state=random_state
+        )
+    else:
+        sbs_sample = sbs_positions.copy()
+    
+    print(f"Using {len(pheno_sample):,} phenotype and {len(sbs_sample):,} SBS cells for translation")
+    
+    # Build hardcoded transformation matrix
+    # Pure scaling matrix (no rotation)
+    rotation_matrix = np.array([
+        [scale_factor, 0.0],
+        [0.0, scale_factor]
+    ])
+    
+    print(f"Hardcoded rotation matrix:")
+    print(f"  [{rotation_matrix[0, 0]:.6f}, {rotation_matrix[0, 1]:.6f}]")
+    print(f"  [{rotation_matrix[1, 0]:.6f}, {rotation_matrix[1, 1]:.6f}]")
+    
+    # Learn translation using center of mass alignment
+    pheno_coords = pheno_sample[['i', 'j']].values
+    sbs_coords = sbs_sample[['i', 'j']].values
+    
+    # Scale phenotype coordinates
+    scaled_pheno_coords = pheno_coords * scale_factor
+    
+    # Calculate centers of mass
+    pheno_center = scaled_pheno_coords.mean(axis=0)
+    sbs_center = sbs_coords.mean(axis=0)
+    
+    # Translation = difference between centers
+    translation = sbs_center - pheno_center
+    
+    print(f"Coordinate centers:")
+    print(f"  Scaled phenotype center: [{pheno_center[0]:.1f}, {pheno_center[1]:.1f}]")
+    print(f"  SBS center: [{sbs_center[0]:.1f}, {sbs_center[1]:.1f}]")
+    print(f"  Calculated translation: [{translation[0]:.1f}, {translation[1]:.1f}]")
+    
+    # Validate the transformation by checking a subset of points
+    transformed_pheno = scaled_pheno_coords + translation
+    
+    # Find nearest neighbors to estimate quality
+    from scipy.spatial.distance import cdist
+    distances = cdist(transformed_pheno, sbs_coords, metric='euclidean')
+    min_distances = distances.min(axis=1)
+    
+    # Calculate quality metrics
+    mean_distance = min_distances.mean()
+    good_matches = (min_distances < 10.0).sum()  # Within 10 pixels
+    score = good_matches / len(min_distances)
+    
+    print(f"Transformation validation:")
+    print(f"  Mean nearest neighbor distance: {mean_distance:.2f} px")
+    print(f"  Matches within 10px: {good_matches:,}/{len(min_distances):,} ({score:.1%})")
+    
+    # Build result
+    alignment = {
+        'rotation': rotation_matrix,
+        'translation': translation,
+        'score': score,
+        'determinant': np.linalg.det(rotation_matrix),
+        'transformation_type': 'hardcoded_scale_learned_translation',
+        'scale_factor': scale_factor,
+        'approach': 'center_of_mass_translation',
+        'validation_mean_distance': mean_distance,
+        'validation_good_matches': good_matches
+    }
+    
+    print(f"✅ Hardcoded scale alignment successful:")
+    print(f"   Scale factor: {scale_factor}")
+    print(f"   Translation: [{translation[0]:.1f}, {translation[1]:.1f}]")
+    print(f"   Validation score: {score:.3f}")
+    print(f"   Mean validation distance: {mean_distance:.2f} px")
+    
+    return pd.DataFrame([alignment])
+
+
+# ALTERNATIVE: More sophisticated translation learning using robust estimation
+def hardcoded_scale_robust_alignment(
+    phenotype_positions: pd.DataFrame,
+    sbs_positions: pd.DataFrame,
+    scale_factor: float = 0.125,
+    max_cells_for_translation: int = 10000,
+    random_state: int = 42
+) -> pd.DataFrame:
+    """
+    Use hardcoded scale + robust translation estimation via RANSAC on point correspondences.
+    """
+    print(f"=== Hardcoded Scale + Robust Translation ===")
+    print(f"Using fixed scale factor: {scale_factor}")
+    
+    # Sample cells for translation learning
+    if len(phenotype_positions) > max_cells_for_translation:
+        pheno_sample = geographic_constrained_sampling(
+            phenotype_positions, 
+            max_cells=max_cells_for_translation,
+            center_radius=0.4,  # Use center for stability
+            random_state=random_state
+        )
+    else:
+        pheno_sample = phenotype_positions.copy()
+        
+    if len(sbs_positions) > max_cells_for_translation:
+        sbs_sample = geographic_constrained_sampling(
+            sbs_positions, 
+            max_cells=max_cells_for_translation,
+            center_radius=0.4,
+            random_state=random_state
+        )
+    else:
+        sbs_sample = sbs_positions.copy()
+    
+    # Build hardcoded scaling matrix
+    rotation_matrix = np.array([
+        [scale_factor, 0.0],
+        [0.0, scale_factor]
+    ])
+    
+    # Scale phenotype coordinates
+    pheno_coords = pheno_sample[['i', 'j']].values
+    sbs_coords = sbs_sample[['i', 'j']].values
+    scaled_pheno_coords = pheno_coords * scale_factor
+    
+    # Find initial correspondences using nearest neighbors
+    from scipy.spatial.distance import cdist
+    distances = cdist(scaled_pheno_coords, sbs_coords, metric='euclidean')
+    
+    # For each scaled phenotype cell, find closest SBS cell
+    closest_sbs_idx = distances.argmin(axis=1)
+    closest_distances = distances.min(axis=1)
+    
+    # Filter to reasonable matches only (within some initial threshold)
+    reasonable_threshold = 50.0  # Generous initial threshold
+    good_matches = closest_distances < reasonable_threshold
+    
+    if good_matches.sum() < 10:
+        print(f"❌ Too few reasonable initial matches: {good_matches.sum()}")
+        return pd.DataFrame()
+    
+    # Get matched point pairs
+    pheno_matched = scaled_pheno_coords[good_matches]
+    sbs_matched = sbs_coords[closest_sbs_idx[good_matches]]
+    
+    print(f"Found {len(pheno_matched):,} initial point correspondences")
+    
+    # Use RANSAC to robustly estimate translation
+    from sklearn.linear_model import RANSACRegressor
+    
+    try:
+        # Fit translation: sbs = pheno + translation
+        model = RANSACRegressor(
+            random_state=random_state,
+            min_samples=max(5, len(pheno_matched) // 20),
+            max_trials=1000,
+            residual_threshold=5.0  # 5 pixel threshold
+        )
+        
+        model.fit(pheno_matched, sbs_matched)
+        
+        # Extract translation (intercept of linear model)
+        translation = model.estimator_.intercept_
+        
+        # The coefficient should be close to identity since we already scaled
+        coef = model.estimator_.coef_
+        print(f"RANSAC coefficients (should be ~1.0): [{coef[0, 0]:.3f}, {coef[1, 1]:.3f}]")
+        
+        # Validate the transformation
+        all_scaled_pheno = pheno_coords * scale_factor
+        transformed_coords = all_scaled_pheno + translation
+        
+        distances_all = cdist(transformed_coords, sbs_coords, metric='euclidean')
+        min_distances_all = distances_all.min(axis=1)
+        
+        mean_distance = min_distances_all.mean()
+        good_matches_count = (min_distances_all < 10.0).sum()
+        score = good_matches_count / len(min_distances_all)
+        
+        print(f"Robust translation: [{translation[0]:.1f}, {translation[1]:.1f}]")
+        print(f"Validation: {good_matches_count:,}/{len(min_distances_all):,} matches within 10px ({score:.1%})")
+        
+        alignment = {
+            'rotation': rotation_matrix,
+            'translation': translation,
+            'score': score,
+            'determinant': np.linalg.det(rotation_matrix),
+            'transformation_type': 'hardcoded_scale_ransac_translation',
+            'scale_factor': scale_factor,
+            'approach': 'robust_point_correspondence',
+            'validation_mean_distance': mean_distance,
+            'validation_good_matches': good_matches_count
+        }
+        
+        return pd.DataFrame([alignment])
+        
+    except Exception as e:
+        print(f"❌ Robust translation estimation failed: {e}")
+        return pd.DataFrame()
+
+
+# USAGE: Replace triangle hash alignment with hardcoded scale approach
+def test_hardcoded_scale_alignment(
+    phenotype_positions: pd.DataFrame,
+    sbs_positions: pd.DataFrame,
+    scale_factor: float = 0.125
+) -> pd.DataFrame:
+    """
+    Test both simple and robust hardcoded scale approaches.
+    """
+    print(f"=== Testing Hardcoded Scale Approaches ===")
+    
+    # Try simple center-of-mass translation first
+    simple_result = hardcoded_scale_alignment(
+        phenotype_positions, sbs_positions, scale_factor
+    )
+    
+    if not simple_result.empty:
+        simple_score = simple_result.iloc[0]['score']
+        print(f"Simple approach score: {simple_score:.3f}")
+        
+        # If simple approach works well, use it
+        if simple_score > 0.3:
+            print("✅ Simple center-of-mass translation works well")
+            return simple_result
+    
+    # Try robust approach
+    print("\nTrying robust RANSAC translation...")
+    robust_result = hardcoded_scale_robust_alignment(
+        phenotype_positions, sbs_positions, scale_factor
+    )
+    
+    if not robust_result.empty:
+        robust_score = robust_result.iloc[0]['score']
+        print(f"Robust approach score: {robust_score:.3f}")
+        
+        # Return the better result
+        if simple_result.empty:
+            return robust_result
+        elif robust_score > simple_score:
+            print("✅ Robust approach performs better")
+            return robust_result
+        else:
+            print("✅ Simple approach performs better")
+            return simple_result
+    
+    print("❌ Both hardcoded scale approaches failed")
+    return pd.DataFrame()
+
+
+# Example usage in your well_merge.py script:
+"""
+# Replace the triangle_hash_well_alignment call with:
+alignment_df = test_hardcoded_scale_alignment(
+    phenotype_positions=phenotype_well,
+    sbs_positions=sbs_well,
+    scale_factor=0.125  # 1/8 for phenotype->SBS
+)
+"""
+
+# ADD this function to your merge_well.py library
+
+# ADD this function to your merge_well.py library
+
+def pure_scaling_alignment(
+    phenotype_positions: pd.DataFrame,
+    sbs_positions: pd.DataFrame,
+    scale_factor: float = None,  # If None, calculate from data
+    validation_sample_size: int = 10000,
+    random_state: int = 42
+) -> pd.DataFrame:
+    """
+    Pure scaling transformation with no translation.
+    Tests if coordinate systems are already aligned and just need scaling.
+    
+    Args:
+        phenotype_positions: Phenotype cell positions
+        sbs_positions: SBS cell positions  
+        scale_factor: Fixed scale factor (if None, calculate from coordinate ranges)
+        validation_sample_size: Number of cells for validation
+        random_state: Random seed
+        
+    Returns:
+        DataFrame with alignment result
+    """
+    print(f"=== Pure Scaling Alignment (No Translation) ===")
+    
+    # Get coordinate ranges
+    pheno_coords = phenotype_positions[['i', 'j']].values
+    sbs_coords = sbs_positions[['i', 'j']].values
+    
+    pheno_i_range = np.ptp(pheno_coords[:, 0])
+    pheno_j_range = np.ptp(pheno_coords[:, 1])
+    sbs_i_range = np.ptp(sbs_coords[:, 0])
+    sbs_j_range = np.ptp(sbs_coords[:, 1])
+    
+    print(f"Coordinate ranges:")
+    print(f"  Phenotype: i={pheno_i_range:.0f}, j={pheno_j_range:.0f}")
+    print(f"  SBS: i={sbs_i_range:.0f}, j={sbs_j_range:.0f}")
+    
+    # Calculate scale factor if not provided
+    if scale_factor is None:
+        scale_i = sbs_i_range / pheno_i_range
+        scale_j = sbs_j_range / pheno_j_range
+        scale_factor = (scale_i + scale_j) / 2
+        
+        print(f"Calculated scale factors:")
+        print(f"  i-direction: {scale_i:.6f}")
+        print(f"  j-direction: {scale_j:.6f}")
+        print(f"  Average: {scale_factor:.6f}")
+    else:
+        print(f"Using provided scale factor: {scale_factor:.6f}")
+    
+    # Build pure scaling matrix (no translation)
+    rotation_matrix = np.array([
+        [scale_factor, 0.0],
+        [0.0, scale_factor]
+    ])
+    translation = np.array([0.0, 0.0])  # NO TRANSLATION
+    
+    print(f"Pure scaling matrix:")
+    print(f"  [{rotation_matrix[0, 0]:.6f}, {rotation_matrix[0, 1]:.6f}]")
+    print(f"  [{rotation_matrix[1, 0]:.6f}, {rotation_matrix[1, 1]:.6f}]")
+    print(f"Translation: [0.0, 0.0]")
+    
+    # Validate the transformation
+    print(f"\nValidating with {validation_sample_size:,} cells...")
+    
+    # Sample cells for validation
+    if len(phenotype_positions) > validation_sample_size:
+        pheno_sample_idx = np.random.choice(len(phenotype_positions), validation_sample_size, replace=False)
+        pheno_sample = pheno_coords[pheno_sample_idx]
+    else:
+        pheno_sample = pheno_coords
+        
+    if len(sbs_positions) > validation_sample_size:
+        sbs_sample_idx = np.random.choice(len(sbs_positions), validation_sample_size, replace=False)
+        sbs_sample = sbs_coords[sbs_sample_idx]
+    else:
+        sbs_sample = sbs_coords
+    
+    # Apply pure scaling transformation
+    transformed_pheno = pheno_sample * scale_factor  # Just multiply by scale, no translation
+    
+    print(f"Coordinate ranges after pure scaling:")
+    print(f"  Original phenotype: i=[{pheno_sample[:, 0].min():.0f}, {pheno_sample[:, 0].max():.0f}], j=[{pheno_sample[:, 1].min():.0f}, {pheno_sample[:, 1].max():.0f}]")
+    print(f"  Scaled phenotype: i=[{transformed_pheno[:, 0].min():.0f}, {transformed_pheno[:, 0].max():.0f}], j=[{transformed_pheno[:, 1].min():.0f}, {transformed_pheno[:, 1].max():.0f}]")
+    print(f"  SBS sample: i=[{sbs_sample[:, 0].min():.0f}, {sbs_sample[:, 0].max():.0f}], j=[{sbs_sample[:, 1].min():.0f}, {sbs_sample[:, 1].max():.0f}]")
+    
+    # Calculate overlap region
+    overlap_i_min = max(transformed_pheno[:, 0].min(), sbs_sample[:, 0].min())
+    overlap_i_max = min(transformed_pheno[:, 0].max(), sbs_sample[:, 0].max())
+    overlap_j_min = max(transformed_pheno[:, 1].min(), sbs_sample[:, 1].min())
+    overlap_j_max = min(transformed_pheno[:, 1].max(), sbs_sample[:, 1].max())
+    
+    has_overlap = overlap_i_max > overlap_i_min and overlap_j_max > overlap_j_min
+    
+    if has_overlap:
+        overlap_area = (overlap_i_max - overlap_i_min) * (overlap_j_max - overlap_j_min)
+        sbs_area = (sbs_sample[:, 0].max() - sbs_sample[:, 0].min()) * (sbs_sample[:, 1].max() - sbs_sample[:, 1].min())
+        overlap_fraction = overlap_area / sbs_area if sbs_area > 0 else 0
+        
+        print(f"Overlap analysis:")
+        print(f"  Overlap region: i=[{overlap_i_min:.0f}, {overlap_i_max:.0f}], j=[{overlap_j_min:.0f}, {overlap_j_max:.0f}]")
+        print(f"  Overlap fraction: {overlap_fraction:.1%} of SBS area")
+    else:
+        print(f"❌ NO OVERLAP with pure scaling!")
+        overlap_fraction = 0.0
+    
+    # Find nearest neighbors to estimate match quality
+    from scipy.spatial.distance import cdist
+    distances = cdist(transformed_pheno, sbs_sample, metric='euclidean')
+    min_distances = distances.min(axis=1)
+    
+    # Calculate quality metrics at different thresholds
+    thresholds = [2, 5, 10, 20, 50]
+    scores = {}
+    for thresh in thresholds:
+        good_matches = (min_distances < thresh).sum()
+        score = good_matches / len(min_distances)
+        scores[thresh] = score
+        print(f"  Matches within {thresh:2d}px: {good_matches:4d}/{len(min_distances):,} ({score:.1%})")
+    
+    mean_distance = min_distances.mean()
+    median_distance = np.median(min_distances)
+    
+    print(f"Distance statistics:")
+    print(f"  Mean: {mean_distance:.2f} px")
+    print(f"  Median: {median_distance:.2f} px")
+    print(f"  Min: {min_distances.min():.2f} px")
+    print(f"  Max: {min_distances.max():.2f} px")
+    print(f"  95th percentile: {np.percentile(min_distances, 95):.2f} px")
+    
+    # Build result
+    alignment = {
+        'rotation': rotation_matrix,
+        'translation': translation,
+        'score': scores[10],  # Use 10px threshold for main score
+        'determinant': np.linalg.det(rotation_matrix),
+        'transformation_type': 'pure_scaling_no_translation',
+        'scale_factor': scale_factor,
+        'approach': 'coordinate_range_scaling',
+        'overlap_fraction': overlap_fraction,
+        'validation_mean_distance': mean_distance,
+        'validation_median_distance': median_distance,
+        'scores_by_threshold': scores,
+        'has_overlap': has_overlap
+    }
+    
+    if has_overlap and scores[10] > 0.01:  # At least 1% of cells within 10px
+        print(f"✅ Pure scaling shows promise:")
+        print(f"   Scale factor: {scale_factor:.6f}")
+        print(f"   Overlap: {overlap_fraction:.1%}")
+        print(f"   Score (10px): {scores[10]:.3f}")
+        print(f"   Mean distance: {mean_distance:.2f} px")
+    else:
+        print(f"❌ Pure scaling insufficient:")
+        print(f"   Overlap: {overlap_fraction:.1%}")
+        print(f"   Score (10px): {scores[10]:.3f}")
+        print(f"   May need translation adjustment")
+    
+    return pd.DataFrame([alignment])
+
+
+# Test different scale factors
+def test_multiple_scale_factors(
+    phenotype_positions: pd.DataFrame,
+    sbs_positions: pd.DataFrame,
+    scale_factors: list = None,
+    validation_sample_size: int = 10000
+) -> pd.DataFrame:
+    """
+    Test pure scaling with multiple scale factors to find the best one.
+    """
+    if scale_factors is None:
+        # Test theoretical and calculated scale factors
+        pheno_coords = phenotype_positions[['i', 'j']].values
+        sbs_coords = sbs_positions[['i', 'j']].values
+        
+        # NumPy 2.0 compatible range calculation
+        pheno_i_range = pheno_coords[:, 0].max() - pheno_coords[:, 0].min()
+        pheno_j_range = pheno_coords[:, 1].max() - pheno_coords[:, 1].min()
+        sbs_i_range = sbs_coords[:, 0].max() - sbs_coords[:, 0].min()
+        sbs_j_range = sbs_coords[:, 1].max() - sbs_coords[:, 1].min()
+        
+        calculated_scale = ((sbs_i_range / pheno_i_range) + (sbs_j_range / pheno_j_range)) / 2
+        
+        scale_factors = [
+            0.125,  # Theoretical 1/8
+            calculated_scale,  # From coordinate ranges
+            0.120,  # Nearby values
+            0.123,
+            0.127,
+            0.130
+        ]
+    
+    print(f"=== Testing Multiple Scale Factors ===")
+    print(f"Scale factors to test: {[f'{s:.6f}' for s in scale_factors]}")
+    
+    results = []
+    for scale in scale_factors:
+        print(f"\n--- Testing scale factor: {scale:.6f} ---")
+        result = pure_scaling_alignment(
+            phenotype_positions, sbs_positions, 
+            scale_factor=scale,
+            validation_sample_size=validation_sample_size
+        )
+        if not result.empty:
+            results.append(result.iloc[0])
+    
+    if results:
+        results_df = pd.DataFrame(results)
+        
+        print(f"\n=== Scale Factor Comparison ===")
+        print("Scale    Score(10px) Mean_Dist  Overlap%")
+        print("-" * 40)
+        for _, row in results_df.iterrows():
+            print(f"{row['scale_factor']:.6f}   {row['score']:.3f}     {row['validation_mean_distance']:6.1f}    {row['overlap_fraction']*100:5.1f}%")
+        
+        # Find best scale factor
+        best_idx = results_df['score'].idxmax()
+        best_result = results_df.iloc[best_idx:best_idx+1].copy()
+        
+        print(f"\n✅ Best scale factor: {best_result.iloc[0]['scale_factor']:.6f}")
+        print(f"   Score: {best_result.iloc[0]['score']:.3f}")
+        print(f"   Mean distance: {best_result.iloc[0]['validation_mean_distance']:.1f} px")
+        print(f"   Overlap: {best_result.iloc[0]['overlap_fraction']*100:.1f}%")
+        
+        return best_result
+    else:
+        return pd.DataFrame()
+
+
+# Usage example:
+"""
+# In your well_merge.py script, replace triangle hash alignment with:
+
+# Option 1: Test calculated scale factor
+alignment_df = pure_scaling_alignment(
+    phenotype_positions=phenotype_well,
+    sbs_positions=sbs_well
+)
+
+# Option 2: Test multiple scale factors  
+alignment_df = test_multiple_scale_factors(
+    phenotype_positions=phenotype_well,
+    sbs_positions=sbs_well
+)
+
+# Option 3: Test specific scale factor
+alignment_df = pure_scaling_alignment(
+    phenotype_positions=phenotype_well,
+    sbs_positions=sbs_well,
+    scale_factor=0.123  # Or whatever you want to test
+)
+"""

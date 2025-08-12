@@ -1,6 +1,6 @@
 """
 Enhanced well merge pipeline with separate output files for each step.
-Save this as: workflow/scripts/merge/enhanced_well_merge_with_outputs.py
+Save this as: workflow/scripts/merge/well_merge.py
 
 This version saves triangle hashes, alignment parameters, and summary as separate 
 Snakemake outputs instead of creating subdirectories.
@@ -88,11 +88,11 @@ def main():
             'cell_0', 'i_0', 'j_0', 'area_0',
             'cell_1', 'i_1', 'j_1', 'area_1', 'distance'
         ])
-        empty_df.to_parquet(snakemake.output.merged_cells)
+        empty_df.to_parquet(str(snakemake.output.merged_cells))
         
         # Create empty triangle files
-        pd.DataFrame(columns=['V_0', 'V_1', 'c_0', 'c_1', 'magnitude']).to_parquet(snakemake.output.phenotype_triangles)
-        pd.DataFrame(columns=['V_0', 'V_1', 'c_0', 'c_1', 'magnitude']).to_parquet(snakemake.output.sbs_triangles)
+        pd.DataFrame(columns=['V_0', 'V_1', 'c_0', 'c_1', 'magnitude']).to_parquet(str(snakemake.output.phenotype_triangles))
+        pd.DataFrame(columns=['V_0', 'V_1', 'c_0', 'c_1', 'magnitude']).to_parquet(str(snakemake.output.sbs_triangles))
         
         # Create empty alignment file
         empty_alignment = pd.DataFrame([{
@@ -113,10 +113,10 @@ def main():
             'score_20px': 0.0,
             'score_50px': 0.0
         }])
-        empty_alignment.to_parquet(snakemake.output.alignment_params)
+        empty_alignment.to_parquet(str(snakemake.output.alignment_params))
         
         # Create empty summary
-        with open(snakemake.output.merge_summary, 'w') as f:
+        with open(str(snakemake.output.merge_summary), 'w') as f:
             yaml.dump({'status': 'failed', 'reason': 'insufficient_triangles'}, f)
         return
     
@@ -124,8 +124,8 @@ def main():
     print(f"✅ Generated {len(sbs_triangles)} SBS triangles")
     
     # Save triangle hashes as separate outputs
-    phenotype_triangles.to_parquet(snakemake.output.phenotype_triangles)
-    sbs_triangles.to_parquet(snakemake.output.sbs_triangles)
+    phenotype_triangles.to_parquet(str(snakemake.output.phenotype_triangles))
+    sbs_triangles.to_parquet(str(snakemake.output.sbs_triangles))
     
     print(f"✅ Saved scaled phenotype triangles: {snakemake.output.phenotype_triangles}")
     print(f"✅ Saved SBS triangles: {snakemake.output.sbs_triangles}")
@@ -212,7 +212,7 @@ def main():
             'cell_0', 'i_0', 'j_0', 'area_0',
             'cell_1', 'i_1', 'j_1', 'area_1', 'distance'
         ])
-        empty_df.to_parquet(snakemake.output.merged_cells)
+        empty_df.to_parquet(str(snakemake.output.merged_cells))
         
         # Create empty alignment file with proper structure
         empty_alignment = pd.DataFrame([{
@@ -233,10 +233,10 @@ def main():
             'score_20px': 0.0,
             'score_50px': 0.0
         }])
-        empty_alignment.to_parquet(snakemake.output.alignment_params)
+        empty_alignment.to_parquet(str(snakemake.output.alignment_params))
         
         # Create failure summary
-        with open(snakemake.output.merge_summary, 'w') as f:
+        with open(str(snakemake.output.merge_summary), 'w') as f:
             yaml.dump({'status': 'failed', 'reason': 'alignment_failed'}, f)
         return
     
@@ -302,7 +302,7 @@ def main():
         'score_50px': safe_float(scores_by_threshold.get(50, 0.0))
     }])
     
-    essential_alignment.to_parquet(snakemake.output.alignment_params)
+    essential_alignment.to_parquet(str(snakemake.output.alignment_params))
     print(f"✅ Saved alignment parameters: {snakemake.output.alignment_params}")
     
     # =================================================================
@@ -319,7 +319,7 @@ def main():
         alignment=best_alignment,
         threshold=threshold,
         chunk_size=50000,  # Process in chunks to manage memory
-        output_path=snakemake.output.merged_cells  # Pass the output path
+        output_path=str(snakemake.output.merged_cells)  # Convert to string!
     )
     
     if merged_cells.empty:
@@ -328,10 +328,10 @@ def main():
             'cell_0', 'i_0', 'j_0', 'area_0',
             'cell_1', 'i_1', 'j_1', 'area_1', 'distance'
         ])
-        empty_df.to_parquet(snakemake.output.merged_cells)
+        empty_df.to_parquet(str(snakemake.output.merged_cells))
         
         # Create failure summary
-        with open(snakemake.output.merge_summary, 'w') as f:
+        with open(str(snakemake.output.merge_summary), 'w') as f:
             yaml.dump({'status': 'failed', 'reason': 'no_cell_matches'}, f)
         return
     
@@ -362,7 +362,7 @@ def main():
     print("\n=== SAVING FINAL RESULTS ===")
     
     # Save main output
-    merged_cells_final.to_parquet(snakemake.output.merged_cells)
+    merged_cells_final.to_parquet(str(snakemake.output.merged_cells))
     print(f"✅ Saved merged cells: {snakemake.output.merged_cells}")
     print(f"   Columns: {list(merged_cells_final.columns)}")
     print(f"   Rows: {len(merged_cells_final):,}")
@@ -422,7 +422,7 @@ def main():
     }
     
     # Save summary as separate output
-    with open(snakemake.output.merge_summary, 'w') as f:
+    with open(str(snakemake.output.merge_summary), 'w') as f:
         yaml.dump(summary_stats, f, default_flow_style=False)
     
     print(f"✅ Saved merge summary: {snakemake.output.merge_summary}")

@@ -52,8 +52,8 @@ def well_level_triangle_hash(positions_df: pd.DataFrame) -> pd.DataFrame:
         centers_array = np.array(centers)
         
         # Create DataFrame in exact same format as tile-by-tile approach
-        df_vectors = pd.DataFrame(vectors_array).rename(columns="V_{0}".format)
-        df_coords = pd.DataFrame(centers_array).rename(columns="c_{0}".format)
+        df_vectors = pd.DataFrame(vectors_array).rename(columns=lambda x: f"V_{x}")
+        df_coords = pd.DataFrame(centers_array).rename(columns=lambda x: f"c_{x}")
         df_combined = pd.concat([df_vectors, df_coords], axis=1)
         
         # Add magnitude column (critical for normalization)
@@ -322,9 +322,11 @@ def merge_stitched_cells(
         print(f"Before deduplication: {len(merged_cells_raw):,} matches")
         print(f"Duplicate phenotype cells: {merged_cells_raw['cell_0'].duplicated().sum():,}")
         
-        # SAVE PRE-DEDUPLICATION MATCHES
+        # SAVE PRE-DEDUPLICATION MATCHES - FIX: Handle Namedlist/object conversion
         if output_path:
-            raw_matches_path = output_path.replace('.parquet', '_raw_matches.parquet')
+            # Convert output_path to string if it's not already
+            output_path_str = str(output_path)
+            raw_matches_path = output_path_str.replace('.parquet', '_raw_matches.parquet')
             merged_cells_raw.to_parquet(raw_matches_path)
             print(f"✅ Saved raw matches (before deduplication) to: {raw_matches_path}")
         else:

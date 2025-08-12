@@ -36,11 +36,11 @@ def get_sample_fps(
         filtered_df = filtered_df[filtered_df["plate"].astype(str) == str(plate)]
     if well is not None:
         filtered_df = filtered_df[filtered_df["well"].astype(str) == str(well)]
-    
+
     # KEY CHANGE: Only filter by tile if tile is provided (None means well organization)
     if tile is not None:
         filtered_df = filtered_df[filtered_df["tile"].astype(str) == str(tile)]
-    
+
     if cycle is not None:
         filtered_df = filtered_df[filtered_df["cycle"].astype(str) == str(cycle)]
     if channel is not None:
@@ -57,16 +57,22 @@ def get_sample_fps(
             )
             filtered_df = samples_df
             if plate is not None:
-                filtered_df = filtered_df[filtered_df["plate"].astype(str) == str(plate)]
+                filtered_df = filtered_df[
+                    filtered_df["plate"].astype(str) == str(plate)
+                ]
             if well is not None:
                 filtered_df = filtered_df[filtered_df["well"].astype(str) == str(well)]
             # KEY CHANGE: Only filter by tile if tile is provided
             if tile is not None:
                 filtered_df = filtered_df[filtered_df["tile"].astype(str) == str(tile)]
             if cycle is not None:
-                filtered_df = filtered_df[filtered_df["cycle"].astype(str) == str(cycle)]
+                filtered_df = filtered_df[
+                    filtered_df["cycle"].astype(str) == str(cycle)
+                ]
             if channel is not None:
-                filtered_df = filtered_df[filtered_df["channel"].astype(str) == str(channel)]
+                filtered_df = filtered_df[
+                    filtered_df["channel"].astype(str) == str(channel)
+                ]
 
         # Create dictionary mapping round to DataFrame rows
         round_groups = {

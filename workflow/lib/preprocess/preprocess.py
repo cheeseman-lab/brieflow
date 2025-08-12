@@ -1,6 +1,4 @@
-"""
-Unified preprocessing system using functional approach.
-"""
+"""Unified preprocessing system using functional approach."""
 
 import pandas as pd
 import numpy as np
@@ -19,12 +17,17 @@ DATA_ORGANIZATIONS = {"tile", "well"}
 def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, str]:
     """Get data configuration for a specific image type (sbs/phenotype)."""
     base_config = config.get("preprocess", {})
-    
+
     return {
         "data_format": base_config.get(f"{image_type}_data_format", "nd2"),
         "data_organization": base_config.get(f"{image_type}_data_organization", "tile"),
-        "channel_order_flip": base_config.get(f"{image_type}_channel_order_flip", False),
+        "channel_order_flip": base_config.get(
+            f"{image_type}_channel_order_flip", False
+        ),
         "channel_order": base_config.get(f"{image_type}_channel_order", None),
+        "metadata_file": base_config.get(
+            f"{image_type}_metadata_file", None
+        ),  # For TIFF metadata
     }
 
 
@@ -34,6 +37,7 @@ def extract_metadata_tile_nd2(
     well: Union[int, str],
     tile: Union[int, str],
     cycle: Union[int, str] = None,
+    round: Union[int, str] = None,
     verbose: bool = False,
 ) -> pd.DataFrame:
     """Extract metadata from a single ND2 tile file."""
@@ -67,30 +71,38 @@ def extract_metadata_tile_nd2(
             }
 
         # Add basic metadata
-        metadata.update({
-            "plate": plate,
-            "well": well,
-            "tile": tile,
-            "filename": file_path,
-            "channels": frame_meta.contents.channelCount,
-        })
+        metadata.update(
+            {
+                "plate": plate,
+                "well": well,
+                "tile": tile,
+                "filename": file_path,
+                "channels": frame_meta.contents.channelCount,
+            }
+        )
 
-        # Conditionally add cycle after tile
+        # Conditionally add cycle and round
         if cycle is not None:
             metadata["cycle"] = cycle
+        if round is not None:
+            metadata["round"] = round
 
         # Get pixel size from first channel's volume information
         if frame_meta.channels and hasattr(frame_meta.channels[0], "volume"):
             x_cal, y_cal, _ = frame_meta.channels[0].volume.axesCalibration
-            metadata.update({
-                "pixel_size_x": x_cal,
-                "pixel_size_y": y_cal,
-            })
+            metadata.update(
+                {
+                    "pixel_size_x": x_cal,
+                    "pixel_size_y": y_cal,
+                }
+            )
         else:
-            metadata.update({
-                "pixel_size_x": None,
-                "pixel_size_y": None,
-            })
+            metadata.update(
+                {
+                    "pixel_size_x": None,
+                    "pixel_size_y": None,
+                }
+            )
 
         df = pd.DataFrame([metadata])
 
@@ -102,7 +114,8 @@ def extract_metadata_well_nd2(
     plate: Union[int, str],
     well: Union[int, str],
     cycle: Union[int, str] = None,
-    verbose: bool = False
+    round: Union[int, str] = None,
+    verbose: bool = False,
 ) -> pd.DataFrame:
     """Extract metadata from well ND2 file containing multiple positions."""
     metadata_rows = []
@@ -146,30 +159,38 @@ def extract_metadata_well_nd2(
                 }
 
             # Add basic metadata
-            metadata.update({
-                "plate": plate,
-                "well": well,
-                "tile": pos_idx // z_planes,  # Adjust tile number based on z_planes
-                "filename": file_path,
-                "channels": images.sizes.get("C", 1),
-            })
+            metadata.update(
+                {
+                    "plate": plate,
+                    "well": well,
+                    "tile": pos_idx // z_planes,  # Adjust tile number based on z_planes
+                    "filename": file_path,
+                    "channels": images.sizes.get("C", 1),
+                }
+            )
 
-            # Conditionally add cycle
+            # Conditionally add cycle and round
             if cycle is not None:
                 metadata["cycle"] = cycle
+            if round is not None:
+                metadata["round"] = round
 
             # Get pixel calibration if available
             if frame_meta.channels and hasattr(frame_meta.channels[0], "volume"):
                 x_cal, y_cal, *_ = frame_meta.channels[0].volume.axesCalibration
-                metadata.update({
-                    "pixel_size_x": x_cal,
-                    "pixel_size_y": y_cal,
-                })
+                metadata.update(
+                    {
+                        "pixel_size_x": x_cal,
+                        "pixel_size_y": y_cal,
+                    }
+                )
             else:
-                metadata.update({
-                    "pixel_size_x": None,
-                    "pixel_size_y": None,
-                })
+                metadata.update(
+                    {
+                        "pixel_size_x": None,
+                        "pixel_size_y": None,
+                    }
+                )
 
             metadata_rows.append(metadata)
 
@@ -183,9 +204,227 @@ def extract_metadata_tiff(
     well: Union[int, str],
     tile: Union[int, str],
     cycle: Union[int, str] = None,
+    round: Union[int, str] = None,
+    metadata_file_path: str = None,
     verbose: bool = False,
 ) -> pd.DataFrame:
-    """Extract metadata from TIFF file (placeholder for future implementation)."""
+    """Extract metadata from TIFF file using separate metadata file or basic fallback."""
+    if metadata_file_path and Path(metadata_file_path).exists():
+        if verbose:
+            print(f"Reading metadata from: {metadata_file_path}")
+
+        try:
+            # Read metadata file
+            if metadata_file_path.endswith(".csv"):
+                metadata_df = pd.read_csv(metadata_file_path)
+            else:  # assume TSV
+                metadata_df = pd.read_csv(metadata_file_path, sep="\t")
+
+            if verbose:
+                print(f"Columns: {list(metadata_df.columns)}")
+
+            # Define flexible column mappings for different coordinate file formats
+            column_mappings = {
+                # Well/region mappings
+                "well": [
+                    "well",
+                    "Well",
+                    "WELL",
+                    "region",
+                    "Region",
+                    "REGION",
+                    "site_name",
+                    "Site_Name",
+                ],
+                # Tile/position mappings
+                "tile": [
+                    "tile",
+                    "Tile",
+                    "TILE",
+                    "fov",
+                    "FOV",
+                    "field",
+                    "Field",
+                    "position",
+                    "Position",
+                    "site",
+                    "Site",
+                ],
+                # X coordinate mappings
+                "x_pos": [
+                    "x_pos",
+                    "X_pos",
+                    "x (mm)",
+                    "X (mm)",
+                    "x(mm)",
+                    "X(mm)",
+                    "x_mm",
+                    "X_mm",
+                    "x",
+                    "X",
+                    "stage_x",
+                    "Stage_X",
+                ],
+                # Y coordinate mappings
+                "y_pos": [
+                    "y_pos",
+                    "Y_pos",
+                    "y (mm)",
+                    "Y (mm)",
+                    "y(mm)",
+                    "Y(mm)",
+                    "y_mm",
+                    "Y_mm",
+                    "y",
+                    "Y",
+                    "stage_y",
+                    "Stage_Y",
+                ],
+                # Z coordinate mappings
+                "z_pos": [
+                    "z_pos",
+                    "Z_pos",
+                    "z (um)",
+                    "Z (um)",
+                    "z(um)",
+                    "Z(um)",
+                    "z_um",
+                    "Z_um",
+                    "z",
+                    "Z",
+                    "stage_z",
+                    "Stage_Z",
+                ],
+                # Other metadata mappings
+                "pixel_size_x": ["pixel_size_x", "PixelSizeX", "pixel_x", "Pixel_X"],
+                "pixel_size_y": ["pixel_size_y", "PixelSizeY", "pixel_y", "Pixel_Y"],
+                "channels": ["channels", "Channels", "channel_count", "Channel_Count"],
+                "pfs_offset": ["pfs_offset", "PFS_offset", "pfs", "PFS"],
+            }
+
+            def find_column(target_name: str) -> str:
+                """Find the actual column name in the dataframe for a target metadata field."""
+                possible_names = column_mappings.get(target_name, [target_name])
+                for name in possible_names:
+                    if name in metadata_df.columns:
+                        return name
+                return None
+
+            # Convert entire dataframe to standardized format
+            metadata_rows = []
+
+            for idx, row in metadata_df.iterrows():
+                # Extract coordinates with unit conversion
+                x_col = find_column("x_pos")
+                y_col = find_column("y_pos")
+                z_col = find_column("z_pos")
+
+                # Handle coordinate conversion based on likely units
+                x_pos = None
+                y_pos = None
+                z_pos = None
+
+                if x_col:
+                    x_val = row[x_col]
+                    if pd.notna(x_val):
+                        # Convert based on column name hints
+                        if "mm" in x_col.lower() or ("(" in x_col and "mm" in x_col):
+                            x_pos = float(x_val) * 1000  # mm to μm
+                        elif "um" in x_col.lower() or ("(" in x_col and "um" in x_col):
+                            x_pos = float(x_val)  # already in μm
+                        else:
+                            x_pos = float(x_val)  # assume μm
+
+                if y_col:
+                    y_val = row[y_col]
+                    if pd.notna(y_val):
+                        if "mm" in y_col.lower() or ("(" in y_col and "mm" in y_col):
+                            y_pos = float(y_val) * 1000  # mm to μm
+                        elif "um" in y_col.lower() or ("(" in y_col and "um" in y_col):
+                            y_pos = float(y_val)  # already in μm
+                        else:
+                            y_pos = float(y_val)  # assume μm
+
+                if z_col:
+                    z_val = row[z_col]
+                    if pd.notna(z_val):
+                        if "mm" in z_col.lower() or ("(" in z_col and "mm" in z_col):
+                            z_pos = float(z_val) * 1000  # mm to μm
+                        elif "um" in z_col.lower() or ("(" in z_col and "um" in z_col):
+                            z_pos = float(z_val)  # already in μm
+                        else:
+                            z_pos = float(z_val)  # assume μm
+
+                # Extract well and tile information
+                well_col = find_column("well")
+                tile_col = find_column("tile")
+
+                extracted_well = row[well_col] if well_col else well
+                extracted_tile = row[tile_col] if tile_col else idx
+
+                # Extract other metadata fields
+                pixel_x_col = find_column("pixel_size_x")
+                pixel_y_col = find_column("pixel_size_y")
+                channels_col = find_column("channels")
+                pfs_col = find_column("pfs_offset")
+
+                pixel_size_x = (
+                    row[pixel_x_col]
+                    if pixel_x_col and pd.notna(row[pixel_x_col])
+                    else None
+                )
+                pixel_size_y = (
+                    row[pixel_y_col]
+                    if pixel_y_col and pd.notna(row[pixel_y_col])
+                    else None
+                )
+                channels = (
+                    row[channels_col]
+                    if channels_col and pd.notna(row[channels_col])
+                    else None
+                )
+                pfs_offset = (
+                    row[pfs_col] if pfs_col and pd.notna(row[pfs_col]) else None
+                )
+
+                # Build standardized metadata row
+                metadata = {
+                    "plate": plate,
+                    "well": extracted_well,
+                    "tile": extracted_tile,
+                    "filename": file_path,  # This will be updated per actual file
+                    "x_pos": x_pos,
+                    "y_pos": y_pos,
+                    "z_pos": z_pos,
+                    "pfs_offset": pfs_offset,
+                    "channels": channels,
+                    "pixel_size_x": pixel_size_x,
+                    "pixel_size_y": pixel_size_y,
+                }
+
+                # Add cycle and round if provided
+                if cycle is not None:
+                    metadata["cycle"] = cycle
+                if round is not None:
+                    metadata["round"] = round
+
+                metadata_rows.append(metadata)
+
+            result_df = pd.DataFrame(metadata_rows)
+
+            if verbose:
+                print(f"Converted {len(result_df)} rows of metadata")
+
+            return result_df
+
+        except Exception as e:
+            if verbose:
+                print(f"Error reading metadata file {metadata_file_path}: {e}")
+
+    # Fallback: create basic metadata
+    if verbose:
+        print("Using fallback metadata (no external file found)")
+
     metadata = {
         "plate": plate,
         "well": well,
@@ -199,10 +438,13 @@ def extract_metadata_tiff(
         "pixel_size_x": None,
         "pixel_size_y": None,
     }
-    
+
+    # Add cycle and round if provided
     if cycle is not None:
         metadata["cycle"] = cycle
-    
+    if round is not None:
+        metadata["round"] = round
+
     return pd.DataFrame([metadata])
 
 
@@ -369,11 +611,55 @@ def convert_nd2_to_array_well(
 
 def convert_tiff_to_array(
     files: Union[str, List[str], Path, List[Path]],
-    **kwargs
+    channel_order_flip: bool = False,
+    verbose: bool = False,
+    **kwargs,
 ) -> np.ndarray:
-    """Convert TIFF files to array (placeholder for future implementation)."""
-    # Placeholder for TIFF conversion
-    pass
+    """Convert TIFF files to array."""
+    try:
+        from tifffile import imread
+    except ImportError:
+        raise ImportError("tifffile package required for TIFF support")
+
+    # Convert input to list of Path objects
+    if isinstance(files, (str, Path)):
+        files = [Path(files)]
+    else:
+        files = [Path(f) for f in files]
+
+    image_arrays = []
+    for i, file in enumerate(files, 1):
+        if verbose:
+            print(f"Processing TIFF file {i}/{len(files)}: {file}")
+
+        # Read TIFF file
+        img_array = imread(str(file))
+
+        # Ensure we have CYX format
+        if img_array.ndim == 2:
+            # Add channel dimension for grayscale
+            img_array = np.expand_dims(img_array, axis=0)
+        elif img_array.ndim == 3:
+            # Assume it's already in the right format or YXC and needs transpose
+            # You might need to adjust this based on your TIFF structure
+            pass
+
+        # Flip channel order if needed
+        if channel_order_flip and img_array.ndim > 2:
+            img_array = np.flip(img_array, axis=0)
+
+        if verbose:
+            print(f"TIFF array shape: {img_array.shape}")
+
+        image_arrays.append(img_array)
+
+    # Concatenate along channel axis if multiple files
+    if len(image_arrays) == 1:
+        result = image_arrays[0]
+    else:
+        result = np.concatenate(image_arrays, axis=0)
+
+    return result.astype(np.uint16)
 
 
 # Main unified functions that dispatch to the appropriate implementation
@@ -383,23 +669,26 @@ def extract_metadata_unified(
     well: Union[int, str],
     tile: Union[int, str] = None,
     cycle: Union[int, str] = None,
+    round: Union[int, str] = None,
     data_format: str = "nd2",
     data_organization: str = "tile",
+    metadata_file_path: str = None,
     verbose: bool = False,
 ) -> pd.DataFrame:
-    """
-    Unified metadata extraction function that dispatches to appropriate implementation.
-    
+    """Unified metadata extraction function that dispatches to appropriate implementation.
+
     Args:
         file_paths: Path(s) to the file(s)
         plate: Plate number
         well: Well identifier
         tile: Tile number (used differently based on organization)
         cycle: Cycle number (optional)
+        round: Round number (optional)
         data_format: "nd2" or "tiff"
         data_organization: "tile" or "well"
+        metadata_file_path: Path to external metadata file (for TIFF)
         verbose: Print debug information
-    
+
     Returns:
         DataFrame with extracted metadata
     """
@@ -407,34 +696,73 @@ def extract_metadata_unified(
         raise ValueError(f"Unsupported data format: {data_format}")
     if data_organization not in DATA_ORGANIZATIONS:
         raise ValueError(f"Unsupported data organization: {data_organization}")
-    
+
     if isinstance(file_paths, str):
         file_paths = [file_paths]
-    
+
     if data_format == "nd2":
         if data_organization == "tile":
             # For tile organization, process each file separately
             metadata_dfs = []
             for i, file_path in enumerate(file_paths):
                 current_tile = tile if tile is not None else i
-                df = extract_metadata_tile_nd2(
-                    file_path, plate, well, current_tile, cycle, verbose
-                )
+
+                # Only pass parameters that are not None
+                kwargs = {
+                    "file_path": file_path,
+                    "plate": plate,
+                    "well": well,
+                    "tile": current_tile,
+                    "verbose": verbose,
+                }
+
+                if cycle is not None:
+                    kwargs["cycle"] = cycle
+                if round is not None:
+                    kwargs["round"] = round
+
+                df = extract_metadata_tile_nd2(**kwargs)
                 metadata_dfs.append(df)
             return pd.concat(metadata_dfs, ignore_index=True)
-        
+
         elif data_organization == "well":
             # For well organization, process the first file (should be only one)
-            return extract_metadata_well_nd2(file_paths[0], plate, well, cycle, verbose)
-    
+            kwargs = {
+                "file_path": file_paths[0],
+                "plate": plate,
+                "well": well,
+                "verbose": verbose,
+            }
+
+            if cycle is not None:
+                kwargs["cycle"] = cycle
+            if round is not None:
+                kwargs["round"] = round
+
+            return extract_metadata_well_nd2(**kwargs)
+
     elif data_format == "tiff":
         # For TIFF, always treat as tile-based for now
         metadata_dfs = []
         for i, file_path in enumerate(file_paths):
             current_tile = tile if tile is not None else i
-            df = extract_metadata_tiff(
-                file_path, plate, well, current_tile, cycle, verbose
-            )
+
+            # Only pass parameters that are not None
+            kwargs = {
+                "file_path": file_path,
+                "plate": plate,
+                "well": well,
+                "tile": current_tile,
+                "metadata_file_path": metadata_file_path,
+                "verbose": verbose,
+            }
+
+            if cycle is not None:
+                kwargs["cycle"] = cycle
+            if round is not None:
+                kwargs["round"] = round
+
+            df = extract_metadata_tiff(**kwargs)
             metadata_dfs.append(df)
         return pd.concat(metadata_dfs, ignore_index=True)
 
@@ -446,11 +774,10 @@ def convert_to_array_unified(
     position: int = None,
     channel_order_flip: bool = False,
     verbose: bool = False,
-    **kwargs
+    **kwargs,
 ) -> np.ndarray:
-    """
-    Unified conversion function that dispatches to appropriate implementation.
-    
+    """Unified conversion function that dispatches to appropriate implementation.
+
     Args:
         files: Path(s) to the file(s)
         data_format: "nd2" or "tiff"
@@ -459,7 +786,7 @@ def convert_to_array_unified(
         channel_order_flip: Whether to flip channel order
         verbose: Print debug information
         **kwargs: Additional arguments passed to specific converters
-    
+
     Returns:
         numpy array in CYX format
     """
@@ -467,7 +794,7 @@ def convert_to_array_unified(
         raise ValueError(f"Unsupported data format: {data_format}")
     if data_organization not in DATA_ORGANIZATIONS:
         raise ValueError(f"Unsupported data organization: {data_organization}")
-    
+
     if data_format == "nd2":
         if data_organization == "tile":
             return convert_nd2_to_array_tile(files, channel_order_flip, verbose)
@@ -477,16 +804,18 @@ def convert_to_array_unified(
             return convert_nd2_to_array_well(
                 files, position, channel_order_flip, verbose=verbose, **kwargs
             )
-    
+
     elif data_format == "tiff":
-        return convert_tiff_to_array(files, **kwargs)
+        return convert_tiff_to_array(
+            files, channel_order_flip=channel_order_flip, verbose=verbose, **kwargs
+        )
 
 
 # Helper functions for Snakemake integration
 def get_expansion_values(image_type: str, config: dict) -> List[str]:
     """Get expansion values for metadata combination based on data organization."""
     data_config = get_data_config(image_type, config)
-    
+
     if data_config["data_organization"] == "tile":
         if image_type == "sbs":
             return ["tile", "cycle"]
@@ -506,23 +835,22 @@ def should_include_tile_in_input(image_type: str, config: dict) -> bool:
 
 
 def update_config_for_unified_processing(config: dict) -> dict:
-    """
-    Update existing config to work with unified processing.
+    """Update existing config to work with unified processing.
     Sets default values for new configuration options.
     """
     preprocess_config = config.get("preprocess", {})
-    
+
     # Set default values for new configuration options
     defaults = {
         "sbs_data_format": "nd2",
         "sbs_data_organization": "tile",
-        "phenotype_data_format": "nd2", 
+        "phenotype_data_format": "nd2",
         "phenotype_data_organization": "well",
     }
-    
+
     for key, default_value in defaults.items():
         if key not in preprocess_config:
             preprocess_config[key] = default_value
-    
+
     config["preprocess"] = preprocess_config
     return config

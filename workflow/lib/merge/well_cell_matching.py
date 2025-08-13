@@ -1,6 +1,6 @@
 """
 Step 2 Library: Cell-to-cell matching functions.
-Save this as: lib/merge/cell_matching.py
+Saved this as: lib/merge/well_cell_matching.py
 """
 
 import pandas as pd

@@ -38,8 +38,8 @@ print("Final columns:", vacuole_cell_mapping_df.columns.tolist())
 vacuole_phenotype = extract_phenotype_vacuoles(
     data_phenotype=data_phenotype,
     vacuoles=vacuole_masks,
-    vacuole_cell_mapping_df=vacuole_cell_mapping_df,
     wildcards=snakemake.wildcards,
+    vacuole_cell_mapping_df=vacuole_cell_mapping_df,
     foci_channel=snakemake.params.foci_channel,
     channel_names=snakemake.params.channel_names,
 )

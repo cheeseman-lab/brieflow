@@ -316,11 +316,11 @@ def _find_matches_chunked(
             
             print(f"  Building DataFrame for {len(chunk_sbs_indices):,} matches")
             
-            # FIXED: Build chunk matches with proper coordinate handling
+            # Build chunk matches with proper coordinate handling
             chunk_matches_df = _build_matches_dataframe(
                 phenotype_positions, sbs_positions,
                 chunk_pheno_indices, chunk_sbs_indices, chunk_distances,
-                transformed_coords, scale_factor  # FIXED: Pass scale factor
+                transformed_coords, sbs_coords, scale_factor  # FIXED: Pass all required arguments
             )
             
             all_matches.append(chunk_matches_df)
@@ -391,20 +391,22 @@ def _build_matches_dataframe(
     pheno_indices: np.ndarray,
     sbs_indices: np.ndarray,
     distances: np.ndarray,
-    transformed_coords: np.ndarray,  # Transformed coordinates (already in right space)
-    scale_factor: float  # Keep for reference but don't use for scaling
+    transformed_coords: np.ndarray,  # Coordinates used for distance calc (phenotype)
+    sbs_coords: np.ndarray,  # Coordinates used for distance calc (SBS)
+    scale_factor: float  # Keep for reference
 ) -> pd.DataFrame:
     """
-    Build matches DataFrame using coordinates as-is (both already in same coordinate system).
+    Build matches DataFrame using the EXACT same coordinates that were used for distance calculation.
+    FIXED: Ensures coordinate consistency between distance calc and stored coordinates.
     """
     
     matches_df = pd.DataFrame({
         'cell_0': phenotype_positions.iloc[pheno_indices]['cell'].values,
-        'i_0': transformed_coords[pheno_indices, 0],  # Transformed coordinates
-        'j_0': transformed_coords[pheno_indices, 1],  # Transformed coordinates
+        'i_0': transformed_coords[pheno_indices, 0],  # EXACT coordinates used for distance calc
+        'j_0': transformed_coords[pheno_indices, 1],  # EXACT coordinates used for distance calc
         'cell_1': sbs_positions.iloc[sbs_indices]['cell'].values,
-        'i_1': sbs_positions.iloc[sbs_indices]['i'].values,  # SBS coordinates as-is
-        'j_1': sbs_positions.iloc[sbs_indices]['j'].values,  # SBS coordinates as-is
+        'i_1': sbs_coords[sbs_indices, 0],  # FIXED: EXACT coordinates used for distance calc
+        'j_1': sbs_coords[sbs_indices, 1],  # FIXED: EXACT coordinates used for distance calc
         'distance': distances
     })
     
@@ -420,8 +422,8 @@ def _build_matches_dataframe(
         matches_df['area_1'] = np.nan
     
     print(f"    ✅ DataFrame built successfully: {len(matches_df):,} rows")
-    print(f"    📐 Coordinates stored as-is (both datasets already in same coordinate system)")
-    print(f"    📊 Manual distance calculation should now match stored distances")
+    print(f"    📐 Coordinates stored: EXACT same as used for distance calculation")
+    print(f"    📊 Manual distance calculation should now match stored distances perfectly")
     
     return matches_df
 

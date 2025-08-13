@@ -1,4 +1,13 @@
-"""Unified preprocessing system using functional approach."""
+"""Unified preprocessing module for microscopy image data.
+
+This module provides a unified interface for preprocessing microscopy data from different
+sources (ND2, TIFF) and organizations (tile-based, well-based). The main functions handle
+metadata extraction and image conversion to standardized formats.
+
+The module outputs images in CYX format (Channel, Y, X) which is the standard format
+for downstream processing in the pipeline. This ensures consistent data structure
+regardless of the input format.
+"""
 
 import pandas as pd
 import numpy as np
@@ -14,8 +23,21 @@ DATA_FORMATS = {"nd2", "tiff"}
 DATA_ORGANIZATIONS = {"tile", "well"}
 
 
-def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, str]:
-    """Get data configuration for a specific image type (sbs/phenotype)."""
+def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get data configuration for a specific image type.
+
+    Args:
+        image_type: Type of image data ('sbs' or 'phenotype')
+        config: Configuration dictionary containing preprocessing parameters
+
+    Returns:
+        Dictionary with data configuration settings including:
+        - data_format: 'nd2' or 'tiff'
+        - data_organization: 'tile' or 'well'
+        - channel_order_flip: Whether to reverse channel order
+        - channel_order: List of channels in desired order
+        - metadata_file: Path to external metadata file (for TIFF)
+    """
     base_config = config.get("preprocess", {})
 
     return {
@@ -40,7 +62,24 @@ def extract_metadata_tile_nd2(
     round: Union[int, str] = None,
     verbose: bool = False,
 ) -> pd.DataFrame:
-    """Extract metadata from a single ND2 tile file."""
+    """Extract metadata from a single ND2 tile file.
+
+    Tile-based organization means each file contains a single field of view (FOV).
+    This function extracts position information, pixel calibration, and other
+    metadata from the ND2 file header.
+
+    Args:
+        file_path: Path to the ND2 file
+        plate: Plate identifier
+        well: Well identifier (e.g., 'A01', 'B12')
+        tile: Tile/FOV number within the well
+        cycle: Optional cycle number for SBS imaging
+        round: Optional round number for multiplexed imaging
+        verbose: Print debug information
+
+    Returns:
+        DataFrame with one row containing metadata for this tile
+    """
     if verbose:
         print(f"Processing tile {tile} from file {file_path}")
 
@@ -117,7 +156,23 @@ def extract_metadata_well_nd2(
     round: Union[int, str] = None,
     verbose: bool = False,
 ) -> pd.DataFrame:
-    """Extract metadata from well ND2 file containing multiple positions."""
+    """Extract metadata from well-based ND2 file containing multiple positions.
+
+    Well-based organization means a single file contains multiple fields of view
+    (positions) from the same well. This function extracts metadata for all
+    positions, creating one row per position.
+
+    Args:
+        file_path: Path to the ND2 file containing multiple positions
+        plate: Plate identifier
+        well: Well identifier (e.g., 'A01', 'B12')
+        cycle: Optional cycle number for SBS imaging
+        round: Optional round number for multiplexed imaging
+        verbose: Print debug information
+
+    Returns:
+        DataFrame with one row per position/tile in the well
+    """
     metadata_rows = []
     if verbose:
         print(f"Processing well file: {file_path}")
@@ -208,7 +263,25 @@ def extract_metadata_tiff(
     metadata_file_path: str = None,
     verbose: bool = False,
 ) -> pd.DataFrame:
-    """Extract metadata from TIFF file using separate metadata file or basic fallback."""
+    """Extract metadata for TIFF files using external metadata file.
+
+    TIFF files don't contain position metadata in their headers, so this function
+    reads from an external CSV/TSV file containing stage positions and other metadata.
+    The function handles various column naming conventions and unit conversions.
+
+    Args:
+        file_path: Path to the TIFF file
+        plate: Plate identifier
+        well: Well identifier
+        tile: Tile/FOV number
+        cycle: Optional cycle number
+        round: Optional round number
+        metadata_file_path: Path to CSV/TSV with position metadata
+        verbose: Print debug information
+
+    Returns:
+        DataFrame with metadata, either from external file or with null values
+    """
     if metadata_file_path and Path(metadata_file_path).exists():
         if verbose:
             print(f"Reading metadata from: {metadata_file_path}")
@@ -302,7 +375,7 @@ def extract_metadata_tiff(
                 "pfs_offset": ["pfs_offset", "PFS_offset", "pfs", "PFS"],
             }
 
-            def find_column(target_name: str) -> str:
+            def find_column(target_name: str) -> Optional[str]:
                 """Find the actual column name in the dataframe for a target metadata field."""
                 possible_names = column_mappings.get(target_name, [target_name])
                 for name in possible_names:
@@ -392,7 +465,7 @@ def extract_metadata_tiff(
                     "plate": plate,
                     "well": extracted_well,
                     "tile": extracted_tile,
-                    "filename": file_path,  # This will be updated per actual file
+                    "filename": file_path,
                     "x_pos": x_pos,
                     "y_pos": y_pos,
                     "z_pos": z_pos,
@@ -453,7 +526,29 @@ def convert_nd2_to_array_tile(
     channel_order_flip: bool = False,
     verbose: bool = False,
 ) -> np.ndarray:
-    """Convert ND2 tile files to array."""
+    """Convert tile-based ND2 files to numpy array in CYX format.
+
+    Processes one or more ND2 files where each file contains a single FOV.
+    If multiple files are provided, they are concatenated along the channel axis.
+    Z-stacks are handled by maximum intensity projection.
+
+    Args:
+        files: Path(s) to ND2 file(s)
+        channel_order_flip: Reverse the order of channels
+        verbose: Print debug information
+
+    Returns:
+        numpy array in CYX format (Channel, Y, X) with dtype uint16
+
+    Example:
+        >>> # Single 4-channel image
+        >>> img = convert_nd2_to_array_tile("image.nd2")
+        >>> img.shape  # (4, 2048, 2048)
+
+        >>> # Multiple files concatenated
+        >>> img = convert_nd2_to_array_tile(["cyc1.nd2", "cyc2.nd2"])
+        >>> img.shape  # (8, 2048, 2048) if each has 4 channels
+    """
     # Convert input to list of Path objects
     if isinstance(files, (str, Path)):
         files = [Path(files)]
@@ -515,7 +610,26 @@ def convert_nd2_to_array_well(
     return_tiles: bool = False,
     verbose: bool = False,
 ) -> Union[np.ndarray, Tuple[np.ndarray, int]]:
-    """Extract specific position from well ND2 files and convert to array."""
+    """Extract specific position from well-based ND2 files.
+
+    Processes ND2 files containing multiple positions/FOVs and extracts
+    a specific position. Handles Z-stacks via maximum intensity projection.
+
+    Args:
+        files: Path(s) to ND2 file(s) containing multiple positions
+        position: Position index to extract (0-based)
+        channel_order_flip: Reverse the order of channels
+        return_tiles: If True, also return the total number of tiles
+        verbose: Print debug information
+
+    Returns:
+        numpy array in CYX format, optionally with tile count
+
+    Example:
+        >>> # Extract position 5 from well file
+        >>> img = convert_nd2_to_array_well("well_A01.nd2", position=5)
+        >>> img.shape  # (4, 2048, 2048)
+    """
     # Convert input to list of Path objects
     if isinstance(files, (str, Path)):
         files = [Path(files)]
@@ -615,7 +729,17 @@ def convert_tiff_to_array(
     verbose: bool = False,
     **kwargs,
 ) -> np.ndarray:
-    """Convert TIFF files to array."""
+    """Convert TIFF files to numpy array in CYX format.
+
+    Args:
+        files: Path(s) to TIFF file(s)
+        channel_order_flip: Reverse the order of channels
+        verbose: Print debug information
+        **kwargs: Additional arguments (for compatibility)
+
+    Returns:
+        numpy array in CYX format with dtype uint16
+    """
     try:
         from tifffile import imread
     except ImportError:
@@ -640,8 +764,8 @@ def convert_tiff_to_array(
             # Add channel dimension for grayscale
             img_array = np.expand_dims(img_array, axis=0)
         elif img_array.ndim == 3:
-            # Assume it's already in the right format or YXC and needs transpose
-            # You might need to adjust this based on your TIFF structure
+            # Assume it's already in CYX format
+            # If your TIFFs are in YXC format, add: img_array = np.transpose(img_array, (2, 0, 1))
             pass
 
         # Flip channel order if needed
@@ -662,8 +786,7 @@ def convert_tiff_to_array(
     return result.astype(np.uint16)
 
 
-# Main unified functions that dispatch to the appropriate implementation
-def extract_metadata_unified(
+def extract_metadata(
     file_paths: Union[str, List[str]],
     plate: Union[int, str],
     well: Union[int, str],
@@ -675,22 +798,38 @@ def extract_metadata_unified(
     metadata_file_path: str = None,
     verbose: bool = False,
 ) -> pd.DataFrame:
-    """Unified metadata extraction function that dispatches to appropriate implementation.
+    """Extract metadata from microscopy files.
+
+    Main entry point for metadata extraction that dispatches to appropriate
+    implementation based on data format and organization.
 
     Args:
         file_paths: Path(s) to the file(s)
-        plate: Plate number
+        plate: Plate identifier
         well: Well identifier
-        tile: Tile number (used differently based on organization)
-        cycle: Cycle number (optional)
-        round: Round number (optional)
-        data_format: "nd2" or "tiff"
-        data_organization: "tile" or "well"
-        metadata_file_path: Path to external metadata file (for TIFF)
+        tile: Tile number (required for tile organization, ignored for well)
+        cycle: Optional cycle number for SBS imaging
+        round: Optional round number for multiplexed imaging
+        data_format: 'nd2' or 'tiff'
+        data_organization: 'tile' (one FOV per file) or 'well' (multiple FOVs per file)
+        metadata_file_path: Path to external metadata CSV/TSV (for TIFF)
         verbose: Print debug information
 
     Returns:
         DataFrame with extracted metadata
+
+    Examples:
+        >>> # Tile-based ND2
+        >>> df = extract_metadata("tile_001.nd2", plate=1, well="A01", tile=1,
+        ...                      data_format="nd2", data_organization="tile")
+
+        >>> # Well-based ND2 (extracts all positions)
+        >>> df = extract_metadata("well_A01.nd2", plate=1, well="A01",
+        ...                      data_format="nd2", data_organization="well")
+
+        >>> # TIFF with external metadata
+        >>> df = extract_metadata("image.tiff", plate=1, well="A01", tile=1,
+        ...                      data_format="tiff", metadata_file_path="positions.csv")
     """
     if data_format not in DATA_FORMATS:
         raise ValueError(f"Unsupported data format: {data_format}")
@@ -767,7 +906,7 @@ def extract_metadata_unified(
         return pd.concat(metadata_dfs, ignore_index=True)
 
 
-def convert_to_array_unified(
+def convert_to_array(
     files: Union[str, List[str], Path, List[Path]],
     data_format: str = "nd2",
     data_organization: str = "tile",
@@ -776,19 +915,36 @@ def convert_to_array_unified(
     verbose: bool = False,
     **kwargs,
 ) -> np.ndarray:
-    """Unified conversion function that dispatches to appropriate implementation.
+    """Convert microscopy image files to numpy array in CYX format.
+
+    Main entry point for image conversion that dispatches to appropriate
+    implementation based on data format and organization. The output is always
+    a numpy array in CYX format (Channel, Y, X) for consistent downstream processing.
 
     Args:
-        files: Path(s) to the file(s)
-        data_format: "nd2" or "tiff"
-        data_organization: "tile" or "well"
-        position: Position/tile to extract (for well organization)
-        channel_order_flip: Whether to flip channel order
+        files: Path(s) to image file(s)
+        data_format: 'nd2' or 'tiff'
+        data_organization: 'tile' (one FOV per file) or 'well' (multiple FOVs per file)
+        position: Position/tile to extract (required for well organization)
+        channel_order_flip: Reverse the order of channels
         verbose: Print debug information
         **kwargs: Additional arguments passed to specific converters
 
     Returns:
-        numpy array in CYX format
+        numpy array in CYX format with dtype uint16
+
+    Examples:
+        >>> # Tile-based ND2
+        >>> img = convert_to_array("tile.nd2", data_format="nd2",
+        ...                       data_organization="tile")
+        >>> img.shape  # (4, 2048, 2048) for 4-channel image
+
+        >>> # Well-based ND2, extract position 3
+        >>> img = convert_to_array("well.nd2", data_format="nd2",
+        ...                       data_organization="well", position=3)
+
+        >>> # Multiple TIFF files concatenated
+        >>> img = convert_to_array(["ch1.tiff", "ch2.tiff"], data_format="tiff")
     """
     if data_format not in DATA_FORMATS:
         raise ValueError(f"Unsupported data format: {data_format}")
@@ -813,7 +969,18 @@ def convert_to_array_unified(
 
 # Helper functions for Snakemake integration
 def get_expansion_values(image_type: str, config: dict) -> List[str]:
-    """Get expansion values for metadata combination based on data organization."""
+    """Get expansion values for metadata combination based on data organization.
+
+    Used by Snakemake to determine which wildcards need expansion when combining
+    metadata files.
+
+    Args:
+        image_type: 'sbs' or 'phenotype'
+        config: Configuration dictionary
+
+    Returns:
+        List of wildcard names to expand
+    """
     data_config = get_data_config(image_type, config)
 
     if data_config["data_organization"] == "tile":
@@ -829,14 +996,33 @@ def get_expansion_values(image_type: str, config: dict) -> List[str]:
 
 
 def should_include_tile_in_input(image_type: str, config: dict) -> bool:
-    """Determine if tile should be included in input file selection."""
+    """Determine if tile should be included in input file selection.
+
+    Used by Snakemake rules to decide whether to filter by tile when
+    selecting input files.
+
+    Args:
+        image_type: 'sbs' or 'phenotype'
+        config: Configuration dictionary
+
+    Returns:
+        True if tile should be included in file selection
+    """
     data_config = get_data_config(image_type, config)
     return data_config["data_organization"] == "tile"
 
 
 def update_config_for_unified_processing(config: dict) -> dict:
-    """Update existing config to work with unified processing.
-    Sets default values for new configuration options.
+    """Update existing config to work with unified preprocessing.
+
+    Sets default values for new configuration options to ensure backwards
+    compatibility with existing configs.
+
+    Args:
+        config: Original configuration dictionary
+
+    Returns:
+        Updated configuration dictionary with defaults
     """
     preprocess_config = config.get("preprocess", {})
 

@@ -1,4 +1,6 @@
-from lib.preprocess.preprocess import extract_metadata_unified, get_data_config
+"""Script to extract metadata from microscopy image files."""
+
+from lib.preprocess.preprocess import extract_metadata, get_data_config
 
 # Get data configuration from rule name
 rule_name = (
@@ -14,8 +16,8 @@ data_config = get_data_config(
 cycle = getattr(snakemake.params, "cycle", None)
 round = getattr(snakemake.params, "round", None)
 
-# Extract metadata using unified function
-metadata_df = extract_metadata_unified(
+# Extract metadata using main function
+metadata_df = extract_metadata(
     snakemake.input[0],
     plate=snakemake.params.plate,
     well=snakemake.params.well,
@@ -24,6 +26,7 @@ metadata_df = extract_metadata_unified(
     round=round,
     data_format=data_config["data_format"],
     data_organization=data_config["data_organization"],
+    metadata_file_path=data_config.get("metadata_file"),
     verbose=False,
 )
 

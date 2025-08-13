@@ -1,5 +1,7 @@
+"""Script to convert microscopy image files to TIFF format."""
+
 from tifffile import imwrite
-from lib.preprocess.preprocess import convert_to_array_unified, get_data_config
+from lib.preprocess.preprocess import convert_to_array, get_data_config
 
 # Get data configuration from rule name
 rule_name = snakemake.rule  # Will be "convert_sbs" or "convert_phenotype"
@@ -9,8 +11,8 @@ data_config = get_data_config(
     image_type, {"preprocess": snakemake.config.get("preprocess", {})}
 )
 
-# Convert the files to array using unified function
-image_array = convert_to_array_unified(
+# Convert the files to array using main function
+image_array = convert_to_array(
     snakemake.input,
     data_format=data_config["data_format"],
     data_organization=data_config["data_organization"],
@@ -21,5 +23,5 @@ image_array = convert_to_array_unified(
     verbose=False,
 )
 
-# Save TIFF image array
+# Save as TIFF file
 imwrite(snakemake.output[0], image_array)

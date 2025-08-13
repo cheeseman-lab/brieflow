@@ -22,7 +22,7 @@ rule extract_metadata_sbs:
         tile=lambda wildcards: wildcards.tile,
         cycle=lambda wildcards: wildcards.cycle,
     script:
-        "../scripts/preprocess/extract_metadata_unified.py"
+        "../scripts/preprocess/extract_metadata.py"
 
 
 # Combine metadata for SBS images on well level
@@ -48,7 +48,6 @@ rule extract_metadata_phenotype:
             plate=wildcards.plate,
             well=wildcards.well,
             tile=wildcards.tile if should_include_tile_in_input("phenotype", config) else None,
-            round=wildcards.round if "round" in phenotype_samples_df.columns else None,
             channel_order=config["preprocess"]["phenotype_channel_order"],
         ),
     output:
@@ -58,7 +57,7 @@ rule extract_metadata_phenotype:
         well=lambda wildcards: wildcards.well,
         tile=lambda wildcards: wildcards.tile,
     script:
-        "../scripts/preprocess/extract_metadata_unified.py"
+        "../scripts/preprocess/extract_metadata.py"
 
 
 # Combine metadata for phenotype images on well level
@@ -76,7 +75,7 @@ rule combine_metadata_phenotype:
         "../scripts/shared/combine_dfs.py"
 
 
-# Convert SBS ND2 files to TIFF
+# Convert SBS image files to TIFF
 rule convert_sbs:
     input:
         lambda wildcards: get_sample_fps(
@@ -92,10 +91,10 @@ rule convert_sbs:
     params:
         tile=lambda wildcards: int(wildcards.tile),
     script:
-        "../scripts/preprocess/nd2_to_tiff_unified.py"
+        "../scripts/preprocess/image_to_tiff.py"
 
 
-# Convert phenotype ND2 files to TIFF
+# Convert phenotype image files to TIFF
 rule convert_phenotype:
     input:
         lambda wildcards: get_sample_fps(
@@ -111,7 +110,7 @@ rule convert_phenotype:
     params:
         tile=lambda wildcards: int(wildcards.tile),
     script:
-        "../scripts/preprocess/nd2_to_tiff_unified.py"
+        "../scripts/preprocess/image_to_tiff.py"
 
 
 # Calculate illumination correction function for SBS files

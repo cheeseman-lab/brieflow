@@ -28,8 +28,8 @@ from lib.phenotype.constants import DEFAULT_METADATA_COLS
 def extract_phenotype_vacuoles(
     data_phenotype,
     vacuoles,
-    vacuole_cell_mapping_df,
     wildcards,
+    vacuole_cell_mapping_df = None,
     vacuole_channels="all",
     foci_channel=None,
     channel_names=["dapi", "tubulin", "gh2ax", "phalloidin"],
@@ -141,12 +141,24 @@ def extract_phenotype_vacuoles(
     vacuole_features = pd.concat(dfs, axis=1, join="outer", sort=False).reset_index()
 
     # Combine with vacuole_cell_mapping_df
-    vacuole_df = pd.merge(
-        vacuole_cell_mapping_df,
-        vacuole_features.rename(columns={"label": "vacuole_id"}),
-        on="vacuole_id",
-        how="left",
-    )
+    if vacuole_cell_mapping_df is not None:
+        vacuole_df = pd.merge(
+            vacuole_cell_mapping_df,
+            vacuole_features.rename(columns={"label": "vacuole_id"}),
+            on="vacuole_id",
+            how="left",
+            suffixes=("_map", "_feat")  # left, right
+        )
+
+        # If both exist, make a single vacuole_area column (prefer features)
+        # If other features are present in both dataframes, modify the next next four lines to reflect the column names and add _map and _feat suffixes
+        if {"vacuole_area_map", "vacuole_area_feat"} <= set(vacuole_df.columns):
+            vacuole_df["vacuole_area"] = (
+                vacuole_df["vacuole_area_feat"].combine_first(vacuole_df["vacuole_area_map"])
+            )
+            vacuole_df = vacuole_df.drop(columns=["vacuole_area_map", "vacuole_area_feat"])
+    else:
+        vacuole_df = vacuole_features.rename(columns={"label": "vacuole_id"})
 
     # Add wildcards metadata at the END (they'll be reordered later)
     for k, v in sorted(wildcards.items()):

@@ -166,7 +166,8 @@ rule well_cell_merge:
     input:
         scaled_phenotype_positions=MERGE_OUTPUTS["well_alignment"][0],      
         sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"][0],
-        alignment_params=MERGE_OUTPUTS["well_alignment"][3],                
+        alignment_params=MERGE_OUTPUTS["well_alignment"][3],
+        transformed_phenotype_positions=MERGE_OUTPUTS["well_alignment"][5],               
     output:
         raw_matches=MERGE_OUTPUTS["well_cell_merge"][0],                    
         merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],                   

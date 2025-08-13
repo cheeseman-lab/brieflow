@@ -95,19 +95,20 @@ MERGE_OUTPUTS = {
     "well_alignment": [
         MERGE_FP / "scaled_coordinates" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_scaled", "parquet"
-        ),
+        ),  # [0]
         MERGE_FP / "triangle_hashes" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_triangles", "parquet"
-        ),
+        ),  # [1]
         MERGE_FP / "triangle_hashes" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_triangles", "parquet"
-        ),
+        ),  # [2]
         MERGE_FP / "alignments" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "alignment", "parquet"
-        ),
+        ),  # [3]
         MERGE_FP / "alignments" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "alignment_summary", "yaml"
-        ),
+        ),  # [4]
+        MERGE_FP / "transformed" / "{plate}" / "{well}" / "phenotype_transformed.parquet",  # [5] ADD THIS
     ],
     "well_cell_merge": [
         MERGE_FP / "raw_matches" / get_filename(

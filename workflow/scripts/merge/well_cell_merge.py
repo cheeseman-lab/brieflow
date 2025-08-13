@@ -19,7 +19,8 @@ def main():
     print("=== STEP 2: WELL CELL MERGE ===")
     
     # Load inputs
-    phenotype_scaled = validate_dtypes(pd.read_parquet(snakemake.input.scaled_phenotype_positions))
+    phenotype_scaled = validate_dtypes(pd.read_parquet(snakemake.input.scaled_phenotype_positions))  # For metadata
+    phenotype_transformed = validate_dtypes(pd.read_parquet(snakemake.input.transformed_phenotype_positions))
     sbs_positions = validate_dtypes(pd.read_parquet(snakemake.input.sbs_positions))
     alignment_params = validate_dtypes(pd.read_parquet(snakemake.input.alignment_params))
     
@@ -56,11 +57,12 @@ def main():
     
     try:
         raw_matches, summary_stats = find_cell_matches(
-            phenotype_positions=phenotype_scaled,
+            phenotype_positions=phenotype_scaled,  # For cell IDs and areas
             sbs_positions=sbs_positions,
             alignment=alignment,
             threshold=threshold,
-            chunk_size=50000
+            chunk_size=50000,
+            transformed_phenotype_positions=phenotype_transformed  # For coordinates
         )
         
         if raw_matches.empty:

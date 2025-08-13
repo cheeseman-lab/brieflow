@@ -36,7 +36,7 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
             except (ValueError, AttributeError):
                 try:
                     # Third try: use numpy to parse array string
-                    import numpy as np
+                    # REMOVED: import numpy as np  <- This was causing the issue
                     rotation_flat = np.fromstring(rotation_flat.strip('[]'), sep=' ').tolist()
                 except:
                     # Fallback: identity matrix
@@ -64,7 +64,7 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
             except:
                 try:
                     # Use numpy to parse
-                    import numpy as np
+                    # REMOVED: import numpy as np  <- This was also causing the issue
                     translation_list = np.fromstring(translation_list.strip('[]'), sep=' ').tolist()
                 except:
                     # Fallback: zero translation
@@ -100,10 +100,10 @@ def find_cell_matches(
     sbs_positions: pd.DataFrame,
     alignment: Dict[str, Any],
     threshold: float = 10.0,
-    chunk_size: int = 50000
+    chunk_size: int = 50000  # Smaller chunks for safety
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
-    Find cell matches using alignment transformation.
+    Find cell matches using alignment transformation - optimized for 900GB memory.
     
     Args:
         phenotype_positions: Phenotype cell positions (should be pre-scaled)
@@ -116,6 +116,7 @@ def find_cell_matches(
         Tuple of (raw_matches_df, summary_stats_dict)
     """
     print(f"Finding cell matches with threshold={threshold}px")
+    print(f"Dataset sizes: {len(phenotype_positions):,} phenotype, {len(sbs_positions):,} SBS")
     
     # Extract transformation parameters
     rotation = alignment.get('rotation', np.eye(2))
@@ -134,15 +135,23 @@ def find_cell_matches(
     print(f"  Transformed phenotype: i=[{transformed_coords[:, 0].min():.0f}, {transformed_coords[:, 0].max():.0f}], j=[{transformed_coords[:, 1].min():.0f}, {transformed_coords[:, 1].max():.0f}]")
     print(f"  SBS: i=[{sbs_coords[:, 0].min():.0f}, {sbs_coords[:, 0].max():.0f}], j=[{sbs_coords[:, 1].min():.0f}, {sbs_coords[:, 1].max():.0f}]")
     
-    # Process in chunks or all at once based on size
-    if len(sbs_positions) * len(phenotype_positions) < 1e9:  # Less than 1B calculations
-        print(f"Using direct approach (small dataset)")
-        raw_matches, stats = _find_matches_direct(
+    # Calculate memory requirement for full matrix
+    total_comparisons = len(sbs_positions) * len(phenotype_positions)
+    memory_required_gb = (total_comparisons * 8) / (1024**3)  # 8 bytes per float64
+    print(f"Full distance matrix would require: {memory_required_gb:.1f}GB")
+    print(f"Available memory: 900GB")
+    
+    # With 900GB, we can handle up to ~112 billion comparisons
+    # Your dataset: 138K × 177K = 24.4 billion comparisons ≈ 195GB - should fit!
+    
+    if memory_required_gb < 300:  # Leave 600GB headroom
+        print(f"Using direct approach (sufficient memory available)")
+        raw_matches, stats = _find_matches_directd(
             phenotype_positions, sbs_positions, 
             transformed_coords, sbs_coords, threshold
         )
     else:
-        print(f"Using chunked approach (large dataset)")
+        print(f"Using chunked approach (memory too tight)")
         raw_matches, stats = _find_matches_chunked(
             phenotype_positions, sbs_positions,
             transformed_coords, sbs_coords, threshold, chunk_size
@@ -158,25 +167,43 @@ def _find_matches_direct(
     sbs_coords: np.ndarray,
     threshold: float
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Direct approach for small datasets."""
+    """
+    Direct approach optimized for large datasets with sufficient memory.
+    """
+    import gc
     
-    # Calculate all distances at once
+    print(f"Calculating distance matrix: {len(sbs_coords):,} × {len(transformed_coords):,}")
+    
+    # Calculate all distances at once - this is the memory bottleneck
     distances = cdist(sbs_coords, transformed_coords, metric='euclidean')
     
+    print(f"Distance matrix calculated: {distances.shape}, {distances.nbytes / (1024**3):.1f}GB")
+    
     # For each SBS cell, find closest phenotype cell
+    print("Finding closest matches...")
     closest_pheno_idx = distances.argmin(axis=1)
     min_distances = distances.min(axis=1)
     
+    # Clear the large distance matrix immediately
+    del distances
+    gc.collect()
+    print("Distance matrix cleared from memory")
+    
     # Filter by threshold
     valid_sbs_mask = min_distances < threshold
+    n_valid = valid_sbs_mask.sum()
     
-    if valid_sbs_mask.sum() == 0:
+    print(f"Found {n_valid:,} matches within {threshold}px threshold")
+    
+    if n_valid == 0:
         return pd.DataFrame(), {'raw_matches': 0, 'method': 'direct'}
     
     # Get valid matches
     valid_sbs_indices = np.where(valid_sbs_mask)[0]
     valid_pheno_indices = closest_pheno_idx[valid_sbs_mask]
     valid_distances = min_distances[valid_sbs_mask]
+    
+    print(f"Building matches DataFrame with {len(valid_sbs_indices):,} matches...")
     
     # Build matches DataFrame
     raw_matches = _build_matches_dataframe(
@@ -188,8 +215,12 @@ def _find_matches_direct(
         'raw_matches': len(raw_matches),
         'method': 'direct',
         'mean_distance': float(valid_distances.mean()),
-        'max_distance': float(valid_distances.max())
+        'max_distance': float(valid_distances.max()),
+        'matches_within_threshold': n_valid,
+        'threshold_used': threshold
     }
+    
+    print(f"✅ Direct matching complete: {len(raw_matches):,} raw matches")
     
     return raw_matches, stats
 
@@ -202,50 +233,76 @@ def _find_matches_chunked(
     threshold: float,
     chunk_size: int
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Chunked approach for large datasets."""
+    """
+    Chunked approach with aggressive memory management.
+    """
+    import gc
     
     all_matches = []
     n_chunks = (len(sbs_positions) + chunk_size - 1) // chunk_size
     
     print(f"Processing {len(sbs_positions):,} SBS cells in {n_chunks} chunks of {chunk_size:,}")
     
+    total_matches = 0
+    
     for chunk_idx in range(n_chunks):
         start_idx = chunk_idx * chunk_size
         end_idx = min((chunk_idx + 1) * chunk_size, len(sbs_positions))
+        chunk_size_actual = end_idx - start_idx
         
-        if chunk_idx % 10 == 0:
-            print(f"  Processing chunk {chunk_idx + 1}/{n_chunks}")
+        if chunk_idx % 10 == 0 or chunk_idx == n_chunks - 1:
+            print(f"  Processing chunk {chunk_idx + 1}/{n_chunks} ({chunk_size_actual:,} cells)")
         
         # Get chunk of SBS coordinates
         sbs_chunk_coords = sbs_coords[start_idx:end_idx]
         
         # Calculate distances for this chunk
+        chunk_memory_gb = (chunk_size_actual * len(transformed_coords) * 8) / (1024**3)
+        if chunk_idx % 10 == 0:
+            print(f"    Chunk memory requirement: {chunk_memory_gb:.1f}GB")
+        
         distances = cdist(sbs_chunk_coords, transformed_coords, metric='euclidean')
         
         # Find closest phenotype cell for each SBS cell in chunk
         closest_pheno_idx = distances.argmin(axis=1)
         min_distances = distances.min(axis=1)
         
+        # Clear the distance matrix immediately
+        del distances
+        gc.collect()
+        
         # Filter by threshold
         valid_matches = min_distances < threshold
+        chunk_matches = valid_matches.sum()
+        total_matches += chunk_matches
         
-        if valid_matches.sum() > 0:
+        if chunk_matches > 0:
             # Get indices for this chunk
             chunk_sbs_indices = np.arange(start_idx, end_idx)[valid_matches]
             chunk_pheno_indices = closest_pheno_idx[valid_matches]
             chunk_distances = min_distances[valid_matches]
             
             # Build chunk matches
-            chunk_matches = _build_matches_dataframe(
+            chunk_matches_df = _build_matches_dataframe(
                 phenotype_positions, sbs_positions,
                 chunk_pheno_indices, chunk_sbs_indices, chunk_distances
             )
             
-            all_matches.append(chunk_matches)
+            all_matches.append(chunk_matches_df)
+        
+        # Clear chunk variables
+        del sbs_chunk_coords, closest_pheno_idx, min_distances, valid_matches
+        gc.collect()
+        
+        if chunk_idx % 50 == 0 and chunk_idx > 0:
+            print(f"    Progress: {total_matches:,} total matches so far")
     
     # Combine all chunks
     if all_matches:
+        print(f"Combining {len(all_matches)} chunk results...")
         raw_matches = pd.concat(all_matches, ignore_index=True)
+        del all_matches  # Free memory
+        gc.collect()
     else:
         raw_matches = pd.DataFrame()
     
@@ -253,9 +310,12 @@ def _find_matches_chunked(
         'raw_matches': len(raw_matches),
         'method': 'chunked',
         'chunks_processed': n_chunks,
+        'chunk_size': chunk_size,
         'mean_distance': float(raw_matches['distance'].mean()) if len(raw_matches) > 0 else 0.0,
         'max_distance': float(raw_matches['distance'].max()) if len(raw_matches) > 0 else 0.0
     }
+    
+    print(f"✅ Chunked matching complete: {len(raw_matches):,} raw matches")
     
     return raw_matches, stats
 

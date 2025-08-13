@@ -36,20 +36,24 @@ def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, Any]:
         - data_organization: 'tile' or 'well'
         - channel_order_flip: Whether to reverse channel order
         - channel_order: List of channels in desired order
-        - metadata_file: Path to external metadata file (for TIFF)
+        - metadata_samples_df_fp: Path to metadata samples dataframe
     """
     base_config = config.get("preprocess", {})
 
+    data_format = base_config.get(f"{image_type}_data_format", "nd2")
+    data_org = base_config.get(f"{image_type}_data_organization", "tile")
+
     return {
-        "data_format": base_config.get(f"{image_type}_data_format", "nd2"),
-        "data_organization": base_config.get(f"{image_type}_data_organization", "tile"),
+        "data_format": data_format,
+        "image_data_organization": "tile" if data_format == "tiff" else data_org,
+        "metadata_data_organization": "well" if data_format == "tiff" else data_org,
         "channel_order_flip": base_config.get(
             f"{image_type}_channel_order_flip", False
         ),
         "channel_order": base_config.get(f"{image_type}_channel_order", None),
-        "metadata_file": base_config.get(
-            f"{image_type}_metadata_file", None
-        ),  # For TIFF metadata
+        "metadata_samples_df_fp": base_config.get(
+            f"{image_type}_metadata_samples_df_fp", None
+        ),
     }
 
 
@@ -983,7 +987,10 @@ def get_expansion_values(image_type: str, config: dict) -> List[str]:
     """
     data_config = get_data_config(image_type, config)
 
-    if data_config["data_organization"] == "tile":
+    # Use image data organization (tiles exist only for images, not metadata)
+    image_org = data_config.get("image_data_organization", "tile")
+
+    if image_org == "tile":
         if image_type == "sbs":
             return ["tile", "cycle"]
         else:  # phenotype
@@ -995,7 +1002,9 @@ def get_expansion_values(image_type: str, config: dict) -> List[str]:
             return []  # No expansion needed for well-based phenotype
 
 
-def should_include_tile_in_input(image_type: str, config: dict) -> bool:
+def include_tile_in_input(
+    image_type: str, config: dict, for_metadata: bool = False
+) -> bool:
     """Determine if tile should be included in input file selection.
 
     Used by Snakemake rules to decide whether to filter by tile when
@@ -1004,12 +1013,14 @@ def should_include_tile_in_input(image_type: str, config: dict) -> bool:
     Args:
         image_type: 'sbs' or 'phenotype'
         config: Configuration dictionary
+        for_metadata: If True, check metadata data organization; else image data organization
 
     Returns:
         True if tile should be included in file selection
     """
     data_config = get_data_config(image_type, config)
-    return data_config["data_organization"] == "tile"
+    key = "metadata_data_organization" if for_metadata else "image_data_organization"
+    return data_config[key] == "tile"
 
 
 def update_config_for_unified_processing(config: dict) -> dict:

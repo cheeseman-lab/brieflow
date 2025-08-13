@@ -1,19 +1,26 @@
 from lib.preprocess.file_utils import get_sample_fps
-from lib.preprocess.preprocess import get_data_config, should_include_tile_in_input, get_expansion_values
+from lib.preprocess.preprocess import get_data_config, include_tile_in_input, get_expansion_values
 from lib.shared.target_utils import output_to_input
 
 
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
     input:
-        lambda wildcards: get_sample_fps(
+        samples=lambda wildcards: get_sample_fps(
             sbs_samples_df,
             plate=wildcards.plate,
             well=wildcards.well,
-            tile=wildcards.tile if should_include_tile_in_input("sbs", config) else None,
+            tile=wildcards.tile if include_tile_in_input("sbs", config, for_metadata=True) else None,
             cycle=wildcards.cycle,
             channel_order=config["preprocess"]["sbs_channel_order"],
         ),
+        metadata=lambda wildcards: get_sample_fps(
+            sbs_metadata_samples_df,
+            plate=wildcards.plate,
+            well=wildcards.well if include_tile_in_input("sbs", config, for_metadata=True) else None,
+            tile=wildcards.tile if include_tile_in_input("sbs", config, for_metadata=True) else None,
+            cycle=wildcards.cycle,
+        ) if not sbs_metadata_samples_df.empty else []
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
@@ -43,13 +50,20 @@ rule combine_metadata_sbs:
 # Extract metadata for phenotype images
 rule extract_metadata_phenotype:
     input:
-        lambda wildcards: get_sample_fps(
+        samples=lambda wildcards: get_sample_fps(
             phenotype_samples_df,
             plate=wildcards.plate,
             well=wildcards.well,
-            tile=wildcards.tile if should_include_tile_in_input("phenotype", config) else None,
+            tile=wildcards.tile if include_tile_in_input("phenotype", config, for_metadata=True) else None,
             channel_order=config["preprocess"]["phenotype_channel_order"],
         ),
+        metadata=lambda wildcards: get_sample_fps(
+            phenotype_metadata_samples_df,
+            plate=wildcards.plate,
+            well=wildcards.well if include_tile_in_input("phenotype", config, for_metadata=True) else None,
+            tile=wildcards.tile if include_tile_in_input("phenotype", config, for_metadata=True) else None,
+            round=getattr(wildcards, 'round', None),
+        ) if not phenotype_metadata_samples_df.empty else []
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:
@@ -83,7 +97,7 @@ rule convert_sbs:
             plate=wildcards.plate,
             well=wildcards.well,
             cycle=wildcards.cycle,
-            tile=wildcards.tile if should_include_tile_in_input("sbs", config) else None,
+            tile=wildcards.tile if include_tile_in_input("sbs", config) else None,
             channel_order=config["preprocess"]["sbs_channel_order"],
         ),
     output:
@@ -101,7 +115,7 @@ rule convert_phenotype:
             phenotype_samples_df,
             plate=wildcards.plate,
             well=wildcards.well,
-            tile=wildcards.tile if should_include_tile_in_input("phenotype", config) else None,
+            tile=wildcards.tile if include_tile_in_input("phenotype", config) else None,
             round_order=config["preprocess"]["phenotype_round_order"],
             channel_order=config["preprocess"]["phenotype_channel_order"]
         ),

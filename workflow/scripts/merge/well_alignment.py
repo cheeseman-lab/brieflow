@@ -1,0 +1,279 @@
+"""
+Step 1: Well Alignment - Coordinate scaling, triangle hashing, and alignment estimation.
+Save this as: workflow/scripts/merge/well_alignment.py
+"""
+
+import pandas as pd
+import numpy as np
+import yaml
+from pathlib import Path
+
+from lib.shared.file_utils import validate_dtypes
+from lib.merge.well_alignment import (
+    scale_coordinates,
+    well_level_triangle_hash,
+    triangle_hash_well_alignment,
+    calculate_coordinate_overlap
+)
+
+def main():
+    print("=== STEP 1: WELL ALIGNMENT ===")
+    
+    # Load cell positions
+    phenotype_positions = validate_dtypes(pd.read_parquet(snakemake.input.phenotype_positions))
+    sbs_positions = validate_dtypes(pd.read_parquet(snakemake.input.sbs_positions))
+    
+    plate = snakemake.params.plate
+    well = snakemake.params.well
+    scale_factor = snakemake.params.scale_factor
+    det_range = snakemake.params.det_range
+    score_threshold = snakemake.params.score_threshold
+    
+    print(f"Processing Plate {plate}, Well {well}")
+    print(f"Phenotype cells: {len(phenotype_positions):,}")
+    print(f"SBS cells: {len(sbs_positions):,}")
+    print(f"Scale factor: {scale_factor}")
+    
+    # =================================================================
+    # COORDINATE SCALING
+    # =================================================================
+    print("\n--- Coordinate Scaling ---")
+    
+    phenotype_scaled = scale_coordinates(
+        phenotype_positions, 
+        scale_factor=scale_factor
+    )
+    
+    print(f"Original phenotype range: i=[{phenotype_positions['i'].min():.0f}, {phenotype_positions['i'].max():.0f}], j=[{phenotype_positions['j'].min():.0f}, {phenotype_positions['j'].max():.0f}]")
+    print(f"Scaled phenotype range: i=[{phenotype_scaled['i'].min():.0f}, {phenotype_scaled['i'].max():.0f}], j=[{phenotype_scaled['j'].min():.0f}, {phenotype_scaled['j'].max():.0f}]")
+    print(f"SBS range: i=[{sbs_positions['i'].min():.0f}, {sbs_positions['i'].max():.0f}], j=[{sbs_positions['j'].min():.0f}, {sbs_positions['j'].max():.0f}]")
+    
+    # Calculate overlap
+    overlap_fraction = calculate_coordinate_overlap(phenotype_scaled, sbs_positions)
+    print(f"Coordinate overlap: {overlap_fraction:.1%} of SBS area")
+    
+    # Save scaled coordinates
+    phenotype_scaled.to_parquet(str(snakemake.output.scaled_phenotype_positions))
+    print(f"✅ Saved scaled phenotype positions: {snakemake.output.scaled_phenotype_positions}")
+    
+    # =================================================================
+    # TRIANGLE HASHING
+    # =================================================================
+    print("\n--- Triangle Hashing ---")
+    
+    # Generate triangle hashes using scaled coordinates
+    print("Generating triangle hash for scaled phenotype...")
+    phenotype_triangles = well_level_triangle_hash(phenotype_scaled)
+    
+    print("Generating triangle hash for SBS...")
+    sbs_triangles = well_level_triangle_hash(sbs_positions)
+    
+    if len(phenotype_triangles) == 0 or len(sbs_triangles) == 0:
+        print("❌ Triangle hash generation failed")
+        
+        # Save empty triangle files
+        empty_triangles = pd.DataFrame(columns=['V_0', 'V_1', 'c_0', 'c_1', 'magnitude'])
+        empty_triangles.to_parquet(str(snakemake.output.phenotype_triangles))
+        empty_triangles.to_parquet(str(snakemake.output.sbs_triangles))
+        
+        # Create failed alignment
+        failed_alignment = create_failed_alignment(
+            scale_factor=scale_factor,
+            reason="insufficient_triangles"
+        )
+        failed_alignment.to_parquet(str(snakemake.output.alignment_params))
+        
+        # Save failure summary
+        summary = {
+            'status': 'failed',
+            'reason': 'insufficient_triangles',
+            'phenotype_triangles': 0,
+            'sbs_triangles': 0,
+            'overlap_fraction': float(overlap_fraction)
+        }
+        
+        with open(str(snakemake.output.alignment_summary), 'w') as f:
+            yaml.dump(summary, f)
+        
+        return
+    
+    print(f"✅ Generated {len(phenotype_triangles)} phenotype triangles")
+    print(f"✅ Generated {len(sbs_triangles)} SBS triangles")
+    
+    # Save triangle hashes
+    phenotype_triangles.to_parquet(str(snakemake.output.phenotype_triangles))
+    sbs_triangles.to_parquet(str(snakemake.output.sbs_triangles))
+    
+    # =================================================================
+    # ALIGNMENT ESTIMATION
+    # =================================================================
+    print("\n--- Alignment Estimation ---")
+    
+    try:
+        alignment_result = triangle_hash_well_alignment(
+            phenotype_positions=phenotype_scaled,
+            sbs_positions=sbs_positions,
+            max_cells_for_hash=75000,
+            threshold_triangle=0.1,
+            threshold_point=2.0,
+            min_score=score_threshold
+        )
+        
+        if not alignment_result.empty:
+            best_alignment = alignment_result.iloc[0]
+            
+            # Check alignment quality
+            det = best_alignment.get('determinant', 0)
+            score = best_alignment.get('score', 0)
+            
+            det_ok = det_range[0] <= det <= det_range[1]
+            score_ok = score >= score_threshold
+            
+            if det_ok and score_ok:
+                print(f"✅ Triangle hash alignment successful:")
+                print(f"   Score: {score:.3f}")
+                print(f"   Determinant: {det:.6f}")
+                alignment_status = "success"
+            else:
+                print(f"⚠️  Alignment quality issues:")
+                print(f"   Score: {score:.3f} (threshold: {score_threshold})")
+                print(f"   Determinant: {det:.6f} (range: {det_range})")
+                alignment_status = "quality_warning"
+        else:
+            print("❌ Triangle hash alignment returned empty result")
+            alignment_result = None
+            alignment_status = "failed"
+            
+    except Exception as e:
+        print(f"❌ Triangle hash alignment failed: {e}")
+        alignment_result = None
+        alignment_status = "failed"
+    
+    # Fallback to identity transformation
+    if alignment_result is None or alignment_result.empty:
+        print("Using identity transformation fallback...")
+        
+        best_alignment = create_identity_alignment(
+            scale_factor=scale_factor,
+            phenotype_scaled=phenotype_scaled,
+            sbs_positions=sbs_positions
+        )
+        alignment_status = "identity_fallback"
+        alignment_result = pd.DataFrame([best_alignment])
+    else:
+        best_alignment = alignment_result.iloc[0]
+    
+    # Prepare alignment parameters for saving
+    essential_alignment = prepare_alignment_for_saving(best_alignment, scale_factor)
+    essential_alignment.to_parquet(str(snakemake.output.alignment_params))
+    
+    print(f"✅ Saved alignment parameters: {snakemake.output.alignment_params}")
+    
+    # Create alignment summary
+    summary = {
+        'status': alignment_status,
+        'plate': plate,
+        'well': well,
+        'scale_factor': float(scale_factor),
+        'overlap_fraction': float(overlap_fraction),
+        'phenotype_triangles': len(phenotype_triangles),
+        'sbs_triangles': len(sbs_triangles),
+        'alignment': {
+            'approach': str(best_alignment.get('approach', 'unknown')),
+            'transformation_type': str(best_alignment.get('transformation_type', 'unknown')),
+            'score': float(best_alignment.get('score', 0)),
+            'determinant': float(best_alignment.get('determinant', 1)),
+            'validation_mean_distance': float(best_alignment.get('validation_mean_distance', 0))
+        }
+    }
+    
+    with open(str(snakemake.output.alignment_summary), 'w') as f:
+        yaml.dump(summary, f, default_flow_style=False)
+    
+    print(f"✅ Saved alignment summary: {snakemake.output.alignment_summary}")
+    print(f"\n🎉 Step 1 (Alignment) completed successfully!")
+
+def create_failed_alignment(scale_factor, reason):
+    """Create a failed alignment record."""
+    return pd.DataFrame([{
+        'rotation_matrix_flat': [1.0, 0.0, 0.0, 1.0],
+        'translation_vector': [0.0, 0.0],
+        'score': 0.0,
+        'determinant': 1.0,
+        'transformation_type': f'failed_{reason}',
+        'scale_factor': float(scale_factor),
+        'approach': 'failed',
+        'overlap_fraction': 0.0,
+        'validation_mean_distance': 0.0,
+        'validation_median_distance': 0.0,
+        'has_overlap': False
+    }])
+
+def create_identity_alignment(scale_factor, phenotype_scaled, sbs_positions):
+    """Create identity transformation alignment."""
+    # Validate with a sample
+    from scipy.spatial.distance import cdist
+    
+    sample_size = min(1000, len(phenotype_scaled), len(sbs_positions))
+    pheno_sample = phenotype_scaled.sample(n=sample_size)[['i', 'j']].values
+    sbs_sample = sbs_positions.sample(n=sample_size)[['i', 'j']].values
+    
+    distances = cdist(pheno_sample, sbs_sample, metric='euclidean')
+    min_distances = distances.min(axis=1)
+    score = (min_distances < 10.0).mean()
+    
+    return {
+        'rotation': np.eye(2),
+        'translation': np.array([0.0, 0.0]),
+        'score': score,
+        'determinant': 1.0,
+        'transformation_type': 'identity_after_scaling',
+        'scale_factor': scale_factor,
+        'approach': 'identity_fallback',
+        'validation_mean_distance': min_distances.mean(),
+        'validation_median_distance': np.median(min_distances),
+        'has_overlap': True
+    }
+
+def prepare_alignment_for_saving(alignment, scale_factor):
+    """Prepare alignment parameters for Parquet serialization."""
+    rotation_matrix = alignment.get('rotation', np.eye(2))
+    if not isinstance(rotation_matrix, np.ndarray):
+        rotation_matrix = np.eye(2)
+    
+    translation_vector = alignment.get('translation', np.array([0.0, 0.0]))
+    if not isinstance(translation_vector, np.ndarray):
+        translation_vector = np.array([0.0, 0.0])
+    
+    def safe_float(value, default=0.0):
+        try:
+            return float(value) if value is not None else default
+        except (ValueError, TypeError):
+            return default
+    
+    # Convert to standard Python lists (not numpy arrays) for better Parquet compatibility
+    rotation_flat = rotation_matrix.flatten().astype(float).tolist()
+    translation_list = translation_vector.astype(float).tolist()
+    
+    # Debug output
+    print(f"Saving alignment parameters:")
+    print(f"  Rotation matrix: {rotation_matrix}")
+    print(f"  Rotation flat: {rotation_flat}")
+    print(f"  Translation: {translation_vector}")
+    print(f"  Translation list: {translation_list}")
+    
+    return pd.DataFrame([{
+        'rotation_matrix_flat': rotation_flat,  # Save as Python list, not numpy array
+        'translation_vector': translation_list,  # Save as Python list, not numpy array
+        'scale_factor': safe_float(alignment.get('scale_factor', scale_factor)),
+        'score': safe_float(alignment.get('score', 0)),
+        'determinant': safe_float(alignment.get('determinant', 1)),
+        'transformation_type': str(alignment.get('transformation_type', 'unknown')),
+        'approach': str(alignment.get('approach', 'unknown')),
+        'validation_mean_distance': safe_float(alignment.get('validation_mean_distance', 0.0)),
+        'validation_median_distance': safe_float(alignment.get('validation_median_distance', 0.0)),
+        'has_overlap': bool(alignment.get('has_overlap', True))
+    }])
+
+if __name__ == "__main__":
+    main()

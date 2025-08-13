@@ -91,7 +91,45 @@ MERGE_OUTPUTS = {
         ),
     ],
     
-    # Merge approach outputs
+    # NEW: 3-Step Enhanced Pipeline Outputs
+    "well_alignment": [
+        MERGE_FP / "scaled_coordinates" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_scaled", "parquet"
+        ),
+        MERGE_FP / "triangle_hashes" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_triangles", "parquet"
+        ),
+        MERGE_FP / "triangle_hashes" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "sbs_triangles", "parquet"
+        ),
+        MERGE_FP / "alignments" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "alignment", "parquet"
+        ),
+        MERGE_FP / "alignments" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "alignment_summary", "yaml"
+        ),
+    ],
+    "well_cell_merge": [
+        MERGE_FP / "raw_matches" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "raw_matches", "parquet"
+        ),
+        MERGE_FP / "merged_cells" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "merged_cells", "parquet"
+        ),
+        MERGE_FP / "merge_summaries" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "merge_summary", "yaml"
+        ),
+    ],
+    "well_merge_deduplicate": [
+        MERGE_FP / "deduplicated_cells" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "deduplicated_cells", "parquet"
+        ),
+        MERGE_FP / "dedup_summaries" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "dedup_summary", "yaml"
+        ),
+    ],
+    
+    # Enhanced approach outputs (backwards compatibility)
     "enhanced_well_merge": [
         MERGE_FP
         / "parquets"
@@ -205,12 +243,15 @@ def get_merge_targets_by_approach():
     ]
     
     if approach == "enhanced":
-        # Enhanced approach targets
+        # Enhanced approach targets - NEW: Use 3-step pipeline
         approach_targets = [
             "estimate_stitch_phenotype", "estimate_stitch_sbs",
             "stitch_phenotype_image", "stitch_phenotype_mask", "stitch_phenotype_positions",
             "stitch_sbs_image", "stitch_sbs_mask", "stitch_sbs_positions", 
             "stitch_phenotype_overlay", "stitch_sbs_overlay",
+            # NEW: 3-step pipeline targets
+            "well_alignment", "well_cell_merge", "well_merge_deduplicate",
+            # Keep backwards compatibility
             "enhanced_well_merge"
         ]
     else:
@@ -238,6 +279,11 @@ MERGE_OUTPUT_MAPPINGS = {
     "stitch_sbs_positions": None,
     "stitch_phenotype_overlay": None,
     "stitch_sbs_overlay": None,
+    
+    # NEW: 3-step pipeline mappings
+    "well_alignment": None,
+    "well_cell_merge": None,
+    "well_merge_deduplicate": None,
     
     # Merge approach mappings
     "enhanced_well_merge": None,

@@ -207,6 +207,7 @@ def triangle_hash_well_alignment(
     
     return pd.DataFrame([alignment])
 
+
 def merge_stitched_cells(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
@@ -217,51 +218,51 @@ def merge_stitched_cells(
 ) -> pd.DataFrame:
     """
     Merge cells using alignment transformation with memory-efficient processing.
-    
-    This is the same as before - works with any alignment approach.
+    Uses robust chunk indexing to avoid misalignment between arrays and DataFrames.
     """
     print(f"Starting cell merging with threshold={threshold}")
     
-    # Extract transformation parameters
+    # --- Extract transformation parameters ---
     if isinstance(alignment, pd.Series):
         rotation = alignment['rotation']
         translation = alignment['translation']
-    else:
+    elif isinstance(alignment, dict):
         rotation = alignment.get('rotation', np.eye(2))
         translation = alignment.get('translation', np.zeros(2))
-    
-    # Ensure rotation is 2x2 matrix
-    if rotation is None or np.array(rotation).size != 4:
-        rotation = np.eye(2)
     else:
-        rotation = np.array(rotation).reshape(2, 2)
+        rotation = alignment.iloc[0]['rotation'] if 'rotation' in alignment.columns else np.eye(2)
+        translation = alignment.iloc[0]['translation'] if 'translation' in alignment.columns else np.zeros(2)
     
-    # Ensure translation is length 2 vector
-    if translation is None or np.array(translation).size != 2:
-        translation = np.zeros(2)
-    else:
-        translation = np.array(translation).flatten()[:2]
+    # Ensure valid shapes
+    rotation = np.array(rotation).reshape(2, 2) if rotation is not None and np.array(rotation).size == 4 else np.eye(2)
+    translation = np.array(translation).flatten()[:2] if translation is not None and np.array(translation).size >= 2 else np.zeros(2)
     
     print(f"Using transformation: rotation det={np.linalg.det(rotation):.3f}, translation={translation}")
-
-    # Get coordinates
-    pheno_coords = phenotype_positions[['i', 'j']].values
-    sbs_coords = sbs_positions[['i', 'j']].values
-
-    # NOW add debug calls (after coordinates are defined):
-    scale_factor = debug_transformation_matrix(rotation, translation)
-    has_overlap, overlap_frac = debug_coordinate_transformation(pheno_coords, sbs_coords, rotation, translation)
-
-    # Transform phenotype coordinates to SBS coordinate system
+    
+    # --- Prepare coordinates ---
+    pheno_coords = phenotype_positions[['i', 'j']].to_numpy()
+    sbs_coords = sbs_positions[['i', 'j']].to_numpy()
+    
+    # Transform phenotype coordinates into SBS coordinate space
     transformed_coords = pheno_coords @ rotation.T + translation
      
     print(f"Coordinate ranges after transformation:")
     print(f"  Transformed phenotype: i=[{transformed_coords[:, 0].min():.0f}, {transformed_coords[:, 0].max():.0f}], j=[{transformed_coords[:, 1].min():.0f}, {transformed_coords[:, 1].max():.0f}]")
     print(f"  SBS: i=[{sbs_coords[:, 0].min():.0f}, {sbs_coords[:, 0].max():.0f}], j=[{sbs_coords[:, 1].min():.0f}, {sbs_coords[:, 1].max():.0f}]")
     
-    # Process in chunks to manage memory
-    all_matches = []
+    # --- Pre-extract phenotype and SBS metadata as arrays for safe indexing ---
+    pheno_cells = phenotype_positions['cell'].to_numpy()
+    pheno_i = phenotype_positions['i'].to_numpy()
+    pheno_j = phenotype_positions['j'].to_numpy()
+    pheno_area = phenotype_positions['area'].to_numpy() if 'area' in phenotype_positions.columns else np.full(len(pheno_cells), np.nan)
     
+    sbs_cells = sbs_positions['cell'].to_numpy()
+    sbs_i = sbs_positions['i'].to_numpy()
+    sbs_j = sbs_positions['j'].to_numpy()
+    sbs_area = sbs_positions['area'].to_numpy() if 'area' in sbs_positions.columns else np.full(len(sbs_cells), np.nan)
+    
+    # --- Chunk processing ---
+    all_matches = []
     n_chunks = (len(sbs_positions) + chunk_size - 1) // chunk_size
     print(f"Processing {len(sbs_positions):,} SBS cells in {n_chunks} chunks of {chunk_size:,}")
     
@@ -272,80 +273,64 @@ def merge_stitched_cells(
         if chunk_idx % 10 == 0:
             print(f"Processing chunk {chunk_idx + 1}/{n_chunks}")
         
-        # Get chunk of SBS coordinates
         sbs_chunk_coords = sbs_coords[start_idx:end_idx]
+        if sbs_chunk_coords.size == 0:
+            continue
         
-        # Calculate distances from transformed phenotype to SBS chunk
         distances = cdist(sbs_chunk_coords, transformed_coords, metric='euclidean')
-        
-        # Find closest phenotype cell for each SBS cell in chunk
         closest_pheno_idx = distances.argmin(axis=1)
-        min_distances = distances.min(axis=1)
+        min_distances = distances[np.arange(distances.shape[0]), closest_pheno_idx]
         
-        # Filter by threshold
-        valid_matches = min_distances < threshold
+        valid_mask = min_distances < threshold
+        if not valid_mask.any():
+            continue
         
-        if valid_matches.sum() > 0:
-            # Create match records for this chunk
-            sbs_chunk_indices = np.arange(start_idx, end_idx)[valid_matches]
-            pheno_match_indices = closest_pheno_idx[valid_matches]
-            match_distances = min_distances[valid_matches]
-            
-            # Build DataFrame for this chunk
-            chunk_matches = pd.DataFrame({
-                'cell_0': phenotype_positions.iloc[pheno_match_indices]['cell'].values,
-                'i_0': phenotype_positions.iloc[pheno_match_indices]['i'].values,
-                'j_0': phenotype_positions.iloc[pheno_match_indices]['j'].values,
-                'cell_1': sbs_positions.iloc[sbs_chunk_indices]['cell'].values,
-                'i_1': sbs_positions.iloc[sbs_chunk_indices]['i'].values,
-                'j_1': sbs_positions.iloc[sbs_chunk_indices]['j'].values,
-                'distance': match_distances
-            })
-            
-            # Add area columns if available
-            if 'area' in phenotype_positions.columns:
-                chunk_matches['area_0'] = phenotype_positions.iloc[pheno_match_indices]['area'].values
-            else:
-                chunk_matches['area_0'] = np.nan
-                
-            if 'area' in sbs_positions.columns:
-                chunk_matches['area_1'] = sbs_positions.iloc[sbs_chunk_indices]['area'].values
-            else:
-                chunk_matches['area_1'] = np.nan
-            
-            all_matches.append(chunk_matches)
+        sbs_idx_global = np.nonzero(valid_mask)[0] + start_idx
+        pheno_idx = closest_pheno_idx[valid_mask]
+        match_distances = min_distances[valid_mask]
+        
+        chunk_matches = pd.DataFrame({
+            'cell_0': pheno_cells[pheno_idx],
+            'i_0':    pheno_i[pheno_idx],
+            'j_0':    pheno_j[pheno_idx],
+            'cell_1': sbs_cells[sbs_idx_global],
+            'i_1':    sbs_i[sbs_idx_global],
+            'j_1':    sbs_j[sbs_idx_global],
+            'distance': match_distances,
+            'area_0': pheno_area[pheno_idx],
+            'area_1': sbs_area[sbs_idx_global],
+        })
+        
+        all_matches.append(chunk_matches)
     
-    # Combine all chunks
-    if all_matches:
-        merged_cells_raw = pd.concat(all_matches, ignore_index=True)
-        
-        print(f"Before deduplication: {len(merged_cells_raw):,} matches")
-        print(f"Duplicate phenotype cells: {merged_cells_raw['cell_0'].duplicated().sum():,}")
-        
-        # SAVE PRE-DEDUPLICATION MATCHES - FIX: Handle Namedlist/object conversion
-        if output_path:
-            # Convert output_path to string if it's not already
-            output_path_str = str(output_path)
-            raw_matches_path = output_path_str.replace('.parquet', '_raw_matches.parquet')
-            merged_cells_raw.to_parquet(raw_matches_path)
-            print(f"✅ Saved raw matches (before deduplication) to: {raw_matches_path}")
-        else:
-            print("⚠️ No output path provided - skipping raw matches save")
-        
-        # Remove duplicate phenotype cells (keep best matches)
-        merged_cells = merged_cells_raw.sort_values('distance').drop_duplicates('cell_0', keep='first')
-        
-        print(f"After deduplication: {len(merged_cells):,} matches")
-        print(f"Successfully merged {len(merged_cells):,} cells")
-        print(f"Distance statistics: mean={merged_cells['distance'].mean():.2f}, max={merged_cells['distance'].max():.2f}")
-        
-        return merged_cells
-    else:
+    # --- Combine and deduplicate ---
+    if not all_matches:
         print("No cells matched within threshold")
         return pd.DataFrame(columns=[
             'cell_0', 'i_0', 'j_0', 'area_0',
             'cell_1', 'i_1', 'j_1', 'area_1', 'distance'
         ])
+    
+    merged_cells_raw = pd.concat(all_matches, ignore_index=True)
+    print(f"Before deduplication: {len(merged_cells_raw):,} matches")
+    print(f"Duplicate phenotype cells: {merged_cells_raw['cell_0'].duplicated().sum():,}")
+    
+    # Optional save
+    if output_path is not None:
+        try:
+            output_path_str = str(getattr(output_path, '__fspath__', lambda: str(output_path))())
+            raw_matches_path = output_path_str.replace('.parquet', '_raw_matches.parquet')
+            merged_cells_raw.to_parquet(raw_matches_path)
+            print(f"✅ Saved raw matches (before deduplication) to: {raw_matches_path}")
+        except Exception as e:
+            print(f"⚠️ Could not save raw matches: {e}")
+    
+    merged_cells = merged_cells_raw.sort_values('distance').drop_duplicates('cell_0', keep='first')
+    print(f"After deduplication: {len(merged_cells):,} matches")
+    print(f"Successfully merged {len(merged_cells):,} cells")
+    print(f"Distance statistics: mean={merged_cells['distance'].mean():.2f}, max={merged_cells['distance'].max():.2f}")
+    
+    return merged_cells
 
 def debug_transformation_matrix(rotation, translation):
     """Debug what's actually in the transformation matrix."""
@@ -364,15 +349,7 @@ def debug_transformation_matrix(rotation, translation):
     print(f"  X-direction: {scale_x:.6f}")
     print(f"  Y-direction: {scale_y:.6f}")
     print(f"  Average: {avg_scale:.6f}")
-    print(f"  Expected scale: ~{1/8:.6f} (1/8 for phenotype→SBS)")
-    
-    # Check if it's close to expected scaling
-    expected_scale = 1/8
-    if abs(avg_scale - expected_scale) < 0.01:
-        print("✅ Scale factor looks correct!")
-    else:
-        print(f"⚠️ Scale factor mismatch! Expected ~{expected_scale:.6f}, got {avg_scale:.6f}")
-    
+       
     # Check rotation component
     if scale_x > 0 and scale_y > 0:
         normalized_rotation = rotation / avg_scale
@@ -417,6 +394,9 @@ def debug_coordinate_transformation(pheno_coords, sbs_coords, rotation, translat
     
     has_overlap = overlap_i_max > overlap_i_min and overlap_j_max > overlap_j_min
     
+    # Initialize overlap_fraction here to ensure it's always defined
+    overlap_fraction = 0.0
+    
     if has_overlap:
         overlap_area = (overlap_i_max - overlap_i_min) * (overlap_j_max - overlap_j_min)
         sbs_area = (sbs_coords[:, 0].max() - sbs_coords[:, 0].min()) * (sbs_coords[:, 1].max() - sbs_coords[:, 1].min())
@@ -427,7 +407,7 @@ def debug_coordinate_transformation(pheno_coords, sbs_coords, rotation, translat
     else:
         print("❌ NO OVERLAP between transformed phenotype and SBS coordinates!")
     
-    return has_overlap, overlap_fraction if has_overlap else 0
+    return has_overlap, overlap_fraction
 
 
 # Legacy Compatibility Functions - kept for backwards compatibility
@@ -1265,79 +1245,6 @@ def pure_scaling_alignment(
         print(f"   May need translation adjustment")
     
     return pd.DataFrame([alignment])
-
-
-# Test different scale factors
-def test_multiple_scale_factors(
-    phenotype_positions: pd.DataFrame,
-    sbs_positions: pd.DataFrame,
-    scale_factors: list = None,
-    validation_sample_size: int = 10000
-) -> pd.DataFrame:
-    """
-    Test pure scaling with multiple scale factors to find the best one.
-    """
-    if scale_factors is None:
-        # Test theoretical and calculated scale factors
-        pheno_coords = phenotype_positions[['i', 'j']].values
-        sbs_coords = sbs_positions[['i', 'j']].values
-        
-        # NumPy 2.0 compatible range calculation
-        pheno_i_range = pheno_coords[:, 0].max() - pheno_coords[:, 0].min()
-        pheno_j_range = pheno_coords[:, 1].max() - pheno_coords[:, 1].min()
-        sbs_i_range = sbs_coords[:, 0].max() - sbs_coords[:, 0].min()
-        sbs_j_range = sbs_coords[:, 1].max() - sbs_coords[:, 1].min()
-        
-        calculated_scale = ((sbs_i_range / pheno_i_range) + (sbs_j_range / pheno_j_range)) / 2
-        
-        scale_factors = [
-            0.125,  # Theoretical 1/8
-            calculated_scale,  # From coordinate ranges
-            0.120,  # Nearby values
-            0.123,
-            0.127,
-            0.130
-        ]
-    
-    print(f"=== Testing Multiple Scale Factors ===")
-    print(f"Scale factors to test: {[f'{s:.6f}' for s in scale_factors]}")
-    
-    results = []
-    for scale in scale_factors:
-        print(f"\n--- Testing scale factor: {scale:.6f} ---")
-        result = pure_scaling_alignment(
-            phenotype_positions, sbs_positions, 
-            scale_factor=scale,
-            validation_sample_size=validation_sample_size
-        )
-        if not result.empty:
-            results.append(result.iloc[0])
-    
-    if results:
-        results_df = pd.DataFrame(results)
-        
-        print(f"\n=== Scale Factor Comparison ===")
-        print("Scale    Score(10px) Mean_Dist  Overlap%")
-        print("-" * 40)
-        for _, row in results_df.iterrows():
-            print(f"{row['scale_factor']:.6f}   {row['score']:.3f}     {row['validation_mean_distance']:6.1f}    {row['overlap_fraction']*100:5.1f}%")
-        
-        # Find best scale factor
-        best_idx = results_df['score'].idxmax()
-        best_result = results_df.iloc[best_idx:best_idx+1].copy()
-        
-        # Fix: Use best_result instead of best_alignment
-        best_alignment = best_result.iloc[0]  # Get the series
-        scale_factor = best_alignment.get('scale_factor', 'N/A')
-        mean_distance = best_alignment.get('validation_mean_distance', 'N/A')
-        print(f"\n✅ Best scale factor: {scale_factor}")
-        print(f"   Score: {best_alignment.get('score', 'N/A'):.3f}")
-        print(f"   Mean distance: {mean_distance}")
-        print(f"   Overlap: {best_alignment.get('overlap_fraction', 0)*100:.1f}%")
-        
-        return best_result
-    else:
-        return pd.DataFrame()
 
 
 # Usage example:

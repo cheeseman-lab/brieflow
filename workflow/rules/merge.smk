@@ -141,50 +141,65 @@ rule fast_alignment:
     script:
         "../scripts/merge/fast_alignment.py"
 
-rule enhanced_well_merge:
+# Step 1: Coordinate scaling, triangle hashing, and alignment
+rule well_alignment:
     input:
-        phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"],
-        sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"],
+        phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"][0],
+        sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"][0],
     output:
-        merged_cells=MERGE_OUTPUTS_MAPPED["enhanced_well_merge"],
-        phenotype_triangles=MERGE_FP / "triangle_hashes" / "{plate}" / "{well}" / "phenotype_triangles.parquet",
-        sbs_triangles=MERGE_FP / "triangle_hashes" / "{plate}" / "{well}" / "sbs_triangles.parquet", 
-        alignment_params=MERGE_FP / "alignments" / "{plate}" / "{well}" / "alignment.parquet",
-        merge_summary=MERGE_FP / "summaries" / "{plate}" / "{well}" / "merge_summary.yaml",
+        scaled_phenotype_positions=MERGE_OUTPUTS["well_alignment"][0],      
+        phenotype_triangles=MERGE_OUTPUTS["well_alignment"][1],             
+        sbs_triangles=MERGE_OUTPUTS["well_alignment"][2],                   
+        alignment_params=MERGE_OUTPUTS["well_alignment"][3],                
+        alignment_summary=MERGE_OUTPUTS["well_alignment"][4],               
     params:
-        threshold=config["merge"]["threshold"],           
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
         scale_factor=config.get("merge", {}).get("scale_factor", 0.125),
-    resources:
-        mem_mb=32000,
-        cpus_per_task=4,
-        runtime=60
-    script:
-        "../scripts/merge/well_merge.py"
-
-# Original merge approach (tile-by-tile)
-rule merge_legacy:
-    input:
-        ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
-        ancient(SBS_OUTPUTS["combine_sbs_info"]),
-        MERGE_OUTPUTS["fast_alignment"],
-    output:
-        MERGE_OUTPUTS_MAPPED["merge_legacy"],
-    params:
         det_range=config["merge"]["det_range"],
-        score=config["merge"]["score"],
+        score_threshold=config["merge"]["score"],
+    script:
+        "../scripts/merge/well_alignment.py"
+
+# Step 2: Cell-to-cell merging using alignment
+rule well_cell_merge:
+    input:
+        scaled_phenotype_positions=MERGE_OUTPUTS["well_alignment"][0],      
+        sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"][0],
+        alignment_params=MERGE_OUTPUTS["well_alignment"][3],                
+    output:
+        raw_matches=MERGE_OUTPUTS["well_cell_merge"][0],                    
+        merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],                   
+        merge_summary=MERGE_OUTPUTS["well_cell_merge"][2],                  
+    params:
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: wildcards.well,
         threshold=config["merge"]["threshold"],
     script:
-        "../scripts/merge/merge_legacy.py"
+        "../scripts/merge/well_cell_merge.py"
 
-# Main merge rule - chooses approach based on configuration  
+# Step 3: Deduplication and final processing
+rule well_merge_deduplicate:
+    input:
+        raw_matches=MERGE_OUTPUTS["well_cell_merge"][0],                    
+        merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],                   
+    output:
+        deduplicated_cells=MERGE_OUTPUTS["well_merge_deduplicate"][0],      
+        deduplication_summary=MERGE_OUTPUTS["well_merge_deduplicate"][1],   
+    params:
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: wildcards.well,
+        dedup_strategy=config.get("merge", {}).get("dedup_strategy", "greedy_1to1"),
+    script:
+        "../scripts/merge/well_merge_deduplicate.py"
+
+# Updated main merge rule to use the new 3-step pipeline
 rule merge:
     input:
         lambda wildcards: (
-            MERGE_OUTPUTS["enhanced_well_merge"] 
+            MERGE_OUTPUTS["well_merge_deduplicate"][0]  # deduplicated_cells.parquet
             if config.get("merge", {}).get("approach", "legacy") == "enhanced"
-            else MERGE_OUTPUTS["merge_legacy"]
+            else MERGE_OUTPUTS["merge_legacy"][0]
         )
     output:
         MERGE_OUTPUTS_MAPPED["merge"],
@@ -201,6 +216,21 @@ rule merge:
         approach = params.approach
         print(f"Using {approach} merge approach")
         print(f"Merged {len(merge_data)} cells")
+
+# Original merge approach (tile-by-tile)
+rule merge_legacy:
+    input:
+        ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
+        ancient(SBS_OUTPUTS["combine_sbs_info"]),
+        MERGE_OUTPUTS["fast_alignment"],
+    output:
+        MERGE_OUTPUTS_MAPPED["merge_legacy"],
+    params:
+        det_range=config["merge"]["det_range"],
+        score=config["merge"]["score"],
+        threshold=config["merge"]["threshold"],
+    script:
+        "../scripts/merge/merge_legacy.py"
 
 
 # Enhanced well merge alternative name for backwards compatibility

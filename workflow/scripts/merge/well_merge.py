@@ -69,6 +69,10 @@ def main():
         print("❌ No coordinate overlap after scaling!")
         overlap_fraction = 0.0
     
+    # SAVE SCALED PHENOTYPE POSITIONS
+    phenotype_scaled.to_parquet(str(snakemake.output.phenotype_scaled))
+    print(f"✅ Saved scaled phenotype positions: {snakemake.output.phenotype_scaled}")
+    
     # =================================================================
     # STEP 2: TRIANGLE HASHING (IN SCALED COORDINATE SYSTEM)
     # =================================================================
@@ -93,6 +97,15 @@ def main():
         # Create empty triangle files
         pd.DataFrame(columns=['V_0', 'V_1', 'c_0', 'c_1', 'magnitude']).to_parquet(str(snakemake.output.phenotype_triangles))
         pd.DataFrame(columns=['V_0', 'V_1', 'c_0', 'c_1', 'magnitude']).to_parquet(str(snakemake.output.sbs_triangles))
+        
+        # ADD THIS: Save scaled positions even on failure
+        phenotype_scaled.to_parquet(str(snakemake.output.phenotype_scaled))
+        
+        # ADD THIS: Save identity-transformed positions (no actual transformation)
+        phenotype_transformed = phenotype_scaled.copy()
+        phenotype_transformed['i_transformed'] = phenotype_scaled['i']
+        phenotype_transformed['j_transformed'] = phenotype_scaled['j']
+        phenotype_transformed.to_parquet(str(snakemake.output.phenotype_transformed))
         
         # Create empty alignment file
         empty_alignment = pd.DataFrame([{
@@ -214,6 +227,15 @@ def main():
         ])
         empty_df.to_parquet(str(snakemake.output.merged_cells))
         
+        # ADD THIS: Still save the scaled positions
+        phenotype_scaled.to_parquet(str(snakemake.output.phenotype_scaled))
+        
+        # ADD THIS: Save identity-transformed (since alignment failed)
+        phenotype_transformed = phenotype_scaled.copy()
+        phenotype_transformed['i_transformed'] = phenotype_scaled['i']
+        phenotype_transformed['j_transformed'] = phenotype_scaled['j']
+        phenotype_transformed.to_parquet(str(snakemake.output.phenotype_transformed))
+        
         # Create empty alignment file with proper structure
         empty_alignment = pd.DataFrame([{
             'rotation_matrix_flat': [1.0, 0.0, 0.0, 1.0],
@@ -257,15 +279,30 @@ def main():
     overlap_frac = best_alignment.get('overlap_fraction', 0.0)
     print(f"   Overlap: {overlap_frac*100:.1f}%")
     
-    # Save alignment parameters as separate output
     # Extract only the essential parameters for Parquet serialization with safe conversions
     rotation_matrix = best_alignment.get('rotation', np.eye(2))
     if not isinstance(rotation_matrix, np.ndarray):
         rotation_matrix = np.eye(2)
+    else:
+        rotation_matrix = np.array(rotation_matrix).reshape(2, 2)
     
     translation_vector = best_alignment.get('translation', np.array([0.0, 0.0]))
     if not isinstance(translation_vector, np.ndarray):
         translation_vector = np.array([0.0, 0.0])
+    else:
+        translation_vector = np.array(translation_vector).flatten()[:2]
+    
+    # Apply transformation to scaled phenotype
+    pheno_coords_scaled = phenotype_scaled[['i', 'j']].values
+    pheno_coords_transformed = pheno_coords_scaled @ rotation_matrix.T + translation_vector
+    
+    phenotype_transformed = phenotype_scaled.copy()
+    phenotype_transformed['i_transformed'] = pheno_coords_transformed[:, 0]
+    phenotype_transformed['j_transformed'] = pheno_coords_transformed[:, 1]
+    
+    # Save transformed positions
+    phenotype_transformed.to_parquet(str(snakemake.output.phenotype_transformed))
+    print(f"✅ Saved transformed phenotype positions: {snakemake.output.phenotype_transformed}")
     
     # Safe conversion with proper defaults
     def safe_float(value, default=0.0):
@@ -329,6 +366,9 @@ def main():
             'cell_1', 'i_1', 'j_1', 'area_1', 'distance'
         ])
         empty_df.to_parquet(str(snakemake.output.merged_cells))
+        
+        # NOTE: phenotype_scaled and phenotype_transformed should already be saved by this point
+        # since they're saved in the success path before merging
         
         # Create failure summary
         with open(str(snakemake.output.merge_summary), 'w') as f:

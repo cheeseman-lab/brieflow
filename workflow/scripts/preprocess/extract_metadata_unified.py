@@ -12,6 +12,7 @@ data_config = get_data_config(
 
 # Extract metadata parameters
 cycle = getattr(snakemake.params, "cycle", None)
+round = getattr(snakemake.params, "round", None)
 
 # Extract metadata using unified function
 metadata_df = extract_metadata_unified(
@@ -20,6 +21,7 @@ metadata_df = extract_metadata_unified(
     well=snakemake.params.well,
     tile=snakemake.params.tile,
     cycle=cycle,
+    round=round,
     data_format=data_config["data_format"],
     data_organization=data_config["data_organization"],
     verbose=False,

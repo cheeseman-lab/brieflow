@@ -48,6 +48,7 @@ rule extract_metadata_phenotype:
             plate=wildcards.plate,
             well=wildcards.well,
             tile=wildcards.tile if should_include_tile_in_input("phenotype", config) else None,
+            round=wildcards.round if "round" in phenotype_samples_df.columns else None,
             channel_order=config["preprocess"]["phenotype_channel_order"],
         ),
     output:

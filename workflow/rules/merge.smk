@@ -151,7 +151,8 @@ rule well_alignment:
         phenotype_triangles=MERGE_OUTPUTS["well_alignment"][1],             
         sbs_triangles=MERGE_OUTPUTS["well_alignment"][2],                   
         alignment_params=MERGE_OUTPUTS["well_alignment"][3],                
-        alignment_summary=MERGE_OUTPUTS["well_alignment"][4],               
+        alignment_summary=MERGE_OUTPUTS["well_alignment"][4],
+        transformed_phenotype_positions=MERGE_OUTPUTS["well_alignment"][5],  # ADD THIS LINE
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,

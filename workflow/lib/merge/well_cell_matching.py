@@ -136,8 +136,6 @@ def find_cell_matches(
     pheno_coords = phenotype_positions[['i', 'j']].values
     sbs_coords = sbs_positions[['i', 'j']].values
     
-    # Transform phenotype coordinates to SBS coordinate system
-    transformed_coords = pheno_coords @ rotation.T + translation
     
     print(f"Coordinate ranges after transformation:")
     print(f"  Transformed phenotype: i=[{transformed_coords[:, 0].min():.0f}, {transformed_coords[:, 0].max():.0f}], j=[{transformed_coords[:, 1].min():.0f}, {transformed_coords[:, 1].max():.0f}]")

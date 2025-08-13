@@ -99,7 +99,7 @@ def main():
 
     print(f"Raw matches prepared: {len(merged_cells_final):,}")
     print(f"(Deduplication will be handled in Step 3 to match legacy approach)")
-    
+
     # Reorder columns
     output_columns = [
         'plate', 'well', 'cell_0', 'i_0', 'j_0', 
@@ -107,13 +107,12 @@ def main():
     ]
     
     # Add area columns if available
-    if 'area_0' in merged_cells.columns:
+    if 'area_0' in merged_cells_final.columns:
         output_columns.insert(-1, 'area_0')
-    if 'area_1' in merged_cells.columns:
+    if 'area_1' in merged_cells_final.columns:
         output_columns.insert(-1, 'area_1')
     
-    available_columns = [col for col in output_columns if col in merged_cells.columns]
-    merged_cells_final = merged_cells[available_columns]
+    available_columns = [col for col in output_columns if col in merged_cells_final.columns]    
     
     # =================================================================
     # VALIDATE MATCHES

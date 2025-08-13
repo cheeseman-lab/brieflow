@@ -18,27 +18,33 @@ from lib.merge.well_deduplication import (
 
 def legacy_style_deduplication(raw_matches):
     """
-    Apply legacy deduplication logic from merge_sbs_phenotype:
-    - For each SBS cell, keep only the closest phenotype match
-    - Multiple SBS cells can match the same phenotype cell (like legacy)
+    Apply the exact legacy deduplication logic from deduplicate_cells function.
+    Two-step process matching the original legacy implementation.
     """
-    print(f"Applying legacy-style deduplication")
+    print(f"Applying legacy-compatible deduplication")
     print(f"Input: {len(raw_matches):,} raw matches")
     
-    # Group by SBS cell and keep closest phenotype match for each
-    # This matches the ix = distances.argmin(axis=1) logic from legacy
-    sbs_deduplicated = raw_matches.sort_values('distance').drop_duplicates('cell_1', keep='first')
+    # Step 1: For each phenotype cell, keep best SBS match
+    # Sort by distance to prioritize better matches (equivalent to legacy sorting logic)
+    df_sbs_deduped = raw_matches.sort_values('distance', ascending=True).drop_duplicates('cell_0', keep='first')
     
-    print(f"After SBS deduplication: {len(sbs_deduplicated):,} matches")
-    print(f"Removed: {len(raw_matches) - len(sbs_deduplicated):,} duplicate SBS matches")
+    print(f"After phenotype deduplication: {len(df_sbs_deduped):,} matches")
+    print(f"Removed: {len(raw_matches) - len(df_sbs_deduped):,} duplicate phenotype matches")
     
-    # Check for phenotype duplicates (multiple SBS cells → same phenotype cell)
-    pheno_counts = sbs_deduplicated['cell_0'].value_counts()
-    multi_pheno = (pheno_counts > 1).sum()
+    # Step 2: For each remaining SBS cell, keep best phenotype match  
+    # Sort by distance to prioritize better matches
+    df_final = df_sbs_deduped.sort_values('distance', ascending=True).drop_duplicates('cell_1', keep='first')
     
-    print(f"Phenotype cells with multiple SBS matches: {multi_pheno:,} (legacy allows this)")
+    print(f"After SBS deduplication: {len(df_final):,} matches") 
+    print(f"Removed: {len(df_sbs_deduped) - len(df_final):,} duplicate SBS matches")
     
-    return sbs_deduplicated
+    # Legacy statistics
+    print(f"\nLegacy-compatible deduplication complete:")
+    print(f"  Initial cells: {len(raw_matches):,}")
+    print(f"  After phenotype dedup: {len(df_sbs_deduped):,}")
+    print(f"  After SBS dedup: {len(df_final):,}")
+    
+    return df_final
 
 def main():
     print("=== STEP 3: WELL MERGE DEDUPLICATION ===")
@@ -145,14 +151,13 @@ def main():
         'well': well,
         'deduplication': {
             'strategy': dedup_strategy,
-            'method_used': dedup_method,
+            'method_used': 'legacy',
             'raw_matches_input': len(raw_matches),
             'simple_dedup_input': len(merged_cells),
             'final_matches_output': len(final_output),
             'total_removed': len(raw_matches) - len(final_output),
             'removed_by_advanced_dedup': len(merged_cells) - len(final_output)
         },
-        'duplication_analysis': duplication_analysis,
         'quality_metrics': {
             'mean_distance': float(final_output['distance'].mean()),
             'median_distance': float(final_output['distance'].median()),

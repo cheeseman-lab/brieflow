@@ -191,6 +191,42 @@ def main():
         yaml.dump(summary, f, default_flow_style=False)
     
     print(f"✅ Saved alignment summary: {snakemake.output.alignment_summary}")
+
+    # =================================================================
+    # GENERATE TRANSFORMED COORDINATES
+    # =================================================================
+    print("\n--- Generating Transformed Coordinates ---")
+
+    # Apply the transformation to the scaled phenotype coordinates
+    rotation_matrix = best_alignment.get('rotation', np.eye(2))
+    translation_vector = best_alignment.get('translation', np.array([0.0, 0.0]))
+
+    if not isinstance(rotation_matrix, np.ndarray):
+        rotation_matrix = np.eye(2)
+    if not isinstance(translation_vector, np.ndarray):
+        translation_vector = np.array([0.0, 0.0])
+
+    print(f"Applying transformation:")
+    print(f"  Rotation: {rotation_matrix}")
+    print(f"  Translation: {translation_vector}")
+
+    # Transform the coordinates
+    pheno_coords = phenotype_scaled[['i', 'j']].values
+    transformed_coords = pheno_coords @ rotation_matrix.T + translation_vector
+
+    # Create transformed dataframe
+    phenotype_transformed = phenotype_scaled.copy()
+    phenotype_transformed['i'] = transformed_coords[:, 0]
+    phenotype_transformed['j'] = transformed_coords[:, 1]
+
+    print(f"Coordinate transformation applied:")
+    print(f"  Original range: i=[{phenotype_scaled['i'].min():.0f}, {phenotype_scaled['i'].max():.0f}], j=[{phenotype_scaled['j'].min():.0f}, {phenotype_scaled['j'].max():.0f}]")
+    print(f"  Transformed range: i=[{phenotype_transformed['i'].min():.0f}, {phenotype_transformed['i'].max():.0f}], j=[{phenotype_transformed['j'].min():.0f}, {phenotype_transformed['j'].max():.0f}]")
+
+    # Save transformed coordinates
+    phenotype_transformed.to_parquet(str(snakemake.output.transformed_phenotype_positions))
+    print(f"✅ Saved transformed phenotype positions: {snakemake.output.transformed_phenotype_positions}")
+
     print(f"\n🎉 Step 1 (Alignment) completed successfully!")
 
 def create_failed_alignment(scale_factor, reason):

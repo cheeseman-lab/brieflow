@@ -91,53 +91,47 @@ MERGE_OUTPUTS = {
         ),
     ],
     
-    # NEW: 3-Step Enhanced Pipeline Outputs
+    # NEW: 3-Step Enhanced Pipeline Outputs (Nested by Rule)
     "well_alignment": [
-        MERGE_FP / "scaled_coordinates" / get_filename(
+        MERGE_FP / "well_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_scaled", "parquet"
         ),  # [0]
-        MERGE_FP / "triangle_hashes" / get_filename(
+        MERGE_FP / "well_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_triangles", "parquet"
         ),  # [1]
-        MERGE_FP / "triangle_hashes" / get_filename(
+        MERGE_FP / "well_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_triangles", "parquet"
         ),  # [2]
-        MERGE_FP / "alignments" / get_filename(
+        MERGE_FP / "well_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "alignment", "parquet"
         ),  # [3]
-        MERGE_FP / "alignments" / get_filename(
+        MERGE_FP / "well_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "alignment_summary", "yaml"
         ),  # [4]
-        MERGE_FP / "transformed" / "{plate}" / "{well}" / "phenotype_transformed.parquet",  # [5] ADD THIS
+        MERGE_FP / "well_alignment" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_transformed", "parquet"
+        ),  # [5]
     ],
     "well_cell_merge": [
-        MERGE_FP / "raw_matches" / get_filename(
+        MERGE_FP / "well_cell_merge" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "raw_matches", "parquet"
-        ),
-        MERGE_FP / "merged_cells" / get_filename(
+        ),  # [0]
+        MERGE_FP / "well_cell_merge" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merged_cells", "parquet"
-        ),
-        MERGE_FP / "merge_summaries" / get_filename(
+        ),  # [1]
+        MERGE_FP / "well_cell_merge" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merge_summary", "yaml"
-        ),
+        ),  # [2]
     ],
     "well_merge_deduplicate": [
-        MERGE_FP / "deduplicated_cells" / get_filename(
+        MERGE_FP / "well_merge_deduplicate" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "deduplicated_cells", "parquet"
-        ),
-        MERGE_FP / "dedup_summaries" / get_filename(
+        ),  # [0]
+        MERGE_FP / "well_merge_deduplicate" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "dedup_summary", "yaml"
-        ),
+        ),  # [1]
     ],
     
-    # Enhanced approach outputs (backwards compatibility)
-    "enhanced_well_merge": [
-        MERGE_FP
-        / "parquets"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "enhanced_well_merge", "parquet"
-        ),
-    ],
     
     # Legacy approach outputs
     "fast_alignment": [
@@ -252,8 +246,6 @@ def get_merge_targets_by_approach():
             "stitch_phenotype_overlay", "stitch_sbs_overlay",
             # NEW: 3-step pipeline targets
             "well_alignment", "well_cell_merge", "well_merge_deduplicate",
-            # Keep backwards compatibility
-            "enhanced_well_merge"
         ]
     else:
         # Legacy approach targets
@@ -287,7 +279,6 @@ MERGE_OUTPUT_MAPPINGS = {
     "well_merge_deduplicate": None,
     
     # Merge approach mappings
-    "enhanced_well_merge": None,
     "well_merge": None,
     "fast_alignment": None,
     "merge_legacy": None,

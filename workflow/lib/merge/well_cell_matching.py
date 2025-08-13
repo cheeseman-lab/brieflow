@@ -151,7 +151,7 @@ def find_cell_matches(
     
     # FIXED: Use more conservative memory threshold
     # Leave 600GB headroom for other operations
-    if memory_required_gb < 200:  # Much more conservative
+    if memory_required_gb < 400: 
         print(f"Using direct approach (sufficient memory available)")
         raw_matches, stats = _find_matches_direct(
             phenotype_positions, sbs_positions, 
@@ -216,7 +216,8 @@ def _find_matches_direct(
     # Build matches DataFrame
     raw_matches = _build_matches_dataframe(
         phenotype_positions, sbs_positions,
-        valid_pheno_indices, valid_sbs_indices, valid_distances
+        valid_pheno_indices, valid_sbs_indices, valid_distances,
+        transformed_coords 
     )
     
     stats = {
@@ -305,7 +306,8 @@ def _find_matches_chunked(
             # Build chunk matches
             chunk_matches_df = _build_matches_dataframe(
                 phenotype_positions, sbs_positions,
-                chunk_pheno_indices, chunk_sbs_indices, chunk_distances
+                chunk_pheno_indices, chunk_sbs_indices, chunk_distances,
+                transformed_coords  
             )
             
             all_matches.append(chunk_matches_df)
@@ -356,7 +358,7 @@ def _find_matches_chunked(
         'raw_matches': len(raw_matches),
         'method': 'chunked',
         'chunks_processed': n_chunks,
-        'chunks_with_matches': len(all_matches),
+        'chunks_with_matches': len(all_matches) if 'all_matches' in locals() and all_matches else 0,
         'chunk_size': chunk_size,
         'mean_distance': mean_distance,
         'max_distance': max_distance,

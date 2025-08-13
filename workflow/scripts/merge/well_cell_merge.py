@@ -86,20 +86,19 @@ def main():
         return
     
     # =================================================================
-    # PRELIMINARY DEDUPLICATION (Simple)
+    # SAVE RAW MATCHES (No deduplication here - matches legacy)
     # =================================================================
-    print("\n--- Preliminary Deduplication ---")
-    
-    # Simple deduplication: keep best match per phenotype cell
-    # (Full deduplication will happen in Step 3)
-    merged_cells = raw_matches.sort_values('distance').drop_duplicates('cell_0', keep='first')
-    
-    print(f"After simple deduplication: {len(merged_cells):,} matches")
-    print(f"Removed: {len(raw_matches) - len(merged_cells):,} duplicate phenotype matches")
-    
-    # Add plate and well columns
-    merged_cells['plate'] = plate
-    merged_cells['well'] = well
+    print("\n--- Saving Raw Matches ---")
+
+    # Add plate and well columns to raw matches
+    raw_matches['plate'] = plate  
+    raw_matches['well'] = well
+
+    # Raw matches go directly to output (matching legacy approach)
+    merged_cells_final = raw_matches.copy()
+
+    print(f"Raw matches prepared: {len(merged_cells_final):,}")
+    print(f"(Deduplication will be handled in Step 3 to match legacy approach)")
     
     # Reorder columns
     output_columns = [

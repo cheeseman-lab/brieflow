@@ -16,6 +16,30 @@ from lib.merge.well_deduplication import (
     validate_final_matches
 )
 
+def legacy_style_deduplication(raw_matches):
+    """
+    Apply legacy deduplication logic from merge_sbs_phenotype:
+    - For each SBS cell, keep only the closest phenotype match
+    - Multiple SBS cells can match the same phenotype cell (like legacy)
+    """
+    print(f"Applying legacy-style deduplication")
+    print(f"Input: {len(raw_matches):,} raw matches")
+    
+    # Group by SBS cell and keep closest phenotype match for each
+    # This matches the ix = distances.argmin(axis=1) logic from legacy
+    sbs_deduplicated = raw_matches.sort_values('distance').drop_duplicates('cell_1', keep='first')
+    
+    print(f"After SBS deduplication: {len(sbs_deduplicated):,} matches")
+    print(f"Removed: {len(raw_matches) - len(sbs_deduplicated):,} duplicate SBS matches")
+    
+    # Check for phenotype duplicates (multiple SBS cells → same phenotype cell)
+    pheno_counts = sbs_deduplicated['cell_0'].value_counts()
+    multi_pheno = (pheno_counts > 1).sum()
+    
+    print(f"Phenotype cells with multiple SBS matches: {multi_pheno:,} (legacy allows this)")
+    
+    return sbs_deduplicated
+
 def main():
     print("=== STEP 3: WELL MERGE DEDUPLICATION ===")
     
@@ -38,54 +62,11 @@ def main():
         return
     
     # =================================================================
-    # ANALYZE DUPLICATION PATTERNS
+    # APPLY LEGACY-STYLE DEDUPLICATION  
     # =================================================================
-    print("\n--- Analyzing Duplication Patterns ---")
+    print("\n--- Legacy-Style Deduplication ---")
     
-    duplication_analysis = analyze_duplicates(raw_matches)
-    
-    print(f"Duplication analysis:")
-    print(f"  Unique phenotype cells: {duplication_analysis['unique_phenotype_cells']:,}")
-    print(f"  Unique SBS cells: {duplication_analysis['unique_sbs_cells']:,}")
-    print(f"  Phenotype cells with multiple matches: {duplication_analysis['multi_match_phenotype']:,}")
-    print(f"  SBS cells with multiple matches: {duplication_analysis['multi_match_sbs']:,}")
-    print(f"  Max matches per phenotype cell: {duplication_analysis['max_phenotype_matches']}")
-    print(f"  Max matches per SBS cell: {duplication_analysis['max_sbs_matches']}")
-    
-    # =================================================================
-    # APPLY DEDUPLICATION STRATEGY
-    # =================================================================
-    print(f"\n--- Applying {dedup_strategy} Deduplication ---")
-    
-    if dedup_strategy == "greedy_1to1":
-        final_matches = greedy_1to1_matching(raw_matches)
-        dedup_method = "greedy"
-        
-    elif dedup_strategy == "hungarian_1to1":
-        final_matches = hungarian_1to1_matching(raw_matches)
-        dedup_method = "hungarian"
-        
-    elif dedup_strategy == "simple":
-        # Use the already deduplicated matches from Step 2
-        final_matches = merged_cells.copy()
-        dedup_method = "simple"
-        
-    else:
-        print(f"❌ Unknown deduplication strategy: {dedup_strategy}")
-        print("Using simple deduplication as fallback")
-        final_matches = merged_cells.copy()
-        dedup_method = "simple_fallback"
-    
-    if final_matches.empty:
-        print("❌ Deduplication resulted in no matches")
-        create_empty_final_output("deduplication_empty")
-        return
-    
-    print(f"✅ Deduplication complete:")
-    print(f"   Final matches: {len(final_matches):,}")
-    print(f"   Removed: {len(raw_matches) - len(final_matches):,} duplicates")
-    print(f"   Mean distance: {final_matches['distance'].mean():.2f} px")
-    print(f"   Max distance: {final_matches['distance'].max():.2f} px")
+    final_matches = legacy_style_deduplication(raw_matches)
     
     # =================================================================
     # VALIDATE FINAL MATCHES

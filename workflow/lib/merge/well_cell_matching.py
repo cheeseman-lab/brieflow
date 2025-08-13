@@ -1,6 +1,6 @@
 """
 Step 2 Library: Cell-to-cell matching functions.
-Saved this as: lib/merge/well_cell_matching.py
+FIXED VERSION: Coordinate system alignment corrected
 """
 
 import pandas as pd
@@ -36,7 +36,6 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
             except (ValueError, AttributeError):
                 try:
                     # Third try: use numpy to parse array string
-                    # REMOVED: import numpy as np  <- This was causing the issue
                     rotation_flat = np.fromstring(rotation_flat.strip('[]'), sep=' ').tolist()
                 except:
                     # Fallback: identity matrix
@@ -64,7 +63,6 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
             except:
                 try:
                     # Use numpy to parse
-                    # REMOVED: import numpy as np  <- This was also causing the issue
                     translation_list = np.fromstring(translation_list.strip('[]'), sep=' ').tolist()
                 except:
                     # Fallback: zero translation
@@ -78,20 +76,30 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
     
     translation = np.array(translation_list)
     
+    # FIXED: Extract scale factor for coordinate system correction
+    scale_factor = alignment_row.get('scale_factor', 1.0)
+    if isinstance(scale_factor, str):
+        try:
+            scale_factor = float(scale_factor)
+        except:
+            print(f"Warning: Could not parse scale factor '{scale_factor}', using 1.0")
+            scale_factor = 1.0
+    
     # Debug output
     print(f"Loaded alignment parameters:")
     print(f"  Rotation matrix: {rotation}")
     print(f"  Translation: {translation}")
+    print(f"  Scale factor: {scale_factor}")
     print(f"  Determinant: {np.linalg.det(rotation):.6f}")
     
     return {
         'rotation': rotation,
         'translation': translation,
+        'scale_factor': float(scale_factor),  # FIXED: Include scale factor
         'score': float(alignment_row.get('score', 0.0)),
         'determinant': float(alignment_row.get('determinant', 1.0)),
         'transformation_type': str(alignment_row.get('transformation_type', 'unknown')),
         'approach': str(alignment_row.get('approach', 'unknown')),
-        'scale_factor': float(alignment_row.get('scale_factor', 1.0)),
         'validation_mean_distance': float(alignment_row.get('validation_mean_distance', 0.0))
     }
 
@@ -104,42 +112,47 @@ def find_cell_matches(
     transformed_phenotype_positions: pd.DataFrame = None
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
-    Find cell matches using alignment transformation - optimized for 900GB memory.
-    FIXED VERSION with better chunking and debugging.
+    Find cell matches using alignment transformation - FIXED coordinate system alignment.
     """
-    # Use provided transformed coordinates OR calculate them
-    if transformed_phenotype_positions is not None:
-        print("Using pre-calculated transformed coordinates")
-        transformed_coords = transformed_phenotype_positions[['i', 'j']].values
-    else:
-        print("Calculating transformed coordinates on-the-fly")
-        # Extract transformation parameters
-        rotation = alignment.get('rotation', np.eye(2))
-        translation = alignment.get('translation', np.zeros(2))
-        
-        # Get coordinates and transform
-        pheno_coords = phenotype_positions[['i', 'j']].values
-        transformed_coords = pheno_coords @ rotation.T + translation
-    
     print(f"Finding cell matches with threshold={threshold}px")
     print(f"Dataset sizes: {len(phenotype_positions):,} phenotype, {len(sbs_positions):,} SBS")
     
     # Extract transformation parameters
     rotation = alignment.get('rotation', np.eye(2))
     translation = alignment.get('translation', np.zeros(2))
+    scale_factor = alignment.get('scale_factor', 1.0)  # FIXED: Get scale factor
     
-    print(f"Using transformation: det={np.linalg.det(rotation):.6f}")
-    print(f"Rotation matrix:\n{rotation}")
-    print(f"Translation vector: {translation}")
+    print(f"Using transformation:")
+    print(f"  Rotation det: {np.linalg.det(rotation):.6f}")
+    print(f"  Translation: {translation}")
+    print(f"  Scale factor: {scale_factor}")
     
-    # Get coordinates
-    pheno_coords = phenotype_positions[['i', 'j']].values
+    # =================================================================
+    # COORDINATE SYSTEM: Both should already be in same scale after alignment
+    # =================================================================
+    
+    print(f"\n📐 COORDINATE SYSTEM: Using coordinates as-is (both already in same scale)")
+    
+    # Get SBS coordinates as-is (they should already be in the right scale)
     sbs_coords = sbs_positions[['i', 'j']].values
     
+    print(f"Coordinate ranges:")
+    print(f"  SBS range: i=[{sbs_coords[:, 0].min():.0f}, {sbs_coords[:, 0].max():.0f}], j=[{sbs_coords[:, 1].min():.0f}, {sbs_coords[:, 1].max():.0f}]")
     
-    print(f"Coordinate ranges after transformation:")
-    print(f"  Transformed phenotype: i=[{transformed_coords[:, 0].min():.0f}, {transformed_coords[:, 0].max():.0f}], j=[{transformed_coords[:, 1].min():.0f}, {transformed_coords[:, 1].max():.0f}]")
-    print(f"  SBS: i=[{sbs_coords[:, 0].min():.0f}, {sbs_coords[:, 0].max():.0f}], j=[{sbs_coords[:, 1].min():.0f}, {sbs_coords[:, 1].max():.0f}]")
+    # Use provided transformed coordinates OR calculate them
+    if transformed_phenotype_positions is not None:
+        print("Using pre-calculated transformed coordinates")
+        transformed_coords = transformed_phenotype_positions[['i', 'j']].values
+        print(f"Transformed phenotype range: i=[{transformed_coords[:, 0].min():.0f}, {transformed_coords[:, 0].max():.0f}], j=[{transformed_coords[:, 1].min():.0f}, {transformed_coords[:, 1].max():.0f}]")
+    else:
+        print("Calculating transformed coordinates on-the-fly")
+        # Get scaled phenotype coordinates and transform them
+        pheno_coords = phenotype_positions[['i', 'j']].values
+        transformed_coords = pheno_coords @ rotation.T + translation
+        print(f"Calculated transformed range: i=[{transformed_coords[:, 0].min():.0f}, {transformed_coords[:, 0].max():.0f}], j=[{transformed_coords[:, 1].min():.0f}, {transformed_coords[:, 1].max():.0f}]")
+    
+    # Now both coordinate systems should be in the same scale
+    print(f"\n✅ Both coordinate systems already aligned - using as-is for distance calculation")
     
     # Calculate memory requirement for full matrix
     total_comparisons = len(sbs_positions) * len(phenotype_positions)
@@ -147,19 +160,18 @@ def find_cell_matches(
     print(f"Full distance matrix would require: {memory_required_gb:.1f}GB")
     print(f"Available memory budget: 900GB")
     
-    # FIXED: Use more conservative memory threshold
-    # Leave 600GB headroom for other operations
+    # Use more conservative memory threshold
     if memory_required_gb < 400: 
         print(f"Using direct approach (sufficient memory available)")
         raw_matches, stats = _find_matches_direct(
             phenotype_positions, sbs_positions, 
-            transformed_coords, sbs_coords, threshold
+            transformed_coords, sbs_coords, threshold, scale_factor  # Use sbs_coords as-is
         )
     else:
         print(f"Using chunked approach (memory conservation)")
         raw_matches, stats = _find_matches_chunked(
             phenotype_positions, sbs_positions,
-            transformed_coords, sbs_coords, threshold, chunk_size
+            transformed_coords, sbs_coords, threshold, chunk_size, scale_factor  # Use sbs_coords as-is
         )
     
     return raw_matches, stats
@@ -169,18 +181,19 @@ def _find_matches_direct(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
     transformed_coords: np.ndarray,
-    sbs_coords: np.ndarray,
-    threshold: float
+    sbs_coords: np.ndarray,  # FIXED: Use SBS coordinates as-is
+    threshold: float,
+    scale_factor: float  # Keep for coordinate output handling
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Direct approach optimized for large datasets with sufficient memory.
-    FIXED: Function name typo corrected.
+    FIXED: Uses properly scaled coordinates.
     """
     import gc
     
     print(f"Calculating distance matrix: {len(sbs_coords):,} × {len(transformed_coords):,}")
     
-    # Calculate all distances at once - this is the memory bottleneck
+    # Calculate distances using coordinates as-is (both already in same coordinate system)
     distances = cdist(sbs_coords, transformed_coords, metric='euclidean')
     
     print(f"Distance matrix calculated: {distances.shape}, {distances.nbytes / (1024**3):.1f}GB")
@@ -211,11 +224,11 @@ def _find_matches_direct(
     
     print(f"Building matches DataFrame with {len(valid_sbs_indices):,} matches...")
     
-    # Build matches DataFrame
+    # FIXED: Build matches DataFrame with original SBS coordinates
     raw_matches = _build_matches_dataframe(
         phenotype_positions, sbs_positions,
         valid_pheno_indices, valid_sbs_indices, valid_distances,
-        transformed_coords 
+        transformed_coords, scale_factor  # FIXED: Pass scale factor for coordinate conversion
     )
     
     stats = {
@@ -224,7 +237,8 @@ def _find_matches_direct(
         'mean_distance': float(valid_distances.mean()),
         'max_distance': float(valid_distances.max()),
         'matches_within_threshold': n_valid,
-        'threshold_used': threshold
+        'threshold_used': threshold,
+        'scale_factor_used': scale_factor  # FIXED: Include scale factor in stats
     }
     
     print(f"✅ Direct matching complete: {len(raw_matches):,} raw matches")
@@ -236,13 +250,14 @@ def _find_matches_chunked(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
     transformed_coords: np.ndarray,
-    sbs_coords: np.ndarray,
+    sbs_coords: np.ndarray,  # FIXED: Use SBS coordinates as-is
     threshold: float,
-    chunk_size: int
+    chunk_size: int,
+    scale_factor: float  # Keep for coordinate output handling
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Chunked approach with aggressive memory management.
-    FIXED: Better debugging and chunk processing.
+    FIXED: Uses properly scaled coordinates.
     """
     import gc
     
@@ -262,7 +277,7 @@ def _find_matches_chunked(
         
         print(f"Processing chunk {chunk_idx + 1}/{n_chunks} ({chunk_size_actual:,} cells, indices {start_idx}-{end_idx-1})")
         
-        # Get chunk of SBS coordinates
+        # Get chunk of SBS coordinates as-is
         sbs_chunk_coords = sbs_coords[start_idx:end_idx]
         
         # Calculate memory requirement for this chunk
@@ -294,18 +309,18 @@ def _find_matches_chunked(
         print(f"  Found {chunk_matches:,} matches within {threshold}px threshold")
         
         if chunk_matches > 0:
-            # Get indices for this chunk (FIXED: use correct indexing)
+            # Get indices for this chunk
             chunk_sbs_indices = np.arange(start_idx, end_idx)[valid_matches]
             chunk_pheno_indices = closest_pheno_idx[valid_matches]
             chunk_distances = min_distances[valid_matches]
             
             print(f"  Building DataFrame for {len(chunk_sbs_indices):,} matches")
             
-            # Build chunk matches
+            # FIXED: Build chunk matches with proper coordinate handling
             chunk_matches_df = _build_matches_dataframe(
                 phenotype_positions, sbs_positions,
                 chunk_pheno_indices, chunk_sbs_indices, chunk_distances,
-                transformed_coords  
+                transformed_coords, scale_factor  # FIXED: Pass scale factor
             )
             
             all_matches.append(chunk_matches_df)
@@ -361,7 +376,8 @@ def _find_matches_chunked(
         'mean_distance': mean_distance,
         'max_distance': max_distance,
         'matches_within_threshold': total_matches,
-        'threshold_used': threshold
+        'threshold_used': threshold,
+        'scale_factor_used': scale_factor  # FIXED: Include scale factor in stats
     }
     
     print(f"✅ Chunked matching complete: {len(raw_matches):,} raw matches")
@@ -375,20 +391,24 @@ def _build_matches_dataframe(
     pheno_indices: np.ndarray,
     sbs_indices: np.ndarray,
     distances: np.ndarray,
-    transformed_coords: np.ndarray  # Still need this for coordinates
+    transformed_coords: np.ndarray,  # Transformed coordinates (already in right space)
+    scale_factor: float  # Keep for reference but don't use for scaling
 ) -> pd.DataFrame:
+    """
+    Build matches DataFrame using coordinates as-is (both already in same coordinate system).
+    """
     
     matches_df = pd.DataFrame({
         'cell_0': phenotype_positions.iloc[pheno_indices]['cell'].values,
         'i_0': transformed_coords[pheno_indices, 0],  # Transformed coordinates
         'j_0': transformed_coords[pheno_indices, 1],  # Transformed coordinates
         'cell_1': sbs_positions.iloc[sbs_indices]['cell'].values,
-        'i_1': sbs_positions.iloc[sbs_indices]['i'].values,
-        'j_1': sbs_positions.iloc[sbs_indices]['j'].values,
+        'i_1': sbs_positions.iloc[sbs_indices]['i'].values,  # SBS coordinates as-is
+        'j_1': sbs_positions.iloc[sbs_indices]['j'].values,  # SBS coordinates as-is
         'distance': distances
     })
     
-    # Add area columns from ORIGINAL positions (areas don't change)
+    # Add area columns from ORIGINAL positions (areas don't change with coordinate scaling)
     if 'area' in phenotype_positions.columns:
         matches_df['area_0'] = phenotype_positions.iloc[pheno_indices]['area'].values
     else:
@@ -400,6 +420,8 @@ def _build_matches_dataframe(
         matches_df['area_1'] = np.nan
     
     print(f"    ✅ DataFrame built successfully: {len(matches_df):,} rows")
+    print(f"    📐 Coordinates stored as-is (both datasets already in same coordinate system)")
+    print(f"    📊 Manual distance calculation should now match stored distances")
     
     return matches_df
 

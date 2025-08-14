@@ -222,3 +222,48 @@ def get_inputs_for_metadata_extraction(
             inputs["samples"] = [inputs["samples"]]
 
     return inputs
+
+
+def get_tile_count_from_well(
+    samples_df: pd.DataFrame,
+    plate: Union[int, str] = None,
+    well: Union[int, str] = None,
+    cycle: Union[int, str] = None,
+    round_order: List[Union[int, str]] = None,
+    channel_order: List[Union[int, str]] = None,
+    verbose: bool = False,
+) -> int:
+    """Get the number of tiles in a well-based ND2 file.
+
+    Args:
+        samples_df: DataFrame containing sample data
+        plate: Plate number to filter by
+        well: Well identifier to filter by
+        cycle: Cycle number to filter by (for SBS)
+        round_order: Round order to filter by (for phenotype)
+        channel_order: Channel order to use
+        verbose: Whether to print verbose output
+
+    Returns:
+        Number of tiles in the well
+    """
+    # Get a sample file
+    sample_file = get_sample_fps(
+        samples_df,
+        plate=plate,
+        well=well,
+        cycle=cycle,
+        round_order=round_order,
+        channel_order=channel_order,
+        verbose=verbose,
+    )
+
+    # Import here to avoid circular imports
+    from lib.preprocess.preprocess import convert_nd2_to_array_well
+
+    # Get tile count from the ND2 file
+    _, tile_count = convert_nd2_to_array_well(
+        sample_file, position=0, return_tiles=True, verbose=verbose
+    )
+
+    return tile_count

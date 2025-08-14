@@ -26,7 +26,7 @@ rule combine_metadata_sbs:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_sbs"],
             wildcards=wildcards,
-            expansion_values=get_expansion_values("sbs", config),
+            expansion_values=get_expansion_values("sbs", config, sbs_metadata_wildcard_combos),
             metadata_combos=sbs_wildcard_combos,
         ),
     output:
@@ -60,7 +60,7 @@ rule combine_metadata_phenotype:
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["extract_metadata_phenotype"],
             wildcards=wildcards,
-            expansion_values=get_expansion_values("phenotype", config),
+            expansion_values=get_expansion_values("phenotype", config, phenotype_metadata_wildcard_combos),
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:

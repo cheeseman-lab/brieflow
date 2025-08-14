@@ -972,8 +972,8 @@ def convert_to_array(
 
 
 # Helper functions for Snakemake integration
-def get_expansion_values(image_type: str, config: dict) -> List[str]:
-    """Get expansion values for metadata combination based on data organization.
+def get_expansion_values(image_type: str, config: dict, metadata_wildcard_combos: pd.DataFrame = None) -> List[str]:
+    """Get expansion values for metadata combination based on data organization and actual metadata structure.
 
     Used by Snakemake to determine which wildcards need expansion when combining
     metadata files.
@@ -981,6 +981,7 @@ def get_expansion_values(image_type: str, config: dict) -> List[str]:
     Args:
         image_type: 'sbs' or 'phenotype'
         config: Configuration dictionary
+        metadata_wildcard_combos: DataFrame with actual metadata wildcard combinations
 
     Returns:
         List of wildcard names to expand
@@ -990,16 +991,38 @@ def get_expansion_values(image_type: str, config: dict) -> List[str]:
     # Use image data organization (tiles exist only for images, not metadata)
     image_org = data_config.get("image_data_organization", "tile")
 
+    # Base expansion values based on organization
     if image_org == "tile":
         if image_type == "sbs":
-            return ["tile", "cycle"]
+            base_expansion = ["tile", "cycle"]
         else:  # phenotype
-            return ["tile"]
+            base_expansion = ["tile"]
     else:  # well organization
         if image_type == "sbs":
-            return ["cycle"]
+            base_expansion = ["cycle"]
         else:  # phenotype
-            return []  # No expansion needed for well-based phenotype
+            base_expansion = []  # No expansion needed for well-based phenotype
+
+    # If we have metadata wildcard combinations, check for additional columns
+    if metadata_wildcard_combos is not None and len(metadata_wildcard_combos) > 0:
+        metadata_columns = list(metadata_wildcard_combos.columns)
+        
+        # Add any columns that exist in metadata but not in base expansion
+        # Exclude 'plate' and 'well' as these are typically not expanded
+        exclude_columns = {'plate', 'well'}
+        additional_columns = [col for col in metadata_columns 
+                            if col not in base_expansion and col not in exclude_columns]
+        
+        # Combine base expansion with additional columns
+        expansion_values = base_expansion + additional_columns
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        expansion_values = [x for x in expansion_values if not (x in seen or seen.add(x))]
+        
+        return expansion_values
+    
+    return base_expansion
 
 
 def include_tile_in_input(

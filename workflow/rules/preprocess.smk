@@ -20,7 +20,7 @@ rule extract_metadata_sbs:
         "../scripts/preprocess/extract_metadata.py"
 
 
-# Combine metadata for SBS images on well level
+# Combine metadata for SBS images
 rule combine_metadata_sbs:
     input:
         lambda wildcards: output_to_input(
@@ -31,8 +31,10 @@ rule combine_metadata_sbs:
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
+    params:
+        well=lambda wildcards: wildcards.well,
     script:
-        "../scripts/shared/combine_dfs.py"
+        "../scripts/preprocess/combine_metadata.py"
 
 
 # Extract metadata for phenotype images
@@ -52,7 +54,7 @@ rule extract_metadata_phenotype:
         "../scripts/preprocess/extract_metadata.py"
 
 
-# Combine metadata for phenotype images on well level
+# Combine metadata for phenotype images
 rule combine_metadata_phenotype:
     input:
         lambda wildcards: output_to_input(
@@ -63,8 +65,10 @@ rule combine_metadata_phenotype:
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
+    params:
+        well=lambda wildcards: wildcards.well,
     script:
-        "../scripts/shared/combine_dfs.py"
+        "../scripts/preprocess/combine_metadata.py"
 
 
 # Convert SBS image files to TIFF

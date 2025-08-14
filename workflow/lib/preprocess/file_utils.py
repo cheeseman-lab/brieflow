@@ -37,7 +37,6 @@ def get_sample_fps(
     if well is not None:
         filtered_df = filtered_df[filtered_df["well"].astype(str) == str(well)]
 
-    # KEY CHANGE: Only filter by tile if tile is provided (None means well organization)
     if tile is not None:
         filtered_df = filtered_df[filtered_df["tile"].astype(str) == str(tile)]
 

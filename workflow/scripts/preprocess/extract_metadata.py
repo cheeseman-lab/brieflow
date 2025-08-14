@@ -15,26 +15,33 @@ cycle = getattr(snakemake.params, "cycle", None)
 round_param = getattr(snakemake.params, "round", None)
 
 # Get the sample files and metadata file from the structured input
-sample_files = snakemake.input.samples
-metadata_file_path = snakemake.input.metadata[0] if snakemake.input.metadata else None
+sample_files = getattr(snakemake.input, "samples", [])
+metadata_files = getattr(snakemake.input, "metadata", [])
 
-if metadata_file_path:
+# Determine what we're extracting from
+if metadata_files:
+    # Extract from metadata CSV files
+    metadata_file_path = metadata_files[0]
+    file_input = metadata_file_path  # Pass the CSV file as the main input
     print(f"Using metadata file: {metadata_file_path}")
-else:
+elif sample_files:
+    # Extract from image files
+    file_input = sample_files
+    metadata_file_path = None
     print("No metadata file - extracting from image headers")
+else:
+    raise ValueError("No input files provided - need either samples or metadata")
 
 # Extract metadata using main function
 metadata_df = extract_metadata(
-    sample_files,
+    file_input,
     plate=snakemake.params.plate,
     well=snakemake.params.well,
     tile=snakemake.params.tile,
     cycle=cycle,
     round=round_param,
     data_format=data_config["data_format"],
-    data_organization=data_config[
-        "image_data_organization"
-    ],  # Use image organization for this
+    data_organization=data_config["image_data_organization"],
     metadata_file_path=metadata_file_path,
     verbose=False,
 )

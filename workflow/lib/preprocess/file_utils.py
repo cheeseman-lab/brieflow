@@ -1,7 +1,7 @@
 """Utility functions for handling files during preprocessing."""
 
 import pandas as pd
-from typing import List, Union
+from typing import List, Union, Dict, Any
 
 
 def get_sample_fps(
@@ -127,3 +127,99 @@ def get_sample_fps(
 
     # Otherwise return single file path
     return filtered_df["sample_fp"].iloc[0]
+
+
+def get_metadata_wildcard_combos(
+    samples_df: pd.DataFrame, metadata_samples_df: pd.DataFrame
+) -> pd.DataFrame:
+    """Get wildcard combinations for metadata extraction based on available files.
+
+    Args:
+        samples_df: DataFrame with image file paths
+        metadata_samples_df: DataFrame with metadata file paths
+
+    Returns:
+        DataFrame with wildcard combinations for metadata extraction jobs
+    """
+    if not metadata_samples_df.empty:
+        # Use metadata file structure - this determines the job granularity
+        metadata_columns = [
+            col for col in metadata_samples_df.columns if col != "sample_fp"
+        ]
+        return metadata_samples_df[metadata_columns].drop_duplicates().astype(str)
+    else:
+        # Use image file structure for metadata extraction
+        return samples_df.drop(columns=["sample_fp"]).drop_duplicates().astype(str)
+
+
+def get_output_pattern(wildcard_combos: pd.DataFrame) -> Dict[str, str]:
+    """Get output pattern from wildcard combinations.
+
+    Args:
+        wildcard_combos: DataFrame with wildcard combinations
+
+    Returns:
+        Dictionary mapping column names to wildcard patterns
+    """
+    if len(wildcard_combos) == 0:
+        return {"plate": "{plate}"}  # Fallback
+    return {col: f"{{{col}}}" for col in wildcard_combos.columns}
+
+
+def get_inputs_for_metadata_extraction(
+    image_type: str,
+    config: Dict[str, Any],
+    samples_df: pd.DataFrame,
+    metadata_samples_df: pd.DataFrame,
+    wildcards,
+) -> Dict[str, List[str]]:
+    """Get appropriate inputs for metadata extraction rules.
+
+    Args:
+        image_type: 'sbs' or 'phenotype'
+        config: Configuration dictionary
+        samples_df: DataFrame with image file paths
+        metadata_samples_df: DataFrame with metadata file paths
+        wildcards: Snakemake wildcards object
+
+    Returns:
+        Dictionary with 'samples' and 'metadata' keys containing file lists
+    """
+    from lib.preprocess.preprocess import get_data_config
+
+    data_config = get_data_config(image_type, config)
+
+    # Build filter arguments from available wildcards
+    filter_args = {}
+    for attr in ["plate", "well", "tile", "cycle", "round"]:
+        if hasattr(wildcards, attr):
+            filter_args[attr] = getattr(wildcards, attr)
+
+    inputs = {"samples": [], "metadata": []}
+
+    if not metadata_samples_df.empty:
+        # Use external metadata files - no need for sample files
+        metadata_filter_args = {
+            k: v for k, v in filter_args.items() if k in metadata_samples_df.columns
+        }
+        inputs["metadata"] = [
+            get_sample_fps(metadata_samples_df, **metadata_filter_args)
+        ]
+    else:
+        # Extract from image files - no metadata files needed
+        sample_filter_args = filter_args.copy()
+        if data_config["image_data_organization"] == "well":
+            # Remove tile for well organization
+            sample_filter_args.pop("tile", None)
+
+        # Add channel order if specified
+        if f"{image_type}_channel_order" in config.get("preprocess", {}):
+            sample_filter_args["channel_order"] = config["preprocess"][
+                f"{image_type}_channel_order"
+            ]
+
+        inputs["samples"] = get_sample_fps(samples_df, **sample_filter_args)
+        if isinstance(inputs["samples"], str):
+            inputs["samples"] = [inputs["samples"]]
+
+    return inputs

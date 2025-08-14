@@ -1,26 +1,13 @@
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
-from lib.preprocess.preprocess import (
-    get_metadata_extraction_wildcards, 
-    get_metadata_output_wildcards
-)
+from lib.preprocess.file_utils import get_output_pattern
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
-# Get metadata-specific wildcard combinations using your functions
-sbs_metadata_wildcard_combos = get_metadata_extraction_wildcards(
-    "sbs", config, sbs_samples_df, sbs_metadata_samples_df
-)
-phenotype_metadata_wildcard_combos = get_metadata_extraction_wildcards(
-    "phenotype", config, phenotype_samples_df, phenotype_metadata_samples_df
-)
-
-# Define output patterns dynamically using your functions
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
         PREPROCESS_FP / "metadata" / "sbs" / get_filename(
-            get_metadata_output_wildcards("sbs", config, sbs_samples_df, sbs_metadata_samples_df),
-            "metadata", "tsv"
+            get_output_pattern(sbs_metadata_wildcard_combos), "metadata", "tsv"
         ),
     ],
     "combine_metadata_sbs": [
@@ -30,8 +17,7 @@ PREPROCESS_OUTPUTS = {
     ],
     "extract_metadata_phenotype": [
         PREPROCESS_FP / "metadata" / "phenotype" / get_filename(
-            get_metadata_output_wildcards("phenotype", config, phenotype_samples_df, phenotype_metadata_samples_df),
-            "metadata", "tsv"
+            get_output_pattern(phenotype_metadata_wildcard_combos), "metadata", "tsv"
         ),
     ],
     "combine_metadata_phenotype": [

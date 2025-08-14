@@ -1,29 +1,14 @@
-from lib.preprocess.file_utils import get_sample_fps
-from lib.preprocess.preprocess import (
-    get_data_config, 
-    include_tile_in_input, 
-    get_expansion_values,
-    should_use_samples_input,
-    should_use_metadata_input,
-    get_sample_input_wildcards,
-    get_metadata_input_wildcards
-)
+from lib.preprocess.file_utils import get_sample_fps, get_inputs_for_metadata_extraction
+from lib.preprocess.preprocess import get_data_config, include_tile_in_input, get_expansion_values
 from lib.shared.target_utils import output_to_input
 
 
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
     input:
-        samples=lambda wildcards: get_sample_fps(
-            sbs_samples_df,
-            **{wc: getattr(wildcards, wc) for wc in get_sample_input_wildcards("sbs", config) if hasattr(wildcards, wc)},
-            channel_order=config["preprocess"]["sbs_channel_order"],
-        ) if should_use_samples_input("sbs", config, sbs_metadata_samples_df) else [],
-        
-        metadata=lambda wildcards: get_sample_fps(
-            sbs_metadata_samples_df,
-            **{wc: getattr(wildcards, wc) for wc in get_metadata_input_wildcards("sbs", config, sbs_metadata_samples_df) if hasattr(wildcards, wc)},
-        ) if should_use_metadata_input("sbs", config, sbs_metadata_samples_df) else []
+        unpack(lambda wildcards: get_inputs_for_metadata_extraction(
+            "sbs", config, sbs_samples_df, sbs_metadata_samples_df, wildcards
+        ))
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
@@ -53,16 +38,9 @@ rule combine_metadata_sbs:
 # Extract metadata for phenotype images
 rule extract_metadata_phenotype:
     input:
-        samples=lambda wildcards: get_sample_fps(
-            phenotype_samples_df,
-            **{wc: getattr(wildcards, wc) for wc in get_sample_input_wildcards("phenotype", config) if hasattr(wildcards, wc)},
-            channel_order=config["preprocess"]["phenotype_channel_order"],
-        ) if should_use_samples_input("phenotype", config, phenotype_metadata_samples_df) else [],
-        
-        metadata=lambda wildcards: get_sample_fps(
-            phenotype_metadata_samples_df,
-            **{wc: getattr(wildcards, wc) for wc in get_metadata_input_wildcards("phenotype", config, phenotype_metadata_samples_df) if hasattr(wildcards, wc)},
-        ) if should_use_metadata_input("phenotype", config, phenotype_metadata_samples_df) else []
+        unpack(lambda wildcards: get_inputs_for_metadata_extraction(
+            "phenotype", config, phenotype_samples_df, phenotype_metadata_samples_df, wildcards
+        ))
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:

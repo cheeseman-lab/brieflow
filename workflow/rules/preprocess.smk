@@ -1,5 +1,13 @@
 from lib.preprocess.file_utils import get_sample_fps
-from lib.preprocess.preprocess import get_data_config, include_tile_in_input, get_expansion_values
+from lib.preprocess.preprocess import (
+    get_data_config, 
+    include_tile_in_input, 
+    get_expansion_values,
+    should_use_samples_input,
+    should_use_metadata_input,
+    get_sample_input_wildcards,
+    get_metadata_input_wildcards
+)
 from lib.shared.target_utils import output_to_input
 
 
@@ -8,26 +16,21 @@ rule extract_metadata_sbs:
     input:
         samples=lambda wildcards: get_sample_fps(
             sbs_samples_df,
-            plate=wildcards.plate,
-            well=wildcards.well,
-            tile=wildcards.tile if include_tile_in_input("sbs", config, for_metadata=True) else None,
-            cycle=wildcards.cycle,
+            **{wc: getattr(wildcards, wc) for wc in get_sample_input_wildcards("sbs", config) if hasattr(wildcards, wc)},
             channel_order=config["preprocess"]["sbs_channel_order"],
-        ),
+        ) if should_use_samples_input("sbs", config, sbs_metadata_samples_df) else [],
+        
         metadata=lambda wildcards: get_sample_fps(
             sbs_metadata_samples_df,
-            plate=wildcards.plate,
-            well=wildcards.well if include_tile_in_input("sbs", config, for_metadata=True) else None,
-            tile=wildcards.tile if include_tile_in_input("sbs", config, for_metadata=True) else None,
-            cycle=wildcards.cycle,
-        ) if not sbs_metadata_samples_df.empty else []
+            **{wc: getattr(wildcards, wc) for wc in get_metadata_input_wildcards("sbs", config, sbs_metadata_samples_df) if hasattr(wildcards, wc)},
+        ) if should_use_metadata_input("sbs", config, sbs_metadata_samples_df) else []
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
         plate=lambda wildcards: wildcards.plate,
-        well=lambda wildcards: wildcards.well,
-        tile=lambda wildcards: wildcards.tile,
-        cycle=lambda wildcards: wildcards.cycle,
+        well=lambda wildcards: getattr(wildcards, 'well', None),
+        tile=lambda wildcards: getattr(wildcards, 'tile', None),
+        cycle=lambda wildcards: getattr(wildcards, 'cycle', None),
     script:
         "../scripts/preprocess/extract_metadata.py"
 
@@ -52,24 +55,21 @@ rule extract_metadata_phenotype:
     input:
         samples=lambda wildcards: get_sample_fps(
             phenotype_samples_df,
-            plate=wildcards.plate,
-            well=wildcards.well,
-            tile=wildcards.tile if include_tile_in_input("phenotype", config, for_metadata=True) else None,
+            **{wc: getattr(wildcards, wc) for wc in get_sample_input_wildcards("phenotype", config) if hasattr(wildcards, wc)},
             channel_order=config["preprocess"]["phenotype_channel_order"],
-        ),
+        ) if should_use_samples_input("phenotype", config, phenotype_metadata_samples_df) else [],
+        
         metadata=lambda wildcards: get_sample_fps(
             phenotype_metadata_samples_df,
-            plate=wildcards.plate,
-            well=wildcards.well if include_tile_in_input("phenotype", config, for_metadata=True) else None,
-            tile=wildcards.tile if include_tile_in_input("phenotype", config, for_metadata=True) else None,
-            round=getattr(wildcards, 'round', None),
-        ) if not phenotype_metadata_samples_df.empty else []
+            **{wc: getattr(wildcards, wc) for wc in get_metadata_input_wildcards("phenotype", config, phenotype_metadata_samples_df) if hasattr(wildcards, wc)},
+        ) if should_use_metadata_input("phenotype", config, phenotype_metadata_samples_df) else []
     output:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:
         plate=lambda wildcards: wildcards.plate,
-        well=lambda wildcards: wildcards.well,
-        tile=lambda wildcards: wildcards.tile,
+        well=lambda wildcards: getattr(wildcards, 'well', None),
+        tile=lambda wildcards: getattr(wildcards, 'tile', None),
+        round=lambda wildcards: getattr(wildcards, 'round', None),
     script:
         "../scripts/preprocess/extract_metadata.py"
 

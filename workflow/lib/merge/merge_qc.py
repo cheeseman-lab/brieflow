@@ -125,6 +125,30 @@ def analyze_stitch_config(config, metadata_df, well, data_type):
     return combined
 
 
+def check_backend_and_setup():
+    """
+    Helper function to check and setup the correct matplotlib backend for interactivity
+    """
+    backend = plt.get_backend()
+    print(f"Current matplotlib backend: {backend}")
+    
+    if 'inline' in backend.lower():
+        print("\n⚠️  Current backend doesn't support interactive widgets!")
+        print("To enable interactive sliders, run one of these commands:")
+        print("  %matplotlib widget    # Recommended for Jupyter")
+        print("  %matplotlib qt        # Alternative option")
+        print("  %matplotlib tk        # Another alternative")
+        print("\nThen restart your kernel and try again.")
+        return False
+    elif any(b in backend.lower() for b in ['widget', 'qt', 'tk', 'macosx']):
+        print("✅ Backend supports interactive widgets!")
+        return True
+    else:
+        print(f"⚠️  Backend '{backend}' may not support interactive widgets.")
+        print("If sliders don't work, try: %matplotlib widget")
+        return True
+
+
 class StitchQC:
     def __init__(self, base_path, plate, well):
         """
@@ -133,18 +157,18 @@ class StitchQC:
         Parameters:
         -----------
         base_path : str or Path
-            Base path to your analysis outputs
+            Base path to your analysis outputs (should point to the 'merge' directory)
         plate : str/int
             Plate identifier
         well : str
-            Well identifier (e.g., 'A01')
+            Well identifier (e.g., 'A3')
         """
         self.base_path = Path(base_path)
         self.plate = str(plate)
         self.well = well
         prefix = f"P-{plate}_W-{well}__"
 
-        # Define expected file paths
+        # Define expected file paths based on your actual structure
         self.phenotype_image = (
             self.base_path / "stitched_images" / f"{prefix}phenotype_stitched_image.npy"
         )
@@ -172,6 +196,9 @@ class StitchQC:
         self.sbs_overlay = self.base_path / "overlays" / f"{prefix}sbs_overlay.png"
 
         print(f"Initialized QC for Plate {plate}, Well {well}")
+        print(f"Base path: {self.base_path}")
+        print(f"Looking for files with prefix: {prefix}")
+        print(f"Example phenotype image path: {self.phenotype_image}")
         self.check_files()
 
     def check_files(self):
@@ -403,33 +430,6 @@ class StitchQC:
 
         return ph_pos, sbs_pos
 
-
-    # Enable interactive backend
-    plt.ion()  # Turn on interactive mode
-
-    def check_backend_and_setup():
-        """
-        Helper function to check and setup the correct matplotlib backend for interactivity
-        """
-        backend = plt.get_backend()
-        print(f"Current matplotlib backend: {backend}")
-        
-        if 'inline' in backend.lower():
-            print("\n⚠️  Current backend doesn't support interactive widgets!")
-            print("To enable interactive sliders, run one of these commands:")
-            print("  %matplotlib widget    # Recommended for Jupyter")
-            print("  %matplotlib qt        # Alternative option")
-            print("  %matplotlib tk        # Another alternative")
-            print("\nThen restart your kernel and try again.")
-            return False
-        elif any(b in backend.lower() for b in ['widget', 'qt', 'tk', 'macosx']):
-            print("✅ Backend supports interactive widgets!")
-            return True
-        else:
-            print(f"⚠️  Backend '{backend}' may not support interactive widgets.")
-            print("If sliders don't work, try: %matplotlib widget")
-            return True
-
     def check_stitching_quality_efficient(self, sample_region=None, preview_downsample=20, 
                                         brightness_range=(0.1, 2.0), contrast_range=(0.5, 3.0)):
         """
@@ -496,11 +496,6 @@ class StitchQC:
                 display_objects[key].set_data(adjusted)
             
             fig.canvas.draw_idle()
-        if self.phenotype_image.exists():
-            # Memory map the array instead of loading it
-            ph_img = np.load(self.phenotype_image, mmap_mode='r')
-            print(f"Phenotype image shape: {ph_img.shape}")
-            print(f"Estimated size: {ph_img.nbytes / 1e9:.1f} GB")
 
         # Process phenotype image
         if self.phenotype_image.exists():
@@ -569,13 +564,6 @@ class StitchQC:
                 axes[0][1].set_title(f"Phenotype Center Region\n{ph_center.shape}")
             
             axes[0][1].axis("off")
-
-        # Process SBS image
-        if self.sbs_image.exists():
-            # Memory map the SBS array
-            sbs_img = np.load(self.sbs_image, mmap_mode='r')
-            print(f"SBS image shape: {sbs_img.shape}")
-            print(f"Estimated size: {sbs_img.nbytes / 1e9:.1f} GB")
 
         # Process SBS image
         if self.sbs_image.exists():
@@ -667,9 +655,8 @@ class StitchQC:
         
         return fig, brightness_slider, contrast_slider
 
-
-        return fig, brightness_slider, contrast_slider 
-                            brightness_levels=[0.3, 0.7, 1.0, 1.5, 2.0]):
+    def check_stitching_quality_static(self, sample_region=None, preview_downsample=20,
+                                     brightness_levels=[0.3, 0.7, 1.0, 1.5, 2.0]):
         """
         Non-interactive version showing multiple brightness levels side by side
         Use this if interactive sliders don't work
@@ -684,7 +671,17 @@ class StitchQC:
             Different brightness levels to display
         """
         
-        fig, axes = plt.subplots(2, len(brightness_levels), figsize=(20, 8))
+        # Handle single brightness level case
+        if len(brightness_levels) == 1:
+            fig, axes = plt.subplots(2, 1, figsize=(8, 10))
+            # Convert to 2D indexing for consistency
+            axes = axes.reshape(2, 1)
+        else:
+            fig, axes = plt.subplots(2, len(brightness_levels), figsize=(4*len(brightness_levels), 8))
+            # Ensure axes is always 2D
+            if len(brightness_levels) == 1:
+                axes = axes.reshape(2, 1)
+        
         fig.suptitle(
             f"Brightness Comparison - Plate {self.plate}, Well {self.well}",
             fontsize=16,
@@ -707,6 +704,7 @@ class StitchQC:
                 start_j = max(0, min(start_j, ph_img.shape[1]))
                 end_j = max(start_j, min(end_j, ph_img.shape[1]))
                 ph_sample = np.array(ph_img[start_i:end_i, start_j:end_j])
+                print(f"Phenotype region: [{start_i}:{end_i}, {start_j}:{end_j}], shape: {ph_sample.shape}")
             else:
                 h, w = ph_img.shape
                 center_h, center_w = h // 2, w // 2
@@ -738,6 +736,7 @@ class StitchQC:
                 sbs_start_j = max(0, int(start_j * scale_w))
                 sbs_end_j = min(sbs_img.shape[1], int(end_j * scale_w))
                 sbs_sample = np.array(sbs_img[sbs_start_i:sbs_end_i, sbs_start_j:sbs_end_j])
+                print(f"SBS region: [{sbs_start_i}:{sbs_end_i}, {sbs_start_j}:{sbs_end_j}], shape: {sbs_sample.shape}")
             else:
                 h, w = sbs_img.shape
                 center_h, center_w = h // 2, w // 2
@@ -755,11 +754,9 @@ class StitchQC:
         plt.tight_layout()
         plt.show()
 
-
-    # Convenience function for quick region viewing
-    def view_region(self, center_row, center_col, size=1000):
+    def view_region(self, center_row, center_col, size=1000, brightness=2.0):
         """
-        View a square region centered at specified coordinates
+        View a square region centered at specified coordinates with fixed brightness
         
         Parameters:
         -----------
@@ -767,6 +764,8 @@ class StitchQC:
             Center coordinates of region to view
         size : int, default 1000
             Size of square region (will be size x size pixels)
+        brightness : float, default 2.0
+            Brightness multiplier for display
         """
         half_size = size // 2
         start_i = center_row - half_size
@@ -774,8 +773,18 @@ class StitchQC:
         start_j = center_col - half_size
         end_j = center_col + half_size
         
-        print(f"Viewing {size}x{size} region centered at ({center_row}, {center_col})")
-        self.check_stitching_quality_efficient(sample_region=(start_i, end_i, start_j, end_j))
+        print(f"Viewing {size}x{size} region centered at ({center_row}, {center_col}) with brightness {brightness}")
+        
+        # Use static version with single brightness level
+        self.check_stitching_quality_static(
+            sample_region=(start_i, end_i, start_j, end_j),
+            brightness_levels=[brightness]
+        )
+
+
+# Enable interactive backend
+plt.ion()  # Turn on interactive mode
+
 
 # Usage functions
 def quick_qc(base_path, plate, well):
@@ -842,10 +851,15 @@ def batch_qc_report(base_path, plate_wells):
 qc = StitchQC('/path/to/analysis/merge', plate=1, well='A01')
 qc.view_overlays()
 ph_pos, sbs_pos = qc.analyze_cell_positions()
-qc.create_qc_report()
 
 # Check specific region for stitching artifacts
-qc.check_stitching_quality(sample_region=(5000, 6000, 8000, 9000))
+qc.check_stitching_quality_efficient(sample_region=(5000, 6000, 8000, 9000))
+
+# Alternative static version
+qc.check_stitching_quality_static(sample_region=(5000, 6000, 8000, 9000))
+
+# View specific region easily
+qc.view_region(center_row=5500, center_col=8500, size=2000)
 
 # Batch QC
 wells_to_check = [(1, 'A01'), (1, 'A02'), (1, 'B01')]

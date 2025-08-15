@@ -11,6 +11,7 @@ from pathlib import Path
 from skimage import io, exposure
 from matplotlib.patches import Rectangle
 import warnings
+from matplotlib.widgets import Slider
 
 warnings.filterwarnings("ignore")
 
@@ -402,199 +403,379 @@ class StitchQC:
 
         return ph_pos, sbs_pos
 
-    def check_stitching_quality(self, sample_region=None):
-        """
-        Check stitching quality by examining raw images
 
+    # Enable interactive backend
+    plt.ion()  # Turn on interactive mode
+
+    def check_backend_and_setup():
+        """
+        Helper function to check and setup the correct matplotlib backend for interactivity
+        """
+        backend = plt.get_backend()
+        print(f"Current matplotlib backend: {backend}")
+        
+        if 'inline' in backend.lower():
+            print("\n⚠️  Current backend doesn't support interactive widgets!")
+            print("To enable interactive sliders, run one of these commands:")
+            print("  %matplotlib widget    # Recommended for Jupyter")
+            print("  %matplotlib qt        # Alternative option")
+            print("  %matplotlib tk        # Another alternative")
+            print("\nThen restart your kernel and try again.")
+            return False
+        elif any(b in backend.lower() for b in ['widget', 'qt', 'tk', 'macosx']):
+            print("✅ Backend supports interactive widgets!")
+            return True
+        else:
+            print(f"⚠️  Backend '{backend}' may not support interactive widgets.")
+            print("If sliders don't work, try: %matplotlib widget")
+            return True
+
+    def check_stitching_quality_efficient(self, sample_region=None, preview_downsample=20, 
+                                        brightness_range=(0.1, 2.0), contrast_range=(0.5, 3.0)):
+        """
+        Memory-efficient stitching quality check with interactive brightness/contrast controls
+        
         Parameters:
         -----------
         sample_region : tuple, optional
-            (start_i, end_i, start_j, end_j) region to examine closely
+            (start_i, end_i, start_j, end_j) region to examine at full resolution
+        preview_downsample : int, default 20
+            Downsampling factor for full well preview (higher = lower memory usage)
+        brightness_range : tuple, default (0.1, 2.0)
+            Min and max values for brightness adjustment
+        contrast_range : tuple, default (0.5, 3.0)
+            Min and max values for contrast adjustment
         """
-
-        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # Check matplotlib backend
+        backend = plt.get_backend()
+        print(f"Matplotlib backend: {backend}")
+        if 'inline' in backend.lower():
+            print("Warning: Interactive widgets may not work with 'inline' backend.")
+            print("Try running: %matplotlib widget")
+            print("Or: %matplotlib qt")
+        
+        # Create figure with space for sliders
+        fig = plt.figure(figsize=(16, 14))
+        
+        # Create main subplot area (leave space at bottom for sliders)
+        gs = fig.add_gridspec(3, 2, height_ratios=[1, 1, 0.2], hspace=0.4, bottom=0.1)
+        axes = [
+            [fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1])],
+            [fig.add_subplot(gs[1, 0]), fig.add_subplot(gs[1, 1])]
+        ]
+        
+        # Slider area - make them bigger and more spaced out
+        slider_ax1 = plt.axes([0.15, 0.05, 0.25, 0.03])  # [left, bottom, width, height]
+        slider_ax2 = plt.axes([0.55, 0.05, 0.25, 0.03])
+        
         fig.suptitle(
             f"Stitching Quality Check - Plate {self.plate}, Well {self.well}",
             fontsize=16,
         )
 
-        # Load and display phenotype image
+        # Store image data and display objects for slider updates
+        image_data = {}
+        display_objects = {}
+        
+        def adjust_image_display(img_array, brightness=1.0, contrast=1.0):
+            """Apply brightness and contrast adjustments"""
+            # Normalize to 0-1 range first
+            img_norm = (img_array - img_array.min()) / (img_array.max() - img_array.min() + 1e-8)
+            # Apply contrast (multiply) then brightness (add)
+            adjusted = np.clip(contrast * img_norm + (brightness - 1.0), 0, 1)
+            return adjusted
+        
+        def update_display(val=None):
+            """Update all image displays with current slider values"""
+            brightness = brightness_slider.val
+            contrast = contrast_slider.val
+            
+            for key, img_data in image_data.items():
+                adjusted = adjust_image_display(img_data, brightness, contrast)
+                display_objects[key].set_data(adjusted)
+            
+            fig.canvas.draw_idle()
         if self.phenotype_image.exists():
-            ph_img = np.load(self.phenotype_image)
+            # Memory map the array instead of loading it
+            ph_img = np.load(self.phenotype_image, mmap_mode='r')
             print(f"Phenotype image shape: {ph_img.shape}")
+            print(f"Estimated size: {ph_img.nbytes / 1e9:.1f} GB")
 
-            # Full image (downsampled for display)
-            downsample = max(1, max(ph_img.shape) // 1000)  # Downsample for display
-            ph_display = ph_img[::downsample, ::downsample]
+        # Process phenotype image
+        if self.phenotype_image.exists():
+            # Memory map the array instead of loading it
+            ph_img = np.load(self.phenotype_image, mmap_mode='r')
+            print(f"Phenotype image shape: {ph_img.shape}")
+            print(f"Estimated size: {ph_img.nbytes / 1e9:.1f} GB")
 
-            axes[0, 0].imshow(ph_display, cmap="gray")
-            axes[0, 0].set_title(f"Phenotype Full Well\n(downsampled {downsample}x)")
-            axes[0, 0].axis("off")
+            # Create downsampled preview without loading full image
+            ph_preview = ph_img[::preview_downsample, ::preview_downsample]
+            image_data['ph_preview'] = ph_preview
+            
+            # Initial display with default brightness/contrast
+            ph_preview_adj = adjust_image_display(ph_preview)
+            display_objects['ph_preview'] = axes[0][0].imshow(ph_preview_adj, cmap="gray")
+            axes[0][0].set_title(f"Phenotype Full Well\n(downsampled {preview_downsample}x)")
+            axes[0][0].axis("off")
 
-            # Sample region
+            # Handle sample region
             if sample_region:
                 start_i, end_i, start_j, end_j = sample_region
-                ph_sample = ph_img[start_i:end_i, start_j:end_j]
-                axes[0, 1].imshow(ph_sample, cmap="gray")
-                axes[0, 1].set_title(
-                    f"Phenotype Sample Region\n[{start_i}:{end_i}, {start_j}:{end_j}]"
+                
+                # Validate region bounds
+                start_i = max(0, min(start_i, ph_img.shape[0]))
+                end_i = max(start_i, min(end_i, ph_img.shape[0]))
+                start_j = max(0, min(start_j, ph_img.shape[1]))
+                end_j = max(start_j, min(end_j, ph_img.shape[1]))
+                
+                # Extract only the requested region (memory efficient)
+                ph_sample = np.array(ph_img[start_i:end_i, start_j:end_j])
+                image_data['ph_sample'] = ph_sample
+                
+                ph_sample_adj = adjust_image_display(ph_sample)
+                display_objects['ph_sample'] = axes[0][1].imshow(ph_sample_adj, cmap="gray")
+                axes[0][1].set_title(
+                    f"Phenotype Sample Region\n[{start_i}:{end_i}, {start_j}:{end_j}]\n"
+                    f"Size: {ph_sample.shape}"
                 )
 
-                # Add rectangle to full image showing sample region
+                # Add rectangle to preview showing sample region
                 rect = Rectangle(
-                    (start_j // downsample, start_i // downsample),
-                    (end_j - start_j) // downsample,
-                    (end_i - start_i) // downsample,
+                    (start_j // preview_downsample, start_i // preview_downsample),
+                    (end_j - start_j) // preview_downsample,
+                    (end_i - start_i) // preview_downsample,
                     linewidth=2,
                     edgecolor="red",
                     facecolor="none",
                 )
-                axes[0, 0].add_patch(rect)
+                axes[0][0].add_patch(rect)
             else:
                 # Show center region
                 h, w = ph_img.shape
                 center_h, center_w = h // 2, w // 2
-                size = min(500, min(h, w) // 4)
-                ph_center = ph_img[
-                    center_h - size : center_h + size, center_w - size : center_w + size
-                ]
-                axes[0, 1].imshow(ph_center, cmap="gray")
-                axes[0, 1].set_title("Phenotype Center Region")
-            axes[0, 1].axis("off")
+                size = min(1000, min(h, w) // 8)  # Larger default region
+                
+                start_i = center_h - size
+                end_i = center_h + size
+                start_j = center_w - size
+                end_j = center_w + size
+                
+                ph_center = np.array(ph_img[start_i:end_i, start_j:end_j])
+                image_data['ph_sample'] = ph_center
+                
+                ph_center_adj = adjust_image_display(ph_center)
+                display_objects['ph_sample'] = axes[0][1].imshow(ph_center_adj, cmap="gray")
+                axes[0][1].set_title(f"Phenotype Center Region\n{ph_center.shape}")
+            
+            axes[0][1].axis("off")
 
-        # Load and display SBS image
+        # Process SBS image
         if self.sbs_image.exists():
-            sbs_img = np.load(self.sbs_image)
+            # Memory map the SBS array
+            sbs_img = np.load(self.sbs_image, mmap_mode='r')
             print(f"SBS image shape: {sbs_img.shape}")
+            print(f"Estimated size: {sbs_img.nbytes / 1e9:.1f} GB")
 
-            # Full image (downsampled for display)
-            downsample = max(1, max(sbs_img.shape) // 1000)
-            sbs_display = sbs_img[::downsample, ::downsample]
+        # Process SBS image
+        if self.sbs_image.exists():
+            # Memory map the SBS array
+            sbs_img = np.load(self.sbs_image, mmap_mode='r')
+            print(f"SBS image shape: {sbs_img.shape}")
+            print(f"Estimated size: {sbs_img.nbytes / 1e9:.1f} GB")
 
-            axes[1, 0].imshow(sbs_display, cmap="gray")
-            axes[1, 0].set_title(f"SBS Full Well\n(downsampled {downsample}x)")
-            axes[1, 0].axis("off")
+            # Create downsampled preview
+            sbs_downsample = max(1, max(sbs_img.shape) // 1000)
+            sbs_preview = sbs_img[::sbs_downsample, ::sbs_downsample]
+            image_data['sbs_preview'] = sbs_preview
 
-            # Sample region
+            sbs_preview_adj = adjust_image_display(sbs_preview)
+            display_objects['sbs_preview'] = axes[1][0].imshow(sbs_preview_adj, cmap="gray")
+            axes[1][0].set_title(f"SBS Full Well\n(downsampled {sbs_downsample}x)")
+            axes[1][0].axis("off")
+
+            # Handle sample region for SBS
             if sample_region:
                 start_i, end_i, start_j, end_j = sample_region
-                # Scale region for SBS (typically lower resolution)
-                scale = min(
-                    sbs_img.shape[0] / ph_img.shape[0],
-                    sbs_img.shape[1] / ph_img.shape[1],
-                )
-                sbs_start_i = int(start_i * scale)
-                sbs_end_i = int(end_i * scale)
-                sbs_start_j = int(start_j * scale)
-                sbs_end_j = int(end_j * scale)
+                
+                # Calculate scale factor between phenotype and SBS
+                if self.phenotype_image.exists():
+                    scale_h = sbs_img.shape[0] / ph_img.shape[0]
+                    scale_w = sbs_img.shape[1] / ph_img.shape[1]
+                else:
+                    scale_h = scale_w = 0.25  # Default assumption for 10x vs 40x
+                
+                # Scale region coordinates for SBS
+                sbs_start_i = max(0, int(start_i * scale_h))
+                sbs_end_i = min(sbs_img.shape[0], int(end_i * scale_h))
+                sbs_start_j = max(0, int(start_j * scale_w))
+                sbs_end_j = min(sbs_img.shape[1], int(end_j * scale_w))
 
-                sbs_sample = sbs_img[sbs_start_i:sbs_end_i, sbs_start_j:sbs_end_j]
-                axes[1, 1].imshow(sbs_sample, cmap="gray")
-                axes[1, 1].set_title(
-                    f"SBS Sample Region\n[{sbs_start_i}:{sbs_end_i}, {sbs_start_j}:{sbs_end_j}]"
+                sbs_sample = np.array(sbs_img[sbs_start_i:sbs_end_i, sbs_start_j:sbs_end_j])
+                image_data['sbs_sample'] = sbs_sample
+                
+                sbs_sample_adj = adjust_image_display(sbs_sample)
+                display_objects['sbs_sample'] = axes[1][1].imshow(sbs_sample_adj, cmap="gray")
+                axes[1][1].set_title(
+                    f"SBS Sample Region\n[{sbs_start_i}:{sbs_end_i}, {sbs_start_j}:{sbs_end_j}]\n"
+                    f"Size: {sbs_sample.shape}"
                 )
             else:
                 # Show center region
                 h, w = sbs_img.shape
                 center_h, center_w = h // 2, w // 2
                 size = min(500, min(h, w) // 4)
-                sbs_center = sbs_img[
-                    center_h - size : center_h + size, center_w - size : center_w + size
-                ]
-                axes[1, 1].imshow(sbs_center, cmap="gray")
-                axes[1, 1].set_title("SBS Center Region")
-            axes[1, 1].axis("off")
+                
+                sbs_center = np.array(sbs_img[center_h - size:center_h + size, 
+                                            center_w - size:center_w + size])
+                image_data['sbs_sample'] = sbs_center
+                
+                sbs_center_adj = adjust_image_display(sbs_center)
+                display_objects['sbs_sample'] = axes[1][1].imshow(sbs_center_adj, cmap="gray")
+                axes[1][1].set_title(f"SBS Center Region\n{sbs_center.shape}")
+            
+            axes[1][1].axis("off")
+
+        # Create brightness and contrast sliders with larger, more visible controls
+        brightness_slider = Slider(
+            slider_ax1, 'Brightness', 
+            brightness_range[0], brightness_range[1], 
+            valinit=1.0, valstep=0.05, valfmt='%.2f',
+            facecolor='lightblue', edgecolor='black'
+        )
+        contrast_slider = Slider(
+            slider_ax2, 'Contrast', 
+            contrast_range[0], contrast_range[1], 
+            valinit=1.0, valstep=0.05, valfmt='%.2f',
+            facecolor='lightgreen', edgecolor='black'
+        )
+        
+        # Connect sliders to update function
+        brightness_slider.on_changed(update_display)
+        contrast_slider.on_changed(update_display)
+
+        # Add text instructions
+        fig.text(0.5, 0.01, 'Drag sliders to adjust brightness and contrast', 
+                ha='center', fontsize=12, style='italic')
 
         plt.tight_layout()
         plt.show()
+        
+        # Keep references to prevent garbage collection
+        fig._brightness_slider = brightness_slider
+        fig._contrast_slider = contrast_slider
+        
+        return fig, brightness_slider, contrast_slider
 
-    def create_qc_report(self):
-        """Generate a comprehensive QC report"""
-        print(f"\n{'=' * 50}")
-        print(f"QC REPORT: Plate {self.plate}, Well {self.well}")
-        print(f"{'=' * 50}")
 
-        # File existence check
-        files_exist = {
-            "phenotype_image": self.phenotype_image.exists(),
-            "phenotype_mask": self.phenotype_mask.exists(),
-            "phenotype_positions": self.phenotype_positions.exists(),
-            "sbs_image": self.sbs_image.exists(),
-            "sbs_mask": self.sbs_mask.exists(),
-            "sbs_positions": self.sbs_positions.exists(),
-        }
+        return fig, brightness_slider, contrast_slider 
+                            brightness_levels=[0.3, 0.7, 1.0, 1.5, 2.0]):
+        """
+        Non-interactive version showing multiple brightness levels side by side
+        Use this if interactive sliders don't work
+        
+        Parameters:
+        -----------
+        sample_region : tuple, optional
+            (start_i, end_i, start_j, end_j) region to examine at full resolution
+        preview_downsample : int, default 20
+            Downsampling factor for full well preview
+        brightness_levels : list, default [0.3, 0.7, 1.0, 1.5, 2.0]
+            Different brightness levels to display
+        """
+        
+        fig, axes = plt.subplots(2, len(brightness_levels), figsize=(20, 8))
+        fig.suptitle(
+            f"Brightness Comparison - Plate {self.plate}, Well {self.well}",
+            fontsize=16,
+        )
+        
+        def adjust_image_display(img_array, brightness=1.0):
+            """Apply brightness adjustment"""
+            img_norm = (img_array - img_array.min()) / (img_array.max() - img_array.min() + 1e-8)
+            adjusted = np.clip(img_norm * brightness, 0, 1)
+            return adjusted
 
-        print(f"\n📁 FILE STATUS:")
-        for name, exists in files_exist.items():
-            status = "✅" if exists else "❌"
-            print(f"  {status} {name}")
-
-        # Image analysis
-        if files_exist["phenotype_image"]:
-            ph_img = np.load(self.phenotype_image)
-            print(f"\n🔬 PHENOTYPE IMAGE:")
-            print(f"  Shape: {ph_img.shape}")
-            print(f"  Data type: {ph_img.dtype}")
-            print(f"  Value range: {ph_img.min()} - {ph_img.max()}")
-            print(f"  Size: {self.phenotype_image.stat().st_size / 1e6:.1f} MB")
-
-        if files_exist["sbs_image"]:
-            sbs_img = np.load(self.sbs_image)
-            print(f"\n🧬 SBS IMAGE:")
-            print(f"  Shape: {sbs_img.shape}")
-            print(f"  Data type: {sbs_img.dtype}")
-            print(f"  Value range: {sbs_img.min()} - {sbs_img.max()}")
-            print(f"  Size: {self.sbs_image.stat().st_size / 1e6:.1f} MB")
-
-        # Cell analysis
-        if files_exist["phenotype_positions"]:
-            ph_pos = pd.read_parquet(self.phenotype_positions)
-            print(f"\n🔵 PHENOTYPE CELLS:")
-            print(f"  Total cells: {len(ph_pos):,}")
-            if "tile" in ph_pos.columns:
-                print(f"  Tiles represented: {ph_pos['tile'].nunique()}")
-                print(f"  Cells per tile: {len(ph_pos) / ph_pos['tile'].nunique():.1f}")
-            if "area" in ph_pos.columns:
-                print(f"  Mean cell area: {ph_pos['area'].mean():.1f} pixels")
-
-        if files_exist["sbs_positions"]:
-            sbs_pos = pd.read_parquet(self.sbs_positions)
-            print(f"\n🔴 SBS CELLS:")
-            print(f"  Total cells: {len(sbs_pos):,}")
-            if "tile" in sbs_pos.columns:
-                print(f"  Tiles represented: {sbs_pos['tile'].nunique()}")
-                print(
-                    f"  Cells per tile: {len(sbs_pos) / sbs_pos['tile'].nunique():.1f}"
-                )
-            if "area" in sbs_pos.columns:
-                print(f"  Mean cell area: {sbs_pos['area'].mean():.1f} pixels")
-
-        # Recommendations
-        print(f"\n💡 RECOMMENDATIONS:")
-
-        if not files_exist["phenotype_image"] or not files_exist["sbs_image"]:
-            print("  ⚠️  Missing stitched images - check stitching pipeline")
-
-        if files_exist["phenotype_positions"] and files_exist["sbs_positions"]:
-            ph_count = len(pd.read_parquet(self.phenotype_positions))
-            sbs_count = len(pd.read_parquet(self.sbs_positions))
-            ratio = ph_count / sbs_count if sbs_count > 0 else 0
-
-            if ratio < 0.5 or ratio > 2.0:
-                print(
-                    f"  ⚠️  Large cell count difference (Ph: {ph_count:,}, SBS: {sbs_count:,})"
-                )
-                print("      Check segmentation parameters or imaging quality")
+        # Process phenotype image
+        if self.phenotype_image.exists():
+            ph_img = np.load(self.phenotype_image, mmap_mode='r')
+            
+            if sample_region:
+                start_i, end_i, start_j, end_j = sample_region
+                start_i = max(0, min(start_i, ph_img.shape[0]))
+                end_i = max(start_i, min(end_i, ph_img.shape[0]))
+                start_j = max(0, min(start_j, ph_img.shape[1]))
+                end_j = max(start_j, min(end_j, ph_img.shape[1]))
+                ph_sample = np.array(ph_img[start_i:end_i, start_j:end_j])
             else:
-                print(
-                    f"  ✅ Cell counts reasonable (Ph: {ph_count:,}, SBS: {sbs_count:,})"
-                )
+                h, w = ph_img.shape
+                center_h, center_w = h // 2, w // 2
+                size = min(1000, min(h, w) // 8)
+                ph_sample = np.array(ph_img[center_h - size:center_h + size, 
+                                        center_w - size:center_w + size])
+            
+            # Show different brightness levels
+            for i, brightness in enumerate(brightness_levels):
+                adjusted = adjust_image_display(ph_sample, brightness)
+                axes[0, i].imshow(adjusted, cmap="gray")
+                axes[0, i].set_title(f"Phenotype\nBrightness: {brightness}")
+                axes[0, i].axis("off")
 
-        if not files_exist["phenotype_mask"] or not files_exist["sbs_mask"]:
-            print("  ⚠️  Missing stitched masks - cell merging may fail")
+        # Process SBS image if available
+        if self.sbs_image.exists():
+            sbs_img = np.load(self.sbs_image, mmap_mode='r')
+            
+            if sample_region:
+                # Scale coordinates for SBS
+                if self.phenotype_image.exists():
+                    scale_h = sbs_img.shape[0] / ph_img.shape[0]
+                    scale_w = sbs_img.shape[1] / ph_img.shape[1]
+                else:
+                    scale_h = scale_w = 0.25
+                
+                sbs_start_i = max(0, int(start_i * scale_h))
+                sbs_end_i = min(sbs_img.shape[0], int(end_i * scale_h))
+                sbs_start_j = max(0, int(start_j * scale_w))
+                sbs_end_j = min(sbs_img.shape[1], int(end_j * scale_w))
+                sbs_sample = np.array(sbs_img[sbs_start_i:sbs_end_i, sbs_start_j:sbs_end_j])
+            else:
+                h, w = sbs_img.shape
+                center_h, center_w = h // 2, w // 2
+                size = min(500, min(h, w) // 4)
+                sbs_sample = np.array(sbs_img[center_h - size:center_h + size, 
+                                            center_w - size:center_w + size])
+            
+            # Show different brightness levels
+            for i, brightness in enumerate(brightness_levels):
+                adjusted = adjust_image_display(sbs_sample, brightness)
+                axes[1, i].imshow(adjusted, cmap="gray")
+                axes[1, i].set_title(f"SBS\nBrightness: {brightness}")
+                axes[1, i].axis("off")
+        
+        plt.tight_layout()
+        plt.show()
 
-        print(f"\n{'=' * 50}")
 
+    # Convenience function for quick region viewing
+    def view_region(self, center_row, center_col, size=1000):
+        """
+        View a square region centered at specified coordinates
+        
+        Parameters:
+        -----------
+        center_row, center_col : int
+            Center coordinates of region to view
+        size : int, default 1000
+            Size of square region (will be size x size pixels)
+        """
+        half_size = size // 2
+        start_i = center_row - half_size
+        end_i = center_row + half_size
+        start_j = center_col - half_size
+        end_j = center_col + half_size
+        
+        print(f"Viewing {size}x{size} region centered at ({center_row}, {center_col})")
+        self.check_stitching_quality_efficient(sample_region=(start_i, end_i, start_j, end_j))
 
 # Usage functions
 def quick_qc(base_path, plate, well):

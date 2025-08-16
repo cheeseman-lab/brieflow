@@ -10,6 +10,7 @@ from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
 from lib.merge.well_alignment import (
+    calculate_scale_factor_from_positions,
     scale_coordinates,
     well_level_triangle_hash,
     triangle_hash_well_alignment,
@@ -25,19 +26,22 @@ def main():
     
     plate = snakemake.params.plate
     well = snakemake.params.well
-    scale_factor = snakemake.params.scale_factor
     det_range = snakemake.params.det_range
     score_threshold = snakemake.params.score_threshold
     
     print(f"Processing Plate {plate}, Well {well}")
     print(f"Phenotype cells: {len(phenotype_positions):,}")
     print(f"SBS cells: {len(sbs_positions):,}")
-    print(f"Scale factor: {scale_factor}")
     
     # =================================================================
-    # COORDINATE SCALING
+    # AUTO-CALCULATE SCALE FACTOR AND COORDINATE SCALING
     # =================================================================
-    print("\n--- Coordinate Scaling ---")
+    print("\n--- Auto-calculating Scale Factor from Position Ranges ---")
+    
+    # Calculate scale factor from coordinate ranges
+    scale_factor = calculate_scale_factor_from_positions(phenotype_positions, sbs_positions)
+    
+    print(f"Auto-calculated scale factor: {scale_factor:.6f}")
     
     phenotype_scaled = scale_coordinates(
         phenotype_positions, 
@@ -87,6 +91,7 @@ def main():
         summary = {
             'status': 'failed',
             'reason': 'insufficient_triangles',
+            'scale_factor': float(scale_factor),
             'phenotype_triangles': 0,
             'sbs_triangles': 0,
             'overlap_fraction': float(overlap_fraction)
@@ -105,9 +110,9 @@ def main():
     sbs_triangles.to_parquet(str(snakemake.output.sbs_triangles))
     
     # =================================================================
-    # ALIGNMENT ESTIMATION
+    # ADAPTIVE REGIONAL TRIANGLE HASHING
     # =================================================================
-    print("\n--- Alignment Estimation ---")
+    print("\n--- Adaptive Regional Triangle Hashing ---")
     
     try:
         alignment_result = triangle_hash_well_alignment(
@@ -116,7 +121,10 @@ def main():
             max_cells_for_hash=75000,
             threshold_triangle=0.1,
             threshold_point=2.0,
-            min_score=score_threshold
+            min_score=score_threshold,
+            adaptive_region=True,
+            initial_region_size=7000,
+            min_triangles=100
         )
         
         if not alignment_result.empty:
@@ -130,9 +138,11 @@ def main():
             score_ok = score >= score_threshold
             
             if det_ok and score_ok:
-                print(f"✅ Triangle hash alignment successful:")
+                print(f"✅ Regional triangle hash alignment successful:")
                 print(f"   Score: {score:.3f}")
                 print(f"   Determinant: {det:.6f}")
+                print(f"   Region size: {best_alignment.get('final_region_size', 'unknown')}")
+                print(f"   Attempts: {best_alignment.get('attempts', 'unknown')}")
                 alignment_status = "success"
             else:
                 print(f"⚠️  Alignment quality issues:")
@@ -140,12 +150,12 @@ def main():
                 print(f"   Determinant: {det:.6f} (range: {det_range})")
                 alignment_status = "quality_warning"
         else:
-            print("❌ Triangle hash alignment returned empty result")
+            print("❌ Regional triangle hash alignment returned empty result")
             alignment_result = None
             alignment_status = "failed"
             
     except Exception as e:
-        print(f"❌ Triangle hash alignment failed: {e}")
+        print(f"❌ Regional triangle hash alignment failed: {e}")
         alignment_result = None
         alignment_status = "failed"
     
@@ -183,7 +193,9 @@ def main():
             'transformation_type': str(best_alignment.get('transformation_type', 'unknown')),
             'score': float(best_alignment.get('score', 0)),
             'determinant': float(best_alignment.get('determinant', 1)),
-            'validation_mean_distance': float(best_alignment.get('validation_mean_distance', 0))
+            'validation_mean_distance': float(best_alignment.get('validation_mean_distance', 0)),
+            'region_size': float(best_alignment.get('final_region_size', 0)),
+            'attempts': int(best_alignment.get('attempts', 0))
         }
     }
     

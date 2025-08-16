@@ -228,7 +228,7 @@ def _find_matches_direct(
     raw_matches = _build_matches_dataframe(
         phenotype_positions, sbs_positions,
         valid_pheno_indices, valid_sbs_indices, valid_distances,
-        transformed_coords, scale_factor  # FIXED: Pass scale factor for coordinate conversion
+        transformed_coords, sbs_coords, scale_factor
     )
     
     stats = {
@@ -576,3 +576,34 @@ def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
             'good_quality': good_quality
         }
     }
+
+def debug_coordinate_uniqueness(coords, name, sample_size=10):
+    """Debug coordinate uniqueness and precision."""
+    print(f"\n🔍 DEBUG: {name} Coordinate Analysis")
+    print(f"  Total coordinates: {len(coords):,}")
+    
+    # Check uniqueness
+    unique_coords = np.unique(coords.view(np.void), return_counts=True)
+    unique_count = len(unique_coords[0])
+    print(f"  Unique coordinate pairs: {unique_count:,}")
+    print(f"  Duplicate pairs: {len(coords) - unique_count:,}")
+    
+    if len(coords) != unique_count:
+        # Find duplicates
+        coord_df = pd.DataFrame(coords, columns=['i', 'j'])
+        duplicates = coord_df.groupby(['i', 'j']).size()
+        duplicates = duplicates[duplicates > 1].sort_values(ascending=False)
+        
+        print(f"  Top duplicate coordinates:")
+        for idx, ((i, j), count) in enumerate(duplicates.head().items()):
+            print(f"    {idx+1}. ({i:.10f}, {j:.10f}): {count} cells")
+    
+    # Sample precision analysis
+    sample_coords = coords[:min(sample_size, len(coords))]
+    print(f"  Sample coordinates (first {len(sample_coords)}):")
+    for idx, (i, j) in enumerate(sample_coords):
+        i_decimals = len(str(i).split('.')[-1]) if '.' in str(i) else 0
+        j_decimals = len(str(j).split('.')[-1]) if '.' in str(j) else 0
+        print(f"    [{idx}] i={i:.10f} ({i_decimals}dp), j={j:.10f} ({j_decimals}dp)")
+    
+    return unique_count

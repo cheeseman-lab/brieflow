@@ -15,6 +15,42 @@ from typing import Optional, Tuple, Dict, Any
 from lib.merge.hash import nine_edge_hash, get_vc, nearest_neighbors
 
 
+def calculate_scale_factor_from_positions(phenotype_positions: pd.DataFrame, sbs_positions: pd.DataFrame) -> float:
+    """
+    Calculate scale factor by comparing coordinate ranges from cell positions.
+    
+    Args:
+        phenotype_positions: High-resolution phenotype cell positions
+        sbs_positions: Lower-resolution SBS cell positions
+        
+    Returns:
+        Scale factor (SBS_range / phenotype_range)
+    """
+    # Get coordinate ranges for both datasets
+    pheno_i_range = phenotype_positions['i'].max() - phenotype_positions['i'].min()
+    pheno_j_range = phenotype_positions['j'].max() - phenotype_positions['j'].min()
+    
+    sbs_i_range = sbs_positions['i'].max() - sbs_positions['i'].min()
+    sbs_j_range = sbs_positions['j'].max() - sbs_positions['j'].min()
+    
+    # Calculate scale factors for both dimensions
+    scale_i = sbs_i_range / pheno_i_range if pheno_i_range > 0 else 0
+    scale_j = sbs_j_range / pheno_j_range if pheno_j_range > 0 else 0
+    
+    print(f"Phenotype coordinate ranges: i={pheno_i_range:.0f}, j={pheno_j_range:.0f}")
+    print(f"SBS coordinate ranges: i={sbs_i_range:.0f}, j={sbs_j_range:.0f}")
+    print(f"Scale factors: i={scale_i:.6f}, j={scale_j:.6f}")
+    
+    # Use average for robustness (they should be approximately equal)
+    scale_factor = (scale_i + scale_j) / 2
+    
+    # Validate the scale factor is reasonable (should be around 0.25 for 40x->10x)
+    if not (0.1 <= scale_factor <= 0.5):
+        print(f"Warning: Unusual scale factor {scale_factor:.3f}. Expected ~0.25 for 40x->10x")
+    
+    return scale_factor
+
+
 def scale_coordinates(positions_df: pd.DataFrame, scale_factor: float) -> pd.DataFrame:
     """
     Scale coordinate columns by a factor.
@@ -240,6 +276,106 @@ def geographic_constrained_sampling(
     return final_sample
 
 
+def sample_region_for_alignment(
+    phenotype_resized: pd.DataFrame,
+    sbs_positions: pd.DataFrame,
+    region_size: int = 7000,
+    strategy: str = "center"
+) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
+    """
+    Sample a centered region from both datasets for triangle hash alignment.
+    Uses coordinate-based approach like your visualization code.
+    
+    Args:
+        phenotype_resized: Resized phenotype positions 
+        sbs_positions: SBS positions
+        region_size: Size of the square region to sample
+        strategy: Sampling strategy ("center" for now)
+        
+    Returns:
+        Tuple of (phenotype_region, sbs_region, region_info)
+    """
+    print(f"=== Regional Sampling for Alignment ===")
+    print(f"Region size: {region_size}x{region_size}")
+    print(f"Strategy: {strategy}")
+    
+    # Find overlap bounds between the two datasets
+    pheno_i_min, pheno_i_max = phenotype_resized['i'].min(), phenotype_resized['i'].max()
+    pheno_j_min, pheno_j_max = phenotype_resized['j'].min(), phenotype_resized['j'].max()
+    
+    sbs_i_min, sbs_i_max = sbs_positions['i'].min(), sbs_positions['i'].max()
+    sbs_j_min, sbs_j_max = sbs_positions['j'].min(), sbs_positions['j'].max()
+    
+    # Calculate overlap region
+    overlap_i_min = max(pheno_i_min, sbs_i_min)
+    overlap_i_max = min(pheno_i_max, sbs_i_max)
+    overlap_j_min = max(pheno_j_min, sbs_j_min)
+    overlap_j_max = min(pheno_j_max, sbs_j_max)
+    
+    overlap_i_range = overlap_i_max - overlap_i_min
+    overlap_j_range = overlap_j_max - overlap_j_min
+    
+    print(f"Overlap region: i=[{overlap_i_min:.0f}, {overlap_i_max:.0f}], j=[{overlap_j_min:.0f}, {overlap_j_max:.0f}]")
+    print(f"Overlap size: {overlap_i_range:.0f} x {overlap_j_range:.0f}")
+    
+    if overlap_i_range <= 0 or overlap_j_range <= 0:
+        print("❌ No overlap found between datasets")
+        return pd.DataFrame(), pd.DataFrame(), {}
+    
+    # Center the sampling region within the overlap (like visualization code)
+    center_i = (overlap_i_min + overlap_i_max) / 2
+    center_j = (overlap_j_min + overlap_j_max) / 2
+    
+    half_size = region_size / 2
+    
+    # Define sampling region bounds
+    sample_i_min = max(overlap_i_min, center_i - half_size)
+    sample_i_max = min(overlap_i_max, center_i + half_size)
+    sample_j_min = max(overlap_j_min, center_j - half_size)
+    sample_j_max = min(overlap_j_max, center_j + half_size)
+    
+    print(f"Sampling region: i=[{sample_i_min:.0f}, {sample_i_max:.0f}], j=[{sample_j_min:.0f}, {sample_j_max:.0f}]")
+    
+    # Sample cells within the region
+    pheno_mask = (
+        (phenotype_resized['i'] >= sample_i_min) & 
+        (phenotype_resized['i'] <= sample_i_max) &
+        (phenotype_resized['j'] >= sample_j_min) & 
+        (phenotype_resized['j'] <= sample_j_max)
+    )
+    
+    sbs_mask = (
+        (sbs_positions['i'] >= sample_i_min) & 
+        (sbs_positions['i'] <= sample_i_max) &
+        (sbs_positions['j'] >= sample_j_min) & 
+        (sbs_positions['j'] <= sample_j_max)
+    )
+    
+    pheno_region = phenotype_resized[pheno_mask].copy()
+    sbs_region = sbs_positions[sbs_mask].copy()
+    
+    print(f"Sampled cells: {len(pheno_region):,} phenotype, {len(sbs_region):,} SBS")
+    
+    region_info = {
+        'region_size': region_size,
+        'strategy': strategy,
+        'bounds': {
+            'i_min': sample_i_min, 'i_max': sample_i_max,
+            'j_min': sample_j_min, 'j_max': sample_j_max
+        },
+        'overlap_bounds': {
+            'i_min': overlap_i_min, 'i_max': overlap_i_max,
+            'j_min': overlap_j_min, 'j_max': overlap_j_max
+        },
+        'cell_counts': {
+            'phenotype': len(pheno_region),
+            'sbs': len(sbs_region)
+        }
+    }
+    
+    return pheno_region, sbs_region, region_info
+
+
 def triangle_hash_well_alignment(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
@@ -247,18 +383,24 @@ def triangle_hash_well_alignment(
     threshold_triangle: float = 0.1,
     threshold_point: float = 2.0,
     min_score: float = 0.05,
+    adaptive_region: bool = True,
+    initial_region_size: int = 7000,
+    min_triangles: int = 100,
     **kwargs
 ) -> pd.DataFrame:
     """
-    Triangle hash alignment for well-level data.
+    Triangle hash alignment for well-level data with adaptive regional sampling.
     
     Args:
-        phenotype_positions: Phenotype cell positions (should be pre-scaled)
+        phenotype_positions: Phenotype cell positions (should be pre-resized)
         sbs_positions: SBS cell positions
         max_cells_for_hash: Maximum cells to use for triangle generation
         threshold_triangle: Triangle similarity threshold
         threshold_point: Point distance threshold
         min_score: Minimum score to accept alignment
+        adaptive_region: Use adaptive regional sampling (default True)
+        initial_region_size: Starting region size for sampling
+        min_triangles: Minimum triangles needed for good alignment
         
     Returns:
         DataFrame with alignment parameters or empty DataFrame if failed
@@ -269,6 +411,107 @@ def triangle_hash_well_alignment(
         print("Insufficient cells for triangulation")
         return pd.DataFrame()
     
+    if not adaptive_region:
+        # Original approach - sample from full datasets
+        print("Using full-well sampling approach")
+        return _triangle_hash_full_well(
+            phenotype_positions, sbs_positions, max_cells_for_hash,
+            threshold_triangle, threshold_point, min_score
+        )
+    
+    # Adaptive regional approach
+    print("Using adaptive regional sampling approach")
+    
+    region_size = initial_region_size
+    max_region_size = min(
+        phenotype_positions['i'].max() - phenotype_positions['i'].min(),
+        phenotype_positions['j'].max() - phenotype_positions['j'].min(),
+        sbs_positions['i'].max() - sbs_positions['i'].min(),
+        sbs_positions['j'].max() - sbs_positions['j'].min()
+    ) * 0.8  # Use 80% of smallest dimension as max
+    
+    attempts = 0
+    max_attempts = 3
+    
+    while attempts < max_attempts and region_size <= max_region_size:
+        attempts += 1
+        print(f"\n--- Attempt {attempts}: Region size {region_size:.0f} ---")
+        
+        # Sample region
+        pheno_region, sbs_region, region_info = sample_region_for_alignment(
+            phenotype_positions, sbs_positions, region_size=int(region_size)
+        )
+        
+        if len(pheno_region) < 4 or len(sbs_region) < 4:
+            print(f"Insufficient cells in region ({len(pheno_region)}, {len(sbs_region)}), increasing region size")
+            region_size *= 1.5
+            continue
+        
+        # Generate triangle hashes for the region
+        pheno_triangles = well_level_triangle_hash(pheno_region)
+        sbs_triangles = well_level_triangle_hash(sbs_region)
+        
+        if len(pheno_triangles) < min_triangles or len(sbs_triangles) < min_triangles:
+            print(f"Insufficient triangles ({len(pheno_triangles)}, {len(sbs_triangles)}), increasing region size")
+            region_size *= 1.5
+            continue
+        
+        print(f"Generated {len(pheno_triangles)} phenotype and {len(sbs_triangles)} SBS triangles")
+        
+        # Evaluate triangle hash match
+        rotation, translation, score = evaluate_well_match(
+            pheno_triangles, sbs_triangles, 
+            threshold_triangle=threshold_triangle,
+            threshold_point=threshold_point
+        )
+        
+        if rotation is None or score < min_score:
+            print(f"Triangle hash match failed: score={score:.3f} < {min_score}, increasing region size")
+            region_size *= 1.5
+            continue
+        
+        # Success!
+        determinant = np.linalg.det(rotation)
+        
+        print(f"✅ Regional triangle hash alignment successful:")
+        print(f"   Score: {score:.3f}")
+        print(f"   Determinant: {determinant:.6f}")
+        print(f"   Region size used: {region_size:.0f}")
+        
+        # Build result
+        alignment = {
+            'rotation': rotation,
+            'translation': translation,
+            'score': score,
+            'determinant': determinant,
+            'transformation_type': 'triangle_hash_regional',
+            'triangles_matched': min(len(pheno_triangles), len(sbs_triangles)),
+            'approach': 'adaptive_regional_sampling',
+            'region_info': region_info,
+            'attempts': attempts,
+            'final_region_size': region_size
+        }
+        
+        return pd.DataFrame([alignment])
+    
+    # All attempts failed
+    print(f"❌ Regional triangle hash failed after {attempts} attempts")
+    print(f"Final region size tried: {region_size:.0f}")
+    
+    return pd.DataFrame()
+
+
+def _triangle_hash_full_well(
+    phenotype_positions: pd.DataFrame,
+    sbs_positions: pd.DataFrame,
+    max_cells_for_hash: int,
+    threshold_triangle: float,
+    threshold_point: float,
+    min_score: float
+) -> pd.DataFrame:
+    """
+    Original full-well triangle hash approach (preserved for fallback).
+    """
     # Sample cells if datasets are too large
     if len(phenotype_positions) > max_cells_for_hash:
         pheno_subset = geographic_constrained_sampling(

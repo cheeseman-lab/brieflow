@@ -152,11 +152,11 @@ rule well_alignment:
         sbs_triangles=MERGE_OUTPUTS["well_alignment"][2],                   
         alignment_params=MERGE_OUTPUTS["well_alignment"][3],                
         alignment_summary=MERGE_OUTPUTS["well_alignment"][4],
-        transformed_phenotype_positions=MERGE_OUTPUTS["well_alignment"][5],  # ADD THIS LINE
+        transformed_phenotype_positions=MERGE_OUTPUTS["well_alignment"][5],
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
-        scale_factor=config.get("merge", {}).get("scale_factor", 0.125),
+        # REMOVED: scale_factor=config.get("merge", {}).get("scale_factor", 0.125),
         det_range=config["merge"]["det_range"],
         score_threshold=config["merge"]["score"],
     script:

@@ -12,7 +12,8 @@ from lib.shared.file_utils import validate_dtypes
 from lib.merge.well_cell_matching import (
     load_alignment_parameters,
     find_cell_matches,
-    validate_matches
+    validate_matches,
+    debug_coordinate_uniqueness  # Import the debug function
 )
 
 def main():
@@ -32,6 +33,36 @@ def main():
     print(f"Scaled phenotype cells: {len(phenotype_scaled):,}")
     print(f"SBS cells: {len(sbs_positions):,}")
     print(f"Distance threshold: {threshold} px")
+    
+    # =================================================================
+    # DEBUG: INPUT DATA COORDINATE ANALYSIS
+    # =================================================================
+    print(f"\n🔍 INPUT DATA COORDINATE ANALYSIS")
+    
+    # Check original phenotype coordinates (before any processing)
+    scaled_coords = phenotype_scaled[['i', 'j']].values
+    scaled_unique = debug_coordinate_uniqueness(scaled_coords, "Scaled Phenotype Input")
+    
+    # Check transformed phenotype coordinates
+    transformed_coords = phenotype_transformed[['i', 'j']].values
+    transformed_unique = debug_coordinate_uniqueness(transformed_coords, "Transformed Phenotype Input")
+    
+    # Check SBS coordinates
+    sbs_coords = sbs_positions[['i', 'j']].values
+    sbs_unique = debug_coordinate_uniqueness(sbs_coords, "SBS Input")
+    
+    print(f"\nInput Data Summary:")
+    print(f"  Scaled Phenotype: {scaled_unique:,} unique out of {len(scaled_coords):,} ({100*scaled_unique/len(scaled_coords):.1f}%)")
+    print(f"  Transformed Phenotype: {transformed_unique:,} unique out of {len(transformed_coords):,} ({100*transformed_unique/len(transformed_coords):.1f}%)")
+    print(f"  SBS: {sbs_unique:,} unique out of {len(sbs_coords):,} ({100*sbs_unique/len(sbs_coords):.1f}%)")
+    
+    # Check if the issue is already present in input data
+    if scaled_unique != len(scaled_coords):
+        print("⚠️  ALERT: Scaled phenotype coordinates already have duplicates in input!")
+    if transformed_unique != len(transformed_coords):
+        print("⚠️  ALERT: Transformed phenotype coordinates already have duplicates in input!")
+    if sbs_unique != len(sbs_coords):
+        print("⚠️  ALERT: SBS coordinates already have duplicates in input!")
     
     # =================================================================
     # LOAD ALIGNMENT PARAMETERS
@@ -73,6 +104,56 @@ def main():
         print(f"✅ Found {len(raw_matches):,} raw matches")
         print(f"Mean distance: {raw_matches['distance'].mean():.2f} px")
         print(f"Max distance: {raw_matches['distance'].max():.2f} px")
+        
+        # =================================================================
+        # DEBUG: ANALYZE MATCHING RESULTS
+        # =================================================================
+        print(f"\n🔍 MATCHING RESULTS ANALYSIS")
+        
+        # Check coordinate uniqueness in results
+        result_pheno_coords = raw_matches[['i_0', 'j_0']].values
+        result_sbs_coords = raw_matches[['i_1', 'j_1']].values
+        
+        result_pheno_unique = debug_coordinate_uniqueness(result_pheno_coords, "Result Phenotype Coordinates")
+        result_sbs_unique = debug_coordinate_uniqueness(result_sbs_coords, "Result SBS Coordinates")
+        
+        print(f"\nMatching Results Coordinate Summary:")
+        print(f"  Result Phenotype coords: {result_pheno_unique:,} unique out of {len(result_pheno_coords):,} ({100*result_pheno_unique/len(result_pheno_coords):.1f}%)")
+        print(f"  Result SBS coords: {result_sbs_unique:,} unique out of {len(result_sbs_coords):,} ({100*result_sbs_unique/len(result_sbs_coords):.1f}%)")
+        
+        # Analyze cell ID uniqueness
+        pheno_cell_unique = raw_matches['cell_0'].nunique()
+        sbs_cell_unique = raw_matches['cell_1'].nunique()
+        
+        print(f"\nCell ID Uniqueness:")
+        print(f"  Unique phenotype cell IDs: {pheno_cell_unique:,} out of {len(raw_matches):,} matches")
+        print(f"  Unique SBS cell IDs: {sbs_cell_unique:,} out of {len(raw_matches):,} matches")
+        
+        # Check if cell IDs vs coordinates mismatch
+        if pheno_cell_unique != result_pheno_unique:
+            print(f"⚠️  MISMATCH: Phenotype cell IDs ({pheno_cell_unique}) ≠ coordinate pairs ({result_pheno_unique})")
+        if sbs_cell_unique != result_sbs_unique:
+            print(f"⚠️  MISMATCH: SBS cell IDs ({sbs_cell_unique}) ≠ coordinate pairs ({result_sbs_unique})")
+        
+        # Analyze top duplicated items
+        if pheno_cell_unique < len(raw_matches):
+            pheno_duplicates = raw_matches['cell_0'].value_counts()
+            print(f"\nTop 5 most duplicated phenotype cells:")
+            for i, (cell_id, count) in enumerate(pheno_duplicates.head().items()):
+                cell_data = raw_matches[raw_matches['cell_0'] == cell_id].iloc[0]
+                print(f"  {i+1}. Cell '{cell_id}': {count} matches at ({cell_data['i_0']:.6f}, {cell_data['j_0']:.6f})")
+        
+        if sbs_cell_unique < len(raw_matches):
+            sbs_duplicates = raw_matches['cell_1'].value_counts()
+            print(f"\nTop 5 most duplicated SBS cells:")
+            for i, (cell_id, count) in enumerate(sbs_duplicates.head().items()):
+                cell_data = raw_matches[raw_matches['cell_1'] == cell_id].iloc[0]
+                print(f"  {i+1}. Cell '{cell_id}': {count} matches at ({cell_data['i_1']:.6f}, {cell_data['j_1']:.6f})")
+        
+        # Compare input vs output uniqueness to see where we lost uniqueness
+        print(f"\nUniqueness Loss Analysis:")
+        print(f"  Transformed phenotype: {transformed_unique:,} → {pheno_cell_unique:,} (lost {transformed_unique - pheno_cell_unique:,})")
+        print(f"  SBS: {sbs_unique:,} → {sbs_cell_unique:,} (lost {sbs_unique - sbs_cell_unique:,})")
         
         # Save raw matches
         raw_matches.to_parquet(str(snakemake.output.raw_matches))
@@ -166,7 +247,20 @@ def main():
             'match_rate_sbs': float(len(merged_cells_final) / len(sbs_positions))
         },
         'validation': validation_results,
-        'summary_stats': summary_stats
+        'summary_stats': summary_stats,
+        'debug_analysis': {  # Add debug results to summary
+            'input_uniqueness': {
+                'scaled_phenotype': scaled_unique,
+                'transformed_phenotype': transformed_unique,
+                'sbs': sbs_unique
+            },
+            'result_uniqueness': {
+                'phenotype_coordinates': result_pheno_unique,
+                'sbs_coordinates': result_sbs_unique,
+                'phenotype_cell_ids': pheno_cell_unique,
+                'sbs_cell_ids': sbs_cell_unique
+            }
+        }
     }
     
     with open(str(snakemake.output.merge_summary), 'w') as f:
@@ -175,6 +269,28 @@ def main():
     print(f"✅ Saved merge summary: {snakemake.output.merge_summary}")
     print(f"\n🎉 Step 2 (Cell Merge) completed successfully!")
     print(f"Final result: {len(merged_cells_final):,} matched cells")
+    
+    # =================================================================
+    # FINAL DEBUG SUMMARY
+    # =================================================================
+    print(f"\n🔍 FINAL DEBUG SUMMARY")
+    print(f"Input data analysis:")
+    print(f"  - Scaled phenotype uniqueness: {100*scaled_unique/len(scaled_coords):.1f}%")
+    print(f"  - Transformed phenotype uniqueness: {100*transformed_unique/len(transformed_coords):.1f}%") 
+    print(f"  - SBS uniqueness: {100*sbs_unique/len(sbs_coords):.1f}%")
+    print(f"Results analysis:")
+    print(f"  - Final phenotype cell uniqueness: {100*pheno_cell_unique/len(raw_matches):.1f}%")
+    print(f"  - Final SBS cell uniqueness: {100*sbs_cell_unique/len(raw_matches):.1f}%")
+    
+    if transformed_unique < len(transformed_coords):
+        print(f"🎯 ISSUE FOUND: Transformed phenotype coordinates already have duplicates in input data!")
+        print(f"   This suggests the coordinate quantization happened in Step 1 (well_alignment.py)")
+    elif pheno_cell_unique < transformed_unique:
+        print(f"🎯 ISSUE FOUND: Coordinate uniqueness lost during matching process!")
+        print(f"   This suggests a bug in the matching logic in Step 2")
+    else:
+        print(f"🤔 UNEXPECTED: Coordinates appear unique, but validation shows duplicates")
+        print(f"   Check cell ID vs coordinate relationship")
 
 def create_empty_outputs(reason):
     """Create empty output files when processing fails."""

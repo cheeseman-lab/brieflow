@@ -401,12 +401,12 @@ def _build_matches_dataframe(
     """
     
     matches_df = pd.DataFrame({
-        'cell_0': phenotype_positions.iloc[pheno_indices]['cell'].values,
-        'i_0': transformed_coords[pheno_indices, 0],  # EXACT coordinates used for distance calc
-        'j_0': transformed_coords[pheno_indices, 1],  # EXACT coordinates used for distance calc
-        'cell_1': sbs_positions.iloc[sbs_indices]['cell'].values,
-        'i_1': sbs_coords[sbs_indices, 0],  # FIXED: EXACT coordinates used for distance calc
-        'j_1': sbs_coords[sbs_indices, 1],  # FIXED: EXACT coordinates used for distance calc
+        'cell_0': phenotype_positions.iloc[pheno_indices]['stitched_cell_id'].values,  # CORRECT COLUMN
+        'i_0': transformed_coords[pheno_indices, 0],
+        'j_0': transformed_coords[pheno_indices, 1],
+        'cell_1': sbs_positions.iloc[sbs_indices]['stitched_cell_id'].values,  # CORRECT COLUMN
+        'i_1': sbs_coords[sbs_indices, 0],
+        'j_1': sbs_coords[sbs_indices, 1],
         'distance': distances
     })
     

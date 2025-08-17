@@ -94,9 +94,18 @@ def main():
     print(f"Added plate ({plate}) and well ({well}) columns")
     print(f"Raw matches columns: {list(raw_matches.columns)}")
     
-    # Define proper column order
+    # Add the site information from SBS data
+    if 'tile' in sbs_positions.columns:
+        # Map each cell_1 back to its tile to get site information
+        sbs_tile_map = sbs_positions.set_index('stitched_cell_id')['tile'].to_dict()
+        raw_matches['site'] = raw_matches['cell_1'].map(sbs_tile_map)
+    else:
+        # Fallback if no tile info
+        raw_matches['site'] = 0
+
+    # Update column order to include site
     output_columns = [
-        'plate', 'well', 'cell_0', 'i_0', 'j_0', 
+        'plate', 'well', 'site', 'cell_0', 'i_0', 'j_0', 
         'cell_1', 'i_1', 'j_1', 'distance'
     ]
     

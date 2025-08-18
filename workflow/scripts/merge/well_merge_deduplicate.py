@@ -132,7 +132,7 @@ def main():
     print("\n--- Saving Final Output ---")
     
     # Ensure proper column order and format
-    required_columns = ['plate', 'well', 'cell_0', 'i_0', 'j_0', 'cell_1', 'i_1', 'j_1', 'distance']
+    required_columns = ['plate', 'well', 'site', 'tile', 'cell_0', 'i_0', 'j_0', 'cell_1', 'i_1', 'j_1', 'distance']
     optional_columns = ['area_0', 'area_1']
     
     output_columns = [col for col in required_columns if col in final_matches.columns]

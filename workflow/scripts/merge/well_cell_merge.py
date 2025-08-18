@@ -1,6 +1,6 @@
 """
 Step 2: Well Cell Merge - Cell-to-cell matching using alignment parameters.
-FIXED VERSION: Properly adds plate/well columns before saving raw matches.
+FIXED VERSION: Properly handles site column creation and debugging.
 """
 
 import pandas as pd
@@ -33,6 +33,11 @@ def main():
     print(f"Scaled phenotype cells: {len(phenotype_scaled):,}")
     print(f"SBS cells: {len(sbs_positions):,}")
     print(f"Distance threshold: {threshold} px")
+    
+    # DEBUG: Check SBS positions structure
+    print(f"\nDEBUG - SBS positions columns: {list(sbs_positions.columns)}")
+    print(f"DEBUG - SBS positions sample:")
+    print(sbs_positions.head(2))
     
     # =================================================================
     # LOAD ALIGNMENT PARAMETERS
@@ -83,29 +88,107 @@ def main():
         return
     
     # =================================================================
-    # ADD PLATE/WELL AND PREPARE OUTPUT (FIXED ORDER)
+    # ADD PLATE/WELL AND SITE INFORMATION (FIXED)
     # =================================================================
     print("\n--- Preparing Output Data ---")
     
-    # FIXED: Add plate and well columns BEFORE saving
+    # Add plate and well columns
     raw_matches['plate'] = plate  
     raw_matches['well'] = well
     
     print(f"Added plate ({plate}) and well ({well}) columns")
-    print(f"Raw matches columns: {list(raw_matches.columns)}")
     
-    # Add the site information from SBS data
-    if 'tile' in sbs_positions.columns:
-        # Map each cell_1 back to its tile to get site information
-        sbs_tile_map = sbs_positions.set_index('stitched_cell_id')['tile'].to_dict()
-        raw_matches['site'] = raw_matches['cell_1'].map(sbs_tile_map)
-    else:
-        # Fallback if no tile info
-        raw_matches['site'] = 0
-
-    # Update column order to include site
+    # FIXED: Better site handling with detailed debugging
+    print(f"\nDEBUG - Raw matches columns before site: {list(raw_matches.columns)}")
+    print(f"DEBUG - Raw matches cell_1 sample: {raw_matches['cell_1'].head(3).tolist()}")
+    
+    # Check what identifier columns exist in SBS positions
+    potential_id_cols = [col for col in sbs_positions.columns if 'cell' in col.lower() or 'id' in col.lower()]
+    print(f"DEBUG - Potential SBS ID columns: {potential_id_cols}")
+    
+    # Try multiple approaches to map site information
+    site_mapped = False
+    
+    # Approach 1: Use stitched_cell_id if available
+    if 'stitched_cell_id' in sbs_positions.columns:
+        print("Trying to map site using stitched_cell_id...")
+        
+        # Check if tile column exists
+        if 'tile' in sbs_positions.columns:
+            sbs_site_map = sbs_positions.set_index('stitched_cell_id')['tile'].to_dict()
+            raw_matches['site'] = raw_matches['cell_1'].map(sbs_site_map)
+            
+            # Check success rate
+            mapped_count = raw_matches['site'].notna().sum()
+            print(f"   Mapped {mapped_count}/{len(raw_matches)} sites using tile column")
+            
+            if mapped_count > 0:
+                site_mapped = True
+            else:
+                print("   No sites mapped via stitched_cell_id -> tile")
+        else:
+            print("   No 'tile' column in SBS positions")
+    
+    # Approach 2: Try using other ID columns
+    if not site_mapped:
+        print("Trying alternative site mapping approaches...")
+        
+        # Look for other potential site/tile columns
+        site_cols = [col for col in sbs_positions.columns if col in ['site', 'tile_id', 'tile_index']]
+        if site_cols:
+            site_col = site_cols[0]
+            print(f"   Found potential site column: {site_col}")
+            
+            if 'stitched_cell_id' in sbs_positions.columns:
+                sbs_site_map = sbs_positions.set_index('stitched_cell_id')[site_col].to_dict()
+                raw_matches['site'] = raw_matches['cell_1'].map(sbs_site_map)
+                
+                mapped_count = raw_matches['site'].notna().sum()
+                print(f"   Mapped {mapped_count}/{len(raw_matches)} sites using {site_col}")
+                
+                if mapped_count > 0:
+                    site_mapped = True
+    
+    # Approach 3: Extract from cell_1 if it contains site info
+    if not site_mapped:
+        print("Trying to extract site from cell_1 identifier...")
+        
+        # Check if cell_1 has a pattern that includes site/tile info
+        sample_cell_1 = raw_matches['cell_1'].iloc[0] if len(raw_matches) > 0 else ""
+        print(f"   Sample cell_1: {sample_cell_1}")
+        
+        # If cell_1 looks like it has site info (e.g., "plate_well_site_cell")
+        if isinstance(sample_cell_1, str) and len(sample_cell_1.split('_')) >= 4:
+            try:
+                raw_matches['site'] = raw_matches['cell_1'].str.split('_').str[2].astype(int)
+                print(f"   Extracted site from cell_1 identifier pattern")
+                site_mapped = True
+            except:
+                print("   Failed to extract site from cell_1 pattern")
+    
+    # Fallback: Use default site
+    if not site_mapped:
+        print("Using fallback site value...")
+        raw_matches['site'] = 1  # Default site value
+        print(f"   Set all sites to default value: 1")
+    
+    # Verify site column
+    print(f"Final site distribution: {raw_matches['site'].value_counts().to_dict()}")
+    print(f"Site column type: {raw_matches['site'].dtype}")
+    
+    # Convert site to int if it's not already
+    if raw_matches['site'].dtype != 'int64':
+        try:
+            raw_matches['site'] = raw_matches['site'].astype(int)
+            print("Converted site column to int")
+        except:
+            print("Warning: Could not convert site to int, keeping as-is")
+    
+    print(f"Raw matches columns after site: {list(raw_matches.columns)}")
+    
+    # Update column order to include site and tile
     output_columns = [
-        'plate', 'well', 'site', 'cell_0', 'i_0', 'j_0', 
+        'plate', 'well', 'site', 'tile', 'cell_0', 'i_0', 'j_0', 
         'cell_1', 'i_1', 'j_1', 'distance'
     ]
     
@@ -126,7 +209,7 @@ def main():
     # =================================================================
     print("\n--- Saving Outputs ---")
     
-    # Save raw matches (now with plate/well columns)
+    # Save raw matches (now with plate/well/site columns)
     raw_matches_ordered.to_parquet(str(snakemake.output.raw_matches))
     print(f"✅ Saved raw matches: {snakemake.output.raw_matches}")
     print(f"   Shape: {raw_matches_ordered.shape}")
@@ -186,7 +269,9 @@ def main():
         'summary_stats': summary_stats,
         'output_format': {
             'columns_included': available_columns,
-            'has_plate_well': 'plate' in available_columns and 'well' in available_columns
+            'has_plate_well': 'plate' in available_columns and 'well' in available_columns,
+            'has_site': 'site' in available_columns,
+            'site_mapping_method': 'stitched_cell_id' if site_mapped else 'fallback'
         }
     }
     
@@ -195,21 +280,23 @@ def main():
     
     print(f"✅ Saved merge summary: {snakemake.output.merge_summary}")
     print(f"\n🎉 Step 2 (Cell Merge) completed successfully!")
-    print(f"Final result: {len(raw_matches_ordered):,} matched cells with plate/well columns")
+    print(f"Final result: {len(raw_matches_ordered):,} matched cells with plate/well/site columns")
 
 def create_empty_outputs(reason):
     """Create empty output files when processing fails."""
-    # Empty raw matches with proper columns including plate/well
+    # Empty raw matches with proper columns including plate/well/site/tile
     empty_columns = [
-        'plate', 'well', 'cell_0', 'i_0', 'j_0', 'area_0',
+        'plate', 'well', 'site', 'tile', 'cell_0', 'i_0', 'j_0', 'area_0',
         'cell_1', 'i_1', 'j_1', 'area_1', 'distance'
     ]
     
     empty_matches = pd.DataFrame(columns=empty_columns)
     
-    # Add plate and well to empty DataFrame
+    # Add plate, well, site, and tile to empty DataFrame
     empty_matches['plate'] = snakemake.params.plate
     empty_matches['well'] = snakemake.params.well
+    empty_matches['site'] = 1  # Default site
+    empty_matches['tile'] = 1  # Default tile
     
     # Save both outputs
     empty_matches.to_parquet(str(snakemake.output.raw_matches))
@@ -223,7 +310,8 @@ def create_empty_outputs(reason):
         'well': snakemake.params.well,
         'output_format': {
             'columns_included': empty_columns,
-            'has_plate_well': True
+            'has_plate_well': True,
+            'has_site': True
         }
     }
     

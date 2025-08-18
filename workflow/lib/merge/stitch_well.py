@@ -1170,6 +1170,7 @@ def assemble_stitched_masks_simple(
 def extract_cell_positions_from_stitched_mask(
     stitched_mask: np.ndarray,
     well: str,
+    plate: str,
     data_type: str = "phenotype",
     metadata_df: pd.DataFrame = None,
     shifts: Dict[str, List[int]] = None,
@@ -1246,6 +1247,7 @@ def extract_cell_positions_from_stitched_mask(
         # Base cell information
         cell_info = {
             "well": well,
+            "plate": plate,
             "stitched_cell_id": stitched_label,
             "i": global_centroid_y,  # Global stitched coordinates
             "j": global_centroid_x,  # Global stitched coordinates
@@ -1272,12 +1274,13 @@ def extract_cell_positions_from_stitched_mask(
             tile_metadata = tile_metadata_lookup.get(original_tile_id, {})
 
             # Complete cell information with preserved IDs
+            cell_column = "label" if data_type == "phenotype" else "cell"
+
             cell_info.update(
                 {
-                    "cell": original_cell_id,  # For downstream compatibility
+                    cell_column: original_cell_id,
                     "original_cell_id": original_cell_id,
-                    "original_tile_id": original_tile_id,
-                    "tile": original_tile_id,  # For backward compatibility
+                    "tile": original_tile_id, 
                     "tile_i": relative_y,
                     "tile_j": relative_x,
                     "mapping_method": mapping_method,

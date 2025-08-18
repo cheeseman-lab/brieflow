@@ -184,7 +184,54 @@ def main():
         except:
             print("Warning: Could not convert site to int, keeping as-is")
     
-    print(f"Raw matches columns after site: {list(raw_matches.columns)}")
+    # =================================================================
+    # ADD TILE INFORMATION (FROM PHENOTYPE DATA)
+    # =================================================================
+    print(f"\nAdding tile information from phenotype data...")
+    
+    # Check what identifier columns exist in phenotype positions
+    potential_pheno_id_cols = [col for col in phenotype_scaled.columns if 'cell' in col.lower() or 'id' in col.lower()]
+    print(f"DEBUG - Potential phenotype ID columns: {potential_pheno_id_cols}")
+    
+    tile_mapped = False
+    
+    # Try to map tile information from phenotype data
+    if 'stitched_cell_id' in phenotype_scaled.columns and 'tile' in phenotype_scaled.columns:
+        print("Mapping tile using stitched_cell_id from phenotype...")
+        
+        pheno_tile_map = phenotype_scaled.set_index('stitched_cell_id')['tile'].to_dict()
+        raw_matches['tile'] = raw_matches['cell_0'].map(pheno_tile_map)
+        
+        # Check success rate
+        tile_mapped_count = raw_matches['tile'].notna().sum()
+        print(f"   Mapped {tile_mapped_count}/{len(raw_matches)} tiles using phenotype tile column")
+        
+        if tile_mapped_count > 0:
+            tile_mapped = True
+        else:
+            print("   No tiles mapped via phenotype stitched_cell_id -> tile")
+    else:
+        print("   Missing stitched_cell_id or tile column in phenotype positions")
+    
+    # Fallback: Use default tile
+    if not tile_mapped:
+        print("Using fallback tile value...")
+        raw_matches['tile'] = 1  # Default tile value
+        print(f"   Set all tiles to default value: 1")
+    
+    # Verify tile column
+    print(f"Final tile distribution: {raw_matches['tile'].value_counts().to_dict()}")
+    print(f"Tile column type: {raw_matches['tile'].dtype}")
+    
+    # Convert tile to int if it's not already
+    if raw_matches['tile'].dtype != 'int64':
+        try:
+            raw_matches['tile'] = raw_matches['tile'].astype(int)
+            print("Converted tile column to int")
+        except:
+            print("Warning: Could not convert tile to int, keeping as-is")
+    
+    print(f"Raw matches columns after site and tile: {list(raw_matches.columns)}")
     
     # Update column order to include site and tile
     output_columns = [
@@ -271,7 +318,9 @@ def main():
             'columns_included': available_columns,
             'has_plate_well': 'plate' in available_columns and 'well' in available_columns,
             'has_site': 'site' in available_columns,
-            'site_mapping_method': 'stitched_cell_id' if site_mapped else 'fallback'
+            'has_tile': 'tile' in available_columns,
+            'site_mapping_method': 'stitched_cell_id' if site_mapped else 'fallback',
+            'tile_mapping_method': 'stitched_cell_id' if tile_mapped else 'fallback'
         }
     }
     
@@ -311,7 +360,8 @@ def create_empty_outputs(reason):
         'output_format': {
             'columns_included': empty_columns,
             'has_plate_well': True,
-            'has_site': True
+            'has_site': True,
+            'has_tile': True
         }
     }
     

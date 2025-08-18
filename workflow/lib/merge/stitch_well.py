@@ -26,6 +26,7 @@ from lib.preprocess.preprocess import nd2_to_tiff
 def extract_cell_positions_from_stitched_mask(
     stitched_mask: np.ndarray,
     well: str,
+    plate: str,
     data_type: str = "phenotype",
     metadata_df: pd.DataFrame = None,
     shifts: Dict[str, List[int]] = None,
@@ -34,10 +35,10 @@ def extract_cell_positions_from_stitched_mask(
 ) -> pd.DataFrame:
     """
     ENHANCED: Extract cell positions using preserved cell ID mapping.
-    Now requires cell_id_mapping for proper functionality.
+    Now requires cell_id_mapping for proper functionality and includes plate parameter.
     """
 
-    print(f"🔍 EXTRACTING CELL POSITIONS: {data_type} well {well}")
+    print(f"🔍 EXTRACTING CELL POSITIONS: {data_type} well {well}, plate {plate}")
 
     # Get region properties from stitched mask
     props = measure.regionprops(stitched_mask)
@@ -47,7 +48,10 @@ def extract_cell_positions_from_stitched_mask(
         return pd.DataFrame(
             columns=[
                 "well",
+                "plate",
                 "cell",
+                "tile",
+                "label",
                 "stitched_cell_id",
                 "original_cell_id",
                 "original_tile_id",
@@ -58,6 +62,10 @@ def extract_cell_positions_from_stitched_mask(
                 "tile_i",
                 "tile_j",
                 "mapping_method",
+                "stage_x",
+                "stage_y",
+                "tile_row",
+                "tile_col",
             ]
         )
 
@@ -99,9 +107,10 @@ def extract_cell_positions_from_stitched_mask(
         global_centroid_y, global_centroid_x = prop.centroid
         stitched_label = prop.label
 
-        # Base cell information
+        # Base cell information - ALWAYS include plate
         cell_info = {
             "well": well,
+            "plate": str(plate),  # Ensure plate is string
             "stitched_cell_id": stitched_label,
             "i": global_centroid_y,  # Global stitched coordinates
             "j": global_centroid_x,  # Global stitched coordinates
@@ -127,13 +136,21 @@ def extract_cell_positions_from_stitched_mask(
             # Get tile metadata
             tile_metadata = tile_metadata_lookup.get(original_tile_id, {})
 
-            # Complete cell information with preserved IDs
+            # STANDARDIZED: Always create both 'cell' and 'label' columns consistently
             cell_info.update(
                 {
-                    "cell": original_cell_id,  # For downstream compatibility
+                    # Primary columns (always create these)
+                    "cell": original_cell_id,           # Standard cell ID column
+                    "tile": original_tile_id,           # Standard tile ID column  
+                    
+                    # Phenotype compatibility - always create label column
+                    "label": original_cell_id,          # For phenotype compatibility
+                    
+                    # Detailed tracking columns
                     "original_cell_id": original_cell_id,
                     "original_tile_id": original_tile_id,
-                    "tile": original_tile_id,  # For backward compatibility
+                    
+                    # Position and metadata
                     "tile_i": relative_y,
                     "tile_j": relative_x,
                     "mapping_method": mapping_method,
@@ -149,12 +166,14 @@ def extract_cell_positions_from_stitched_mask(
             print(f"⚠️  Missing mapping for stitched label {stitched_label}")
             missing_mappings += 1
 
+            # Fallback case - also create consistent columns
             cell_info.update(
                 {
-                    "cell": stitched_label,  # Fallback
+                    "cell": stitched_label,             # Fallback to stitched ID
+                    "tile": -1,                         # Invalid tile marker
+                    "label": stitched_label,            # For phenotype compatibility
                     "original_cell_id": None,
                     "original_tile_id": None,
-                    "tile": -1,
                     "tile_i": -1,
                     "tile_j": -1,
                     "mapping_method": "missing_mapping",
@@ -168,6 +187,23 @@ def extract_cell_positions_from_stitched_mask(
         cell_data.append(cell_info)
 
     df = pd.DataFrame(cell_data)
+
+    # FINAL VALIDATION: Ensure required columns exist and have correct types
+    if len(df) > 0:
+        # Ensure integer types for ID columns (use nullable integer type)
+        for col in ['cell', 'tile', 'original_cell_id', 'original_tile_id', 'stitched_cell_id', 'label']:
+            if col in df.columns:
+                # Handle NaN values for integer columns
+                df[col] = df[col].fillna(-1).astype('Int64')  # Nullable integer type
+        
+        # Ensure plate is string
+        df['plate'] = df['plate'].astype(str)
+        
+        # Ensure well is string  
+        df['well'] = df['well'].astype(str)
+        
+        # Ensure data_type is string
+        df['data_type'] = df['data_type'].astype(str)
 
     print(f"✅ EXTRACTION COMPLETE:")
     print(f"  Total cells: {len(df)}")
@@ -184,6 +220,24 @@ def extract_cell_positions_from_stitched_mask(
                 f"  Cells per tile: min={valid_tiles.min()}, max={valid_tiles.max()}, mean={valid_tiles.mean():.1f}"
             )
             print(f"  Active tiles: {len(valid_tiles)}")
+
+    # Validate that cell and label are consistent for preserved mappings
+    if len(df) > 0:
+        preserved_rows = df[df['mapping_method'] == 'preserved_mapping']
+        if len(preserved_rows) > 0:
+            if (preserved_rows['cell'] == preserved_rows['label']).all():
+                print(f"✅ Cell/label consistency verified for {len(preserved_rows)} preserved mappings")
+            else:
+                print(f"⚠️  Warning: Cell/label mismatch detected in preserved mappings")
+
+    # Show column summary
+    if len(df) > 0:
+        print(f"📊 Column Summary:")
+        print(f"  Plates: {df['plate'].nunique()} unique")
+        print(f"  Wells: {df['well'].nunique()} unique") 
+        print(f"  Tiles: {df['tile'].nunique()} unique")
+        print(f"  Cell ID range: {df['cell'].min()} - {df['cell'].max()}")
+        print(f"  Label range: {df['label'].min()} - {df['label'].max()}")
 
     return df
 

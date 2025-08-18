@@ -173,6 +173,7 @@ def process_modality_with_disk_offload(
                     cell_positions = extract_cell_positions_from_stitched_mask(
                         stitched_mask=stitched_mask_array,
                         well=well,
+                        plate=plate,
                         data_type=data_type,
                         metadata_df=well_metadata,
                         shifts=stitch_config["total_translation"],
@@ -180,9 +181,7 @@ def process_modality_with_disk_offload(
                         cell_id_mapping=cell_id_mapping,
                     )
                     print(f"✅ Extracted {len(cell_positions)} cell positions")
-                    # Add compatibility columns for eval_merge
-                    if data_type == "phenotype" and len(cell_positions) > 0:
-                        cell_positions["label"] = cell_positions["original_cell_id"]
+
 
                     # Add QC plot creation
                     if len(cell_positions) > 0 and "tile" in cell_positions.columns:

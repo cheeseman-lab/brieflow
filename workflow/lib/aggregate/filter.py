@@ -1,11 +1,4 @@
-"""This module provides functions for loading and formatting data during aggregation.
-
-Functions include:
-- Loading a subset of data from parquet files for efficient processing.
-
-Functions:
-    - load_parquet_subset: Load a fixed number of random rows from a parquet file.
-"""
+"""This module provides functions for loading and formatting data during aggregation."""
 
 import pandas as pd
 import numpy as np

@@ -972,7 +972,9 @@ def convert_to_array(
 
 
 # Helper functions for Snakemake integration
-def get_expansion_values(image_type: str, config: dict, metadata_wildcard_combos: pd.DataFrame = None) -> List[str]:
+def get_expansion_values(
+    image_type: str, config: dict, metadata_wildcard_combos: pd.DataFrame = None
+) -> List[str]:
     """Get expansion values for metadata combination based on data organization and actual metadata structure.
 
     Used by Snakemake to determine which wildcards need expansion when combining
@@ -1006,22 +1008,27 @@ def get_expansion_values(image_type: str, config: dict, metadata_wildcard_combos
     # If we have metadata wildcard combinations, check for additional columns
     if metadata_wildcard_combos is not None and len(metadata_wildcard_combos) > 0:
         metadata_columns = list(metadata_wildcard_combos.columns)
-        
+
         # Add any columns that exist in metadata but not in base expansion
         # Exclude 'plate' and 'well' as these are typically not expanded
-        exclude_columns = {'plate', 'well'}
-        additional_columns = [col for col in metadata_columns 
-                            if col not in base_expansion and col not in exclude_columns]
-        
+        exclude_columns = {"plate", "well"}
+        additional_columns = [
+            col
+            for col in metadata_columns
+            if col not in base_expansion and col not in exclude_columns
+        ]
+
         # Combine base expansion with additional columns
         expansion_values = base_expansion + additional_columns
-        
+
         # Remove duplicates while preserving order
         seen = set()
-        expansion_values = [x for x in expansion_values if not (x in seen or seen.add(x))]
-        
+        expansion_values = [
+            x for x in expansion_values if not (x in seen or seen.add(x))
+        ]
+
         return expansion_values
-    
+
     return base_expansion
 
 

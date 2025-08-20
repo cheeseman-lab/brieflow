@@ -16,13 +16,15 @@ if phenotype_filters is not None:
             phenotype_metadata[filter_key] == filter_value
         ]
 else:
-    phenotype_metadata = phenotype_metadata.drop_duplicates(subset=["plate", "well", "tile"])
+    phenotype_metadata = phenotype_metadata.drop_duplicates(
+        subset=["plate", "well", "tile"]
+    )
 sbs_filters = snakemake.params.get("sbs_metadata_filters", None)
 if sbs_filters is not None:
     for filter_key, filter_value in sbs_filters.items():
         sbs_metadata = sbs_metadata[sbs_metadata[filter_key] == filter_value]
 else:
-    sbs_metadata = sbs_metadata.drop_duplicates(subset=["plate", "well", "tile"])   
+    sbs_metadata = sbs_metadata.drop_duplicates(subset=["plate", "well", "tile"])
 
 # Load phentoype/sbs info on well level
 phenotype_info = validate_dtypes(pd.read_parquet(snakemake.input[2]))

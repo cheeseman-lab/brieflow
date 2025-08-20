@@ -301,7 +301,8 @@ def get_bootstrap_inputs(
     cell_class,
     channel_combo,
 ):
-    """Get all bootstrap inputs for completion flag (similar to get_montage_inputs).
+    """Get all bootstrap inputs for completion flag.
+
     Args:
         checkpoint: Checkpoint object containing bootstrap data directory information.
         construct_nulls_pattern: Template string for construct null files.
@@ -310,6 +311,7 @@ def get_bootstrap_inputs(
         gene_pvals_pattern: Template string for gene p-value files.
         cell_class: Cell class for bootstrap analysis.
         channel_combo: Channel combination for bootstrap analysis.
+
     Returns:
         list: List of all bootstrap output file paths.
     """
@@ -318,33 +320,27 @@ def get_bootstrap_inputs(
         cell_class=cell_class, channel_combo=channel_combo
     ).output[0]
 
-    construct_files = glob.glob(f"{bootstrap_data_dir}/*_construct_data.tsv")
+    construct_files = glob.glob(f"{bootstrap_data_dir}/*__construct_data.tsv")
 
     outputs = []
     genes_seen = set()
 
     for construct_file in construct_files:
-        # Extract gene_construct from filename
-        construct_filename = Path(construct_file).stem.replace("_construct_data", "")
+        # Extract gene__construct from filename
+        construct_filename = Path(construct_file).stem.replace("__construct_data", "")
 
-        # UPDATED: Parse the gene_construct format
-        if "_" in construct_filename:
-            # Split on underscore: gene_sgRNA -> [gene, sgRNA]
-            parts = construct_filename.split("_")
-            gene = parts[0]  # First part is gene
-            construct = "_".join(
-                parts[1:]
-            )  # Rest is construct (in case sgRNA has underscores)
+        # Parse using double underscore separator: gene__construct
+        if "__" in construct_filename:
+            parts = construct_filename.split("__")
+            gene = parts[0]  # Full gene name (can contain underscores)
+            construct = parts[1]  # Construct ID
         else:
-            # Fallback: treat whole thing as construct, try to read from file
+            # Fallback: read from file
             try:
-                import pandas as pd
-
                 construct_data = pd.read_csv(construct_file, sep="\t")
                 gene = construct_data["gene"].iloc[0]
                 construct = construct_data["construct_id"].iloc[0]
             except:
-                # Last resort: skip this file
                 continue
 
         # Add construct outputs
@@ -382,87 +378,68 @@ def get_bootstrap_inputs(
     return outputs
 
 
-def get_construct_nulls_for_gene(
-    checkpoint_output, bootstrap_nulls_pattern, cell_class, channel_combo, gene
+def get_bootstrap_construct_outputs(
+    checkpoint,
+    construct_nulls_pattern,
+    construct_pvals_pattern,
+    cell_class,
+    channel_combo,
 ):
-    """Get all construct null files for a specific gene."""
-    print(f"=== DEBUG get_construct_nulls_for_gene ===")
-    print(f"Gene: {gene}")
-    print(f"Cell class: {cell_class}")
-    print(f"Channel combo: {channel_combo}")
-    print(f"Bootstrap nulls pattern: {bootstrap_nulls_pattern}")
-    print(f"Checkpoint output type: {type(checkpoint_output)}")
-    
-    try:
-        # Get the checkpoint directory
-        checkpoint_dir = checkpoint_output.get(
-            cell_class=cell_class, channel_combo=channel_combo
-        ).output[0]
-        print(f"Checkpoint dir: {checkpoint_dir}")
-    except Exception as e:
-        print(f"ERROR getting checkpoint directory: {e}")
-        print(f"Checkpoint output: {checkpoint_output}")
-        raise
-    
-    # Verify the directory exists
-    if not Path(checkpoint_dir).exists():
-        print(f"ERROR: Checkpoint directory does not exist: {checkpoint_dir}")
-        raise ValueError(f"Checkpoint directory does not exist: {checkpoint_dir}")
+    """Get all construct bootstrap outputs for completion flag.
 
-    # Find all construct data files for this gene
-    construct_files = glob.glob(f"{checkpoint_dir}/{gene}_*_construct_data.tsv")
-    print(f"Found construct files: {construct_files}")
+    Args:
+        checkpoint: Checkpoint object containing bootstrap data directory information.
+        construct_nulls_pattern: Template string for construct null files.
+        construct_pvals_pattern: Template string for construct p-value files.
+        cell_class: Cell class for bootstrap analysis.
+        channel_combo: Channel combination for bootstrap analysis.
 
-    if not construct_files:
-        # Let's see what files ARE in the directory
-        all_files = glob.glob(f"{checkpoint_dir}/*")
-        print(f"All files in checkpoint dir: {all_files}")
-        raise ValueError(f"No construct data files found for gene {gene}")
+    Returns:
+        list: List of all construct bootstrap output file paths.
+    """
+    # Get all construct data files from checkpoint
+    bootstrap_data_dir = checkpoint.get(
+        cell_class=cell_class, channel_combo=channel_combo
+    ).output[0]
 
-    # Extract construct IDs and build expected null file paths
-    expected_null_files = []
+    construct_files = glob.glob(f"{bootstrap_data_dir}/*__construct_data.tsv")
+
+    outputs = []
 
     for construct_file in construct_files:
-        # Extract gene_construct from filename
-        filename = Path(construct_file).stem.replace("_construct_data", "")
-        print(f"Processing file: {construct_file}, stem: {filename}")
+        # Extract gene__construct from filename
+        construct_filename = Path(construct_file).stem.replace("__construct_data", "")
 
-        # Parse gene_construct format
-        if filename.startswith(f"{gene}_"):
-            construct_part = filename[len(gene) + 1 :]  # Remove "gene_" prefix
-            print(f"Construct part: {construct_part}")
+        # Parse using double underscore separator: gene__construct
+        if "__" in construct_filename:
+            parts = construct_filename.split("__")
+            gene = parts[0]  # Full gene name (can contain underscores)
+            construct = parts[1]  # Construct ID
+        else:
+            # Fallback: read from file
+            try:
+                construct_data = pd.read_csv(construct_file, sep="\t")
+                gene = construct_data["gene"].iloc[0]
+                construct = construct_data["construct_id"].iloc[0]
+            except:
+                continue
 
-            # Build expected null file path
-            null_file = str(bootstrap_nulls_pattern).format(
-                cell_class=cell_class,
-                channel_combo=channel_combo,
-                gene=gene,
-                construct=construct_part,
-            )
-            print(f"Expected null file: {null_file}")
-            expected_null_files.append(null_file)
+        # Add construct outputs
+        outputs.extend(
+            [
+                str(construct_nulls_pattern).format(
+                    cell_class=cell_class,
+                    channel_combo=channel_combo,
+                    gene=gene,
+                    construct=construct,
+                ),
+                str(construct_pvals_pattern).format(
+                    cell_class=cell_class,
+                    channel_combo=channel_combo,
+                    gene=gene,
+                    construct=construct,
+                ),
+            ]
+        )
 
-    print(f"Final expected null files: {expected_null_files}")
-    print("=== END DEBUG ===")
-
-    if not expected_null_files:
-        raise ValueError(f"No construct files found for gene {gene}")
-
-    return expected_null_files
-
-def get_gene_construct_nulls_simple(wildcards):
-    """Get construct null files for a gene without using checkpoint."""
-    import glob
-    from pathlib import Path
-    
-    # Build the pattern for construct null files for this gene
-    pattern = f"brieflow_output/aggregate/bootstrap/{wildcards.cell_class}__{wildcards.channel_combo}__constructs/{wildcards.gene}_*_nulls.npy"
-    
-    # Find all matching files
-    null_files = glob.glob(pattern)
-    
-    if not null_files:
-        raise ValueError(f"No construct null files found for gene {wildcards.gene} with pattern: {pattern}")
-    
-    print(f"Found {len(null_files)} construct null files for gene {wildcards.gene}")
-    return null_files
+    return outputs

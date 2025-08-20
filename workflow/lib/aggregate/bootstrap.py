@@ -42,16 +42,17 @@ def run_single_bootstrap_simulation(
     Returns:
         Median values from the simulation.
     """
+    # Get unique control construct IDs
+    unique_control_ids = np.unique(controls_arr[:, 0])
+
     # Select a random control construct
-    control_id = controls_arr[
-        np.random.choice(controls_arr.shape[0], 1, replace=False)
-    ][0][0]
+    control_id = np.random.choice(unique_control_ids, 1, replace=False)[0]
 
     # Get all cells from this control construct
     indices = np.where(controls_arr[:, 0] == control_id)[0]
     control_construct_arr = controls_arr[indices]
 
-    # Sample cells with replacement
+    # Sample cells with replacement from this construct only
     sample_arr = control_construct_arr[
         np.random.choice(control_construct_arr.shape[0], sample_size, replace=True)
     ]

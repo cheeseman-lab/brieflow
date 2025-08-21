@@ -13,6 +13,10 @@
 all:
   root_fp: brieflow_output/
 preprocess:
+  sbs_data_format: "nd2"
+  sbs_data_organization: "tile"    
+  phenotype_data_format: "nd2" 
+  phenotype_data_organization: "tile"
   phenotype_channel_order: null
   phenotype_channel_order_flip: true
   phenotype_combo_fp: config/phenotype_combo.tsv

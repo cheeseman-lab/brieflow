@@ -8,17 +8,34 @@ from lib.merge.hash import hash_cell_locations, multistep_alignment, extract_rot
 phenotype_metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 
-# Apply metadata filters if they exist
-phenotype_filters = snakemake.params.get("phenotype_metadata_filters", None)
-if phenotype_filters is not None:
-    for filter_key, filter_value in phenotype_filters.items():
-        phenotype_metadata = phenotype_metadata[
-            phenotype_metadata[filter_key] == filter_value
-        ]
-sbs_filters = snakemake.params.get("sbs_metadata_filters", None)
-if sbs_filters is not None:
-    for filter_key, filter_value in sbs_filters.items():
-        sbs_metadata = sbs_metadata[sbs_metadata[filter_key] == filter_value]
+# Build and apply SBS filters
+sbs_filters = {}
+if snakemake.params.sbs_metadata_cycle is not None:
+    sbs_filters["cycle"] = snakemake.params.sbs_metadata_cycle
+if snakemake.params.sbs_metadata_channel is not None:
+    sbs_filters["channel"] = snakemake.params.sbs_metadata_channel
+
+for filter_key, filter_value in sbs_filters.items():
+    sbs_metadata = sbs_metadata[sbs_metadata[filter_key] == filter_value]
+
+# Build and apply phenotype filters
+ph_filters = {}
+if snakemake.params.ph_metadata_channel is not None:
+    ph_filters["channel"] = snakemake.params.ph_metadata_channel
+
+for filter_key, filter_value in ph_filters.items():
+    phenotype_metadata = phenotype_metadata[
+        phenotype_metadata[filter_key] == filter_value
+    ]
+
+# If no filters were applied, deduplicate
+if not sbs_filters:
+    sbs_metadata = sbs_metadata.drop_duplicates(subset=["plate", "well", "tile"])
+if not ph_filters:
+    phenotype_metadata = phenotype_metadata.drop_duplicates(
+        subset=["plate", "well", "tile"]
+    )
+
 
 # Load phentoype/sbs info on well level
 phenotype_info = validate_dtypes(pd.read_parquet(snakemake.input[2]))

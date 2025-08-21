@@ -698,7 +698,6 @@ def convert_nd2_to_array_well(
             image_arrays.append(img_data)
 
         except Exception as e:
-            warnings.warn(f"Error processing {file}: {str(e)}")
             raise
         finally:
             try:

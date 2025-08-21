@@ -19,13 +19,13 @@ def get_sample_fps(
 
     Args:
         samples_df (pd.DataFrame): DataFrame containing sample data.
-        plate (int, optional): Plate number to filter by. Defaults to None.
-        well (str, optional): Well identifier to filter by. Defaults to None.
-        tile (int, optional): Tile number to filter by. For well organization, set to None. Defaults to None.
-        cycle (int, optional): Cycle number to filter by. Defaults to None.
-        channel (str, optional): Channel to filter by. Defaults to None.
-        round_order (List[int], optional): Order of rounds to return. Defaults to None.
-        channel_order (List[str], optional): Order of channels. Defaults to None.
+        plate (Union[int, str], optional): Plate number to filter by. Defaults to None.
+        well (Union[int, str], optional): Well identifier to filter by. Defaults to None.
+        tile (Union[int, str], optional): Tile number to filter by. For well organization, set to None. Defaults to None.
+        cycle (Union[int, str], optional): Cycle number to filter by. Defaults to None.
+        channel (Union[int, str], optional): Channel to filter by. Defaults to None.
+        round_order (List[Union[int, str]], optional): Order of rounds to return. Defaults to None.
+        channel_order (List[Union[int, str]], optional): Order of channels. Defaults to None.
         verbose (bool, optional): Whether to print verbose output. Defaults to False.
 
     Returns:
@@ -134,11 +134,11 @@ def get_metadata_wildcard_combos(
     """Get wildcard combinations for metadata extraction based on available files.
 
     Args:
-        samples_df: DataFrame with image file paths
-        metadata_samples_df: DataFrame with metadata file paths
+        samples_df (pd.DataFrame): DataFrame with image file paths
+        metadata_samples_df (pd.DataFrame): DataFrame with metadata file paths
 
     Returns:
-        DataFrame with wildcard combinations for metadata extraction jobs
+        pd.DataFrame: DataFrame with wildcard combinations for metadata extraction jobs
     """
     if not metadata_samples_df.empty:
         # Use metadata file structure - this determines the job granularity
@@ -155,10 +155,10 @@ def get_output_pattern(wildcard_combos: pd.DataFrame) -> Dict[str, str]:
     """Get output pattern from wildcard combinations.
 
     Args:
-        wildcard_combos: DataFrame with wildcard combinations
+        wildcard_combos (pd.DataFrame): DataFrame with wildcard combinations
 
     Returns:
-        Dictionary mapping column names to wildcard patterns
+        Dict[str, str]: Dictionary mapping column names to wildcard patterns
     """
     if len(wildcard_combos) == 0:
         return {"plate": "{plate}"}  # Fallback
@@ -175,14 +175,14 @@ def get_inputs_for_metadata_extraction(
     """Get appropriate inputs for metadata extraction rules.
 
     Args:
-        image_type: 'sbs' or 'phenotype'
-        config: Configuration dictionary
-        samples_df: DataFrame with image file paths
-        metadata_samples_df: DataFrame with metadata file paths
+        image_type (str): 'sbs' or 'phenotype'
+        config (Dict[str, Any]): Configuration dictionary
+        samples_df (pd.DataFrame): DataFrame with image file paths
+        metadata_samples_df (pd.DataFrame): DataFrame with metadata file paths
         wildcards: Snakemake wildcards object
 
     Returns:
-        Dictionary with 'samples' and 'metadata' keys containing file lists
+        Dict[str, List[str]]: Dictionary with 'samples' and 'metadata' keys containing file lists
     """
     from lib.preprocess.preprocess import get_data_config
 
@@ -236,16 +236,16 @@ def get_tile_count_from_well(
     """Get the number of tiles in a well-based ND2 file.
 
     Args:
-        samples_df: DataFrame containing sample data
-        plate: Plate number to filter by
-        well: Well identifier to filter by
-        cycle: Cycle number to filter by (for SBS)
-        round_order: Round order to filter by (for phenotype)
-        channel_order: Channel order to use
-        verbose: Whether to print verbose output
+        samples_df (pd.DataFrame): DataFrame containing sample data
+        plate (Union[int, str], optional): Plate number to filter by. Defaults to None.
+        well (Union[int, str], optional): Well identifier to filter by. Defaults to None.
+        cycle (Union[int, str], optional): Cycle number to filter by (for SBS). Defaults to None.
+        round_order (List[Union[int, str]], optional): Round order to filter by (for phenotype). Defaults to None.
+        channel_order (List[Union[int, str]], optional): Channel order to use. Defaults to None.
+        verbose (bool, optional): Whether to print verbose output. Defaults to False.
 
     Returns:
-        Number of tiles in the well
+        int: Number of tiles in the well
     """
     # Get a sample file
     sample_file = get_sample_fps(

@@ -31,7 +31,7 @@ def extract_cell_positions_from_stitched_mask(
     metadata_df: pd.DataFrame = None,
     shifts: Dict[str, List[int]] = None,
     tile_size: Tuple[int, int] = None,
-    cell_id_mapping: Dict[int, Tuple[int, int]] = None,
+    cell_id_mapping: Dict[int, Tuple[int, int]] = None
 ) -> pd.DataFrame:
     """
     ENHANCED: Extract cell positions using preserved cell ID mapping.
@@ -139,18 +139,8 @@ def extract_cell_positions_from_stitched_mask(
             # STANDARDIZED: Always create both 'cell' and 'label' columns consistently
             cell_info.update(
                 {
-                    # Primary columns (always create these)
-                    "cell": original_cell_id,           # Standard cell ID column
-                    "tile": original_tile_id,           # Standard tile ID column  
-                    
-                    # Phenotype compatibility - always create label column
-                    "label": original_cell_id,          # For phenotype compatibility
-                    
-                    # Detailed tracking columns
-                    "original_cell_id": original_cell_id,
-                    "original_tile_id": original_tile_id,
-                    
-                    # Position and metadata
+                    "cell": original_cell_id, 
+                    "tile": original_tile_id,  
                     "tile_i": relative_y,
                     "tile_j": relative_x,
                     "mapping_method": mapping_method,
@@ -158,29 +148,6 @@ def extract_cell_positions_from_stitched_mask(
                     "stage_y": tile_metadata.get("y_pos", np.nan),
                     "tile_row": tile_metadata.get("tile_row", -1),
                     "tile_col": tile_metadata.get("tile_col", -1),
-                }
-            )
-
-        else:
-            # This shouldn't happen with the fixed approach
-            print(f"⚠️  Missing mapping for stitched label {stitched_label}")
-            missing_mappings += 1
-
-            # Fallback case - also create consistent columns
-            cell_info.update(
-                {
-                    "cell": stitched_label,             # Fallback to stitched ID
-                    "tile": -1,                         # Invalid tile marker
-                    "label": stitched_label,            # For phenotype compatibility
-                    "original_cell_id": None,
-                    "original_tile_id": None,
-                    "tile_i": -1,
-                    "tile_j": -1,
-                    "mapping_method": "missing_mapping",
-                    "stage_x": np.nan,
-                    "stage_y": np.nan,
-                    "tile_row": -1,
-                    "tile_col": -1,
                 }
             )
 

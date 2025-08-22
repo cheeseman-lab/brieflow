@@ -46,8 +46,6 @@ rule estimate_stitch_sbs:
         "../scripts/merge/estimate_stitch_sbs.py"
 
 
-# Replace your existing stitch_wells rule with these two separate rules:
-
 rule stitch_phenotype_well:
     input:
         phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
@@ -56,7 +54,6 @@ rule stitch_phenotype_well:
         phenotype_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_phenotype_image"],
         phenotype_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_phenotype_mask"],
         phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype_positions"],
-        phenotype_overlay=MERGE_OUTPUTS_MAPPED["stitch_phenotype_overlay"],
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
@@ -65,7 +62,6 @@ rule stitch_phenotype_well:
         fliplr=config.get("stitch", {}).get("fliplr", False),
         rot90=config.get("stitch", {}).get("rot90", 0),
         overlap_percent=config.get("stitch", {}).get("overlap_percent", 0.05),
-        create_overlay=config.get("stitch", {}).get("create_overlay", True),
     resources:
         mem_mb=400000,     # 400GB for maximum safety margin
         cpus_per_task=8,
@@ -83,7 +79,6 @@ rule stitch_sbs_well:
         sbs_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_sbs_image"],
         sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs_mask"],
         sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs_positions"],
-        sbs_overlay=MERGE_OUTPUTS_MAPPED["stitch_sbs_overlay"],
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
@@ -92,7 +87,6 @@ rule stitch_sbs_well:
         fliplr=config.get("stitch", {}).get("fliplr", False),
         rot90=config.get("stitch", {}).get("rot90", 0),
         overlap_percent=config.get("stitch", {}).get("overlap_percent", 0.05),
-        create_overlay=config.get("stitch", {}).get("create_overlay", True),
     resources:
         mem_mb=400000,     # 400GB for maximum safety margin
         cpus_per_task=8,
@@ -102,27 +96,6 @@ rule stitch_sbs_well:
         "../scripts/merge/stitch_wells.py"
 
 
-rule stitch_wells_combined:
-    input:
-        phenotype_image=MERGE_OUTPUTS["stitch_phenotype_image"],
-        phenotype_mask=MERGE_OUTPUTS["stitch_phenotype_mask"],
-        phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"],
-        phenotype_overlay=MERGE_OUTPUTS["stitch_phenotype_overlay"],
-        sbs_image=MERGE_OUTPUTS["stitch_sbs_image"],
-        sbs_mask=MERGE_OUTPUTS["stitch_sbs_mask"],
-        sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"],
-        sbs_overlay=MERGE_OUTPUTS["stitch_sbs_overlay"],
-    output:
-        completion_flag=MERGE_FP / "flags" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "stitching_complete", "flag"
-        ),
-    run:
-        # Create completion flag
-        Path(output.completion_flag).parent.mkdir(parents=True, exist_ok=True)
-        Path(output.completion_flag).touch()
-        print(f"Both phenotype and SBS stitching completed for {wildcards.plate}/{wildcards.well}")
-
-# Original fast alignment approach (kept for backwards compatibility)
 rule fast_alignment:
     input:
         ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
@@ -141,7 +114,6 @@ rule fast_alignment:
     script:
         "../scripts/merge/fast_alignment.py"
 
-# Step 1: Coordinate scaling, triangle hashing, and alignment
 rule well_alignment:
     input:
         phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"][0],

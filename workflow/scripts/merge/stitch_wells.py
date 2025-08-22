@@ -14,15 +14,26 @@ from lib.merge.stitch_well import (
     create_tile_arrangement_qc_plot,
     assemble_stitched_masks_simple,
 )
-from lib.merge.merge_well import create_stitched_overlay
 
 
-def print_memory_usage(stage=""):
-    """Print current memory usage"""
-    process = psutil.Process(os.getpid())
-    memory_gb = process.memory_info().rss / 1e9
-    print(f"Memory usage {stage}: {memory_gb:.1f} GB")
-    return memory_gb
+def print_progress(message):
+    """Print essential progress messages only"""
+    print(f"🔄 {message}")
+
+
+def print_success(message):
+    """Print success messages"""
+    print(f"✅ {message}")
+
+
+def print_error(message):
+    """Print error messages"""
+    print(f"❌ {message}")
+
+
+def print_warning(message):
+    """Print warning messages"""
+    print(f"⚠️  {message}")
 
 
 def check_mask_files_exist(metadata_df, well, data_type):
@@ -33,84 +44,63 @@ def check_mask_files_exist(metadata_df, well, data_type):
         return False, []
 
     existing_masks = []
-    missing_masks = []
-
-    for _, row in well_metadata.head(5).iterrows():  # Check first 5 tiles
+    for _, row in well_metadata.head(3).iterrows():  # Check first 3 tiles only
         plate = row["plate"]
         tile_id = row["tile"]
         mask_path = f"analysis_root/{data_type}/images/P-{plate}_W-{well}_T-{tile_id}__nuclei.tiff"
-
         if Path(mask_path).exists():
             existing_masks.append(mask_path)
-        else:
-            missing_masks.append(mask_path)
 
     masks_exist = len(existing_masks) > 0
-    print(
-        f"Nuclei mask check for {data_type}: {len(existing_masks)} exist, {len(missing_masks)} missing"
-    )
-
     return masks_exist, existing_masks
 
 
-def create_empty_outputs(data_type):
-    """Create empty outputs when processing fails"""
-    return {
-        "stitched_image": np.zeros((100, 100), dtype=np.uint16),
-        "stitched_mask": np.zeros((100, 100), dtype=np.uint16),
-        "cell_positions": pd.DataFrame(
-            columns=["well", "cell", "i", "j", "area", "data_type"]
-        ),
-        "overlay": np.zeros((100, 100, 3), dtype=np.uint8),
-    }
-
-
-def aggressive_memory_cleanup():
-    """Aggressive memory cleanup"""
-    gc.collect()
-    gc.collect()  # Call twice for better cleanup
+def cleanup_memory():
+    """Memory cleanup"""
     gc.collect()
 
 
-def process_modality_with_disk_offload(
-    metadata_df, stitch_config, plate, well, data_type, params
-):
+def process_stitching(metadata_df, stitch_config, plate, well, data_type, params):
     """
-    Process modality with immediate disk offloading to manage memory.
-    Save results immediately and clear from memory.
+    Main stitching processing function.
+    Fails fast on critical errors, processes what it can otherwise.
     """
 
-    print(f"\n=== Processing {data_type.upper()} with Disk Offloading ===")
-    print(f"Plate {plate}, Well {well}")
-    print_memory_usage("start")
+    print_progress(f"Starting {data_type.upper()} stitching for Plate {plate}, Well {well}")
 
     # Filter metadata to specific plate and well
     well_metadata = metadata_df[
         (metadata_df["plate"] == int(plate)) & (metadata_df["well"] == well)
     ]
 
-    print(f"{data_type.capitalize()} tiles: {len(well_metadata)}")
-
     if len(well_metadata) == 0:
-        print(f"Warning: No {data_type} tiles found for this well")
-        return create_empty_outputs(data_type)
+        raise ValueError(f"No {data_type} tiles found for plate {plate}, well {well}")
+
+    print_progress(f"Found {len(well_metadata)} {data_type} tiles")
 
     # Check if mask files exist
-    masks_exist, _ = check_mask_files_exist(well_metadata, well, data_type)
-    print(f"{data_type.capitalize()} masks available: {masks_exist}")
+    masks_exist, existing_masks = check_mask_files_exist(well_metadata, well, data_type)
+    if masks_exist:
+        print_progress(f"Nuclei masks available: {len(existing_masks)} found")
+    else:
+        print_warning(f"No nuclei masks found - will create empty mask")
 
-    # Create temporary directory for intermediate files
-    temp_dir = Path(f"/tmp/stitch_{data_type}_{plate}_{well}_{os.getpid()}")
-    temp_dir.mkdir(exist_ok=True)
+    # Validate stitch config
+    if "total_translation" not in stitch_config:
+        raise ValueError("Stitch config missing 'total_translation' data")
+    
+    shifts = stitch_config["total_translation"]
+    if len(shifts) == 0:
+        raise ValueError("No tile shifts found in stitch config")
 
+    print_progress(f"Using {len(shifts)} tile shifts from stitch config")
+
+    # Step 1: Assemble stitched image
+    print_progress("Assembling stitched image...")
     try:
-        # Step 1: Assemble stitched image
-        print("Assembling stitched image...")
-        print_memory_usage("before image assembly")
-
         stitched_image = assemble_aligned_tiff_well(
             metadata_df=well_metadata,
-            shifts=stitch_config["total_translation"],
+            shifts=shifts,
             well=well,
             data_type=data_type,
             flipud=params.flipud,
@@ -118,253 +108,138 @@ def process_modality_with_disk_offload(
             rot90=params.rot90,
             overlap_percent=params.overlap_percent,
         )
-
-        print(f"✅ Stitched image successful: {stitched_image.shape}")
-        print_memory_usage("after image assembly")
-
-        # IMMEDIATELY save image to temp file and clear from memory
-        temp_image_path = temp_dir / "stitched_image.npy"
-        np.save(temp_image_path, stitched_image)
-        image_shape = stitched_image.shape  # Keep shape for later
-        del stitched_image  # Clear from memory
-        aggressive_memory_cleanup()
-        print_memory_usage("after image cleanup")
-
-        # Step 2: Assemble stitched masks (only if masks exist)
-        if masks_exist:
-            print("Assembling stitched masks...")
-            print_memory_usage("before mask assembly")
-
-            try:
-                stitched_mask, cell_id_mapping = assemble_stitched_masks_simple(
-                    metadata_df=well_metadata,
-                    shifts=stitch_config["total_translation"],
-                    well=well,
-                    data_type=data_type,
-                    flipud=params.flipud,
-                    fliplr=params.fliplr,
-                    rot90=params.rot90,
-                    return_cell_mapping=True,
-                )
-
-                print(
-                    f"✅ Stitched mask successful: {stitched_mask.shape}, max label: {stitched_mask.max()}"
-                )
-                print(f"✅ Cell ID mapping created: {len(cell_id_mapping)} mappings")
-                print_memory_usage("after mask assembly")
-
-                # IMMEDIATELY save mask to temp file
-                temp_mask_path = temp_dir / "stitched_mask.npy"
-                np.save(temp_mask_path, stitched_mask)
-                mask_shape = stitched_mask.shape
-                mask_max_label = stitched_mask.max()
-
-                # Extract cell positions BEFORE clearing mask
-                if mask_max_label > 0:
-                    print("Extracting cell positions...")
-                    stitched_mask_array = stitched_mask
-
-                    # Define tile_size based on data type
-                    tile_size = (
-                        (2400, 2400) if data_type == "phenotype" else (1200, 1200)
-                    )
-
-                    # Extract cell positions with tile tracking
-                    cell_positions = extract_cell_positions_from_stitched_mask(
-                        stitched_mask=stitched_mask_array,
-                        well=well,
-                        plate=plate,
-                        data_type=data_type,
-                        metadata_df=well_metadata,
-                        shifts=stitch_config["total_translation"],
-                        tile_size=tile_size,
-                        cell_id_mapping=cell_id_mapping,
-                    )
-                    print(f"✅ Extracted {len(cell_positions)} cell positions")
-
-
-                    # Add QC plot creation
-                    if len(cell_positions) > 0 and "tile" in cell_positions.columns:
-                        temp_qc_path = temp_dir / f"{well}_{data_type}_tile_qc.png"
-                        create_tile_arrangement_qc_plot(
-                            cell_positions, str(temp_qc_path), data_type
-                        )
-                        print(f"✅ Created QC plot: {temp_qc_path}")
-
-                else:
-                    cell_positions = pd.DataFrame(
-                        columns=["well", "cell", "i", "j", "area", "data_type"]
-                    )
-
-                del stitched_mask  # Clear mask from memory
-                aggressive_memory_cleanup()
-                print_memory_usage("after mask cleanup")
-
-            except Exception as e:
-                print(f"❌ Mask stitching failed: {e}")
-                # Create empty mask file
-                empty_mask = np.zeros(image_shape, dtype=np.uint16)
-                temp_mask_path = temp_dir / "stitched_mask.npy"
-                np.save(temp_mask_path, empty_mask)
-                del empty_mask
-                cell_positions = pd.DataFrame(
-                    columns=["well", "cell", "i", "j", "area", "data_type"]
-                )
-                aggressive_memory_cleanup()
-        else:
-            print("⚠️  Skipping mask stitching - no mask files found")
-            empty_mask = np.zeros(image_shape, dtype=np.uint16)
-            temp_mask_path = temp_dir / "stitched_mask.npy"
-            np.save(temp_mask_path, empty_mask)
-            del empty_mask
-            cell_positions = pd.DataFrame(
-                columns=["well", "cell", "i", "j", "area", "data_type"]
-            )
-            aggressive_memory_cleanup()
-
-        # Step 3: Create overlay (load both image and mask temporarily)
-        if params.create_overlay:
-            print("Creating overlay...")
-            print_memory_usage("before overlay creation")
-
-            try:
-                # Load image and mask temporarily
-                temp_image = np.load(temp_image_path)
-                temp_mask = np.load(temp_mask_path)
-
-                if temp_mask.max() > 0:
-                    overlay = create_stitched_overlay(temp_image, temp_mask)
-                else:
-                    # Create empty overlay
-                    h, w = temp_image.shape
-                    overlay = np.zeros((h, w, 3), dtype=np.uint8)
-
-                # Clear temporary arrays immediately
-                del temp_image, temp_mask
-                aggressive_memory_cleanup()
-                print_memory_usage("after overlay creation")
-
-            except Exception as e:
-                print(f"❌ Overlay creation failed: {e}")
-                overlay = np.zeros((100, 100, 3), dtype=np.uint8)
-        else:
-            overlay = np.zeros((image_shape[0], image_shape[1], 3), dtype=np.uint8)
-
-        # Return file paths instead of data
-        return {
-            "temp_image_path": temp_image_path,
-            "temp_mask_path": temp_mask_path,
-            "cell_positions": cell_positions,
-            "overlay": overlay,
-            "temp_dir": temp_dir,
-        }
-
+        print_success(f"Stitched image created: {stitched_image.shape}")
     except Exception as e:
-        print(f"❌ Processing failed: {e}")
-        return create_empty_outputs(data_type)
+        raise RuntimeError(f"Image stitching failed: {e}")
+
+    # Step 2: Assemble stitched masks (if available)
+    cell_positions = pd.DataFrame(columns=["well", "cell", "i", "j", "area", "data_type"])
+    
+    if masks_exist:
+        print_progress("Assembling stitched masks...")
+        try:
+            stitched_mask, cell_id_mapping = assemble_stitched_masks_simple(
+                metadata_df=well_metadata,
+                shifts=shifts,
+                well=well,
+                data_type=data_type,
+                flipud=params.flipud,
+                fliplr=params.fliplr,
+                rot90=params.rot90,
+                return_cell_mapping=True,
+            )
+            print_success(f"Stitched mask created: {stitched_mask.shape}, {stitched_mask.max()} max label")
+
+            # Step 3: Extract cell positions
+            if stitched_mask.max() > 0:
+                print_progress("Extracting cell positions...")
+                tile_size = (2400, 2400) if data_type == "phenotype" else (1200, 1200)
+
+                cell_positions = extract_cell_positions_from_stitched_mask(
+                    stitched_mask=stitched_mask,
+                    well=well,
+                    plate=plate,
+                    data_type=data_type,
+                    metadata_df=well_metadata,
+                    shifts=shifts,
+                    tile_size=tile_size,
+                    cell_id_mapping=cell_id_mapping,
+                )
+                print_success(f"Extracted {len(cell_positions)} cell positions")
+            else:
+                print_warning("No cells found in stitched mask")
+
+        except Exception as e:
+            print_error(f"Mask stitching failed: {e}")
+            # Create empty mask but continue
+            stitched_mask = np.zeros(stitched_image.shape, dtype=np.uint16)
+            print_warning("Created empty mask, continuing with image only")
+    else:
+        # Create empty mask
+        stitched_mask = np.zeros(stitched_image.shape, dtype=np.uint16)
+        print_progress("Created empty mask (no mask files available)")
+
+    cleanup_memory()
+
+    return {
+        "stitched_image": stitched_image,
+        "stitched_mask": stitched_mask,
+        "cell_positions": cell_positions,
+    }
 
 
-# Main execution
+def create_qc_plot(cell_positions, plate, well, data_type, output_dir):
+    """Create QC plot if cell positions are available"""
+    if len(cell_positions) > 0 and "tile" in cell_positions.columns:
+        try:
+            qc_path = output_dir / f"P-{plate}_W-{well}__{data_type}_tile_qc.png"
+            qc_path.parent.mkdir(parents=True, exist_ok=True)
+            create_tile_arrangement_qc_plot(cell_positions, str(qc_path), data_type)
+            print_success(f"QC plot saved: {qc_path}")
+            return qc_path
+        except Exception as e:
+            print_warning(f"QC plot creation failed: {e}")
+            return None
+    else:
+        print_warning("Skipping QC plot - insufficient data")
+        return None
+
+
 def main():
+    """Main execution function"""
     data_type = snakemake.params.data_type
-
-    print(f"=== MEMORY-OPTIMIZED {data_type.upper()} STITCHING ===")
-    print_memory_usage("initial")
-
-    # Load metadata first
-    metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
-
-    # Apply filtering for SBS data type (same as in stitch config generation)
-    if data_type == "sbs":
-        # Get the same filter used in stitch config generation
-        sbs_filters = {"cycle": snakemake.config["merge"]["sbs_metadata_cycle"]}
-        for filter_key, filter_value in sbs_filters.items():
-            print(f"Filtering {data_type} metadata: {filter_key} == {filter_value}")
-            metadata = metadata[metadata[filter_key] == filter_value]
-        print(f"After filtering - {data_type} metadata: {len(metadata)} entries")
-
-    # Load stitch config
-    with open(snakemake.input[1], "r") as f:
-        stitch_config = yaml.safe_load(f)
-
-    outputs = snakemake.output[:4]
-
-    # Get parameters
     plate = snakemake.params.plate
     well = snakemake.params.well
 
-    print(f"Plate {plate}, Well {well}")
-    print(f"Memory allocation: 400GB")
-    print(f"Output files:")
-    for i, output in enumerate(outputs):
-        print(f"  {i}: {output}")
-
-    # Process with disk offloading
-    results = process_modality_with_disk_offload(
-        metadata, stitch_config, plate, well, data_type, snakemake.params
-    )
-
-    # Save final outputs
-    print(f"\n=== Saving Final {data_type.upper()} Outputs ===")
-    print_memory_usage("before final save")
+    print_progress(f"STITCHING {data_type.upper()} - Plate {plate}, Well {well}")
 
     try:
-        if "temp_image_path" in results:
-            # Move temp files to final locations
-            import shutil
+        # Load and validate inputs
+        print_progress("Loading metadata...")
+        metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 
-            # Copy image
-            shutil.move(str(results["temp_image_path"]), outputs[0])
-            print(f"✅ Moved stitched image: {outputs[0]}")
+        # Apply SBS filtering if needed
+        if data_type == "sbs":
+            sbs_filters = {"cycle": snakemake.config["merge"]["sbs_metadata_cycle"]}
+            for filter_key, filter_value in sbs_filters.items():
+                metadata = metadata[metadata[filter_key] == filter_value]
+            print_progress(f"Applied SBS filter: {len(metadata)} entries remaining")
 
-            # Copy mask
-            shutil.move(str(results["temp_mask_path"]), outputs[1])
-            print(f"✅ Moved stitched mask: {outputs[1]}")
+        # Load stitch config
+        print_progress("Loading stitch configuration...")
+        with open(snakemake.input[1], "r") as f:
+            stitch_config = yaml.safe_load(f)
 
-            # Save cell positions
-            results["cell_positions"].to_parquet(outputs[2])
-            print(
-                f"✅ Saved cell positions: {outputs[2]} ({len(results['cell_positions'])} cells)"
-            )
+        # Process stitching
+        results = process_stitching(
+            metadata, stitch_config, plate, well, data_type, snakemake.params
+        )
 
-            # Save overlay
-            io.imsave(outputs[3], results["overlay"])
-            print(f"✅ Saved overlay: {outputs[3]}")
+        # Save outputs
+        print_progress("Saving outputs...")
+        
+        # Save stitched image
+        np.save(snakemake.output[0], results["stitched_image"])
+        print_success(f"Stitched image saved: {snakemake.output[0]}")
 
-            # QC Plot
-            temp_qc_path = results["temp_dir"] / f"{well}_{data_type}_tile_qc.png"
-            if temp_qc_path.exists():
-                qc_output_path = (
-                    Path(outputs[2]).parent.parent
-                    / "qc_plots"
-                    / f"{plate}_{well}_{data_type}_tile_qc.png"
-                )
-                qc_output_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(str(temp_qc_path), str(qc_output_path))
-                print(f"✅ Saved QC plot: {qc_output_path}")
+        # Save stitched mask  
+        np.save(snakemake.output[1], results["stitched_mask"])
+        print_success(f"Stitched mask saved: {snakemake.output[1]}")
 
-            # Cleanup temp directory
-            if results["temp_dir"].exists():
-                import shutil
+        # Save cell positions
+        results["cell_positions"].to_parquet(snakemake.output[2])
+        print_success(f"Cell positions saved: {snakemake.output[2]} ({len(results['cell_positions'])} cells)")
 
-                shutil.rmtree(results["temp_dir"])
-                print("🗑️  Cleaned up temporary files")
+        # Create QC plot (optional 4th output if defined)
+        if len(snakemake.output) > 3:
+            qc_output_dir = Path(snakemake.output[3]).parent
+            create_qc_plot(results["cell_positions"], plate, well, data_type, qc_output_dir)
 
-        else:
-            # Fallback to empty outputs
-            for i, output in enumerate(outputs):
-                if output.endswith(".npy"):
-                    np.save(output, results[list(results.keys())[i]])
-                elif output.endswith(".parquet"):
-                    results["cell_positions"].to_parquet(output)
-                elif output.endswith(".png"):
-                    io.imsave(output, results["overlay"])
+        print_success(f"{data_type.upper()} stitching completed successfully!")
 
     except Exception as e:
-        print(f"❌ Final save failed: {e}")
-
-    print_memory_usage("final")
-    print(f"\n🎉 === {data_type.upper()} STITCHING COMPLETED! ===")
+        print_error(f"Stitching failed: {e}")
+        raise
 
 
 if __name__ == "__main__":

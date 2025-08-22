@@ -65,21 +65,6 @@ MERGE_OUTPUTS = {
         ),
     ],
     
-    # Optional overlay outputs (only needed for enhanced approach)
-    "stitch_phenotype_overlay": [
-        MERGE_FP
-        / "overlays"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_overlay", "png"
-        ),
-    ],
-    "stitch_sbs_overlay": [
-        MERGE_FP
-        / "overlays"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "sbs_overlay", "png"
-        ),
-    ],
     "stitch_phenotype_qc": [
         MERGE_FP / "qc_plots" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_tile_qc", "png"
@@ -238,13 +223,10 @@ def get_merge_targets_by_approach():
     ]
     
     if approach == "enhanced":
-        # Enhanced approach targets - NEW: Use 3-step pipeline
         approach_targets = [
             "estimate_stitch_phenotype", "estimate_stitch_sbs",
             "stitch_phenotype_image", "stitch_phenotype_mask", "stitch_phenotype_positions",
             "stitch_sbs_image", "stitch_sbs_mask", "stitch_sbs_positions", 
-            "stitch_phenotype_overlay", "stitch_sbs_overlay",
-            # NEW: 3-step pipeline targets
             "well_alignment", "well_cell_merge", "well_merge_deduplicate",
         ]
     else:
@@ -262,29 +244,19 @@ def get_merge_targets_by_approach():
 MERGE_OUTPUT_MAPPINGS = {
     "estimate_stitch_phenotype": None,
     "estimate_stitch_sbs": None,
-    
-    # Enhanced stitching mappings
     "stitch_phenotype_image": None,
     "stitch_phenotype_mask": None, 
     "stitch_phenotype_positions": None,
     "stitch_sbs_image": None,
     "stitch_sbs_mask": None,
     "stitch_sbs_positions": None,
-    "stitch_phenotype_overlay": None,
-    "stitch_sbs_overlay": None,
-    
-    # NEW: 3-step pipeline mappings
     "well_alignment": None,
     "well_cell_merge": None,
     "well_merge_deduplicate": None,
-    
-    # Merge approach mappings
     "well_merge": None,
     "fast_alignment": None,
     "merge_legacy": None,
     "merge": None,
-    
-    # Existing mappings
     "format_merge": None,
     "eval_merge": None,
     "deduplicate_merge": None,

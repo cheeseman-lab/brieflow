@@ -1,6 +1,6 @@
 """
 Step 2 Library: Cell-to-cell matching functions.
-FIXED VERSION: Coordinate system alignment corrected
+FIXED VERSION: Coordinate system alignment corrected and cleaned up output.
 """
 
 import pandas as pd
@@ -30,7 +30,6 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
         except SyntaxError:
             try:
                 # Second try: numpy array string format like "[1. 0. 0. 1.]"
-                # Remove brackets and split by spaces, then convert to float
                 clean_str = rotation_flat.strip('[]')
                 rotation_flat = [float(x) for x in clean_str.split()]
             except (ValueError, AttributeError):
@@ -49,34 +48,83 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
     
     rotation = np.array(rotation_flat).reshape(2, 2)
     
-    # Extract translation vector - handle different formats
+    # Extract translation vector - handle different formats (FIXED)
     translation_list = alignment_row.get('translation_vector', [0.0, 0.0])
-    if isinstance(translation_list, str):
-        try:
-            # Try direct eval first
-            translation_list = eval(translation_list)
-        except SyntaxError:
+    
+    # FIXED: Handle pandas/parquet data types more robustly
+    if isinstance(translation_list, np.ndarray):
+        # NumPy array - convert to list
+        translation_list = translation_list.tolist()
+    elif isinstance(translation_list, str):
+        # String representation - handle different formats
+        print(f"DEBUG: Parsing string translation_vector: '{translation_list}'")
+        
+        # Check if it's a numpy array string format (has spaces between numbers)
+        if ' ' in translation_list.strip('[]') and ',' not in translation_list:
+            # Numpy array format like "[-85.4958813  -95.79037779]" - skip eval()
+            print(f"DEBUG: Detected numpy array format, using split method")
             try:
-                # Handle numpy array string format
                 clean_str = translation_list.strip('[]')
-                translation_list = [float(x) for x in clean_str.split()]
-            except:
+                print(f"DEBUG: After stripping brackets: '{clean_str}'")
+                float_list = [float(x) for x in clean_str.split()]
+                print(f"DEBUG: After split and float conversion: {float_list}")
+                translation_list = float_list
+            except (ValueError, AttributeError) as e:
+                print(f"DEBUG: split method failed with {e}")
+                print(f"Warning: Could not parse numpy array translation vector '{translation_list}', using zero")
+                translation_list = [0.0, 0.0]
+        else:
+            # Regular list format like "[-85.4, -95.8]" - try eval()
+            print(f"DEBUG: Detected regular list format, using eval()")
+            try:
+                translation_list = eval(translation_list)
+                print(f"DEBUG: eval() succeeded: {translation_list}")
+            except (SyntaxError, NameError) as e:
+                print(f"DEBUG: eval() failed with {e}, trying split as fallback")
                 try:
-                    # Use numpy to parse
-                    translation_list = np.fromstring(translation_list.strip('[]'), sep=' ').tolist()
-                except:
-                    # Fallback: zero translation
+                    clean_str = translation_list.strip('[]')
+                    translation_list = [float(x) for x in clean_str.split()]
+                    print(f"DEBUG: Split fallback succeeded: {translation_list}")
+                except Exception as e2:
+                    print(f"DEBUG: All parsing methods failed with {e2}")
                     print(f"Warning: Could not parse translation vector '{translation_list}', using zero")
                     translation_list = [0.0, 0.0]
     
-    # Ensure it's a list and has 2 elements
-    if not isinstance(translation_list, (list, tuple)) or len(translation_list) != 2:
-        print(f"Warning: Invalid translation vector format, using zero. Got: {translation_list}")
-        translation_list = [0.0, 0.0]
+    # Ensure we have a proper list/tuple and handle different lengths
+    if isinstance(translation_list, (list, tuple)):
+        if len(translation_list) == 1:
+            # Single element - assume this is X translation, Y is zero
+            translation_list = [float(translation_list[0]), 0.0]
+            print(f"Note: Using single-element translation vector: [{translation_list[0]:.1f}, 0.0]")
+        elif len(translation_list) == 2:
+            # Two elements - use as is
+            translation_list = [float(translation_list[0]), float(translation_list[1])]
+        elif len(translation_list) == 0:
+            # Empty - use zero
+            print(f"Warning: Empty translation vector, using zero")
+            translation_list = [0.0, 0.0]
+        else:
+            # Invalid length - truncate to first 2 elements or pad with zeros
+            if len(translation_list) > 2:
+                print(f"Warning: Translation vector too long ({len(translation_list)}), using first 2 elements")
+                translation_list = [float(translation_list[0]), float(translation_list[1])]
+            else:
+                print(f"Warning: Invalid translation vector length ({len(translation_list)}), using zero")
+                translation_list = [0.0, 0.0]
+    else:
+        # Not a list/tuple - check if it's a scalar that should be zero
+        try:
+            # Try to convert to float - might be a scalar
+            scalar_val = float(translation_list)
+            translation_list = [scalar_val, 0.0]
+            print(f"Note: Converting scalar translation to vector: [{scalar_val:.1f}, 0.0]")
+        except (ValueError, TypeError):
+            print(f"Warning: Invalid translation vector type ({type(translation_list)}), using zero. Got: {translation_list}")
+            translation_list = [0.0, 0.0]
     
     translation = np.array(translation_list)
     
-    # FIXED: Extract scale factor for coordinate system correction
+    # Extract scale factor for coordinate system correction
     scale_factor = alignment_row.get('scale_factor', 1.0)
     if isinstance(scale_factor, str):
         try:
@@ -85,17 +133,10 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
             print(f"Warning: Could not parse scale factor '{scale_factor}', using 1.0")
             scale_factor = 1.0
     
-    # Debug output
-    print(f"Loaded alignment parameters:")
-    print(f"  Rotation matrix: {rotation}")
-    print(f"  Translation: {translation}")
-    print(f"  Scale factor: {scale_factor}")
-    print(f"  Determinant: {np.linalg.det(rotation):.6f}")
-    
     return {
         'rotation': rotation,
         'translation': translation,
-        'scale_factor': float(scale_factor),  # FIXED: Include scale factor
+        'scale_factor': float(scale_factor),
         'score': float(alignment_row.get('score', 0.0)),
         'determinant': float(alignment_row.get('determinant', 1.0)),
         'transformation_type': str(alignment_row.get('transformation_type', 'unknown')),
@@ -114,64 +155,42 @@ def find_cell_matches(
     """
     Find cell matches using alignment transformation - FIXED coordinate system alignment.
     """
-    print(f"Finding cell matches with threshold={threshold}px")
-    print(f"Dataset sizes: {len(phenotype_positions):,} phenotype, {len(sbs_positions):,} SBS")
+    print(f"Finding matches: {len(phenotype_positions):,} phenotype × {len(sbs_positions):,} SBS cells")
+    print(f"Distance threshold: {threshold}px")
     
     # Extract transformation parameters
     rotation = alignment.get('rotation', np.eye(2))
     translation = alignment.get('translation', np.zeros(2))
-    scale_factor = alignment.get('scale_factor', 1.0)  # FIXED: Get scale factor
+    scale_factor = alignment.get('scale_factor', 1.0)
     
-    print(f"Using transformation:")
-    print(f"  Rotation det: {np.linalg.det(rotation):.6f}")
-    print(f"  Translation: {translation}")
-    print(f"  Scale factor: {scale_factor}")
-    
-    # =================================================================
-    # COORDINATE SYSTEM: Both should already be in same scale after alignment
-    # =================================================================
-    
-    print(f"\n📐 COORDINATE SYSTEM: Using coordinates as-is (both already in same scale)")
-    
-    # Get SBS coordinates as-is (they should already be in the right scale)
+    # Get coordinates for matching
     sbs_coords = sbs_positions[['i', 'j']].values
-    
-    print(f"Coordinate ranges:")
-    print(f"  SBS range: i=[{sbs_coords[:, 0].min():.0f}, {sbs_coords[:, 0].max():.0f}], j=[{sbs_coords[:, 1].min():.0f}, {sbs_coords[:, 1].max():.0f}]")
     
     # Use provided transformed coordinates OR calculate them
     if transformed_phenotype_positions is not None:
         print("Using pre-calculated transformed coordinates")
         transformed_coords = transformed_phenotype_positions[['i', 'j']].values
-        print(f"Transformed phenotype range: i=[{transformed_coords[:, 0].min():.0f}, {transformed_coords[:, 0].max():.0f}], j=[{transformed_coords[:, 1].min():.0f}, {transformed_coords[:, 1].max():.0f}]")
     else:
-        print("Calculating transformed coordinates on-the-fly")
-        # Get scaled phenotype coordinates and transform them
+        print("Calculating transformed coordinates")
         pheno_coords = phenotype_positions[['i', 'j']].values
         transformed_coords = pheno_coords @ rotation.T + translation
-        print(f"Calculated transformed range: i=[{transformed_coords[:, 0].min():.0f}, {transformed_coords[:, 0].max():.0f}], j=[{transformed_coords[:, 1].min():.0f}, {transformed_coords[:, 1].max():.0f}]")
-    
-    # Now both coordinate systems should be in the same scale
-    print(f"\n✅ Both coordinate systems already aligned - using as-is for distance calculation")
     
     # Calculate memory requirement for full matrix
     total_comparisons = len(sbs_positions) * len(phenotype_positions)
     memory_required_gb = (total_comparisons * 8) / (1024**3)  # 8 bytes per float64
-    print(f"Full distance matrix would require: {memory_required_gb:.1f}GB")
-    print(f"Available memory budget: 900GB")
     
-    # Use more conservative memory threshold
+    # Choose approach based on memory requirements
     if memory_required_gb < 400: 
-        print(f"Using direct approach (sufficient memory available)")
+        print(f"Using direct approach ({memory_required_gb:.1f}GB required)")
         raw_matches, stats = _find_matches_direct(
             phenotype_positions, sbs_positions, 
-            transformed_coords, sbs_coords, threshold, scale_factor  # Use sbs_coords as-is
+            transformed_coords, sbs_coords, threshold, scale_factor
         )
     else:
-        print(f"Using chunked approach (memory conservation)")
+        print(f"Using chunked approach ({memory_required_gb:.1f}GB required, using chunks)")
         raw_matches, stats = _find_matches_chunked(
             phenotype_positions, sbs_positions,
-            transformed_coords, sbs_coords, threshold, chunk_size, scale_factor  # Use sbs_coords as-is
+            transformed_coords, sbs_coords, threshold, chunk_size, scale_factor
         )
     
     return raw_matches, stats
@@ -181,32 +200,27 @@ def _find_matches_direct(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
     transformed_coords: np.ndarray,
-    sbs_coords: np.ndarray,  # FIXED: Use SBS coordinates as-is
+    sbs_coords: np.ndarray,
     threshold: float,
-    scale_factor: float  # Keep for coordinate output handling
+    scale_factor: float
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Direct approach optimized for large datasets with sufficient memory.
-    FIXED: Uses properly scaled coordinates.
     """
     import gc
     
-    print(f"Calculating distance matrix: {len(sbs_coords):,} × {len(transformed_coords):,}")
+    print(f"Computing distance matrix: {len(sbs_coords):,} × {len(transformed_coords):,}")
     
     # Calculate distances using coordinates as-is (both already in same coordinate system)
     distances = cdist(sbs_coords, transformed_coords, metric='euclidean')
     
-    print(f"Distance matrix calculated: {distances.shape}, {distances.nbytes / (1024**3):.1f}GB")
-    
     # For each SBS cell, find closest phenotype cell
-    print("Finding closest matches...")
     closest_pheno_idx = distances.argmin(axis=1)
     min_distances = distances.min(axis=1)
     
     # Clear the large distance matrix immediately
     del distances
     gc.collect()
-    print("Distance matrix cleared from memory")
     
     # Filter by threshold
     valid_sbs_mask = min_distances < threshold
@@ -222,9 +236,7 @@ def _find_matches_direct(
     valid_pheno_indices = closest_pheno_idx[valid_sbs_mask]
     valid_distances = min_distances[valid_sbs_mask]
     
-    print(f"Building matches DataFrame with {len(valid_sbs_indices):,} matches...")
-    
-    # FIXED: Build matches DataFrame with original SBS coordinates
+    # Build matches DataFrame
     raw_matches = _build_matches_dataframe(
         phenotype_positions, sbs_positions,
         valid_pheno_indices, valid_sbs_indices, valid_distances,
@@ -238,10 +250,10 @@ def _find_matches_direct(
         'max_distance': float(valid_distances.max()),
         'matches_within_threshold': n_valid,
         'threshold_used': threshold,
-        'scale_factor_used': scale_factor  # FIXED: Include scale factor in stats
+        'scale_factor_used': scale_factor
     }
     
-    print(f"✅ Direct matching complete: {len(raw_matches):,} raw matches")
+    print(f"Direct matching complete: {len(raw_matches):,} matches")
     
     return raw_matches, stats
 
@@ -250,52 +262,41 @@ def _find_matches_chunked(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
     transformed_coords: np.ndarray,
-    sbs_coords: np.ndarray,  # FIXED: Use SBS coordinates as-is
+    sbs_coords: np.ndarray,
     threshold: float,
     chunk_size: int,
-    scale_factor: float  # Keep for coordinate output handling
+    scale_factor: float
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Chunked approach with aggressive memory management.
-    FIXED: Uses properly scaled coordinates.
     """
     import gc
     
     all_matches = []
     n_chunks = (len(sbs_positions) + chunk_size - 1) // chunk_size
     
-    print(f"Processing {len(sbs_positions):,} SBS cells in {n_chunks} chunks of {chunk_size:,}")
-    print(f"Transformed phenotype coordinates: {len(transformed_coords):,} cells")
+    print(f"Processing {len(sbs_positions):,} SBS cells in {n_chunks} chunks")
     
     total_matches = 0
-    all_distances = []  # Track distances for final stats
+    all_distances = []
     
     for chunk_idx in range(n_chunks):
         start_idx = chunk_idx * chunk_size
         end_idx = min((chunk_idx + 1) * chunk_size, len(sbs_positions))
         chunk_size_actual = end_idx - start_idx
         
-        print(f"Processing chunk {chunk_idx + 1}/{n_chunks} ({chunk_size_actual:,} cells, indices {start_idx}-{end_idx-1})")
+        if chunk_idx % 2 == 0:  # Print progress every other chunk
+            print(f"Processing chunk {chunk_idx + 1}/{n_chunks} ({chunk_size_actual:,} cells)")
         
-        # Get chunk of SBS coordinates as-is
+        # Get chunk of SBS coordinates
         sbs_chunk_coords = sbs_coords[start_idx:end_idx]
         
-        # Calculate memory requirement for this chunk
-        chunk_memory_gb = (chunk_size_actual * len(transformed_coords) * 8) / (1024**3)
-        print(f"  Chunk memory requirement: {chunk_memory_gb:.1f}GB")
-        
         # Calculate distances for this chunk
-        print(f"  Calculating distances: {len(sbs_chunk_coords):,} × {len(transformed_coords):,}")
         distances = cdist(sbs_chunk_coords, transformed_coords, metric='euclidean')
-        
-        print(f"  Distance matrix shape: {distances.shape}")
-        print(f"  Distance range: [{distances.min():.2f}, {distances.max():.2f}]")
         
         # Find closest phenotype cell for each SBS cell in chunk
         closest_pheno_idx = distances.argmin(axis=1)
         min_distances = distances.min(axis=1)
-        
-        print(f"  Min distances range: [{min_distances.min():.2f}, {min_distances.max():.2f}]")
         
         # Clear the distance matrix immediately
         del distances
@@ -306,57 +307,36 @@ def _find_matches_chunked(
         chunk_matches = valid_matches.sum()
         total_matches += chunk_matches
         
-        print(f"  Found {chunk_matches:,} matches within {threshold}px threshold")
-        
         if chunk_matches > 0:
             # Get indices for this chunk
             chunk_sbs_indices = np.arange(start_idx, end_idx)[valid_matches]
             chunk_pheno_indices = closest_pheno_idx[valid_matches]
             chunk_distances = min_distances[valid_matches]
             
-            print(f"  Building DataFrame for {len(chunk_sbs_indices):,} matches")
-            
-            # Build chunk matches with proper coordinate handling
+            # Build chunk matches
             chunk_matches_df = _build_matches_dataframe(
                 phenotype_positions, sbs_positions,
                 chunk_pheno_indices, chunk_sbs_indices, chunk_distances,
-                transformed_coords, sbs_coords, scale_factor  # FIXED: Pass all required arguments
+                transformed_coords, sbs_coords, scale_factor
             )
             
             all_matches.append(chunk_matches_df)
             all_distances.extend(chunk_distances.tolist())
-            
-            print(f"  ✅ Chunk {chunk_idx + 1} complete: {len(chunk_matches_df):,} matches added")
-        else:
-            print(f"  ⚠️ Chunk {chunk_idx + 1}: No matches found")
         
         # Clear chunk variables
         del sbs_chunk_coords, closest_pheno_idx, min_distances, valid_matches
         if 'chunk_distances' in locals():
-            del chunk_distances
-        if 'chunk_pheno_indices' in locals():
-            del chunk_pheno_indices
-        if 'chunk_sbs_indices' in locals():
-            del chunk_sbs_indices
+            del chunk_distances, chunk_pheno_indices, chunk_sbs_indices
         gc.collect()
-        
-        print(f"  Running total: {total_matches:,} matches across {chunk_idx + 1} chunks")
     
-    print(f"\n📊 Chunking Summary:")
-    print(f"  Total chunks processed: {n_chunks}")
-    print(f"  Total matches found: {total_matches:,}")
-    print(f"  Non-empty chunks: {len(all_matches)}")
+    print(f"Chunking complete: {total_matches:,} total matches found")
     
     # Combine all chunks
     if all_matches:
-        print(f"Combining {len(all_matches)} chunk results...")
         raw_matches = pd.concat(all_matches, ignore_index=True)
-        del all_matches  # Free memory
+        del all_matches
         gc.collect()
-        
-        print(f"✅ Combined result: {len(raw_matches):,} total matches")
     else:
-        print("❌ No matches found in any chunk")
         raw_matches = pd.DataFrame()
     
     # Calculate stats
@@ -377,10 +357,10 @@ def _find_matches_chunked(
         'max_distance': max_distance,
         'matches_within_threshold': total_matches,
         'threshold_used': threshold,
-        'scale_factor_used': scale_factor  # FIXED: Include scale factor in stats
+        'scale_factor_used': scale_factor
     }
     
-    print(f"✅ Chunked matching complete: {len(raw_matches):,} raw matches")
+    print(f"Chunked matching complete: {len(raw_matches):,} matches")
     
     return raw_matches, stats
 
@@ -391,26 +371,25 @@ def _build_matches_dataframe(
     pheno_indices: np.ndarray,
     sbs_indices: np.ndarray,
     distances: np.ndarray,
-    transformed_coords: np.ndarray,  # Coordinates used for distance calc (phenotype)
-    sbs_coords: np.ndarray,  # Coordinates used for distance calc (SBS)
-    scale_factor: float  # Keep for reference
+    transformed_coords: np.ndarray,
+    sbs_coords: np.ndarray,
+    scale_factor: float
 ) -> pd.DataFrame:
     """
     Build matches DataFrame using the EXACT same coordinates that were used for distance calculation.
-    FIXED: Ensures coordinate consistency between distance calc and stored coordinates.
     """
     
     matches_df = pd.DataFrame({
-        'cell_0': phenotype_positions.iloc[pheno_indices]['stitched_cell_id'].values,  # CORRECT COLUMN
+        'cell_0': phenotype_positions.iloc[pheno_indices]['stitched_cell_id'].values,
         'i_0': transformed_coords[pheno_indices, 0],
         'j_0': transformed_coords[pheno_indices, 1],
-        'cell_1': sbs_positions.iloc[sbs_indices]['stitched_cell_id'].values,  # CORRECT COLUMN
+        'cell_1': sbs_positions.iloc[sbs_indices]['stitched_cell_id'].values,
         'i_1': sbs_coords[sbs_indices, 0],
         'j_1': sbs_coords[sbs_indices, 1],
         'distance': distances
     })
     
-    # Add area columns from ORIGINAL positions (areas don't change with coordinate scaling)
+    # Add area columns from original positions if available
     if 'area' in phenotype_positions.columns:
         matches_df['area_0'] = phenotype_positions.iloc[pheno_indices]['area'].values
     else:
@@ -421,89 +400,7 @@ def _build_matches_dataframe(
     else:
         matches_df['area_1'] = np.nan
     
-    print(f"    ✅ DataFrame built successfully: {len(matches_df):,} rows")
-    print(f"    📐 Coordinates stored: EXACT same as used for distance calculation")
-    print(f"    📊 Manual distance calculation should now match stored distances perfectly")
-    
     return matches_df
-
-
-# Add debugging function for coordinate analysis
-def debug_coordinate_alignment(
-    phenotype_positions: pd.DataFrame,
-    sbs_positions: pd.DataFrame,
-    alignment: Dict[str, Any],
-    sample_size: int = 1000
-) -> Dict[str, Any]:
-    """
-    Debug coordinate alignment by checking transformation quality.
-    """
-    print(f"\n🔍 DEBUGGING COORDINATE ALIGNMENT")
-    
-    # Sample coordinates for analysis
-    n_pheno_sample = min(sample_size, len(phenotype_positions))
-    n_sbs_sample = min(sample_size, len(sbs_positions))
-    
-    pheno_sample = phenotype_positions.sample(n_pheno_sample, random_state=42)
-    sbs_sample = sbs_positions.sample(n_sbs_sample, random_state=42)
-    
-    # Get transformation
-    rotation = alignment.get('rotation', np.eye(2))
-    translation = alignment.get('translation', np.zeros(2))
-    
-    # Transform phenotype coordinates
-    pheno_coords = pheno_sample[['i', 'j']].values
-    transformed_coords = pheno_coords @ rotation.T + translation
-    
-    # Calculate distances to all SBS coordinates
-    sbs_coords = sbs_sample[['i', 'j']].values
-    distances = cdist(transformed_coords, sbs_coords, metric='euclidean')
-    
-    # Find closest matches
-    closest_sbs_idx = distances.argmin(axis=1)
-    min_distances = distances.min(axis=1)
-    
-    debug_info = {
-        'sample_sizes': {
-            'phenotype': n_pheno_sample,
-            'sbs': n_sbs_sample
-        },
-        'transformation': {
-            'rotation_det': float(np.linalg.det(rotation)),
-            'translation_norm': float(np.linalg.norm(translation))
-        },
-        'coordinate_ranges': {
-            'original_phenotype': {
-                'i': [float(pheno_coords[:, 0].min()), float(pheno_coords[:, 0].max())],
-                'j': [float(pheno_coords[:, 1].min()), float(pheno_coords[:, 1].max())]
-            },
-            'transformed_phenotype': {
-                'i': [float(transformed_coords[:, 0].min()), float(transformed_coords[:, 0].max())],
-                'j': [float(transformed_coords[:, 1].min()), float(transformed_coords[:, 1].max())]
-            },
-            'sbs': {
-                'i': [float(sbs_coords[:, 0].min()), float(sbs_coords[:, 0].max())],
-                'j': [float(sbs_coords[:, 1].min()), float(sbs_coords[:, 1].max())]
-            }
-        },
-        'distance_analysis': {
-            'mean_closest_distance': float(min_distances.mean()),
-            'median_closest_distance': float(np.median(min_distances)),
-            'min_distance': float(min_distances.min()),
-            'max_distance': float(min_distances.max()),
-            'std_distance': float(min_distances.std()),
-            'distances_under_10px': int((min_distances < 10).sum()),
-            'distances_under_5px': int((min_distances < 5).sum()),
-            'distances_under_2px': int((min_distances < 2).sum())
-        }
-    }
-    
-    print(f"Sample analysis results:")
-    print(f"  Mean closest distance: {debug_info['distance_analysis']['mean_closest_distance']:.2f}px")
-    print(f"  Matches under 10px: {debug_info['distance_analysis']['distances_under_10px']}/{n_pheno_sample}")
-    print(f"  Matches under 5px: {debug_info['distance_analysis']['distances_under_5px']}/{n_pheno_sample}")
-    
-    return debug_info
 
 
 def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
@@ -579,31 +476,12 @@ def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
 
 def debug_coordinate_uniqueness(coords, name, sample_size=10):
     """Debug coordinate uniqueness and precision."""
-    print(f"\n🔍 DEBUG: {name} Coordinate Analysis")
-    print(f"  Total coordinates: {len(coords):,}")
-    
-    # Check uniqueness
-    unique_coords = np.unique(coords.view(np.void), return_counts=True)
-    unique_count = len(unique_coords[0])
-    print(f"  Unique coordinate pairs: {unique_count:,}")
-    print(f"  Duplicate pairs: {len(coords) - unique_count:,}")
-    
-    if len(coords) != unique_count:
-        # Find duplicates
-        coord_df = pd.DataFrame(coords, columns=['i', 'j'])
-        duplicates = coord_df.groupby(['i', 'j']).size()
-        duplicates = duplicates[duplicates > 1].sort_values(ascending=False)
-        
-        print(f"  Top duplicate coordinates:")
-        for idx, ((i, j), count) in enumerate(duplicates.head().items()):
-            print(f"    {idx+1}. ({i:.10f}, {j:.10f}): {count} cells")
+    print(f"DEBUG: {name} coordinate analysis")
+    print(f"  Total: {len(coords):,}, Unique: {len(np.unique(coords.view(np.void), return_counts=True)[0]):,}")
     
     # Sample precision analysis
     sample_coords = coords[:min(sample_size, len(coords))]
-    print(f"  Sample coordinates (first {len(sample_coords)}):")
-    for idx, (i, j) in enumerate(sample_coords):
-        i_decimals = len(str(i).split('.')[-1]) if '.' in str(i) else 0
-        j_decimals = len(str(j).split('.')[-1]) if '.' in str(j) else 0
-        print(f"    [{idx}] i={i:.10f} ({i_decimals}dp), j={j:.10f} ({j_decimals}dp)")
+    for idx, (i, j) in enumerate(sample_coords[:3]):  # Just show first 3
+        print(f"  [{idx}] i={i:.3f}, j={j:.3f}")
     
-    return unique_count
+    return len(np.unique(coords.view(np.void), return_counts=True)[0])

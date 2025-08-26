@@ -1,5 +1,4 @@
-"""
-Enhanced stitching functions for BrieFlow pipeline.
+"""Enhanced stitching functions for BrieFlow pipeline.
 Handles both images and segmentation masks with actual stitching.
 """
 
@@ -31,13 +30,11 @@ def extract_cell_positions_from_stitched_mask(
     metadata_df: pd.DataFrame = None,
     shifts: Dict[str, List[int]] = None,
     tile_size: Tuple[int, int] = None,
-    cell_id_mapping: Dict[int, Tuple[int, int]] = None
+    cell_id_mapping: Dict[int, Tuple[int, int]] = None,
 ) -> pd.DataFrame:
-    """
-    ENHANCED: Extract cell positions using preserved cell ID mapping.
+    """ENHANCED: Extract cell positions using preserved cell ID mapping.
     Now requires cell_id_mapping for proper functionality and includes plate parameter.
     """
-
     print(f"🔍 EXTRACTING CELL POSITIONS: {data_type} well {well}, plate {plate}")
 
     # Get region properties from stitched mask
@@ -139,8 +136,8 @@ def extract_cell_positions_from_stitched_mask(
             # STANDARDIZED: Always create both 'cell' and 'label' columns consistently
             cell_info.update(
                 {
-                    "cell": original_cell_id, 
-                    "tile": original_tile_id,  
+                    "cell": original_cell_id,
+                    "tile": original_tile_id,
                     "tile_i": relative_y,
                     "tile_j": relative_x,
                     "mapping_method": mapping_method,
@@ -158,19 +155,26 @@ def extract_cell_positions_from_stitched_mask(
     # FINAL VALIDATION: Ensure required columns exist and have correct types
     if len(df) > 0:
         # Ensure integer types for ID columns (use nullable integer type)
-        for col in ['cell', 'tile', 'original_cell_id', 'original_tile_id', 'stitched_cell_id', 'label']:
+        for col in [
+            "cell",
+            "tile",
+            "original_cell_id",
+            "original_tile_id",
+            "stitched_cell_id",
+            "label",
+        ]:
             if col in df.columns:
                 # Handle NaN values for integer columns
-                df[col] = df[col].fillna(-1).astype('Int64')  # Nullable integer type
-        
+                df[col] = df[col].fillna(-1).astype("Int64")  # Nullable integer type
+
         # Ensure plate is string
-        df['plate'] = df['plate'].astype(str)
-        
-        # Ensure well is string  
-        df['well'] = df['well'].astype(str)
-        
+        df["plate"] = df["plate"].astype(str)
+
+        # Ensure well is string
+        df["well"] = df["well"].astype(str)
+
         # Ensure data_type is string
-        df['data_type'] = df['data_type'].astype(str)
+        df["data_type"] = df["data_type"].astype(str)
 
     print(f"✅ EXTRACTION COMPLETE:")
     print(f"  Total cells: {len(df)}")
@@ -190,10 +194,12 @@ def extract_cell_positions_from_stitched_mask(
 
     # Validate that cell and label are consistent for preserved mappings
     if len(df) > 0:
-        preserved_rows = df[df['mapping_method'] == 'preserved_mapping']
+        preserved_rows = df[df["mapping_method"] == "preserved_mapping"]
         if len(preserved_rows) > 0:
-            if (preserved_rows['cell'] == preserved_rows['label']).all():
-                print(f"✅ Cell/label consistency verified for {len(preserved_rows)} preserved mappings")
+            if (preserved_rows["cell"] == preserved_rows["label"]).all():
+                print(
+                    f"✅ Cell/label consistency verified for {len(preserved_rows)} preserved mappings"
+                )
             else:
                 print(f"⚠️  Warning: Cell/label mismatch detected in preserved mappings")
 
@@ -201,7 +207,7 @@ def extract_cell_positions_from_stitched_mask(
     if len(df) > 0:
         print(f"📊 Column Summary:")
         print(f"  Plates: {df['plate'].nunique()} unique")
-        print(f"  Wells: {df['well'].nunique()} unique") 
+        print(f"  Wells: {df['well'].nunique()} unique")
         print(f"  Tiles: {df['tile'].nunique()} unique")
         print(f"  Cell ID range: {df['cell'].min()} - {df['cell'].max()}")
         print(f"  Label range: {df['label'].min()} - {df['label'].max()}")
@@ -212,8 +218,7 @@ def extract_cell_positions_from_stitched_mask(
 def find_original_tile_from_position(
     global_i, global_j, metadata_df, shifts, tile_size
 ):
-    """
-    Find which original tile a position in the stitched image came from
+    """Find which original tile a position in the stitched image came from
 
     Parameters:
     -----------
@@ -230,7 +235,6 @@ def find_original_tile_from_position(
     --------
     dict with tile, site, tile_i, tile_j information
     """
-
     tile_height, tile_width = tile_size
     min_distance = float("inf")
     best_tile_info = {"tile": 1, "site": 1, "tile_i": 0, "tile_j": 0}
@@ -540,7 +544,6 @@ def connectivity_from_actual_positions_optimized(
     max_neighbors_per_tile: int = 3,
 ) -> Dict[str, List[Tuple[int, int]]]:
     """Create connectivity based on actual spatial proximity with optimized thresholds."""
-
     # Calculate proximity-based edges with OPTIMIZED thresholds for circular geometry
     from scipy.spatial.distance import pdist, squareform
 
@@ -733,7 +736,6 @@ def estimate_stitch_aligned_tiff(
     tile_size: Optional[Tuple[int, int]] = None,
 ) -> Dict[str, Dict]:
     """Complete stitching estimation preserving actual well geometry."""
-
     # Use the new geometry-preserving function
     tile_positions = metadata_to_grid_positions(metadata_df, well)
 
@@ -924,7 +926,8 @@ def get_output_shape_tiff(
 
 def relabel_mask_tile(mask_tile: np.ndarray, start_label: int) -> np.ndarray:
     """Relabel a mask tile to use sequential labels starting from start_label.
-    Fixed to handle integer overflow by using larger data types."""
+    Fixed to handle integer overflow by using larger data types.
+    """
     if mask_tile.max() == 0:
         return mask_tile
 
@@ -1047,11 +1050,9 @@ def assemble_stitched_masks_simple(
     rot90=0,
     return_cell_mapping=False,
 ):
-    """
-    FIXED: Assemble stitched masks while preserving original cell IDs.
+    """FIXED: Assemble stitched masks while preserving original cell IDs.
     Key fix: Create mapping BEFORE relabeling, so original IDs are preserved.
     """
-
     print(f"🔧 MASK ASSEMBLY: {data_type} well {well}")
     print(f"📊 Input: {len(metadata_df)} tiles, {len(shifts)} shifts")
 
@@ -1198,11 +1199,9 @@ def extract_cell_positions_from_stitched_mask(
     tile_size: Tuple[int, int] = None,
     cell_id_mapping: Dict[int, Tuple[int, int]] = None,
 ) -> pd.DataFrame:
-    """
-    ENHANCED: Extract cell positions using preserved cell ID mapping.
+    """ENHANCED: Extract cell positions using preserved cell ID mapping.
     Now requires cell_id_mapping for proper functionality.
     """
-
     print(f"🔍 EXTRACTING CELL POSITIONS: {data_type} well {well}")
 
     # Get region properties from stitched mask
@@ -1301,7 +1300,7 @@ def extract_cell_positions_from_stitched_mask(
                 {
                     cell_column: original_cell_id,
                     "original_cell_id": original_cell_id,
-                    "tile": original_tile_id, 
+                    "tile": original_tile_id,
                     "tile_i": relative_y,
                     "tile_j": relative_x,
                     "mapping_method": mapping_method,
@@ -1463,8 +1462,7 @@ def verify_cell_id_preservation(
     well: str,
     data_type: str = "phenotype",
 ) -> None:
-    """
-    Verify the quality of cell ID preservation by comparing with original data.
+    """Verify the quality of cell ID preservation by comparing with original data.
     Call this after running the enhanced pipeline to check quality.
     """
     print(f"\n=== VERIFYING CELL ID PRESERVATION ===")
@@ -1567,7 +1565,6 @@ def estimate_stitch_sbs_coordinate_based(
     channel: int = 0,
 ) -> Dict[str, Dict]:
     """Coordinate-based stitching for SBS data with correct scaling."""
-
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
 
     if len(well_metadata) == 0:
@@ -1702,7 +1699,6 @@ def estimate_stitch_phenotype_coordinate_based(
     channel: int = 0,
 ) -> Dict[str, Dict]:
     """Coordinate-based stitching for phenotype data with correct scaling."""
-
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
 
     if len(well_metadata) == 0:
@@ -1841,7 +1837,6 @@ def estimate_stitch_data_type_specific(
     tile_size: Optional[Tuple[int, int]] = None,
 ) -> Dict[str, Dict]:
     """Route to data-type-specific optimized functions with corrected coordinate scaling."""
-
     if data_type == "phenotype":
         return estimate_stitch_phenotype_coordinate_based(
             metadata_df, well, flipud, fliplr, rot90, channel

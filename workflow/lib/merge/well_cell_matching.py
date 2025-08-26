@@ -1,5 +1,4 @@
-"""
-Step 2 Library: Cell-to-cell matching functions.
+"""Step 2 Library: Cell-to-cell matching functions.
 FIXED VERSION: Coordinate system alignment corrected and cleaned up output.
 Added single-cell tile filtering to prevent phenotype extraction failures.
 """
@@ -10,68 +9,72 @@ from scipy.spatial.distance import cdist
 from typing import Dict, Any, Tuple
 
 
-def filter_single_cell_tiles(matches_df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """
-    Filter out single-cell tiles that cause phenotype extraction failures.
-    
+def filter_single_cell_tiles(
+    matches_df: pd.DataFrame,
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """Filter out single-cell tiles that cause phenotype extraction failures.
+
     Single-cell tiles are dropped during phenotype extraction due to the buggy
     early exit condition in extract_phenotype_cp_multichannel, but they still
     appear in merge data. This causes NaN lookups in format_merge.
-    
+
     Args:
         matches_df: DataFrame with cell matches
-        
+
     Returns:
         Tuple of (filtered_df, filtering_stats)
     """
     if matches_df.empty:
-        return matches_df, {'tiles_removed': 0, 'cells_removed': 0, 'cells_kept': 0}
-    
+        return matches_df, {"tiles_removed": 0, "cells_removed": 0, "cells_kept": 0}
+
     # Count cells per tile
-    tile_cell_counts = matches_df.groupby(['plate', 'well', 'site', 'tile']).size()
-    
+    tile_cell_counts = matches_df.groupby(["plate", "well", "site", "tile"]).size()
+
     # Identify single-cell tiles
     single_cell_tiles = tile_cell_counts[tile_cell_counts == 1].index
-    
+
     if len(single_cell_tiles) == 0:
-        return matches_df, {'tiles_removed': 0, 'cells_removed': 0, 'cells_kept': len(matches_df)}
-    
+        return matches_df, {
+            "tiles_removed": 0,
+            "cells_removed": 0,
+            "cells_kept": len(matches_df),
+        }
+
     # Create mask for tiles to keep
     keep_mask = pd.Series(True, index=matches_df.index)
-    
+
     for plate_id, well_id, site_id, tile_id in single_cell_tiles:
         tile_mask = (
-            (matches_df['plate'] == plate_id) & 
-            (matches_df['well'] == well_id) & 
-            (matches_df['site'] == site_id) & 
-            (matches_df['tile'] == tile_id)
+            (matches_df["plate"] == plate_id)
+            & (matches_df["well"] == well_id)
+            & (matches_df["site"] == site_id)
+            & (matches_df["tile"] == tile_id)
         )
         keep_mask &= ~tile_mask
-    
+
     filtered_df = matches_df[keep_mask].copy()
-    
+
     filtering_stats = {
-        'tiles_removed': len(single_cell_tiles),
-        'cells_removed': len(matches_df) - len(filtered_df),
-        'cells_kept': len(filtered_df)
+        "tiles_removed": len(single_cell_tiles),
+        "cells_removed": len(matches_df) - len(filtered_df),
+        "cells_kept": len(filtered_df),
     }
-    
+
     return filtered_df, filtering_stats
 
 
 def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
-    """
-    Load alignment parameters from a DataFrame row.
-    
+    """Load alignment parameters from a DataFrame row.
+
     Args:
         alignment_row: Single row from alignment parameters DataFrame
-        
+
     Returns:
         Dictionary with alignment parameters
     """
     # Extract rotation matrix - handle different formats
-    rotation_flat = alignment_row.get('rotation_matrix_flat', [1.0, 0.0, 0.0, 1.0])
-    
+    rotation_flat = alignment_row.get("rotation_matrix_flat", [1.0, 0.0, 0.0, 1.0])
+
     if isinstance(rotation_flat, str):
         # Handle string representation - try multiple parsing methods
         try:
@@ -80,27 +83,33 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
         except SyntaxError:
             try:
                 # Second try: numpy array string format like "[1. 0. 0. 1.]"
-                clean_str = rotation_flat.strip('[]')
+                clean_str = rotation_flat.strip("[]")
                 rotation_flat = [float(x) for x in clean_str.split()]
             except (ValueError, AttributeError):
                 try:
                     # Third try: use numpy to parse array string
-                    rotation_flat = np.fromstring(rotation_flat.strip('[]'), sep=' ').tolist()
+                    rotation_flat = np.fromstring(
+                        rotation_flat.strip("[]"), sep=" "
+                    ).tolist()
                 except:
                     # Fallback: identity matrix
-                    print(f"Warning: Could not parse rotation matrix '{rotation_flat}', using identity")
+                    print(
+                        f"Warning: Could not parse rotation matrix '{rotation_flat}', using identity"
+                    )
                     rotation_flat = [1.0, 0.0, 0.0, 1.0]
-    
+
     # Ensure it's a list and has 4 elements
     if not isinstance(rotation_flat, (list, tuple)) or len(rotation_flat) != 4:
-        print(f"Warning: Invalid rotation matrix format, using identity. Got: {rotation_flat}")
+        print(
+            f"Warning: Invalid rotation matrix format, using identity. Got: {rotation_flat}"
+        )
         rotation_flat = [1.0, 0.0, 0.0, 1.0]
-    
+
     rotation = np.array(rotation_flat).reshape(2, 2)
-    
+
     # Extract translation vector - handle different formats (FIXED)
-    translation_list = alignment_row.get('translation_vector', [0.0, 0.0])
-    
+    translation_list = alignment_row.get("translation_vector", [0.0, 0.0])
+
     # FIXED: Handle pandas/parquet data types more robustly
     if isinstance(translation_list, np.ndarray):
         # NumPy array - convert to list
@@ -108,20 +117,22 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
     elif isinstance(translation_list, str):
         # String representation - handle different formats
         print(f"DEBUG: Parsing string translation_vector: '{translation_list}'")
-        
+
         # Check if it's a numpy array string format (has spaces between numbers)
-        if ' ' in translation_list.strip('[]') and ',' not in translation_list:
+        if " " in translation_list.strip("[]") and "," not in translation_list:
             # Numpy array format like "[-85.4958813  -95.79037779]" - skip eval()
             print(f"DEBUG: Detected numpy array format, using split method")
             try:
-                clean_str = translation_list.strip('[]')
+                clean_str = translation_list.strip("[]")
                 print(f"DEBUG: After stripping brackets: '{clean_str}'")
                 float_list = [float(x) for x in clean_str.split()]
                 print(f"DEBUG: After split and float conversion: {float_list}")
                 translation_list = float_list
             except (ValueError, AttributeError) as e:
                 print(f"DEBUG: split method failed with {e}")
-                print(f"Warning: Could not parse numpy array translation vector '{translation_list}', using zero")
+                print(
+                    f"Warning: Could not parse numpy array translation vector '{translation_list}', using zero"
+                )
                 translation_list = [0.0, 0.0]
         else:
             # Regular list format like "[-85.4, -95.8]" - try eval()
@@ -132,20 +143,24 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
             except (SyntaxError, NameError) as e:
                 print(f"DEBUG: eval() failed with {e}, trying split as fallback")
                 try:
-                    clean_str = translation_list.strip('[]')
+                    clean_str = translation_list.strip("[]")
                     translation_list = [float(x) for x in clean_str.split()]
                     print(f"DEBUG: Split fallback succeeded: {translation_list}")
                 except Exception as e2:
                     print(f"DEBUG: All parsing methods failed with {e2}")
-                    print(f"Warning: Could not parse translation vector '{translation_list}', using zero")
+                    print(
+                        f"Warning: Could not parse translation vector '{translation_list}', using zero"
+                    )
                     translation_list = [0.0, 0.0]
-    
+
     # Ensure we have a proper list/tuple and handle different lengths
     if isinstance(translation_list, (list, tuple)):
         if len(translation_list) == 1:
             # Single element - assume this is X translation, Y is zero
             translation_list = [float(translation_list[0]), 0.0]
-            print(f"Note: Using single-element translation vector: [{translation_list[0]:.1f}, 0.0]")
+            print(
+                f"Note: Using single-element translation vector: [{translation_list[0]:.1f}, 0.0]"
+            )
         elif len(translation_list) == 2:
             # Two elements - use as is
             translation_list = [float(translation_list[0]), float(translation_list[1])]
@@ -156,10 +171,17 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
         else:
             # Invalid length - truncate to first 2 elements or pad with zeros
             if len(translation_list) > 2:
-                print(f"Warning: Translation vector too long ({len(translation_list)}), using first 2 elements")
-                translation_list = [float(translation_list[0]), float(translation_list[1])]
+                print(
+                    f"Warning: Translation vector too long ({len(translation_list)}), using first 2 elements"
+                )
+                translation_list = [
+                    float(translation_list[0]),
+                    float(translation_list[1]),
+                ]
             else:
-                print(f"Warning: Invalid translation vector length ({len(translation_list)}), using zero")
+                print(
+                    f"Warning: Invalid translation vector length ({len(translation_list)}), using zero"
+                )
                 translation_list = [0.0, 0.0]
     else:
         # Not a list/tuple - check if it's a scalar that should be zero
@@ -167,32 +189,39 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
             # Try to convert to float - might be a scalar
             scalar_val = float(translation_list)
             translation_list = [scalar_val, 0.0]
-            print(f"Note: Converting scalar translation to vector: [{scalar_val:.1f}, 0.0]")
+            print(
+                f"Note: Converting scalar translation to vector: [{scalar_val:.1f}, 0.0]"
+            )
         except (ValueError, TypeError):
-            print(f"Warning: Invalid translation vector type ({type(translation_list)}), using zero. Got: {translation_list}")
+            print(
+                f"Warning: Invalid translation vector type ({type(translation_list)}), using zero. Got: {translation_list}"
+            )
             translation_list = [0.0, 0.0]
-    
+
     translation = np.array(translation_list)
-    
+
     # Extract scale factor for coordinate system correction
-    scale_factor = alignment_row.get('scale_factor', 1.0)
+    scale_factor = alignment_row.get("scale_factor", 1.0)
     if isinstance(scale_factor, str):
         try:
             scale_factor = float(scale_factor)
         except:
             print(f"Warning: Could not parse scale factor '{scale_factor}', using 1.0")
             scale_factor = 1.0
-    
+
     return {
-        'rotation': rotation,
-        'translation': translation,
-        'scale_factor': float(scale_factor),
-        'score': float(alignment_row.get('score', 0.0)),
-        'determinant': float(alignment_row.get('determinant', 1.0)),
-        'transformation_type': str(alignment_row.get('transformation_type', 'unknown')),
-        'approach': str(alignment_row.get('approach', 'unknown')),
-        'validation_mean_distance': float(alignment_row.get('validation_mean_distance', 0.0))
+        "rotation": rotation,
+        "translation": translation,
+        "scale_factor": float(scale_factor),
+        "score": float(alignment_row.get("score", 0.0)),
+        "determinant": float(alignment_row.get("determinant", 1.0)),
+        "transformation_type": str(alignment_row.get("transformation_type", "unknown")),
+        "approach": str(alignment_row.get("approach", "unknown")),
+        "validation_mean_distance": float(
+            alignment_row.get("validation_mean_distance", 0.0)
+        ),
     }
+
 
 def find_cell_matches(
     phenotype_positions: pd.DataFrame,
@@ -200,49 +229,60 @@ def find_cell_matches(
     alignment: Dict[str, Any],
     threshold: float = 10.0,
     chunk_size: int = 50000,
-    transformed_phenotype_positions: pd.DataFrame = None
+    transformed_phenotype_positions: pd.DataFrame = None,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """
-    Find cell matches using alignment transformation - FIXED coordinate system alignment.
-    """
-    print(f"Finding matches: {len(phenotype_positions):,} phenotype × {len(sbs_positions):,} SBS cells")
+    """Find cell matches using alignment transformation - FIXED coordinate system alignment."""
+    print(
+        f"Finding matches: {len(phenotype_positions):,} phenotype × {len(sbs_positions):,} SBS cells"
+    )
     print(f"Distance threshold: {threshold}px")
-    
+
     # Extract transformation parameters
-    rotation = alignment.get('rotation', np.eye(2))
-    translation = alignment.get('translation', np.zeros(2))
-    scale_factor = alignment.get('scale_factor', 1.0)
-    
+    rotation = alignment.get("rotation", np.eye(2))
+    translation = alignment.get("translation", np.zeros(2))
+    scale_factor = alignment.get("scale_factor", 1.0)
+
     # Get coordinates for matching
-    sbs_coords = sbs_positions[['i', 'j']].values
-    
+    sbs_coords = sbs_positions[["i", "j"]].values
+
     # Use provided transformed coordinates OR calculate them
     if transformed_phenotype_positions is not None:
         print("Using pre-calculated transformed coordinates")
-        transformed_coords = transformed_phenotype_positions[['i', 'j']].values
+        transformed_coords = transformed_phenotype_positions[["i", "j"]].values
     else:
         print("Calculating transformed coordinates")
-        pheno_coords = phenotype_positions[['i', 'j']].values
+        pheno_coords = phenotype_positions[["i", "j"]].values
         transformed_coords = pheno_coords @ rotation.T + translation
-    
+
     # Calculate memory requirement for full matrix
     total_comparisons = len(sbs_positions) * len(phenotype_positions)
     memory_required_gb = (total_comparisons * 8) / (1024**3)  # 8 bytes per float64
-    
+
     # Choose approach based on memory requirements
-    if memory_required_gb < 400: 
+    if memory_required_gb < 400:
         print(f"Using direct approach ({memory_required_gb:.1f}GB required)")
         raw_matches, stats = _find_matches_direct(
-            phenotype_positions, sbs_positions, 
-            transformed_coords, sbs_coords, threshold, scale_factor
+            phenotype_positions,
+            sbs_positions,
+            transformed_coords,
+            sbs_coords,
+            threshold,
+            scale_factor,
         )
     else:
-        print(f"Using chunked approach ({memory_required_gb:.1f}GB required, using chunks)")
-        raw_matches, stats = _find_matches_chunked(
-            phenotype_positions, sbs_positions,
-            transformed_coords, sbs_coords, threshold, chunk_size, scale_factor
+        print(
+            f"Using chunked approach ({memory_required_gb:.1f}GB required, using chunks)"
         )
-    
+        raw_matches, stats = _find_matches_chunked(
+            phenotype_positions,
+            sbs_positions,
+            transformed_coords,
+            sbs_coords,
+            threshold,
+            chunk_size,
+            scale_factor,
+        )
+
     return raw_matches, stats
 
 
@@ -252,59 +292,64 @@ def _find_matches_direct(
     transformed_coords: np.ndarray,
     sbs_coords: np.ndarray,
     threshold: float,
-    scale_factor: float
+    scale_factor: float,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """
-    Direct approach optimized for large datasets with sufficient memory.
-    """
+    """Direct approach optimized for large datasets with sufficient memory."""
     import gc
-    
-    print(f"Computing distance matrix: {len(sbs_coords):,} × {len(transformed_coords):,}")
-    
+
+    print(
+        f"Computing distance matrix: {len(sbs_coords):,} × {len(transformed_coords):,}"
+    )
+
     # Calculate distances using coordinates as-is (both already in same coordinate system)
-    distances = cdist(sbs_coords, transformed_coords, metric='euclidean')
-    
+    distances = cdist(sbs_coords, transformed_coords, metric="euclidean")
+
     # For each SBS cell, find closest phenotype cell
     closest_pheno_idx = distances.argmin(axis=1)
     min_distances = distances.min(axis=1)
-    
+
     # Clear the large distance matrix immediately
     del distances
     gc.collect()
-    
+
     # Filter by threshold
     valid_sbs_mask = min_distances < threshold
     n_valid = valid_sbs_mask.sum()
-    
+
     print(f"Found {n_valid:,} matches within {threshold}px threshold")
-    
+
     if n_valid == 0:
-        return pd.DataFrame(), {'raw_matches': 0, 'method': 'direct'}
-    
+        return pd.DataFrame(), {"raw_matches": 0, "method": "direct"}
+
     # Get valid matches
     valid_sbs_indices = np.where(valid_sbs_mask)[0]
     valid_pheno_indices = closest_pheno_idx[valid_sbs_mask]
     valid_distances = min_distances[valid_sbs_mask]
-    
+
     # Build matches DataFrame
     raw_matches = _build_matches_dataframe(
-        phenotype_positions, sbs_positions,
-        valid_pheno_indices, valid_sbs_indices, valid_distances,
-        transformed_coords, sbs_coords, scale_factor
+        phenotype_positions,
+        sbs_positions,
+        valid_pheno_indices,
+        valid_sbs_indices,
+        valid_distances,
+        transformed_coords,
+        sbs_coords,
+        scale_factor,
     )
-    
+
     stats = {
-        'raw_matches': len(raw_matches),
-        'method': 'direct',
-        'mean_distance': float(valid_distances.mean()),
-        'max_distance': float(valid_distances.max()),
-        'matches_within_threshold': n_valid,
-        'threshold_used': threshold,
-        'scale_factor_used': scale_factor
+        "raw_matches": len(raw_matches),
+        "method": "direct",
+        "mean_distance": float(valid_distances.mean()),
+        "max_distance": float(valid_distances.max()),
+        "matches_within_threshold": n_valid,
+        "threshold_used": threshold,
+        "scale_factor_used": scale_factor,
     }
-    
+
     print(f"Direct matching complete: {len(raw_matches):,} matches")
-    
+
     return raw_matches, stats
 
 
@@ -315,72 +360,77 @@ def _find_matches_chunked(
     sbs_coords: np.ndarray,
     threshold: float,
     chunk_size: int,
-    scale_factor: float
+    scale_factor: float,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """
-    Chunked approach with aggressive memory management.
-    """
+    """Chunked approach with aggressive memory management."""
     import gc
-    
+
     all_matches = []
     n_chunks = (len(sbs_positions) + chunk_size - 1) // chunk_size
-    
+
     print(f"Processing {len(sbs_positions):,} SBS cells in {n_chunks} chunks")
-    
+
     total_matches = 0
     all_distances = []
-    
+
     for chunk_idx in range(n_chunks):
         start_idx = chunk_idx * chunk_size
         end_idx = min((chunk_idx + 1) * chunk_size, len(sbs_positions))
         chunk_size_actual = end_idx - start_idx
-        
+
         if chunk_idx % 2 == 0:  # Print progress every other chunk
-            print(f"Processing chunk {chunk_idx + 1}/{n_chunks} ({chunk_size_actual:,} cells)")
-        
+            print(
+                f"Processing chunk {chunk_idx + 1}/{n_chunks} ({chunk_size_actual:,} cells)"
+            )
+
         # Get chunk of SBS coordinates
         sbs_chunk_coords = sbs_coords[start_idx:end_idx]
-        
+
         # Calculate distances for this chunk
-        distances = cdist(sbs_chunk_coords, transformed_coords, metric='euclidean')
-        
+        distances = cdist(sbs_chunk_coords, transformed_coords, metric="euclidean")
+
         # Find closest phenotype cell for each SBS cell in chunk
         closest_pheno_idx = distances.argmin(axis=1)
         min_distances = distances.min(axis=1)
-        
+
         # Clear the distance matrix immediately
         del distances
         gc.collect()
-        
+
         # Filter by threshold
         valid_matches = min_distances < threshold
         chunk_matches = valid_matches.sum()
         total_matches += chunk_matches
-        
+
         if chunk_matches > 0:
             # Get indices for this chunk
             chunk_sbs_indices = np.arange(start_idx, end_idx)[valid_matches]
             chunk_pheno_indices = closest_pheno_idx[valid_matches]
             chunk_distances = min_distances[valid_matches]
-            
+
             # Build chunk matches
             chunk_matches_df = _build_matches_dataframe(
-                phenotype_positions, sbs_positions,
-                chunk_pheno_indices, chunk_sbs_indices, chunk_distances,
-                transformed_coords, sbs_coords, scale_factor
+                phenotype_positions,
+                sbs_positions,
+                chunk_pheno_indices,
+                chunk_sbs_indices,
+                chunk_distances,
+                transformed_coords,
+                sbs_coords,
+                scale_factor,
             )
-            
+
             all_matches.append(chunk_matches_df)
             all_distances.extend(chunk_distances.tolist())
-        
+
         # Clear chunk variables
         del sbs_chunk_coords, closest_pheno_idx, min_distances, valid_matches
-        if 'chunk_distances' in locals():
+        if "chunk_distances" in locals():
             del chunk_distances, chunk_pheno_indices, chunk_sbs_indices
         gc.collect()
-    
+
     print(f"Chunking complete: {total_matches:,} total matches found")
-    
+
     # Combine all chunks
     if all_matches:
         raw_matches = pd.concat(all_matches, ignore_index=True)
@@ -388,7 +438,7 @@ def _find_matches_chunked(
         gc.collect()
     else:
         raw_matches = pd.DataFrame()
-    
+
     # Calculate stats
     if len(all_distances) > 0:
         mean_distance = float(np.mean(all_distances))
@@ -396,22 +446,24 @@ def _find_matches_chunked(
     else:
         mean_distance = 0.0
         max_distance = 0.0
-    
+
     stats = {
-        'raw_matches': len(raw_matches),
-        'method': 'chunked',
-        'chunks_processed': n_chunks,
-        'chunks_with_matches': len(all_matches) if 'all_matches' in locals() and all_matches else 0,
-        'chunk_size': chunk_size,
-        'mean_distance': mean_distance,
-        'max_distance': max_distance,
-        'matches_within_threshold': total_matches,
-        'threshold_used': threshold,
-        'scale_factor_used': scale_factor
+        "raw_matches": len(raw_matches),
+        "method": "chunked",
+        "chunks_processed": n_chunks,
+        "chunks_with_matches": len(all_matches)
+        if "all_matches" in locals() and all_matches
+        else 0,
+        "chunk_size": chunk_size,
+        "mean_distance": mean_distance,
+        "max_distance": max_distance,
+        "matches_within_threshold": total_matches,
+        "threshold_used": threshold,
+        "scale_factor_used": scale_factor,
     }
-    
+
     print(f"Chunked matching complete: {len(raw_matches):,} matches")
-    
+
     return raw_matches, stats
 
 
@@ -423,135 +475,143 @@ def _build_matches_dataframe(
     distances: np.ndarray,
     transformed_coords: np.ndarray,
     sbs_coords: np.ndarray,
-    scale_factor: float
+    scale_factor: float,
 ) -> pd.DataFrame:
-    """
-    Build matches DataFrame using the EXACT same coordinates that were used for distance calculation.
+    """Build matches DataFrame using the EXACT same coordinates that were used for distance calculation.
     FIXED: Use 'stitched_cell_id' for coordinates matching, not 'label' or 'original_cell_id'.
     """
-    
     # Determine which cell ID column to use for each dataset
     # Priority: stitched_cell_id > label > original_cell_id
     pheno_id_col = None
     sbs_id_col = None
-    
-    for col_name in ['stitched_cell_id', 'label', 'original_cell_id']:
+
+    for col_name in ["stitched_cell_id", "label", "original_cell_id"]:
         if pheno_id_col is None and col_name in phenotype_positions.columns:
             pheno_id_col = col_name
         if sbs_id_col is None and col_name in sbs_positions.columns:
             sbs_id_col = col_name
-    
+
     if pheno_id_col is None:
-        raise ValueError("No suitable phenotype cell ID column found (stitched_cell_id, label, or original_cell_id)")
+        raise ValueError(
+            "No suitable phenotype cell ID column found (stitched_cell_id, label, or original_cell_id)"
+        )
     if sbs_id_col is None:
-        raise ValueError("No suitable SBS cell ID column found (stitched_cell_id, label, or original_cell_id)")
-    
+        raise ValueError(
+            "No suitable SBS cell ID column found (stitched_cell_id, label, or original_cell_id)"
+        )
+
     print(f"Using phenotype ID column: {pheno_id_col}")
     print(f"Using SBS ID column: {sbs_id_col}")
-    
-    matches_df = pd.DataFrame({
-        'cell_0': phenotype_positions.iloc[pheno_indices][pheno_id_col].values,
-        'i_0': transformed_coords[pheno_indices, 0],
-        'j_0': transformed_coords[pheno_indices, 1],
-        'cell_1': sbs_positions.iloc[sbs_indices][sbs_id_col].values,
-        'i_1': sbs_coords[sbs_indices, 0],
-        'j_1': sbs_coords[sbs_indices, 1],
-        'distance': distances
-    })
-    
+
+    matches_df = pd.DataFrame(
+        {
+            "cell_0": phenotype_positions.iloc[pheno_indices][pheno_id_col].values,
+            "i_0": transformed_coords[pheno_indices, 0],
+            "j_0": transformed_coords[pheno_indices, 1],
+            "cell_1": sbs_positions.iloc[sbs_indices][sbs_id_col].values,
+            "i_1": sbs_coords[sbs_indices, 0],
+            "j_1": sbs_coords[sbs_indices, 1],
+            "distance": distances,
+        }
+    )
+
     # Add area columns from original positions if available
-    if 'area' in phenotype_positions.columns:
-        matches_df['area_0'] = phenotype_positions.iloc[pheno_indices]['area'].values
+    if "area" in phenotype_positions.columns:
+        matches_df["area_0"] = phenotype_positions.iloc[pheno_indices]["area"].values
     else:
-        matches_df['area_0'] = np.nan
-        
-    if 'area' in sbs_positions.columns:
-        matches_df['area_1'] = sbs_positions.iloc[sbs_indices]['area'].values
+        matches_df["area_0"] = np.nan
+
+    if "area" in sbs_positions.columns:
+        matches_df["area_1"] = sbs_positions.iloc[sbs_indices]["area"].values
     else:
-        matches_df['area_1'] = np.nan
-    
+        matches_df["area_1"] = np.nan
+
     return matches_df
 
 
 def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Validate cell matches and return quality metrics.
-    
+    """Validate cell matches and return quality metrics.
+
     Args:
         matches_df: DataFrame with cell matches
-        
+
     Returns:
         Dictionary with validation metrics
     """
     if matches_df.empty:
-        return {'status': 'empty', 'match_count': 0}
-    
+        return {"status": "empty", "match_count": 0}
+
     # Basic counts
     n_matches = len(matches_df)
-    n_unique_pheno = matches_df['cell_0'].nunique()
-    n_unique_sbs = matches_df['cell_1'].nunique()
-    
+    n_unique_pheno = matches_df["cell_0"].nunique()
+    n_unique_sbs = matches_df["cell_1"].nunique()
+
     # Distance statistics
-    distances = matches_df['distance']
+    distances = matches_df["distance"]
     mean_dist = distances.mean()
     median_dist = distances.median()
     max_dist = distances.max()
     std_dist = distances.std()
-    
+
     # Distance thresholds
     under_1px = (distances < 1).sum()
     under_2px = (distances < 2).sum()
     under_5px = (distances < 5).sum()
     under_10px = (distances < 10).sum()
     over_20px = (distances > 20).sum()
-    
+
     # Duplication analysis
-    pheno_duplicates = matches_df['cell_0'].duplicated().sum()
-    sbs_duplicates = matches_df['cell_1'].duplicated().sum()
-    
+    pheno_duplicates = matches_df["cell_0"].duplicated().sum()
+    sbs_duplicates = matches_df["cell_1"].duplicated().sum()
+
     # Quality flags
     has_duplicates = pheno_duplicates > 0 or sbs_duplicates > 0
     has_large_distances = over_20px > 0
-    good_quality = not has_duplicates and mean_dist < 5.0 and over_20px < n_matches * 0.05
-    
+    good_quality = (
+        not has_duplicates and mean_dist < 5.0 and over_20px < n_matches * 0.05
+    )
+
     return {
-        'status': 'valid',
-        'match_count': n_matches,
-        'unique_phenotype_cells': n_unique_pheno,
-        'unique_sbs_cells': n_unique_sbs,
-        'distance_stats': {
-            'mean': float(mean_dist),
-            'median': float(median_dist),
-            'max': float(max_dist),
-            'std': float(std_dist)
+        "status": "valid",
+        "match_count": n_matches,
+        "unique_phenotype_cells": n_unique_pheno,
+        "unique_sbs_cells": n_unique_sbs,
+        "distance_stats": {
+            "mean": float(mean_dist),
+            "median": float(median_dist),
+            "max": float(max_dist),
+            "std": float(std_dist),
         },
-        'distance_distribution': {
-            'under_1px': int(under_1px),
-            'under_2px': int(under_2px),
-            'under_5px': int(under_5px),
-            'under_10px': int(under_10px),
-            'over_20px': int(over_20px)
+        "distance_distribution": {
+            "under_1px": int(under_1px),
+            "under_2px": int(under_2px),
+            "under_5px": int(under_5px),
+            "under_10px": int(under_10px),
+            "over_20px": int(over_20px),
         },
-        'duplication': {
-            'phenotype_duplicates': int(pheno_duplicates),
-            'sbs_duplicates': int(sbs_duplicates),
-            'has_duplicates': has_duplicates
+        "duplication": {
+            "phenotype_duplicates": int(pheno_duplicates),
+            "sbs_duplicates": int(sbs_duplicates),
+            "has_duplicates": has_duplicates,
         },
-        'quality_flags': {
-            'has_duplicates': has_duplicates,
-            'has_large_distances': has_large_distances,
-            'good_quality': good_quality
-        }
+        "quality_flags": {
+            "has_duplicates": has_duplicates,
+            "has_large_distances": has_large_distances,
+            "good_quality": good_quality,
+        },
     }
+
 
 def debug_coordinate_uniqueness(coords, name, sample_size=10):
     """Debug coordinate uniqueness and precision."""
     print(f"DEBUG: {name} coordinate analysis")
-    print(f"  Total: {len(coords):,}, Unique: {len(np.unique(coords.view(np.void), return_counts=True)[0]):,}")
-    
+    print(
+        f"  Total: {len(coords):,}, Unique: {len(np.unique(coords.view(np.void), return_counts=True)[0]):,}"
+    )
+
     # Sample precision analysis
-    sample_coords = coords[:min(sample_size, len(coords))]
+    sample_coords = coords[: min(sample_size, len(coords))]
     for idx, (i, j) in enumerate(sample_coords[:3]):  # Just show first 3
         print(f"  [{idx}] i={i:.3f}, j={j:.3f}")
-    
+
     return len(np.unique(coords.view(np.void), return_counts=True)[0])

@@ -61,12 +61,12 @@ def cleanup_memory():
 
 
 def process_stitching(metadata_df, stitch_config, plate, well, data_type, params):
-    """
-    Main stitching processing function.
+    """Main stitching processing function.
     Fails fast on critical errors, processes what it can otherwise.
     """
-
-    print_progress(f"Starting {data_type.upper()} stitching for Plate {plate}, Well {well}")
+    print_progress(
+        f"Starting {data_type.upper()} stitching for Plate {plate}, Well {well}"
+    )
 
     # Filter metadata to specific plate and well
     well_metadata = metadata_df[
@@ -88,7 +88,7 @@ def process_stitching(metadata_df, stitch_config, plate, well, data_type, params
     # Validate stitch config
     if "total_translation" not in stitch_config:
         raise ValueError("Stitch config missing 'total_translation' data")
-    
+
     shifts = stitch_config["total_translation"]
     if len(shifts) == 0:
         raise ValueError("No tile shifts found in stitch config")
@@ -113,8 +113,10 @@ def process_stitching(metadata_df, stitch_config, plate, well, data_type, params
         raise RuntimeError(f"Image stitching failed: {e}")
 
     # Step 2: Assemble stitched masks (if available)
-    cell_positions = pd.DataFrame(columns=["well", "cell", "i", "j", "area", "data_type"])
-    
+    cell_positions = pd.DataFrame(
+        columns=["well", "cell", "i", "j", "area", "data_type"]
+    )
+
     if masks_exist:
         print_progress("Assembling stitched masks...")
         try:
@@ -128,7 +130,9 @@ def process_stitching(metadata_df, stitch_config, plate, well, data_type, params
                 rot90=params.rot90,
                 return_cell_mapping=True,
             )
-            print_success(f"Stitched mask created: {stitched_mask.shape}, {stitched_mask.max()} max label")
+            print_success(
+                f"Stitched mask created: {stitched_mask.shape}, {stitched_mask.max()} max label"
+            )
 
             # Step 3: Extract cell positions
             if stitched_mask.max() > 0:
@@ -217,23 +221,27 @@ def main():
 
         # Save outputs
         print_progress("Saving outputs...")
-        
+
         # Save stitched image
         np.save(snakemake.output[0], results["stitched_image"])
         print_success(f"Stitched image saved: {snakemake.output[0]}")
 
-        # Save stitched mask  
+        # Save stitched mask
         np.save(snakemake.output[1], results["stitched_mask"])
         print_success(f"Stitched mask saved: {snakemake.output[1]}")
 
         # Save cell positions
         results["cell_positions"].to_parquet(snakemake.output[2])
-        print_success(f"Cell positions saved: {snakemake.output[2]} ({len(results['cell_positions'])} cells)")
+        print_success(
+            f"Cell positions saved: {snakemake.output[2]} ({len(results['cell_positions'])} cells)"
+        )
 
         # Create QC plot (optional 4th output if defined)
         if len(snakemake.output) > 3:
             qc_output_dir = Path(snakemake.output[3]).parent
-            create_qc_plot(results["cell_positions"], plate, well, data_type, qc_output_dir)
+            create_qc_plot(
+                results["cell_positions"], plate, well, data_type, qc_output_dir
+            )
 
         print_success(f"{data_type.upper()} stitching completed successfully!")
 

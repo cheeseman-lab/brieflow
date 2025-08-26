@@ -39,8 +39,7 @@ def automated_parameter_search(
     sort_calls="peak",
     verbose=False,
 ):
-    """
-    Automated parameter search for SBS processing.
+    """Automated parameter search for SBS processing.
 
     This function systematically tests combinations of `peak_width` and `threshold_reads`
     to optimize SBS (sequencing by synthesis) image analysis. It returns a summary DataFrame
@@ -95,14 +94,13 @@ def automated_parameter_search(
     verbose : bool, default=False
         If True, print progress and debug information.
 
-    Returns
+    Returns:
     -------
     results_df : pd.DataFrame
         DataFrame summarizing results for each parameter combination.
     df_cells_combined : pd.DataFrame or None
         Combined DataFrame of per-cell calls for all successful parameter sets.
     """
-
     try:
         from lib.shared.log_filter import log_filter
         from lib.sbs.max_filter import max_filter
@@ -380,8 +378,7 @@ def automated_parameter_search(
 
 
 def compute_peak_fraction(df_cells):
-    """
-    Compute fraction of cells where peak_1 >= 0.1 * peak_0 among all valid peak_0 cells,
+    """Compute fraction of cells where peak_1 >= 0.1 * peak_0 among all valid peak_0 cells,
     treating NaN peak_1 as not significant.
 
     Parameters
@@ -389,7 +386,7 @@ def compute_peak_fraction(df_cells):
     df_cells : pd.DataFrame
         Must include 'peak_0', 'peak_1', 'peak_width', 'threshold_reads'
 
-    Returns
+    Returns:
     -------
     pd.DataFrame with:
         - peak_width
@@ -437,8 +434,7 @@ def compute_peak_fraction(df_cells):
 
 
 def visualize_parameter_results(results_df, df_cells=None, save_plots=False):
-    """
-    Visualize the results of parameter search for barcode mapping performance.
+    """Visualize the results of parameter search for barcode mapping performance.
     This function generates a 2x2 grid of heatmaps summarizing key metrics:
     fraction of cells mapped to any barcode, the fraction mapped to a single barcode,
     the gap between these fractions, and the significance of a secondary peak in the data.
@@ -455,12 +451,14 @@ def visualize_parameter_results(results_df, df_cells=None, save_plots=False):
         If provided, must be compatible with `compute_peak_fraction`.
     save_plots : bool, default False
         If True, saves the generated plots as 'parameter_search_results.png' in the current directory.
-    Returns
+
+    Returns:
     -------
     pandas.DataFrame or None
         Filtered DataFrame of successful parameter sets, possibly augmented with peak significance metrics.
         Returns None if there are no successful results to visualize.
-    Notes
+
+    Notes:
     -----
     - Only parameter sets with status 'success' are visualized.
     - If `df_cells` is provided, the function computes and displays the top parameter sets by peak1 significance.
@@ -605,8 +603,7 @@ def visualize_parameter_results(results_df, df_cells=None, save_plots=False):
 
 
 def get_best_parameters(results_df, df_cells=None, priority="balanced"):
-    """
-    Get recommended parameters based on priority.
+    """Get recommended parameters based on priority.
 
     Parameters:
     -----------

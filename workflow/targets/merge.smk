@@ -5,7 +5,7 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 MERGE_FP = ROOT_FP / "merge"
 
 MERGE_OUTPUTS = {
-    # Stitching configuration outputs (only needed for enhanced approach)
+    # Stitching configuration outputs (only needed for well approach)
     "estimate_stitch_phenotype": [
         MERGE_FP
         / "stitch_configs"
@@ -21,7 +21,7 @@ MERGE_OUTPUTS = {
         ),
     ],
     
-    # Enhanced stitching outputs (only needed for enhanced approach)
+    # Well-based stitching outputs (only needed for well approach)
     "stitch_phenotype_image": [
         MERGE_FP
         / "stitched_images"
@@ -76,7 +76,7 @@ MERGE_OUTPUTS = {
         ),
     ],
     
-    # NEW: 3-Step Enhanced Pipeline Outputs (Nested by Rule)
+    # 3-Step Well Pipeline Outputs
     "well_alignment": [
         MERGE_FP / "well_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_scaled", "parquet"
@@ -126,10 +126,10 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "fast_alignment", "parquet"
         ),
     ],
-    "merge_legacy": [
+    "merge_tile": [
         MERGE_FP
         / "parquets"
-        / get_filename({"plate": "{plate}", "well": "{well}"}, "merge_legacy", "parquet"),
+        / get_filename({"plate": "{plate}", "well": "{well}"}, "merge_tile", "parquet"),
     ],
     
     # Main merge output (always needed)
@@ -215,25 +215,26 @@ MERGE_OUTPUTS = {
 
 def get_merge_targets_by_approach():
     """Get targets based on the configured approach"""
-    approach = config.get("merge", {}).get("approach", "legacy")
+    approach = config.get("merge", {}).get("approach", "tile")
     
     # Core targets that are always needed
-    core_targets = [
-        "format_merge", "deduplicate_merge", "final_merge", "eval_merge"
-    ]
+    core_targets = ["format_merge", "final_merge", "eval_merge"]
     
-    if approach == "enhanced":
+    if approach == "well":
         approach_targets = [
             "estimate_stitch_phenotype", "estimate_stitch_sbs",
             "stitch_phenotype_image", "stitch_phenotype_mask", "stitch_phenotype_positions",
             "stitch_sbs_image", "stitch_sbs_mask", "stitch_sbs_positions", 
             "well_alignment", "well_cell_merge", "well_merge_deduplicate",
         ]
+        # For well approach, we skip deduplicate_merge since deduplication is done in well_merge_deduplicate
     else:
         # Legacy approach targets
         approach_targets = [
-            "fast_alignment", "merge_legacy"
+            "fast_alignment", "merge_tile"
         ]
+        # Legacy approach needs the additional deduplicate_merge step
+        core_targets.insert(-2, "deduplicate_merge")  # Insert before final_merge and eval_merge
     
     # Always include the main merge target
     all_targets = approach_targets + ["merge"] + core_targets
@@ -255,7 +256,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "well_merge_deduplicate": None,
     "well_merge": None,
     "fast_alignment": None,
-    "merge_legacy": None,
+    "merge_tile": None,
     "merge": None,
     "format_merge": None,
     "eval_merge": None,

@@ -1,7 +1,7 @@
 from lib.shared.target_utils import output_to_input
 
 
-# Stitching rules (always available for enhanced approach)
+# Stitching rules (always available for well approach)
 rule estimate_stitch_phenotype:
     input:
         phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
@@ -151,7 +151,7 @@ rule well_cell_merge:
     script:
         "../scripts/merge/well_cell_merge.py"
 
-# Step 3: Deduplication and final processing
+# Step 3: Deduplication and final processing (only for well approach)
 rule well_merge_deduplicate:
     input:
         raw_matches=MERGE_OUTPUTS["well_cell_merge"][0],                    
@@ -165,18 +165,18 @@ rule well_merge_deduplicate:
     script:
         "../scripts/merge/well_merge_deduplicate.py"
 
-# Updated main merge rule to use the new 3-step pipeline
+# Updated main merge rule to use the new approaches
 rule merge:
     input:
         lambda wildcards: (
             MERGE_OUTPUTS["well_merge_deduplicate"][0]  # deduplicated_cells.parquet
-            if config.get("merge", {}).get("approach", "legacy") == "enhanced"
-            else MERGE_OUTPUTS["merge_legacy"][0]
+            if config.get("merge", {}).get("approach", "tile") == "well"
+            else MERGE_OUTPUTS["merge_tile"][0]
         )
     output:
         MERGE_OUTPUTS_MAPPED["merge"],
     params:
-        approach=config.get("merge", {}).get("approach", "legacy"),
+        approach=config.get("merge", {}).get("approach", "tile"),
     run:
         import pandas as pd
         from lib.shared.file_utils import validate_dtypes
@@ -190,19 +190,19 @@ rule merge:
         print(f"Merged {len(merge_data)} cells")
 
 # Original merge approach (tile-by-tile)
-rule merge_legacy:
+rule merge_tile:
     input:
         ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
         ancient(SBS_OUTPUTS["combine_sbs_info"]),
         MERGE_OUTPUTS["fast_alignment"],
     output:
-        MERGE_OUTPUTS_MAPPED["merge_legacy"],
+        MERGE_OUTPUTS_MAPPED["merge_tile"],
     params:
         det_range=config["merge"]["det_range"],
         score=config["merge"]["score"],
         threshold=config["merge"]["threshold"],
     script:
-        "../scripts/merge/merge_legacy.py"
+        "../scripts/merge/merge_tile.py"
 
 
 # Enhanced well merge alternative name for backwards compatibility
@@ -222,7 +222,7 @@ rule well_merge:
         "../scripts/merge/well_merge.py"
 
 
-# Format merge data (works with both approaches)
+# Format merge data - now approach-aware
 rule format_merge:
     input:
         MERGE_OUTPUTS["merge"],
@@ -230,11 +230,13 @@ rule format_merge:
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1]),
     output:
         MERGE_OUTPUTS_MAPPED["format_merge"],
+    params:
+        approach=config.get("merge", {}).get("approach", "tile"),
     script:
         "../scripts/merge/format_merge.py"
 
 
-# Deduplicate merge data (unchanged)
+# Deduplicate merge data - only for tile approach
 rule deduplicate_merge:
     input:
         MERGE_OUTPUTS["format_merge"],
@@ -242,17 +244,45 @@ rule deduplicate_merge:
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1]),
     output:
         MERGE_OUTPUTS_MAPPED["deduplicate_merge"],
-    script:
-        "../scripts/merge/deduplicate_merge.py"
+    params:
+        approach=config.get("merge", {}).get("approach", "tile"),
+    run:
+        approach = params.approach
+        if approach == "well":
+            # For well approach, we already deduplicated, so just copy the formatted data
+            import pandas as pd
+            from lib.shared.file_utils import validate_dtypes
+            
+            formatted_data = validate_dtypes(pd.read_parquet(input[0]))
+            
+            # Create dummy outputs to match expected structure
+            # Save the formatted data as "deduplicated" (no additional deduplication needed)
+            formatted_data.to_parquet(output[1])  # merge_deduplicated.parquet
+            
+            # Create dummy stats files
+            import pandas as pd
+            dummy_stats = pd.DataFrame({"info": ["No additional deduplication - already done in well_merge_deduplicate"]})
+            dummy_stats.to_csv(output[0], sep='\t', index=False)  # deduplication_stats.tsv
+            dummy_stats.to_csv(output[2], sep='\t', index=False)  # final_sbs_matching_rates.tsv  
+            dummy_stats.to_csv(output[3], sep='\t', index=False)  # final_phenotype_matching_rates.tsv
+        else:
+            # For tile approach, run the actual deduplication script
+            shell("python {workflow.basedir}/scripts/merge/deduplicate_merge.py")
 
 
-# Final merge with all feature data (unchanged)
+# Final merge with all feature data - approach-aware input
 rule final_merge:
     input:
-        MERGE_OUTPUTS["deduplicate_merge"][1],
+        lambda wildcards: (
+            MERGE_OUTPUTS["format_merge"][0]  # Use formatted data directly for well approach
+            if config.get("merge", {}).get("approach", "tile") == "well" 
+            else MERGE_OUTPUTS["deduplicate_merge"][1]  # Use deduplicated data for tile
+        ),
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0]),
     output:
         MERGE_OUTPUTS_MAPPED["final_merge"],
+    params:
+        approach=config.get("merge", {}).get("approach", "tile"),
     script:
         "../scripts/merge/final_merge.py"
 

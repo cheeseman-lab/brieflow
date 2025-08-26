@@ -1,12 +1,62 @@
 """
 Step 2 Library: Cell-to-cell matching functions.
 FIXED VERSION: Coordinate system alignment corrected and cleaned up output.
+Added single-cell tile filtering to prevent phenotype extraction failures.
 """
 
 import pandas as pd
 import numpy as np
 from scipy.spatial.distance import cdist
 from typing import Dict, Any, Tuple
+
+
+def filter_single_cell_tiles(matches_df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Filter out single-cell tiles that cause phenotype extraction failures.
+    
+    Single-cell tiles are dropped during phenotype extraction due to the buggy
+    early exit condition in extract_phenotype_cp_multichannel, but they still
+    appear in merge data. This causes NaN lookups in format_merge.
+    
+    Args:
+        matches_df: DataFrame with cell matches
+        
+    Returns:
+        Tuple of (filtered_df, filtering_stats)
+    """
+    if matches_df.empty:
+        return matches_df, {'tiles_removed': 0, 'cells_removed': 0, 'cells_kept': 0}
+    
+    # Count cells per tile
+    tile_cell_counts = matches_df.groupby(['plate', 'well', 'site', 'tile']).size()
+    
+    # Identify single-cell tiles
+    single_cell_tiles = tile_cell_counts[tile_cell_counts == 1].index
+    
+    if len(single_cell_tiles) == 0:
+        return matches_df, {'tiles_removed': 0, 'cells_removed': 0, 'cells_kept': len(matches_df)}
+    
+    # Create mask for tiles to keep
+    keep_mask = pd.Series(True, index=matches_df.index)
+    
+    for plate_id, well_id, site_id, tile_id in single_cell_tiles:
+        tile_mask = (
+            (matches_df['plate'] == plate_id) & 
+            (matches_df['well'] == well_id) & 
+            (matches_df['site'] == site_id) & 
+            (matches_df['tile'] == tile_id)
+        )
+        keep_mask &= ~tile_mask
+    
+    filtered_df = matches_df[keep_mask].copy()
+    
+    filtering_stats = {
+        'tiles_removed': len(single_cell_tiles),
+        'cells_removed': len(matches_df) - len(filtered_df),
+        'cells_kept': len(filtered_df)
+    }
+    
+    return filtered_df, filtering_stats
 
 
 def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
@@ -377,13 +427,33 @@ def _build_matches_dataframe(
 ) -> pd.DataFrame:
     """
     Build matches DataFrame using the EXACT same coordinates that were used for distance calculation.
+    FIXED: Use 'stitched_cell_id' for coordinates matching, not 'label' or 'original_cell_id'.
     """
     
+    # Determine which cell ID column to use for each dataset
+    # Priority: stitched_cell_id > label > original_cell_id
+    pheno_id_col = None
+    sbs_id_col = None
+    
+    for col_name in ['stitched_cell_id', 'label', 'original_cell_id']:
+        if pheno_id_col is None and col_name in phenotype_positions.columns:
+            pheno_id_col = col_name
+        if sbs_id_col is None and col_name in sbs_positions.columns:
+            sbs_id_col = col_name
+    
+    if pheno_id_col is None:
+        raise ValueError("No suitable phenotype cell ID column found (stitched_cell_id, label, or original_cell_id)")
+    if sbs_id_col is None:
+        raise ValueError("No suitable SBS cell ID column found (stitched_cell_id, label, or original_cell_id)")
+    
+    print(f"Using phenotype ID column: {pheno_id_col}")
+    print(f"Using SBS ID column: {sbs_id_col}")
+    
     matches_df = pd.DataFrame({
-        'cell_0': phenotype_positions.iloc[pheno_indices]['stitched_cell_id'].values,
+        'cell_0': phenotype_positions.iloc[pheno_indices][pheno_id_col].values,
         'i_0': transformed_coords[pheno_indices, 0],
         'j_0': transformed_coords[pheno_indices, 1],
-        'cell_1': sbs_positions.iloc[sbs_indices]['stitched_cell_id'].values,
+        'cell_1': sbs_positions.iloc[sbs_indices][sbs_id_col].values,
         'i_1': sbs_coords[sbs_indices, 0],
         'j_1': sbs_coords[sbs_indices, 1],
         'distance': distances

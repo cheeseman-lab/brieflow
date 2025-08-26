@@ -128,7 +128,6 @@ rule well_alignment:
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
-        # REMOVED: scale_factor=config.get("merge", {}).get("scale_factor", 0.125),
         det_range=config["merge"]["det_range"],
         score_threshold=config["merge"]["score"],
     script:
@@ -163,7 +162,6 @@ rule well_merge_deduplicate:
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
-        dedup_strategy=config.get("merge", {}).get("dedup_strategy", "greedy_1to1"),
     script:
         "../scripts/merge/well_merge_deduplicate.py"
 

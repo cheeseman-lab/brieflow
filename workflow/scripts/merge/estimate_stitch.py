@@ -8,7 +8,7 @@ import numpy as np
 
 
 def convert_numpy_types(obj):
-    """Convert numpy types to Python native types for YAML serialization"""
+    """Convert numpy types to Python native types for YAML serialization."""
     if isinstance(obj, dict):
         return {key: convert_numpy_types(value) for key, value in obj.items()}
     elif isinstance(obj, list):

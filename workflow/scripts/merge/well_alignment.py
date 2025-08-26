@@ -1,5 +1,5 @@
 """Step 1: Well Alignment - Coordinate scaling, triangle hashing, and alignment estimation.
-Save this as: workflow/scripts/merge/well_alignment.py
+Save this as: workflow/scripts/merge/well_alignment.py.
 """
 
 import pandas as pd

@@ -1,5 +1,5 @@
 """Enhanced well merge pipeline with separate output files for each step.
-Save this as: workflow/scripts/merge/well_merge.py
+Save this as: workflow/scripts/merge/well_merge.py.
 
 This version saves triangle hashes, alignment parameters, and summary as separate
 Snakemake outputs instead of creating subdirectories.

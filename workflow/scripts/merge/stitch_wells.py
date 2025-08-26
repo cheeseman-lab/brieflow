@@ -17,27 +17,27 @@ from lib.merge.stitch_well import (
 
 
 def print_progress(message):
-    """Print essential progress messages only"""
+    """Print essential progress messages only."""
     print(f"🔄 {message}")
 
 
 def print_success(message):
-    """Print success messages"""
+    """Print success messages."""
     print(f"✅ {message}")
 
 
 def print_error(message):
-    """Print error messages"""
+    """Print error messages."""
     print(f"❌ {message}")
 
 
 def print_warning(message):
-    """Print warning messages"""
+    """Print warning messages."""
     print(f"⚠️  {message}")
 
 
 def check_mask_files_exist(metadata_df, well, data_type):
-    """Check if nuclei mask files exist for this well"""
+    """Check if nuclei mask files exist for this well."""
     well_metadata = metadata_df[metadata_df["well"] == well]
 
     if len(well_metadata) == 0:
@@ -56,7 +56,7 @@ def check_mask_files_exist(metadata_df, well, data_type):
 
 
 def cleanup_memory():
-    """Memory cleanup"""
+    """Memory cleanup."""
     gc.collect()
 
 
@@ -173,7 +173,7 @@ def process_stitching(metadata_df, stitch_config, plate, well, data_type, params
 
 
 def create_qc_plot(cell_positions, plate, well, data_type, output_dir):
-    """Create QC plot if cell positions are available"""
+    """Create QC plot if cell positions are available."""
     if len(cell_positions) > 0 and "tile" in cell_positions.columns:
         try:
             qc_path = output_dir / f"P-{plate}_W-{well}__{data_type}_tile_qc.png"
@@ -190,7 +190,7 @@ def create_qc_plot(cell_positions, plate, well, data_type, output_dir):
 
 
 def main():
-    """Main execution function"""
+    """Main execution function."""
     data_type = snakemake.params.data_type
     plate = snakemake.params.plate
     well = snakemake.params.well

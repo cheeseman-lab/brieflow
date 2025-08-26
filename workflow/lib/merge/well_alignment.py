@@ -1,5 +1,5 @@
 """Step 1 Library: Coordinate scaling, triangle hashing, and alignment functions.
-Save this as: lib/merge/alignment.py
+Save this as: lib/merge/alignment.py.
 """
 
 import pandas as pd

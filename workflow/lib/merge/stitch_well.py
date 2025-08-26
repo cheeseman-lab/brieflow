@@ -218,7 +218,7 @@ def extract_cell_positions_from_stitched_mask(
 def find_original_tile_from_position(
     global_i, global_j, metadata_df, shifts, tile_size
 ):
-    """Find which original tile a position in the stitched image came from
+    """Find which original tile a position in the stitched image came from.
 
     Parameters:
     -----------
@@ -308,7 +308,7 @@ class LimitedSizeDict(OrderedDict):
 def augment_tile(
     tile: np.ndarray, flipud: bool, fliplr: bool, rot90: int
 ) -> np.ndarray:
-    """Apply flips and rotations to a tile"""
+    """Apply flips and rotations to a tile."""
     if flipud:
         tile = np.flip(tile, axis=-2)
     if fliplr:
@@ -361,7 +361,7 @@ class AlignedTiffTileCache:
         self.channel = channel
 
     def __getitem__(self, tile_id: int):
-        """Get tile by tile ID"""
+        """Get tile by tile ID."""
         if tile_id in self.cache:
             return self.cache[tile_id]
         else:
@@ -372,7 +372,7 @@ class AlignedTiffTileCache:
                 raise KeyError(f"Tile {tile_id} not found")
 
     def load_tile(self, tile_id: int) -> np.ndarray:
-        """Load an aligned TIFF tile and add it to cache"""
+        """Load an aligned TIFF tile and add it to cache."""
         tile_metadata = self.metadata_df[self.metadata_df["tile"] == tile_id]
 
         if len(tile_metadata) == 0:
@@ -421,7 +421,7 @@ class MaskTileCache:
         self.rot90 = rot90
 
     def __getitem__(self, tile_id: int):
-        """Get mask tile by tile ID"""
+        """Get mask tile by tile ID."""
         if tile_id in self.cache:
             return self.cache[tile_id]
         else:
@@ -433,7 +433,7 @@ class MaskTileCache:
                 raise KeyError(f"Mask tile {tile_id} not found")
 
     def load_mask_tile(self, tile_id: int) -> np.ndarray:
-        """Load a segmentation mask tile"""
+        """Load a segmentation mask tile."""
         tile_metadata = self.metadata_df[self.metadata_df["tile"] == tile_id]
 
         if len(tile_metadata) == 0:
@@ -708,7 +708,7 @@ class AlignedTiffEdge:
         self.model = self.get_offset()
 
     def get_offset(self) -> TranslationRegistrationModel:
-        """Calculate offset between two tiles"""
+        """Calculate offset between two tiles."""
         tile_a = self.tile_cache[self.tile_a_id]
         tile_b = self.tile_cache[self.tile_b_id]
 
@@ -912,7 +912,7 @@ def optimal_positions_tiff(
 def get_output_shape_tiff(
     shifts: Dict[str, List[int]], tile_size: Tuple[int, int]
 ) -> Tuple[int, int]:
-    """Calculate the output shape needed for stitched image"""
+    """Calculate the output shape needed for stitched image."""
     if not shifts:
         return tile_size
 

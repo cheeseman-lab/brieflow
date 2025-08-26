@@ -1,5 +1,5 @@
 """Quality Control and Visualization for Stitched Well Outputs
-Run this in a Jupyter notebook for interactive QC
+Run this in a Jupyter notebook for interactive QC.
 """
 
 import pandas as pd
@@ -20,7 +20,7 @@ sns.set_palette("husl")
 
 
 def analyze_stitch_config(config, metadata_df, well, data_type):
-    """Analyze if the stitch config preserves well geometry"""
+    """Analyze if the stitch config preserves well geometry."""
     print(f"\n=== Analyzing {data_type.upper()} Stitch Config ===")
 
     shifts = config["total_translation"]
@@ -156,7 +156,7 @@ def analyze_stitch_config(config, metadata_df, well, data_type):
 
 
 def check_backend_and_setup():
-    """Helper function to check and setup the correct matplotlib backend for interactivity"""
+    """Helper function to check and setup the correct matplotlib backend for interactivity."""
     backend = plt.get_backend()
     print(f"Current matplotlib backend: {backend}")
 
@@ -179,7 +179,7 @@ def check_backend_and_setup():
 
 class StitchQC:
     def __init__(self, base_path, plate, well):
-        """Initialize QC for a specific plate/well
+        """Initialize QC for a specific plate/well.
 
         Parameters:
         -----------
@@ -229,7 +229,7 @@ class StitchQC:
         self.check_files()
 
     def check_files(self):
-        """Check which output files exist"""
+        """Check which output files exist."""
         files = {
             "Phenotype Image": self.phenotype_image,
             "Phenotype Mask": self.phenotype_mask,
@@ -248,7 +248,7 @@ class StitchQC:
             print(f"{name:20} {status} {size}")
 
     def view_overlays(self, figsize=(15, 6)):
-        """Display phenotype and SBS overlays side by side"""
+        """Display phenotype and SBS overlays side by side."""
         fig, axes = plt.subplots(1, 2, figsize=figsize)
 
         # Phenotype overlay
@@ -293,7 +293,7 @@ class StitchQC:
         plt.show()
 
     def analyze_cell_positions(self):
-        """Analyze cell position data and create summary plots"""
+        """Analyze cell position data and create summary plots."""
         # Load position data
         ph_pos = None
         sbs_pos = None
@@ -463,7 +463,7 @@ class StitchQC:
         brightness_range=(0.1, 2.0),
         contrast_range=(0.5, 3.0),
     ):
-        """Memory-efficient stitching quality check with interactive brightness/contrast controls
+        """Memory-efficient stitching quality check with interactive brightness/contrast controls.
 
         Parameters:
         -----------
@@ -508,7 +508,7 @@ class StitchQC:
         display_objects = {}
 
         def adjust_image_display(img_array, brightness=1.0, contrast=1.0):
-            """Apply brightness and contrast adjustments"""
+            """Apply brightness and contrast adjustments."""
             # Normalize to 0-1 range first
             img_norm = (img_array - img_array.min()) / (
                 img_array.max() - img_array.min() + 1e-8
@@ -518,7 +518,7 @@ class StitchQC:
             return adjusted
 
         def update_display(val=None):
-            """Update all image displays with current slider values"""
+            """Update all image displays with current slider values."""
             brightness = brightness_slider.val
             contrast = contrast_slider.val
 
@@ -729,7 +729,7 @@ class StitchQC:
         brightness_levels=[0.3, 0.7, 1.0, 1.5, 2.0],
     ):
         """Non-interactive version showing multiple brightness levels side by side
-        Use this if interactive sliders don't work
+        Use this if interactive sliders don't work.
 
         Parameters:
         -----------
@@ -759,7 +759,7 @@ class StitchQC:
         )
 
         def adjust_image_display(img_array, brightness=1.0):
-            """Apply brightness adjustment"""
+            """Apply brightness adjustment."""
             img_norm = (img_array - img_array.min()) / (
                 img_array.max() - img_array.min() + 1e-8
             )
@@ -842,7 +842,7 @@ class StitchQC:
         plt.show()
 
     def view_region(self, center_row, center_col, size=1000, brightness=2.0):
-        """View a square region centered at specified coordinates with fixed brightness
+        """View a square region centered at specified coordinates with fixed brightness.
 
         Parameters:
         -----------
@@ -876,14 +876,14 @@ plt.ion()  # Turn on interactive mode
 
 # Usage functions
 def quick_qc(base_path, plate, well):
-    """Quick QC check for a single well"""
+    """Quick QC check for a single well."""
     qc = StitchQC(base_path, plate, well)
     qc.view_overlays()
     return qc.analyze_cell_positions()
 
 
 def batch_qc_report(base_path, plate_wells):
-    """Generate QC reports for multiple wells
+    """Generate QC reports for multiple wells.
 
     Parameters:
     -----------

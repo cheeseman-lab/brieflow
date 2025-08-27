@@ -1,26 +1,48 @@
-"""Functions for coordinate scaling, triangle hashing, and alignment."""
+"""Functions for coordinate scaling, triangle hashing, and alignment.
 
-import pandas as pd
+This module provides functionality for aligning cell positions between different 
+imaging modalities (e.g., phenotype and SBS) at the well level. The alignment process
+includes coordinate scaling, triangle-based feature matching, and transformation
+estimation using RANSAC.
+
+Key components:
+- Coordinate scaling based on field-of-view differences
+- Triangle hashing for robust feature matching
+- Geographic sampling strategies for large datasets
+- Adaptive regional sampling for improved alignment accuracy
+"""
+
+import warnings
+from typing import Optional, Tuple, Dict, Any
+
 import numpy as np
+import pandas as pd
 from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
 from sklearn.linear_model import RANSACRegressor
-import warnings
-from typing import Optional, Tuple, Dict, Any
+
 from lib.merge.hash import nine_edge_hash, get_vc, nearest_neighbors
 
 
 def calculate_scale_factor_from_positions(
-    phenotype_positions: pd.DataFrame, sbs_positions: pd.DataFrame
+    phenotype_positions: pd.DataFrame, 
+    sbs_positions: pd.DataFrame
 ) -> float:
     """Calculate scale factor by comparing coordinate ranges from cell positions.
+    
+    The scale factor accounts for differences in magnification between imaging
+    modalities. For example, 40x phenotype imaging compared to 10x SBS imaging
+    would have an expected scale factor of approximately 0.25.
 
     Args:
-        phenotype_positions: High-resolution phenotype cell positions
-        sbs_positions: Lower-resolution SBS cell positions
+        phenotype_positions: High-resolution phenotype cell positions with 'i', 'j' columns
+        sbs_positions: Lower-resolution SBS cell positions with 'i', 'j' columns
 
     Returns:
-        Scale factor (SBS_range / phenotype_range)
+        Scale factor to apply to phenotype coordinates (SBS_range / phenotype_range)
+        
+    Raises:
+        ValueError: If coordinate ranges are zero or negative
     """
     # Get coordinate ranges for both datasets
     pheno_i_range = phenotype_positions["i"].max() - phenotype_positions["i"].min()
@@ -40,7 +62,7 @@ def calculate_scale_factor_from_positions(
     # Use average for robustness (they should be approximately equal)
     scale_factor = (scale_i + scale_j) / 2
 
-    # Validate the scale factor is reasonable (should be around 0.25 for 40x->10x)
+    # Validate the scale factor is reasonable
     if not (0.1 <= scale_factor <= 0.5):
         print(
             f"Warning: Unusual scale factor {scale_factor:.3f}. Expected ~0.25 for 40x->10x"
@@ -50,14 +72,14 @@ def calculate_scale_factor_from_positions(
 
 
 def scale_coordinates(positions_df: pd.DataFrame, scale_factor: float) -> pd.DataFrame:
-    """Scale coordinate columns by a factor.
+    """Scale coordinate columns by a constant factor.
 
     Args:
         positions_df: DataFrame with 'i' and 'j' coordinate columns
         scale_factor: Factor to multiply coordinates by
 
     Returns:
-        DataFrame with scaled coordinates
+        DataFrame with scaled coordinates (copy of original with modified coordinates)
     """
     scaled_df = positions_df.copy()
     scaled_df["i"] = scaled_df["i"] * scale_factor
@@ -66,16 +88,21 @@ def scale_coordinates(positions_df: pd.DataFrame, scale_factor: float) -> pd.Dat
 
 
 def calculate_coordinate_overlap(
-    positions_1: pd.DataFrame, positions_2: pd.DataFrame
+    positions_1: pd.DataFrame, 
+    positions_2: pd.DataFrame
 ) -> float:
     """Calculate the overlap fraction between two coordinate datasets.
+    
+    Computes the rectangular overlap between the bounding boxes of two
+    coordinate datasets as a fraction of the second dataset's area.
 
     Args:
-        positions_1: First coordinate dataset
-        positions_2: Second coordinate dataset
+        positions_1: First coordinate dataset with 'i', 'j' columns
+        positions_2: Second coordinate dataset with 'i', 'j' columns
 
     Returns:
-        Overlap fraction (0.0 to 1.0)
+        Overlap fraction (0.0 to 1.0), where 1.0 means complete overlap
+        of the second dataset within the first
     """
     # Get coordinate ranges
     i1_min, i1_max = positions_1["i"].min(), positions_1["i"].max()
@@ -107,9 +134,23 @@ def calculate_coordinate_overlap(
 
 
 def well_level_triangle_hash(positions_df: pd.DataFrame) -> pd.DataFrame:
-    """Generate triangle hash for well-level data using the exact same approach as tile-by-tile.
+    """Generate triangle hash for well-level data using Delaunay triangulation.
 
-    This replicates the proven find_triangles function but for stitched well data.
+    Creates a robust feature representation by computing triangle edge vectors
+    from Delaunay triangulation. Each triangle is represented by a 18-dimensional
+    vector of edge lengths and orientations, making it suitable for matching
+    across different coordinate systems.
+
+    Args:
+        positions_df: DataFrame with 'i', 'j' coordinate columns
+
+    Returns:
+        DataFrame with triangle feature vectors including:
+        - V_0 to V_17: Triangle edge vector components
+        - c_0, c_1: Triangle centroid coordinates
+        - magnitude: Triangle scale normalization factor
+        
+        Returns empty DataFrame if triangulation fails or insufficient points
     """
     if len(positions_df) < 4:
         return pd.DataFrame()
@@ -121,11 +162,11 @@ def well_level_triangle_hash(positions_df: pd.DataFrame) -> pd.DataFrame:
         vectors, centers = [], []
 
         for i in range(dt.simplices.shape[0]):
-            # Skip triangles with an edge on the outer boundary (same as tile-by-tile)
+            # Skip triangles with an edge on the outer boundary
             if (dt.neighbors[i] == -1).any():
                 continue
 
-            # Use the exact same nine_edge_hash function from your working pipeline
+            # Generate nine-edge hash feature vector
             result = nine_edge_hash(dt, i)
             if result is None:
                 continue
@@ -135,16 +176,19 @@ def well_level_triangle_hash(positions_df: pd.DataFrame) -> pd.DataFrame:
             vectors.append(v)
             centers.append(c)
 
-        # Convert to same format as tile-by-tile find_triangles output
+        if not vectors:
+            return pd.DataFrame()
+
+        # Convert to standardized format
         vectors_array = np.array(vectors).reshape(-1, 18)
         centers_array = np.array(centers)
 
-        # Create DataFrame in exact same format as tile-by-tile approach
+        # Create DataFrame with consistent column naming
         df_vectors = pd.DataFrame(vectors_array).rename(columns=lambda x: f"V_{x}")
         df_coords = pd.DataFrame(centers_array).rename(columns=lambda x: f"c_{x}")
         df_combined = pd.concat([df_vectors, df_coords], axis=1)
 
-        # Add magnitude column (critical for normalization)
+        # Add magnitude column for normalization
         df_result = df_combined.assign(
             magnitude=lambda x: x.eval("(V_0**2 + V_1**2)**0.5")
         )
@@ -162,7 +206,24 @@ def evaluate_well_match(
     threshold_triangle: float = 0.3,
     threshold_point: float = 2.0,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], float]:
-    """Evaluate match using SINGLE fixed seed (42) for reproducible, fast results."""
+    """Evaluate alignment match using triangle hash features and RANSAC.
+    
+    Uses a single fixed random seed for reproducible, fast alignment evaluation.
+    Matches triangle features between datasets and estimates the best rigid
+    transformation using RANSAC regression.
+
+    Args:
+        vec_centers_0: First dataset triangle features
+        vec_centers_1: Second dataset triangle features  
+        threshold_triangle: Maximum distance for triangle feature matching
+        threshold_point: Maximum distance for point correspondence validation
+
+    Returns:
+        Tuple of (rotation_matrix, translation_vector, alignment_score):
+        - rotation_matrix: 2x2 rotation/scaling matrix, None if failed
+        - translation_vector: 2D translation vector, None if failed  
+        - alignment_score: Quality score (0-1), -1 if failed
+    """
     V_0, c_0 = get_vc(vec_centers_0)
     V_1, c_1 = get_vc(vec_centers_1)
     i0, i1, distances = nearest_neighbors(V_0, V_1)
@@ -173,14 +234,14 @@ def evaluate_well_match(
     if sum(filt) < 5:
         return None, None, -1
 
-    # Use ONLY seed 42 for fast, reproducible results
+    # Use fixed seed for reproducible results
     print(f"Using single RANSAC seed (42) for fast evaluation...")
 
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
             model = RANSACRegressor(
-                random_state=42,  # Single fixed seed instead of 40 different seeds
+                random_state=42,
                 min_samples=max(5, len(X) // 10),
                 max_trials=1000,
             )
@@ -190,7 +251,7 @@ def evaluate_well_match(
         translation = model.estimator_.intercept_
         determinant = np.linalg.det(rotation)
 
-        # Calculate score
+        # Calculate alignment quality score
         distances = cdist(model.predict(c_0), c_1, metric="sqeuclidean")
         threshold_region = 50
         filt_score = np.sqrt(distances.min(axis=0)) < threshold_region
@@ -211,7 +272,21 @@ def geographic_constrained_sampling(
     center_radius: float = 0.4,
     random_state: int = 42,
 ) -> pd.DataFrame:
-    """Sample cells from the CENTER region for stable triangle hash alignment."""
+    """Sample cells from the center region for stable triangle hash alignment.
+    
+    Focuses sampling on the central region of the well to avoid edge artifacts
+    and improve alignment stability. Uses normalized distance from the well center
+    to define sampling regions.
+
+    Args:
+        cell_positions: DataFrame with 'i', 'j' coordinate columns
+        max_cells: Maximum number of cells to sample
+        center_radius: Fraction of well radius to sample from (0.0 to 1.0)
+        random_state: Random seed for reproducible sampling
+
+    Returns:
+        Sampled subset of cell_positions, prioritizing central cells
+    """
     if len(cell_positions) <= max_cells:
         return cell_positions
 
@@ -247,7 +322,7 @@ def geographic_constrained_sampling(
     # Convert to normalized distance (0 = center, 1 = edge of well)
     df["dist_from_center_norm"] = df["dist_from_center_pixels"] / well_radius
 
-    # Take cells from CENTER region
+    # Take cells from center region
     center_mask = df["dist_from_center_norm"] <= center_radius
     center_cells = df[center_mask]
 
@@ -280,16 +355,22 @@ def sample_region_for_alignment(
     strategy: str = "center",
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     """Sample a centered region from both datasets for triangle hash alignment.
-    Uses coordinate-based approach like your visualization code.
+    
+    Creates a square sampling region centered on the overlap between datasets.
+    This approach improves alignment accuracy by focusing on regions with
+    sufficient cell density in both datasets.
 
     Args:
-        phenotype_resized: Resized phenotype positions
-        sbs_positions: SBS positions
-        region_size: Size of the square region to sample
-        strategy: Sampling strategy ("center" for now)
+        phenotype_resized: Resized phenotype positions with 'i', 'j' columns
+        sbs_positions: SBS positions with 'i', 'j' columns
+        region_size: Size of the square region to sample (in coordinate units)
+        strategy: Sampling strategy ("center" is currently the only option)
 
     Returns:
-        Tuple of (phenotype_region, sbs_region, region_info)
+        Tuple of (phenotype_region, sbs_region, region_info):
+        - phenotype_region: Sampled phenotype cells within the region
+        - sbs_region: Sampled SBS cells within the region
+        - region_info: Dictionary with sampling metadata and statistics
     """
     print(f"=== Regional Sampling for Alignment ===")
     print(f"Region size: {region_size}x{region_size}")
@@ -326,7 +407,7 @@ def sample_region_for_alignment(
         print("❌ No overlap found between datasets")
         return pd.DataFrame(), pd.DataFrame(), {}
 
-    # Center the sampling region within the overlap (like visualization code)
+    # Center the sampling region within the overlap
     center_i = (overlap_i_min + overlap_i_max) / 2
     center_j = (overlap_j_min + overlap_j_max) / 2
 
@@ -393,23 +474,27 @@ def triangle_hash_well_alignment(
     adaptive_region: bool = True,
     initial_region_size: int = 7000,
     min_triangles: int = 100,
-    **kwargs,
 ) -> pd.DataFrame:
     """Triangle hash alignment for well-level data with adaptive regional sampling.
+    
+    Performs robust alignment between phenotype and SBS cell positions using
+    triangle-based feature matching. Uses adaptive region sampling to find
+    optimal alignment parameters while handling large datasets efficiently.
 
     Args:
         phenotype_positions: Phenotype cell positions (should be pre-resized)
         sbs_positions: SBS cell positions
         max_cells_for_hash: Maximum cells to use for triangle generation
-        threshold_triangle: Triangle similarity threshold
-        threshold_point: Point distance threshold
-        min_score: Minimum score to accept alignment
-        adaptive_region: Use adaptive regional sampling (default True)
+        threshold_triangle: Triangle similarity threshold for feature matching
+        threshold_point: Point distance threshold for alignment validation
+        min_score: Minimum alignment score to accept results
+        adaptive_region: Whether to use adaptive regional sampling
         initial_region_size: Starting region size for sampling
-        min_triangles: Minimum triangles needed for good alignment
+        min_triangles: Minimum triangles needed for reliable alignment
 
     Returns:
-        DataFrame with alignment parameters or empty DataFrame if failed
+        DataFrame with alignment parameters including rotation, translation,
+        and quality metrics. Empty DataFrame if alignment fails.
     """
     print(
         f"Triangle hash alignment with {len(phenotype_positions):,} phenotype and {len(sbs_positions):,} SBS cells"
@@ -443,7 +528,7 @@ def triangle_hash_well_alignment(
             sbs_positions["j"].max() - sbs_positions["j"].min(),
         )
         * 0.8
-    )  # Use 80% of smallest dimension as max
+    )  # Use 80% of smallest dimension as maximum
 
     attempts = 0
     max_attempts = 3
@@ -533,7 +618,23 @@ def _triangle_hash_full_well(
     threshold_point: float,
     min_score: float,
 ) -> pd.DataFrame:
-    """Original full-well triangle hash approach (preserved for fallback)."""
+    """Original full-well triangle hash approach (preserved for fallback).
+    
+    Uses geographic constrained sampling from the entire well rather than
+    adaptive regional sampling. Maintained for compatibility and as a fallback
+    when regional sampling fails.
+
+    Args:
+        phenotype_positions: Phenotype cell positions
+        sbs_positions: SBS cell positions  
+        max_cells_for_hash: Maximum cells to use for triangle generation
+        threshold_triangle: Triangle similarity threshold
+        threshold_point: Point distance threshold
+        min_score: Minimum score to accept alignment
+
+    Returns:
+        DataFrame with alignment parameters or empty DataFrame if failed
+    """
     # Sample cells if datasets are too large
     if len(phenotype_positions) > max_cells_for_hash:
         pheno_subset = geographic_constrained_sampling(

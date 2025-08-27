@@ -1,11 +1,21 @@
 """Step 1: Well Alignment - Coordinate scaling, triangle hashing, and alignment estimation.
-Save this as: workflow/scripts/merge/well_alignment.py.
+
+This script performs the first step of the well-level merge pipeline:
+1. Auto-calculates scale factor based on coordinate ranges
+2. Scales phenotype coordinates to match SBS coordinate system  
+3. Generates triangle hash features for both datasets
+4. Performs adaptive regional triangle hash alignment
+5. Saves alignment parameters and transformed coordinates
+
+The alignment process uses triangle-based feature matching with RANSAC to
+estimate robust transformation parameters between imaging modalities.
 """
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import yaml
 from pathlib import Path
+from scipy.spatial.distance import cdist
 
 from lib.shared.file_utils import validate_dtypes
 from lib.merge.well_alignment import (
@@ -18,6 +28,7 @@ from lib.merge.well_alignment import (
 
 
 def main():
+    """Main execution function for well alignment step."""
     print("=== STEP 1: WELL ALIGNMENT ===")
 
     # Load cell positions
@@ -266,8 +277,16 @@ def main():
     print(f"\n🎉 Step 1 (Alignment) completed successfully!")
 
 
-def create_failed_alignment(scale_factor, reason):
-    """Create a failed alignment record."""
+def create_failed_alignment(scale_factor: float, reason: str) -> pd.DataFrame:
+    """Create a failed alignment record with identity transformation.
+    
+    Args:
+        scale_factor: The scale factor that was calculated
+        reason: Reason for failure (used in transformation_type)
+        
+    Returns:
+        DataFrame with failed alignment parameters
+    """
     return pd.DataFrame(
         [
             {
@@ -287,11 +306,22 @@ def create_failed_alignment(scale_factor, reason):
     )
 
 
-def create_identity_alignment(scale_factor, phenotype_scaled, sbs_positions):
-    """Create identity transformation alignment."""
-    # Validate with a sample
-    from scipy.spatial.distance import cdist
-
+def create_identity_alignment(
+    scale_factor: float, 
+    phenotype_scaled: pd.DataFrame, 
+    sbs_positions: pd.DataFrame
+) -> dict:
+    """Create identity transformation alignment with validation metrics.
+    
+    Args:
+        scale_factor: The scale factor that was applied
+        phenotype_scaled: Scaled phenotype positions for validation
+        sbs_positions: SBS positions for validation
+        
+    Returns:
+        Dictionary with identity alignment parameters and validation metrics
+    """
+    # Validate with a sample to estimate alignment quality
     sample_size = min(1000, len(phenotype_scaled), len(sbs_positions))
     pheno_sample = phenotype_scaled.sample(n=sample_size)[["i", "j"]].values
     sbs_sample = sbs_positions.sample(n=sample_size)[["i", "j"]].values
@@ -314,8 +344,19 @@ def create_identity_alignment(scale_factor, phenotype_scaled, sbs_positions):
     }
 
 
-def prepare_alignment_for_saving(alignment, scale_factor):
-    """Prepare alignment parameters for Parquet serialization."""
+def prepare_alignment_for_saving(alignment: dict, scale_factor: float) -> pd.DataFrame:
+    """Prepare alignment parameters for Parquet serialization.
+    
+    Converts numpy arrays to Python lists and ensures all values are
+    serializable to Parquet format.
+    
+    Args:
+        alignment: Dictionary with alignment parameters
+        scale_factor: Scale factor to include if not present in alignment
+        
+    Returns:
+        DataFrame ready for Parquet serialization
+    """
     rotation_matrix = alignment.get("rotation", np.eye(2))
     if not isinstance(rotation_matrix, np.ndarray):
         rotation_matrix = np.eye(2)
@@ -324,13 +365,14 @@ def prepare_alignment_for_saving(alignment, scale_factor):
     if not isinstance(translation_vector, np.ndarray):
         translation_vector = np.array([0.0, 0.0])
 
-    def safe_float(value, default=0.0):
+    def safe_float(value, default: float = 0.0) -> float:
+        """Safely convert value to float with fallback."""
         try:
             return float(value) if value is not None else default
         except (ValueError, TypeError):
             return default
 
-    # Convert to standard Python lists (not numpy arrays) for better Parquet compatibility
+    # Convert to standard Python lists for Parquet compatibility
     rotation_flat = rotation_matrix.flatten().astype(float).tolist()
     translation_list = translation_vector.astype(float).tolist()
 
@@ -344,8 +386,8 @@ def prepare_alignment_for_saving(alignment, scale_factor):
     return pd.DataFrame(
         [
             {
-                "rotation_matrix_flat": rotation_flat,  # Save as Python list, not numpy array
-                "translation_vector": translation_list,  # Save as Python list, not numpy array
+                "rotation_matrix_flat": rotation_flat,
+                "translation_vector": translation_list,
                 "scale_factor": safe_float(alignment.get("scale_factor", scale_factor)),
                 "score": safe_float(alignment.get("score", 0)),
                 "determinant": safe_float(alignment.get("determinant", 1)),

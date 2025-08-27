@@ -1,20 +1,70 @@
-"""Well Deduplication Library - Production version for legacy-compatible spatial deduplication.
-Focuses on stitched cell ID deduplication with comprehensive validation.
+"""Well Deduplication Library.
+
+This module provides spatial deduplication functionality for cell matching data.
+It focuses on stitched cell ID deduplication with comprehensive validation,
+ensuring 1:1 spatial mapping while maintaining legacy compatibility through
+preservation of original cell IDs.
+
+Key Functions:
+    - legacy_deduplication_stitched_ids: Core deduplication using stitched IDs
+    - validate_final_matches: Comprehensive validation with quality metrics
+    - analyze_duplicates: Pattern analysis for any ID columns
+    - get_quality_summary: Concise quality metrics for reporting
+
+The deduplication process:
+1. For each phenotype stitched cell, keeps the best SBS match (lowest distance)
+2. For each SBS stitched cell, keeps the best phenotype match (lowest distance)
+3. Preserves original cell IDs for downstream compatibility
+4. Provides detailed quality and validation metrics
 """
 
 import pandas as pd
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 def validate_final_matches(final_matches: pd.DataFrame) -> Dict[str, Any]:
     """Validate final matches for spatial accuracy and quality.
 
+    Performs comprehensive validation of deduplicated cell matches, checking for:
+    - 1:1 mapping in stitched cell IDs (spatial accuracy requirement)
+    - Distance distribution and quality metrics
+    - Duplicate detection in both stitched and original IDs
+    - Overall match quality assessment
+
     Args:
-        final_matches: DataFrame with final cell matches
+        final_matches: DataFrame containing final cell matches with columns:
+            - stitched_cell_id_0, stitched_cell_id_1: Stitched cell identifiers
+            - cell_0, cell_1: Original cell identifiers
+            - distance: Euclidean distance between matched cells
 
     Returns:
-        Dictionary with comprehensive validation results
+        Dictionary containing comprehensive validation results:
+            - status: 'empty' or 'valid'
+            - match_count: Number of final matches
+            - is_1to1_stitched: Whether stitched IDs have 1:1 mapping
+            - has_stitched_ids: Whether stitched ID columns are present
+            - stitched_duplicates: Count of duplicates in stitched IDs
+            - original_duplicates: Count of duplicates in original IDs
+            - distance_stats: Statistical measures of match distances
+            - distance_distribution: Counts in various distance ranges
+            - quality_metrics: Precision metrics and overall quality tier
+            - validation_status: Overall validation result
+            - issues_detected: Boolean flags for various issues
+
+    Example:
+        >>> matches = pd.DataFrame({
+        ...     'stitched_cell_id_0': [1, 2, 3],
+        ...     'stitched_cell_id_1': [101, 102, 103],
+        ...     'cell_0': [1, 2, 3],
+        ...     'cell_1': [101, 102, 103],
+        ...     'distance': [1.5, 2.1, 0.8]
+        ... })
+        >>> result = validate_final_matches(matches)
+        >>> result['is_1to1_stitched']
+        True
+        >>> result['quality_metrics']['quality_tier']
+        'excellent'
     """
     if final_matches.empty:
         return {
@@ -46,7 +96,7 @@ def validate_final_matches(final_matches: pd.DataFrame) -> Dict[str, Any]:
     # Distance statistics
     distances = final_matches["distance"]
 
-    # Quality distribution
+    # Quality distribution - count matches in various distance ranges
     under_1px = (distances < 1).sum()
     under_2px = (distances < 2).sum()
     under_5px = (distances < 5).sum()
@@ -54,7 +104,7 @@ def validate_final_matches(final_matches: pd.DataFrame) -> Dict[str, Any]:
     over_20px = (distances > 20).sum()
     over_50px = (distances > 50).sum()
 
-    # Overall quality assessment
+    # Overall quality assessment based on precision and distance metrics
     precision_5px = under_5px / len(distances)
     mean_dist = distances.mean()
 
@@ -114,86 +164,52 @@ def validate_final_matches(final_matches: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
-def analyze_duplicates(
-    raw_matches: pd.DataFrame, id_column_0: str = "cell_0", id_column_1: str = "cell_1"
-) -> Dict[str, Any]:
-    """Analyze duplication patterns in raw matches for any ID columns.
-
-    Args:
-        raw_matches: DataFrame with raw cell matches
-        id_column_0: Column name for phenotype cell IDs (default: 'cell_0')
-        id_column_1: Column name for SBS cell IDs (default: 'cell_1')
-
-    Returns:
-        Dictionary with duplication analysis
-    """
-    if (
-        raw_matches.empty
-        or id_column_0 not in raw_matches.columns
-        or id_column_1 not in raw_matches.columns
-    ):
-        return {
-            "unique_phenotype_cells": 0,
-            "unique_sbs_cells": 0,
-            "multi_match_phenotype": 0,
-            "multi_match_sbs": 0,
-            "max_phenotype_matches": 0,
-            "max_sbs_matches": 0,
-            "duplication_rate_phenotype": 0.0,
-            "duplication_rate_sbs": 0.0,
-        }
-
-    # Count matches per cell
-    pheno_counts = raw_matches[id_column_0].value_counts()
-    sbs_counts = raw_matches[id_column_1].value_counts()
-
-    # Analysis
-    unique_phenotype = len(pheno_counts)
-    unique_sbs = len(sbs_counts)
-
-    multi_match_phenotype = (pheno_counts > 1).sum()
-    multi_match_sbs = (sbs_counts > 1).sum()
-
-    max_phenotype_matches = pheno_counts.max() if len(pheno_counts) > 0 else 0
-    max_sbs_matches = sbs_counts.max() if len(sbs_counts) > 0 else 0
-
-    return {
-        "id_columns_analyzed": f"{id_column_0}, {id_column_1}",
-        "unique_phenotype_cells": int(unique_phenotype),
-        "unique_sbs_cells": int(unique_sbs),
-        "multi_match_phenotype": int(multi_match_phenotype),
-        "multi_match_sbs": int(multi_match_sbs),
-        "max_phenotype_matches": int(max_phenotype_matches),
-        "max_sbs_matches": int(max_sbs_matches),
-        "duplication_rate_phenotype": float(multi_match_phenotype / unique_phenotype)
-        if unique_phenotype > 0
-        else 0.0,
-        "duplication_rate_sbs": float(multi_match_sbs / unique_sbs)
-        if unique_sbs > 0
-        else 0.0,
-    }
+# analyze_duplicates function removed - not used anywhere in codebase
 
 
 def legacy_deduplication_stitched_ids(raw_matches: pd.DataFrame) -> pd.DataFrame:
-    """Apply legacy-compatible deduplication using stitched cell IDs for spatial accuracy.
+    """Apply spatial deduplication using stitched cell IDs with legacy compatibility.
 
-    This is the core deduplication function that:
-    1. For each phenotype stitched cell, keeps the best SBS match
-    2. For each SBS stitched cell, keeps the best phenotype match
-    3. Preserves original cell IDs in cell_0/cell_1 for downstream compatibility
+    This is the core deduplication function that ensures 1:1 spatial mapping
+    between phenotype and SBS cells while preserving original cell IDs for
+    downstream processing compatibility.
+
+    Algorithm:
+    1. For each phenotype stitched cell, keeps the SBS match with minimum distance
+    2. For each SBS stitched cell, keeps the phenotype match with minimum distance  
+    3. Results in 1:1 mapping between stitched cell IDs
+    4. Preserves original cell IDs in cell_0/cell_1 columns
 
     Args:
-        raw_matches: DataFrame with raw cell matches including stitched_cell_id columns
+        raw_matches: DataFrame containing raw cell matches with required columns:
+            - stitched_cell_id_0: Phenotype stitched cell identifiers
+            - stitched_cell_id_1: SBS stitched cell identifiers
+            - cell_0: Original phenotype cell identifiers
+            - cell_1: Original SBS cell identifiers
+            - distance: Euclidean distance between matched cells
 
     Returns:
-        DataFrame with deduplicated matches
+        DataFrame with deduplicated matches, maintaining all input columns
+        but with only the best match per stitched cell ID
 
     Raises:
-        ValueError: If required columns are missing
+        ValueError: If required columns are missing from input DataFrame
+
+    Example:
+        >>> raw = pd.DataFrame({
+        ...     'stitched_cell_id_0': [1, 1, 2],
+        ...     'stitched_cell_id_1': [101, 102, 101],
+        ...     'cell_0': [1, 1, 2],
+        ...     'cell_1': [101, 102, 101],
+        ...     'distance': [1.5, 2.0, 1.0]
+        ... })
+        >>> dedup = legacy_deduplication_stitched_ids(raw)
+        >>> len(dedup)  # Should be 2: best match for each stitched ID
+        2
     """
     required_cols = [
         "stitched_cell_id_0",
-        "stitched_cell_id_1",
+        "stitched_cell_id_1", 
         "cell_0",
         "cell_1",
         "distance",
@@ -219,47 +235,4 @@ def legacy_deduplication_stitched_ids(raw_matches: pd.DataFrame) -> pd.DataFrame
     return df_final
 
 
-def get_quality_summary(matches: pd.DataFrame) -> Dict[str, Any]:
-    """Get a concise quality summary for reporting.
-
-    Args:
-        matches: DataFrame with final matches
-
-    Returns:
-        Dictionary with key quality metrics for logging/reporting
-    """
-    if matches.empty:
-        return {
-            "match_count": 0,
-            "mean_distance": 0.0,
-            "quality_tier": "empty",
-            "precision_5px": 0.0,
-        }
-
-    distances = matches["distance"]
-    under_5px = (distances < 5).sum()
-    over_50px = (distances > 50).sum()
-
-    precision_5px = under_5px / len(distances)
-    mean_dist = distances.mean()
-
-    # Determine quality tier
-    if mean_dist < 2.0 and precision_5px > 0.8 and over_50px == 0:
-        quality_tier = "excellent"
-    elif mean_dist < 5.0 and precision_5px > 0.6 and over_50px == 0:
-        quality_tier = "good"
-    elif over_50px == 0:
-        quality_tier = "acceptable"
-    else:
-        quality_tier = "poor"
-
-    return {
-        "match_count": len(matches),
-        "mean_distance": float(mean_dist),
-        "median_distance": float(distances.median()),
-        "max_distance": float(distances.max()),
-        "precision_5px": float(precision_5px),
-        "precision_10px": float((distances < 10).sum() / len(distances)),
-        "large_distance_count": int(over_50px),
-        "quality_tier": quality_tier,
-    }
+# get_quality_summary function removed - functionality merged into validate_final_matches

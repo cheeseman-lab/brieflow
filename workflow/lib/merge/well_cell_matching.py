@@ -1,8 +1,17 @@
-"""Step 2 Library: Cell-to-cell matching functions.
-FIXED VERSION: Coordinate system alignment corrected and cleaned up output.
-Added single-cell tile filtering to prevent phenotype extraction failures.
+"""Library for cell-to-cell matching between phenotype and SBS datasets.
+
+This module provides functions for aligning and matching cells from phenotype and SBS
+datasets using spatial transformations. It includes coordinate system alignment,
+distance-based matching, and validation of match quality.
+
+Key functions:
+- filter_single_cell_tiles: Remove single-cell tiles that cause downstream issues
+- load_alignment_parameters: Parse alignment parameters from various formats
+- find_cell_matches: Main function for finding cell matches using spatial alignment
+- validate_matches: Quality assessment of matching results
 """
 
+import gc
 import pandas as pd
 import numpy as np
 from scipy.spatial.distance import cdist
@@ -14,15 +23,17 @@ def filter_single_cell_tiles(
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """Filter out single-cell tiles that cause phenotype extraction failures.
 
-    Single-cell tiles are dropped during phenotype extraction due to the buggy
-    early exit condition in extract_phenotype_cp_multichannel, but they still
-    appear in merge data. This causes NaN lookups in format_merge.
+    Single-cell tiles are dropped during phenotype extraction due to early exit
+    conditions in extract_phenotype_cp_multichannel, but they still appear in
+    merge data. This causes NaN lookups in format_merge.
 
     Args:
-        matches_df: DataFrame with cell matches
+        matches_df: DataFrame with cell matches containing plate, well, site, tile columns
 
     Returns:
-        Tuple of (filtered_df, filtering_stats)
+        Tuple of (filtered_df, filtering_stats) where:
+        - filtered_df: DataFrame with single-cell tiles removed
+        - filtering_stats: Dictionary with filtering statistics
     """
     if matches_df.empty:
         return matches_df, {"tiles_removed": 0, "cells_removed": 0, "cells_kept": 0}
@@ -66,28 +77,39 @@ def filter_single_cell_tiles(
 def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
     """Load alignment parameters from a DataFrame row.
 
+    Parses alignment parameters from various formats including string representations
+    of arrays and handles different data types that may result from parquet storage.
+
     Args:
-        alignment_row: Single row from alignment parameters DataFrame
+        alignment_row: Single row from alignment parameters DataFrame containing
+                      rotation_matrix_flat, translation_vector, scale_factor, etc.
 
     Returns:
-        Dictionary with alignment parameters
+        Dictionary with parsed alignment parameters:
+        - rotation: 2x2 numpy array for rotation transformation
+        - translation: 2-element numpy array for translation
+        - scale_factor: float for coordinate scaling
+        - score: alignment quality score
+        - determinant: transformation determinant
+        - transformation_type: string describing transformation type
+        - approach: string describing alignment approach
+        - validation_mean_distance: mean distance from validation
     """
     # Extract rotation matrix - handle different formats
     rotation_flat = alignment_row.get("rotation_matrix_flat", [1.0, 0.0, 0.0, 1.0])
 
     if isinstance(rotation_flat, str):
-        # Handle string representation - try multiple parsing methods
         try:
-            # First try: direct eval (for list format like "[1.0, 0.0, 0.0, 1.0]")
+            # Try direct evaluation for list format like "[1.0, 0.0, 0.0, 1.0]"
             rotation_flat = eval(rotation_flat)
         except SyntaxError:
             try:
-                # Second try: numpy array string format like "[1. 0. 0. 1.]"
+                # Try numpy array string format like "[1. 0. 0. 1.]"
                 clean_str = rotation_flat.strip("[]")
                 rotation_flat = [float(x) for x in clean_str.split()]
             except (ValueError, AttributeError):
                 try:
-                    # Third try: use numpy to parse array string
+                    # Use numpy to parse array string
                     rotation_flat = np.fromstring(
                         rotation_flat.strip("[]"), sep=" "
                     ).tolist()
@@ -107,47 +129,36 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
 
     rotation = np.array(rotation_flat).reshape(2, 2)
 
-    # Extract translation vector - handle different formats (FIXED)
+    # Extract translation vector - handle different formats
     translation_list = alignment_row.get("translation_vector", [0.0, 0.0])
 
-    # FIXED: Handle pandas/parquet data types more robustly
+    # Handle pandas/parquet data types
     if isinstance(translation_list, np.ndarray):
         # NumPy array - convert to list
         translation_list = translation_list.tolist()
     elif isinstance(translation_list, str):
         # String representation - handle different formats
-        print(f"DEBUG: Parsing string translation_vector: '{translation_list}'")
-
+        
         # Check if it's a numpy array string format (has spaces between numbers)
         if " " in translation_list.strip("[]") and "," not in translation_list:
-            # Numpy array format like "[-85.4958813  -95.79037779]" - skip eval()
-            print(f"DEBUG: Detected numpy array format, using split method")
+            # Numpy array format like "[-85.4958813  -95.79037779]"
             try:
                 clean_str = translation_list.strip("[]")
-                print(f"DEBUG: After stripping brackets: '{clean_str}'")
-                float_list = [float(x) for x in clean_str.split()]
-                print(f"DEBUG: After split and float conversion: {float_list}")
-                translation_list = float_list
-            except (ValueError, AttributeError) as e:
-                print(f"DEBUG: split method failed with {e}")
+                translation_list = [float(x) for x in clean_str.split()]
+            except (ValueError, AttributeError):
                 print(
                     f"Warning: Could not parse numpy array translation vector '{translation_list}', using zero"
                 )
                 translation_list = [0.0, 0.0]
         else:
-            # Regular list format like "[-85.4, -95.8]" - try eval()
-            print(f"DEBUG: Detected regular list format, using eval()")
+            # Regular list format like "[-85.4, -95.8]"
             try:
                 translation_list = eval(translation_list)
-                print(f"DEBUG: eval() succeeded: {translation_list}")
-            except (SyntaxError, NameError) as e:
-                print(f"DEBUG: eval() failed with {e}, trying split as fallback")
+            except (SyntaxError, NameError):
                 try:
                     clean_str = translation_list.strip("[]")
                     translation_list = [float(x) for x in clean_str.split()]
-                    print(f"DEBUG: Split fallback succeeded: {translation_list}")
-                except Exception as e2:
-                    print(f"DEBUG: All parsing methods failed with {e2}")
+                except Exception:
                     print(
                         f"Warning: Could not parse translation vector '{translation_list}', using zero"
                     )
@@ -231,7 +242,25 @@ def find_cell_matches(
     chunk_size: int = 50000,
     transformed_phenotype_positions: pd.DataFrame = None,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Find cell matches using alignment transformation - FIXED coordinate system alignment."""
+    """Find cell matches using alignment transformation.
+    
+    Matches cells between phenotype and SBS datasets using spatial alignment.
+    Automatically chooses between direct and chunked approaches based on memory
+    requirements.
+
+    Args:
+        phenotype_positions: DataFrame with phenotype cell positions (i, j columns)
+        sbs_positions: DataFrame with SBS cell positions (i, j columns)
+        alignment: Dictionary with alignment parameters (rotation, translation, scale_factor)
+        threshold: Maximum distance for valid matches in pixels
+        chunk_size: Size of chunks for memory-efficient processing
+        transformed_phenotype_positions: Pre-calculated transformed coordinates (optional)
+
+    Returns:
+        Tuple of (matches_df, stats) where:
+        - matches_df: DataFrame with matched cells and their properties
+        - stats: Dictionary with matching statistics and performance metrics
+    """
     print(
         f"Finding matches: {len(phenotype_positions):,} phenotype × {len(sbs_positions):,} SBS cells"
     )
@@ -294,14 +323,27 @@ def _find_matches_direct(
     threshold: float,
     scale_factor: float,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Direct approach optimized for large datasets with sufficient memory."""
-    import gc
+    """Direct approach optimized for large datasets with sufficient memory.
+    
+    Computes full distance matrix in memory for optimal performance when
+    memory requirements are manageable.
 
+    Args:
+        phenotype_positions: DataFrame with phenotype cell data
+        sbs_positions: DataFrame with SBS cell data  
+        transformed_coords: Transformed phenotype coordinates
+        sbs_coords: SBS coordinates
+        threshold: Distance threshold for valid matches
+        scale_factor: Scale factor for coordinate system
+
+    Returns:
+        Tuple of (matches_df, stats) with match results and statistics
+    """
     print(
         f"Computing distance matrix: {len(sbs_coords):,} × {len(transformed_coords):,}"
     )
 
-    # Calculate distances using coordinates as-is (both already in same coordinate system)
+    # Calculate distances using coordinates in same coordinate system
     distances = cdist(sbs_coords, transformed_coords, metric="euclidean")
 
     # For each SBS cell, find closest phenotype cell
@@ -362,9 +404,23 @@ def _find_matches_chunked(
     chunk_size: int,
     scale_factor: float,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Chunked approach with aggressive memory management."""
-    import gc
+    """Chunked approach with aggressive memory management.
+    
+    Processes large datasets in chunks to avoid memory overflow while
+    maintaining matching accuracy.
 
+    Args:
+        phenotype_positions: DataFrame with phenotype cell data
+        sbs_positions: DataFrame with SBS cell data
+        transformed_coords: Transformed phenotype coordinates
+        sbs_coords: SBS coordinates  
+        threshold: Distance threshold for valid matches
+        chunk_size: Number of SBS cells to process per chunk
+        scale_factor: Scale factor for coordinate system
+
+    Returns:
+        Tuple of (matches_df, stats) with match results and statistics
+    """
     all_matches = []
     n_chunks = (len(sbs_positions) + chunk_size - 1) // chunk_size
 
@@ -477,8 +533,23 @@ def _build_matches_dataframe(
     sbs_coords: np.ndarray,
     scale_factor: float,
 ) -> pd.DataFrame:
-    """Build matches DataFrame using the EXACT same coordinates that were used for distance calculation.
-    FIXED: Use 'stitched_cell_id' for coordinates matching, not 'label' or 'original_cell_id'.
+    """Build matches DataFrame using the coordinates that were used for distance calculation.
+    
+    Creates the final matches DataFrame with cell IDs, coordinates, and metadata.
+    Uses 'stitched_cell_id' for coordinates matching when available.
+
+    Args:
+        phenotype_positions: DataFrame with phenotype cell data
+        sbs_positions: DataFrame with SBS cell data
+        pheno_indices: Array of phenotype cell indices for matches
+        sbs_indices: Array of SBS cell indices for matches
+        distances: Array of match distances
+        transformed_coords: Transformed phenotype coordinates used for matching
+        sbs_coords: SBS coordinates used for matching
+        scale_factor: Scale factor applied during matching
+
+    Returns:
+        DataFrame with matched cell pairs and their properties
     """
     # Determine which cell ID column to use for each dataset
     # Priority: stitched_cell_id > label > original_cell_id
@@ -532,11 +603,21 @@ def _build_matches_dataframe(
 def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
     """Validate cell matches and return quality metrics.
 
+    Analyzes the quality of cell matches including distance statistics,
+    duplication rates, and overall quality flags.
+
     Args:
-        matches_df: DataFrame with cell matches
+        matches_df: DataFrame with cell matches containing distance and cell ID columns
 
     Returns:
-        Dictionary with validation metrics
+        Dictionary with comprehensive validation metrics:
+        - status: Overall validation status
+        - match_count: Total number of matches
+        - unique_phenotype_cells/unique_sbs_cells: Count of unique cells
+        - distance_stats: Mean, median, max, std of match distances
+        - distance_distribution: Counts at various distance thresholds
+        - duplication: Analysis of duplicate matches
+        - quality_flags: Overall quality assessment
     """
     if matches_df.empty:
         return {"status": "empty", "match_count": 0}
@@ -600,18 +681,3 @@ def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
             "good_quality": good_quality,
         },
     }
-
-
-def debug_coordinate_uniqueness(coords, name, sample_size=10):
-    """Debug coordinate uniqueness and precision."""
-    print(f"DEBUG: {name} coordinate analysis")
-    print(
-        f"  Total: {len(coords):,}, Unique: {len(np.unique(coords.view(np.void), return_counts=True)[0]):,}"
-    )
-
-    # Sample precision analysis
-    sample_coords = coords[: min(sample_size, len(coords))]
-    for idx, (i, j) in enumerate(sample_coords[:3]):  # Just show first 3
-        print(f"  [{idx}] i={i:.3f}, j={j:.3f}")
-
-    return len(np.unique(coords.view(np.void), return_counts=True)[0])

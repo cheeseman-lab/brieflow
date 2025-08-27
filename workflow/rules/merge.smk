@@ -62,10 +62,9 @@ rule stitch_phenotype_well:
         rot90=config.get("stitch", {}).get("rot90", 0),
         overlap_percent=config.get("stitch", {}).get("overlap_percent", 0.05),
     resources:
-        mem_mb=400000,     # 400GB for maximum safety margin
+        mem_mb=400000,     
         cpus_per_task=8,
-        runtime=180,       # 3 hours
-        partition="20"     # Force high-memory nodes
+        runtime=180,       
     script:
         "../scripts/merge/well_stitching.py"
 
@@ -87,10 +86,9 @@ rule stitch_sbs_well:
         rot90=config.get("stitch", {}).get("rot90", 0),
         overlap_percent=config.get("stitch", {}).get("overlap_percent", 0.05),
     resources:
-        mem_mb=400000,     # 400GB for maximum safety margin
+        mem_mb=400000,     
         cpus_per_task=8,
-        runtime=180,       # 3 hours
-        partition="20"     # Force high-memory nodes
+        runtime=180,       
     script:
         "../scripts/merge/well_stitching.py"
 

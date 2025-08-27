@@ -1,23 +1,55 @@
 """Step 2: Well Cell Merge - Cell-to-cell matching using alignment parameters.
-FIXED VERSION: Proper tile diversity filtering + direct metadata extraction.
+
+This script performs cell-to-cell matching between phenotype and SBS datasets within
+a single well using spatial alignment transformations. It includes tile diversity
+filtering, coordinate matching, and metadata extraction for downstream processing.
+
+Key steps:
+1. Filter out tiles with insufficient cell diversity
+2. Load alignment parameters and apply spatial transformations  
+3. Match cells based on spatial proximity
+4. Extract metadata and validate match quality
+5. Save results with comprehensive statistics
+
+Input files:
+- scaled_phenotype_positions.parquet: Phenotype cell positions after scaling
+- transformed_phenotype_positions.parquet: Pre-transformed phenotype coordinates
+- sbs_positions.parquet: SBS cell positions from stitching
+- alignment.parquet: Spatial alignment parameters
+
+Output files:
+- raw_matches.parquet: Initial cell match results
+- merged_cells.parquet: Same as raw_matches (for compatibility)
+- merge_summary.yaml: Comprehensive processing statistics and validation metrics
 """
 
 import pandas as pd
 import numpy as np
 import yaml
-from pathlib import Path
+import traceback
 
 from lib.shared.file_utils import validate_dtypes
 from lib.merge.well_cell_matching import (
     load_alignment_parameters,
     find_cell_matches,
     validate_matches,
-    debug_coordinate_uniqueness,
 )
 
 
-def filter_tiles_by_diversity(df, data_type):
-    """Filter out tiles that have only one unique original_cell_id."""
+def filter_tiles_by_diversity(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
+    """Filter out tiles that have only one unique original_cell_id.
+    
+    Removes tiles with insufficient cell diversity which can cause issues
+    in downstream processing. Tiles with only one unique cell ID are typically
+    artifacts or low-quality regions.
+
+    Args:
+        df: DataFrame with cell data containing 'tile' and 'original_cell_id' columns
+        data_type: String describing the data type for logging (e.g., "Phenotype", "SBS")
+
+    Returns:
+        Filtered DataFrame containing only tiles with multiple unique cell IDs
+    """
     if "original_cell_id" not in df.columns or "tile" not in df.columns:
         print(
             f"⚠️  WARNING: Cannot filter {data_type} tiles - missing original_cell_id or tile columns"
@@ -45,7 +77,67 @@ def filter_tiles_by_diversity(df, data_type):
     return filtered_df
 
 
+def create_empty_outputs(reason: str) -> None:
+    """Create empty output files when processing fails.
+    
+    Generates placeholder output files with proper structure when the main
+    processing pipeline encounters errors. Ensures downstream steps can
+    continue with empty results.
+
+    Args:
+        reason: String describing the reason for failure
+    """
+    empty_columns = [
+        "plate",
+        "well", 
+        "site",
+        "tile",
+        "cell_0",
+        "i_0",
+        "j_0",
+        "area_0",
+        "cell_1",
+        "i_1",
+        "j_1",
+        "area_1",
+        "distance",
+        "stitched_cell_id_0",
+        "stitched_cell_id_1",
+    ]
+
+    empty_matches = pd.DataFrame(columns=empty_columns)
+
+    # Add default values
+    empty_matches["plate"] = snakemake.params.plate
+    empty_matches["well"] = snakemake.params.well
+    empty_matches["site"] = 1
+    empty_matches["tile"] = 1
+
+    # Save both outputs
+    empty_matches.to_parquet(str(snakemake.output.raw_matches))
+    empty_matches.to_parquet(str(snakemake.output.merged_cells))
+
+    # Failure summary
+    summary = {
+        "status": "failed",
+        "reason": reason,
+        "plate": snakemake.params.plate,
+        "well": snakemake.params.well,
+        "output_format": {
+            "columns_included": empty_columns,
+            "cell_0_contains": "original_phenotype_cell_ids",
+            "cell_1_contains": "original_sbs_cell_ids",
+        },
+    }
+
+    with open(str(snakemake.output.merge_summary), "w") as f:
+        yaml.dump(summary, f)
+
+    print(f"❌ Created empty outputs due to: {reason}")
+
+
 def main():
+    """Main processing function for well cell merge."""
     print("=== STEP 2: WELL CELL MERGE ===")
 
     # Load inputs
@@ -81,7 +173,7 @@ def main():
         create_empty_outputs("missing_stitched_id_sbs")
         return
 
-    # ✅ STEP 1: Filter tiles by diversity (Option A - before matching)
+    # Step 1: Filter tiles by diversity
     print("Applying tile diversity filtering...")
 
     phenotype_filtered = filter_tiles_by_diversity(phenotype_scaled, "Phenotype")
@@ -97,11 +189,10 @@ def main():
         create_empty_outputs("no_sbs_after_filtering")
         return
 
-    # Also filter the transformed positions to match
+    # Filter transformed positions to match filtered scaled positions
     if len(phenotype_transformed) != len(phenotype_scaled):
         print("⚠️  WARNING: Transformed positions length doesn't match scaled positions")
 
-    # Filter transformed positions to match filtered scaled positions
     phenotype_transformed_filtered = phenotype_transformed[
         phenotype_transformed.index.isin(phenotype_filtered.index)
     ]
@@ -129,7 +220,7 @@ def main():
         f"det: {alignment.get('determinant', 1):.3f})"
     )
 
-    # ✅ STEP 2: Find cell matches using stitched_cell_id
+    # Step 2: Find cell matches using stitched_cell_id
     print("Finding cell matches...")
 
     try:
@@ -154,13 +245,11 @@ def main():
 
     except Exception as e:
         print(f"❌ ERROR: Cell matching failed: {e}")
-        import traceback
-
         traceback.print_exc()
         create_empty_outputs("matching_failed")
         return
 
-    # ✅ STEP 3: Extract metadata directly from matched rows (no mapping dictionaries!)
+    # Step 3: Extract metadata directly from matched rows
     print("Extracting metadata from matched rows...")
 
     # Get phenotype and SBS indices that were matched
@@ -289,7 +378,7 @@ def main():
             f"❌ WARNING: Match validation failed: {validation_results.get('status', 'unknown')}"
         )
 
-    # Create summary
+    # Create comprehensive summary
     merge_summary = {
         "status": "success",
         "plate": plate,
@@ -368,57 +457,6 @@ def main():
         unique_sites = final_matches["site"].unique()
         print(f"Final tiles represented: {sorted(unique_tiles.tolist())}")
         print(f"Final sites represented: {sorted(unique_sites.tolist())}")
-
-
-def create_empty_outputs(reason):
-    """Create empty output files when processing fails."""
-    empty_columns = [
-        "plate",
-        "well",
-        "site",
-        "tile",
-        "cell_0",
-        "i_0",
-        "j_0",
-        "area_0",
-        "cell_1",
-        "i_1",
-        "j_1",
-        "area_1",
-        "distance",
-        "stitched_cell_id_0",
-        "stitched_cell_id_1",
-    ]
-
-    empty_matches = pd.DataFrame(columns=empty_columns)
-
-    # Add default values
-    empty_matches["plate"] = snakemake.params.plate
-    empty_matches["well"] = snakemake.params.well
-    empty_matches["site"] = 1
-    empty_matches["tile"] = 1
-
-    # Save both outputs
-    empty_matches.to_parquet(str(snakemake.output.raw_matches))
-    empty_matches.to_parquet(str(snakemake.output.merged_cells))
-
-    # Failure summary
-    summary = {
-        "status": "failed",
-        "reason": reason,
-        "plate": snakemake.params.plate,
-        "well": snakemake.params.well,
-        "output_format": {
-            "columns_included": empty_columns,
-            "cell_0_contains": "original_phenotype_cell_ids",
-            "cell_1_contains": "original_sbs_cell_ids",
-        },
-    }
-
-    with open(str(snakemake.output.merge_summary), "w") as f:
-        yaml.dump(summary, f)
-
-    print(f"❌ Created empty outputs due to: {reason}")
 
 
 if __name__ == "__main__":

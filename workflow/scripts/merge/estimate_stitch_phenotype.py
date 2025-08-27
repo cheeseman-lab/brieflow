@@ -3,7 +3,7 @@ import yaml
 from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.stitch_well import estimate_stitch_phenotype_coordinate_based
+from lib.merge.estimate_stitch import estimate_stitch_phenotype_coordinate_based
 import numpy as np
 
 

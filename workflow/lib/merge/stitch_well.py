@@ -1,6 +1,6 @@
-"""Enhanced stitching functions for BrieFlow pipeline.
+"""Well-stitching functions.
 
-Handles both images and segmentation masks with actual stitching.
+Handles both images and segmentation masks.
 """
 
 import numpy as np

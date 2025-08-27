@@ -1,4 +1,6 @@
-"""Step 3: Well Merge Deduplication - 1:1 spatial deduplication using stitched cell IDs.
+"""Well Merge Deduplication.
+
+1:1 spatial deduplication using stitched cell IDs.
 Production version - operates on stitched cell IDs for proper spatial deduplication
 while preserving original cell IDs for downstream processing.
 """

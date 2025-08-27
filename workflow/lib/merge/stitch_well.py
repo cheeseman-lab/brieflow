@@ -1,25 +1,22 @@
 """Enhanced stitching functions for BrieFlow pipeline.
+
 Handles both images and segmentation masks with actual stitching.
 """
 
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
-from typing import List, Dict, Tuple, Optional, Union
+from typing import List, Dict, Tuple, Optional
 from tqdm import tqdm
 import scipy
 from pathlib import Path
-import cv2
 from skimage import io, measure
-import warnings
 
 from dexp.processing.registration.model.translation_registration_model import (
     TranslationRegistrationModel,
 )
 from dexp.processing.registration import translation_nd as dexp_reg
 from dexp.processing.utils.linear_solver import linsolve
-
-from lib.preprocess.preprocess import nd2_to_tiff
 
 
 def extract_cell_positions_from_stitched_mask(
@@ -33,6 +30,7 @@ def extract_cell_positions_from_stitched_mask(
     cell_id_mapping: Dict[int, Tuple[int, int]] = None,
 ) -> pd.DataFrame:
     """ENHANCED: Extract cell positions using preserved cell ID mapping.
+
     Now requires cell_id_mapping for proper functionality and includes plate parameter.
     """
     print(f"🔍 EXTRACTING CELL POSITIONS: {data_type} well {well}, plate {plate}")
@@ -295,11 +293,21 @@ def find_original_tile_from_position(
 
 
 class LimitedSizeDict(OrderedDict):
+    """A dictionary that maintains a maximum size by removing oldest items."""
+
     def __init__(self, max_size):
+        """Initialize the limited size dictionary.
+
+        Parameters
+        ----------
+        max_size : int
+            Maximum number of items to keep in the dictionary
+        """
         super().__init__()
         self.max_size = max_size
 
     def __setitem__(self, key, value):
+        """Set item and maintain size limit."""
         super().__setitem__(key, value)
         if len(self) > self.max_size:
             self.popitem(last=False)
@@ -351,6 +359,25 @@ class AlignedTiffTileCache:
         rot90: int = 0,
         channel: int = 0,
     ):
+        """Initialize the aligned TIFF tile cache.
+
+        Parameters
+        ----------
+        metadata_df : pd.DataFrame
+            Metadata containing tile information
+        well : str
+            Well identifier
+        data_type : str, default "phenotype"
+            Type of data being processed
+        flipud : bool, default False
+            Whether to flip tiles vertically
+        fliplr : bool, default False
+            Whether to flip tiles horizontally
+        rot90 : int, default 0
+            Number of 90-degree rotations to apply
+        channel : int, default 0
+            Channel to extract from multi-channel images
+        """
         self.cache = LimitedSizeDict(max_size=50)  # Increased from 20
         self.metadata_df = metadata_df[metadata_df["well"] == well].copy()
         self.well = well
@@ -412,6 +439,23 @@ class MaskTileCache:
         fliplr: bool = False,
         rot90: int = 0,
     ):
+        """Initialize the mask tile cache.
+
+        Parameters
+        ----------
+        metadata_df : pd.DataFrame
+            Metadata containing tile information
+        well : str
+            Well identifier
+        data_type : str, default "phenotype"
+            Type of data being processed
+        flipud : bool, default False
+            Whether to flip tiles vertically
+        fliplr : bool, default False
+            Whether to flip tiles horizontally
+        rot90 : int, default 0
+            Number of 90-degree rotations to apply
+        """
         self.cache = LimitedSizeDict(max_size=50)  # Increased from 20
         self.metadata_df = metadata_df[metadata_df["well"] == well].copy()
         self.well = well
@@ -699,6 +743,19 @@ class AlignedTiffEdge:
         tile_cache: AlignedTiffTileCache,
         tile_positions: Dict[int, Tuple[int, int]],
     ):
+        """Initialize edge between two tiles for registration.
+
+        Parameters
+        ----------
+        tile_a_id : int
+            ID of first tile
+        tile_b_id : int
+            ID of second tile
+        tile_cache : AlignedTiffTileCache
+            Cache for loading tiles
+        tile_positions : dict
+            Mapping of tile ID to grid position
+        """
         self.tile_cache = tile_cache
         self.tile_a_id = tile_a_id
         self.tile_b_id = tile_b_id
@@ -926,6 +983,7 @@ def get_output_shape_tiff(
 
 def relabel_mask_tile(mask_tile: np.ndarray, start_label: int) -> np.ndarray:
     """Relabel a mask tile to use sequential labels starting from start_label.
+
     Fixed to handle integer overflow by using larger data types.
     """
     if mask_tile.max() == 0:
@@ -1051,6 +1109,7 @@ def assemble_stitched_masks_simple(
     return_cell_mapping=False,
 ):
     """FIXED: Assemble stitched masks while preserving original cell IDs.
+
     Key fix: Create mapping BEFORE relabeling, so original IDs are preserved.
     """
     print(f"🔧 MASK ASSEMBLY: {data_type} well {well}")
@@ -1200,6 +1259,7 @@ def extract_cell_positions_from_stitched_mask(
     cell_id_mapping: Dict[int, Tuple[int, int]] = None,
 ) -> pd.DataFrame:
     """ENHANCED: Extract cell positions using preserved cell ID mapping.
+
     Now requires cell_id_mapping for proper functionality.
     """
     print(f"🔍 EXTRACTING CELL POSITIONS: {data_type} well {well}")
@@ -1463,6 +1523,7 @@ def verify_cell_id_preservation(
     data_type: str = "phenotype",
 ) -> None:
     """Verify the quality of cell ID preservation by comparing with original data.
+
     Call this after running the enhanced pipeline to check quality.
     """
     print(f"\n=== VERIFYING CELL ID PRESERVATION ===")

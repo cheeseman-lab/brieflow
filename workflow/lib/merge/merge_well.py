@@ -1,7 +1,6 @@
-"""Enhanced well-level merge functions for stitched image data.
+"""Well-level merge functions for stitched image data.
 
-This module uses the exact same proven approach as the successful tile-by-tile pipeline,
-just applied to well-level stitched data. No hardcoded scaling assumptions.
+This module uses an approach similar to tile-by-tile merging but adapted for well-level data.
 """
 
 import pandas as pd
@@ -11,8 +10,6 @@ from scipy.spatial.distance import cdist
 from sklearn.linear_model import RANSACRegressor, LinearRegression
 import warnings
 from typing import Optional, Tuple, Dict, Any
-
-# Import the proven functions from the existing hash module
 from lib.merge.hash import nine_edge_hash, get_vc, nearest_neighbors
 
 
@@ -136,6 +133,7 @@ def triangle_hash_well_alignment(
         threshold_triangle: Triangle similarity threshold
         threshold_point: Point distance threshold
         min_score: Minimum score to accept alignment
+        **kwargs: Additional arguments passed through from calling functions
 
     Returns:
         DataFrame with alignment parameters or empty DataFrame if failed
@@ -222,6 +220,7 @@ def merge_stitched_cells(
     output_path: str = None,
 ) -> pd.DataFrame:
     """Merge cells using alignment transformation with memory-efficient processing.
+
     Uses robust chunk indexing to avoid misalignment between arrays and DataFrames.
     """
     print(f"Starting cell merging with threshold={threshold}")
@@ -630,6 +629,7 @@ def triangle_hash_alignment_no_fallback(
         det_range: [min_det, max_det] determinant bounds
         score_threshold: Minimum score threshold
         max_cells_for_hash: Max cells for triangle generation
+        **kwargs: Additional arguments passed through from calling functions
 
     Returns:
         DataFrame with alignment result or empty DataFrame if no valid match
@@ -775,6 +775,10 @@ def geographic_constrained_sampling(
         cell_positions: DataFrame with cell positions
         max_cells: Total maximum cells to sample
         center_radius: Fraction of well radius defining center region (0.4 = 40%)
+        center_max_cells: Maximum cells to take from center region
+        edge_max_cells: Maximum cells to take from edge region (unused)
+        mid_max_cells: Maximum cells to take from middle region (unused)
+        random_max_cells: Maximum cells to take randomly (unused)
         random_state: Fixed random seed
 
     Returns:
@@ -1203,6 +1207,7 @@ def pure_scaling_alignment(
     random_state: int = 42,
 ) -> pd.DataFrame:
     """Pure scaling transformation with no translation.
+
     Tests if coordinate systems are already aligned and just need scaling.
 
     Args:
@@ -1368,28 +1373,3 @@ def pure_scaling_alignment(
         print(f"   May need translation adjustment")
 
     return pd.DataFrame([alignment])
-
-
-# Usage example:
-"""
-# In your well_merge.py script, replace triangle hash alignment with:
-
-# Option 1: Test calculated scale factor
-alignment_df = pure_scaling_alignment(
-    phenotype_positions=phenotype_well,
-    sbs_positions=sbs_well
-)
-
-# Option 2: Test multiple scale factors  
-alignment_df = test_multiple_scale_factors(
-    phenotype_positions=phenotype_well,
-    sbs_positions=sbs_well
-)
-
-# Option 3: Test specific scale factor
-alignment_df = pure_scaling_alignment(
-    phenotype_positions=phenotype_well,
-    sbs_positions=sbs_well,
-    scale_factor=0.123  # Or whatever you want to test
-)
-"""

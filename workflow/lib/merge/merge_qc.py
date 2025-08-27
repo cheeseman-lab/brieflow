@@ -1,4 +1,5 @@
-"""Quality Control and Visualization for Stitched Well Outputs
+"""Quality Control and Visualization for Stitched Well Outputs.
+
 Run this in a Jupyter notebook for interactive QC.
 """
 
@@ -178,11 +179,13 @@ def check_backend_and_setup():
 
 
 class StitchQC:
+    """Quality control and visualization tools for stitched well outputs."""
+
     def __init__(self, base_path, plate, well):
         """Initialize QC for a specific plate/well.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         base_path : str or Path
             Base path to your analysis outputs (should point to the 'merge' directory)
         plate : str/int
@@ -465,8 +468,8 @@ class StitchQC:
     ):
         """Memory-efficient stitching quality check with interactive brightness/contrast controls.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         sample_region : tuple, optional
             (start_i, end_i, start_j, end_j) region to examine at full resolution
         preview_downsample : int, default 20
@@ -728,11 +731,12 @@ class StitchQC:
         preview_downsample=20,
         brightness_levels=[0.3, 0.7, 1.0, 1.5, 2.0],
     ):
-        """Non-interactive version showing multiple brightness levels side by side
+        """Non-interactive version showing multiple brightness levels side by side.
+
         Use this if interactive sliders don't work.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         sample_region : tuple, optional
             (start_i, end_i, start_j, end_j) region to examine at full resolution
         preview_downsample : int, default 20
@@ -844,8 +848,8 @@ class StitchQC:
     def view_region(self, center_row, center_col, size=1000, brightness=2.0):
         """View a square region centered at specified coordinates with fixed brightness.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         center_row, center_col : int
             Center coordinates of region to view
         size : int, default 1000
@@ -885,8 +889,8 @@ def quick_qc(base_path, plate, well):
 def batch_qc_report(base_path, plate_wells):
     """Generate QC reports for multiple wells.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     base_path : str
         Path to analysis outputs
     plate_wells : list of tuples

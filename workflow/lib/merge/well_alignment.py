@@ -1,6 +1,4 @@
-"""Step 1 Library: Coordinate scaling, triangle hashing, and alignment functions.
-Save this as: lib/merge/alignment.py.
-"""
+"""Functions for coordinate scaling, triangle hashing, and alignment."""
 
 import pandas as pd
 import numpy as np
@@ -9,8 +7,6 @@ from scipy.spatial.distance import cdist
 from sklearn.linear_model import RANSACRegressor
 import warnings
 from typing import Optional, Tuple, Dict, Any
-
-# Import from existing modules
 from lib.merge.hash import nine_edge_hash, get_vc, nearest_neighbors
 
 

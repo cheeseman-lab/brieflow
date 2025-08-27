@@ -67,7 +67,7 @@ rule stitch_phenotype_well:
         runtime=180,       # 3 hours
         partition="20"     # Force high-memory nodes
     script:
-        "../scripts/merge/stitch_wells.py"
+        "../scripts/merge/well_stitching.py"
 
 
 rule stitch_sbs_well:
@@ -92,7 +92,7 @@ rule stitch_sbs_well:
         runtime=180,       # 3 hours
         partition="20"     # Force high-memory nodes
     script:
-        "../scripts/merge/stitch_wells.py"
+        "../scripts/merge/well_stitching.py"
 
 
 rule fast_alignment:

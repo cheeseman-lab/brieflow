@@ -1,6 +1,10 @@
-"""Quality Control and Visualization for Stitched Well Outputs.
+"""Quality Control and Evaluation for Stitched Well Outputs.
 
-Run this in a Jupyter notebook for interactive QC.
+This module provides comprehensive quality control tools for evaluating stitched well images
+and segmentation masks. It includes visualization capabilities, statistical analysis, and
+interactive tools for examining stitching quality.
+
+Run this in a Jupyter notebook for interactive QC capabilities.
 """
 
 import pandas as pd
@@ -21,7 +25,28 @@ sns.set_palette("husl")
 
 
 def analyze_stitch_config(config, metadata_df, well, data_type):
-    """Analyze if the stitch config preserves well geometry."""
+    """Analyze stitching configuration to verify geometry preservation.
+
+    This function validates that the computed tile shifts preserve the original
+    well geometry and provides visual comparisons between stage coordinates
+    and computed stitch positions.
+
+    Parameters
+    ----------
+    config : dict
+        Stitching configuration containing total_translation shifts
+    metadata_df : pd.DataFrame
+        Metadata containing tile positions and stage coordinates
+    well : str
+        Well identifier to analyze
+    data_type : str
+        Data type being analyzed ('phenotype' or 'sbs')
+
+    Returns:
+    -------
+    pd.DataFrame
+        Combined dataframe with original coordinates and computed shifts
+    """
     print(f"\n=== Analyzing {data_type.upper()} Stitch Config ===")
 
     shifts = config["total_translation"]
@@ -52,10 +77,12 @@ def analyze_stitch_config(config, metadata_df, well, data_type):
     # Analysis
     print(f"\nShift Statistics:")
     print(
-        f"  Y shifts: {shift_df['y_shift'].min()} to {shift_df['y_shift'].max()} (range: {shift_df['y_shift'].max() - shift_df['y_shift'].min()})"
+        f"  Y shifts: {shift_df['y_shift'].min()} to {shift_df['y_shift'].max()} "
+        f"(range: {shift_df['y_shift'].max() - shift_df['y_shift'].min()})"
     )
     print(
-        f"  X shifts: {shift_df['x_shift'].min()} to {shift_df['x_shift'].max()} (range: {shift_df['x_shift'].max() - shift_df['x_shift'].min()})"
+        f"  X shifts: {shift_df['x_shift'].min()} to {shift_df['x_shift'].max()} "
+        f"(range: {shift_df['x_shift'].max() - shift_df['x_shift'].min()})"
     )
     print(
         f"  Mean Y: {shift_df['y_shift'].mean():.1f}, Std: {shift_df['y_shift'].std():.1f}"
@@ -123,7 +150,6 @@ def analyze_stitch_config(config, metadata_df, well, data_type):
     axes[1].axis("equal")
 
     # Overlay comparison (normalized)
-    # Normalize coordinates to same scale
     orig_x_norm = (combined["x_pos"] - combined["x_pos"].min()) / (
         combined["x_pos"].max() - combined["x_pos"].min()
     )
@@ -157,7 +183,16 @@ def analyze_stitch_config(config, metadata_df, well, data_type):
 
 
 def check_backend_and_setup():
-    """Helper function to check and setup the correct matplotlib backend for interactivity."""
+    """Check and setup the correct matplotlib backend for interactivity.
+
+    Interactive widgets require specific matplotlib backends. This function
+    checks the current backend and provides guidance for enabling interactivity.
+
+    Returns:
+    -------
+    bool
+        True if backend supports interactive widgets, False otherwise
+    """
     backend = plt.get_backend()
     print(f"Current matplotlib backend: {backend}")
 
@@ -179,7 +214,12 @@ def check_backend_and_setup():
 
 
 class StitchQC:
-    """Quality control and visualization tools for stitched well outputs."""
+    """Quality control and visualization tools for stitched well outputs.
+
+    This class provides comprehensive QC capabilities including file validation,
+    overlay visualization, cell position analysis, and interactive image inspection
+    with brightness/contrast controls.
+    """
 
     def __init__(self, base_path, plate, well):
         """Initialize QC for a specific plate/well.
@@ -187,8 +227,8 @@ class StitchQC:
         Parameters
         ----------
         base_path : str or Path
-            Base path to your analysis outputs (should point to the 'merge' directory)
-        plate : str/int
+            Base path to analysis outputs (should point to the 'merge' directory)
+        plate : str or int
             Plate identifier
         well : str
             Well identifier (e.g., 'A3')
@@ -198,7 +238,7 @@ class StitchQC:
         self.well = well
         prefix = f"P-{plate}_W-{well}__"
 
-        # Define expected file paths based on your actual structure
+        # Define expected file paths
         self.phenotype_image = (
             self.base_path / "stitched_images" / f"{prefix}phenotype_stitched_image.npy"
         )
@@ -228,11 +268,10 @@ class StitchQC:
         print(f"Initialized QC for Plate {plate}, Well {well}")
         print(f"Base path: {self.base_path}")
         print(f"Looking for files with prefix: {prefix}")
-        print(f"Example phenotype image path: {self.phenotype_image}")
         self.check_files()
 
     def check_files(self):
-        """Check which output files exist."""
+        """Check which output files exist and report their status."""
         files = {
             "Phenotype Image": self.phenotype_image,
             "Phenotype Mask": self.phenotype_mask,
@@ -251,7 +290,13 @@ class StitchQC:
             print(f"{name:20} {status} {size}")
 
     def view_overlays(self, figsize=(15, 6)):
-        """Display phenotype and SBS overlays side by side."""
+        """Display phenotype and SBS overlays side by side.
+
+        Parameters
+        ----------
+        figsize : tuple, default (15, 6)
+            Figure size as (width, height) in inches
+        """
         fig, axes = plt.subplots(1, 2, figsize=figsize)
 
         # Phenotype overlay
@@ -296,7 +341,17 @@ class StitchQC:
         plt.show()
 
     def analyze_cell_positions(self):
-        """Analyze cell position data and create summary plots."""
+        """Analyze cell position data and create comprehensive summary plots.
+
+        This method loads cell position data from both phenotype and SBS modalities
+        and creates detailed visualizations including cell counts, area distributions,
+        spatial distributions, and overlay comparisons.
+
+        Returns:
+        -------
+        tuple
+            (phenotype_positions, sbs_positions) DataFrames if available, None otherwise
+        """
         # Load position data
         ph_pos = None
         sbs_pos = None
@@ -311,7 +366,7 @@ class StitchQC:
 
         if ph_pos is None and sbs_pos is None:
             print("No position data available")
-            return
+            return None, None
 
         # Create analysis plots
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -384,7 +439,7 @@ class StitchQC:
             axes[1, 0].set_title("Phenotype Cell Positions")
             axes[1, 0].set_xlabel("J (Column)")
             axes[1, 0].set_ylabel("I (Row)")
-            axes[1, 0].invert_yaxis()  # Match image coordinates
+            axes[1, 0].invert_yaxis()
             if "tile" in ph_pos.columns:
                 plt.colorbar(scatter, ax=axes[1, 0], label="Tile ID")
         else:
@@ -411,7 +466,7 @@ class StitchQC:
             axes[1, 1].set_title("SBS Cell Positions")
             axes[1, 1].set_xlabel("J (Column)")
             axes[1, 1].set_ylabel("I (Row)")
-            axes[1, 1].invert_yaxis()  # Match image coordinates
+            axes[1, 1].invert_yaxis()
             if "tile" in sbs_pos.columns:
                 plt.colorbar(scatter, ax=axes[1, 1], label="Tile ID")
         else:
@@ -466,7 +521,11 @@ class StitchQC:
         brightness_range=(0.1, 2.0),
         contrast_range=(0.5, 3.0),
     ):
-        """Memory-efficient stitching quality check with interactive brightness/contrast controls.
+        """Memory-efficient stitching quality check with interactive controls.
+
+        This method provides interactive brightness and contrast adjustment for
+        examining stitched images. It uses memory mapping and downsampling to
+        handle large images efficiently.
 
         Parameters
         ----------
@@ -475,9 +534,14 @@ class StitchQC:
         preview_downsample : int, default 20
             Downsampling factor for full well preview (higher = lower memory usage)
         brightness_range : tuple, default (0.1, 2.0)
-            Min and max values for brightness adjustment
+            Min and max values for brightness adjustment slider
         contrast_range : tuple, default (0.5, 3.0)
-            Min and max values for contrast adjustment
+            Min and max values for contrast adjustment slider
+
+        Returns:
+        -------
+        tuple
+            (figure, brightness_slider, contrast_slider) for interactive control
         """
         # Check matplotlib backend
         backend = plt.get_backend()
@@ -497,8 +561,8 @@ class StitchQC:
             [fig.add_subplot(gs[1, 0]), fig.add_subplot(gs[1, 1])],
         ]
 
-        # Slider area - make them bigger and more spaced out
-        slider_ax1 = plt.axes([0.15, 0.05, 0.25, 0.03])  # [left, bottom, width, height]
+        # Slider area
+        slider_ax1 = plt.axes([0.15, 0.05, 0.25, 0.03])
         slider_ax2 = plt.axes([0.55, 0.05, 0.25, 0.03])
 
         fig.suptitle(
@@ -511,7 +575,7 @@ class StitchQC:
         display_objects = {}
 
         def adjust_image_display(img_array, brightness=1.0, contrast=1.0):
-            """Apply brightness and contrast adjustments."""
+            """Apply brightness and contrast adjustments to image array."""
             # Normalize to 0-1 range first
             img_norm = (img_array - img_array.min()) / (
                 img_array.max() - img_array.min() + 1e-8
@@ -533,12 +597,12 @@ class StitchQC:
 
         # Process phenotype image
         if self.phenotype_image.exists():
-            # Memory map the array instead of loading it
+            # Memory map the array for efficiency
             ph_img = np.load(self.phenotype_image, mmap_mode="r")
             print(f"Phenotype image shape: {ph_img.shape}")
             print(f"Estimated size: {ph_img.nbytes / 1e9:.1f} GB")
 
-            # Create downsampled preview without loading full image
+            # Create downsampled preview
             ph_preview = ph_img[::preview_downsample, ::preview_downsample]
             image_data["ph_preview"] = ph_preview
 
@@ -562,7 +626,7 @@ class StitchQC:
                 start_j = max(0, min(start_j, ph_img.shape[1]))
                 end_j = max(start_j, min(end_j, ph_img.shape[1]))
 
-                # Extract only the requested region (memory efficient)
+                # Extract only the requested region
                 ph_sample = np.array(ph_img[start_i:end_i, start_j:end_j])
                 image_data["ph_sample"] = ph_sample
 
@@ -589,7 +653,7 @@ class StitchQC:
                 # Show center region
                 h, w = ph_img.shape
                 center_h, center_w = h // 2, w // 2
-                size = min(1000, min(h, w) // 8)  # Larger default region
+                size = min(1000, min(h, w) // 8)
 
                 start_i = center_h - size
                 end_i = center_h + size
@@ -678,7 +742,7 @@ class StitchQC:
 
             axes[1][1].axis("off")
 
-        # Create brightness and contrast sliders with larger, more visible controls
+        # Create brightness and contrast sliders
         brightness_slider = Slider(
             slider_ax1,
             "Brightness",
@@ -731,9 +795,11 @@ class StitchQC:
         preview_downsample=20,
         brightness_levels=[0.3, 0.7, 1.0, 1.5, 2.0],
     ):
-        """Non-interactive version showing multiple brightness levels side by side.
+        """Non-interactive stitching quality check with multiple brightness levels.
 
-        Use this if interactive sliders don't work.
+        This method provides a static visualization showing multiple brightness
+        levels side by side. Use this if interactive sliders don't work in your
+        environment.
 
         Parameters
         ----------
@@ -747,13 +813,11 @@ class StitchQC:
         # Handle single brightness level case
         if len(brightness_levels) == 1:
             fig, axes = plt.subplots(2, 1, figsize=(8, 10))
-            # Convert to 2D indexing for consistency
             axes = axes.reshape(2, 1)
         else:
             fig, axes = plt.subplots(
                 2, len(brightness_levels), figsize=(4 * len(brightness_levels), 8)
             )
-            # Ensure axes is always 2D
             if len(brightness_levels) == 1:
                 axes = axes.reshape(2, 1)
 
@@ -763,7 +827,7 @@ class StitchQC:
         )
 
         def adjust_image_display(img_array, brightness=1.0):
-            """Apply brightness adjustment."""
+            """Apply brightness adjustment to image array."""
             img_norm = (img_array - img_array.min()) / (
                 img_array.max() - img_array.min() + 1e-8
             )
@@ -782,7 +846,8 @@ class StitchQC:
                 end_j = max(start_j, min(end_j, ph_img.shape[1]))
                 ph_sample = np.array(ph_img[start_i:end_i, start_j:end_j])
                 print(
-                    f"Phenotype region: [{start_i}:{end_i}, {start_j}:{end_j}], shape: {ph_sample.shape}"
+                    f"Phenotype region: [{start_i}:{end_i}, {start_j}:{end_j}], "
+                    f"shape: {ph_sample.shape}"
                 )
             else:
                 h, w = ph_img.shape
@@ -822,7 +887,8 @@ class StitchQC:
                     sbs_img[sbs_start_i:sbs_end_i, sbs_start_j:sbs_end_j]
                 )
                 print(
-                    f"SBS region: [{sbs_start_i}:{sbs_end_i}, {sbs_start_j}:{sbs_end_j}], shape: {sbs_sample.shape}"
+                    f"SBS region: [{sbs_start_i}:{sbs_end_i}, {sbs_start_j}:{sbs_end_j}], "
+                    f"shape: {sbs_sample.shape}"
                 )
             else:
                 h, w = sbs_img.shape
@@ -846,12 +912,17 @@ class StitchQC:
         plt.show()
 
     def view_region(self, center_row, center_col, size=1000, brightness=2.0):
-        """View a square region centered at specified coordinates with fixed brightness.
+        """View a square region centered at specified coordinates.
+
+        This is a convenience method for quickly examining specific regions
+        of stitched images with adjustable brightness.
 
         Parameters
         ----------
-        center_row, center_col : int
-            Center coordinates of region to view
+        center_row : int
+            Center row coordinate of region to view
+        center_col : int
+            Center column coordinate of region to view
         size : int, default 1000
             Size of square region (will be size x size pixels)
         brightness : float, default 2.0
@@ -864,7 +935,8 @@ class StitchQC:
         end_j = center_col + half_size
 
         print(
-            f"Viewing {size}x{size} region centered at ({center_row}, {center_col}) with brightness {brightness}"
+            f"Viewing {size}x{size} region centered at ({center_row}, {center_col}) "
+            f"with brightness {brightness}"
         )
 
         # Use static version with single brightness level
@@ -874,27 +946,52 @@ class StitchQC:
         )
 
 
-# Enable interactive backend
-plt.ion()  # Turn on interactive mode
+# Enable interactive mode
+plt.ion()
 
 
-# Usage functions
 def quick_qc(base_path, plate, well):
-    """Quick QC check for a single well."""
+    """Perform quick quality control check for a single well.
+
+    This function provides a streamlined QC workflow that checks file status,
+    displays overlays, and analyzes cell positions for a single well.
+
+    Parameters
+    ----------
+    base_path : str
+        Path to analysis outputs
+    plate : str or int
+        Plate identifier
+    well : str
+        Well identifier
+
+    Returns:
+    -------
+    tuple
+        (phenotype_positions, sbs_positions) DataFrames
+    """
     qc = StitchQC(base_path, plate, well)
     qc.view_overlays()
     return qc.analyze_cell_positions()
 
 
 def batch_qc_report(base_path, plate_wells):
-    """Generate QC reports for multiple wells.
+    """Generate batch QC reports for multiple wells.
+
+    This function processes multiple wells and generates a summary report
+    showing file availability, cell counts, and processing status for each well.
 
     Parameters
     ----------
     base_path : str
         Path to analysis outputs
     plate_wells : list of tuples
-        [(plate1, well1), (plate2, well2), ...]
+        List of (plate, well) tuples to process, e.g., [(1, 'A01'), (1, 'A02')]
+
+    Returns:
+    -------
+    pd.DataFrame
+        Summary dataframe with QC statistics for each well
     """
     print("BATCH QC REPORT")
     print("=" * 60)
@@ -934,25 +1031,3 @@ def batch_qc_report(base_path, plate_wells):
     print(summary_df.to_string(index=False))
 
     return summary_df
-
-
-# Example usage:
-"""
-# Single well QC
-qc = StitchQC('/path/to/analysis/merge', plate=1, well='A01')
-qc.view_overlays()
-ph_pos, sbs_pos = qc.analyze_cell_positions()
-
-# Check specific region for stitching artifacts
-qc.check_stitching_quality_efficient(sample_region=(5000, 6000, 8000, 9000))
-
-# Alternative static version
-qc.check_stitching_quality_static(sample_region=(5000, 6000, 8000, 9000))
-
-# View specific region easily
-qc.view_region(center_row=5500, center_col=8500, size=2000)
-
-# Batch QC
-wells_to_check = [(1, 'A01'), (1, 'A02'), (1, 'B01')]
-summary = batch_qc_report('/path/to/analysis/merge', wells_to_check)
-"""

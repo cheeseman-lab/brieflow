@@ -16,13 +16,13 @@ from lib.merge.estimate_stitch import estimate_stitch_sbs_coordinate_based
 
 def convert_numpy_types(obj):
     """Convert numpy types to Python native types for YAML serialization.
-    
+
     YAML serialization requires native Python types, but numpy arrays and
     scalars need to be converted first.
-    
+
     Args:
         obj: Object that may contain numpy types (dict, list, numpy types, etc.)
-        
+
     Returns:
         Object with numpy types converted to Python native types
     """

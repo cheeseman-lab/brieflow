@@ -1,6 +1,8 @@
-"""Well-stitching functions.
+"""Well-stitching functions for images and segmentation masks.
 
-Handles both images and segmentation masks.
+This module provides comprehensive functionality for stitching microscopy tiles
+into complete well images, including image registration, mask assembly with
+preserved cell IDs, and cell position extraction.
 """
 
 import numpy as np
@@ -11,6 +13,7 @@ from tqdm import tqdm
 import scipy
 from pathlib import Path
 from skimage import io, measure
+from scipy.spatial.distance import pdist, squareform
 
 from dexp.processing.registration.model.translation_registration_model import (
     TranslationRegistrationModel,
@@ -19,281 +22,13 @@ from dexp.processing.registration import translation_nd as dexp_reg
 from dexp.processing.utils.linear_solver import linsolve
 
 
-def extract_cell_positions_from_stitched_mask(
-    stitched_mask: np.ndarray,
-    well: str,
-    plate: str,
-    data_type: str = "phenotype",
-    metadata_df: pd.DataFrame = None,
-    shifts: Dict[str, List[int]] = None,
-    tile_size: Tuple[int, int] = None,
-    cell_id_mapping: Dict[int, Tuple[int, int]] = None,
-) -> pd.DataFrame:
-    """ENHANCED: Extract cell positions using preserved cell ID mapping.
-
-    Now requires cell_id_mapping for proper functionality and includes plate parameter.
-    """
-    print(f"🔍 EXTRACTING CELL POSITIONS: {data_type} well {well}, plate {plate}")
-
-    # Get region properties from stitched mask
-    props = measure.regionprops(stitched_mask)
-
-    if len(props) == 0:
-        print("⚠️  No cells found in stitched mask")
-        return pd.DataFrame(
-            columns=[
-                "well",
-                "plate",
-                "cell",
-                "tile",
-                "label",
-                "stitched_cell_id",
-                "original_cell_id",
-                "original_tile_id",
-                "i",
-                "j",
-                "area",
-                "data_type",
-                "tile_i",
-                "tile_j",
-                "mapping_method",
-                "stage_x",
-                "stage_y",
-                "tile_row",
-                "tile_col",
-            ]
-        )
-
-    print(f"Found {len(props)} cells in stitched mask")
-
-    # Require the essential parameters
-    if cell_id_mapping is None:
-        raise ValueError("cell_id_mapping is required for preserved cell ID extraction")
-    if metadata_df is None:
-        raise ValueError("metadata_df is required for tile information")
-    if shifts is None:
-        raise ValueError("shifts is required for tile positioning")
-
-    # Auto-detect tile size if not provided
-    if tile_size is None:
-        tile_size = (2400, 2400) if data_type == "phenotype" else (1200, 1200)
-
-    print("✅ Using preserved cell ID mapping")
-
-    # Create metadata lookup
-    well_metadata = metadata_df[metadata_df["well"] == well].copy()
-    tile_metadata_lookup = {}
-    tile_shift_lookup = {}
-
-    for _, tile_row in well_metadata.iterrows():
-        tile_id = tile_row["tile"]
-        tile_metadata_lookup[tile_id] = tile_row.to_dict()
-
-        tile_key = f"{well}/{tile_id}"
-        if tile_key in shifts:
-            tile_shift_lookup[tile_id] = shifts[tile_key]
-
-    # Extract cell information using preserved mapping
-    cell_data = []
-    direct_mappings = 0
-    missing_mappings = 0
-
-    for prop in props:
-        global_centroid_y, global_centroid_x = prop.centroid
-        stitched_label = prop.label
-
-        # Base cell information - ALWAYS include plate
-        cell_info = {
-            "well": well,
-            "plate": str(plate),  # Ensure plate is string
-            "stitched_cell_id": stitched_label,
-            "i": global_centroid_y,  # Global stitched coordinates
-            "j": global_centroid_x,  # Global stitched coordinates
-            "area": prop.area,
-            "data_type": data_type,
-        }
-
-        # Use preserved mapping to get original tile and cell ID
-        if stitched_label in cell_id_mapping:
-            original_tile_id, original_cell_id = cell_id_mapping[stitched_label]
-            mapping_method = "preserved_mapping"
-            direct_mappings += 1
-
-            # Calculate relative position within original tile
-            if original_tile_id in tile_shift_lookup:
-                tile_shift = tile_shift_lookup[original_tile_id]
-                relative_y = global_centroid_y - tile_shift[0]
-                relative_x = global_centroid_x - tile_shift[1]
-            else:
-                relative_y = -1
-                relative_x = -1
-
-            # Get tile metadata
-            tile_metadata = tile_metadata_lookup.get(original_tile_id, {})
-
-            # STANDARDIZED: Always create both 'cell' and 'label' columns consistently
-            cell_info.update(
-                {
-                    "cell": original_cell_id,
-                    "tile": original_tile_id,
-                    "tile_i": relative_y,
-                    "tile_j": relative_x,
-                    "mapping_method": mapping_method,
-                    "stage_x": tile_metadata.get("x_pos", np.nan),
-                    "stage_y": tile_metadata.get("y_pos", np.nan),
-                    "tile_row": tile_metadata.get("tile_row", -1),
-                    "tile_col": tile_metadata.get("tile_col", -1),
-                }
-            )
-
-        cell_data.append(cell_info)
-
-    df = pd.DataFrame(cell_data)
-
-    # FINAL VALIDATION: Ensure required columns exist and have correct types
-    if len(df) > 0:
-        # Ensure integer types for ID columns (use nullable integer type)
-        for col in [
-            "cell",
-            "tile",
-            "original_cell_id",
-            "original_tile_id",
-            "stitched_cell_id",
-            "label",
-        ]:
-            if col in df.columns:
-                # Handle NaN values for integer columns
-                df[col] = df[col].fillna(-1).astype("Int64")  # Nullable integer type
-
-        # Ensure plate is string
-        df["plate"] = df["plate"].astype(str)
-
-        # Ensure well is string
-        df["well"] = df["well"].astype(str)
-
-        # Ensure data_type is string
-        df["data_type"] = df["data_type"].astype(str)
-
-    print(f"✅ EXTRACTION COMPLETE:")
-    print(f"  Total cells: {len(df)}")
-    print(f"  Direct mappings: {direct_mappings}")
-    print(f"  Missing mappings: {missing_mappings}")
-    print(f"  Success rate: {direct_mappings / len(df) * 100:.1f}%")
-
-    # Show tile distribution
-    if len(df) > 0 and "original_tile_id" in df.columns:
-        tile_counts = df["original_tile_id"].value_counts()
-        valid_tiles = tile_counts[tile_counts.index.notna() & (tile_counts.index != -1)]
-        if len(valid_tiles) > 0:
-            print(
-                f"  Cells per tile: min={valid_tiles.min()}, max={valid_tiles.max()}, mean={valid_tiles.mean():.1f}"
-            )
-            print(f"  Active tiles: {len(valid_tiles)}")
-
-    # Validate that cell and label are consistent for preserved mappings
-    if len(df) > 0:
-        preserved_rows = df[df["mapping_method"] == "preserved_mapping"]
-        if len(preserved_rows) > 0:
-            if (preserved_rows["cell"] == preserved_rows["label"]).all():
-                print(
-                    f"✅ Cell/label consistency verified for {len(preserved_rows)} preserved mappings"
-                )
-            else:
-                print(f"⚠️  Warning: Cell/label mismatch detected in preserved mappings")
-
-    # Show column summary
-    if len(df) > 0:
-        print(f"📊 Column Summary:")
-        print(f"  Plates: {df['plate'].nunique()} unique")
-        print(f"  Wells: {df['well'].nunique()} unique")
-        print(f"  Tiles: {df['tile'].nunique()} unique")
-        print(f"  Cell ID range: {df['cell'].min()} - {df['cell'].max()}")
-        print(f"  Label range: {df['label'].min()} - {df['label'].max()}")
-
-    return df
-
-
-def find_original_tile_from_position(
-    global_i, global_j, metadata_df, shifts, tile_size
-):
-    """Find which original tile a position in the stitched image came from.
-
-    Parameters:
-    -----------
-    global_i, global_j : float
-        Coordinates in the stitched image
-    metadata_df : pd.DataFrame
-        Metadata for tiles with tile information
-    shifts : dict
-        Translation shifts for each tile {tile_id: (shift_x, shift_y)}
-    tile_size : tuple
-        (height, width) of individual tiles
-
-    Returns:
-    --------
-    dict with tile, site, tile_i, tile_j information
-    """
-    tile_height, tile_width = tile_size
-    min_distance = float("inf")
-    best_tile_info = {"tile": 1, "site": 1, "tile_i": 0, "tile_j": 0}
-
-    # First pass: look for exact containment
-    for _, tile_row in metadata_df.iterrows():
-        tile_id = tile_row["tile"]
-
-        # Get the shift for this tile
-        if tile_id not in shifts:
-            continue
-
-        shift_x, shift_y = shifts[tile_id]
-
-        # Calculate tile boundaries in stitched coordinates
-        tile_start_j = shift_x  # x shift corresponds to j (column)
-        tile_start_i = shift_y  # y shift corresponds to i (row)
-        tile_end_j = tile_start_j + tile_width
-        tile_end_i = tile_start_i + tile_height
-
-        # Check if point is within this tile (with small tolerance for boundaries)
-        tolerance = 5  # pixels
-        if (
-            tile_start_i - tolerance <= global_i <= tile_end_i + tolerance
-            and tile_start_j - tolerance <= global_j <= tile_end_j + tolerance
-        ):
-            return {
-                "tile": int(tile_id),
-                "site": int(tile_id),  # Use tile as site for SBS compatibility
-                "tile_i": tile_row.get("tile_i", 0),
-                "tile_j": tile_row.get("tile_j", 0),
-            }
-
-    # Second pass: if no exact match, find closest tile center
-    for _, tile_row in metadata_df.iterrows():
-        tile_id = tile_row["tile"]
-        if tile_id not in shifts:
-            continue
-
-        shift_x, shift_y = shifts[tile_id]
-        tile_center_j = shift_x + tile_width / 2
-        tile_center_i = shift_y + tile_height / 2
-
-        distance = np.sqrt(
-            (global_i - tile_center_i) ** 2 + (global_j - tile_center_j) ** 2
-        )
-
-        if distance < min_distance:
-            min_distance = distance
-            best_tile_info = {
-                "tile": int(tile_id),
-                "site": int(tile_id),
-                "tile_i": tile_row.get("tile_i", 0),
-                "tile_j": tile_row.get("tile_j", 0),
-            }
-
-    return best_tile_info
-
-
 class LimitedSizeDict(OrderedDict):
-    """A dictionary that maintains a maximum size by removing oldest items."""
+    """A dictionary that maintains a maximum size by removing oldest items.
+
+    This is used for caching tile data to prevent excessive memory usage
+    while still providing performance benefits from caching frequently
+    accessed tiles.
+    """
 
     def __init__(self, max_size):
         """Initialize the limited size dictionary.
@@ -307,7 +42,7 @@ class LimitedSizeDict(OrderedDict):
         self.max_size = max_size
 
     def __setitem__(self, key, value):
-        """Set item and maintain size limit."""
+        """Set item and maintain size limit by removing oldest entries."""
         super().__setitem__(key, value)
         if len(self) > self.max_size:
             self.popitem(last=False)
@@ -316,7 +51,24 @@ class LimitedSizeDict(OrderedDict):
 def augment_tile(
     tile: np.ndarray, flipud: bool, fliplr: bool, rot90: int
 ) -> np.ndarray:
-    """Apply flips and rotations to a tile."""
+    """Apply geometric transformations to a tile.
+
+    Parameters
+    ----------
+    tile : np.ndarray
+        Input tile array
+    flipud : bool
+        Whether to flip vertically (up-down)
+    fliplr : bool
+        Whether to flip horizontally (left-right)
+    rot90 : int
+        Number of 90-degree rotations to apply
+
+    Returns:
+    -------
+    np.ndarray
+        Transformed tile
+    """
     if flipud:
         tile = np.flip(tile, axis=-2)
     if fliplr:
@@ -326,8 +78,21 @@ def augment_tile(
     return tile
 
 
-def load_aligned_tiff(file_path: str, channel: int = 0) -> np.ndarray:
-    """Load an aligned TIFF file and extract specific channel."""
+def load_aligned_tiff(file_path: str, channel: int = 0) -> Optional[np.ndarray]:
+    """Load an aligned TIFF file and extract specific channel.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to the TIFF file
+    channel : int, default 0
+        Channel index to extract from multi-channel images
+
+    Returns:
+    -------
+    np.ndarray or None
+        Loaded image array, or None if loading failed
+    """
     try:
         image = io.imread(file_path)
 
@@ -347,7 +112,11 @@ def load_aligned_tiff(file_path: str, channel: int = 0) -> np.ndarray:
 
 
 class AlignedTiffTileCache:
-    """Cache for loading aligned TIFF tiles using metadata for positioning."""
+    """Cache for loading aligned TIFF tiles using metadata for positioning.
+
+    This class provides efficient loading and caching of aligned TIFF image tiles
+    with support for geometric transformations.
+    """
 
     def __init__(
         self,
@@ -368,7 +137,7 @@ class AlignedTiffTileCache:
         well : str
             Well identifier
         data_type : str, default "phenotype"
-            Type of data being processed
+            Type of data being processed ('phenotype' or 'sbs')
         flipud : bool, default False
             Whether to flip tiles vertically
         fliplr : bool, default False
@@ -378,7 +147,7 @@ class AlignedTiffTileCache:
         channel : int, default 0
             Channel to extract from multi-channel images
         """
-        self.cache = LimitedSizeDict(max_size=50)  # Increased from 20
+        self.cache = LimitedSizeDict(max_size=50)
         self.metadata_df = metadata_df[metadata_df["well"] == well].copy()
         self.well = well
         self.data_type = data_type
@@ -388,7 +157,7 @@ class AlignedTiffTileCache:
         self.channel = channel
 
     def __getitem__(self, tile_id: int):
-        """Get tile by tile ID."""
+        """Get tile by tile ID with automatic loading and caching."""
         if tile_id in self.cache:
             return self.cache[tile_id]
         else:
@@ -398,8 +167,19 @@ class AlignedTiffTileCache:
             else:
                 raise KeyError(f"Tile {tile_id} not found")
 
-    def load_tile(self, tile_id: int) -> np.ndarray:
-        """Load an aligned TIFF tile and add it to cache."""
+    def load_tile(self, tile_id: int) -> Optional[np.ndarray]:
+        """Load an aligned TIFF tile and add it to cache.
+
+        Parameters
+        ----------
+        tile_id : int
+            Tile identifier to load
+
+        Returns:
+        -------
+        np.ndarray or None
+            Loaded and transformed tile array, or None if loading failed
+        """
         tile_metadata = self.metadata_df[self.metadata_df["tile"] == tile_id]
 
         if len(tile_metadata) == 0:
@@ -409,15 +189,18 @@ class AlignedTiffTileCache:
         tile_row = tile_metadata.iloc[0]
         plate = tile_row["plate"]
 
-        # Construct path to aligned TIFF file (for image stitching)
-        aligned_path = f"analysis_root/{self.data_type}/images/P-{plate}_W-{self.well}_T-{tile_id}__aligned.tiff"
+        # Construct path to aligned TIFF file
+        aligned_path = (
+            f"analysis_root/{self.data_type}/images/"
+            f"P-{plate}_W-{self.well}_T-{tile_id}__aligned.tiff"
+        )
 
         try:
             tile_2d = load_aligned_tiff(aligned_path, self.channel)
             if tile_2d is None:
                 return None
 
-            # Apply augmentations
+            # Apply transformations
             aug_tile = augment_tile(tile_2d, self.flipud, self.fliplr, self.rot90)
             self.cache[tile_id] = aug_tile
             return aug_tile
@@ -428,7 +211,11 @@ class AlignedTiffTileCache:
 
 
 class MaskTileCache:
-    """Cache for loading segmentation mask tiles."""
+    """Cache for loading segmentation mask tiles.
+
+    This class provides efficient loading and caching of segmentation mask tiles
+    with support for geometric transformations.
+    """
 
     def __init__(
         self,
@@ -456,7 +243,7 @@ class MaskTileCache:
         rot90 : int, default 0
             Number of 90-degree rotations to apply
         """
-        self.cache = LimitedSizeDict(max_size=50)  # Increased from 20
+        self.cache = LimitedSizeDict(max_size=50)
         self.metadata_df = metadata_df[metadata_df["well"] == well].copy()
         self.well = well
         self.data_type = data_type
@@ -465,7 +252,7 @@ class MaskTileCache:
         self.rot90 = rot90
 
     def __getitem__(self, tile_id: int):
-        """Get mask tile by tile ID."""
+        """Get mask tile by tile ID with automatic loading and caching."""
         if tile_id in self.cache:
             return self.cache[tile_id]
         else:
@@ -476,8 +263,19 @@ class MaskTileCache:
             else:
                 raise KeyError(f"Mask tile {tile_id} not found")
 
-    def load_mask_tile(self, tile_id: int) -> np.ndarray:
-        """Load a segmentation mask tile."""
+    def load_mask_tile(self, tile_id: int) -> Optional[np.ndarray]:
+        """Load a segmentation mask tile.
+
+        Parameters
+        ----------
+        tile_id : int
+            Tile identifier to load
+
+        Returns:
+        -------
+        np.ndarray or None
+            Loaded and transformed mask array, or None if loading failed
+        """
         tile_metadata = self.metadata_df[self.metadata_df["tile"] == tile_id]
 
         if len(tile_metadata) == 0:
@@ -487,8 +285,11 @@ class MaskTileCache:
         tile_row = tile_metadata.iloc[0]
         plate = tile_row["plate"]
 
-        # Construct path to nuclei mask file (segmentation masks)
-        mask_path = f"analysis_root/{self.data_type}/images/P-{plate}_W-{self.well}_T-{tile_id}__nuclei.tiff"
+        # Construct path to nuclei mask file
+        mask_path = (
+            f"analysis_root/{self.data_type}/images/"
+            f"P-{plate}_W-{self.well}_T-{tile_id}__nuclei.tiff"
+        )
 
         try:
             mask_array = io.imread(mask_path)
@@ -497,7 +298,7 @@ class MaskTileCache:
             if len(mask_array.shape) > 2:
                 mask_array = mask_array[0] if mask_array.shape[0] == 1 else mask_array
 
-            # Apply augmentations
+            # Apply transformations
             aug_mask = augment_tile(mask_array, self.flipud, self.fliplr, self.rot90)
             return aug_mask
 
@@ -509,7 +310,25 @@ class MaskTileCache:
 def metadata_to_grid_positions(
     metadata_df: pd.DataFrame, well: str, grid_spacing_tolerance: float = 1.0
 ) -> Dict[int, Tuple[int, int]]:
-    """Convert metadata to tile positions preserving actual well geometry with proper spacing detection."""
+    """Convert stage coordinate metadata to grid positions preserving well geometry.
+
+    This function converts continuous stage coordinates to discrete grid positions
+    while preserving the spatial relationships and circular geometry of wells.
+
+    Parameters
+    ----------
+    metadata_df : pd.DataFrame
+        Metadata containing stage coordinates
+    well : str
+        Well identifier to process
+    grid_spacing_tolerance : float, default 1.0
+        Tolerance for grid spacing detection (currently unused)
+
+    Returns:
+    -------
+    Dict[int, Tuple[int, int]]
+        Mapping from tile_id to (grid_row, grid_col) positions
+    """
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
 
     if len(well_metadata) == 0:
@@ -520,9 +339,7 @@ def metadata_to_grid_positions(
 
     print(f"Processing {len(tile_ids)} tiles preserving circular well geometry")
 
-    # FIXED: Use actual tile spacing, not measurement precision noise
-    from scipy.spatial.distance import pdist
-
+    # Determine actual tile spacing from coordinate distribution
     distances = pdist(coords)
 
     # Use 10th percentile of distances as typical neighbor spacing
@@ -531,9 +348,9 @@ def metadata_to_grid_positions(
     print(f"Stage coordinate ranges:")
     print(f"  X: {coords[:, 0].min():.1f} to {coords[:, 0].max():.1f} μm")
     print(f"  Y: {coords[:, 1].min():.1f} to {coords[:, 1].max():.1f} μm")
-    print(f"Detected actual tile spacing: {actual_spacing:.1f} μm")
+    print(f"Detected tile spacing: {actual_spacing:.1f} μm")
 
-    # Use the actual spacing for both X and Y
+    # Use the detected spacing for both X and Y
     x_spacing = actual_spacing
     y_spacing = actual_spacing
 
@@ -547,7 +364,7 @@ def metadata_to_grid_positions(
     for i, tile_id in enumerate(tile_ids):
         x_pos, y_pos = coords[i]
 
-        # Convert to grid indices preserving actual geometry
+        # Convert to grid indices preserving geometry
         grid_x = int(round((x_pos - x_min) / x_spacing))
         grid_y = int(round((y_pos - y_min) / y_spacing))
 
@@ -559,7 +376,7 @@ def metadata_to_grid_positions(
     print(f"Grid coordinate ranges: Y=0 to {max_grid_y}, X=0 to {max_grid_x}")
     print(f"Created grid positions for {len(tile_positions)} tiles")
 
-    # Verify we preserved circular geometry
+    # Verify circular geometry preservation
     if len(tile_positions) > 4:
         positions = np.array(list(tile_positions.values()))
         center_y, center_x = positions.mean(axis=0)
@@ -584,35 +401,53 @@ def connectivity_from_actual_positions_optimized(
     tile_positions: Dict[int, Tuple[int, int]],
     stage_coords: np.ndarray,
     tile_ids: np.ndarray,
-    data_type: str,  # Add data_type parameter
+    data_type: str,
     max_neighbors_per_tile: int = 3,
 ) -> Dict[str, List[Tuple[int, int]]]:
-    """Create connectivity based on actual spatial proximity with optimized thresholds."""
-    # Calculate proximity-based edges with OPTIMIZED thresholds for circular geometry
-    from scipy.spatial.distance import pdist, squareform
+    """Create connectivity graph based on spatial proximity with optimized thresholds.
 
-    distances = squareform(pdist(stage_coords))  # Use stage_coords, not coords
+    This function creates edges between neighboring tiles based on their actual
+    spatial proximity, with data-type-specific optimizations for circular well geometry.
+
+    Parameters
+    ----------
+    tile_positions : Dict[int, Tuple[int, int]]
+        Mapping from tile_id to grid positions
+    stage_coords : np.ndarray
+        Stage coordinates for tiles
+    tile_ids : np.ndarray
+        Array of tile identifiers
+    data_type : str
+        Data type ('phenotype' or 'sbs') for threshold optimization
+    max_neighbors_per_tile : int, default 3
+        Maximum number of neighbors per tile
+
+    Returns:
+    -------
+    Dict[str, List[Tuple[int, int]]]
+        Dictionary of edges mapping edge_id to [pos_a, pos_b]
+    """
+    # Calculate proximity-based edges with optimized thresholds
+    distances = squareform(pdist(stage_coords))
 
     # Get distance distribution for threshold selection
     upper_triangle = distances[np.triu_indices_from(distances, k=1)]
 
     # Use data type-specific optimized thresholds
     if data_type == "phenotype":
-        # For phenotype: use 1.005x multiplier of minimum distance
+        # For phenotype: use slightly above minimum distance
         min_distance = distances[distances > 0].min()
         proximity_threshold = min_distance * 1.005
         max_neighbors = 3
         print(
-            f"Phenotype: Using optimized threshold {proximity_threshold:.1f} (min_dist * 1.005)"
+            f"Phenotype: Using threshold {proximity_threshold:.1f} (min_dist * 1.005)"
         )
 
     elif data_type == "sbs":
         # For SBS: use 5th percentile of distance distribution
         proximity_threshold = np.percentile(upper_triangle, 5)
         max_neighbors = 3
-        print(
-            f"SBS: Using optimized threshold {proximity_threshold:.1f} (5th percentile)"
-        )
+        print(f"SBS: Using threshold {proximity_threshold:.1f} (5th percentile)")
 
     else:
         # Fallback for other data types
@@ -624,7 +459,7 @@ def connectivity_from_actual_positions_optimized(
     edges = {}
     edge_idx = 0
 
-    # Create edges with optimized neighbor limiting
+    # Create edges with neighbor limiting
     print(f"Creating edges with max {max_neighbors} neighbors per tile...")
 
     for i in range(len(tile_ids)):
@@ -648,10 +483,11 @@ def connectivity_from_actual_positions_optimized(
 
     print(f"Created {len(edges)} optimized edges for circular {data_type} geometry")
 
-    # Verify we're in the expected range
+    # Verify edge count is in expected range
     if data_type == "phenotype" and not (8000 <= len(edges) <= 15000):
         print(
-            f"⚠️  Warning: Phenotype edge count {len(edges)} outside expected range 8K-15K"
+            f"⚠️  Warning: Phenotype edge count {len(edges)} outside expected "
+            f"range 8K-15K"
         )
     elif data_type == "sbs" and not (3000 <= len(edges) <= 8000):
         print(f"⚠️  Warning: SBS edge count {len(edges)} outside expected range 3K-8K")
@@ -661,19 +497,30 @@ def connectivity_from_actual_positions_optimized(
     return edges
 
 
-def connectivity_from_grid(
-    positions: List[Tuple[int, int]],
-) -> Dict[str, List[Tuple[int, int]]]:
-    """Create connectivity graph using proximity-based approach for stage coordinates."""
-    # This function is now called with simple positions, but we need the actual coordinates
-    # We'll override this with a proximity-based approach in the main function
-    return {}
-
-
 def offset_tiff(
     image_a: np.ndarray, image_b: np.ndarray, relation: Tuple[int, int], overlap: int
 ) -> TranslationRegistrationModel:
-    """Calculate offset between two images based on their spatial relationship."""
+    """Calculate offset between two images based on their spatial relationship.
+
+    This function performs phase correlation-based registration between overlapping
+    regions of two tiles to determine the precise translation offset.
+
+    Parameters
+    ----------
+    image_a : np.ndarray
+        First image
+    image_b : np.ndarray
+        Second image
+    relation : Tuple[int, int]
+        Spatial relationship between tiles as (row_diff, col_diff)
+    overlap : int
+        Size of overlap region for registration
+
+    Returns:
+    -------
+    TranslationRegistrationModel
+        Registration model containing shift vector and confidence score
+    """
     shape = image_a.shape
 
     # Determine overlap region based on spatial relationship
@@ -713,7 +560,7 @@ def offset_tiff(
         ]
         corr_x = corr_y = 0
 
-    # Ensure positive values
+    # Ensure positive values for registration
     roi_a_min = np.min(roi_a)
     roi_b_min = np.min(roi_b)
     if roi_a_min < 0:
@@ -734,7 +581,11 @@ def offset_tiff(
 
 
 class AlignedTiffEdge:
-    """Edge between two tiles for registration using aligned TIFF images."""
+    """Edge between two tiles for registration using aligned TIFF images.
+
+    This class represents a connection between two adjacent tiles and handles
+    the registration calculation between them.
+    """
 
     def __init__(
         self,
@@ -753,7 +604,7 @@ class AlignedTiffEdge:
             ID of second tile
         tile_cache : AlignedTiffTileCache
             Cache for loading tiles
-        tile_positions : dict
+        tile_positions : Dict[int, Tuple[int, int]]
             Mapping of tile ID to grid position
         """
         self.tile_cache = tile_cache
@@ -765,7 +616,13 @@ class AlignedTiffEdge:
         self.model = self.get_offset()
 
     def get_offset(self) -> TranslationRegistrationModel:
-        """Calculate offset between two tiles."""
+        """Calculate offset between two tiles using image registration.
+
+        Returns:
+        -------
+        TranslationRegistrationModel
+            Registration model with calculated shift and confidence
+        """
         tile_a = self.tile_cache[self.tile_a_id]
         tile_b = self.tile_cache[self.tile_b_id]
 
@@ -775,9 +632,9 @@ class AlignedTiffEdge:
             model.confidence = 0.0
             return model
 
-        # Calculate adaptive overlap based on tile size (5% overlap, but smaller for speed)
+        # Calculate adaptive overlap for registration
         tile_size_avg = (tile_a.shape[0] + tile_a.shape[1]) / 2
-        overlap = max(40, int(tile_size_avg * 0.03))  # 3% overlap for speed, minimum 40
+        overlap = max(40, int(tile_size_avg * 0.03))  # 3% overlap, minimum 40 pixels
 
         return offset_tiff(tile_a, tile_b, self.relation, overlap=overlap)
 
@@ -788,7 +645,27 @@ def optimal_positions_tiff(
     well: str,
     tile_size: Tuple[int, int],
 ) -> Dict[str, List[int]]:
-    """Calculate optimal tile positions using least squares optimization with proper unit handling."""
+    """Calculate optimal tile positions using least squares optimization.
+
+    This function solves for the optimal tile positions that minimize registration
+    errors across all tile pairs using sparse linear least squares.
+
+    Parameters
+    ----------
+    edge_list : List[AlignedTiffEdge]
+        List of edges with registration results
+    tile_positions : Dict[int, Tuple[int, int]]
+        Initial grid positions for tiles
+    well : str
+        Well identifier
+    tile_size : Tuple[int, int]
+        Size of individual tiles as (height, width)
+
+    Returns:
+    -------
+    Dict[str, List[int]]
+        Optimized tile positions as {well/tile_id: [y_pixel, x_pixel]}
+    """
     if len(edge_list) == 0:
         return {}
 
@@ -800,8 +677,7 @@ def optimal_positions_tiff(
     y_i = np.zeros(n_edges + 1, dtype=np.float32)
     y_j = np.zeros(n_edges + 1, dtype=np.float32)
 
-    # FIXED: Use grid positions directly, not multiplied by tile size
-    # The optimization works in grid coordinate space, then we convert to pixels later
+    # Use grid positions as initial guess
     x_guess = np.array(
         [tile_positions[tile_id][1] for tile_id in tile_ids], dtype=np.float32
     )  # Grid X (col)
@@ -810,7 +686,8 @@ def optimal_positions_tiff(
     )  # Grid Y (row)
 
     print(
-        f"Initial grid position ranges: Y=[{y_guess.min():.0f}, {y_guess.max():.0f}], X=[{x_guess.min():.0f}, {x_guess.max():.0f}]"
+        f"Initial grid position ranges: Y=[{y_guess.min():.0f}, {y_guess.max():.0f}], "
+        f"X=[{x_guess.min():.0f}, {x_guess.max():.0f}]"
     )
 
     # Build constraint matrix
@@ -822,14 +699,9 @@ def optimal_positions_tiff(
         a[c, tile_a_idx] = -1
         a[c, tile_b_idx] = 1
 
-        # IMPORTANT: Scale the shift vectors to grid units, not pixel units
-        # The edge.model.shift_vector is in pixels, convert to grid units
-        y_i[c] = (
-            edge.model.shift_vector[0] / tile_size[0]
-        )  # Convert pixels to grid units
-        y_j[c] = (
-            edge.model.shift_vector[1] / tile_size[1]
-        )  # Convert pixels to grid units
+        # Convert shift vectors from pixels to grid units
+        y_i[c] = edge.model.shift_vector[0] / tile_size[0]
+        y_j[c] = edge.model.shift_vector[1] / tile_size[1]
 
     # Fix first tile at origin
     y_i[-1] = 0
@@ -837,7 +709,7 @@ def optimal_positions_tiff(
     a[-1, 0] = 1
     a = a.tocsr()
 
-    # Optimization in grid space
+    # Solve optimization in grid space
     tolerance = 1e-5
     try:
         opt_i = linsolve(a, y_i, tolerance=tolerance, x0=y_guess, maxiter=int(1e8))
@@ -852,15 +724,17 @@ def optimal_positions_tiff(
     opt_shifts_zeroed = opt_shifts - np.min(opt_shifts, axis=0)
 
     print(
-        f"Optimized grid position ranges: Y=[{opt_shifts_zeroed[:, 0].min():.0f}, {opt_shifts_zeroed[:, 0].max():.0f}], X=[{opt_shifts_zeroed[:, 1].min():.0f}, {opt_shifts_zeroed[:, 1].max():.0f}]"
+        f"Optimized grid position ranges: "
+        f"Y=[{opt_shifts_zeroed[:, 0].min():.0f}, {opt_shifts_zeroed[:, 0].max():.0f}], "
+        f"X=[{opt_shifts_zeroed[:, 1].min():.0f}, {opt_shifts_zeroed[:, 1].max():.0f}]"
     )
 
-    # NOW convert to pixel coordinates
+    # Convert to pixel coordinates
     opt_shifts_dict = {}
     for i, tile_id in enumerate(tile_ids):
         # Convert from grid units to pixel coordinates
-        pixel_y = int(opt_shifts_zeroed[i, 0] * tile_size[0])  # Grid Y * tile height
-        pixel_x = int(opt_shifts_zeroed[i, 1] * tile_size[1])  # Grid X * tile width
+        pixel_y = int(opt_shifts_zeroed[i, 0] * tile_size[0])
+        pixel_x = int(opt_shifts_zeroed[i, 1] * tile_size[1])
 
         opt_shifts_dict[f"{well}/{tile_id}"] = [pixel_y, pixel_x]
 
@@ -874,9 +748,7 @@ def optimal_positions_tiff(
     print(f"Final pixel shift ranges: Y={max_y_range}, X={max_x_range}")
 
     # Sanity check
-    if (
-        max_y_range > 100000 or max_x_range > 100000
-    ):  # 100K pixels = reasonable large well
+    if max_y_range > 100000 or max_x_range > 100000:  # 100K pixels = reasonable limit
         print(f"⚠️  Warning: Very large shift ranges detected")
     else:
         print(f"✅ Shift ranges look reasonable")
@@ -887,7 +759,20 @@ def optimal_positions_tiff(
 def get_output_shape_tiff(
     shifts: Dict[str, List[int]], tile_size: Tuple[int, int]
 ) -> Tuple[int, int]:
-    """Calculate the output shape needed for stitched image."""
+    """Calculate the output shape needed for stitched image.
+
+    Parameters
+    ----------
+    shifts : Dict[str, List[int]]
+        Tile shift positions as {well/tile_id: [y, x]}
+    tile_size : Tuple[int, int]
+        Size of individual tiles as (height, width)
+
+    Returns:
+    -------
+    Tuple[int, int]
+        Required output shape as (height, width)
+    """
     if not shifts:
         return tile_size
 
@@ -897,34 +782,6 @@ def get_output_shape_tiff(
     max_x = int(np.max(x_shifts)) if x_shifts else 0
 
     return max_y + tile_size[0], max_x + tile_size[1]
-
-
-def relabel_mask_tile(mask_tile: np.ndarray, start_label: int) -> np.ndarray:
-    """Relabel a mask tile to use sequential labels starting from start_label.
-
-    Fixed to handle integer overflow by using larger data types.
-    """
-    if mask_tile.max() == 0:
-        return mask_tile
-
-    unique_labels = np.unique(mask_tile[mask_tile > 0])
-
-    # Use int64 to prevent overflow
-    relabeled = np.zeros_like(mask_tile, dtype=np.int64)
-
-    for i, old_label in enumerate(unique_labels):
-        new_label = int(start_label) + int(i)  # Explicit int conversion
-        if new_label > np.iinfo(np.uint32).max:
-            print(f"Warning: Label {new_label} exceeds uint32 limit, using modulo")
-            new_label = new_label % np.iinfo(np.uint32).max
-        relabeled[mask_tile == old_label] = new_label
-
-    # Convert back to original dtype but check for overflow
-    if relabeled.max() <= np.iinfo(mask_tile.dtype).max:
-        return relabeled.astype(mask_tile.dtype)
-    else:
-        print(f"Warning: Converting to uint32 due to large labels")
-        return relabeled.astype(np.uint32)
 
 
 def assemble_aligned_tiff_well(
@@ -937,7 +794,36 @@ def assemble_aligned_tiff_well(
     rot90: int = 0,
     overlap_percent: float = 0.05,
 ) -> np.ndarray:
-    """Assemble a stitched well image from aligned TIFF tiles."""
+    """Assemble a stitched well image from aligned TIFF tiles.
+
+    This function loads individual tile images and assembles them into a complete
+    well image using the calculated shift positions. Overlapping regions are
+    blended using weighted averaging.
+
+    Parameters
+    ----------
+    metadata_df : pd.DataFrame
+        Metadata for tiles in the well
+    shifts : Dict[str, List[int]]
+        Tile shift positions
+    well : str
+        Well identifier
+    data_type : str, default "phenotype"
+        Type of data being processed
+    flipud : bool, default False
+        Whether to flip tiles vertically
+    fliplr : bool, default False
+        Whether to flip tiles horizontally
+    rot90 : int, default 0
+        Number of 90-degree rotations
+    overlap_percent : float, default 0.05
+        Expected overlap percentage (unused in current implementation)
+
+    Returns:
+    -------
+    np.ndarray
+        Assembled stitched image
+    """
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
 
     if len(well_metadata) == 0:
@@ -979,9 +865,12 @@ def assemble_aligned_tiff_well(
         if tile_key not in shifts:
             continue
 
-        # Load aligned image tile (for stitching)
+        # Load aligned image tile
         plate = tile_row["plate"]
-        tile_path = f"analysis_root/{data_type}/images/P-{plate}_W-{well}_T-{tile_id}__aligned.tiff"
+        tile_path = (
+            f"analysis_root/{data_type}/images/"
+            f"P-{plate}_W-{well}_T-{tile_id}__aligned.tiff"
+        )
 
         try:
             tile_array = load_aligned_tiff(tile_path)
@@ -992,7 +881,7 @@ def assemble_aligned_tiff_well(
             print(f"Error loading tile {tile_id}: {e}")
             continue
 
-        # Place tile
+        # Place tile in output image
         shift = shifts[tile_key]
         y_shift, x_shift = int(shift[0]), int(shift[1])
         y_end = min(y_shift + tile_size[0], final_shape[0])
@@ -1008,7 +897,7 @@ def assemble_aligned_tiff_well(
             tile_mask = tile_array[:tile_y_end, :tile_x_end] > 0
             divisor[y_shift:y_end, x_shift:x_end] += tile_mask.astype(np.uint16)
 
-    # Normalize
+    # Normalize overlapping regions
     stitched = np.zeros_like(output_image, dtype=np.float32)
     nonzero_mask = divisor > 0
     stitched[nonzero_mask] = output_image[nonzero_mask] / divisor[nonzero_mask]
@@ -1026,9 +915,35 @@ def assemble_stitched_masks_simple(
     rot90=0,
     return_cell_mapping=False,
 ):
-    """FIXED: Assemble stitched masks while preserving original cell IDs.
+    """Assemble stitched masks while preserving original cell IDs.
 
-    Key fix: Create mapping BEFORE relabeling, so original IDs are preserved.
+    This function loads individual mask tiles and assembles them into a complete
+    well mask, maintaining a mapping between stitched cell IDs and their original
+    tile and cell identifiers.
+
+    Parameters
+    ----------
+    metadata_df : pd.DataFrame
+        Metadata for tiles in the well
+    shifts : Dict[str, List[int]]
+        Tile shift positions
+    well : str
+        Well identifier
+    data_type : str
+        Type of data being processed
+    flipud : bool, default False
+        Whether to flip tiles vertically
+    fliplr : bool, default False
+        Whether to flip tiles horizontally
+    rot90 : int, default 0
+        Number of 90-degree rotations
+    return_cell_mapping : bool, default False
+        Whether to return cell ID mapping dictionary
+
+    Returns:
+    -------
+    np.ndarray or Tuple[np.ndarray, Dict]
+        Stitched mask array, and optionally cell ID mapping dictionary
     """
     print(f"🔧 MASK ASSEMBLY: {data_type} well {well}")
     print(f"📊 Input: {len(metadata_df)} tiles, {len(shifts)} shifts")
@@ -1047,8 +962,8 @@ def assemble_stitched_masks_simple(
     # Initialize stitched mask
     stitched_mask = np.zeros((max_y, max_x), dtype=np.uint32)
 
-    # FIXED: Comprehensive cell tracking with preserved IDs
-    cell_id_mapping = {}  # global_id -> (tile_id, original_cell_id)
+    # Cell ID mapping: global_id -> (tile_id, original_cell_id)
+    cell_id_mapping = {}
     next_global_id = 1
 
     # Process each tile
@@ -1061,7 +976,10 @@ def assemble_stitched_masks_simple(
             continue
 
         # Load tile mask
-        mask_path = f"analysis_root/{data_type}/images/P-{row['plate']}_W-{well}_T-{tile_id}__nuclei.tiff"
+        mask_path = (
+            f"analysis_root/{data_type}/images/"
+            f"P-{row['plate']}_W-{well}_T-{tile_id}__nuclei.tiff"
+        )
 
         if not Path(mask_path).exists():
             print(f"⚠️  Mask not found: {mask_path}")
@@ -1078,9 +996,9 @@ def assemble_stitched_masks_simple(
             if rot90 > 0:
                 tile_mask = np.rot90(tile_mask, rot90)
 
-            # FIXED: Get unique cell IDs BEFORE any modification
+            # Get unique cell IDs before any modification
             unique_labels = np.unique(tile_mask)
-            original_cell_ids = unique_labels[unique_labels > 0]  # Exclude background
+            original_cell_ids = unique_labels[unique_labels > 0]
 
             if len(original_cell_ids) == 0:
                 print(f"Tile {tile_id}: No cells found")
@@ -1091,18 +1009,15 @@ def assemble_stitched_masks_simple(
                 f"(original IDs: {original_cell_ids.min()}-{original_cell_ids.max()})"
             )
 
-            # FIXED: Create mapping FIRST, before any relabeling
+            # Create mapping before relabeling
             tile_registry = {}
             for original_id in original_cell_ids:
                 global_id = next_global_id
-
-                # Store both directions of mapping
                 cell_id_mapping[global_id] = (tile_id, int(original_id))
                 tile_registry[int(original_id)] = global_id
-
                 next_global_id += 1
 
-            # FIXED: NOW create relabeled mask using the mapping
+            # Create relabeled mask using the mapping
             relabeled_mask = np.zeros_like(tile_mask, dtype=np.uint32)
             for original_id, global_id in tile_registry.items():
                 relabeled_mask[tile_mask == original_id] = global_id
@@ -1116,21 +1031,23 @@ def assemble_stitched_masks_simple(
             mask_region = stitched_mask[shift_y:end_y, shift_x:end_x]
             tile_region = relabeled_mask[: end_y - shift_y, : end_x - shift_x]
 
-            # Place ALL cells (no overlap checking needed since edge nuclei are removed)
+            # Place cells (no overlap checking needed since edge nuclei are removed)
             mask_region[tile_region > 0] = tile_region[tile_region > 0]
 
-            # DEBUG: Check if all cells made it (count unique labels, not pixels)
+            # Verify placement
             placed_labels = np.unique(tile_region[tile_region > 0])
             placed_cells = len(placed_labels)
             expected_cells = len(original_cell_ids)
             if placed_cells != expected_cells:
                 print(
-                    f"⚠️  Tile {tile_id}: Expected {expected_cells}, placed {placed_cells}"
+                    f"⚠️  Tile {tile_id}: Expected {expected_cells}, "
+                    f"placed {placed_cells}"
                 )
 
             print(
                 f"✅ Tile {tile_id}: {len(original_cell_ids)} cells placed "
-                f"(global IDs: {min(tile_registry.values())}-{max(tile_registry.values())})"
+                f"(global IDs: {min(tile_registry.values())}-"
+                f"{max(tile_registry.values())})"
             )
 
         except Exception as e:
@@ -1146,7 +1063,7 @@ def assemble_stitched_masks_simple(
     print(f"  Max global ID: {final_cells.max() if len(final_cells) > 0 else 0}")
     print(f"  Mapping entries: {len(cell_id_mapping)}")
 
-    # FIXED: Verify mapping integrity
+    # Verify mapping integrity
     mapped_globals = set(cell_id_mapping.keys())
     mask_globals = set(final_cells)
     missing_mappings = mask_globals - mapped_globals
@@ -1176,11 +1093,37 @@ def extract_cell_positions_from_stitched_mask(
     tile_size: Tuple[int, int] = None,
     cell_id_mapping: Dict[int, Tuple[int, int]] = None,
 ) -> pd.DataFrame:
-    """ENHANCED: Extract cell positions using preserved cell ID mapping.
+    """Extract cell positions using preserved cell ID mapping.
 
-    Now requires cell_id_mapping for proper functionality.
+    This function analyzes the stitched mask to extract cell positions and
+    properties, using the preserved mapping to maintain connections to original
+    tile and cell identifiers.
+
+    Parameters
+    ----------
+    stitched_mask : np.ndarray
+        Stitched segmentation mask
+    well : str
+        Well identifier
+    plate : str
+        Plate identifier
+    data_type : str, default "phenotype"
+        Type of data being processed
+    metadata_df : pd.DataFrame
+        Metadata containing tile information
+    shifts : Dict[str, List[int]]
+        Tile shift positions
+    tile_size : Tuple[int, int], optional
+        Size of individual tiles, auto-detected if None
+    cell_id_mapping : Dict[int, Tuple[int, int]]
+        Mapping from stitched cell ID to (tile_id, original_cell_id)
+
+    Returns:
+    -------
+    pd.DataFrame
+        Cell positions with preserved ID mapping and metadata
     """
-    print(f"🔍 EXTRACTING CELL POSITIONS: {data_type} well {well}")
+    print(f"🔍 EXTRACTING CELL POSITIONS: {data_type} well {well}, plate {plate}")
 
     # Get region properties from stitched mask
     props = measure.regionprops(stitched_mask)
@@ -1190,7 +1133,10 @@ def extract_cell_positions_from_stitched_mask(
         return pd.DataFrame(
             columns=[
                 "well",
+                "plate",
                 "cell",
+                "tile",
+                "label",
                 "stitched_cell_id",
                 "original_cell_id",
                 "original_tile_id",
@@ -1201,12 +1147,16 @@ def extract_cell_positions_from_stitched_mask(
                 "tile_i",
                 "tile_j",
                 "mapping_method",
+                "stage_x",
+                "stage_y",
+                "tile_row",
+                "tile_col",
             ]
         )
 
     print(f"Found {len(props)} cells in stitched mask")
 
-    # Require the essential parameters
+    # Validate required parameters
     if cell_id_mapping is None:
         raise ValueError("cell_id_mapping is required for preserved cell ID extraction")
     if metadata_df is None:
@@ -1220,7 +1170,7 @@ def extract_cell_positions_from_stitched_mask(
 
     print("✅ Using preserved cell ID mapping")
 
-    # Create metadata lookup
+    # Create metadata and shift lookups
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
     tile_metadata_lookup = {}
     tile_shift_lookup = {}
@@ -1242,10 +1192,10 @@ def extract_cell_positions_from_stitched_mask(
         global_centroid_y, global_centroid_x = prop.centroid
         stitched_label = prop.label
 
-        # Base cell information
+        # Base cell information - always include plate
         cell_info = {
             "well": well,
-            "plate": plate,
+            "plate": str(plate),  # Ensure plate is string
             "stitched_cell_id": stitched_label,
             "i": global_centroid_y,  # Global stitched coordinates
             "j": global_centroid_x,  # Global stitched coordinates
@@ -1271,14 +1221,14 @@ def extract_cell_positions_from_stitched_mask(
             # Get tile metadata
             tile_metadata = tile_metadata_lookup.get(original_tile_id, {})
 
-            # Complete cell information with preserved IDs
-            cell_column = "label" if data_type == "phenotype" else "cell"
-
+            # Always create both 'cell' and 'label' columns consistently
             cell_info.update(
                 {
-                    cell_column: original_cell_id,
-                    "original_cell_id": original_cell_id,
+                    "cell": original_cell_id,
                     "tile": original_tile_id,
+                    "label": original_cell_id,
+                    "original_cell_id": original_cell_id,
+                    "original_tile_id": original_tile_id,
                     "tile_i": relative_y,
                     "tile_j": relative_x,
                     "mapping_method": mapping_method,
@@ -1288,18 +1238,15 @@ def extract_cell_positions_from_stitched_mask(
                     "tile_col": tile_metadata.get("tile_col", -1),
                 }
             )
-
         else:
-            # This shouldn't happen with the fixed approach
-            print(f"⚠️  Missing mapping for stitched label {stitched_label}")
             missing_mappings += 1
-
             cell_info.update(
                 {
                     "cell": stitched_label,  # Fallback
+                    "tile": -1,
+                    "label": stitched_label,  # Fallback
                     "original_cell_id": None,
                     "original_tile_id": None,
-                    "tile": -1,
                     "tile_i": -1,
                     "tile_j": -1,
                     "mapping_method": "missing_mapping",
@@ -1314,6 +1261,25 @@ def extract_cell_positions_from_stitched_mask(
 
     df = pd.DataFrame(cell_data)
 
+    # Ensure correct data types
+    if len(df) > 0:
+        # Use nullable integer type for ID columns
+        for col in [
+            "cell",
+            "tile",
+            "original_cell_id",
+            "original_tile_id",
+            "stitched_cell_id",
+            "label",
+        ]:
+            if col in df.columns:
+                df[col] = df[col].fillna(-1).astype("Int64")
+
+        # Ensure string columns
+        df["plate"] = df["plate"].astype(str)
+        df["well"] = df["well"].astype(str)
+        df["data_type"] = df["data_type"].astype(str)
+
     print(f"✅ EXTRACTION COMPLETE:")
     print(f"  Total cells: {len(df)}")
     print(f"  Direct mappings: {direct_mappings}")
@@ -1326,27 +1292,58 @@ def extract_cell_positions_from_stitched_mask(
         valid_tiles = tile_counts[tile_counts.index.notna() & (tile_counts.index != -1)]
         if len(valid_tiles) > 0:
             print(
-                f"  Cells per tile: min={valid_tiles.min()}, max={valid_tiles.max()}, mean={valid_tiles.mean():.1f}"
+                f"  Cells per tile: min={valid_tiles.min()}, max={valid_tiles.max()}, "
+                f"mean={valid_tiles.mean():.1f}"
             )
             print(f"  Active tiles: {len(valid_tiles)}")
 
+    # Validate cell/label consistency for preserved mappings
+    if len(df) > 0:
+        preserved_rows = df[df["mapping_method"] == "preserved_mapping"]
+        if len(preserved_rows) > 0:
+            if (preserved_rows["cell"] == preserved_rows["label"]).all():
+                print(
+                    f"✅ Cell/label consistency verified for {len(preserved_rows)} "
+                    f"preserved mappings"
+                )
+            else:
+                print(f"⚠️  Warning: Cell/label mismatch detected in preserved mappings")
+
+    # Show column summary
+    if len(df) > 0:
+        print(f"📊 Column Summary:")
+        print(f"  Plates: {df['plate'].nunique()} unique")
+        print(f"  Wells: {df['well'].nunique()} unique")
+        print(f"  Tiles: {df['tile'].nunique()} unique")
+        print(f"  Cell ID range: {df['cell'].min()} - {df['cell'].max()}")
+        print(f"  Label range: {df['label'].min()} - {df['label'].max()}")
+
     return df
-
-
-# Add this alias to replace the optimized version
-assemble_stitched_masks_reliable = assemble_stitched_masks_simple
 
 
 def create_tile_arrangement_qc_plot(
     cell_positions_df: pd.DataFrame, output_path: str, data_type: str = "phenotype"
 ):
-    """Create QC plot showing tile arrangement and cell distribution."""
+    """Create QC plot showing tile arrangement and cell distribution.
+
+    This function generates a comprehensive quality control plot that visualizes
+    tile arrangement, cell distributions, and spatial relationships.
+
+    Parameters
+    ----------
+    cell_positions_df : pd.DataFrame
+        Cell positions dataframe with tile information
+    output_path : str
+        Path where to save the QC plot
+    data_type : str, default "phenotype"
+        Type of data for plot title
+    """
     import matplotlib.pyplot as plt
 
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     fig.suptitle(f"{data_type.title()} Tile Arrangement QC", fontsize=16)
 
-    # Use the correct column for preserved tile mapping
+    # Use the correct column for tile mapping
     tile_column = (
         "original_tile_id"
         if "original_tile_id" in cell_positions_df.columns
@@ -1434,102 +1431,5 @@ def create_tile_arrangement_qc_plot(
     print(f"QC plot saved to: {output_path}")
 
 
-def verify_cell_id_preservation(
-    enhanced_positions: pd.DataFrame,
-    original_data_path: str,
-    well: str,
-    data_type: str = "phenotype",
-) -> None:
-    """Verify the quality of cell ID preservation by comparing with original data.
-
-    Call this after running the enhanced pipeline to check quality.
-    """
-    print(f"\n=== VERIFYING CELL ID PRESERVATION ===")
-    print(f"Well: {well}, Data type: {data_type}")
-
-    try:
-        # Load original data
-        if Path(original_data_path).exists():
-            original_data = pd.read_parquet(original_data_path)
-            print(f"✅ Loaded original data: {len(original_data)} cells")
-        else:
-            print(f"❌ Original data not found: {original_data_path}")
-            return
-
-        # Overall statistics
-        total_stitched = len(enhanced_positions)
-        direct_mapped = len(
-            enhanced_positions[enhanced_positions["mapping_method"] == "direct_mapping"]
-        )
-        position_estimated = len(
-            enhanced_positions[
-                enhanced_positions["mapping_method"] == "position_estimate"
-            ]
-        )
-
-        print(f"\n📊 Overall Statistics:")
-        print(f"  Original cells: {len(original_data)}")
-        print(f"  Stitched cells: {total_stitched}")
-        print(
-            f"  Direct mappings: {direct_mapped} ({direct_mapped / total_stitched * 100:.1f}%)"
-        )
-        print(
-            f"  Position estimates: {position_estimated} ({position_estimated / total_stitched * 100:.1f}%)"
-        )
-
-        # Per-tile analysis
-        print(f"\n🔍 Per-Tile Analysis:")
-        tile_comparison = []
-
-        for tile_id in enhanced_positions["original_tile_id"].unique():
-            if pd.isna(tile_id) or tile_id == -1:
-                continue
-
-            tile_id = int(tile_id)
-
-            # Count in stitched data
-            stitched_count = len(
-                enhanced_positions[enhanced_positions["original_tile_id"] == tile_id]
-            )
-
-            # Count in original data
-            original_count = len(original_data[original_data["tile"] == tile_id])
-
-            recovery_rate = stitched_count / original_count if original_count > 0 else 0
-
-            tile_comparison.append(
-                {
-                    "tile": tile_id,
-                    "original": original_count,
-                    "stitched": stitched_count,
-                    "recovery": recovery_rate,
-                }
-            )
-
-        if tile_comparison:
-            tile_df = pd.DataFrame(tile_comparison)
-            mean_recovery = tile_df["recovery"].mean()
-            good_tiles = len(tile_df[tile_df["recovery"] > 0.8])
-
-            print(f"  Mean recovery rate: {mean_recovery:.3f}")
-            print(f"  Tiles with >80% recovery: {good_tiles}/{len(tile_df)}")
-            print(
-                f"  Total original cells accounted: {tile_df['stitched'].sum()}/{tile_df['original'].sum()}"
-            )
-
-            # Show worst performing tiles
-            worst_tiles = tile_df.nsmallest(3, "recovery")
-            if len(worst_tiles) > 0:
-                print(f"\n⚠️  Tiles needing attention:")
-                for _, row in worst_tiles.iterrows():
-                    print(
-                        f"    Tile {row['tile']}: {row['stitched']}/{row['original']} ({row['recovery']:.3f})"
-                    )
-
-        print(f"\n✅ Verification complete!")
-
-    except Exception as e:
-        print(f"❌ Verification failed: {e}")
-        import traceback
-
-        traceback.print_exc()
+# Legacy alias for backward compatibility
+assemble_stitched_masks_reliable = assemble_stitched_masks_simple

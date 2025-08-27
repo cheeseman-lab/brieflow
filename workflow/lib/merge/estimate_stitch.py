@@ -19,11 +19,11 @@ def estimate_stitch_sbs_coordinate_based(
     well: str,
 ) -> Dict[str, Dict]:
     """Estimate stitching positions for SBS tiles using coordinate-based approach.
-    
+
     This function converts stage coordinates (in micrometers) to pixel coordinates
-    for image stitching. It uses either metadata pixel size or fallback SBS 
+    for image stitching. It uses either metadata pixel size or fallback SBS
     specifications to ensure accurate scaling.
-    
+
     Args:
         metadata_df: DataFrame containing tile metadata with columns:
             - well: Well identifier
@@ -31,12 +31,12 @@ def estimate_stitch_sbs_coordinate_based(
             - tile: Tile identifier
             - pixel_size_x, pixel_size_y: Optional pixel sizes in μm/pixel
         well: Well identifier to process
-        
+
     Returns:
         Dictionary containing:
             - total_translation: Dict mapping tile IDs to [y_pixel, x_pixel] positions
             - confidence: Dict with confidence scores for each position
-            
+
     Note:
         SBS specifications: 1560 μm field of view, 1200x1200 pixel tiles
     """
@@ -168,11 +168,11 @@ def estimate_stitch_phenotype_coordinate_based(
     well: str,
 ) -> Dict[str, Dict]:
     """Estimate stitching positions for phenotype tiles using coordinate-based approach.
-    
+
     This function converts stage coordinates (in micrometers) to pixel coordinates
     for image stitching. It uses either metadata pixel size or fallback phenotype
     specifications to ensure accurate scaling.
-    
+
     Args:
         metadata_df: DataFrame containing tile metadata with columns:
             - well: Well identifier
@@ -180,12 +180,12 @@ def estimate_stitch_phenotype_coordinate_based(
             - tile: Tile identifier
             - pixel_size_x, pixel_size_y: Optional pixel sizes in μm/pixel
         well: Well identifier to process
-        
+
     Returns:
         Dictionary containing:
             - total_translation: Dict mapping tile IDs to [y_pixel, x_pixel] positions
             - confidence: Dict with confidence scores for each position
-            
+
     Note:
         Phenotype specifications: 260 μm field of view, 2400x2400 pixel tiles
     """
@@ -320,10 +320,10 @@ def _verify_stitch_quality(
     tile_size: tuple,
     actual_spacing: float,
     pixels_per_micron: float,
-    data_type: str
+    data_type: str,
 ) -> None:
     """Verify the quality of stitching estimation by checking spacing and overlap.
-    
+
     Args:
         coords: Array of stage coordinates
         total_translation: Dictionary of pixel translations

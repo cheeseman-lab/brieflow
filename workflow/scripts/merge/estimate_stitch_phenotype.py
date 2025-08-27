@@ -16,13 +16,13 @@ from lib.merge.estimate_stitch import estimate_stitch_phenotype_coordinate_based
 
 def convert_numpy_types(obj):
     """Convert numpy types to Python native types for YAML serialization.
-
+    
     YAML serialization requires native Python types, but numpy arrays and
     scalars need to be converted first.
-
+    
     Args:
         obj: Object that may contain numpy types (dict, list, numpy types, etc.)
-
+        
     Returns:
         Object with numpy types converted to Python native types
     """
@@ -54,8 +54,7 @@ def main():
     well = snakemake.params.well
 
     phenotype_well_metadata = phenotype_metadata[
-        (phenotype_metadata["plate"] == int(plate))
-        & (phenotype_metadata["well"] == well)
+        (phenotype_metadata["plate"] == int(plate)) & (phenotype_metadata["well"] == well)
     ]
 
     print(f"=== Estimating Phenotype Stitching for Plate {plate}, Well {well} ===")
@@ -77,10 +76,6 @@ def main():
     phenotype_stitch_result = estimate_stitch_phenotype_coordinate_based(
         metadata_df=phenotype_well_metadata,
         well=well,
-        flipud=snakemake.params.flipud,
-        fliplr=snakemake.params.fliplr,
-        rot90=snakemake.params.rot90,
-        channel=snakemake.params.channel,
     )
 
     # Validate results

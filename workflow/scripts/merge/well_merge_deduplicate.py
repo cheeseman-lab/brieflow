@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.well_deduplication import validate_final_matches, legacy_deduplication_stitched_ids
+from lib.merge.well_deduplication import validate_final_matches, deduplicate_matches_by_stitched_ids
 
 
 class DeduplicationError(Exception):
@@ -40,7 +40,7 @@ class DeduplicationError(Exception):
 
 
 def apply_legacy_compatible_deduplication(raw_matches: pd.DataFrame) -> pd.DataFrame:
-    """Apply spatial deduplication using stitched cell IDs with legacy compatibility.
+    """Apply spatial deduplication using stitched cell IDs for accurate cell mapping.
     
     Wrapper function that calls the library implementation. Maintained for
     backwards compatibility with existing code that calls this function directly.
@@ -55,7 +55,7 @@ def apply_legacy_compatible_deduplication(raw_matches: pd.DataFrame) -> pd.DataF
         DeduplicationError: If required stitched ID columns are missing
     """
     try:
-        return legacy_deduplication_stitched_ids(raw_matches)
+        return deduplicate_matches_by_stitched_ids(raw_matches)
     except ValueError as e:
         # Convert library ValueError to our DeduplicationError for consistency
         raise DeduplicationError(str(e))
@@ -163,7 +163,7 @@ def create_empty_output(error_message: str) -> None:
         "error": error_message,
         "processing": {"final_matches_output": 0},
         "deduplication": {
-            "method": "legacy_on_stitched_ids",
+            "method": "deduplicate_matches_by_stitched_ids",
             "achieved_1to1_stitched": False,
         },
         "output_format": {"ready_for_format_merge": False},
@@ -275,7 +275,7 @@ def main() -> None:
                 "efficiency": len(final_output) / len(raw_matches),
             },
             "deduplication": {
-                "method": "legacy_on_stitched_ids",
+                "method": "deduplicate_matches_by_stitched_ids",
                 "uses_stitched_ids": True,
                 "preserves_original_ids": True,
                 "achieved_1to1_stitched": validation_results["is_1to1_stitched"],

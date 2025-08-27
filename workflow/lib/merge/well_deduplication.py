@@ -164,14 +164,12 @@ def validate_final_matches(final_matches: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
-# analyze_duplicates function removed - not used anywhere in codebase
-
-
-def legacy_deduplication_stitched_ids(raw_matches: pd.DataFrame) -> pd.DataFrame:
-    """Apply spatial deduplication using stitched cell IDs with legacy compatibility.
+def deduplicate_matches_by_stitched_ids(raw_matches: pd.DataFrame) -> pd.DataFrame:
+    """Deduplicate cell matches using stitched cell IDs for accurate 1:1 cell mapping.
 
     This is the core deduplication function that ensures 1:1 spatial mapping
-    between phenotype and SBS cells while preserving original cell IDs for
+    between phenotype and SBS cells using stitched cell identifiers for
+    maximum spatial accuracy, while preserving original cell IDs for
     downstream processing compatibility.
 
     Algorithm:
@@ -233,6 +231,3 @@ def legacy_deduplication_stitched_ids(raw_matches: pd.DataFrame) -> pd.DataFrame
     )
 
     return df_final
-
-
-# get_quality_summary function removed - functionality merged into validate_final_matches

@@ -1,14 +1,31 @@
+"""Estimate stitching configuration for SBS (Sequencing By Synthesis) imaging data.
+
+This script generates a YAML configuration file containing tile positions
+for stitching SBS microscopy images. It uses coordinate-based estimation
+to convert stage positions to pixel coordinates.
+"""
+
 import pandas as pd
 import yaml
+import numpy as np
 from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
 from lib.merge.estimate_stitch import estimate_stitch_sbs_coordinate_based
-import numpy as np
 
 
 def convert_numpy_types(obj):
-    """Convert numpy types to Python native types for YAML serialization."""
+    """Convert numpy types to Python native types for YAML serialization.
+
+    YAML serialization requires native Python types, but numpy arrays and
+    scalars need to be converted first.
+
+    Args:
+        obj: Object that may contain numpy types (dict, list, numpy types, etc.)
+
+    Returns:
+        Object with numpy types converted to Python native types
+    """
     if isinstance(obj, dict):
         return {key: convert_numpy_types(value) for key, value in obj.items()}
     elif isinstance(obj, list):
@@ -23,66 +40,72 @@ def convert_numpy_types(obj):
         return obj
 
 
-# Load SBS metadata
-sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input.sbs_metadata))
+def main():
+    """Main execution function for SBS stitching estimation."""
+    # Load SBS metadata
+    sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input.sbs_metadata))
 
-# Apply SBS metadata filters (important for cycle filtering)
-sbs_filters = snakemake.params.get("sbs_metadata_filters", None)
-if sbs_filters is not None:
-    for filter_key, filter_value in sbs_filters.items():
-        print(f"Filtering SBS metadata: {filter_key} == {filter_value}")
-        sbs_metadata = sbs_metadata[sbs_metadata[filter_key] == filter_value]
+    # Apply SBS metadata filters (important for cycle filtering)
+    sbs_filters = snakemake.params.get("sbs_metadata_filters", None)
+    if sbs_filters is not None:
+        for filter_key, filter_value in sbs_filters.items():
+            print(f"Filtering SBS metadata: {filter_key} == {filter_value}")
+            sbs_metadata = sbs_metadata[sbs_metadata[filter_key] == filter_value]
 
-print(f"After filtering - SBS metadata: {len(sbs_metadata)} entries")
+    print(f"After filtering - SBS metadata: {len(sbs_metadata)} entries")
 
-# Filter to specific plate and well
-plate = snakemake.params.plate
-well = snakemake.params.well
+    # Filter to specific plate and well
+    plate = snakemake.params.plate
+    well = snakemake.params.well
 
-sbs_well_metadata = sbs_metadata[
-    (sbs_metadata["plate"] == int(plate)) & (sbs_metadata["well"] == well)
-]
+    sbs_well_metadata = sbs_metadata[
+        (sbs_metadata["plate"] == int(plate)) & (sbs_metadata["well"] == well)
+    ]
 
-print(f"=== Estimating SBS Stitching for Plate {plate}, Well {well} ===")
-print(f"SBS tiles: {len(sbs_well_metadata)}")
+    print(f"=== Estimating SBS Stitching for Plate {plate}, Well {well} ===")
+    print(f"SBS tiles: {len(sbs_well_metadata)}")
 
-if len(sbs_well_metadata) == 0:
-    print("Warning: No SBS tiles found for this well")
-    # Create empty config
-    empty_config = {"total_translation": {}, "confidence": {well: {}}}
+    if len(sbs_well_metadata) == 0:
+        print("Warning: No SBS tiles found for this well")
+        # Create empty config
+        empty_config = {"total_translation": {}, "confidence": {well: {}}}
 
-    with open(snakemake.output.sbs_stitch_config, "w") as f:
-        yaml.dump(convert_numpy_types(empty_config), f)
+        with open(snakemake.output[0], "w") as f:
+            yaml.dump(convert_numpy_types(empty_config), f)
 
-    print("Created empty SBS stitching configuration")
-    exit(0)
+        print("Created empty SBS stitching configuration")
+        return
 
-# Estimate stitching for SBS data using coordinate-based approach
-print(f"Using optimized SBS estimation (coordinate-based approach)")
-sbs_stitch_result = estimate_stitch_sbs_coordinate_based(
-    metadata_df=sbs_well_metadata,
-    well=well,
-    flipud=snakemake.params.flipud,
-    fliplr=snakemake.params.fliplr,
-    rot90=snakemake.params.rot90,
-    channel=snakemake.params.channel,
-)
+    # Estimate stitching for SBS data using coordinate-based approach
+    print("Using coordinate-based estimation for SBS data")
+    sbs_stitch_result = estimate_stitch_sbs_coordinate_based(
+        metadata_df=sbs_well_metadata,
+        well=well,
+        flipud=snakemake.params.flipud,
+        fliplr=snakemake.params.fliplr,
+        rot90=snakemake.params.rot90,
+        channel=snakemake.params.channel,
+    )
 
-# Validate results
-shifts = sbs_stitch_result["total_translation"]
-print(f"Generated {len(shifts)} SBS tile positions")
+    # Validate results
+    shifts = sbs_stitch_result["total_translation"]
+    print(f"Generated {len(shifts)} SBS tile positions")
 
-coverage_percent = len(shifts) / len(sbs_well_metadata) * 100
-print(f"Coverage: {len(shifts)}/{len(sbs_well_metadata)} = {coverage_percent:.1f}%")
+    coverage_percent = len(shifts) / len(sbs_well_metadata) * 100
+    print(f"Coverage: {len(shifts)}/{len(sbs_well_metadata)} = {coverage_percent:.1f}%")
 
-if coverage_percent < 95:  # Coordinate-based should give near 100%
-    print(f"⚠️  Warning: Unexpected low coverage for coordinate-based approach")
-else:
-    print(f"✅ Excellent coverage achieved")
+    if coverage_percent < 95:  # Coordinate-based should give near 100%
+        print("⚠️  Warning: Unexpected low coverage for coordinate-based approach")
+    else:
+        print("✅ Excellent coverage achieved")
 
-# Save results
-with open(snakemake.output[0], "w") as f:
-    yaml.dump(convert_numpy_types(sbs_stitch_result), f)
+    # Save results
+    with open(snakemake.output[0], "w") as f:
+        yaml.dump(convert_numpy_types(sbs_stitch_result), f)
 
-print("SBS stitching estimation completed successfully")
-print(f"Config saved to: {snakemake.output[0]}")
+    print("SBS stitching estimation completed successfully")
+    print(f"Config saved to: {snakemake.output[0]}")
+
+
+if __name__ == "__main__":
+    main()

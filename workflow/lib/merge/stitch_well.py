@@ -782,9 +782,6 @@ class AlignedTiffEdge:
         return offset_tiff(tile_a, tile_b, self.relation, overlap=overlap)
 
 
-
-
-
 def optimal_positions_tiff(
     edge_list: List[AlignedTiffEdge],
     tile_positions: Dict[int, Tuple[int, int]],
@@ -1536,9 +1533,3 @@ def verify_cell_id_preservation(
         import traceback
 
         traceback.print_exc()
-
-
-
-
-
-

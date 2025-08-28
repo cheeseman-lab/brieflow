@@ -54,6 +54,12 @@ rule perturbation_score_filter:
         ),
     output:
         AGGREGATE_OUTPUTS_MAPPED["perturbation_score_filter"],
+    params:
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        control_key=config["aggregate"]["control_key"],
+        auc_cutoff=0.6,  # config["aggregate"]["auc_cutoff"], # TODO: add
+    script:
+        "../scripts/aggregate/perturbation_score_filter.py"
 
 
 # rule generate_feature_table:

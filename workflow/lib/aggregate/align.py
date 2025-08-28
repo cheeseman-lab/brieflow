@@ -240,8 +240,8 @@ def centerscale_on_controls(
         batches = metadata[batch_col].unique()
         for batch in batches:
             batch_ind = metadata[batch_col] == batch
-            batch_control_ind = (
-                batch_ind & (metadata[pert_col].str.startswith(control_key)).to_list()
+            batch_control_ind = batch_ind & metadata[pert_col].str.startswith(
+                control_key
             )
             embeddings[batch_ind] = (
                 StandardScaler(copy=False)
@@ -250,5 +250,5 @@ def centerscale_on_controls(
             )
         return embeddings
 
-    control_ind = metadata[pert_col].str.startswith(control_key).to_list()
+    control_ind = metadata[pert_col].str.startswith(control_key)
     return StandardScaler(copy=False).fit(embeddings[control_ind]).transform(embeddings)

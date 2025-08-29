@@ -792,7 +792,6 @@ def assemble_aligned_tiff_well(
     flipud: bool = False,
     fliplr: bool = False,
     rot90: int = 0,
-    overlap_percent: float = 0.05,
 ) -> np.ndarray:
     """Assemble a stitched well image from aligned TIFF tiles.
 
@@ -816,8 +815,6 @@ def assemble_aligned_tiff_well(
         Whether to flip tiles horizontally
     rot90 : int, default 0
         Number of 90-degree rotations
-    overlap_percent : float, default 0.05
-        Expected overlap percentage (unused in current implementation)
 
     Returns:
     -------

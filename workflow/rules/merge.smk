@@ -12,7 +12,6 @@ rule estimate_stitch_phenotype:
         flipud=config.get("stitch", {}).get("flipud", False),
         fliplr=config.get("stitch", {}).get("fliplr", False), 
         rot90=config.get("stitch", {}).get("rot90", 0),
-        channel=config.get("stitch", {}).get("channel", 0),
         data_type="phenotype",
     resources:
         mem_mb=15000,
@@ -33,7 +32,6 @@ rule estimate_stitch_sbs:
         flipud=config.get("stitch", {}).get("flipud", False),
         fliplr=config.get("stitch", {}).get("fliplr", False), 
         rot90=config.get("stitch", {}).get("rot90", 0),
-        channel=config.get("stitch", {}).get("channel", 0),
         data_type="sbs",
         # SBS-specific params
         sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
@@ -60,7 +58,6 @@ rule stitch_phenotype_well:
         flipud=config.get("stitch", {}).get("flipud", False),
         fliplr=config.get("stitch", {}).get("fliplr", False),
         rot90=config.get("stitch", {}).get("rot90", 0),
-        overlap_percent=config.get("stitch", {}).get("overlap_percent", 0.05),
     resources:
         mem_mb=400000,     
         cpus_per_task=8,
@@ -84,14 +81,12 @@ rule stitch_sbs_well:
         flipud=config.get("stitch", {}).get("flipud", False),
         fliplr=config.get("stitch", {}).get("fliplr", False),
         rot90=config.get("stitch", {}).get("rot90", 0),
-        overlap_percent=config.get("stitch", {}).get("overlap_percent", 0.05),
     resources:
         mem_mb=400000,     
         cpus_per_task=8,
         runtime=180,       
     script:
         "../scripts/merge/well_stitching.py"
-
 
 rule fast_alignment:
     input:

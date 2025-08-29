@@ -484,9 +484,9 @@ def preview_mask_transformations(
     rot90=0,
     figsize=(20, 10),
 ):
-    """
-    Preview mask transformations (flipud, fliplr, rot90) on the first N tiles,
-    arranged according to coordinate-based stitching estimates.
+    """Preview mask transformations (flipud, fliplr, rot90) on the first N tiles.
+    
+    Arranged according to coordinate-based stitching estimates.
     """
     if root_fp is None:
         root_fp = Path("/lab/ops_analysis/lourido/nebo-analysis/analysis/analysis_root")

@@ -166,7 +166,6 @@ def process_stitching(metadata_df, stitch_config, plate, well, data_type, params
             flipud=params.flipud,
             fliplr=params.fliplr,
             rot90=params.rot90,
-            overlap_percent=params.overlap_percent,
         )
         print_success(f"Stitched image created: {stitched_image.shape}")
     except Exception as e:

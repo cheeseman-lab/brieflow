@@ -14,6 +14,7 @@ def aggregate(
     metadata: pd.DataFrame,
     pert_col: str,
     method="mean",
+    perturbation_score_threshold=0.5,
 ) -> tuple[np.ndarray, pd.DataFrame]:
     """Apply mean or median aggregation to replicate embeddings for each perturbation.
 
@@ -41,10 +42,26 @@ def aggregate(
     if aggr_func is None:
         raise ValueError(f"Invalid aggregation method: {method}")
 
+    # filter by perturbation_score threshold; keep NaNs
+    mask = metadata["perturbation_score"].isna() | (
+        metadata["perturbation_score"] >= perturbation_score_threshold
+    )
+    metadata = metadata.loc[mask].reset_index(drop=True)
+    embeddings = embeddings[mask.to_numpy(), :]
+
     grouping = metadata.groupby(pert_col)
     for pert, group in grouping:
         final_emb = aggr_func(embeddings[group.index.values, :], axis=0)
         aggregated_embeddings.append(final_emb)
-        aggregated_metadata.append({pert_col: pert, "cell_count": len(group)})
+        aggregated_metadata.append(
+            {
+                pert_col: pert,
+                "cell_count": len(group),
+                # average of remaining (NaNs allowed → result can be NaN)
+                "average_perturbation_score": group["perturbation_score"].mean(
+                    skipna=True
+                ),
+            }
+        )
 
     return np.vstack(aggregated_embeddings), pd.DataFrame(aggregated_metadata)

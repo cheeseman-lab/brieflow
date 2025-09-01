@@ -34,15 +34,6 @@ AGGREGATE_OUTPUTS = {
             "parquet",
         ),
     ],
-    "perturbation_score_filter": [
-        AGGREGATE_FP
-        / "parquets"
-        / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "perturbation_score_filtered",
-            "parquet",
-        ),
-    ],
     # "generate_feature_table": [
     #     AGGREGATE_FP
     #     / "tsvs"
@@ -52,24 +43,24 @@ AGGREGATE_OUTPUTS = {
     #         "tsv",
     #     ),
     # ],
-    # "align": [
-    #     AGGREGATE_FP
-    #     # TODO: update to use ps outputs path / "parquets"
-    #     / get_filename(
-    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-    #         "aligned",
-    #         "parquet",
-    #     ),
-    # ],
-    # "aggregate": [
-    #     AGGREGATE_FP
-    #     / "tsvs"
-    #     / get_filename(
-    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-    #         "aggregated",
-    #         "tsv",
-    #     ),
-    # ],
+    "align": [
+        AGGREGATE_FP
+        / "parquets"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "aligned",
+            "parquet",
+        ),
+    ],
+    "aggregate": [
+        AGGREGATE_FP
+        / "tsvs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "aggregated",
+            "tsv",
+        ),
+    ],
     # "eval_aggregate": [
     #     AGGREGATE_FP
     #     / "eval"
@@ -109,9 +100,9 @@ AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPI
 
 # TODO: Use all combos
 aggregate_wildcard_combos = aggregate_wildcard_combos[
-    # (aggregate_wildcard_combos["plate"].isin([1]))
-    # & (aggregate_wildcard_combos["well"].isin(["A1"]))
-    (aggregate_wildcard_combos["cell_class"].isin(["Interphase"]))
+    (aggregate_wildcard_combos["plate"].isin([1]))
+    & (aggregate_wildcard_combos["well"].isin(["A1"]))
+    & (aggregate_wildcard_combos["cell_class"].isin(["Interphase"]))
     & (aggregate_wildcard_combos["channel_combo"].isin(["DAPI_CENPA"]))
 ]
 

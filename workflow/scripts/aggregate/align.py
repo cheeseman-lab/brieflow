@@ -1,5 +1,6 @@
 import math
 import gc
+import warnings
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -9,14 +10,21 @@ from pandas.api.types import is_numeric_dtype
 from sklearn.decomposition import PCA
 import numpy as np
 
-np.random.seed(42)
-
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
 from lib.aggregate.align import (
     prepare_alignment_data,
     centerscale_by_batch,
     tvn_on_controls,
 )
+from lib.aggregate.perturbation_score import perturbation_score
+
+warnings.filterwarnings(
+    "ignore", category=UserWarning, module="sklearn.feature_selection"
+)
+warnings.filterwarnings(
+    "ignore", category=RuntimeWarning, module="sklearn.feature_selection"
+)
+np.random.seed(0)
 
 ## Step 1: Create PCA transformation
 PCA_SUBSET = 100000
@@ -67,9 +75,26 @@ writer = None
 for i, indices in enumerate(subset_indices):
     print(f"Processing subset {i + 1}/{num_align_batches} with {len(indices)} cells")
 
-    subset_df = cell_dataset.scanner().take(pa.array(indices))
-    subset_df = subset_df.to_pandas(use_threads=True, memory_pool=None)
-    subset_df = subset_df.dropna(axis=1)
+    subset_df = (
+        cell_dataset.scanner()
+        .take(pa.array(indices))
+        .to_pandas(use_threads=True, memory_pool=None)
+        .dropna(axis=1)
+    )
+
+    # CALCULATE PERTURBATION SCORE
+    perturbation_score(
+        subset_df,
+        metadata_cols,
+        snakemake.params.perturbation_name_col,
+        snakemake.params.control_key,
+        auc_threshold=0.6,  # TODO: use snakemake.params.auc_threshold
+    )
+    # TODO: Remove
+    # test = subset_df[subset_df["perturbation_score"] > 0]
+    # print(test)
+    # print(test["gene_symbol_0"])
+    # test = 6 / 0
 
     for col in subset_df.columns:
         if is_numeric_dtype(subset_df[col]):

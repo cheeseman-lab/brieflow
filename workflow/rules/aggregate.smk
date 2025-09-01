@@ -41,27 +41,6 @@ rule filter:
         "../scripts/aggregate/filter.py"
 
 
-rule perturbation_score_filter:
-    input:
-        filtered_paths=lambda wildcards: output_to_input(
-            AGGREGATE_OUTPUTS_MAPPED["filter"],
-            wildcards={
-                "cell_class": wildcards.cell_class,
-                "channel_combo": wildcards.channel_combo,
-            },
-            expansion_values=["plate", "well"],
-            metadata_combos=aggregate_wildcard_combos,
-        ),
-    output:
-        AGGREGATE_OUTPUTS_MAPPED["perturbation_score_filter"],
-    params:
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        control_key=config["aggregate"]["control_key"],
-        auc_cutoff=0.6,  # config["aggregate"]["auc_cutoff"], # TODO: add
-    script:
-        "../scripts/aggregate/perturbation_score_filter.py"
-
-
 # rule generate_feature_table:
 #     input:
 #         filtered_paths=lambda wildcards: output_to_input(
@@ -86,42 +65,43 @@ rule perturbation_score_filter:
 #         "../scripts/aggregate/generate_feature_table.py"
 
 
-# rule align:
-#     input:
-#         filtered_paths=lambda wildcards: output_to_input(
-#             AGGREGATE_OUTPUTS_MAPPED["filter"],
-#             wildcards={
-#                 "cell_class": wildcards.cell_class,
-#                 "channel_combo": wildcards.channel_combo,
-#             },
-#             expansion_values=["plate", "well"],
-#             metadata_combos=aggregate_wildcard_combos,
-#         ),
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["align"],
-#     params:
-#         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
-#         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-#         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
-#         batch_cols=config["aggregate"]["batch_cols"],
-#         variance_or_ncomp=config["aggregate"]["variance_or_ncomp"],
-#         control_key=config["aggregate"]["control_key"],
-#         num_align_batches=config["aggregate"]["num_align_batches"],
-#     script:
-#         "../scripts/aggregate/align.py"
+rule align:
+    input:
+        filtered_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS_MAPPED["filter"],
+            wildcards={
+                "cell_class": wildcards.cell_class,
+                "channel_combo": wildcards.channel_combo,
+            },
+            expansion_values=["plate", "well"],
+            metadata_combos=aggregate_wildcard_combos,
+        ),
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["align"],
+    params:
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        perturbation_id_col=config["aggregate"]["perturbation_id_col"],
+        batch_cols=config["aggregate"]["batch_cols"],
+        variance_or_ncomp=config["aggregate"]["variance_or_ncomp"],
+        control_key=config["aggregate"]["control_key"],
+        num_align_batches=config["aggregate"]["num_align_batches"],
+    script:
+        "../scripts/aggregate/align.py"
 
 
-# rule aggregate:
-#     input:
-#         AGGREGATE_OUTPUTS_MAPPED["align"],
-#     output:
-#         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
-#     params:
-#         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
-#         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-#         agg_method=config["aggregate"]["agg_method"],
-#     script:
-#         "../scripts/aggregate/aggregate.py"
+rule aggregate:
+    input:
+        AGGREGATE_OUTPUTS_MAPPED["align"],
+    output:
+        AGGREGATE_OUTPUTS_MAPPED["aggregate"],
+    params:
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        agg_method=config["aggregate"]["agg_method"],
+        perturbation_score_threshold=0.5,  # TODO: config["aggregate"]["perturbation_score_threshold"],
+    script:
+        "../scripts/aggregate/aggregate.py"
 
 
 # rule eval_aggregate:

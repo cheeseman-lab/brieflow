@@ -100,9 +100,9 @@ AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPI
 
 # TODO: Use all combos
 aggregate_wildcard_combos = aggregate_wildcard_combos[
-    (aggregate_wildcard_combos["plate"].isin([1]))
-    & (aggregate_wildcard_combos["well"].isin(["A1"]))
-    & (aggregate_wildcard_combos["cell_class"].isin(["Interphase"]))
+    # (aggregate_wildcard_combos["plate"].isin([1]))
+    # & (aggregate_wildcard_combos["well"].isin(["A1"]))
+    (aggregate_wildcard_combos["cell_class"].isin(["Interphase"]))
     & (aggregate_wildcard_combos["channel_combo"].isin(["DAPI_CENPA"]))
 ]
 

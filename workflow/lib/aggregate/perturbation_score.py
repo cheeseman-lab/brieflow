@@ -15,6 +15,7 @@ def calculate_perturbation_scores(
     feature_cols,
     perturbation_col="gene_symbol_0",
     n_differential_features=200,
+    minimum_cell_count=200,
 ):
     """Per-cell perturbation scores via 5-fold out-of-fold logistic regression with top-k feature selection.
 
@@ -24,6 +25,10 @@ def calculate_perturbation_scores(
       - > 0.75 → decent separation; filtering makes sense
       - > 0.85–0.9 → strong separation; filtering always safe and effective
     """
+    # if we have too little data, just return NaN scores
+    if cell_data.shape[0] <= minimum_cell_count:
+        return pd.Series(np.nan, index=cell_data.index), np.nan
+
     y = (cell_data[perturbation_col] == gene).astype(int).to_numpy()
     X_all = cell_data[feature_cols].to_numpy()
 

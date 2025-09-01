@@ -16,9 +16,11 @@ def aggregate(
     method="mean",
     perturbation_score_threshold=0.5,
 ) -> tuple[np.ndarray, pd.DataFrame]:
-    """Apply mean or median aggregation to replicate embeddings for each perturbation.
+    """Apply mean or median aggregation to replicate embeddings and perturbation scores for each perturbation.
 
-    The function also returns metadata with perturbation labels and cell counts.
+    Rows with perturbation_score below the threshold are dropped (NaNs kept). The function
+    returns aggregated embeddings and metadata with perturbation labels, cell counts, and
+    aggregated perturbation scores.
 
     Args:
         embeddings (numpy.ndarray): The embeddings to be aggregated.
@@ -26,11 +28,13 @@ def aggregate(
         pert_col (str): The column in the metadata containing perturbation information.
         method (str, optional): The aggregation method to use. Must be either "mean" or "median".
             Defaults to "mean".
+        perturbation_score_threshold (float, optional): Threshold for filtering based on perturbation score.
 
     Returns:
         tuple:
             - numpy.ndarray: Aggregated embeddings.
-            - pandas.DataFrame: Metadata containing perturbation labels and cell counts.
+            - pandas.DataFrame: Metadata with perturbation labels, cell counts,
+              and aggregated perturbation scores.
     """
     aggregated_embeddings = []
     aggregated_metadata = []
@@ -53,14 +57,19 @@ def aggregate(
     for pert, group in grouping:
         final_emb = aggr_func(embeddings[group.index.values, :], axis=0)
         aggregated_embeddings.append(final_emb)
+
+        # aggregate perturbation score with same function
+        pert_score = (
+            aggr_func(group["perturbation_score"].dropna())
+            if not group["perturbation_score"].isna().all()
+            else np.nan
+        )
+
         aggregated_metadata.append(
             {
                 pert_col: pert,
                 "cell_count": len(group),
-                # average of remaining (NaNs allowed → result can be NaN)
-                "average_perturbation_score": group["perturbation_score"].mean(
-                    skipna=True
-                ),
+                "aggregated_perturbation_score": pert_score,
             }
         )
 

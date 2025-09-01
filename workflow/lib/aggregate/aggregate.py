@@ -47,11 +47,12 @@ def aggregate(
         raise ValueError(f"Invalid aggregation method: {method}")
 
     # filter by perturbation_score threshold; keep NaNs
-    mask = metadata["perturbation_score"].isna() | (
-        metadata["perturbation_score"] >= perturbation_score_threshold
-    )
-    metadata = metadata.loc[mask].reset_index(drop=True)
-    embeddings = embeddings[mask.to_numpy(), :]
+    if perturbation_score_threshold is not None:
+        mask = metadata["perturbation_score"].isna() | (
+            metadata["perturbation_score"] >= perturbation_score_threshold
+        )
+        metadata = metadata.loc[mask].reset_index(drop=True)
+        embeddings = embeddings[mask.to_numpy(), :]
 
     grouping = metadata.groupby(pert_col)
     for pert, group in grouping:

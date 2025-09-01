@@ -1,3 +1,10 @@
+"""This module provides functions for calculating per-cell perturbation scores.
+
+Functions:
+- calculate_perturbation_scores: Calculate per-cell perturbation scores using logistic regression
+- perturbation_score: Process all perturbations and assign scores to cells based on AUC threshold
+"""
+
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
@@ -10,20 +17,31 @@ from lib.aggregate.cell_data_utils import split_cell_data
 
 
 def calculate_perturbation_scores(
-    cell_data,
-    gene,
-    feature_cols,
-    perturbation_col="gene_symbol_0",
-    n_differential_features=200,
-    minimum_cell_count=200,
-):
-    """Per-cell perturbation scores via 5-fold out-of-fold logistic regression with top-k feature selection.
+    cell_data: pd.DataFrame,
+    gene: str,
+    feature_cols: list[str],
+    perturbation_col: str = "gene_symbol_0",
+    n_differential_features: int = 200,
+    minimum_cell_count: int = 200,
+) -> tuple[pd.Series, float]:
+    """Calculate per-cell perturbation scores via 5-fold out-of-fold logistic regression with top-k feature selection.
 
     AUROC guide:
-      - < 0.6  → basically noise; don’t filter (return NaN scores and keep all cells)
-      - 0.6–0.75 → weak/moderate separation; filter cautiously
+      - < 0.6  → basically noise; don't filter (return NaN scores and keep all cells)
+      - 0.6-0.75 → weak/moderate separation; filter cautiously
       - > 0.75 → decent separation; filtering makes sense
-      - > 0.85–0.9 → strong separation; filtering always safe and effective
+      - > 0.85-0.9 → strong separation; filtering always safe and effective
+
+    Args:
+        cell_data (pd.DataFrame): DataFrame containing cell data with features and metadata.
+        gene (str): The target gene perturbation to score against.
+        feature_cols (list[str]): List of feature column names to use for scoring.
+        perturbation_col (str, optional): Column name containing perturbation labels. Defaults to "gene_symbol_0".
+        n_differential_features (int, optional): Number of top differential features to select. Defaults to 200.
+        minimum_cell_count (int, optional): Minimum number of cells required for scoring. Defaults to 200.
+
+    Returns:
+        tuple[pd.Series, float]: A tuple containing the perturbation scores for each cell and the AUC score.
     """
     # if we have too little data, just return NaN scores
     if cell_data.shape[0] <= minimum_cell_count:
@@ -47,8 +65,28 @@ def calculate_perturbation_scores(
 
 
 def perturbation_score(
-    cell_data, metadata_cols, perturbation_name_col, control_key, auc_threshold=0.6
-):
+    cell_data: pd.DataFrame,
+    metadata_cols: list[str],
+    perturbation_name_col: str,
+    control_key: str,
+    auc_threshold: float = 0.6,
+) -> None:
+    """Process all perturbations and assign perturbation scores to cells based on AUC threshold.
+
+    This function iterates through all non-control perturbations, calculates perturbation scores
+    using logistic regression, and assigns scores to cells only if the AUC exceeds the threshold.
+    The cell_data DataFrame is modified in-place to add a 'perturbation_score' column.
+
+    Args:
+        cell_data (pd.DataFrame): DataFrame containing cell data that will be modified in-place.
+        metadata_cols (list[str]): List of metadata column names that will be updated to include 'perturbation_score'.
+        perturbation_name_col (str): Column name containing perturbation identifiers.
+        control_key (str): Prefix identifying control perturbations (e.g., 'nontargeting').
+        auc_threshold (float, optional): Minimum AUC required to assign perturbation scores. Defaults to 0.6.
+
+    Returns:
+        None: The function modifies cell_data and metadata_cols in-place.
+    """
     # start with all perturbation scores = 0
     cell_data["perturbation_score"] = np.nan
     metadata_cols.append("perturbation_score")

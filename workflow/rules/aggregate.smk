@@ -86,6 +86,7 @@ rule align:
         variance_or_ncomp=config["aggregate"]["variance_or_ncomp"],
         control_key=config["aggregate"]["control_key"],
         num_align_batches=config["aggregate"]["num_align_batches"],
+        ps_auc_threshold=config["aggregate"]["ps_auc_threshold"],
     script:
         "../scripts/aggregate/align.py"
 
@@ -99,7 +100,7 @@ rule aggregate:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         agg_method=config["aggregate"]["agg_method"],
-        perturbation_score_threshold=0.5,  # TODO: config["aggregate"]["perturbation_score_threshold"],
+        perturbation_score_threshold=config["aggregate"]["perturbation_score_threshold"],
     script:
         "../scripts/aggregate/aggregate.py"
 

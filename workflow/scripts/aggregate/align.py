@@ -90,11 +90,6 @@ for i, indices in enumerate(subset_indices):
         snakemake.params.control_key,
         auc_threshold=0.6,  # TODO: use snakemake.params.auc_threshold
     )
-    # TODO: Remove
-    # test = subset_df[subset_df["perturbation_score"] > 0]
-    # print(test)
-    # print(test["gene_symbol_0"])
-    # test = 6 / 0
 
     for col in subset_df.columns:
         if is_numeric_dtype(subset_df[col]):

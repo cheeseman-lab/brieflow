@@ -22,7 +22,7 @@ def calculate_perturbation_scores(
     feature_cols: list[str],
     perturbation_col: str = "gene_symbol_0",
     n_differential_features: int = 200,
-    minimum_cell_count: int = 200,
+    minimum_cell_count: int = 100,
 ) -> tuple[pd.Series, float]:
     """Calculate per-cell perturbation scores via 5-fold out-of-fold logistic regression with top-k feature selection.
 
@@ -44,7 +44,7 @@ def calculate_perturbation_scores(
         tuple[pd.Series, float]: A tuple containing the perturbation scores for each cell and the AUC score.
     """
     # if we have too little data, just return NaN scores
-    if cell_data.shape[0] <= minimum_cell_count:
+    if cell_data.shape[0] < minimum_cell_count:
         return pd.Series(np.nan, index=cell_data.index), np.nan
 
     y = (cell_data[perturbation_col] == gene).astype(int).to_numpy()
@@ -55,8 +55,14 @@ def calculate_perturbation_scores(
     selector = SelectKBest(score_func=f_classif, k=k).fit(X_all, y)
     X = selector.transform(X_all)
 
+    # make number of splits based on cell count
+    if cell_data.shape[0] < minimum_cell_count * 2:
+        n_splits = 5
+    else:
+        n_splits = 10
+
     clf = LogisticRegression(max_iter=2000, class_weight="balanced", solver="liblinear")
-    cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=0)
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=0)
     scores = cross_val_predict(clf, X, y, cv=cv, method="predict_proba")[:, 1]
 
     auc = roc_auc_score(y, scores)

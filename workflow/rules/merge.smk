@@ -11,14 +11,14 @@ rule estimate_stitch_phenotype:
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
-        flipud=config.get("stitch", {}).get("flipud", False),
-        fliplr=config.get("stitch", {}).get("fliplr", False), 
-        rot90=config.get("stitch", {}).get("rot90", 0),
+        flipud=config.get("merge", {}).get("flipud", False),
+        fliplr=config.get("merge", {}).get("fliplr", False),
+        rot90=config.get("merge", {}).get("rot90", 0),
         data_type="phenotype",
     resources:
         mem_mb=15000,
         cpus_per_task=8,
-        runtime=180,  # 3 hours for phenotype (image registration)
+        runtime=180,
     script:
         "../scripts/merge/estimate_stitch_phenotype.py"
 
@@ -31,16 +31,16 @@ rule estimate_stitch_sbs:
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
-        flipud=config.get("stitch", {}).get("flipud", False),
-        fliplr=config.get("stitch", {}).get("fliplr", False), 
-        rot90=config.get("stitch", {}).get("rot90", 0),
+        flipud=config.get("merge", {}).get("flipud", False),
+        fliplr=config.get("merge", {}).get("fliplr", False),
+        rot90=config.get("merge", {}).get("rot90", 0),
         data_type="sbs",
         # SBS-specific params
         sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
     resources:
-        mem_mb=8000,   # Less memory needed for coordinate-based approach
-        cpus_per_task=4,   # Fewer CPUs needed
-        runtime=60,    # 1 hour should be plenty for coordinate-based
+        mem_mb=8000,
+        cpus_per_task=4,
+        runtime=60,
     script:
         "../scripts/merge/estimate_stitch_sbs.py"
 
@@ -57,9 +57,9 @@ rule stitch_phenotype_well:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
         data_type="phenotype",
-        flipud=config.get("stitch", {}).get("flipud", False),
-        fliplr=config.get("stitch", {}).get("fliplr", False),
-        rot90=config.get("stitch", {}).get("rot90", 0),
+        flipud=config.get("merge", {}).get("flipud", False),
+        fliplr=config.get("merge", {}).get("fliplr", False),
+        rot90=config.get("merge", {}).get("rot90", 0),
     resources:
         mem_mb=400000,     
         cpus_per_task=8,
@@ -80,9 +80,9 @@ rule stitch_sbs_well:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
         data_type="sbs",
-        flipud=config.get("stitch", {}).get("flipud", False),
-        fliplr=config.get("stitch", {}).get("fliplr", False),
-        rot90=config.get("stitch", {}).get("rot90", 0),
+        flipud=config.get("merge", {}).get("flipud", False),
+        fliplr=config.get("merge", {}).get("fliplr", False),
+        rot90=config.get("merge", {}).get("rot90", 0),
     resources:
         mem_mb=400000,     
         cpus_per_task=8,
@@ -91,7 +91,7 @@ rule stitch_sbs_well:
         "../scripts/merge/well_stitching.py"
 
 
-# TILE-ONLY RULES - Only define if using tile approach
+# TILE-ONLY RULES - Only used under tile approach
 if merge_approach == "tile":
     rule fast_alignment:
         input:
@@ -161,6 +161,12 @@ if merge_approach == "well":
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
             threshold=config["merge"]["threshold"],
+            det_range=config["merge"]["det_range"],
+            score=config["merge"]["score"],
+        resources:
+            mem_mb=8000,
+            cpus_per_task=2,
+            runtime=60,
         script:
             "../scripts/merge/well_cell_merge.py"
 
@@ -265,7 +271,7 @@ rule final_merge:
         lambda wildcards: (
             MERGE_OUTPUTS["format_merge"][0]  # Use formatted data directly for well approach
             if config.get("merge", {}).get("approach", "tile") == "well" 
-            else MERGE_OUTPUTS["deduplicate_merge"][1]  # Use deduplicated data for tile
+            else MERGE_OUTPUTS["deduplicate_merge"][1]
         ),
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0]),
     output:

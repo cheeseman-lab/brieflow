@@ -3,6 +3,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import matplotlib.patches as patches
+from matplotlib.colors import ListedColormap
+from typing import Optional, Tuple, List, Dict, Any
 
 import pandas as pd
 from pathlib import Path
@@ -1171,10 +1174,11 @@ class StitchQC:
             brightness_levels=[brightness]
         )
 
-    def view_mask_region(self, center_row, center_col, size=1000, modality="phenotype"):
+    def view_mask_region(self, center_row, center_col, size=1000, modality="phenotype", 
+                        adaptive_colormap=True, colormap="nipy_spectral", exclude_background=True):
         """
         View a square region from the stitched mask for the given modality.
-        Now handles coordinates consistently with view_region.
+        Now with adaptive colormap scaling for better visualization.
 
         Parameters
         ----------
@@ -1184,8 +1188,14 @@ class StitchQC:
             Size of square region (size x size pixels)
         modality : str, default "phenotype"
             Which mask to view: "phenotype" or "sbs"
+        adaptive_colormap : bool, default True
+            If True, adjusts colormap range to the actual cell ID range in the region
+        colormap : str, default "nipy_spectral"
+            Matplotlib colormap to use. Options: "nipy_spectral", "tab20", "Set1", "viridis", etc.
+        exclude_background : bool, default True
+            If True, excludes background pixels (ID=0) from colormap scaling
         """
-        # Calculate region bounds (same as view_region)
+        # Calculate initial region bounds from center coordinates
         half_size = size // 2
         start_i = center_row - half_size
         end_i = center_row + half_size
@@ -1195,9 +1205,53 @@ class StitchQC:
         if modality == "phenotype":
             mask_path = self.phenotype_mask
             title = f"Phenotype Mask Region - Plate {self.plate}, Well {self.well}"
+            # For phenotype, coordinates should match directly (no scaling needed)
+            final_start_i, final_end_i = start_i, end_i
+            final_start_j, final_end_j = start_j, end_j
+            
         elif modality == "sbs":
             mask_path = self.sbs_mask
             title = f"SBS Mask Region - Plate {self.plate}, Well {self.well}"
+            
+            # Load mask to get its actual dimensions for scaling
+            mask = np.load(mask_path, mmap_mode="r")
+            
+            # Apply scaling logic - but use mask dimensions, not image dimensions
+            if self.phenotype_mask.exists():
+                # Load phenotype mask to calculate scale factors
+                ph_mask = np.load(self.phenotype_mask, mmap_mode='r')
+                
+                scale_h = mask.shape[0] / ph_mask.shape[0]
+                scale_w = mask.shape[1] / ph_mask.shape[1]
+                
+                print(f"Scaling SBS coordinates using mask dimensions:")
+                print(f"  Phenotype mask shape: {ph_mask.shape}")
+                print(f"  SBS mask shape: {mask.shape}")
+                print(f"  Scale factors: h={scale_h:.4f}, w={scale_w:.4f}")
+                
+            else:
+                # Fallback: try using image dimensions if masks don't exist
+                if self.phenotype_image.exists():
+                    ph_img = np.load(self.phenotype_image, mmap_mode='r')
+                    scale_h = mask.shape[0] / ph_img.shape[0]
+                    scale_w = mask.shape[1] / ph_img.shape[1]
+                    print(f"Scaling using image dimensions as fallback:")
+                    print(f"  Phenotype image shape: {ph_img.shape}")
+                    print(f"  SBS mask shape: {mask.shape}")
+                    print(f"  Scale factors: h={scale_h:.4f}, w={scale_w:.4f}")
+                else:
+                    scale_h = scale_w = 0.25  # Default assumption
+                    print(f"Using default scale factors: h={scale_h}, w={scale_w}")
+            
+            # Scale region coordinates for SBS
+            final_start_i = int(start_i * scale_h)
+            final_end_i = int(end_i * scale_h)
+            final_start_j = int(start_j * scale_w)
+            final_end_j = int(end_j * scale_w)
+            
+            print(f"  Original region: [{start_i}:{end_i}, {start_j}:{end_j}]")
+            print(f"  Scaled region: [{final_start_i}:{final_end_i}, {final_start_j}:{final_end_j}]")
+            
         else:
             raise ValueError("modality must be 'phenotype' or 'sbs'")
 
@@ -1206,42 +1260,492 @@ class StitchQC:
             return
 
         print(f"Viewing {size}x{size} mask region centered at ({center_row}, {center_col})")
-        print(f"Region bounds: [{start_i}:{end_i}, {start_j}:{end_j}]")
 
         # Load mask using memory mapping (consistent with image loading approach)
-        mask = np.load(mask_path, mmap_mode="r")
+        # Note: For SBS, mask was already loaded above for scaling calculations
+        if modality == "phenotype":
+            mask = np.load(mask_path, mmap_mode="r")
         print(f"Mask shape: {mask.shape}")
 
-        # Validate and clip region bounds to mask dimensions (EXACT same logic as image functions)
-        start_i = max(0, min(start_i, mask.shape[0]))
-        end_i = max(start_i, min(end_i, mask.shape[0]))
-        start_j = max(0, min(start_j, mask.shape[1]))
-        end_j = max(start_j, min(end_j, mask.shape[1]))
+        # Validate and clip region bounds to mask dimensions
+        final_start_i = max(0, min(final_start_i, mask.shape[0]))
+        final_end_i = max(final_start_i, min(final_end_i, mask.shape[0]))
+        final_start_j = max(0, min(final_start_j, mask.shape[1]))
+        final_end_j = max(final_start_j, min(final_end_j, mask.shape[1]))
 
         # Extract region (now using numpy array conversion for consistency)
-        region = np.array(mask[start_i:end_i, start_j:end_j])
+        region = np.array(mask[final_start_i:final_end_i, final_start_j:final_end_j])
         
-        print(f"Extracted region shape: {region.shape}")
-        print(f"Unique mask values: {np.unique(region)[:10]}...")  # Show first 10 unique values
+        print(f"Final extracted region shape: {region.shape}")
+        print(f"Final bounds used: [{final_start_i}:{final_end_i}, {final_start_j}:{final_end_j}]")
+        
+        # Analyze the cell ID values in this region
+        unique_values = np.unique(region)
+        print(f"Unique mask values in region: {len(unique_values)} values")
+        print(f"Cell ID range: {unique_values.min()} to {unique_values.max()}")
+        
+        # Count cells vs background
+        background_pixels = (region == 0).sum()
+        cell_pixels = (region > 0).sum()
+        print(f"Background pixels: {background_pixels:,} ({background_pixels/region.size:.1%})")
+        print(f"Cell pixels: {cell_pixels:,} ({cell_pixels/region.size:.1%})")
 
-        # Create visualization
-        fig, ax = plt.subplots(figsize=(8, 8))
+        # Create visualization with adaptive colormap
+        fig, ax = plt.subplots(figsize=(10, 8))
         
-        # Use appropriate colormap and display settings for masks
-        im = ax.imshow(region, cmap="nipy_spectral", interpolation="nearest")
-        ax.set_title(f"{title}\nCenter: ({center_row}, {center_col}), Actual region: {region.shape}\n"
-                    f"Bounds: [{start_i}:{end_i}, {start_j}:{end_j}]")
+        # Determine colormap limits
+        if adaptive_colormap:
+            if exclude_background and len(unique_values) > 1:
+                # Use range of cell IDs only (exclude background=0)
+                cell_values = unique_values[unique_values > 0]
+                if len(cell_values) > 0:
+                    vmin, vmax = cell_values.min(), cell_values.max()
+                    print(f"Adaptive colormap range: {vmin} to {vmax} (excluding background)")
+                else:
+                    vmin, vmax = unique_values.min(), unique_values.max()
+                    print(f"No cells found, using full range: {vmin} to {vmax}")
+            else:
+                vmin, vmax = unique_values.min(), unique_values.max()
+                print(f"Adaptive colormap range: {vmin} to {vmax} (including background)")
+        else:
+            vmin, vmax = None, None
+            print("Using default colormap scaling")
+        
+        # Display the mask with adaptive colormap
+        im = ax.imshow(region, cmap=colormap, interpolation="nearest", vmin=vmin, vmax=vmax)
+        
+        ax.set_title(f"{title}\nCenter: ({center_row}, {center_col}), Region: {region.shape}\n"
+                    f"Cell ID range in region: {unique_values.min()} - {unique_values.max()}")
         ax.axis("off")
         
-        # Add colorbar to show cell ID scale
+        # Add colorbar with better labeling
         cbar = plt.colorbar(im, ax=ax, shrink=0.8)
-        cbar.set_label('Cell ID', rotation=270, labelpad=20)
+        if adaptive_colormap and exclude_background:
+            cbar.set_label('Cell ID (background=0 excluded from scale)', rotation=270, labelpad=20)
+        else:
+            cbar.set_label('Cell ID', rotation=270, labelpad=20)
+        
+        # Add some text info on the plot
+        info_text = f"Cells: {len(unique_values)-1 if 0 in unique_values else len(unique_values)}\n"
+        info_text += f"Background: {background_pixels/region.size:.1%}"
+        ax.text(0.02, 0.98, info_text, transform=ax.transAxes, 
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+            verticalalignment='top', fontsize=10)
         
         plt.tight_layout()
         plt.show()
         
+        # Print some additional useful info
+        if len(unique_values) > 1:
+            print(f"\nRegional statistics:")
+            print(f"  Number of unique cells: {len(unique_values)-1 if 0 in unique_values else len(unique_values)}")
+            print(f"  Cell density: {cell_pixels/region.size:.1%} of region")
+            print(f"  Average cell ID: {unique_values[unique_values>0].mean():.0f}")
+        
         # Return the region for further analysis if needed
         return region
+
+
+    def compare_mask_regions(self, center_row, center_col, size=7000, colormap="nipy_spectral", 
+                            adaptive_colormap=True, exclude_background=True):
+        """
+        Compare phenotype and SBS mask regions side by side with consistent colormap settings.
+        
+        Parameters
+        ----------
+        center_row, center_col : int
+            Center coordinates (in phenotype space)
+        size : int, default 7000
+            Region size
+        colormap : str, default "nipy_spectral"
+            Colormap to use for both
+        adaptive_colormap : bool, default True
+            Use adaptive colormap scaling
+        exclude_background : bool, default True
+            Exclude background from colormap scaling
+        """
+        
+        print(f"COMPARING MASK REGIONS AT ({center_row}, {center_col}) ± {size//2}")
+        print("="*60)
+        
+        print("\n1. Phenotype Mask:")
+        ph_region = self.view_mask_region(center_row, center_col, size, "phenotype", 
+                                        adaptive_colormap, colormap, exclude_background)
+        
+        print("\n2. SBS Mask:")
+        sbs_region = self.view_mask_region(center_row, center_col, size, "sbs",
+                                        adaptive_colormap, colormap, exclude_background)
+        
+        # Summary comparison
+        if ph_region is not None and sbs_region is not None:
+            ph_cells = len(np.unique(ph_region)) - (1 if 0 in np.unique(ph_region) else 0)
+            sbs_cells = len(np.unique(sbs_region)) - (1 if 0 in np.unique(sbs_region) else 0)
+            
+            print(f"\n" + "="*60)
+            print("REGION COMPARISON SUMMARY")
+            print("="*60)
+            print(f"Phenotype cells in region: {ph_cells}")
+            print(f"SBS cells in region: {sbs_cells}")
+            print(f"Cell count ratio (SBS/PH): {sbs_cells/ph_cells:.2f}" if ph_cells > 0 else "N/A")
+            print("="*60)
+        
+        return ph_region, sbs_region
+    
+    def view_alignment_region(self, center_row, center_col, size=7000, threshold=15.0, sample_size=1000):
+        """
+        View alignment quality for a specific region with the same coordinate system as view_region/view_mask_region.
+        Shows original positions, transformed positions, and matches in the specified region.
+
+        Parameters
+        ----------
+        center_row, center_col : int
+            Center coordinates of region to view (in phenotype coordinate space)
+        size : int, default 7000
+            Size of square region (size x size pixels)
+        threshold : float, default 15.0
+            Distance threshold for considering cells matched
+        sample_size : int, default 1000
+            Maximum number of cells to plot for performance (None for all cells)
+        """
+        
+        print(f"Loading alignment data for region centered at ({center_row}, {center_col})...")
+        
+        # Load alignment outputs
+        try:
+            alignment_data = load_well_alignment_outputs(self.base_path.parent, self.plate, self.well)
+        except FileNotFoundError as e:
+            print(f"❌ Could not load alignment data: {e}")
+            print("Make sure well alignment has been run for this plate/well")
+            return
+        
+        # Get alignment parameters
+        alignment_params = alignment_data['alignment_params'].iloc[0]
+        rotation_flat = alignment_params['rotation_matrix_flat']
+        translation_list = alignment_params['translation_vector']
+        
+        rotation = np.array(rotation_flat).reshape(2, 2)
+        translation = np.array(translation_list)
+        
+        print(f"Alignment parameters:")
+        print(f"  Score: {alignment_params['score']:.3f}")
+        print(f"  Determinant: {alignment_params['determinant']:.6f}")
+        print(f"  Translation: {translation}")
+        
+        # Define region bounds (same logic as view_mask_region)
+        half_size = size // 2
+        start_i = center_row - half_size
+        end_i = center_row + half_size
+        start_j = center_col - half_size
+        end_j = center_col + half_size
+        
+        print(f"Analyzing region: [{start_i}:{end_i}, {start_j}:{end_j}]")
+        
+        # Filter phenotype cells to region
+        phenotype_scaled = alignment_data['phenotype_scaled']
+        ph_region = phenotype_scaled[
+            (phenotype_scaled['i'] >= start_i) & (phenotype_scaled['i'] <= end_i) &
+            (phenotype_scaled['j'] >= start_j) & (phenotype_scaled['j'] <= end_j)
+        ].copy()
+        
+        print(f"Phenotype cells in region: {len(ph_region)}")
+        
+        if len(ph_region) == 0:
+            print("❌ No phenotype cells found in this region")
+            return
+        
+        # Calculate SBS region bounds using the same scaling as view_mask_region
+        if self.phenotype_image.exists() and self.sbs_image.exists():
+            ph_img = np.load(self.phenotype_image, mmap_mode='r')
+            sbs_img = np.load(self.sbs_image, mmap_mode='r')
+            scale_h = sbs_img.shape[0] / ph_img.shape[0]
+            scale_w = sbs_img.shape[1] / ph_img.shape[1]
+        else:
+            scale_h = scale_w = 0.25  # Default
+        
+        # Scale region bounds for SBS
+        sbs_start_i = int(start_i * scale_h)
+        sbs_end_i = int(end_i * scale_h)
+        sbs_start_j = int(start_j * scale_w)
+        sbs_end_j = int(end_j * scale_w)
+        
+        print(f"SBS region bounds (scaled): [{sbs_start_i}:{sbs_end_i}, {sbs_start_j}:{sbs_end_j}]")
+        
+        # Filter SBS cells to scaled region
+        sbs_positions = alignment_data['sbs_positions']
+        sbs_region = sbs_positions[
+            (sbs_positions['i'] >= sbs_start_i) & (sbs_positions['i'] <= sbs_end_i) &
+            (sbs_positions['j'] >= sbs_start_j) & (sbs_positions['j'] <= sbs_end_j)
+        ].copy()
+        
+        print(f"SBS cells in scaled region: {len(sbs_region)}")
+        
+        if len(sbs_region) == 0:
+            print("❌ No SBS cells found in scaled region")
+            return
+        
+        # Sample data if requested for performance
+        if sample_size and len(ph_region) > sample_size:
+            ph_region = ph_region.sample(n=sample_size, random_state=42)
+            print(f"Sampled {sample_size} phenotype cells for visualization")
+        
+        if sample_size and len(sbs_region) > sample_size:
+            sbs_region = sbs_region.sample(n=sample_size, random_state=42)
+            print(f"Sampled {sample_size} SBS cells for visualization")
+        
+        # Extract coordinates
+        ph_coords = ph_region[['i', 'j']].values
+        sbs_coords = sbs_region[['i', 'j']].values
+        
+        # Apply transformation to phenotype coordinates
+        ph_transformed = ph_coords @ rotation.T + translation
+        
+        # Calculate distances and matches
+        distances = cdist(ph_transformed, sbs_coords, metric='euclidean')
+        min_distances = distances.min(axis=1)
+        closest_indices = distances.argmin(axis=1)
+        
+        # Find matches within threshold
+        matches = min_distances <= threshold
+        match_count = matches.sum()
+        match_rate = match_count / len(ph_coords) if len(ph_coords) > 0 else 0
+        
+        print(f"Match results in this region:")
+        print(f"  Matches found: {match_count}/{len(ph_coords)} ({match_rate:.1%})")
+        print(f"  Mean distance: {min_distances.mean():.2f} pixels")
+        print(f"  Median distance: {np.median(min_distances):.2f} pixels")
+        
+        # Create visualization
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        fig.suptitle(f'Alignment Quality Check - Plate {self.plate}, Well {self.well}\n'
+                    f'Region: ({center_row}, {center_col}) ± {size//2}', fontsize=14)
+        
+        # Panel 1: Original phenotype positions (blue) - in phenotype coordinate space
+        axes[0, 0].scatter(ph_coords[:, 1], ph_coords[:, 0], c='blue', alpha=0.6, s=20, label='Phenotype')
+        axes[0, 0].set_title(f'Original Phenotype Positions\n({len(ph_coords)} cells)')
+        axes[0, 0].set_xlabel('j (pixels)')
+        axes[0, 0].set_ylabel('i (pixels)')
+        axes[0, 0].invert_yaxis()
+        axes[0, 0].legend()
+        axes[0, 0].grid(True, alpha=0.3)
+        
+        # Panel 2: SBS positions (green) - in SBS coordinate space
+        axes[0, 1].scatter(sbs_coords[:, 1], sbs_coords[:, 0], c='green', alpha=0.6, s=20, label='SBS')
+        axes[0, 1].set_title(f'SBS Positions\n({len(sbs_coords)} cells)')
+        axes[0, 1].set_xlabel('j (pixels)')
+        axes[0, 1].set_ylabel('i (pixels)')
+        axes[0, 1].invert_yaxis()
+        axes[0, 1].legend()
+        axes[0, 1].grid(True, alpha=0.3)
+        
+        # Panel 3: Transformed phenotype (red) + SBS (green) - both in SBS coordinate space
+        axes[1, 0].scatter(sbs_coords[:, 1], sbs_coords[:, 0], c='green', alpha=0.6, s=20, label='SBS')
+        axes[1, 0].scatter(ph_transformed[:, 1], ph_transformed[:, 0], c='red', alpha=0.6, s=20, label='Phenotype (transformed)')
+        axes[1, 0].set_title(f'Overlay: Transformed Phenotype + SBS\nScore: {alignment_params["score"]:.3f}, Det: {alignment_params["determinant"]:.6f}')
+        axes[1, 0].set_xlabel('j (pixels)')
+        axes[1, 0].set_ylabel('i (pixels)')
+        axes[1, 0].invert_yaxis()
+        axes[1, 0].legend()
+        axes[1, 0].grid(True, alpha=0.3)
+        
+        # Panel 4: Matches visualization with connecting lines
+        ax = axes[1, 1]
+        
+        # Plot unmatched cells in light colors
+        unmatched = ~matches
+        if unmatched.sum() > 0:
+            ax.scatter(ph_transformed[unmatched, 1], ph_transformed[unmatched, 0], 
+                    c='lightcoral', alpha=0.4, s=15, label=f'Unmatched phenotype ({unmatched.sum()})')
+        
+        # Plot all SBS cells
+        ax.scatter(sbs_coords[:, 1], sbs_coords[:, 0], c='lightgreen', alpha=0.4, s=15, label=f'SBS ({len(sbs_coords)})')
+        
+        # Plot matched pairs with connecting lines
+        if match_count > 0:
+            matched_ph = ph_transformed[matches]
+            matched_sbs_indices = closest_indices[matches]
+            matched_sbs = sbs_coords[matched_sbs_indices]
+            
+            # Draw connecting lines
+            for i in range(len(matched_ph)):
+                ax.plot([matched_ph[i, 1], matched_sbs[i, 1]], 
+                    [matched_ph[i, 0], matched_sbs[i, 0]], 
+                    'gray', alpha=0.3, linewidth=0.5)
+            
+            # Plot matched points on top
+            ax.scatter(matched_ph[:, 1], matched_ph[:, 0], c='red', alpha=0.8, s=25, 
+                    label=f'Matched phenotype ({match_count})')
+            ax.scatter(matched_sbs[:, 1], matched_sbs[:, 0], c='green', alpha=0.8, s=25,
+                    label=f'Matched SBS ({match_count})')
+        
+        ax.set_title(f'Cell Matches (threshold = {threshold}px)\nMatch rate: {match_rate:.1%} ({match_count}/{len(ph_coords)})')
+        ax.set_xlabel('j (pixels)')
+        ax.set_ylabel('i (pixels)')
+        ax.invert_yaxis()
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Return summary statistics
+        alignment_stats = {
+            'region_center': (center_row, center_col),
+            'region_size': size,
+            'phenotype_cells': len(ph_coords),
+            'sbs_cells': len(sbs_coords),
+            'matches': match_count,
+            'match_rate': match_rate,
+            'mean_distance': min_distances.mean(),
+            'median_distance': np.median(min_distances),
+            'alignment_score': alignment_params['score'],
+            'determinant': alignment_params['determinant']
+        }
+        
+        return fig, alignment_stats
+
+
+    def view_alignment_and_masks(self, center_row, center_col, size=7000, threshold=15.0, 
+                                brightness=2.0, sample_size=1000):
+        """
+        Comprehensive alignment check showing images, masks, and alignment quality in one view.
+        
+        Parameters
+        ----------
+        center_row, center_col : int
+            Center coordinates of region to view (in phenotype coordinate space)
+        size : int, default 7000
+            Size of square region (size x size pixels)
+        threshold : float, default 15.0
+            Distance threshold for considering cells matched
+        brightness : float, default 2.0
+            Brightness multiplier for image display
+        sample_size : int, default 1000
+            Maximum number of cells to plot for performance
+        """
+        
+        print(f"Comprehensive alignment check for region ({center_row}, {center_col}) ± {size//2}")
+        print("-" * 80)
+        
+        # First show the alignment quality
+        print("1. Alignment Quality Analysis:")
+        fig1, stats = self.view_alignment_region(center_row, center_col, size, threshold, sample_size)
+        
+        print(f"\n2. Image regions (brightness = {brightness}):")
+        # Show the corresponding image regions
+        self.view_region(center_row, center_col, size, brightness)
+        
+        print(f"\n3. Mask regions:")
+        # Show the corresponding mask regions
+        print("Phenotype mask:")
+        ph_mask_region = self.view_mask_region(center_row, center_col, size, "phenotype")
+        print("SBS mask:")
+        sbs_mask_region = self.view_mask_region(center_row, center_col, size, "sbs")
+        
+        # Print summary
+        print("\n" + "="*60)
+        print("REGION ALIGNMENT SUMMARY")
+        print("="*60)
+        print(f"Region: ({center_row}, {center_col}) ± {size//2} pixels")
+        print(f"Cells found: {stats['phenotype_cells']} phenotype, {stats['sbs_cells']} SBS")
+        print(f"Match rate: {stats['match_rate']:.1%} ({stats['matches']}/{stats['phenotype_cells']})")
+        print(f"Mean distance: {stats['mean_distance']:.2f} pixels")
+        print(f"Alignment score: {stats['alignment_score']:.3f}")
+        print(f"Determinant: {stats['determinant']:.6f}")
+        
+        # Assess quality
+        if stats['match_rate'] > 0.8 and stats['mean_distance'] < threshold/2:
+            print("✅ EXCELLENT alignment in this region")
+        elif stats['match_rate'] > 0.6 and stats['mean_distance'] < threshold:
+            print("🟡 GOOD alignment in this region") 
+        elif stats['match_rate'] > 0.3:
+            print("🟠 FAIR alignment in this region")
+        else:
+            print("❌ POOR alignment in this region")
+        
+        print("="*60)
+        
+        return stats, ph_mask_region, sbs_mask_region
+
+
+    def check_alignment_at_multiple_regions(self, regions, threshold=15.0, sample_size=500):
+        """
+        Check alignment quality at multiple regions to get a comprehensive view.
+        
+        Parameters
+        ----------
+        regions : list of tuples
+            List of (center_row, center_col, size) tuples defining regions to check
+        threshold : float, default 15.0
+            Distance threshold for matches
+        sample_size : int, default 500
+            Maximum cells per region for performance
+            
+        Returns
+        -------
+        DataFrame : Summary of alignment quality across all regions
+        """
+        
+        print("MULTI-REGION ALIGNMENT ANALYSIS")
+        print("="*80)
+        
+        results = []
+        
+        for i, (center_row, center_col, size) in enumerate(regions):
+            print(f"\nRegion {i+1}: ({center_row}, {center_col}) ± {size//2}")
+            print("-" * 40)
+            
+            try:
+                stats, _, _ = self.view_alignment_and_masks(
+                    center_row, center_col, size, threshold, 
+                    brightness=1.5, sample_size=sample_size
+                )
+                results.append(stats)
+                
+            except Exception as e:
+                print(f"❌ Failed to analyze region {i+1}: {e}")
+                # Add failed entry
+                results.append({
+                    'region_center': (center_row, center_col),
+                    'region_size': size,
+                    'phenotype_cells': 0,
+                    'sbs_cells': 0, 
+                    'matches': 0,
+                    'match_rate': 0,
+                    'mean_distance': np.nan,
+                    'median_distance': np.nan,
+                    'alignment_score': np.nan,
+                    'determinant': np.nan
+                })
+        
+        # Create summary dataframe
+        summary_df = pd.DataFrame(results)
+        
+        print("\n" + "="*80)
+        print("SUMMARY ACROSS ALL REGIONS")
+        print("="*80)
+        print(summary_df[['region_center', 'phenotype_cells', 'sbs_cells', 'match_rate', 'mean_distance']].to_string(index=False))
+        
+        # Overall assessment
+        overall_match_rate = summary_df['match_rate'].mean()
+        overall_mean_distance = summary_df['mean_distance'].mean()
+        
+        print(f"\nOverall statistics:")
+        print(f"  Average match rate: {overall_match_rate:.1%}")
+        print(f"  Average mean distance: {overall_mean_distance:.2f} pixels")
+        print(f"  Regions with >80% match rate: {(summary_df['match_rate'] > 0.8).sum()}/{len(summary_df)}")
+        
+        if overall_match_rate > 0.8 and overall_mean_distance < threshold/2:
+            print("✅ EXCELLENT overall alignment quality")
+        elif overall_match_rate > 0.6 and overall_mean_distance < threshold:
+            print("🟡 GOOD overall alignment quality") 
+        elif overall_match_rate > 0.3:
+            print("🟠 FAIR overall alignment quality - consider re-alignment")
+        else:
+            print("❌ POOR overall alignment quality - re-alignment recommended")
+        
+        print("="*80)
+        
+        return summary_df
     
 
     def get_mask_info(self, modality="phenotype"):
@@ -1367,3 +1871,921 @@ wells_to_check = [(1, 'A01'), (1, 'A02'), (1, 'B01')]
 summary = batch_qc_report('/path/to/analysis/merge', wells_to_check)
 """
 
+### NEW FUNCTIONS
+
+
+def load_stitched_image(image_path: str) -> np.ndarray:
+    """Load a stitched image from .npy file.
+    
+    Args:
+        image_path: Path to the .npy stitched image file
+        
+    Returns:
+        Loaded image array
+    """
+    return np.load(image_path)
+
+def load_cell_positions(positions_path: str) -> pd.DataFrame:
+    """Load cell positions from parquet file.
+    
+    Args:
+        positions_path: Path to parquet file with cell positions
+        
+    Returns:
+        DataFrame with cell positions and metadata
+    """
+    return pd.read_parquet(positions_path)
+
+def load_alignment_summary(summary_path: str) -> Dict[str, Any]:
+    """Load alignment summary from YAML file.
+    
+    Args:
+        summary_path: Path to alignment summary YAML file
+        
+    Returns:
+        Dictionary with alignment parameters and statistics
+    """
+    with open(summary_path, 'r') as f:
+        return yaml.safe_load(f)
+
+def normalize_image_for_display(image: np.ndarray, 
+                              percentile_clip: Tuple[float, float] = (1, 99),
+                              gamma: float = 1.0) -> np.ndarray:
+    """Normalize image for better visualization.
+    
+    Args:
+        image: Raw image array
+        percentile_clip: Lower and upper percentiles for clipping
+        gamma: Gamma correction factor
+        
+    Returns:
+        Normalized image ready for display
+    """
+    # Handle different image dimensions
+    if image.ndim == 3:
+        # Multi-channel image - use first channel or create RGB
+        if image.shape[2] == 1:
+            image = image[:, :, 0]
+        elif image.shape[2] > 3:
+            # Take first 3 channels for RGB
+            image = image[:, :, :3]
+    
+    # Clip extreme values
+    lower, upper = np.percentile(image, percentile_clip)
+    image = np.clip(image, lower, upper)
+    
+    # Normalize to 0-1
+    image = (image - image.min()) / (image.max() - image.min() + 1e-8)
+    
+    # Apply gamma correction
+    if gamma != 1.0:
+        image = np.power(image, gamma)
+    
+    return image
+
+def view_stitched_region(image_path: str,
+                        positions_path: Optional[str] = None,
+                        region: Optional[Tuple[int, int, int, int]] = None,
+                        cell_color: str = 'red',
+                        color_by_stitched_id: bool = False,
+                        cell_size: int = 5,
+                        title: str = "Stitched Image Region",
+                        figsize: Tuple[int, int] = (12, 10)) -> plt.Figure:
+    """View a region of a stitched image with optional cell overlay.
+    
+    Args:
+        image_path: Path to stitched image .npy file
+        positions_path: Optional path to cell positions parquet file
+        region: Tuple of (i_min, i_max, j_min, j_max) for cropping
+        cell_color: Color for cell position markers (ignored if color_by_stitched_id=True)
+        color_by_stitched_id: If True, color cells by their stitched_cell_id
+        cell_size: Size of cell markers
+        title: Plot title
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure
+    """
+    # Load image
+    image = load_stitched_image(image_path)
+    print(f"Loaded image shape: {image.shape}")
+    
+    # Normalize for display
+    display_image = normalize_image_for_display(image)
+    
+    # Crop to region if specified
+    if region is not None:
+        i_min, i_max, j_min, j_max = region
+        display_image = display_image[i_min:i_max, j_min:j_max]
+        print(f"Cropped to region: {region}")
+    else:
+        region = (0, image.shape[0], 0, image.shape[1])
+        i_min, i_max, j_min, j_max = region
+    
+    # Create figure
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    
+    # Show image
+    if display_image.ndim == 3:
+        ax.imshow(display_image, extent=[j_min, j_max, i_max, i_min])
+    else:
+        ax.imshow(display_image, cmap='gray', extent=[j_min, j_max, i_max, i_min])
+    
+    # Overlay cell positions if provided
+    if positions_path is not None:
+        positions = load_cell_positions(positions_path)
+        print(f"Loaded {len(positions)} cell positions")
+        
+        # Filter to region
+        region_positions = positions[
+            (positions['i'] >= i_min) & (positions['i'] <= i_max) &
+            (positions['j'] >= j_min) & (positions['j'] <= j_max)
+        ]
+        print(f"Found {len(region_positions)} cells in region")
+        
+        if len(region_positions) > 0:
+            if color_by_stitched_id and 'stitched_cell_id' in region_positions.columns:
+                # Color by stitched_cell_id
+                unique_ids = region_positions['stitched_cell_id'].unique()
+                colors = plt.cm.tab20(np.linspace(0, 1, len(unique_ids)))
+                
+                scatter = ax.scatter(region_positions['j'], region_positions['i'], 
+                          c=region_positions['stitched_cell_id'], s=cell_size, 
+                          alpha=0.7, edgecolors='white', linewidths=0.5,
+                          cmap='tab20')
+                
+                # Add colorbar
+                cbar = plt.colorbar(scatter, ax=ax)
+                cbar.set_label('Stitched Cell ID')
+                
+                print(f"Colored by stitched_cell_id: {len(unique_ids)} unique IDs in region")
+            else:
+                # Use single color
+                ax.scatter(region_positions['j'], region_positions['i'], 
+                          c=cell_color, s=cell_size, alpha=0.7, edgecolors='white', linewidths=0.5)
+                
+                if color_by_stitched_id:
+                    print("⚠️  stitched_cell_id column not found, using single color")
+    
+    ax.set_title(title)
+    ax.set_xlabel('J (pixels)')
+    ax.set_ylabel('I (pixels)')
+    
+    return fig
+
+def compare_modality_images(phenotype_image_path: str,
+                           sbs_image_path: str,
+                           phenotype_positions_path: str,
+                           sbs_positions_path: str,
+                           alignment_summary_path: Optional[str] = None,
+                           region: Optional[Tuple[int, int, int, int]] = None,
+                           color_by_stitched_id: bool = False,
+                           downsample: int = 4,
+                           figsize: Tuple[int, int] = (20, 10)) -> plt.Figure:
+    """Compare stitched images from both modalities side by side.
+    
+    Args:
+        phenotype_image_path: Path to phenotype stitched image
+        sbs_image_path: Path to SBS stitched image  
+        phenotype_positions_path: Path to phenotype cell positions
+        sbs_positions_path: Path to SBS cell positions
+        alignment_summary_path: Optional path to alignment summary
+        region: Region to crop both images to
+        color_by_stitched_id: If True, color cells by their stitched_cell_id
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure with side-by-side comparison
+    """
+    print("Loading images...")
+    
+    # Load images
+
+def load_stitched_image(image_path: str, downsample: int = 1) -> np.ndarray:
+    """Load a stitched image from .npy file with optional downsampling.
+    
+    Args:
+        image_path: Path to the .npy stitched image file
+        downsample: Downsampling factor (1 = no downsampling, 2 = half size, etc.)
+        
+    Returns:
+        Loaded and optionally downsampled image array
+    """
+    image = np.load(image_path)
+    
+    if downsample > 1:
+        if image.ndim == 2:
+            # 2D image
+            image = image[::downsample, ::downsample]
+        elif image.ndim == 3:
+            # 3D image (channels last)
+            image = image[::downsample, ::downsample, :]
+        print(f"Downsampled by factor {downsample}, new shape: {image.shape}")
+    
+    return image
+
+def load_cell_positions(positions_path: str) -> pd.DataFrame:
+    """Load cell positions from parquet file.
+    
+    Args:
+        positions_path: Path to parquet file with cell positions
+        
+    Returns:
+        DataFrame with cell positions and metadata
+    """
+    return pd.read_parquet(positions_path)
+
+def load_alignment_summary(summary_path: str) -> Dict[str, Any]:
+    """Load alignment summary from YAML file.
+    
+    Args:
+        summary_path: Path to alignment summary YAML file
+        
+    Returns:
+        Dictionary with alignment parameters and statistics
+    """
+    with open(summary_path, 'r') as f:
+        return yaml.safe_load(f)
+
+def normalize_image_for_display(image: np.ndarray, 
+                              percentile_clip: Tuple[float, float] = (1, 99),
+                              gamma: float = 1.0) -> np.ndarray:
+    """Normalize image for better visualization.
+    
+    Args:
+        image: Raw image array
+        percentile_clip: Lower and upper percentiles for clipping
+        gamma: Gamma correction factor
+        
+    Returns:
+        Normalized image ready for display
+    """
+    # Handle different image dimensions
+    if image.ndim == 3:
+        # Multi-channel image - use first channel or create RGB
+        if image.shape[2] == 1:
+            image = image[:, :, 0]
+        elif image.shape[2] > 3:
+            # Take first 3 channels for RGB
+            image = image[:, :, :3]
+    
+    # Clip extreme values
+    lower, upper = np.percentile(image, percentile_clip)
+    image = np.clip(image, lower, upper)
+    
+    # Normalize to 0-1
+    image = (image - image.min()) / (image.max() - image.min() + 1e-8)
+    
+    # Apply gamma correction
+    if gamma != 1.0:
+        image = np.power(image, gamma)
+    
+    return image
+
+def view_stitched_region(image_path: str,
+                        positions_path: Optional[str] = None,
+                        region: Optional[Tuple[int, int, int, int]] = None,
+                        cell_color: str = 'red',
+                        color_by_stitched_id: bool = False,
+                        cell_size: int = 5,
+                        downsample: int = 4,
+                        title: str = "Stitched Image Region",
+                        figsize: Tuple[int, int] = (12, 10)) -> plt.Figure:
+    """View a region of a stitched image with optional cell overlay.
+    
+    Args:
+        image_path: Path to stitched image .npy file
+        positions_path: Optional path to cell positions parquet file
+        region: Tuple of (i_min, i_max, j_min, j_max) for cropping
+        cell_color: Color for cell position markers (ignored if color_by_stitched_id=True)
+        color_by_stitched_id: If True, color cells by their stitched_cell_id
+        cell_size: Size of cell markers
+        downsample: Downsampling factor for the image (default 4)
+        title: Plot title
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure
+    """
+    # Load image with downsampling
+    image = load_stitched_image(image_path, downsample=downsample)
+    print(f"Loaded image shape: {image.shape}")
+    
+    # Normalize for display
+    display_image = normalize_image_for_display(image)
+    
+    # Adjust region for downsampling
+    if region is not None:
+        i_min, i_max, j_min, j_max = region
+        # Scale region coordinates by downsample factor
+        i_min_ds, i_max_ds = i_min // downsample, i_max // downsample
+        j_min_ds, j_max_ds = j_min // downsample, j_max // downsample
+        display_image = display_image[i_min_ds:i_max_ds, j_min_ds:j_max_ds]
+        print(f"Cropped to region: {region} (downsampled: [{i_min_ds}, {i_max_ds}, {j_min_ds}, {j_max_ds}])")
+        # Use original coordinates for extent
+        extent = [j_min, j_max, i_max, i_min]
+    else:
+        region = (0, image.shape[0] * downsample, 0, image.shape[1] * downsample)
+        i_min, i_max, j_min, j_max = region
+        extent = [j_min, j_max, i_max, i_min]
+    
+    # Create figure
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    
+    # Show image
+    if display_image.ndim == 3:
+        ax.imshow(display_image, extent=extent)
+    else:
+        ax.imshow(display_image, cmap='gray', extent=extent)
+    
+    # Overlay cell positions if provided
+    if positions_path is not None:
+        positions = load_cell_positions(positions_path)
+        print(f"Loaded {len(positions)} cell positions")
+        
+        # Filter to region
+        region_positions = positions[
+            (positions['i'] >= i_min) & (positions['i'] <= i_max) &
+            (positions['j'] >= j_min) & (positions['j'] <= j_max)
+        ]
+        print(f"Found {len(region_positions)} cells in region")
+        
+        if len(region_positions) > 0:
+            if color_by_stitched_id and 'stitched_cell_id' in region_positions.columns:
+                # Color by stitched_cell_id
+                unique_ids = region_positions['stitched_cell_id'].unique()
+                colors = plt.cm.tab20(np.linspace(0, 1, len(unique_ids)))
+                
+                scatter = ax.scatter(region_positions['j'], region_positions['i'], 
+                          c=region_positions['stitched_cell_id'], s=cell_size, 
+                          alpha=0.7, edgecolors='white', linewidths=0.5,
+                          cmap='tab20')
+                
+                # Add colorbar
+                cbar = plt.colorbar(scatter, ax=ax)
+                cbar.set_label('Stitched Cell ID')
+                
+                print(f"Colored by stitched_cell_id: {len(unique_ids)} unique IDs in region")
+            else:
+                # Use single color
+                ax.scatter(region_positions['j'], region_positions['i'], 
+                          c=cell_color, s=cell_size, alpha=0.7, edgecolors='white', linewidths=0.5)
+                
+                if color_by_stitched_id:
+                    print("⚠️  stitched_cell_id column not found, using single color")
+    
+    ax.set_title(title)
+    ax.set_xlabel('J (pixels)')
+    ax.set_ylabel('I (pixels)')
+    
+    return fig
+
+def compare_modality_images(phenotype_image_path: str,
+                           sbs_image_path: str,
+                           phenotype_positions_path: str,
+                           sbs_positions_path: str,
+                           alignment_summary_path: Optional[str] = None,
+                           region: Optional[Tuple[int, int, int, int]] = None,
+                           color_by_stitched_id: bool = False,
+                           figsize: Tuple[int, int] = (20, 10)) -> plt.Figure:
+    """Compare stitched images from both modalities side by side.
+    
+    Args:
+        phenotype_image_path: Path to phenotype stitched image
+        sbs_image_path: Path to SBS stitched image  
+        phenotype_positions_path: Path to phenotype cell positions
+        sbs_positions_path: Path to SBS cell positions
+        alignment_summary_path: Optional path to alignment summary
+        region: Region to crop both images to
+        color_by_stitched_id: If True, color cells by their stitched_cell_id
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure with side-by-side comparison
+    """
+    # Load images
+    pheno_image = load_stitched_image(phenotype_image_path)
+    sbs_image = load_stitched_image(sbs_image_path)
+    
+    # Load positions
+    pheno_positions = load_cell_positions(phenotype_positions_path)
+    sbs_positions = load_cell_positions(sbs_positions_path)
+    
+    print(f"Phenotype: {pheno_image.shape} image, {len(pheno_positions)} cells")
+    print(f"SBS: {sbs_image.shape} image, {len(sbs_positions)} cells")
+    
+    # Load alignment info if available
+    alignment_info = ""
+    if alignment_summary_path is not None and Path(alignment_summary_path).exists():
+        summary = load_alignment_summary(alignment_summary_path)
+        if 'alignment' in summary:
+            align_data = summary['alignment']
+            alignment_info = f"Score: {align_data.get('score', 0):.3f}, Det: {align_data.get('determinant', 1):.3f}"
+    
+    # Normalize images
+    pheno_display = normalize_image_for_display(pheno_image)
+    sbs_display = normalize_image_for_display(sbs_image)
+    
+    # Apply region cropping if specified
+    if region is not None:
+        i_min, i_max, j_min, j_max = region
+        pheno_display = pheno_display[i_min:i_max, j_min:j_max]
+        sbs_display = sbs_display[i_min:i_max, j_min:j_max]
+        
+        # Filter positions to region
+        pheno_positions = pheno_positions[
+            (pheno_positions['i'] >= i_min) & (pheno_positions['i'] <= i_max) &
+            (pheno_positions['j'] >= j_min) & (pheno_positions['j'] <= j_max)
+        ]
+        sbs_positions = sbs_positions[
+            (sbs_positions['i'] >= i_min) & (sbs_positions['i'] <= i_max) &
+            (sbs_positions['j'] >= j_min) & (sbs_positions['j'] <= j_max)
+        ]
+    else:
+        region = (0, min(pheno_image.shape[0], sbs_image.shape[0]), 
+                 0, min(pheno_image.shape[1], sbs_image.shape[1]))
+        i_min, i_max, j_min, j_max = region
+    
+    # Create side-by-side plot
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    
+    # Phenotype image
+    if pheno_display.ndim == 3:
+        ax1.imshow(pheno_display, extent=[j_min, j_max, i_max, i_min])
+    else:
+        ax1.imshow(pheno_display, cmap='gray', extent=[j_min, j_max, i_max, i_min])
+    
+    if color_by_stitched_id and 'stitched_cell_id' in pheno_positions.columns:
+        scatter1 = ax1.scatter(pheno_positions['j'], pheno_positions['i'], 
+                   c=pheno_positions['stitched_cell_id'], s=3, alpha=0.8, 
+                   edgecolors='white', linewidths=0.3, cmap='tab20')
+        cbar1 = plt.colorbar(scatter1, ax=ax1)
+        cbar1.set_label('Phenotype Stitched Cell ID')
+    else:
+        ax1.scatter(pheno_positions['j'], pheno_positions['i'], 
+                   c='red', s=3, alpha=0.8, edgecolors='white', linewidths=0.3)
+    
+    ax1.set_title(f'Phenotype\n{len(pheno_positions)} cells in region')
+    ax1.set_xlabel('J (pixels)')
+    ax1.set_ylabel('I (pixels)')
+    
+    # SBS image
+    if sbs_display.ndim == 3:
+        ax2.imshow(sbs_display, extent=[j_min, j_max, i_max, i_min])
+    else:
+        ax2.imshow(sbs_display, cmap='gray', extent=[j_min, j_max, i_max, i_min])
+    
+    if color_by_stitched_id and 'stitched_cell_id' in sbs_positions.columns:
+        scatter2 = ax2.scatter(sbs_positions['j'], sbs_positions['i'], 
+                   c=sbs_positions['stitched_cell_id'], s=3, alpha=0.8, 
+                   edgecolors='white', linewidths=0.3, cmap='tab20')
+        cbar2 = plt.colorbar(scatter2, ax=ax2)
+        cbar2.set_label('SBS Stitched Cell ID')
+    else:
+        ax2.scatter(sbs_positions['j'], sbs_positions['i'], 
+                   c='blue', s=3, alpha=0.8, edgecolors='white', linewidths=0.3)
+    
+    ax2.set_title(f'SBS\n{len(sbs_positions)} cells in region')
+    ax2.set_xlabel('J (pixels)')
+    ax2.set_ylabel('I (pixels)')
+    
+    if alignment_info:
+        fig.suptitle(f'Modality Comparison - {alignment_info}')
+    else:
+        fig.suptitle('Modality Comparison')
+    
+    plt.tight_layout()
+    return fig
+
+def visualize_matched_cells(phenotype_image_path: str,
+                           sbs_image_path: str,
+                           matched_cells_path: str,
+                           region: Optional[Tuple[int, int, int, int]] = None,
+                           max_distance: float = 10.0,
+                           downsample: int = 4,
+                           figsize: Tuple[int, int] = (20, 10)) -> plt.Figure:
+    """Visualize matched cells overlaid on both modality images.
+    
+    Args:
+        phenotype_image_path: Path to phenotype stitched image
+        sbs_image_path: Path to SBS stitched image
+        matched_cells_path: Path to matched cells parquet file
+        region: Region to focus on
+        max_distance: Maximum distance to show matches
+        downsample: Downsampling factor for images (default 4)
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure showing matches
+    """
+    # Load images with downsampling
+    pheno_image = normalize_image_for_display(load_stitched_image(phenotype_image_path, downsample=downsample))
+    sbs_image = normalize_image_for_display(load_stitched_image(sbs_image_path, downsample=downsample))
+    
+    # Load matched cells
+    matches = pd.read_parquet(matched_cells_path)
+    print(f"Loaded {len(matches)} matched cells")
+    
+    # Filter by distance if specified
+    if max_distance is not None:
+        matches = matches[matches['distance'] <= max_distance]
+        print(f"Filtered to {len(matches)} matches within {max_distance}px")
+    
+    # Apply region if specified
+    if region is not None:
+        i_min, i_max, j_min, j_max = region
+        # Scale region for downsampled images
+        i_min_ds, i_max_ds = i_min // downsample, i_max // downsample
+        j_min_ds, j_max_ds = j_min // downsample, j_max // downsample
+        
+        pheno_image = pheno_image[i_min_ds:i_max_ds, j_min_ds:j_max_ds]
+        sbs_image = sbs_image[i_min_ds:i_max_ds, j_min_ds:j_max_ds]
+        
+        # Filter matches to region (using original coordinates)
+        matches = matches[
+            (matches['i_0'] >= i_min) & (matches['i_0'] <= i_max) &
+            (matches['j_0'] >= j_min) & (matches['j_0'] <= j_max) &
+            (matches['i_1'] >= i_min) & (matches['i_1'] <= i_max) &
+            (matches['j_1'] >= j_min) & (matches['j_1'] <= j_max)
+        ]
+        print(f"Found {len(matches)} matches in region")
+        extent = [j_min, j_max, i_max, i_min]
+    else:
+        region = (0, min(pheno_image.shape[0], sbs_image.shape[0]) * downsample, 
+                 0, min(pheno_image.shape[1], sbs_image.shape[1]) * downsample)
+        i_min, i_max, j_min, j_max = region
+        extent = [j_min, j_max, i_max, i_min]
+    
+    # Create plot
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    
+    # Show images
+    if pheno_image.ndim == 3:
+        ax1.imshow(pheno_image, extent=extent)
+    else:
+        ax1.imshow(pheno_image, cmap='gray', extent=extent)
+    
+    if sbs_image.ndim == 3:
+        ax2.imshow(sbs_image, extent=extent)
+    else:
+        ax2.imshow(sbs_image, cmap='gray', extent=extent)
+    
+    # Plot matches
+    if len(matches) > 0:
+        # Color code by distance
+        distances = matches['distance']
+        scatter1 = ax1.scatter(matches['j_0'], matches['i_0'], 
+                              c=distances, s=20, cmap='viridis', alpha=0.8,
+                              edgecolors='white', linewidths=0.5)
+        scatter2 = ax2.scatter(matches['j_1'], matches['i_1'], 
+                              c=distances, s=20, cmap='viridis', alpha=0.8,
+                              edgecolors='white', linewidths=0.5)
+        
+        # Add colorbar
+        cbar = plt.colorbar(scatter1, ax=[ax1, ax2], shrink=0.8)
+        cbar.set_label('Match Distance (pixels)')
+    
+    ax1.set_title(f'Phenotype Matches\n{len(matches)} cells')
+    ax1.set_xlabel('J (pixels)')
+    ax1.set_ylabel('I (pixels)')
+    
+    ax2.set_title(f'SBS Matches\n{len(matches)} cells')
+    ax2.set_xlabel('J (pixels)')
+    ax2.set_ylabel('I (pixels)')
+    
+    if len(matches) > 0:
+        mean_dist = matches['distance'].mean()
+        fig.suptitle(f'Matched Cells (Mean Distance: {mean_dist:.1f}px)')
+    else:
+        fig.suptitle('Matched Cells (No matches in region)')
+    
+    plt.tight_layout()
+    return fig
+
+def plot_alignment_overview(phenotype_positions_path: str,
+                           sbs_positions_path: str,
+                           transformed_positions_path: Optional[str] = None,
+                           alignment_summary_path: Optional[str] = None,
+                           sample_size: int = 5000,
+                           figsize: Tuple[int, int] = (18, 6)) -> plt.Figure:
+    """Plot overview of coordinate alignment process.
+    
+    Args:
+        phenotype_positions_path: Path to original phenotype positions
+        sbs_positions_path: Path to SBS positions
+        transformed_positions_path: Path to transformed phenotype positions
+        alignment_summary_path: Path to alignment summary
+        sample_size: Number of cells to sample for plotting
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure showing alignment progression
+    """
+    # Load data
+    pheno_pos = load_cell_positions(phenotype_positions_path)
+    sbs_pos = load_cell_positions(sbs_positions_path)
+    
+    print(f"Loaded {len(pheno_pos)} phenotype and {len(sbs_pos)} SBS positions")
+    
+    # Sample for plotting
+    if len(pheno_pos) > sample_size:
+        pheno_pos = pheno_pos.sample(n=sample_size)
+    if len(sbs_pos) > sample_size:
+        sbs_pos = sbs_pos.sample(n=sample_size)
+    
+    # Load alignment summary if available
+    alignment_info = {}
+    if alignment_summary_path and Path(alignment_summary_path).exists():
+        summary = load_alignment_summary(alignment_summary_path)
+        alignment_info = summary.get('alignment', {})
+    
+    # Determine number of subplots
+    n_plots = 2
+    if transformed_positions_path and Path(transformed_positions_path).exists():
+        n_plots = 3
+        transformed_pos = load_cell_positions(transformed_positions_path)
+        if len(transformed_pos) > sample_size:
+            transformed_pos = transformed_pos.sample(n=sample_size)
+    
+    fig, axes = plt.subplots(1, n_plots, figsize=figsize)
+    if n_plots == 2:
+        ax1, ax2 = axes
+    else:
+        ax1, ax2, ax3 = axes
+    
+    # Plot 1: Original coordinates
+    ax1.scatter(pheno_pos['j'], pheno_pos['i'], c='red', s=1, alpha=0.6, label='Phenotype')
+    ax1.scatter(sbs_pos['j'], sbs_pos['i'], c='blue', s=1, alpha=0.6, label='SBS')
+    ax1.set_title('Original Coordinates')
+    ax1.set_xlabel('J (pixels)')
+    ax1.set_ylabel('I (pixels)')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Calculate and show coordinate ranges
+    pheno_range_i = (pheno_pos['i'].min(), pheno_pos['i'].max())
+    pheno_range_j = (pheno_pos['j'].min(), pheno_pos['j'].max())
+    sbs_range_i = (sbs_pos['i'].min(), sbs_pos['i'].max())
+    sbs_range_j = (sbs_pos['j'].min(), sbs_pos['j'].max())
+    
+    ax1.text(0.02, 0.98, f'Pheno I: {pheno_range_i[0]:.0f}-{pheno_range_i[1]:.0f}\n'
+                         f'Pheno J: {pheno_range_j[0]:.0f}-{pheno_range_j[1]:.0f}\n'
+                         f'SBS I: {sbs_range_i[0]:.0f}-{sbs_range_i[1]:.0f}\n'
+                         f'SBS J: {sbs_range_j[0]:.0f}-{sbs_range_j[1]:.0f}',
+             transform=ax1.transAxes, verticalalignment='top', 
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+    
+    # Plot 2: After scaling (use transformed if available, otherwise estimate scaling)
+    if 'transformed_pos' in locals():
+        scaled_pos = transformed_pos
+        title2 = 'After Scaling & Transform'
+    else:
+        # Estimate scaling for visualization
+        scale_factor = alignment_info.get('scale_factor', 1.0)
+        scaled_pos = pheno_pos.copy()
+        scaled_pos['i'] = scaled_pos['i'] * scale_factor
+        scaled_pos['j'] = scaled_pos['j'] * scale_factor
+        title2 = f'After Scaling (factor: {scale_factor:.3f})'
+    
+    ax2.scatter(scaled_pos['j'], scaled_pos['i'], c='red', s=1, alpha=0.6, label='Phenotype (scaled)')
+    ax2.scatter(sbs_pos['j'], sbs_pos['i'], c='blue', s=1, alpha=0.6, label='SBS')
+    ax2.set_title(title2)
+    ax2.set_xlabel('J (pixels)')
+    ax2.set_ylabel('I (pixels)')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    # Add alignment info if available
+    if alignment_info:
+        info_text = f"Score: {alignment_info.get('score', 0):.3f}\n"
+        info_text += f"Det: {alignment_info.get('determinant', 1):.3f}\n"
+        info_text += f"Type: {alignment_info.get('transformation_type', 'unknown')}"
+        
+        ax2.text(0.02, 0.98, info_text,
+                transform=ax2.transAxes, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
+    
+    # Plot 3: Final transformation (if available)
+    if n_plots == 3 and 'transformed_pos' in locals():
+        ax3.scatter(transformed_pos['j'], transformed_pos['i'], c='red', s=1, alpha=0.6, label='Phenotype (final)')
+        ax3.scatter(sbs_pos['j'], sbs_pos['i'], c='blue', s=1, alpha=0.6, label='SBS')
+        ax3.set_title('After Full Transformation')
+        ax3.set_xlabel('J (pixels)')
+        ax3.set_ylabel('I (pixels)')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # Calculate overlap
+        trans_range_i = (transformed_pos['i'].min(), transformed_pos['i'].max())
+        trans_range_j = (transformed_pos['j'].min(), transformed_pos['j'].max())
+        
+        overlap_i = max(0, min(trans_range_i[1], sbs_range_i[1]) - max(trans_range_i[0], sbs_range_i[0]))
+        overlap_j = max(0, min(trans_range_j[1], sbs_range_j[1]) - max(trans_range_j[0], sbs_range_j[0]))
+        
+        total_i = max(trans_range_i[1], sbs_range_i[1]) - min(trans_range_i[0], sbs_range_i[0])
+        total_j = max(trans_range_j[1], sbs_range_j[1]) - min(trans_range_j[0], sbs_range_j[0])
+        
+        overlap_fraction = (overlap_i * overlap_j) / (total_i * total_j) if total_i > 0 and total_j > 0 else 0
+        
+        ax3.text(0.02, 0.98, f'Overlap: {overlap_fraction:.1%}',
+                transform=ax3.transAxes, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.8))
+    
+    plt.tight_layout()
+    return fig
+
+# File path utilities matching the pipeline structure
+def get_merge_file_paths(plate: str, well: str, root_fp: str) -> Dict[str, Path]:
+    """Get file paths using the same structure as the pipeline.
+    
+    Matches the approach used in run_well_alignment_qc and other pipeline functions.
+    
+    Args:
+        plate: Plate identifier
+        well: Well identifier
+        root_fp: Root file path for the project
+        
+    Returns:
+        Dictionary with all relevant file paths
+    """
+    from lib.shared.file_utils import get_filename
+    
+    root_path = Path(root_fp)
+    merge_fp = root_path / "merge"
+    
+    # Build wildcards dict for filename generation
+    wildcards = {"plate": plate, "well": well}
+    
+    paths = {
+        # Stitched images
+        "phenotype_image": merge_fp / "stitched_images" / get_filename(wildcards, "phenotype_stitched_image", "npy"),
+        "sbs_image": merge_fp / "stitched_images" / get_filename(wildcards, "sbs_stitched_image", "npy"),
+        
+        # Stitched masks
+        "phenotype_mask": merge_fp / "stitched_masks" / get_filename(wildcards, "phenotype_stitched_mask", "npy"),
+        "sbs_mask": merge_fp / "stitched_masks" / get_filename(wildcards, "sbs_stitched_mask", "npy"),
+        
+        # Cell positions
+        "phenotype_positions": merge_fp / "cell_positions" / get_filename(wildcards, "phenotype_cell_positions", "parquet"),
+        "sbs_positions": merge_fp / "cell_positions" / get_filename(wildcards, "sbs_cell_positions", "parquet"),
+        
+        # Well alignment outputs
+        "phenotype_scaled": merge_fp / "well_alignment" / get_filename(wildcards, "phenotype_scaled", "parquet"),
+        "phenotype_triangles": merge_fp / "well_alignment" / get_filename(wildcards, "phenotype_triangles", "parquet"),
+        "sbs_triangles": merge_fp / "well_alignment" / get_filename(wildcards, "sbs_triangles", "parquet"),
+        "alignment_params": merge_fp / "well_alignment" / get_filename(wildcards, "alignment", "parquet"),
+        "alignment_summary": merge_fp / "well_alignment" / get_filename(wildcards, "alignment_summary", "yaml"),
+        "phenotype_transformed": merge_fp / "well_alignment" / get_filename(wildcards, "phenotype_transformed", "parquet"),
+        
+        # Well cell merge outputs  
+        "raw_matches": merge_fp / "well_cell_merge" / get_filename(wildcards, "raw_matches", "parquet"),
+        "merged_cells": merge_fp / "well_cell_merge" / get_filename(wildcards, "merged_cells", "parquet"),
+        "merge_summary": merge_fp / "well_cell_merge" / get_filename(wildcards, "merge_summary", "yaml"),
+        
+        # Deduplication outputs
+        "deduplicated_cells": merge_fp / "well_merge_deduplicate" / get_filename(wildcards, "deduplicated_cells", "parquet"),
+        "dedup_summary": merge_fp / "well_merge_deduplicate" / get_filename(wildcards, "dedup_summary", "yaml"),
+    }
+    
+    return paths
+
+def analyze_well_merge(plate: str, well: str, root_fp: str, region: Optional[Tuple[int, int, int, int]] = None):
+    """Comprehensive analysis of a well merge result using pipeline file structure.
+    
+    Args:
+        plate: Plate identifier
+        well: Well identifier  
+        root_fp: Root file path for the project (same as used in pipeline)
+        region: Optional region to focus analysis on (i_min, i_max, j_min, j_max)
+    """
+    print(f"=== ANALYZING WELL MERGE: {plate}_{well} ===")
+    
+    # Get file paths using pipeline structure
+    paths = get_merge_file_paths(plate, well, root_fp)
+    
+    # Check which files exist
+    existing_files = []
+    for name, path in paths.items():
+        if path.exists():
+            existing_files.append(name)
+            print(f"✅ Found: {name}")
+        else:
+            print(f"❌ Missing: {name}")
+    
+    if not existing_files:
+        print("❌ No merge files found! Check your paths.")
+        return
+    
+    # Use the specified sampling region if provided, otherwise use default
+    if region is None:
+        region = (9764, 16764, 9810, 16810)  # Your specified sampling region
+        print(f"Using default sampling region: i=[{region[0]}, {region[1]}], j=[{region[2]}, {region[3]}]")
+    else:
+        print(f"Using custom region: i=[{region[0]}, {region[1]}], j=[{region[2]}, {region[3]}]")
+    
+    # 1. Show alignment overview if position files exist
+    if all(f in existing_files for f in ["phenotype_positions", "sbs_positions"]):
+        print("\n--- PLOTTING ALIGNMENT OVERVIEW ---")
+        try:
+            fig1 = plot_alignment_overview(
+                str(paths["phenotype_positions"]), 
+                str(paths["sbs_positions"]),
+                str(paths["phenotype_transformed"]) if "phenotype_transformed" in existing_files else None,
+                str(paths["alignment_summary"]) if "alignment_summary" in existing_files else None
+            )
+            fig1.suptitle(f'Alignment Overview - {plate}_{well}')
+            plt.show()
+        except Exception as e:
+            print(f"❌ Error plotting alignment overview: {e}")
+    
+    # 2. Compare modality images if they exist
+    if all(f in existing_files for f in ["phenotype_image", "sbs_image", "phenotype_positions", "sbs_positions"]):
+        print("\n--- COMPARING MODALITY IMAGES ---")
+        try:
+            fig2 = compare_modality_images(
+                str(paths["phenotype_image"]), 
+                str(paths["sbs_image"]),
+                str(paths["phenotype_positions"]), 
+                str(paths["sbs_positions"]),
+                str(paths["alignment_summary"]) if "alignment_summary" in existing_files else None,
+                region=region,
+                color_by_stitched_id=True  # Color by stitched_cell_id
+            )
+            fig2.suptitle(f'Modality Comparison - {plate}_{well} - Region: i=[{region[0]}, {region[1]}], j=[{region[2]}, {region[3]}]')
+            plt.show()
+        except Exception as e:
+            print(f"❌ Error comparing modality images: {e}")
+    
+    # 3. Show matched cells if merge results exist
+    if all(f in existing_files for f in ["merged_cells", "phenotype_image", "sbs_image"]):
+        print("\n--- VISUALIZING MATCHED CELLS ---")
+        try:
+            fig3 = visualize_matched_cells(
+                str(paths["phenotype_image"]), 
+                str(paths["sbs_image"]),
+                str(paths["merged_cells"]), 
+                region=region,
+                max_distance=20.0  # Show matches up to 20px
+            )
+            fig3.suptitle(f'Matched Cells - {plate}_{well} - Region: i=[{region[0]}, {region[1]}], j=[{region[2]}, {region[3]}]')
+            plt.show()
+        except Exception as e:
+            print(f"❌ Error visualizing matched cells: {e}")
+    
+    # 4. Show individual images with higher detail if requested
+    if "phenotype_image" in existing_files:
+        print("\n--- DETAILED PHENOTYPE VIEW ---")
+        try:
+            fig4 = view_stitched_region(
+                str(paths["phenotype_image"]),
+                str(paths["phenotype_positions"]) if "phenotype_positions" in existing_files else None,
+                region=region,
+                cell_color='red',
+                color_by_stitched_id=True,  # Color by stitched_cell_id
+                cell_size=8,
+                title=f'Phenotype Stitched Image - {plate}_{well}',
+                figsize=(12, 10)
+            )
+            plt.show()
+        except Exception as e:
+            print(f"❌ Error showing phenotype image: {e}")
+    
+    if "sbs_image" in existing_files:
+        print("\n--- DETAILED SBS VIEW ---")
+        try:
+            fig5 = view_stitched_region(
+                str(paths["sbs_image"]),
+                str(paths["sbs_positions"]) if "sbs_positions" in existing_files else None,
+                region=region,
+                cell_color='blue',
+                color_by_stitched_id=True,  # Color by stitched_cell_id
+                cell_size=8,
+                title=f'SBS Stitched Image - {plate}_{well}',
+                figsize=(12, 10)
+            )
+            plt.show()
+        except Exception as e:
+            print(f"❌ Error showing SBS image: {e}")
+    
+    # 5. Print summary statistics if available
+    if "merge_summary" in existing_files:
+        print("\n--- MERGE SUMMARY ---")
+        try:
+            summary = load_alignment_summary(str(paths["merge_summary"]))
+            if 'matching_results' in summary:
+                results = summary['matching_results']
+                print(f"Raw matches found: {results.get('raw_matches_found', 0):,}")
+                print(f"Mean match distance: {results.get('mean_match_distance', 0):.1f}px")
+                print(f"Matches under 5px: {results.get('matches_under_5px', 0):,}")
+                print(f"Matches under 10px: {results.get('matches_under_10px', 0):,}")
+                print(f"Phenotype match rate: {results.get('match_rate_phenotype', 0):.1%}")
+                print(f"SBS match rate: {results.get('match_rate_sbs', 0):.1%}")
+        except Exception as e:
+            print(f"❌ Error reading merge summary: {e}")
+    
+    print(f"\n🎉 Analysis complete for {plate}_{well}!")
+
+# Convenience function for quick analysis
+def quick_well_analysis(plate: str, well: str, root_fp: str):
+    """Quick analysis using the standard sampling region."""
+    analyze_well_merge(plate, well, root_fp, region=(9764, 16764, 9810, 16810))

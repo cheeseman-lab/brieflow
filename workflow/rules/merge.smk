@@ -143,7 +143,7 @@ if merge_approach == "well":
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
             det_range=config["merge"]["det_range"],
-            score_threshold=config["merge"]["score"],
+            score=config["merge"]["score"],
         script:
             "../scripts/merge/well_alignment.py"
 

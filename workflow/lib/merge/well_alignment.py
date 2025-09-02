@@ -464,7 +464,7 @@ def triangle_hash_well_alignment(
     max_cells_for_hash: int = 75000,
     threshold_triangle: float = 0.3,
     threshold_point: float = 2.0,
-    min_score: float = 0.1,
+    score: float = 0.1,
     adaptive_region: bool = True,
     initial_region_size: int = 7000,
     min_triangles: int = 100,
@@ -481,7 +481,7 @@ def triangle_hash_well_alignment(
         max_cells_for_hash: Maximum cells to use for triangle generation
         threshold_triangle: Triangle similarity threshold for feature matching
         threshold_point: Point distance threshold for alignment validation
-        min_score: Minimum alignment score to accept results
+        score: Minimum alignment score to accept results
         adaptive_region: Whether to use adaptive regional sampling
         initial_region_size: Starting region size for sampling
         min_triangles: Minimum triangles needed for reliable alignment
@@ -493,7 +493,7 @@ def triangle_hash_well_alignment(
     print(
         f"Triangle hash alignment with {len(phenotype_positions):,} phenotype and {len(sbs_positions):,} SBS cells"
     )
-    print(f"Using UPDATED parameters: threshold_triangle={threshold_triangle}, min_score={min_score}")
+    print(f"Using UPDATED parameters: threshold_triangle={threshold_triangle}, score={score}")
 
     if len(phenotype_positions) < 4 or len(sbs_positions) < 4:
         print("Insufficient cells for triangulation")
@@ -508,7 +508,7 @@ def triangle_hash_well_alignment(
             max_cells_for_hash,
             threshold_triangle,
             threshold_point,
-            min_score,
+            score,
         )
 
     # Adaptive regional approach
@@ -560,16 +560,16 @@ def triangle_hash_well_alignment(
         )
 
         # Evaluate triangle hash match with updated parameters
-        rotation, translation, score = evaluate_well_match(
+        rotation, translation, score_triangles = evaluate_well_match(
             pheno_triangles,
             sbs_triangles,
             threshold_triangle=threshold_triangle,
             threshold_point=threshold_point,
         )
 
-        if rotation is None or score < min_score:
+        if rotation is None or score_triangles < score:
             print(
-                f"Triangle hash match failed: score={score:.3f} < {min_score}, increasing region size"
+                f"Triangle hash match failed: score={score_triangles:.3f} < {score}, increasing region size"
             )
             region_size *= 1.5
             continue
@@ -578,7 +578,7 @@ def triangle_hash_well_alignment(
         determinant = np.linalg.det(rotation)
 
         print(f"✅ Regional triangle hash alignment successful:")
-        print(f"   Score: {score:.3f} (threshold: {min_score})")
+        print(f"   Score: {score_triangles:.3f} (threshold: {score})")
         print(f"   Determinant: {determinant:.6f}")
         print(f"   Region size used: {region_size:.0f}")
 
@@ -586,7 +586,7 @@ def triangle_hash_well_alignment(
         alignment = {
             "rotation": rotation,
             "translation": translation,
-            "score": score,
+            "score": score_triangles,
             "determinant": determinant,
             "transformation_type": "triangle_hash_regional",
             "triangles_matched": min(len(pheno_triangles), len(sbs_triangles)),
@@ -601,8 +601,6 @@ def triangle_hash_well_alignment(
     # All attempts failed
     print(f"❌ Regional triangle hash failed after {attempts} attempts")
     print(f"Final region size tried: {region_size:.0f}")
-    print(f"Note: Using stricter parameters (threshold_triangle={threshold_triangle}, min_score={min_score})")
-
     return pd.DataFrame()
 
 
@@ -612,7 +610,7 @@ def _triangle_hash_full_well(
     max_cells_for_hash: int,
     threshold_triangle: float,
     threshold_point: float,
-    min_score: float,
+    score: float,
 ) -> pd.DataFrame:
     """Original full-well triangle hash approach (preserved for fallback).
     
@@ -626,12 +624,12 @@ def _triangle_hash_full_well(
         max_cells_for_hash: Maximum cells to use for triangle generation
         threshold_triangle: Triangle similarity threshold 
         threshold_point: Point distance threshold
-        min_score: Minimum score to accept alignment 
+        score: Minimum score to accept alignment 
 
     Returns:
         DataFrame with alignment parameters or empty DataFrame if failed
     """
-    print(f"Full-well approach using threshold_triangle={threshold_triangle}, min_score={min_score}")
+    print(f"Full-well approach using threshold_triangle={threshold_triangle}, score={score}")
     
     # Sample cells if datasets are too large
     if len(phenotype_positions) > max_cells_for_hash:
@@ -667,21 +665,21 @@ def _triangle_hash_full_well(
     )
 
     # Evaluate triangle hash match with updated parameters
-    rotation, translation, score = evaluate_well_match(
+    rotation, translation, score_triangles = evaluate_well_match(
         pheno_triangles,
         sbs_triangles,
         threshold_triangle=threshold_triangle,
         threshold_point=threshold_point,
     )
 
-    if rotation is None or score < min_score:
-        print(f"Triangle hash match failed: score={score:.3f} < {min_score}")
+    if rotation is None or score_triangles < score:
+        print(f"Triangle hash match failed: score={score:.3f} < {score}")
         return pd.DataFrame()
 
     determinant = np.linalg.det(rotation)
 
     print(f"✅ Triangle hash alignment successful:")
-    print(f"   Score: {score:.3f} (threshold: {min_score})")
+    print(f"   Score: {score:.3f} (threshold: {score})")
     print(f"   Determinant: {determinant:.6f}")
 
     # Build result

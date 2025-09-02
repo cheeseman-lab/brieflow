@@ -27,6 +27,7 @@ from lib.merge.well_alignment import (
 )
 
 
+
 def main():
     """Main execution function for well alignment step."""
     print("=== STEP 1: WELL ALIGNMENT ===")
@@ -131,18 +132,18 @@ def main():
     sbs_triangles.to_parquet(str(snakemake.output.sbs_triangles))
 
     # =================================================================
-    # ADAPTIVE REGIONAL TRIANGLE HASHING
+    # ADAPTIVE REGIONAL TRIANGLE HASHING (UPDATED PARAMETERS)
     # =================================================================
-    print("\n--- Adaptive Regional Triangle Hashing ---")
+    print("\n--- Adaptive Regional Triangle Hashing (UPDATED PARAMETERS) ---")
 
     try:
         alignment_result = triangle_hash_well_alignment(
             phenotype_positions=phenotype_scaled,
             sbs_positions=sbs_positions,
             max_cells_for_hash=75000,
-            threshold_triangle=0.1,
+            threshold_triangle=0.3,
             threshold_point=2.0,
-            min_score=score_threshold,
+            min_score=0.1,
             adaptive_region=True,
             initial_region_size=7000,
             min_triangles=100,
@@ -160,7 +161,7 @@ def main():
 
             if det_ok and score_ok:
                 print(f"✅ Regional triangle hash alignment successful:")
-                print(f"   Score: {score:.3f}")
+                print(f"   Score: {score:.3f} (min required: 0.1)")  # Updated message
                 print(f"   Determinant: {det:.6f}")
                 print(
                     f"   Region size: {best_alignment.get('final_region_size', 'unknown')}"
@@ -169,7 +170,7 @@ def main():
                 alignment_status = "success"
             else:
                 print(f"⚠️  Alignment quality issues:")
-                print(f"   Score: {score:.3f} (threshold: {score_threshold})")
+                print(f"   Score: {score:.3f} (min required: 0.1)")  # Updated message
                 print(f"   Determinant: {det:.6f} (range: {det_range})")
                 alignment_status = "quality_warning"
         else:
@@ -211,6 +212,12 @@ def main():
         "overlap_fraction": float(overlap_fraction),
         "phenotype_triangles": len(phenotype_triangles),
         "sbs_triangles": len(sbs_triangles),
+        "parameters_used": {  # NEW: Document the parameters used
+            "threshold_triangle": 0.3,
+            "min_score": 0.1,
+            "threshold_point": 2.0,
+            "note": "Updated parameters to match fast_alignment approach"
+        },
         "alignment": {
             "approach": str(best_alignment.get("approach", "unknown")),
             "transformation_type": str(
@@ -275,6 +282,35 @@ def main():
     )
 
     print(f"\n🎉 Step 1 (Alignment) completed successfully!")
+
+
+def create_failed_alignment(scale_factor: float, reason: str) -> pd.DataFrame:
+    """Create a failed alignment record with identity transformation.
+    
+    Args:
+        scale_factor: The scale factor that was calculated
+        reason: Reason for failure (used in transformation_type)
+        
+    Returns:
+        DataFrame with failed alignment parameters
+    """
+    return pd.DataFrame(
+        [
+            {
+                "rotation_matrix_flat": [1.0, 0.0, 0.0, 1.0],
+                "translation_vector": [0.0, 0.0],
+                "score": 0.0,
+                "determinant": 1.0,
+                "transformation_type": f"failed_{reason}",
+                "scale_factor": float(scale_factor),
+                "approach": "failed",
+                "overlap_fraction": 0.0,
+                "validation_mean_distance": 0.0,
+                "validation_median_distance": 0.0,
+                "has_overlap": False,
+            }
+        ]
+    )
 
 
 def create_failed_alignment(scale_factor: float, reason: str) -> pd.DataFrame:

@@ -62,12 +62,6 @@ def calculate_scale_factor_from_positions(
     # Use average for robustness (they should be approximately equal)
     scale_factor = (scale_i + scale_j) / 2
 
-    # Validate the scale factor is reasonable
-    if not (0.1 <= scale_factor <= 0.5):
-        print(
-            f"Warning: Unusual scale factor {scale_factor:.3f}. Expected ~0.25 for 40x->10x"
-        )
-
     return scale_factor
 
 
@@ -228,7 +222,7 @@ def evaluate_well_match(
     V_1, c_1 = get_vc(vec_centers_1)
     i0, i1, distances = nearest_neighbors(V_0, V_1)
 
-    filt = distances < threshold_triangle
+    filt = distances < threshold_triangle 
     X, Y = c_0[i0[filt]], c_1[i1[filt]]
 
     if sum(filt) < 5:
@@ -468,9 +462,9 @@ def triangle_hash_well_alignment(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
     max_cells_for_hash: int = 75000,
-    threshold_triangle: float = 0.1,
+    threshold_triangle: float = 0.3,
     threshold_point: float = 2.0,
-    min_score: float = 0.05,
+    min_score: float = 0.1,
     adaptive_region: bool = True,
     initial_region_size: int = 7000,
     min_triangles: int = 100,
@@ -499,6 +493,7 @@ def triangle_hash_well_alignment(
     print(
         f"Triangle hash alignment with {len(phenotype_positions):,} phenotype and {len(sbs_positions):,} SBS cells"
     )
+    print(f"Using UPDATED parameters: threshold_triangle={threshold_triangle}, min_score={min_score}")
 
     if len(phenotype_positions) < 4 or len(sbs_positions) < 4:
         print("Insufficient cells for triangulation")
@@ -564,7 +559,7 @@ def triangle_hash_well_alignment(
             f"Generated {len(pheno_triangles)} phenotype and {len(sbs_triangles)} SBS triangles"
         )
 
-        # Evaluate triangle hash match
+        # Evaluate triangle hash match with updated parameters
         rotation, translation, score = evaluate_well_match(
             pheno_triangles,
             sbs_triangles,
@@ -583,7 +578,7 @@ def triangle_hash_well_alignment(
         determinant = np.linalg.det(rotation)
 
         print(f"✅ Regional triangle hash alignment successful:")
-        print(f"   Score: {score:.3f}")
+        print(f"   Score: {score:.3f} (threshold: {min_score})")
         print(f"   Determinant: {determinant:.6f}")
         print(f"   Region size used: {region_size:.0f}")
 
@@ -606,6 +601,7 @@ def triangle_hash_well_alignment(
     # All attempts failed
     print(f"❌ Regional triangle hash failed after {attempts} attempts")
     print(f"Final region size tried: {region_size:.0f}")
+    print(f"Note: Using stricter parameters (threshold_triangle={threshold_triangle}, min_score={min_score})")
 
     return pd.DataFrame()
 
@@ -628,13 +624,15 @@ def _triangle_hash_full_well(
         phenotype_positions: Phenotype cell positions
         sbs_positions: SBS cell positions  
         max_cells_for_hash: Maximum cells to use for triangle generation
-        threshold_triangle: Triangle similarity threshold
+        threshold_triangle: Triangle similarity threshold 
         threshold_point: Point distance threshold
-        min_score: Minimum score to accept alignment
+        min_score: Minimum score to accept alignment 
 
     Returns:
         DataFrame with alignment parameters or empty DataFrame if failed
     """
+    print(f"Full-well approach using threshold_triangle={threshold_triangle}, min_score={min_score}")
+    
     # Sample cells if datasets are too large
     if len(phenotype_positions) > max_cells_for_hash:
         pheno_subset = geographic_constrained_sampling(
@@ -668,7 +666,7 @@ def _triangle_hash_full_well(
         f"Generated {len(pheno_triangles)} phenotype and {len(sbs_triangles)} SBS triangles"
     )
 
-    # Evaluate triangle hash match
+    # Evaluate triangle hash match with updated parameters
     rotation, translation, score = evaluate_well_match(
         pheno_triangles,
         sbs_triangles,
@@ -683,7 +681,7 @@ def _triangle_hash_full_well(
     determinant = np.linalg.det(rotation)
 
     print(f"✅ Triangle hash alignment successful:")
-    print(f"   Score: {score:.3f}")
+    print(f"   Score: {score:.3f} (threshold: {min_score})")
     print(f"   Determinant: {determinant:.6f}")
 
     # Build result

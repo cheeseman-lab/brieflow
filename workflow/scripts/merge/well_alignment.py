@@ -1,4 +1,4 @@
-"""Step 1: Well Alignment - Coordinate scaling, triangle hashing, and alignment estimation.
+"""Well Alignment - Coordinate scaling, triangle hashing, and alignment estimation.
 
 This script performs the first step of the well-level merge pipeline:
 1. Auto-calculates scale factor based on coordinate ranges
@@ -27,10 +27,9 @@ from lib.merge.well_alignment import (
 )
 
 
-
 def main():
     """Main execution function for well alignment step."""
-    print("=== STEP 1: WELL ALIGNMENT ===")
+    print("=== WELL ALIGNMENT ===")
 
     # Load cell positions
     phenotype_positions = validate_dtypes(
@@ -41,7 +40,7 @@ def main():
     plate = snakemake.params.plate
     well = snakemake.params.well
     det_range = snakemake.params.det_range
-    score_threshold = snakemake.params.score_threshold
+    score = snakemake.params.score
 
     print(f"Processing Plate {plate}, Well {well}")
     print(f"Phenotype cells: {len(phenotype_positions):,}")
@@ -132,9 +131,9 @@ def main():
     sbs_triangles.to_parquet(str(snakemake.output.sbs_triangles))
 
     # =================================================================
-    # ADAPTIVE REGIONAL TRIANGLE HASHING (UPDATED PARAMETERS)
+    # ADAPTIVE REGIONAL TRIANGLE HASHING
     # =================================================================
-    print("\n--- Adaptive Regional Triangle Hashing (UPDATED PARAMETERS) ---")
+    print("\n--- Adaptive Regional Triangle Hashing ---")
 
     try:
         alignment_result = triangle_hash_well_alignment(
@@ -143,7 +142,7 @@ def main():
             max_cells_for_hash=75000,
             threshold_triangle=0.3,
             threshold_point=2.0,
-            min_score=0.1,
+            score=score,
             adaptive_region=True,
             initial_region_size=7000,
             min_triangles=100,
@@ -154,14 +153,14 @@ def main():
 
             # Check alignment quality
             det = best_alignment.get("determinant", 0)
-            score = best_alignment.get("score", 0)
+            alignment_score = best_alignment.get("score", 0)
 
             det_ok = det_range[0] <= det <= det_range[1]
-            score_ok = score >= score_threshold
+            score_ok = alignment_score >= score
 
             if det_ok and score_ok:
                 print(f"✅ Regional triangle hash alignment successful:")
-                print(f"   Score: {score:.3f} (min required: 0.1)")  # Updated message
+                print(f"   Score: {alignment_score:.3f} (min required: {score})")
                 print(f"   Determinant: {det:.6f}")
                 print(
                     f"   Region size: {best_alignment.get('final_region_size', 'unknown')}"
@@ -170,7 +169,7 @@ def main():
                 alignment_status = "success"
             else:
                 print(f"⚠️  Alignment quality issues:")
-                print(f"   Score: {score:.3f} (min required: 0.1)")  # Updated message
+                print(f"   Score: {alignment_score:.3f} (min required: {score})")
                 print(f"   Determinant: {det:.6f} (range: {det_range})")
                 alignment_status = "quality_warning"
         else:
@@ -212,11 +211,11 @@ def main():
         "overlap_fraction": float(overlap_fraction),
         "phenotype_triangles": len(phenotype_triangles),
         "sbs_triangles": len(sbs_triangles),
-        "parameters_used": {  # NEW: Document the parameters used
+        "parameters_used": {
             "threshold_triangle": 0.3,
-            "min_score": 0.1,
+            "score": float(score),
             "threshold_point": 2.0,
-            "note": "Updated parameters to match fast_alignment approach"
+            "note": "Using config-specified score threshold for alignment quality"
         },
         "alignment": {
             "approach": str(best_alignment.get("approach", "unknown")),
@@ -281,36 +280,7 @@ def main():
         f"✅ Saved transformed phenotype positions: {snakemake.output.transformed_phenotype_positions}"
     )
 
-    print(f"\n🎉 Step 1 (Alignment) completed successfully!")
-
-
-def create_failed_alignment(scale_factor: float, reason: str) -> pd.DataFrame:
-    """Create a failed alignment record with identity transformation.
-    
-    Args:
-        scale_factor: The scale factor that was calculated
-        reason: Reason for failure (used in transformation_type)
-        
-    Returns:
-        DataFrame with failed alignment parameters
-    """
-    return pd.DataFrame(
-        [
-            {
-                "rotation_matrix_flat": [1.0, 0.0, 0.0, 1.0],
-                "translation_vector": [0.0, 0.0],
-                "score": 0.0,
-                "determinant": 1.0,
-                "transformation_type": f"failed_{reason}",
-                "scale_factor": float(scale_factor),
-                "approach": "failed",
-                "overlap_fraction": 0.0,
-                "validation_mean_distance": 0.0,
-                "validation_median_distance": 0.0,
-                "has_overlap": False,
-            }
-        ]
-    )
+    print(f"\n🎉 Alignment completed successfully!")
 
 
 def create_failed_alignment(scale_factor: float, reason: str) -> pd.DataFrame:

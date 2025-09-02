@@ -138,7 +138,7 @@ def create_empty_outputs(reason: str) -> None:
 
 def main():
     """Main processing function for well cell merge."""
-    print("=== STEP 2: WELL CELL MERGE ===")
+    print("=== WELL CELL MERGE ===")
 
     # Load inputs
     phenotype_scaled = validate_dtypes(
@@ -220,7 +220,7 @@ def main():
         f"det: {alignment.get('determinant', 1):.3f})"
     )
 
-    # Step 2: Find cell matches using stitched_cell_id
+    # Find cell matches using stitched_cell_id
     print("Finding cell matches...")
 
     try:
@@ -446,7 +446,7 @@ def main():
     with open(str(snakemake.output.merge_summary), "w") as f:
         yaml.dump(merge_summary, f, default_flow_style=False)
 
-    print(f"✅ Step 2 completed successfully!")
+    print(f"✅ Completed successfully!")
     print(
         f"Result: {len(final_matches):,} matched cells ready for downstream processing"
     )

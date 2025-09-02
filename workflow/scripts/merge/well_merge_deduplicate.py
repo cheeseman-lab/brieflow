@@ -61,8 +61,6 @@ def apply_legacy_compatible_deduplication(raw_matches: pd.DataFrame) -> pd.DataF
         raise DeduplicationError(str(e))
 
 
-# validate_final_matches and validate_quality functions removed - imported from library
-
 
 def prepare_output_format(matches: pd.DataFrame) -> pd.DataFrame:
     """Prepare final output with correct column ordering and validation.

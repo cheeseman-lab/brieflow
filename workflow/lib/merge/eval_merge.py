@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib.patches as patches
 from matplotlib.colors import ListedColormap
+from matplotlib.widgets import Slider
+from matplotlib.patches import Rectangle
 from typing import Optional, Tuple, List, Dict, Any
 
 import pandas as pd
@@ -20,6 +22,7 @@ from lib.merge.well_alignment import (
     calculate_scale_factor_from_positions,
     scale_coordinates,
 )
+
 
 def plot_sbs_ph_matching_heatmap(
     df_merge,
@@ -335,7 +338,6 @@ def recreate_alignment_regions(alignment_data):
     )
 
 
-
 def display_well_alignment_summary(alignment_data):
     """Display a summary of the well alignment results.
     
@@ -384,7 +386,6 @@ def display_well_alignment_summary(alignment_data):
     print("=" * 60)
 
 
-# Example usage function
 def run_well_alignment_qc(root_fp, plate, well, det_range, score, threshold):
     """Run complete QC visualization for a well alignment.
     
@@ -543,9 +544,10 @@ def plot_well_merge_example(alignment_data, threshold, sample_size=None, figsize
 
     
 class StitchQC:
+    """Quality control class for stitched image analysis."""
+    
     def __init__(self, base_path, plate, well):
-        """
-        Initialize QC for a specific plate/well
+        """Initialize QC for a specific plate/well.
 
         Parameters:
         -----------
@@ -595,7 +597,7 @@ class StitchQC:
         self.check_files()
 
     def check_files(self):
-        """Check which output files exist"""
+        """Check which output files exist."""
         files = {
             "Phenotype Image": self.phenotype_image,
             "Phenotype Mask": self.phenotype_mask,
@@ -614,7 +616,9 @@ class StitchQC:
             print(f"{name:20} {status} {size}")
 
     def view_overlays(self, figsize=(15, 6)):
-        """Display phenotype and SBS overlays side by side"""
+        """Display phenotype and SBS overlays side by side."""
+        from skimage import io
+        
         fig, axes = plt.subplots(1, 2, figsize=figsize)
 
         # Phenotype overlay
@@ -659,8 +663,7 @@ class StitchQC:
         plt.show()
 
     def analyze_cell_positions(self):
-        """Analyze cell position data and create summary plots"""
-
+        """Analyze cell position data and create summary plots."""
         # Load position data
         ph_pos = None
         sbs_pos = None
@@ -825,8 +828,7 @@ class StitchQC:
 
     def check_stitching_quality_efficient(self, sample_region=None, preview_downsample=20, 
                                         brightness_range=(0.1, 2.0), contrast_range=(0.5, 3.0)):
-        """
-        Memory-efficient stitching quality check with interactive brightness/contrast controls
+        """Memory-efficient stitching quality check with interactive brightness/contrast controls.
         
         Parameters:
         -----------
@@ -839,7 +841,6 @@ class StitchQC:
         contrast_range : tuple, default (0.5, 3.0)
             Min and max values for contrast adjustment
         """
-        
         # Check matplotlib backend
         backend = plt.get_backend()
         print(f"Matplotlib backend: {backend}")
@@ -872,7 +873,7 @@ class StitchQC:
         display_objects = {}
         
         def adjust_image_display(img_array, brightness=1.0, contrast=1.0):
-            """Apply brightness and contrast adjustments"""
+            """Apply brightness and contrast adjustments."""
             # Normalize to 0-1 range first
             img_norm = (img_array - img_array.min()) / (img_array.max() - img_array.min() + 1e-8)
             # Apply contrast (multiply) then brightness (add)
@@ -880,7 +881,7 @@ class StitchQC:
             return adjusted
         
         def update_display(val=None):
-            """Update all image displays with current slider values"""
+            """Update all image displays with current slider values."""
             brightness = brightness_slider.val
             contrast = contrast_slider.val
             
@@ -1050,9 +1051,8 @@ class StitchQC:
 
     def check_stitching_quality_static(self, sample_region=None, preview_downsample=20,
                                      brightness_levels=[0.3, 0.7, 1.0, 1.5, 2.0]):
-        """
-        Non-interactive version showing multiple brightness levels side by side
-        Use this if interactive sliders don't work
+        """Non-interactive version showing multiple brightness levels side by side.
+        Use this if interactive sliders don't work.
         
         Parameters:
         -----------
@@ -1063,7 +1063,6 @@ class StitchQC:
         brightness_levels : list, default [0.3, 0.7, 1.0, 1.5, 2.0]
             Different brightness levels to display
         """
-        
         # Handle single brightness level case
         if len(brightness_levels) == 1:
             fig, axes = plt.subplots(2, 1, figsize=(8, 10))
@@ -1081,7 +1080,7 @@ class StitchQC:
         )
         
         def adjust_image_display(img_array, brightness=1.0):
-            """Apply brightness adjustment"""
+            """Apply brightness adjustment."""
             img_norm = (img_array - img_array.min()) / (img_array.max() - img_array.min() + 1e-8)
             adjusted = np.clip(img_norm * brightness, 0, 1)
             return adjusted
@@ -1148,8 +1147,7 @@ class StitchQC:
         plt.show()
 
     def view_region(self, center_row, center_col, size=1000, brightness=2.0):
-        """
-        View a square region centered at specified coordinates with fixed brightness
+        """View a square region centered at specified coordinates with fixed brightness.
         
         Parameters:
         -----------
@@ -1176,8 +1174,7 @@ class StitchQC:
 
     def view_mask_region(self, center_row, center_col, size=1000, modality="phenotype", 
                         adaptive_colormap=True, colormap="nipy_spectral", exclude_background=True):
-        """
-        View a square region from the stitched mask for the given modality.
+        """View a square region from the stitched mask for the given modality.
         Now with adaptive colormap scaling for better visualization.
 
         Parameters
@@ -1345,11 +1342,9 @@ class StitchQC:
         # Return the region for further analysis if needed
         return region
 
-
     def compare_mask_regions(self, center_row, center_col, size=7000, colormap="nipy_spectral", 
                             adaptive_colormap=True, exclude_background=True):
-        """
-        Compare phenotype and SBS mask regions side by side with consistent colormap settings.
+        """Compare phenotype and SBS mask regions side by side with consistent colormap settings.
         
         Parameters
         ----------
@@ -1364,7 +1359,6 @@ class StitchQC:
         exclude_background : bool, default True
             Exclude background from colormap scaling
         """
-        
         print(f"COMPARING MASK REGIONS AT ({center_row}, {center_col}) ± {size//2}")
         print("="*60)
         
@@ -1392,8 +1386,7 @@ class StitchQC:
         return ph_region, sbs_region
     
     def view_alignment_region(self, center_row, center_col, size=7000, threshold=15.0, sample_size=1000):
-        """
-        View alignment quality for a specific region with the same coordinate system as view_region/view_mask_region.
+        """View alignment quality for a specific region with the same coordinate system as view_region/view_mask_region.
         Shows original positions, transformed positions, and matches in the specified region.
 
         Parameters
@@ -1407,7 +1400,6 @@ class StitchQC:
         sample_size : int, default 1000
             Maximum number of cells to plot for performance (None for all cells)
         """
-        
         print(f"Loading alignment data for region centered at ({center_row}, {center_col})...")
         
         # Load alignment outputs
@@ -1603,11 +1595,9 @@ class StitchQC:
         
         return fig, alignment_stats
 
-
     def view_alignment_and_masks(self, center_row, center_col, size=7000, threshold=15.0, 
                                 brightness=2.0, sample_size=1000):
-        """
-        Comprehensive alignment check showing images, masks, and alignment quality in one view.
+        """Comprehensive alignment check showing images, masks, and alignment quality in one view.
         
         Parameters
         ----------
@@ -1622,7 +1612,6 @@ class StitchQC:
         sample_size : int, default 1000
             Maximum number of cells to plot for performance
         """
-        
         print(f"Comprehensive alignment check for region ({center_row}, {center_col}) ± {size//2}")
         print("-" * 80)
         
@@ -1666,10 +1655,8 @@ class StitchQC:
         
         return stats, ph_mask_region, sbs_mask_region
 
-
     def check_alignment_at_multiple_regions(self, regions, threshold=15.0, sample_size=500):
-        """
-        Check alignment quality at multiple regions to get a comprehensive view.
+        """Check alignment quality at multiple regions to get a comprehensive view.
         
         Parameters
         ----------
@@ -1684,7 +1671,6 @@ class StitchQC:
         -------
         DataFrame : Summary of alignment quality across all regions
         """
-        
         print("MULTI-REGION ALIGNMENT ANALYSIS")
         print("="*80)
         
@@ -1746,11 +1732,9 @@ class StitchQC:
         print("="*80)
         
         return summary_df
-    
 
     def get_mask_info(self, modality="phenotype"):
-        """
-        Get basic information about a mask including dimensions and suggested viewing coordinates.
+        """Get basic information about a mask including dimensions and suggested viewing coordinates.
         
         Parameters
         ----------
@@ -1790,17 +1774,15 @@ class StitchQC:
 plt.ion()  # Turn on interactive mode
 
 
-# Usage functions
 def quick_qc(base_path, plate, well):
-    """Quick QC check for a single well"""
+    """Quick QC check for a single well."""
     qc = StitchQC(base_path, plate, well)
     qc.view_overlays()
     return qc.analyze_cell_positions()
 
 
 def batch_qc_report(base_path, plate_wells):
-    """
-    Generate QC reports for multiple wells
+    """Generate QC reports for multiple wells.
 
     Parameters:
     -----------
@@ -1849,317 +1831,11 @@ def batch_qc_report(base_path, plate_wells):
     return summary_df
 
 
-
-# Example usage:
-"""
-# Single well QC
-qc = StitchQC('/path/to/analysis/merge', plate=1, well='A01')
-qc.view_overlays()
-ph_pos, sbs_pos = qc.analyze_cell_positions()
-
-# Check specific region for stitching artifacts
-qc.check_stitching_quality_efficient(sample_region=(5000, 6000, 8000, 9000))
-
-# Alternative static version
-qc.check_stitching_quality_static(sample_region=(5000, 6000, 8000, 9000))
-
-# View specific region easily
-qc.view_region(center_row=5500, center_col=8500, size=2000)
-
-# Batch QC
-wells_to_check = [(1, 'A01'), (1, 'A02'), (1, 'B01')]
-summary = batch_qc_report('/path/to/analysis/merge', wells_to_check)
-"""
-
-### NEW FUNCTIONS
-
-
-def load_stitched_image(image_path: str) -> np.ndarray:
-    """Load a stitched image from .npy file.
-    
-    Args:
-        image_path: Path to the .npy stitched image file
-        
-    Returns:
-        Loaded image array
-    """
-    return np.load(image_path)
-
-def load_cell_positions(positions_path: str) -> pd.DataFrame:
-    """Load cell positions from parquet file.
-    
-    Args:
-        positions_path: Path to parquet file with cell positions
-        
-    Returns:
-        DataFrame with cell positions and metadata
-    """
-    return pd.read_parquet(positions_path)
-
-def load_alignment_summary(summary_path: str) -> Dict[str, Any]:
-    """Load alignment summary from YAML file.
-    
-    Args:
-        summary_path: Path to alignment summary YAML file
-        
-    Returns:
-        Dictionary with alignment parameters and statistics
-    """
-    with open(summary_path, 'r') as f:
-        return yaml.safe_load(f)
-
-def normalize_image_for_display(image: np.ndarray, 
-                              percentile_clip: Tuple[float, float] = (1, 99),
-                              gamma: float = 1.0) -> np.ndarray:
-    """Normalize image for better visualization.
-    
-    Args:
-        image: Raw image array
-        percentile_clip: Lower and upper percentiles for clipping
-        gamma: Gamma correction factor
-        
-    Returns:
-        Normalized image ready for display
-    """
-    # Handle different image dimensions
-    if image.ndim == 3:
-        # Multi-channel image - use first channel or create RGB
-        if image.shape[2] == 1:
-            image = image[:, :, 0]
-        elif image.shape[2] > 3:
-            # Take first 3 channels for RGB
-            image = image[:, :, :3]
-    
-    # Clip extreme values
-    lower, upper = np.percentile(image, percentile_clip)
-    image = np.clip(image, lower, upper)
-    
-    # Normalize to 0-1
-    image = (image - image.min()) / (image.max() - image.min() + 1e-8)
-    
-    # Apply gamma correction
-    if gamma != 1.0:
-        image = np.power(image, gamma)
-    
-    return image
-
-def view_stitched_region(image_path: str,
-                        positions_path: Optional[str] = None,
-                        region: Optional[Tuple[int, int, int, int]] = None,
-                        cell_color: str = 'red',
-                        color_by_stitched_id: bool = False,
-                        cell_size: int = 5,
-                        title: str = "Stitched Image Region",
-                        figsize: Tuple[int, int] = (12, 10)) -> plt.Figure:
-    """View a region of a stitched image with optional cell overlay.
-    
-    Args:
-        image_path: Path to stitched image .npy file
-        positions_path: Optional path to cell positions parquet file
-        region: Tuple of (i_min, i_max, j_min, j_max) for cropping
-        cell_color: Color for cell position markers (ignored if color_by_stitched_id=True)
-        color_by_stitched_id: If True, color cells by their stitched_cell_id
-        cell_size: Size of cell markers
-        title: Plot title
-        figsize: Figure size
-        
-    Returns:
-        Matplotlib figure
-    """
-    # Load image
-    image = load_stitched_image(image_path)
-    print(f"Loaded image shape: {image.shape}")
-    
-    # Normalize for display
-    display_image = normalize_image_for_display(image)
-    
-    # Crop to region if specified
-    if region is not None:
-        i_min, i_max, j_min, j_max = region
-        display_image = display_image[i_min:i_max, j_min:j_max]
-        print(f"Cropped to region: {region}")
-    else:
-        region = (0, image.shape[0], 0, image.shape[1])
-        i_min, i_max, j_min, j_max = region
-    
-    # Create figure
-    fig, ax = plt.subplots(1, 1, figsize=figsize)
-    
-    # Show image
-    if display_image.ndim == 3:
-        ax.imshow(display_image, extent=[j_min, j_max, i_max, i_min])
-    else:
-        ax.imshow(display_image, cmap='gray', extent=[j_min, j_max, i_max, i_min])
-    
-    # Overlay cell positions if provided
-    if positions_path is not None:
-        positions = load_cell_positions(positions_path)
-        print(f"Loaded {len(positions)} cell positions")
-        
-        # Filter to region
-        region_positions = positions[
-            (positions['i'] >= i_min) & (positions['i'] <= i_max) &
-            (positions['j'] >= j_min) & (positions['j'] <= j_max)
-        ]
-        print(f"Found {len(region_positions)} cells in region")
-        
-        if len(region_positions) > 0:
-            if color_by_stitched_id and 'stitched_cell_id' in region_positions.columns:
-                # Color by stitched_cell_id
-                unique_ids = region_positions['stitched_cell_id'].unique()
-                colors = plt.cm.tab20(np.linspace(0, 1, len(unique_ids)))
-                
-                scatter = ax.scatter(region_positions['j'], region_positions['i'], 
-                          c=region_positions['stitched_cell_id'], s=cell_size, 
-                          alpha=0.7, edgecolors='white', linewidths=0.5,
-                          cmap='tab20')
-                
-                # Add colorbar
-                cbar = plt.colorbar(scatter, ax=ax)
-                cbar.set_label('Stitched Cell ID')
-                
-                print(f"Colored by stitched_cell_id: {len(unique_ids)} unique IDs in region")
-            else:
-                # Use single color
-                ax.scatter(region_positions['j'], region_positions['i'], 
-                          c=cell_color, s=cell_size, alpha=0.7, edgecolors='white', linewidths=0.5)
-                
-                if color_by_stitched_id:
-                    print("⚠️  stitched_cell_id column not found, using single color")
-    
-    ax.set_title(title)
-    ax.set_xlabel('J (pixels)')
-    ax.set_ylabel('I (pixels)')
-    
-    return fig
-
-def compare_modality_images(phenotype_image_path: str,
-                           sbs_image_path: str,
-                           phenotype_positions_path: str,
-                           sbs_positions_path: str,
-                           alignment_summary_path: Optional[str] = None,
-                           region: Optional[Tuple[int, int, int, int]] = None,
-                           color_by_stitched_id: bool = False,
-                           downsample: int = 4,
-                           figsize: Tuple[int, int] = (20, 10)) -> plt.Figure:
-    """Compare stitched images from both modalities side by side.
-    
-    Args:
-        phenotype_image_path: Path to phenotype stitched image
-        sbs_image_path: Path to SBS stitched image  
-        phenotype_positions_path: Path to phenotype cell positions
-        sbs_positions_path: Path to SBS cell positions
-        alignment_summary_path: Optional path to alignment summary
-        region: Region to crop both images to
-        color_by_stitched_id: If True, color cells by their stitched_cell_id
-        figsize: Figure size
-        
-    Returns:
-        Matplotlib figure with side-by-side comparison
-    """
-    print("Loading images...")
-    
-    # Load images
-
 def load_stitched_image(image_path: str, downsample: int = 1) -> np.ndarray:
     """Load a stitched image from .npy file with optional downsampling.
     
     Args:
         image_path: Path to the .npy stitched image file
-        downsample: Downsampling factor (1 = no downsampling, 2 = half size, etc.)
-        
-    Returns:
-        Loaded and optionally downsampled image array
-    """
-    image = np.load(image_path)
-    
-    if downsample > 1:
-        if image.ndim == 2:
-            # 2D image
-            image = image[::downsample, ::downsample]
-        elif image.ndim == 3:
-            # 3D image (channels last)
-            image = image[::downsample, ::downsample, :]
-        print(f"Downsampled by factor {downsample}, new shape: {image.shape}")
-    
-    return image
-
-def load_cell_positions(positions_path: str) -> pd.DataFrame:
-    """Load cell positions from parquet file.
-    
-    Args:
-        positions_path: Path to parquet file with cell positions
-        
-    Returns:
-        DataFrame with cell positions and metadata
-    """
-    return pd.read_parquet(positions_path)
-
-def load_alignment_summary(summary_path: str) -> Dict[str, Any]:
-    """Load alignment summary from YAML file.
-    
-    Args:
-        summary_path: Path to alignment summary YAML file
-        
-    Returns:
-        Dictionary with alignment parameters and statistics
-    """
-    with open(summary_path, 'r') as f:
-        return yaml.safe_load(f)
-
-def normalize_image_for_display(image: np.ndarray, 
-                              percentile_clip: Tuple[float, float] = (1, 99),
-                              gamma: float = 1.0) -> np.ndarray:
-    """Normalize image for better visualization.
-    
-    Args:
-        image: Raw image array
-        percentile_clip: Lower and upper percentiles for clipping
-        gamma: Gamma correction factor
-        
-    Returns:
-        Normalized image ready for display
-    """
-    # Handle different image dimensions
-    if image.ndim == 3:
-        # Multi-channel image - use first channel or create RGB
-        if image.shape[2] == 1:
-            image = image[:, :, 0]
-        elif image.shape[2] > 3:
-            # Take first 3 channels for RGB
-            image = image[:, :, :3]
-    
-    # Clip extreme values
-    lower, upper = np.percentile(image, percentile_clip)
-    image = np.clip(image, lower, upper)
-    
-    # Normalize to 0-1
-    image = (image - image.min()) / (image.max() - image.min() + 1e-8)
-    
-    # Apply gamma correction
-    if gamma != 1.0:
-        image = np.power(image, gamma)
-    
-    return image
-
-def view_stitched_region(image_path: str,
-                        positions_path: Optional[str] = None,
-                        region: Optional[Tuple[int, int, int, int]] = None,
-                        cell_color: str = 'red',
-                        color_by_stitched_id: bool = False,
-                        cell_size: int = 5,
-                        downsample: int = 4,
-                        title: str = "Stitched Image Region",
-                        figsize: Tuple[int, int] = (12, 10)) -> plt.Figure:
-    """View a region of a stitched image with optional cell overlay.
-    
-    Args:
-        image_path: Path to stitched image .npy file
-        positions_path: Optional path to cell positions parquet file
-        region: Tuple of (i_min, i_max, j_min, j_max) for cropping
-        cell_color: Color for cell position markers (ignored if color_by_stitched_id=True)
-        color_by_stitched_id: If True, color cells by their stitched_cell_id
-        cell_size: Size of cell markers
         downsample: Downsampling factor for the image (default 4)
         title: Plot title
         figsize: Figure size
@@ -2239,6 +1915,7 @@ def view_stitched_region(image_path: str,
     ax.set_ylabel('I (pixels)')
     
     return fig
+
 
 def compare_modality_images(phenotype_image_path: str,
                            sbs_image_path: str,
@@ -2357,6 +2034,7 @@ def compare_modality_images(phenotype_image_path: str,
     plt.tight_layout()
     return fig
 
+
 def visualize_matched_cells(phenotype_image_path: str,
                            sbs_image_path: str,
                            matched_cells_path: str,
@@ -2461,6 +2139,7 @@ def visualize_matched_cells(phenotype_image_path: str,
     
     plt.tight_layout()
     return fig
+
 
 def plot_alignment_overview(phenotype_positions_path: str,
                            sbs_positions_path: str,
@@ -2594,7 +2273,7 @@ def plot_alignment_overview(phenotype_positions_path: str,
     plt.tight_layout()
     return fig
 
-# File path utilities matching the pipeline structure
+
 def get_merge_file_paths(plate: str, well: str, root_fp: str) -> Dict[str, Path]:
     """Get file paths using the same structure as the pipeline.
     
@@ -2648,6 +2327,7 @@ def get_merge_file_paths(plate: str, well: str, root_fp: str) -> Dict[str, Path]
     }
     
     return paths
+
 
 def analyze_well_merge(plate: str, well: str, root_fp: str, region: Optional[Tuple[int, int, int, int]] = None):
     """Comprehensive analysis of a well merge result using pipeline file structure.
@@ -2785,7 +2465,1660 @@ def analyze_well_merge(plate: str, well: str, root_fp: str, region: Optional[Tup
     
     print(f"\n🎉 Analysis complete for {plate}_{well}!")
 
-# Convenience function for quick analysis
+
 def quick_well_analysis(plate: str, well: str, root_fp: str):
     """Quick analysis using the standard sampling region."""
     analyze_well_merge(plate, well, root_fp, region=(9764, 16764, 9810, 16810))
+
+
+##### BREAK
+
+
+
+def well_level_triangle_hash(positions_df: pd.DataFrame, 
+                           n_triangles: int = 1000, 
+                           min_distance: float = 100.0) -> pd.DataFrame:
+    """Generate triangle hash from cell positions for alignment.
+    
+    Args:
+        positions_df: DataFrame with 'i' and 'j' columns for cell positions
+        n_triangles: Number of triangles to generate
+        min_distance: Minimum distance between triangle vertices
+        
+    Returns:
+        DataFrame with triangle hash information
+    """
+    from scipy.spatial.distance import pdist, squareform
+    
+    if len(positions_df) < 3:
+        return pd.DataFrame()
+    
+    # Get coordinates
+    coords = positions_df[['i', 'j']].values
+    
+    # Calculate all pairwise distances
+    distances = squareform(pdist(coords))
+    
+    triangles = []
+    attempts = 0
+    max_attempts = n_triangles * 10
+    
+    while len(triangles) < n_triangles and attempts < max_attempts:
+        # Randomly select 3 points
+        indices = np.random.choice(len(coords), size=3, replace=False)
+        
+        # Check minimum distance constraint
+        triangle_distances = [
+            distances[indices[0], indices[1]],
+            distances[indices[1], indices[2]], 
+            distances[indices[2], indices[0]]
+        ]
+        
+        if all(d > min_distance for d in triangle_distances):
+            # Calculate triangle properties for hashing
+            triangle_coords = coords[indices]
+            
+            # Sort distances to create invariant hash
+            sorted_distances = sorted(triangle_distances)
+            
+            # Calculate triangle area using cross product
+            v1 = triangle_coords[1] - triangle_coords[0]
+            v2 = triangle_coords[2] - triangle_coords[0]
+            area = abs(np.cross(v1, v2)) / 2
+            
+            # Calculate triangle centroid
+            centroid = triangle_coords.mean(axis=0)
+            
+            triangles.append({
+                'triangle_id': len(triangles),
+                'vertex_ids': indices,
+                'distances': sorted_distances,
+                'area': area,
+                'centroid_i': centroid[0],
+                'centroid_j': centroid[1],
+                'hash_key': f"{sorted_distances[0]:.1f}_{sorted_distances[1]:.1f}_{sorted_distances[2]:.1f}"
+            })
+        
+        attempts += 1
+    
+    return pd.DataFrame(triangles)
+
+
+def create_triangle_hash_lookup(triangles_df: pd.DataFrame, 
+                               tolerance: float = 5.0) -> Dict[str, list]:
+    """Create lookup table for triangle matching.
+    
+    Args:
+        triangles_df: DataFrame with triangle information
+        tolerance: Distance tolerance for matching
+        
+    Returns:
+        Dictionary mapping hash keys to triangle IDs
+    """
+    lookup = {}
+    
+    for _, triangle in triangles_df.iterrows():
+        hash_key = triangle['hash_key']
+        triangle_id = triangle['triangle_id']
+        
+        # Create variations of the hash key within tolerance
+        distances = triangle['distances']
+        
+        # Generate hash keys with small variations
+        for d1_var in [-tolerance, 0, tolerance]:
+            for d2_var in [-tolerance, 0, tolerance]:
+                for d3_var in [-tolerance, 0, tolerance]:
+                    var_distances = [
+                        distances[0] + d1_var,
+                        distances[1] + d2_var, 
+                        distances[2] + d3_var
+                    ]
+                    var_key = f"{var_distances[0]:.1f}_{var_distances[1]:.1f}_{var_distances[2]:.1f}"
+                    
+                    if var_key not in lookup:
+                        lookup[var_key] = []
+                    lookup[var_key].append(triangle_id)
+    
+    return lookup
+
+
+def match_triangles(pheno_triangles: pd.DataFrame, 
+                   sbs_triangles: pd.DataFrame,
+                   tolerance: float = 5.0) -> pd.DataFrame:
+    """Match triangles between phenotype and SBS datasets.
+    
+    Args:
+        pheno_triangles: Phenotype triangle DataFrame
+        sbs_triangles: SBS triangle DataFrame  
+        tolerance: Distance tolerance for matching
+        
+    Returns:
+        DataFrame with matched triangles
+    """
+    # Create lookup table for SBS triangles
+    sbs_lookup = create_triangle_hash_lookup(sbs_triangles, tolerance)
+    
+    matches = []
+    
+    for _, pheno_triangle in pheno_triangles.iterrows():
+        hash_key = pheno_triangle['hash_key']
+        
+        # Look for matches in SBS lookup
+        if hash_key in sbs_lookup:
+            for sbs_triangle_id in sbs_lookup[hash_key]:
+                sbs_triangle = sbs_triangles.loc[sbs_triangles['triangle_id'] == sbs_triangle_id].iloc[0]
+                
+                # Calculate match quality
+                distance_diff = np.abs(np.array(pheno_triangle['distances']) - np.array(sbs_triangle['distances']))
+                match_score = 1.0 / (1.0 + distance_diff.sum())
+                
+                matches.append({
+                    'pheno_triangle_id': pheno_triangle['triangle_id'],
+                    'sbs_triangle_id': sbs_triangle_id,
+                    'match_score': match_score,
+                    'pheno_centroid': (pheno_triangle['centroid_i'], pheno_triangle['centroid_j']),
+                    'sbs_centroid': (sbs_triangle['centroid_i'], sbs_triangle['centroid_j'])
+                })
+    
+    return pd.DataFrame(matches)
+
+
+def estimate_transformation_from_triangles(triangle_matches: pd.DataFrame,
+                                         min_matches: int = 10) -> Optional[Dict[str, Any]]:
+    """Estimate coordinate transformation from triangle matches.
+    
+    Args:
+        triangle_matches: DataFrame with matched triangles
+        min_matches: Minimum number of matches required
+        
+    Returns:
+        Dictionary with transformation parameters or None if insufficient matches
+    """
+    if len(triangle_matches) < min_matches:
+        return None
+    
+    # Extract centroid coordinates
+    pheno_centroids = np.array([match for match in triangle_matches['pheno_centroid']])
+    sbs_centroids = np.array([match for match in triangle_matches['sbs_centroid']])
+    
+    # Use RANSAC-like approach to find best transformation
+    best_score = 0
+    best_transform = None
+    
+    n_iterations = min(100, len(triangle_matches) * 2)
+    
+    for _ in range(n_iterations):
+        # Randomly sample matches
+        sample_size = min(10, len(triangle_matches))
+        sample_indices = np.random.choice(len(triangle_matches), size=sample_size, replace=False)
+        
+        sample_pheno = pheno_centroids[sample_indices]
+        sample_sbs = sbs_centroids[sample_indices]
+        
+        # Estimate transformation using least squares
+        try:
+            # Center the coordinates
+            pheno_mean = sample_pheno.mean(axis=0)
+            sbs_mean = sample_sbs.mean(axis=0)
+            
+            pheno_centered = sample_pheno - pheno_mean
+            sbs_centered = sample_sbs - sbs_mean
+            
+            # Estimate rotation and scaling using SVD
+            H = pheno_centered.T @ sbs_centered
+            U, S, Vt = np.linalg.svd(H)
+            R = Vt.T @ U.T
+            
+            # Ensure proper rotation (determinant = 1)
+            if np.linalg.det(R) < 0:
+                Vt[-1, :] *= -1
+                R = Vt.T @ U.T
+            
+            # Calculate translation
+            translation = sbs_mean - R @ pheno_mean
+            
+            # Test transformation on all matches
+            transformed_pheno = (R @ pheno_centroids.T).T + translation
+            distances = np.linalg.norm(transformed_pheno - sbs_centroids, axis=1)
+            
+            # Score based on number of inliers
+            inliers = distances < 20.0  # 20 pixel tolerance
+            score = inliers.sum()
+            
+            if score > best_score:
+                best_score = score
+                best_transform = {
+                    'rotation_matrix': R,
+                    'translation_vector': translation,
+                    'score': score / len(triangle_matches),
+                    'determinant': np.linalg.det(R),
+                    'mean_error': distances[inliers].mean() if inliers.sum() > 0 else float('inf'),
+                    'inlier_count': inliers.sum(),
+                    'total_matches': len(triangle_matches)
+                }
+                
+        except (np.linalg.LinAlgError, ValueError):
+            continue
+    
+    return best_transform
+
+
+def apply_coordinate_transformation(positions_df: pd.DataFrame,
+                                  rotation_matrix: np.ndarray,
+                                  translation_vector: np.ndarray) -> pd.DataFrame:
+    """Apply coordinate transformation to cell positions.
+    
+    Args:
+        positions_df: DataFrame with 'i' and 'j' columns
+        rotation_matrix: 2x2 rotation matrix
+        translation_vector: 2-element translation vector
+        
+    Returns:
+        DataFrame with transformed coordinates
+    """
+    transformed_df = positions_df.copy()
+    
+    # Extract coordinates
+    coords = positions_df[['i', 'j']].values
+    
+    # Apply transformation
+    transformed_coords = (rotation_matrix @ coords.T).T + translation_vector
+    
+    # Update dataframe
+    transformed_df['i'] = transformed_coords[:, 0]
+    transformed_df['j'] = transformed_coords[:, 1]
+    
+    return transformed_df
+
+
+def calculate_overlap_statistics(phenotype_positions: pd.DataFrame,
+                               sbs_positions: pd.DataFrame) -> Dict[str, float]:
+    """Calculate overlap statistics between two position datasets.
+    
+    Args:
+        phenotype_positions: DataFrame with phenotype cell positions
+        sbs_positions: DataFrame with SBS cell positions
+        
+    Returns:
+        Dictionary with overlap statistics
+    """
+    # Calculate coordinate ranges
+    ph_i_range = (phenotype_positions['i'].min(), phenotype_positions['i'].max())
+    ph_j_range = (phenotype_positions['j'].min(), phenotype_positions['j'].max())
+    
+    sbs_i_range = (sbs_positions['i'].min(), sbs_positions['i'].max())
+    sbs_j_range = (sbs_positions['j'].min(), sbs_positions['j'].max())
+    
+    # Calculate overlap in each dimension
+    i_overlap = max(0, min(ph_i_range[1], sbs_i_range[1]) - max(ph_i_range[0], sbs_i_range[0]))
+    j_overlap = max(0, min(ph_j_range[1], sbs_j_range[1]) - max(ph_j_range[0], sbs_j_range[0]))
+    
+    # Calculate total ranges
+    i_total = max(ph_i_range[1], sbs_i_range[1]) - min(ph_i_range[0], sbs_i_range[0])
+    j_total = max(ph_j_range[1], sbs_j_range[1]) - min(ph_j_range[0], sbs_j_range[0])
+    
+    # Calculate overlap fractions
+    overlap_area = i_overlap * j_overlap
+    total_area = i_total * j_total
+    overlap_fraction = overlap_area / total_area if total_area > 0 else 0
+    
+    return {
+        'overlap_fraction': overlap_fraction,
+        'overlap_area': overlap_area,
+        'total_area': total_area,
+        'i_overlap': i_overlap,
+        'j_overlap': j_overlap,
+        'phenotype_range_i': ph_i_range,
+        'phenotype_range_j': ph_j_range,
+        'sbs_range_i': sbs_i_range,
+        'sbs_range_j': sbs_j_range
+    }
+
+
+def create_alignment_summary(plate: str, well: str, 
+                           alignment_results: Dict[str, Any],
+                           overlap_stats: Dict[str, float],
+                           triangle_stats: Dict[str, int]) -> Dict[str, Any]:
+    """Create comprehensive alignment summary.
+    
+    Args:
+        plate: Plate identifier
+        well: Well identifier
+        alignment_results: Results from transformation estimation
+        overlap_stats: Overlap statistics
+        triangle_stats: Triangle generation statistics
+        
+    Returns:
+        Complete alignment summary dictionary
+    """
+    summary = {
+        'plate': plate,
+        'well': well,
+        'status': 'success' if alignment_results is not None else 'failed',
+        'scale_factor': 1.0,  # Default, should be calculated separately
+        'overlap_fraction': overlap_stats.get('overlap_fraction', 0),
+        'phenotype_triangles': triangle_stats.get('phenotype_triangles', 0),
+        'sbs_triangles': triangle_stats.get('sbs_triangles', 0),
+        'alignment': {
+            'approach': 'triangle_hash',
+            'transformation_type': 'rigid' if alignment_results else 'none',
+            'score': alignment_results.get('score', 0) if alignment_results else 0,
+            'determinant': alignment_results.get('determinant', 1) if alignment_results else 1,
+            'mean_error': alignment_results.get('mean_error', float('inf')) if alignment_results else float('inf'),
+            'inlier_count': alignment_results.get('inlier_count', 0) if alignment_results else 0,
+            'total_matches': alignment_results.get('total_matches', 0) if alignment_results else 0,
+            'region_size': 7000,  # Default region size
+            'attempts': 1
+        }
+    }
+    
+    return summary
+
+
+def save_alignment_results(output_dir: Path, 
+                          plate: str, 
+                          well: str,
+                          alignment_params: pd.DataFrame,
+                          alignment_summary: Dict[str, Any],
+                          transformed_positions: pd.DataFrame):
+    """Save alignment results to files.
+    
+    Args:
+        output_dir: Directory to save results
+        plate: Plate identifier
+        well: Well identifier
+        alignment_params: DataFrame with alignment parameters
+        alignment_summary: Summary dictionary
+        transformed_positions: Transformed phenotype positions
+    """
+    import yaml
+    
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save alignment parameters
+    params_path = output_dir / f"P-{plate}_W-{well}__alignment.parquet"
+    alignment_params.to_parquet(params_path)
+    
+    # Save alignment summary
+    summary_path = output_dir / f"P-{plate}_W-{well}__alignment_summary.yaml"
+    with open(summary_path, 'w') as f:
+        yaml.dump(alignment_summary, f, default_flow_style=False)
+    
+    # Save transformed positions
+    transformed_path = output_dir / f"P-{plate}_W-{well}__phenotype_transformed.parquet"
+    transformed_positions.to_parquet(transformed_path)
+
+
+def validate_alignment_quality(alignment_results: Dict[str, Any],
+                              min_score: float = 0.5,
+                              det_range: Tuple[float, float] = (0.8, 1.2)) -> bool:
+    """Validate alignment quality against thresholds.
+    
+    Args:
+        alignment_results: Results from transformation estimation
+        min_score: Minimum acceptable score
+        det_range: Acceptable range for transformation determinant
+        
+    Returns:
+        True if alignment passes quality checks
+    """
+    if alignment_results is None:
+        return False
+    
+    score = alignment_results.get('score', 0)
+    determinant = alignment_results.get('determinant', 1)
+    
+    # Check score threshold
+    if score < min_score:
+        print(f"❌ Score {score:.3f} below threshold {min_score}")
+        return False
+    
+    # Check determinant range (should be close to 1 for rigid transformation)
+    if not (det_range[0] <= determinant <= det_range[1]):
+        print(f"❌ Determinant {determinant:.3f} outside range {det_range}")
+        return False
+    
+    print(f"✅ Alignment quality validated: score={score:.3f}, det={determinant:.3f}")
+    return True
+
+
+def plot_triangle_matches(pheno_triangles: pd.DataFrame,
+                         sbs_triangles: pd.DataFrame, 
+                         triangle_matches: pd.DataFrame,
+                         figsize: Tuple[int, int] = (15, 6)) -> plt.Figure:
+    """Plot triangle matches for visualization.
+    
+    Args:
+        pheno_triangles: Phenotype triangles
+        sbs_triangles: SBS triangles
+        triangle_matches: Matched triangles
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure
+    """
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=figsize)
+    
+    # Plot phenotype triangles
+    if len(pheno_triangles) > 0:
+        ax1.scatter(pheno_triangles['centroid_j'], pheno_triangles['centroid_i'], 
+                   c='red', s=20, alpha=0.6, label=f'Phenotype ({len(pheno_triangles)})')
+    ax1.set_title('Phenotype Triangles')
+    ax1.set_xlabel('J (pixels)')
+    ax1.set_ylabel('I (pixels)')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot SBS triangles  
+    if len(sbs_triangles) > 0:
+        ax2.scatter(sbs_triangles['centroid_j'], sbs_triangles['centroid_i'],
+                   c='blue', s=20, alpha=0.6, label=f'SBS ({len(sbs_triangles)})')
+    ax2.set_title('SBS Triangles')
+    ax2.set_xlabel('J (pixels)')
+    ax2.set_ylabel('I (pixels)')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    # Plot matches
+    if len(triangle_matches) > 0:
+        pheno_centroids = np.array([match for match in triangle_matches['pheno_centroid']])
+        sbs_centroids = np.array([match for match in triangle_matches['sbs_centroid']])
+        
+        ax3.scatter(pheno_centroids[:, 1], pheno_centroids[:, 0], 
+                   c='red', s=30, alpha=0.7, label='Phenotype')
+        ax3.scatter(sbs_centroids[:, 1], sbs_centroids[:, 0],
+                   c='blue', s=30, alpha=0.7, label='SBS')
+        
+        # Draw connecting lines
+        for i in range(len(triangle_matches)):
+            ax3.plot([pheno_centroids[i, 1], sbs_centroids[i, 1]],
+                    [pheno_centroids[i, 0], sbs_centroids[i, 0]],
+                    'gray', alpha=0.3, linewidth=1)
+    
+    ax3.set_title(f'Triangle Matches ({len(triangle_matches)})')
+    ax3.set_xlabel('J (pixels)')
+    ax3.set_ylabel('I (pixels)')
+    ax3.legend()
+    ax3.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+
+# Additional utility functions that might be missing
+
+def create_interactive_slider_figure(figsize: Tuple[int, int] = (16, 14)) -> Tuple[plt.Figure, dict]:
+    """Create figure with interactive sliders for image adjustment.
+    
+    Args:
+        figsize: Figure size
+        
+    Returns:
+        Tuple of (figure, slider_dict)
+    """
+    fig = plt.figure(figsize=figsize)
+    
+    # Create main subplot area (leave space at bottom for sliders)
+    gs = fig.add_gridspec(3, 2, height_ratios=[1, 1, 0.2], hspace=0.4, bottom=0.1)
+    axes = [
+        [fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1])],
+        [fig.add_subplot(gs[1, 0]), fig.add_subplot(gs[1, 1])]
+    ]
+    
+    # Slider area
+    slider_ax1 = plt.axes([0.15, 0.05, 0.25, 0.03])
+    slider_ax2 = plt.axes([0.55, 0.05, 0.25, 0.03])
+    
+    # Create sliders
+    brightness_slider = Slider(
+        slider_ax1, 'Brightness', 0.1, 2.0, valinit=1.0, valstep=0.05, valfmt='%.2f'
+    )
+    contrast_slider = Slider(
+        slider_ax2, 'Contrast', 0.5, 3.0, valinit=1.0, valstep=0.05, valfmt='%.2f'
+    )
+    
+    sliders = {
+        'brightness': brightness_slider,
+        'contrast': contrast_slider,
+        'axes': axes,
+        'slider_axes': [slider_ax1, slider_ax2]
+    }
+    
+    return fig, sliders
+
+
+def safe_file_load(file_path: Path, file_type: str = 'auto') -> Optional[Any]:
+    """Safely load various file types with error handling.
+    
+    Args:
+        file_path: Path to file
+        file_type: Type of file ('parquet', 'yaml', 'npy', 'image', 'auto')
+        
+    Returns:
+        Loaded data or None if failed
+    """
+    if not file_path.exists():
+        print(f"❌ File not found: {file_path}")
+        return None
+    
+    try:
+        if file_type == 'auto':
+            suffix = file_path.suffix.lower()
+            if suffix == '.parquet':
+                file_type = 'parquet'
+            elif suffix in ['.yaml', '.yml']:
+                file_type = 'yaml'
+            elif suffix == '.npy':
+                file_type = 'npy'
+            elif suffix in ['.png', '.jpg', '.jpeg', '.tiff', '.tif']:
+                file_type = 'image'
+        
+        if file_type == 'parquet':
+            return pd.read_parquet(file_path)
+        elif file_type == 'yaml':
+            import yaml
+            with open(file_path, 'r') as f:
+                return yaml.safe_load(f)
+        elif file_type == 'npy':
+            return np.load(file_path, mmap_mode='r')
+        elif file_type == 'image':
+            return io.imread(file_path)
+        else:
+            print(f"❌ Unsupported file type: {file_type}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Error loading {file_path}: {e}")
+        return None
+
+
+def memory_efficient_image_crop(image_path: Path, 
+                               region: Tuple[int, int, int, int],
+                               downsample: int = 1) -> Optional[np.ndarray]:
+    """Memory-efficiently crop a region from a large image file.
+    
+    Args:
+        image_path: Path to image file
+        region: (i_min, i_max, j_min, j_max) crop region
+        downsample: Downsampling factor
+        
+    Returns:
+        Cropped image array or None if failed
+    """
+    try:
+        # Memory map the image
+        image = np.load(image_path, mmap_mode='r')
+        
+        i_min, i_max, j_min, j_max = region
+        
+        # Validate bounds
+        i_min = max(0, min(i_min, image.shape[0]))
+        i_max = max(i_min, min(i_max, image.shape[0]))
+        j_min = max(0, min(j_min, image.shape[1]))
+        j_max = max(j_min, min(j_max, image.shape[1]))
+        
+        # Extract region with optional downsampling
+        if downsample > 1:
+            cropped = np.array(image[i_min:i_max:downsample, j_min:j_max:downsample])
+        else:
+            cropped = np.array(image[i_min:i_max, j_min:j_max])
+        
+        return cropped
+        
+    except Exception as e:
+        print(f"❌ Error cropping image: {e}")
+        return None
+    
+
+"""Helper functions for evaluating results of merge process - Fixed Version."""
+
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import matplotlib.patches as patches
+from matplotlib.colors import ListedColormap
+from matplotlib.widgets import Slider
+from matplotlib.patches import Rectangle
+from typing import Optional, Tuple, List, Dict, Any
+
+import pandas as pd
+from pathlib import Path
+from scipy.spatial.distance import cdist
+import yaml
+
+# Import skimage for image loading
+try:
+    from skimage import io
+except ImportError:
+    print("Warning: skimage not available, some image loading functions may not work")
+    io = None
+
+from lib.shared.eval import plot_plate_heatmap
+from lib.shared.configuration_utils import plot_merge_example
+from lib.merge.merge import build_linear_model
+from lib.merge.well_alignment import (
+    sample_region_for_alignment,
+    calculate_scale_factor_from_positions,
+    scale_coordinates,
+)
+
+
+def load_stitched_image(image_path: str, downsample: int = 1) -> np.ndarray:
+    """Load a stitched image from .npy file with optional downsampling.
+    
+    Args:
+        image_path: Path to the .npy stitched image file
+        downsample: Downsampling factor (1 = no downsampling, 2 = half size, etc.)
+        
+    Returns:
+        Loaded and optionally downsampled image array
+    """
+    image = np.load(image_path)
+    
+    if downsample > 1:
+        if image.ndim == 2:
+            # 2D image
+            image = image[::downsample, ::downsample]
+        elif image.ndim == 3:
+            # 3D image (channels last)
+            image = image[::downsample, ::downsample, :]
+        print(f"Downsampled by factor {downsample}, new shape: {image.shape}")
+    
+    return image
+
+
+def load_cell_positions(positions_path: str) -> pd.DataFrame:
+    """Load cell positions from parquet file.
+    
+    Args:
+        positions_path: Path to parquet file with cell positions
+        
+    Returns:
+        DataFrame with cell positions and metadata
+    """
+    return pd.read_parquet(positions_path)
+
+
+def load_alignment_summary(summary_path: str) -> Dict[str, Any]:
+    """Load alignment summary from YAML file.
+    
+    Args:
+        summary_path: Path to alignment summary YAML file
+        
+    Returns:
+        Dictionary with alignment parameters and statistics
+    """
+    with open(summary_path, 'r') as f:
+        return yaml.safe_load(f)
+
+
+def normalize_image_for_display(image: np.ndarray, 
+                              percentile_clip: Tuple[float, float] = (1, 99),
+                              gamma: float = 1.0) -> np.ndarray:
+    """Normalize image for better visualization.
+    
+    Args:
+        image: Raw image array
+        percentile_clip: Lower and upper percentiles for clipping
+        gamma: Gamma correction factor
+        
+    Returns:
+        Normalized image ready for display
+    """
+    # Handle different image dimensions
+    if image.ndim == 3:
+        # Multi-channel image - use first channel or create RGB
+        if image.shape[2] == 1:
+            image = image[:, :, 0]
+        elif image.shape[2] > 3:
+            # Take first 3 channels for RGB
+            image = image[:, :, :3]
+    
+    # Clip extreme values
+    lower, upper = np.percentile(image, percentile_clip)
+    image = np.clip(image, lower, upper)
+    
+    # Normalize to 0-1
+    image = (image - image.min()) / (image.max() - image.min() + 1e-8)
+    
+    # Apply gamma correction
+    if gamma != 1.0:
+        image = np.power(image, gamma)
+    
+    return image
+
+
+def view_stitched_region(image_path: str,
+                        positions_path: Optional[str] = None,
+                        region: Optional[Tuple[int, int, int, int]] = None,
+                        cell_color: str = 'red',
+                        color_by_stitched_id: bool = False,
+                        cell_size: int = 5,
+                        downsample: int = 4,
+                        title: str = "Stitched Image Region",
+                        figsize: Tuple[int, int] = (12, 10)) -> plt.Figure:
+    """View a region of a stitched image with optional cell overlay.
+    
+    Args:
+        image_path: Path to stitched image .npy file
+        positions_path: Optional path to cell positions parquet file
+        region: Tuple of (i_min, i_max, j_min, j_max) for cropping
+        cell_color: Color for cell position markers (ignored if color_by_stitched_id=True)
+        color_by_stitched_id: If True, color cells by their stitched_cell_id
+        cell_size: Size of cell markers
+        downsample: Downsampling factor for the image (default 4)
+        title: Plot title
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure
+    """
+    # Load image with downsampling
+    image = load_stitched_image(image_path, downsample=downsample)
+    print(f"Loaded image shape: {image.shape}")
+    
+    # Normalize for display
+    display_image = normalize_image_for_display(image)
+    
+    # Adjust region for downsampling
+    if region is not None:
+        i_min, i_max, j_min, j_max = region
+        # Scale region coordinates by downsample factor
+        i_min_ds, i_max_ds = i_min // downsample, i_max // downsample
+        j_min_ds, j_max_ds = j_min // downsample, j_max // downsample
+        display_image = display_image[i_min_ds:i_max_ds, j_min_ds:j_max_ds]
+        print(f"Cropped to region: {region} (downsampled: [{i_min_ds}, {i_max_ds}, {j_min_ds}, {j_max_ds}])")
+        # Use original coordinates for extent
+        extent = [j_min, j_max, i_max, i_min]
+    else:
+        region = (0, image.shape[0] * downsample, 0, image.shape[1] * downsample)
+        i_min, i_max, j_min, j_max = region
+        extent = [j_min, j_max, i_max, i_min]
+    
+    # Create figure
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    
+    # Show image
+    if display_image.ndim == 3:
+        ax.imshow(display_image, extent=extent)
+    else:
+        ax.imshow(display_image, cmap='gray', extent=extent)
+    
+    # Overlay cell positions if provided
+    if positions_path is not None:
+        positions = load_cell_positions(positions_path)
+        print(f"Loaded {len(positions)} cell positions")
+        
+        # Filter to region
+        region_positions = positions[
+            (positions['i'] >= i_min) & (positions['i'] <= i_max) &
+            (positions['j'] >= j_min) & (positions['j'] <= j_max)
+        ]
+        print(f"Found {len(region_positions)} cells in region")
+        
+        if len(region_positions) > 0:
+            if color_by_stitched_id and 'stitched_cell_id' in region_positions.columns:
+                # Color by stitched_cell_id
+                unique_ids = region_positions['stitched_cell_id'].unique()
+                
+                scatter = ax.scatter(region_positions['j'], region_positions['i'], 
+                          c=region_positions['stitched_cell_id'], s=cell_size, 
+                          alpha=0.7, edgecolors='white', linewidths=0.5,
+                          cmap='tab20')
+                
+                # Add colorbar
+                cbar = plt.colorbar(scatter, ax=ax)
+                cbar.set_label('Stitched Cell ID')
+                
+                print(f"Colored by stitched_cell_id: {len(unique_ids)} unique IDs in region")
+            else:
+                # Use single color
+                ax.scatter(region_positions['j'], region_positions['i'], 
+                          c=cell_color, s=cell_size, alpha=0.7, edgecolors='white', linewidths=0.5)
+                
+                if color_by_stitched_id:
+                    print("⚠️  stitched_cell_id column not found, using single color")
+    
+    ax.set_title(title)
+    ax.set_xlabel('J (pixels)')
+    ax.set_ylabel('I (pixels)')
+    
+    return fig
+
+
+def compare_modality_images(phenotype_image_path: str,
+                           sbs_image_path: str,
+                           phenotype_positions_path: str,
+                           sbs_positions_path: str,
+                           alignment_summary_path: Optional[str] = None,
+                           region: Optional[Tuple[int, int, int, int]] = None,
+                           color_by_stitched_id: bool = False,
+                           figsize: Tuple[int, int] = (20, 10)) -> plt.Figure:
+    """Compare stitched images from both modalities side by side.
+    
+    Args:
+        phenotype_image_path: Path to phenotype stitched image
+        sbs_image_path: Path to SBS stitched image  
+        phenotype_positions_path: Path to phenotype cell positions
+        sbs_positions_path: Path to SBS cell positions
+        alignment_summary_path: Optional path to alignment summary
+        region: Region to crop both images to
+        color_by_stitched_id: If True, color cells by their stitched_cell_id
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure with side-by-side comparison
+    """
+    # Load images
+    pheno_image = load_stitched_image(phenotype_image_path)
+    sbs_image = load_stitched_image(sbs_image_path)
+    
+    # Load positions
+    pheno_positions = load_cell_positions(phenotype_positions_path)
+    sbs_positions = load_cell_positions(sbs_positions_path)
+    
+    print(f"Phenotype: {pheno_image.shape} image, {len(pheno_positions)} cells")
+    print(f"SBS: {sbs_image.shape} image, {len(sbs_positions)} cells")
+    
+    # Load alignment info if available
+    alignment_info = ""
+    if alignment_summary_path is not None and Path(alignment_summary_path).exists():
+        summary = load_alignment_summary(alignment_summary_path)
+        if 'alignment' in summary:
+            align_data = summary['alignment']
+            alignment_info = f"Score: {align_data.get('score', 0):.3f}, Det: {align_data.get('determinant', 1):.3f}"
+    
+    # Normalize images
+    pheno_display = normalize_image_for_display(pheno_image)
+    sbs_display = normalize_image_for_display(sbs_image)
+    
+    # Apply region cropping if specified
+    if region is not None:
+        i_min, i_max, j_min, j_max = region
+        pheno_display = pheno_display[i_min:i_max, j_min:j_max]
+        sbs_display = sbs_display[i_min:i_max, j_min:j_max]
+        
+        # Filter positions to region
+        pheno_positions = pheno_positions[
+            (pheno_positions['i'] >= i_min) & (pheno_positions['i'] <= i_max) &
+            (pheno_positions['j'] >= j_min) & (pheno_positions['j'] <= j_max)
+        ]
+        sbs_positions = sbs_positions[
+            (sbs_positions['i'] >= i_min) & (sbs_positions['i'] <= i_max) &
+            (sbs_positions['j'] >= j_min) & (sbs_positions['j'] <= j_max)
+        ]
+    else:
+        region = (0, min(pheno_image.shape[0], sbs_image.shape[0]), 
+                 0, min(pheno_image.shape[1], sbs_image.shape[1]))
+        i_min, i_max, j_min, j_max = region
+    
+    # Create side-by-side plot
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    
+    # Phenotype image
+    if pheno_display.ndim == 3:
+        ax1.imshow(pheno_display, extent=[j_min, j_max, i_max, i_min])
+    else:
+        ax1.imshow(pheno_display, cmap='gray', extent=[j_min, j_max, i_max, i_min])
+    
+    if color_by_stitched_id and 'stitched_cell_id' in pheno_positions.columns:
+        scatter1 = ax1.scatter(pheno_positions['j'], pheno_positions['i'], 
+                   c=pheno_positions['stitched_cell_id'], s=3, alpha=0.8, 
+                   edgecolors='white', linewidths=0.3, cmap='tab20')
+        cbar1 = plt.colorbar(scatter1, ax=ax1)
+        cbar1.set_label('Phenotype Stitched Cell ID')
+    else:
+        ax1.scatter(pheno_positions['j'], pheno_positions['i'], 
+                   c='red', s=3, alpha=0.8, edgecolors='white', linewidths=0.3)
+    
+    ax1.set_title(f'Phenotype\n{len(pheno_positions)} cells in region')
+    ax1.set_xlabel('J (pixels)')
+    ax1.set_ylabel('I (pixels)')
+    
+    # SBS image
+    if sbs_display.ndim == 3:
+        ax2.imshow(sbs_display, extent=[j_min, j_max, i_max, i_min])
+    else:
+        ax2.imshow(sbs_display, cmap='gray', extent=[j_min, j_max, i_max, i_min])
+    
+    if color_by_stitched_id and 'stitched_cell_id' in sbs_positions.columns:
+        scatter2 = ax2.scatter(sbs_positions['j'], sbs_positions['i'], 
+                   c=sbs_positions['stitched_cell_id'], s=3, alpha=0.8, 
+                   edgecolors='white', linewidths=0.3, cmap='tab20')
+        cbar2 = plt.colorbar(scatter2, ax=ax2)
+        cbar2.set_label('SBS Stitched Cell ID')
+    else:
+        ax2.scatter(sbs_positions['j'], sbs_positions['i'], 
+                   c='blue', s=3, alpha=0.8, edgecolors='white', linewidths=0.3)
+    
+    ax2.set_title(f'SBS\n{len(sbs_positions)} cells in region')
+    ax2.set_xlabel('J (pixels)')
+    ax2.set_ylabel('I (pixels)')
+    
+    if alignment_info:
+        fig.suptitle(f'Modality Comparison - {alignment_info}')
+    else:
+        fig.suptitle('Modality Comparison')
+    
+    plt.tight_layout()
+    return fig
+
+
+def visualize_matched_cells(phenotype_image_path: str,
+                           sbs_image_path: str,
+                           matched_cells_path: str,
+                           region: Optional[Tuple[int, int, int, int]] = None,
+                           max_distance: float = 10.0,
+                           downsample: int = 4,
+                           figsize: Tuple[int, int] = (20, 10)) -> plt.Figure:
+    """Visualize matched cells overlaid on both modality images.
+    
+    Args:
+        phenotype_image_path: Path to phenotype stitched image
+        sbs_image_path: Path to SBS stitched image
+        matched_cells_path: Path to matched cells parquet file
+        region: Region to focus on
+        max_distance: Maximum distance to show matches
+        downsample: Downsampling factor for images (default 4)
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure showing matches
+    """
+    # Load images with downsampling
+    pheno_image = normalize_image_for_display(load_stitched_image(phenotype_image_path, downsample=downsample))
+    sbs_image = normalize_image_for_display(load_stitched_image(sbs_image_path, downsample=downsample))
+    
+    # Load matched cells
+    matches = pd.read_parquet(matched_cells_path)
+    print(f"Loaded {len(matches)} matched cells")
+    
+    # Filter by distance if specified
+    if max_distance is not None:
+        matches = matches[matches['distance'] <= max_distance]
+        print(f"Filtered to {len(matches)} matches within {max_distance}px")
+    
+    # Apply region if specified
+    if region is not None:
+        i_min, i_max, j_min, j_max = region
+        # Scale region for downsampled images
+        i_min_ds, i_max_ds = i_min // downsample, i_max // downsample
+        j_min_ds, j_max_ds = j_min // downsample, j_max // downsample
+        
+        pheno_image = pheno_image[i_min_ds:i_max_ds, j_min_ds:j_max_ds]
+        sbs_image = sbs_image[i_min_ds:i_max_ds, j_min_ds:j_max_ds]
+        
+        # Filter matches to region (using original coordinates)
+        matches = matches[
+            (matches['i_0'] >= i_min) & (matches['i_0'] <= i_max) &
+            (matches['j_0'] >= j_min) & (matches['j_0'] <= j_max) &
+            (matches['i_1'] >= i_min) & (matches['i_1'] <= i_max) &
+            (matches['j_1'] >= j_min) & (matches['j_1'] <= j_max)
+        ]
+        print(f"Found {len(matches)} matches in region")
+        extent = [j_min, j_max, i_max, i_min]
+    else:
+        region = (0, min(pheno_image.shape[0], sbs_image.shape[0]) * downsample, 
+                 0, min(pheno_image.shape[1], sbs_image.shape[1]) * downsample)
+        i_min, i_max, j_min, j_max = region
+        extent = [j_min, j_max, i_max, i_min]
+    
+    # Create plot
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    
+    # Show images
+    if pheno_image.ndim == 3:
+        ax1.imshow(pheno_image, extent=extent)
+    else:
+        ax1.imshow(pheno_image, cmap='gray', extent=extent)
+    
+    if sbs_image.ndim == 3:
+        ax2.imshow(sbs_image, extent=extent)
+    else:
+        ax2.imshow(sbs_image, cmap='gray', extent=extent)
+    
+    # Plot matches
+    if len(matches) > 0:
+        # Color code by distance
+        distances = matches['distance']
+        scatter1 = ax1.scatter(matches['j_0'], matches['i_0'], 
+                              c=distances, s=20, cmap='viridis', alpha=0.8,
+                              edgecolors='white', linewidths=0.5)
+        scatter2 = ax2.scatter(matches['j_1'], matches['i_1'], 
+                              c=distances, s=20, cmap='viridis', alpha=0.8,
+                              edgecolors='white', linewidths=0.5)
+        
+        # Add colorbar
+        cbar = plt.colorbar(scatter1, ax=[ax1, ax2], shrink=0.8)
+        cbar.set_label('Match Distance (pixels)')
+    
+    ax1.set_title(f'Phenotype Matches\n{len(matches)} cells')
+    ax1.set_xlabel('J (pixels)')
+    ax1.set_ylabel('I (pixels)')
+    
+    ax2.set_title(f'SBS Matches\n{len(matches)} cells')
+    ax2.set_xlabel('J (pixels)')
+    ax2.set_ylabel('I (pixels)')
+    
+    if len(matches) > 0:
+        mean_dist = matches['distance'].mean()
+        fig.suptitle(f'Matched Cells (Mean Distance: {mean_dist:.1f}px)')
+    else:
+        fig.suptitle('Matched Cells (No matches in region)')
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_alignment_overview(phenotype_positions_path: str,
+                           sbs_positions_path: str,
+                           transformed_positions_path: Optional[str] = None,
+                           alignment_summary_path: Optional[str] = None,
+                           sample_size: int = 5000,
+                           figsize: Tuple[int, int] = (18, 6)) -> plt.Figure:
+    """Plot overview of coordinate alignment process.
+    
+    Args:
+        phenotype_positions_path: Path to original phenotype positions
+        sbs_positions_path: Path to SBS positions
+        transformed_positions_path: Path to transformed phenotype positions
+        alignment_summary_path: Path to alignment summary
+        sample_size: Number of cells to sample for plotting
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure showing alignment progression
+    """
+    # Load data
+    pheno_pos = load_cell_positions(phenotype_positions_path)
+    sbs_pos = load_cell_positions(sbs_positions_path)
+    
+    print(f"Loaded {len(pheno_pos)} phenotype and {len(sbs_pos)} SBS positions")
+    
+    # Sample for plotting
+    if len(pheno_pos) > sample_size:
+        pheno_pos = pheno_pos.sample(n=sample_size)
+    if len(sbs_pos) > sample_size:
+        sbs_pos = sbs_pos.sample(n=sample_size)
+    
+    # Load alignment summary if available
+    alignment_info = {}
+    if alignment_summary_path and Path(alignment_summary_path).exists():
+        summary = load_alignment_summary(alignment_summary_path)
+        alignment_info = summary.get('alignment', {})
+    
+    # Determine number of subplots
+    n_plots = 2
+    if transformed_positions_path and Path(transformed_positions_path).exists():
+        n_plots = 3
+        transformed_pos = load_cell_positions(transformed_positions_path)
+        if len(transformed_pos) > sample_size:
+            transformed_pos = transformed_pos.sample(n=sample_size)
+    
+    fig, axes = plt.subplots(1, n_plots, figsize=figsize)
+    if n_plots == 2:
+        ax1, ax2 = axes
+    else:
+        ax1, ax2, ax3 = axes
+    
+    # Plot 1: Original coordinates
+    ax1.scatter(pheno_pos['j'], pheno_pos['i'], c='red', s=1, alpha=0.6, label='Phenotype')
+    ax1.scatter(sbs_pos['j'], sbs_pos['i'], c='blue', s=1, alpha=0.6, label='SBS')
+    ax1.set_title('Original Coordinates')
+    ax1.set_xlabel('J (pixels)')
+    ax1.set_ylabel('I (pixels)')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Calculate and show coordinate ranges
+    pheno_range_i = (pheno_pos['i'].min(), pheno_pos['i'].max())
+    pheno_range_j = (pheno_pos['j'].min(), pheno_pos['j'].max())
+    sbs_range_i = (sbs_pos['i'].min(), sbs_pos['i'].max())
+    sbs_range_j = (sbs_pos['j'].min(), sbs_pos['j'].max())
+    
+    ax1.text(0.02, 0.98, f'Pheno I: {pheno_range_i[0]:.0f}-{pheno_range_i[1]:.0f}\n'
+                         f'Pheno J: {pheno_range_j[0]:.0f}-{pheno_range_j[1]:.0f}\n'
+                         f'SBS I: {sbs_range_i[0]:.0f}-{sbs_range_i[1]:.0f}\n'
+                         f'SBS J: {sbs_range_j[0]:.0f}-{sbs_range_j[1]:.0f}',
+             transform=ax1.transAxes, verticalalignment='top', 
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+    
+    # Plot 2: After scaling (use transformed if available, otherwise estimate scaling)
+    if 'transformed_pos' in locals():
+        scaled_pos = transformed_pos
+        title2 = 'After Scaling & Transform'
+    else:
+        # Estimate scaling for visualization
+        scale_factor = alignment_info.get('scale_factor', 1.0)
+        scaled_pos = pheno_pos.copy()
+        scaled_pos['i'] = scaled_pos['i'] * scale_factor
+        scaled_pos['j'] = scaled_pos['j'] * scale_factor
+        title2 = f'After Scaling (factor: {scale_factor:.3f})'
+    
+    ax2.scatter(scaled_pos['j'], scaled_pos['i'], c='red', s=1, alpha=0.6, label='Phenotype (scaled)')
+    ax2.scatter(sbs_pos['j'], sbs_pos['i'], c='blue', s=1, alpha=0.6, label='SBS')
+    ax2.set_title(title2)
+    ax2.set_xlabel('J (pixels)')
+    ax2.set_ylabel('I (pixels)')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    # Add alignment info if available
+    if alignment_info:
+        info_text = f"Score: {alignment_info.get('score', 0):.3f}\n"
+        info_text += f"Det: {alignment_info.get('determinant', 1):.3f}\n"
+        info_text += f"Type: {alignment_info.get('transformation_type', 'unknown')}"
+        
+        ax2.text(0.02, 0.98, info_text,
+                transform=ax2.transAxes, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
+    
+    # Plot 3: Final transformation (if available)
+    if n_plots == 3 and 'transformed_pos' in locals():
+        ax3.scatter(transformed_pos['j'], transformed_pos['i'], c='red', s=1, alpha=0.6, label='Phenotype (final)')
+        ax3.scatter(sbs_pos['j'], sbs_pos['i'], c='blue', s=1, alpha=0.6, label='SBS')
+        ax3.set_title('After Full Transformation')
+        ax3.set_xlabel('J (pixels)')
+        ax3.set_ylabel('I (pixels)')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # Calculate overlap
+        trans_range_i = (transformed_pos['i'].min(), transformed_pos['i'].max())
+        trans_range_j = (transformed_pos['j'].min(), transformed_pos['j'].max())
+        
+        overlap_i = max(0, min(trans_range_i[1], sbs_range_i[1]) - max(trans_range_i[0], sbs_range_i[0]))
+        overlap_j = max(0, min(trans_range_j[1], sbs_range_j[1]) - max(trans_range_j[0], sbs_range_j[0]))
+        
+        total_i = max(trans_range_i[1], sbs_range_i[1]) - min(trans_range_i[0], sbs_range_i[0])
+        total_j = max(trans_range_j[1], sbs_range_j[1]) - min(trans_range_j[0], sbs_range_j[0])
+        
+        overlap_fraction = (overlap_i * overlap_j) / (total_i * total_j) if total_i > 0 and total_j > 0 else 0
+        
+        ax3.text(0.02, 0.98, f'Overlap: {overlap_fraction:.1%}',
+                transform=ax3.transAxes, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.8))
+    
+    plt.tight_layout()
+    return fig
+
+
+def get_merge_file_paths(plate: str, well: str, root_fp: str) -> Dict[str, Path]:
+    """Get file paths using the same structure as the pipeline.
+    
+    Matches the approach used in run_well_alignment_qc and other pipeline functions.
+    
+    Args:
+        plate: Plate identifier
+        well: Well identifier
+        root_fp: Root file path for the project
+        
+    Returns:
+        Dictionary with all relevant file paths
+    """
+    try:
+        from lib.shared.file_utils import get_filename
+        
+        root_path = Path(root_fp)
+        merge_fp = root_path / "merge"
+        
+        # Build wildcards dict for filename generation
+        wildcards = {"plate": plate, "well": well}
+        
+        paths = {
+            # Stitched images
+            "phenotype_image": merge_fp / "stitched_images" / get_filename(wildcards, "phenotype_stitched_image", "npy"),
+            "sbs_image": merge_fp / "stitched_images" / get_filename(wildcards, "sbs_stitched_image", "npy"),
+            
+            # Stitched masks
+            "phenotype_mask": merge_fp / "stitched_masks" / get_filename(wildcards, "phenotype_stitched_mask", "npy"),
+            "sbs_mask": merge_fp / "stitched_masks" / get_filename(wildcards, "sbs_stitched_mask", "npy"),
+            
+            # Cell positions
+            "phenotype_positions": merge_fp / "cell_positions" / get_filename(wildcards, "phenotype_cell_positions", "parquet"),
+            "sbs_positions": merge_fp / "cell_positions" / get_filename(wildcards, "sbs_cell_positions", "parquet"),
+            
+            # Well alignment outputs
+            "phenotype_scaled": merge_fp / "well_alignment" / get_filename(wildcards, "phenotype_scaled", "parquet"),
+            "phenotype_triangles": merge_fp / "well_alignment" / get_filename(wildcards, "phenotype_triangles", "parquet"),
+            "sbs_triangles": merge_fp / "well_alignment" / get_filename(wildcards, "sbs_triangles", "parquet"),
+            "alignment_params": merge_fp / "well_alignment" / get_filename(wildcards, "alignment", "parquet"),
+            "alignment_summary": merge_fp / "well_alignment" / get_filename(wildcards, "alignment_summary", "yaml"),
+            "phenotype_transformed": merge_fp / "well_alignment" / get_filename(wildcards, "phenotype_transformed", "parquet"),
+            
+            # Well cell merge outputs  
+            "raw_matches": merge_fp / "well_cell_merge" / get_filename(wildcards, "raw_matches", "parquet"),
+            "merged_cells": merge_fp / "well_cell_merge" / get_filename(wildcards, "merged_cells", "parquet"),
+            "merge_summary": merge_fp / "well_cell_merge" / get_filename(wildcards, "merge_summary", "yaml"),
+            
+            # Deduplication outputs
+            "deduplicated_cells": merge_fp / "well_merge_deduplicate" / get_filename(wildcards, "deduplicated_cells", "parquet"),
+            "dedup_summary": merge_fp / "well_merge_deduplicate" / get_filename(wildcards, "dedup_summary", "yaml"),
+        }
+        
+    except ImportError:
+        # Fallback to manual path construction if file_utils not available
+        print("Warning: lib.shared.file_utils not available, using manual path construction")
+        
+        root_path = Path(root_fp)
+        merge_fp = root_path / "merge"
+        prefix = f"P-{plate}_W-{well}__"
+        
+        paths = {
+            # Stitched images
+            "phenotype_image": merge_fp / "stitched_images" / f"{prefix}phenotype_stitched_image.npy",
+            "sbs_image": merge_fp / "stitched_images" / f"{prefix}sbs_stitched_image.npy",
+            
+            # Stitched masks
+            "phenotype_mask": merge_fp / "stitched_masks" / f"{prefix}phenotype_stitched_mask.npy",
+            "sbs_mask": merge_fp / "stitched_masks" / f"{prefix}sbs_stitched_mask.npy",
+            
+            # Cell positions
+            "phenotype_positions": merge_fp / "cell_positions" / f"{prefix}phenotype_cell_positions.parquet",
+            "sbs_positions": merge_fp / "cell_positions" / f"{prefix}sbs_cell_positions.parquet",
+            
+            # Well alignment outputs
+            "phenotype_scaled": merge_fp / "well_alignment" / f"{prefix}phenotype_scaled.parquet",
+            "phenotype_triangles": merge_fp / "well_alignment" / f"{prefix}phenotype_triangles.parquet",
+            "sbs_triangles": merge_fp / "well_alignment" / f"{prefix}sbs_triangles.parquet",
+            "alignment_params": merge_fp / "well_alignment" / f"{prefix}alignment.parquet",
+            "alignment_summary": merge_fp / "well_alignment" / f"{prefix}alignment_summary.yaml",
+            "phenotype_transformed": merge_fp / "well_alignment" / f"{prefix}phenotype_transformed.parquet",
+            
+            # Well cell merge outputs  
+            "raw_matches": merge_fp / "well_cell_merge" / f"{prefix}raw_matches.parquet",
+            "merged_cells": merge_fp / "well_cell_merge" / f"{prefix}merged_cells.parquet",
+            "merge_summary": merge_fp / "well_cell_merge" / f"{prefix}merge_summary.yaml",
+            
+            # Deduplication outputs
+            "deduplicated_cells": merge_fp / "well_merge_deduplicate" / f"{prefix}deduplicated_cells.parquet",
+            "dedup_summary": merge_fp / "well_merge_deduplicate" / f"{prefix}dedup_summary.yaml",
+        }
+    
+    return paths
+
+
+def analyze_well_merge(plate: str, well: str, root_fp: str, region: Optional[Tuple[int, int, int, int]] = None):
+    """Comprehensive analysis of a well merge result using pipeline file structure.
+    
+    Args:
+        plate: Plate identifier
+        well: Well identifier  
+        root_fp: Root file path for the project (same as used in pipeline)
+        region: Optional region to focus analysis on (i_min, i_max, j_min, j_max)
+    """
+    print(f"=== ANALYZING WELL MERGE: {plate}_{well} ===")
+    
+    # Get file paths using pipeline structure
+    paths = get_merge_file_paths(plate, well, root_fp)
+    
+    # Check which files exist
+    existing_files = []
+    for name, path in paths.items():
+        if path.exists():
+            existing_files.append(name)
+            print(f"✅ Found: {name}")
+        else:
+            print(f"❌ Missing: {name}")
+    
+    if not existing_files:
+        print("❌ No merge files found! Check your paths.")
+        return
+    
+    # Use the specified sampling region if provided, otherwise use default
+    if region is None:
+        region = (9764, 16764, 9810, 16810)  # Your specified sampling region
+        print(f"Using default sampling region: i=[{region[0]}, {region[1]}], j=[{region[2]}, {region[3]}]")
+    else:
+        print(f"Using custom region: i=[{region[0]}, {region[1]}], j=[{region[2]}, {region[3]}]")
+    
+    # 1. Show alignment overview if position files exist
+    if all(f in existing_files for f in ["phenotype_positions", "sbs_positions"]):
+        print("\n--- PLOTTING ALIGNMENT OVERVIEW ---")
+        try:
+            fig1 = plot_alignment_overview(
+                str(paths["phenotype_positions"]), 
+                str(paths["sbs_positions"]),
+                str(paths["phenotype_transformed"]) if "phenotype_transformed" in existing_files else None,
+                str(paths["alignment_summary"]) if "alignment_summary" in existing_files else None
+            )
+            fig1.suptitle(f'Alignment Overview - {plate}_{well}')
+            plt.show()
+        except Exception as e:
+            print(f"❌ Error plotting alignment overview: {e}")
+    
+    # 2. Compare modality images if they exist
+    if all(f in existing_files for f in ["phenotype_image", "sbs_image", "phenotype_positions", "sbs_positions"]):
+        print("\n--- COMPARING MODALITY IMAGES ---")
+        try:
+            fig2 = compare_modality_images(
+                str(paths["phenotype_image"]), 
+                str(paths["sbs_image"]),
+                str(paths["phenotype_positions"]), 
+                str(paths["sbs_positions"]),
+                str(paths["alignment_summary"]) if "alignment_summary" in existing_files else None,
+                region=region,
+                color_by_stitched_id=True  # Color by stitched_cell_id
+            )
+            fig2.suptitle(f'Modality Comparison - {plate}_{well} - Region: i=[{region[0]}, {region[1]}], j=[{region[2]}, {region[3]}]')
+            plt.show()
+        except Exception as e:
+            print(f"❌ Error comparing modality images: {e}")
+    
+    # 3. Show matched cells if merge results exist
+    if all(f in existing_files for f in ["merged_cells", "phenotype_image", "sbs_image"]):
+        print("\n--- VISUALIZING MATCHED CELLS ---")
+        try:
+            fig3 = visualize_matched_cells(
+                str(paths["phenotype_image"]), 
+                str(paths["sbs_image"]),
+                str(paths["merged_cells"]), 
+                region=region,
+                max_distance=20.0  # Show matches up to 20px
+            )
+            fig3.suptitle(f'Matched Cells - {plate}_{well} - Region: i=[{region[0]}, {region[1]}], j=[{region[2]}, {region[3]}]')
+            plt.show()
+        except Exception as e:
+            print(f"❌ Error visualizing matched cells: {e}")
+    
+    # 4. Show individual images with higher detail if requested
+    if "phenotype_image" in existing_files:
+        print("\n--- DETAILED PHENOTYPE VIEW ---")
+        try:
+            fig4 = view_stitched_region(
+                str(paths["phenotype_image"]),
+                str(paths["phenotype_positions"]) if "phenotype_positions" in existing_files else None,
+                region=region,
+                cell_color='red',
+                color_by_stitched_id=True,  # Color by stitched_cell_id
+                cell_size=8,
+                title=f'Phenotype Stitched Image - {plate}_{well}',
+                figsize=(12, 10)
+            )
+            plt.show()
+        except Exception as e:
+            print(f"❌ Error showing phenotype image: {e}")
+    
+    if "sbs_image" in existing_files:
+        print("\n--- DETAILED SBS VIEW ---")
+        try:
+            fig5 = view_stitched_region(
+                str(paths["sbs_image"]),
+                str(paths["sbs_positions"]) if "sbs_positions" in existing_files else None,
+                region=region,
+                cell_color='blue',
+                color_by_stitched_id=True,  # Color by stitched_cell_id
+                cell_size=8,
+                title=f'SBS Stitched Image - {plate}_{well}',
+                figsize=(12, 10)
+            )
+            plt.show()
+        except Exception as e:
+            print(f"❌ Error showing SBS image: {e}")
+    
+    # 5. Print summary statistics if available
+    if "merge_summary" in existing_files:
+        print("\n--- MERGE SUMMARY ---")
+        try:
+            summary = load_alignment_summary(str(paths["merge_summary"]))
+            if 'matching_results' in summary:
+                results = summary['matching_results']
+                print(f"Raw matches found: {results.get('raw_matches_found', 0):,}")
+                print(f"Mean match distance: {results.get('mean_match_distance', 0):.1f}px")
+                print(f"Matches under 5px: {results.get('matches_under_5px', 0):,}")
+                print(f"Matches under 10px: {results.get('matches_under_10px', 0):,}")
+                print(f"Phenotype match rate: {results.get('match_rate_phenotype', 0):.1%}")
+                print(f"SBS match rate: {results.get('match_rate_sbs', 0):.1%}")
+        except Exception as e:
+            print(f"❌ Error reading merge summary: {e}")
+    
+    print(f"\n🎉 Analysis complete for {plate}_{well}!")
+
+
+def quick_well_analysis(plate: str, well: str, root_fp: str):
+    """Quick analysis using the standard sampling region."""
+    analyze_well_merge(plate, well, root_fp, region=(9764, 16764, 9810, 16810))
+
+
+# Now include all the original functions that were cut off in the formatting
+
+def plot_sbs_ph_matching_heatmap(
+    df_merge,
+    df_info,
+    target="sbs",
+    shape="square",
+    plate="6W",
+    return_plot=True,
+    return_summary=False,
+    **kwargs,
+):
+    """Plots the rate of matching segmented cells between phenotype and SBS datasets by well and tile in a convenient plate layout.
+
+    Args:
+        df_merge: DataFrame of all matched cells, e.g., concatenated outputs for all tiles and wells
+            of merge_triangle_hash. Expects 'tile' and 'cell_0' columns to correspond to phenotype data and
+            'site', 'cell_1' columns to correspond to SBS data.
+        df_info: DataFrame of all cells segmented from either phenotype or SBS images, e.g., concatenated outputs for all tiles
+            and wells of extract_phenotype_minimal(data_phenotype=nulcei, nuclei=nuclei), often used as `sbs_cell_info`
+            rule in Snakemake.
+        target: Which dataset to use as the target, e.g., if target='sbs', plots the fraction of cells in each SBS tile
+            that match to a phenotype cell. Should match the information stored in df_info; if df_info is a table of all
+            segmented cells from SBS tiles, then target should be set as 'sbs'.
+        shape: Shape of subplot for each well used in `plot_plate_heatmap`. Defaults to 'square' and infers shape based on
+            the value of `target`.
+        plate: Plate type for `plot_plate_heatmap`, options are {'6W', '24W', '96W'}.
+        return_plot: If True, returns `df_summary`.
+        return_summary: If True, returns `df_summary`.
+        **kwargs: Additional keyword arguments passed to `plot_plate_heatmap()`.
+
+    Returns:
+        df_summary: DataFrame used for plotting, returned if `return_summary=True`.
+        axes: Numpy array of matplotlib Axes objects.
+    """
+    # Determine the merge columns and source based on the target
+    if target == "sbs":
+        merge_cols = ["site", "cell_1"]
+        source = "phenotype"
+        # Determine the default shape if not provided
+        if not shape:
+            shape = "6W_sbs"
+    elif target == "phenotype":
+        merge_cols = ["tile", "cell_0"]
+        source = "sbs"
+        # Determine the default shape if not provided
+        if not shape:
+            shape = "6W_ph"
+    else:
+        raise ValueError("target = {} not implemented".format(target))
+
+    # Calculate the summary dataframe
+    df_summary = (
+        df_info.rename(columns={"tile": merge_cols[0], "cell": merge_cols[1]})[
+            ["well"] + merge_cols
+        ]
+        .merge(
+            df_merge[["well"] + merge_cols + ["distance"]],
+            how="left",
+            on=["well"] + merge_cols,
+        )
+        .assign(matched=lambda x: x["distance"].notna())
+        .groupby(["well"] + merge_cols[:1])["matched"]
+        .value_counts(normalize=True)
+        .rename("fraction of {} cells matched to {} cells".format(target, source))
+        .to_frame()
+        .reset_index()
+        .query("matched==True")
+        .drop(columns="matched")
+        .rename(columns={merge_cols[0]: "tile"})
+    )
+
+    if return_summary and return_plot:
+        # Plot heatmap
+        axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        return df_summary, axes[0]
+    elif return_plot:
+        # Plot heatmap
+        axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        return axes[0]
+    elif return_summary:
+        return df_summary
+    else:
+        return None
+
+
+def plot_channel_histogram(df_before, df_after, channel_min_cutoff=0):
+    """Generates a histogram of channel values with raw counts and consistent bin edges.
+
+    Args:
+        df_before: DataFrame containing channel values before cleaning.
+        df_after: DataFrame containing channel values after cleaning.
+        channel_min_cutoff: Threshold value to mark with a red vertical line. Defaults to 0.
+
+    Returns:
+        The generated matplotlib figure object.
+    """
+    fig = plt.figure(figsize=(10, 6))
+
+    # Calculate bin edges based on the full range of data
+    min_val = min(df_before["channels_min"].min(), df_after["channels_min"].min())
+    max_val = max(df_before["channels_min"].max(), df_after["channels_min"].max())
+    bins = np.linspace(min_val, max_val, 201)  # 201 edges make 200 bins
+
+    # Plot histograms with raw counts instead of density
+    plt.hist(
+        df_before["channels_min"].dropna(),
+        bins=bins,
+        color="blue",
+        alpha=0.5,
+        label="Before clean",
+    )
+    plt.hist(
+        df_after["channels_min"].dropna(),
+        bins=bins,
+        color="orange",
+        alpha=0.5,
+        label="After clean",
+    )
+
+    # Add vertical line for channel_min_cutoff
+    plt.axvline(channel_min_cutoff, color="red", linestyle="--", label="Cutoff")
+
+    plt.title("Histogram of channels_min Values")
+    plt.xlabel("channels_min")
+    plt.ylabel("Count")
+    plt.legend()
+    return fig
+
+
+def plot_cell_positions(df_merge, title, color=None, hue="channels_min"):
+    """Generates a scatter plot of cell positions in the i_0, j_0 coordinate space.
+
+    Args:
+        df_merge: DataFrame containing cell position data with i_0, j_0 columns.
+        title: Plot title.
+        color: Fixed color for all points. If specified, overrides hue.
+        hue: Column name for color variation. Defaults to 'channels_min'.
+
+    Returns:
+        The generated matplotlib figure object.
+    """
+    fig = plt.figure(figsize=(20, 20))
+
+    # Plot scatter with either fixed color or hue-based coloring
+    if color is not None:
+        sns.scatterplot(data=df_merge, x="i_0", y="j_0", color=color, alpha=0.5)
+    else:
+        sns.scatterplot(data=df_merge, x="i_0", y="j_0", hue=hue, alpha=0.5)
+
+    plt.title(title)
+    plt.xlabel("i_0")
+    plt.ylabel("j_0")
+    return fig
+
+
+# Additional utility functions for completeness
+
+def batch_qc_report(base_path, plate_wells):
+    """Generate QC reports for multiple wells.
+
+    Parameters:
+    -----------
+    base_path : str
+        Path to analysis outputs
+    plate_wells : list of tuples
+        [(plate1, well1), (plate2, well2), ...]
+    """
+    print("BATCH QC REPORT")
+    print("=" * 60)
+
+    summary = []
+
+    for plate, well in plate_wells:
+        # Use the analyze_well_merge function instead of StitchQC for simplicity
+        try:
+            paths = get_merge_file_paths(str(plate), well, base_path)
+            
+            # Quick file check
+            ph_exists = paths["phenotype_positions"].exists()
+            sbs_exists = paths["sbs_positions"].exists()
+
+            ph_count = 0
+            sbs_count = 0
+
+            if ph_exists:
+                ph_count = len(pd.read_parquet(paths["phenotype_positions"]))
+            if sbs_exists:
+                sbs_count = len(pd.read_parquet(paths["sbs_positions"]))
+
+            summary.append(
+                {
+                    "plate": plate,
+                    "well": well,
+                    "ph_exists": ph_exists,
+                    "sbs_exists": sbs_exists,
+                    "ph_cells": ph_count,
+                    "sbs_cells": sbs_count,
+                    "status": "OK"
+                    if ph_exists and sbs_exists and ph_count > 0 and sbs_count > 0
+                    else "ISSUE",
+                }
+            )
+        except Exception as e:
+            print(f"Error processing {plate}_{well}: {e}")
+            summary.append(
+                {
+                    "plate": plate,
+                    "well": well,
+                    "ph_exists": False,
+                    "sbs_exists": False,
+                    "ph_cells": 0,
+                    "sbs_cells": 0,
+                    "status": "ERROR",
+                }
+            )
+
+    summary_df = pd.DataFrame(summary)
+    print(summary_df.to_string(index=False))
+
+    return summary_df
+
+
+# Enable interactive backend
+plt.ion()  # Turn on interactive mode
+
+
+# Example usage:
+"""
+# Comprehensive well merge analysis
+analyze_well_merge('1', 'B2', '/path/to/project/root')
+
+# Quick analysis with default region  
+quick_well_analysis('1', 'B2', '/path/to/project/root')
+
+# Custom region analysis
+analyze_well_merge('1', 'B2', '/path/to/project/root', region=(5000, 10000, 5000, 10000))
+
+# Batch QC
+wells_to_check = [(1, 'A01'), (1, 'A02'), (1, 'B01')]
+summary = batch_qc_report('/path/to/analysis/merge', wells_to_check)
+"""

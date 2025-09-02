@@ -1174,6 +1174,7 @@ class StitchQC:
     def view_mask_region(self, center_row, center_col, size=1000, modality="phenotype"):
         """
         View a square region from the stitched mask for the given modality.
+        Now handles coordinates consistently with view_region.
 
         Parameters
         ----------
@@ -1184,6 +1185,7 @@ class StitchQC:
         modality : str, default "phenotype"
             Which mask to view: "phenotype" or "sbs"
         """
+        # Calculate region bounds (same as view_region)
         half_size = size // 2
         start_i = center_row - half_size
         end_i = center_row + half_size
@@ -1203,22 +1205,81 @@ class StitchQC:
             print(f"❌ Mask file not found: {mask_path}")
             return
 
-        # Load mask (np.load works because your masks are .npy)
+        print(f"Viewing {size}x{size} mask region centered at ({center_row}, {center_col})")
+        print(f"Region bounds: [{start_i}:{end_i}, {start_j}:{end_j}]")
+
+        # Load mask using memory mapping (consistent with image loading approach)
         mask = np.load(mask_path, mmap_mode="r")
+        print(f"Mask shape: {mask.shape}")
 
-        # Clip region safely to array bounds
-        start_i = max(0, start_i)
-        end_i = min(mask.shape[0], end_i)
-        start_j = max(0, start_j)
-        end_j = min(mask.shape[1], end_j)
+        # Validate and clip region bounds to mask dimensions (EXACT same logic as image functions)
+        start_i = max(0, min(start_i, mask.shape[0]))
+        end_i = max(start_i, min(end_i, mask.shape[0]))
+        start_j = max(0, min(start_j, mask.shape[1]))
+        end_j = max(start_j, min(end_j, mask.shape[1]))
 
-        region = mask[start_i:end_i, start_j:end_j]
+        # Extract region (now using numpy array conversion for consistency)
+        region = np.array(mask[start_i:end_i, start_j:end_j])
+        
+        print(f"Extracted region shape: {region.shape}")
+        print(f"Unique mask values: {np.unique(region)[:10]}...")  # Show first 10 unique values
 
-        plt.figure(figsize=(6, 6))
-        plt.imshow(region, cmap="nipy_spectral", interpolation="nearest")
-        plt.title(f"{title}\nCenter=({center_row},{center_col}), Size={region.shape}")
-        plt.axis("off")
+        # Create visualization
+        fig, ax = plt.subplots(figsize=(8, 8))
+        
+        # Use appropriate colormap and display settings for masks
+        im = ax.imshow(region, cmap="nipy_spectral", interpolation="nearest")
+        ax.set_title(f"{title}\nCenter: ({center_row}, {center_col}), Actual region: {region.shape}\n"
+                    f"Bounds: [{start_i}:{end_i}, {start_j}:{end_j}]")
+        ax.axis("off")
+        
+        # Add colorbar to show cell ID scale
+        cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+        cbar.set_label('Cell ID', rotation=270, labelpad=20)
+        
+        plt.tight_layout()
         plt.show()
+        
+        # Return the region for further analysis if needed
+        return region
+    
+
+    def get_mask_info(self, modality="phenotype"):
+        """
+        Get basic information about a mask including dimensions and suggested viewing coordinates.
+        
+        Parameters
+        ----------
+        modality : str, default "phenotype"
+            Which mask to examine: "phenotype" or "sbs"
+            
+        Returns
+        -------
+        dict : Information about the mask
+        """
+        if modality == "phenotype":
+            mask_path = self.phenotype_mask
+        elif modality == "sbs":
+            mask_path = self.sbs_mask
+        else:
+            raise ValueError("modality must be 'phenotype' or 'sbs'")
+        
+        if not mask_path.exists():
+            print(f"❌ Mask file not found: {mask_path}")
+            return None
+        
+        # Load mask header info without loading full array
+        mask = np.load(mask_path, mmap_mode='r')
+        
+        info = {
+            'shape': mask.shape,
+            'center': (mask.shape[0] // 2, mask.shape[1] // 2),
+            'max_region_size': min(mask.shape) // 2,
+            'path': mask_path
+        }
+        
+        print(f"📐 Mask shape: {info['shape']}, Center: {info['center']}, Max region size: {info['max_region_size']}")
+        return info
 
 
 # Enable interactive backend

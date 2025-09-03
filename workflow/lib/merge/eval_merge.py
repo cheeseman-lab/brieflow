@@ -4513,8 +4513,7 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
         print(f"   Total phenotype cells (transformed): {len(site_phenotype)}")
         print(f"   Total SBS cells: {len(site_sbs)}")
         
-        # REVISED: Use stitched_cell_id for matching instead of cell IDs
-        # Note: _0 columns = PHENOTYPE, _1 columns = SBS
+
         
         # For phenotype: match using stitched_cell_id_0 from raw_matches vs stitched_cell_id from phenotype_transformed
         if 'stitched_cell_id_0' not in filtered_merged.columns:
@@ -4526,9 +4525,7 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
             return None
         
         matched_phenotype_stitched_ids = set(filtered_merged['stitched_cell_id_0'].dropna().unique())
-        unmatched_phenotype = site_phenotype[
-            ~site_phenotype['stitched_cell_id'].isin(matched_phenotype_stitched_ids)
-        ].copy()
+        unmatched_phenotype = site_phenotype[~site_phenotype['stitched_cell_id'].isin(matched_phenotype_stitched_ids)].copy()
         
         # For SBS: match using stitched_cell_id_1 from raw_matches vs stitched_cell_id from sbs_positions
         if 'stitched_cell_id_1' not in filtered_merged.columns:
@@ -4540,9 +4537,7 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
             return None
             
         matched_sbs_stitched_ids = set(filtered_merged['stitched_cell_id_1'].dropna().unique())
-        unmatched_sbs = site_sbs[
-            ~site_sbs['stitched_cell_id'].isin(matched_sbs_stitched_ids)
-        ].copy()
+        unmatched_sbs = site_sbs[~site_sbs['stitched_cell_id'].isin(matched_sbs_stitched_ids)].copy()
         
         print(f"   Unmatched phenotype cells: {len(unmatched_phenotype)}")
         print(f"   Unmatched SBS cells: {len(unmatched_sbs)}")
@@ -4580,8 +4575,8 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
             display_sections.append(('MATCHED CELLS', display_matched, len(filtered_merged)))
         
         # 2. Unmatched phenotype cells
-        if len(unmatched_phenotype) > 0:
-            display_unmatched_ph = unmatched_phenotype.head(max_display_rows // 3) if len(unmatched_phenotype) > max_display_rows // 3 else unmatched_phenotype
+        if len(site_phenotype) > 0:
+            display_unmatched_ph = site_phenotype.head(max_display_rows // 3) if len(site_phenotype) > max_display_rows // 3 else site_phenotype
             # Standardize columns to match merged data format
             unmatched_ph_display = pd.DataFrame({
                 'plate': plate,
@@ -4599,13 +4594,13 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
                 'distance': pd.NA,
                 'stitched_cell_id_0': display_unmatched_ph['stitched_cell_id'],
                 'stitched_cell_id_1': pd.NA,
-                'match_status': 'UNMATCHED_PHENOTYPE'
+                'match_status': 'RAW_PHENOTYPE'
             })
-            display_sections.append(('UNMATCHED PHENOTYPE CELLS', unmatched_ph_display, len(unmatched_phenotype)))
+            display_sections.append(('RAW PHENOTYPE CELLS', unmatched_ph_display, len(site_phenotype)))
         
         # 3. Unmatched SBS cells
-        if len(unmatched_sbs) > 0:
-            display_unmatched_sbs = unmatched_sbs.head(max_display_rows // 3) if len(unmatched_sbs) > max_display_rows // 3 else unmatched_sbs
+        if len(site_sbs) > 0:
+            display_unmatched_sbs = site_sbs.head(max_display_rows // 3) if len(site_sbs) > max_display_rows // 3 else site_sbs
             # Standardize columns to match merged data format
             unmatched_sbs_display = pd.DataFrame({
                 'plate': plate,
@@ -4623,9 +4618,9 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
                 'distance': pd.NA,
                 'stitched_cell_id_0': pd.NA,
                 'stitched_cell_id_1': display_unmatched_sbs['stitched_cell_id'],
-                'match_status': 'UNMATCHED_SBS'
+                'match_status': 'RAW_SBS'
             })
-            display_sections.append(('UNMATCHED SBS CELLS', unmatched_sbs_display, len(unmatched_sbs)))
+            display_sections.append(('RAW SBS CELLS', unmatched_sbs_display, len(unmatched_sbs)))
         
         # Display each section
         display_columns = [
@@ -4669,8 +4664,15 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
         print("\n" + "="*160)
         
         # Create enhanced visualization
-        create_enhanced_match_visualization(filtered_merged, unmatched_phenotype, unmatched_sbs, 
-                                          selected_site, distance_threshold)
+        create_enhanced_match_visualization(
+            matched_data=filtered_merged,
+            site_phenotype=site_phenotype,
+            site_sbs=site_sbs,
+            unmatched_phenotype=unmatched_phenotype,
+            unmatched_sbs=unmatched_sbs,
+            site=selected_site,
+            distance_threshold=distance_threshold
+        )
         
         # Return summary statistics
         summary_stats = {
@@ -4696,12 +4698,15 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
         return None
 
 
-def create_enhanced_match_visualization(matched_data, unmatched_phenotype, unmatched_sbs, 
-                                      site, distance_threshold):
+def create_enhanced_match_visualization(matched_data, site_phenotype, site_sbs,
+                                        unmatched_phenotype, unmatched_sbs,
+                                        site, distance_threshold):
     """Create enhanced visualization showing matched and unmatched cells.
     
     Args:
         matched_data (pd.DataFrame): Matched cell data
+        site_phenotype (pd.DataFrame): Raw phenotype cells
+        site_sbs (pd.DataFrame): Raw SBS cells
         unmatched_phenotype (pd.DataFrame): Unmatched phenotype cells
         unmatched_sbs (pd.DataFrame): Unmatched SBS cells
         site (str): Site name for title
@@ -4736,17 +4741,17 @@ def create_enhanced_match_visualization(matched_data, unmatched_phenotype, unmat
     ax2 = axes[0, 1]
     
     # Plot unmatched cells first (so matched cells appear on top)
-    if len(unmatched_phenotype) > 0:
-        sample_size = min(2000, len(unmatched_phenotype))  # Limit for performance
-        sample_ph = unmatched_phenotype.sample(n=sample_size) if len(unmatched_phenotype) > sample_size else unmatched_phenotype
+    if len(site_phenotype) > 0:
+        sample_size = min(2000, len(site_phenotype))  # Limit for performance
+        sample_ph = site_phenotype.sample(n=sample_size) if len(site_phenotype) > sample_size else site_phenotype
         ax2.scatter(sample_ph['j'], sample_ph['i'], c='lightcoral', s=8, alpha=0.4, 
-                   label=f'Unmatched Phenotype ({len(unmatched_phenotype)})')
+                   label=f'Raw Phenotype ({len(site_phenotype)})')
     
-    if len(unmatched_sbs) > 0:
-        sample_size = min(2000, len(unmatched_sbs))
-        sample_sbs = unmatched_sbs.sample(n=sample_size) if len(unmatched_sbs) > sample_size else unmatched_sbs
+    if len(site_sbs) > 0:
+        sample_size = min(2000, len(site_sbs))
+        sample_sbs = site_sbs.sample(n=sample_size) if len(site_sbs) > sample_size else site_sbs
         ax2.scatter(sample_sbs['j'], sample_sbs['i'], c='lightblue', s=8, alpha=0.4, 
-                   label=f'Unmatched SBS ({len(unmatched_sbs)})')
+                   label=f'Raw SBS ({len(site_sbs)})')
     
     # Plot matched cells on top with borders
     if len(matched_data) > 0:
@@ -4768,12 +4773,12 @@ def create_enhanced_match_visualization(matched_data, unmatched_phenotype, unmat
     # 3. Match quality pie chart
     ax3 = axes[1, 0]
     
-    total_phenotype = len(unmatched_phenotype) + len(matched_data)
-    total_sbs = len(unmatched_sbs) + len(matched_data)
+    total_phenotype = len(site_phenotype)
+    total_sbs = len(site_sbs)
     
     # Show phenotype matching breakdown
     labels = ['Matched', 'Unmatched']
-    sizes = [len(matched_data), len(unmatched_phenotype)]
+    sizes = [len(matched_data), len(site_phenotype)]
     colors = ['#2ecc71', '#e74c3c']
     
     if sum(sizes) > 0:
@@ -4794,7 +4799,7 @@ def create_enhanced_match_visualization(matched_data, unmatched_phenotype, unmat
         ['Metric', 'Phenotype', 'SBS'],
         ['Total Cells', f'{total_phenotype}', f'{total_sbs}'],
         ['Matched Cells', f'{len(matched_data)}', f'{len(matched_data)}'],
-        ['Unmatched Cells', f'{len(unmatched_phenotype)}', f'{len(unmatched_sbs)}'],
+        ['Unmatched Cells', f'{len(site_phenotype)}', f'{len(site_sbs)}'],
         ['Match Rate', f'{len(matched_data)/total_phenotype:.1%}' if total_phenotype > 0 else 'N/A',
          f'{len(matched_data)/total_sbs:.1%}' if total_sbs > 0 else 'N/A']
     ]
@@ -4805,8 +4810,9 @@ def create_enhanced_match_visualization(matched_data, unmatched_phenotype, unmat
             ['Mean Distance', f'{distances.mean():.1f}px', ''],
             ['Median Distance', f'{distances.median():.1f}px', ''],
             ['Excellent (≤2px)', f'{(distances <= 2).sum()}', ''],
-            ['Good (≤5px)', f'{(distances <= 5).sum()}', ''],
-            ['Fair (≤10px)', f'{(distances <= 10).sum()}', '']
+            ['Very Good (≤5px)', f'{(distances <= 5).sum()}', ''],
+            ['Good (≤10px)', f'{(distances <= 10).sum()}', ''],
+            ['Fair (≤15px)', f'{(distances > 10).sum()}', ''],
         ])
     
     # Create table

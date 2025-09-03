@@ -386,8 +386,9 @@ def display_well_alignment_summary(alignment_data):
     print("=" * 60)
 
 
-def run_well_alignment_qc(root_fp, plate, well, det_range, score, threshold):
-    """Run complete QC visualization for a well alignment.
+def run_well_alignment_qc(root_fp, plate, well, det_range, score, threshold, 
+                          selected_site=None, distance_threshold=15.0, max_display_rows=1000):
+    """Run complete QC visualization for a well alignment with merged cells display.
     
     Args:
         root_fp (str/Path): Root analysis directory
@@ -396,6 +397,9 @@ def run_well_alignment_qc(root_fp, plate, well, det_range, score, threshold):
         det_range (tuple): Determinant range from config
         score (float): Score threshold from config
         threshold (float): Distance threshold from config
+        selected_site (str, optional): Specific site to display merged cells for
+        distance_threshold (float): Maximum distance to show matches (default 15.0)
+        max_display_rows (int): Maximum number of rows to display (default 1000)
     """
     print(f"Running Well Alignment QC for Plate {plate}, Well {well}")
     print("-" * 60)
@@ -410,7 +414,285 @@ def run_well_alignment_qc(root_fp, plate, well, det_range, score, threshold):
     print("\n2. Plotting merge example with regional sampling...")
     plot_well_merge_example(alignment_data, threshold=threshold, sample_size=1000)
     
+    # NEW: Display merged cells data instead of simulated regional sampling
+    print("\n3. Displaying merged cell matches...")
+    display_merged_cells_for_site(root_fp, plate, well, selected_site, distance_threshold, max_display_rows)
+    
     return alignment_data
+
+
+def display_merged_cells_for_site(root_fp, plate, well, selected_site=None, 
+                                 distance_threshold=15.0, max_display_rows=1000):
+    """Display merged cell data from the actual parquet file.
+    
+    Args:
+        root_fp (str/Path): Root analysis directory
+        plate (str): Plate identifier  
+        well (str): Well identifier
+        selected_site (str, optional): Site to filter by (if None, shows first available site)
+        distance_threshold (float): Maximum distance to show matches
+        max_display_rows (int): Maximum rows to display for performance
+    """
+    from pathlib import Path
+    import pandas as pd
+    
+    # Construct path to merged cells file
+    root_path = Path(root_fp)
+    merge_fp = root_path / "merge"
+    merged_cells_path = merge_fp / "well_cell_merge" / f"P-{plate}_W-{well}__raw_matches.parquet"
+    
+    if not merged_cells_path.exists():
+        print(f"❌ Merged cells file not found: {merged_cells_path}")
+        print("   Make sure well cell merging has been completed for this plate/well")
+        return
+    
+    try:
+        # Load merged cells data
+        print(f"📁 Loading merged cells data from: {merged_cells_path}")
+        merged_df = pd.read_parquet(merged_cells_path)
+        print(f"✅ Loaded {len(merged_df)} total cell matches")
+        
+        # Get available sites
+        available_sites = sorted(merged_df['site'].unique()) if 'site' in merged_df.columns else []
+        print(f"📍 Available sites: {available_sites}")
+        
+        # Select site to display
+        if selected_site is None:
+            if available_sites:
+                selected_site = available_sites[0]
+                print(f"🎯 Auto-selected site: {selected_site}")
+            else:
+                print("❌ No sites found in merged data")
+                return
+        elif selected_site not in available_sites:
+            print(f"❌ Selected site '{selected_site}' not found. Available: {available_sites}")
+            return
+        else:
+            print(f"🎯 Using selected site: {selected_site}")
+        
+        # Filter data by site and distance threshold
+        site_data = merged_df[merged_df['site'] == selected_site].copy()
+        filtered_data = site_data[site_data['distance'] <= distance_threshold].copy()
+        
+        print(f"🔍 Site '{selected_site}' statistics:")
+        print(f"   Total matches: {len(site_data)}")
+        print(f"   Within {distance_threshold}px: {len(filtered_data)}")
+        print(f"   Match rate within threshold: {len(filtered_data)/len(site_data)*100:.1f}%")
+        
+        if len(filtered_data) == 0:
+            print(f"⚠️  No matches found within {distance_threshold}px threshold")
+            return
+        
+        # Calculate statistics
+        distances = filtered_data['distance']
+        print(f"   Distance statistics:")
+        print(f"     Mean: {distances.mean():.2f}px")
+        print(f"     Median: {distances.median():.2f}px")
+        print(f"     Min: {distances.min():.2f}px")
+        print(f"     Max: {distances.max():.2f}px")
+        print(f"     Within 5px: {(distances <= 5).sum()} ({(distances <= 5).sum()/len(distances)*100:.1f}%)")
+        print(f"     Within 10px: {(distances <= 10).sum()} ({(distances <= 10).sum()/len(distances)*100:.1f}%)")
+        
+        # Limit display rows for performance
+        if len(filtered_data) > max_display_rows:
+            display_data = filtered_data.head(max_display_rows).copy()
+            print(f"📊 Displaying first {max_display_rows} matches (out of {len(filtered_data)})")
+        else:
+            display_data = filtered_data.copy()
+            print(f"📊 Displaying all {len(display_data)} matches")
+        
+        # Format the data for display
+        display_columns = [
+            'plate', 'well', 'site', 'tile', 'cell_0', 'cell_1', 
+            'i_0', 'j_0', 'i_1', 'j_1', 'area_0', 'area_1', 'distance',
+            'stitched_cell_id_0', 'stitched_cell_id_1'
+        ]
+        
+        # Only show columns that exist in the data
+        existing_columns = [col for col in display_columns if col in display_data.columns]
+        display_df = display_data[existing_columns].copy()
+        
+        # Round numerical columns for better display
+        numerical_cols = ['i_0', 'j_0', 'i_1', 'j_1', 'area_0', 'area_1', 'distance']
+        for col in numerical_cols:
+            if col in display_df.columns:
+                if col == 'distance':
+                    display_df[col] = display_df[col].round(2)
+                else:
+                    display_df[col] = display_df[col].round(1)
+        
+        # Display the table
+        print("\n" + "="*120)
+        print(f"MERGED CELL MATCHES - SITE: {selected_site}")
+        print(f"Distance Threshold: ≤{distance_threshold}px | Showing: {len(display_df)} matches")
+        print("="*120)
+        
+        # Set pandas display options for better formatting
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.width', None)
+        pd.set_option('display.max_colwidth', 15)
+        
+        print(display_df.to_string(index=False))
+        
+        # Reset pandas options
+        pd.reset_option('display.max_columns')
+        pd.reset_option('display.width')
+        pd.reset_option('display.max_colwidth')
+        
+        print("="*120)
+        
+        # Create visualization of match quality
+        create_match_quality_visualization(filtered_data, selected_site, distance_threshold)
+        
+    except Exception as e:
+        print(f"❌ Error loading or processing merged cells data: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def create_match_quality_visualization(merged_data, site, distance_threshold):
+    """Create visualization of match quality for the merged cells.
+    
+    Args:
+        merged_data (pd.DataFrame): Filtered merged cell data
+        site (str): Site name for title
+        distance_threshold (float): Distance threshold used
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    if len(merged_data) == 0:
+        return
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    fig.suptitle(f'Match Quality Analysis - Site: {site}', fontsize=16)
+    
+    # 1. Distance distribution histogram
+    ax1 = axes[0, 0]
+    distances = merged_data['distance']
+    ax1.hist(distances, bins=30, alpha=0.7, color='skyblue', edgecolor='black')
+    ax1.axvline(distance_threshold, color='red', linestyle='--', linewidth=2, 
+                label=f'Threshold: {distance_threshold}px')
+    ax1.axvline(distances.mean(), color='orange', linestyle='-', linewidth=2, 
+                label=f'Mean: {distances.mean():.1f}px')
+    ax1.set_xlabel('Distance (pixels)')
+    ax1.set_ylabel('Count')
+    ax1.set_title('Match Distance Distribution')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # 2. Scatter plot of cell positions (SBS coordinates)
+    ax2 = axes[0, 1]
+    if len(merged_data) <= 5000:  # Only plot if reasonable number of points
+        scatter = ax2.scatter(merged_data['j_0'], merged_data['i_0'], 
+                            c=merged_data['distance'], s=20, alpha=0.6, 
+                            cmap='viridis', edgecolors='white', linewidths=0.3)
+        plt.colorbar(scatter, ax=ax2, label='Distance (px)')
+        ax2.set_xlabel('j₀ (SBS coordinates)')
+        ax2.set_ylabel('i₀ (SBS coordinates)')
+        ax2.set_title('Cell Positions (colored by match distance)')
+        ax2.invert_yaxis()  # Match image coordinates
+    else:
+        ax2.text(0.5, 0.5, f'Too many points to plot\n({len(merged_data)} matches)', 
+                ha='center', va='center', transform=ax2.transAxes, fontsize=12)
+        ax2.set_title('Cell Positions (too many to display)')
+    
+    # 3. Area comparison
+    ax3 = axes[1, 0]
+    if 'area_0' in merged_data.columns and 'area_1' in merged_data.columns:
+        ax3.scatter(merged_data['area_0'], merged_data['area_1'], 
+                   c=merged_data['distance'], s=15, alpha=0.6, cmap='viridis')
+        # Add diagonal line for reference
+        min_area = min(merged_data['area_0'].min(), merged_data['area_1'].min())
+        max_area = max(merged_data['area_0'].max(), merged_data['area_1'].max())
+        ax3.plot([min_area, max_area], [min_area, max_area], 'r--', alpha=0.5, label='Equal areas')
+        ax3.set_xlabel('Area₀ (SBS)')
+        ax3.set_ylabel('Area₁ (Phenotype)')
+        ax3.set_title('Cell Area Comparison')
+        ax3.legend()
+    else:
+        ax3.text(0.5, 0.5, 'Area data not available', 
+                ha='center', va='center', transform=ax3.transAxes, fontsize=12)
+        ax3.set_title('Cell Area Comparison')
+    
+    # 4. Match quality summary
+    ax4 = axes[1, 1]
+    
+    # Distance bins for quality assessment
+    quality_bins = [
+        ('Excellent\n(≤2px)', (distances <= 2).sum()),
+        ('Very Good\n(2-5px)', ((distances > 2) & (distances <= 5)).sum()),
+        ('Good\n(5-10px)', ((distances > 5) & (distances <= 10)).sum()),
+        ('Fair\n(10-15px)', ((distances > 10) & (distances <= 15)).sum()),
+        ('Poor\n(>15px)', (distances > 15).sum())
+    ]
+    
+    labels, counts = zip(*quality_bins)
+    colors = ['#2ecc71', '#27ae60', '#f39c12', '#e67e22', '#e74c3c']
+    
+    # Filter out zero counts for cleaner display
+    non_zero = [(l, c, col) for l, c, col in zip(labels, counts, colors) if c > 0]
+    if non_zero:
+        labels_nz, counts_nz, colors_nz = zip(*non_zero)
+        
+        wedges, texts, autotexts = ax4.pie(counts_nz, labels=labels_nz, colors=colors_nz,
+                                          autopct='%1.1f%%', startangle=90)
+        
+        # Enhance text
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontweight('bold')
+            autotext.set_fontsize(10)
+    
+    ax4.set_title('Match Quality Distribution')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Summary statistics
+    print(f"\n📈 MATCH QUALITY SUMMARY")
+    print(f"   Total matches analyzed: {len(merged_data)}")
+    for label, count in quality_bins:
+        if count > 0:
+            percentage = count / len(merged_data) * 100
+            print(f"   {label.replace(chr(10), ' ')}: {count} ({percentage:.1f}%)")
+
+
+def load_merged_cells_interactive(root_fp, plate, well):
+    """Interactive function to explore merged cells data with different parameters.
+    
+    Args:
+        root_fp (str/Path): Root analysis directory
+        plate (str): Plate identifier
+        well (str): Well identifier
+    """
+    from pathlib import Path
+    import pandas as pd
+    
+    # Load the data first
+    merged_cells_path = Path(root_fp) / "merge" / "well_cell_merge" / f"P-{plate}_W-{well}__raw_matches.parquet"
+    
+    if not merged_cells_path.exists():
+        print(f"❌ Merged cells file not found: {merged_cells_path}")
+        return None
+    
+    try:
+        merged_df = pd.read_parquet(merged_cells_path)
+        available_sites = sorted(merged_df['site'].unique()) if 'site' in merged_df.columns else []
+        
+        print(f"🔍 Merged Cells Explorer for Plate {plate}, Well {well}")
+        print(f"📊 Total matches: {len(merged_df)}")
+        print(f"📍 Available sites: {available_sites}")
+        
+        def explore_site(site=None, max_distance=15.0, max_rows=500):
+            """Explore a specific site with given parameters."""
+            return display_merged_cells_for_site(root_fp, plate, well, site, max_distance, max_rows)
+        
+        return merged_df, explore_site
+        
+    except Exception as e:
+        print(f"❌ Error loading merged cells data: {e}")
+        return None
 
 
 def plot_well_merge_example(alignment_data, threshold, sample_size=None, figsize=(30, 10)):
@@ -1384,6 +1666,7 @@ class StitchQC:
             print("="*60)
         
         return ph_region, sbs_region
+    
     
     def view_alignment_region(self, center_row, center_col, size=7000, threshold=15.0, sample_size=1000):
         """View alignment quality for a specific region with the same coordinate system as view_region/view_mask_region.

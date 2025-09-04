@@ -116,7 +116,7 @@ def create_empty_outputs(reason: str) -> None:
     empty_matches.to_parquet(str(snakemake.output.raw_matches))
     empty_matches.to_parquet(str(snakemake.output.merged_cells))
 
-    # Create failure summary as TSV
+    # Create failure summary as TSV (key-value format for aggregation script)
     summary_data = {
         "metric": [
             "status",

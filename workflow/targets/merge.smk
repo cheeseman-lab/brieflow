@@ -66,12 +66,12 @@ MERGE_OUTPUTS = {
     ],
     
     "stitch_phenotype_qc": [
-        MERGE_FP / "qc_plots" / get_filename(
+        MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_tile_qc", "png"
         ),
     ],
     "stitch_sbs_qc": [
-        MERGE_FP / "qc_plots" / get_filename(
+        MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_tile_qc", "png"
         ),
     ],
@@ -210,9 +210,39 @@ MERGE_OUTPUTS = {
         / "eval"
         / get_filename({"plate": "{plate}"}, "cells_with_channel_min_0", "png"),
     ],
+    "aggregate_well_summaries": [
+        MERGE_FP / "tsvs" / "aggregated" / get_filename(
+            {"plate": "{plate}"}, "alignment_summaries", "tsv"
+        ),  # [0]
+        MERGE_FP / "tsvs" / "aggregated" / get_filename(
+            {"plate": "{plate}"}, "cell_merge_summaries", "tsv"
+        ),  # [1]
+        MERGE_FP / "tsvs" / "aggregated" / get_filename(
+            {"plate": "{plate}"}, "dedup_summaries", "tsv"
+        ),  # [2]
+    ],
 }
 
 
+
+# Add this to MERGE_OUTPUTS in targets/merge.smk
+
+    "aggregate_well_summaries": [
+        MERGE_FP / "tsvs" / "aggregated" / get_filename(
+            {"plate": "{plate}"}, "alignment_summaries", "tsv"
+        ),  # [0]
+        MERGE_FP / "tsvs" / "aggregated" / get_filename(
+            {"plate": "{plate}"}, "cell_merge_summaries", "tsv"
+        ),  # [1]
+        MERGE_FP / "tsvs" / "aggregated" / get_filename(
+            {"plate": "{plate}"}, "dedup_summaries", "tsv"
+        ),  # [2]
+    ],
+
+# Also add to MERGE_OUTPUT_MAPPINGS:
+    "aggregate_well_summaries": None,
+
+# And update the get_merge_targets_by_approach() function to include this target:
 def get_merge_targets_by_approach():
     """Get targets based on the configured approach"""
     approach = config.get("merge", {}).get("approach", "tile")
@@ -223,17 +253,19 @@ def get_merge_targets_by_approach():
     if approach == "well":
         approach_targets = [
             "estimate_stitch_phenotype", "estimate_stitch_sbs",
-            "stitch_phenotype_image", "stitch_phenotype_mask", "stitch_phenotype_positions",
-            "stitch_sbs_image", "stitch_sbs_mask", "stitch_sbs_positions", 
+            "stitch_phenotype_image", "stitch_phenotype_mask", "stitch_phenotype_positions", "stitch_phenotype_qc",  # <-- added QC
+            "stitch_sbs_image", "stitch_sbs_mask", "stitch_sbs_positions", "stitch_sbs_qc",  # <-- added QC
             "well_alignment", "well_cell_merge", "well_merge_deduplicate",
         ]
+        # Add aggregate summaries target for well approach
+        core_targets.append("aggregate_well_summaries")
         # For well approach, we skip deduplicate_merge since deduplication is done in well_merge_deduplicate
     else:
-        # Legacy approach targets
+        # Tile approach targets
         approach_targets = [
             "fast_alignment", "merge_tile"
         ]
-        # Legacy approach needs the additional deduplicate_merge step
+        # Tile approach needs the additional deduplicate_merge step
         core_targets.insert(-2, "deduplicate_merge")  # Insert before final_merge and eval_merge
     
     # Always include the main merge target
@@ -251,6 +283,8 @@ MERGE_OUTPUT_MAPPINGS = {
     "stitch_sbs_image": None,
     "stitch_sbs_mask": None,
     "stitch_sbs_positions": None,
+    "stitch_phenotype_qc": None,
+    "stitch_sbs_qc": None,
     "well_alignment": None,
     "well_cell_merge": None,
     "well_merge_deduplicate": temp,
@@ -259,6 +293,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "merge": None,
     "format_merge": None,
     "eval_merge": None,
+    "aggregate_well_summaries": None,
     "deduplicate_merge": None,
     "final_merge": None,
 }

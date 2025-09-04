@@ -53,6 +53,7 @@ rule stitch_phenotype_well:
         phenotype_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_phenotype_image"],
         phenotype_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_phenotype_mask"],
         phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype_positions"],
+        phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype_qc"],
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
@@ -77,6 +78,7 @@ rule stitch_sbs_well:
         sbs_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_sbs_image"],
         sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs_mask"],
         sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs_positions"],
+        sbs_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_sbs_qc"],
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
@@ -137,7 +139,7 @@ if merge_approach == "well":
             phenotype_triangles=temp(MERGE_OUTPUTS["well_alignment"][1]),             
             sbs_triangles=temp(MERGE_OUTPUTS["well_alignment"][2]),                   
             alignment_params=temp(MERGE_OUTPUTS["well_alignment"][3]),                
-            alignment_summary=MERGE_OUTPUTS["well_alignment"][4],
+            alignment_summary=temp(MERGE_OUTPUTS["well_alignment"][4]),
             transformed_phenotype_positions=MERGE_OUTPUTS["well_alignment"][5],
         params:
             plate=lambda wildcards: wildcards.plate,
@@ -156,7 +158,7 @@ if merge_approach == "well":
         output:
             raw_matches=temp(MERGE_OUTPUTS["well_cell_merge"][0]),                    
             merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],                   
-            merge_summary=MERGE_OUTPUTS["well_cell_merge"][2],                  
+            merge_summary=temp(MERGE_OUTPUTS["well_cell_merge"][2]),                  
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -176,7 +178,7 @@ if merge_approach == "well":
             merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],                   
         output:
             deduplicated_cells=(MERGE_OUTPUTS["well_merge_deduplicate"][0]),      
-            deduplication_summary=MERGE_OUTPUTS["well_merge_deduplicate"][1],   
+            deduplication_summary=temp(MERGE_OUTPUTS["well_merge_deduplicate"][1]),   
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -292,6 +294,40 @@ rule eval_merge:
     script:
         "../scripts/merge/eval_merge.py"
 
+
+if merge_approach == "well":
+    rule aggregate_well_summaries:
+        input:
+            alignment_summary_paths=lambda wildcards: output_to_input(
+                MERGE_OUTPUTS["well_alignment"][4],  # alignment_summary.tsv
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=merge_wildcard_combos,
+            ),
+            merge_summary_paths=lambda wildcards: output_to_input(
+                MERGE_OUTPUTS["well_cell_merge"][2],  # merge_summary.tsv
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=merge_wildcard_combos,
+            ),
+            dedup_summary_paths=lambda wildcards: output_to_input(
+                MERGE_OUTPUTS["well_merge_deduplicate"][1],  # dedup_summary.tsv
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=merge_wildcard_combos,
+            ),
+        output:
+            alignment_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][0],
+            cell_merge_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][1],
+            dedup_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][2],
+        params:
+            plate=lambda wildcards: wildcards.plate,
+        resources:
+            mem_mb=4000,
+            cpus_per_task=1,
+            runtime=30,
+        script:
+            "../scripts/merge/aggregate_well_summaries.py"
 
 # Rule for all merge processing steps
 rule all_merge:

@@ -152,7 +152,7 @@ def create_empty_output(error_message: str) -> None:
 
     empty_df.to_parquet(str(snakemake.output.deduplicated_cells))
 
-    # Create failure summary as TSV for debugging and pipeline monitoring
+    # Create failure summary as TSV (key-value format for aggregation script)
     summary_data = [
         ["status", "failed"],
         ["plate", snakemake.params.plate],

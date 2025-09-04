@@ -3,6 +3,7 @@
 It includes utilities for data loading, preprocessing, feature selection,
 model training, evaluation, and visualization.
 """
+
 import os
 import json
 import time
@@ -161,6 +162,7 @@ def create_run_directories(
         "timestamp": timestamp,
     }
 
+
 def load_cellprofiler_data(file_paths):
     """Load and combine multiple CellProfiler parquet files.
 
@@ -197,7 +199,7 @@ def apply_cell_category_mapping(
     verbose=True,
 ):
     """Map raw cell cycle labels to standardized phases and categories.
-    
+
     Args:
         data: pd.DataFrame DataFrame containing cell metadata with raw labels.
         label_col: str Column name in data with raw cell cycle labels.

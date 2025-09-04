@@ -31,7 +31,7 @@ dependencies = [
   "phate==1.0.11",
   "statsmodels==0.14.4",
   "dill==0.4.0",
-  "xgboost==3.0.0",
+  "xgboost==3.0.4",
   "ruff==0.11.9",
   "streamlit==1.45.1",
   "plotly==6.1.2",
@@ -41,7 +41,11 @@ dependencies = [
   "torch==2.7.1",
   "spotiflow==0.5.7",
   "stardist==0.9.1",
-  "levenshtein==0.27.1"
+  "levenshtein==0.27.1",
+  "ipywidgets==8.1.7",
+  "jupyterlab-widgets==3.0.15",
+  "widgetsnbextension==4.0.14",
+  "lightgbm==4.6.0",
 ]
 
 

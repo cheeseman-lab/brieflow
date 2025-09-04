@@ -23,6 +23,163 @@ from lib.merge.well_alignment import (
     scale_coordinates,
 )
 
+"""Helper functions for evaluating results of merge process."""
+
+
+def plot_sbs_ph_matching_heatmap(
+    df_merge,
+    df_info,
+    target="sbs",
+    shape="square",
+    plate="6W",
+    return_plot=True,
+    return_summary=False,
+    **kwargs,
+):
+    """Plots the rate of matching segmented cells between phenotype and SBS datasets by well and tile in a convenient plate layout.
+
+    Args:
+        df_merge: DataFrame of all matched cells, e.g., concatenated outputs for all tiles and wells
+            of merge_triangle_hash. Expects 'tile' and 'cell_0' columns to correspond to phenotype data and
+            'site', 'cell_1' columns to correspond to SBS data.
+        df_info: DataFrame of all cells segmented from either phenotype or SBS images, e.g., concatenated outputs for all tiles
+            and wells of extract_phenotype_minimal(data_phenotype=nulcei, nuclei=nuclei), often used as `sbs_cell_info`
+            rule in Snakemake.
+        target: Which dataset to use as the target, e.g., if target='sbs', plots the fraction of cells in each SBS tile
+            that match to a phenotype cell. Should match the information stored in df_info; if df_info is a table of all
+            segmented cells from SBS tiles, then target should be set as 'sbs'.
+        shape: Shape of subplot for each well used in `plot_plate_heatmap`. Defaults to 'square' and infers shape based on
+            the value of `target`.
+        plate: Plate type for `plot_plate_heatmap`, options are {'6W', '24W', '96W'}.
+        return_plot: If True, returns `df_summary`.
+        return_summary: If True, returns `df_summary`.
+        **kwargs: Additional keyword arguments passed to `plot_plate_heatmap()`.
+
+    Returns:
+        df_summary: DataFrame used for plotting, returned if `return_summary=True`.
+        axes: Numpy array of matplotlib Axes objects.
+    """
+    # Determine the merge columns and source based on the target
+    if target == "sbs":
+        merge_cols = ["site", "cell_1"]
+        source = "phenotype"
+        # Determine the default shape if not provided
+        if not shape:
+            shape = "6W_sbs"
+    elif target == "phenotype":
+        merge_cols = ["tile", "cell_0"]
+        source = "sbs"
+        # Determine the default shape if not provided
+        if not shape:
+            shape = "6W_ph"
+    else:
+        raise ValueError("target = {} not implemented".format(target))
+
+    # Calculate the summary dataframe
+    df_summary = (
+        df_info.rename(columns={"tile": merge_cols[0], "cell": merge_cols[1]})[
+            ["well"] + merge_cols
+        ]
+        .merge(
+            df_merge[["well"] + merge_cols + ["distance"]],
+            how="left",
+            on=["well"] + merge_cols,
+        )
+        .assign(matched=lambda x: x["distance"].notna())
+        .groupby(["well"] + merge_cols[:1])["matched"]
+        .value_counts(normalize=True)
+        .rename("fraction of {} cells matched to {} cells".format(target, source))
+        .to_frame()
+        .reset_index()
+        .query("matched==True")
+        .drop(columns="matched")
+        .rename(columns={merge_cols[0]: "tile"})
+    )
+
+    if return_summary and return_plot:
+        # Plot heatmap
+        axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        return df_summary, axes[0]
+    elif return_plot:
+        # Plot heatmap
+        axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        return axes[0]
+    elif return_summary:
+        return df_summary
+    else:
+        return None
+
+
+def plot_channel_histogram(df_before, df_after, channel_min_cutoff=0):
+    """Generates a histogram of channel values with raw counts and consistent bin edges.
+
+    Args:
+        df_before: DataFrame containing channel values before cleaning.
+        df_after: DataFrame containing channel values after cleaning.
+        channel_min_cutoff: Threshold value to mark with a red vertical line. Defaults to 0.
+
+    Returns:
+        The generated matplotlib figure object.
+    """
+    fig = plt.figure(figsize=(10, 6))
+
+    # Calculate bin edges based on the full range of data
+    min_val = min(df_before["channels_min"].min(), df_after["channels_min"].min())
+    max_val = max(df_before["channels_min"].max(), df_after["channels_min"].max())
+    bins = np.linspace(min_val, max_val, 201)  # 201 edges make 200 bins
+
+    # Plot histograms with raw counts instead of density
+    plt.hist(
+        df_before["channels_min"].dropna(),
+        bins=bins,
+        color="blue",
+        alpha=0.5,
+        label="Before clean",
+    )
+    plt.hist(
+        df_after["channels_min"].dropna(),
+        bins=bins,
+        color="orange",
+        alpha=0.5,
+        label="After clean",
+    )
+
+    # Add vertical line for channel_min_cutoff
+    plt.axvline(channel_min_cutoff, color="red", linestyle="--", label="Cutoff")
+
+    plt.title("Histogram of channels_min Values")
+    plt.xlabel("channels_min")
+    plt.ylabel("Count")
+    plt.legend()
+    return fig
+
+
+def plot_cell_positions(df_merge, title, color=None, hue="channels_min"):
+    """Generates a scatter plot of cell positions in the i_0, j_0 coordinate space.
+
+    Args:
+        df_merge: DataFrame containing cell position data with i_0, j_0 columns.
+        title: Plot title.
+        color: Fixed color for all points. If specified, overrides hue.
+        hue: Column name for color variation. Defaults to 'channels_min'.
+
+    Returns:
+        The generated matplotlib figure object.
+    """
+    fig = plt.figure(figsize=(20, 20))
+
+    # Plot scatter with either fixed color or hue-based coloring
+    if color is not None:
+        sns.scatterplot(data=df_merge, x="i_0", y="j_0", color=color, alpha=0.5)
+    else:
+        sns.scatterplot(data=df_merge, x="i_0", y="j_0", hue=hue, alpha=0.5)
+
+    plt.title(title)
+    plt.xlabel("i_0")
+    plt.ylabel("j_0")
+    return fig
+
+
 def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_site=None, 
                                                distance_threshold=15.0, max_display_rows=1000, verbose=False):
     """Display matched and unmatched cells using stitched_cell_id for matching.
@@ -57,41 +214,25 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
         missing_files.append(f"SBS positions: {sbs_positions_path}")
     
     if missing_files:
-        print("❌ Missing required files:")
-        for file in missing_files:
-            print(f"   {file}")
         return None
     
     try:
         # Load all datasets
-        if verbose:
-            print(f"📁 Loading cell matching data for Plate {plate}, Well {well}...")
         merged_df = pd.read_parquet(merged_cells_path)
         phenotype_transformed = pd.read_parquet(phenotype_transformed_path)
         sbs_positions = pd.read_parquet(sbs_positions_path)
         
-        print(f"✅ {len(merged_df)} total cell matches")
-        print(f"✅ {len(phenotype_transformed)} transformed phenotype cells")
-        print(f"✅ {len(sbs_positions)} SBS cells")
-        
         # Get available sites from merged data
         available_sites = sorted(merged_df['site'].unique()) if 'site' in merged_df.columns else []
-        if verbose:
-            print(f"📍 Available sites: {available_sites}")
         
         # Select site to display
         if selected_site is None:
             if available_sites:
                 selected_site = available_sites[0]
-                print(f"🎯 Auto-selected site: {selected_site}")
             else:
-                print("❌ No sites found in merged data")
                 return None
         elif selected_site not in available_sites:
-            print(f"❌ Selected site '{selected_site}' not found. Available: {available_sites}")
             return None
-        else:
-            print(f"🎯 Using selected site: {selected_site}")
         
         # Filter merged data by site and distance threshold
         site_merged = merged_df[merged_df['site'] == selected_site].copy()
@@ -106,15 +247,12 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
             # Sometimes SBS data uses 'tile' instead of 'site'
             site_sbs = sbs_positions[sbs_positions['tile'] == selected_site].copy()
         else:
-            print("⚠️  No 'site' or 'tile' column in sbs_positions, using all cells")
             site_sbs = sbs_positions.copy()
         
         # Get the coordinate range of SBS cells in the selected site
         if len(site_sbs) > 0:
             sbs_i_min, sbs_i_max = site_sbs['i'].min(), site_sbs['i'].max()
             sbs_j_min, sbs_j_max = site_sbs['j'].min(), site_sbs['j'].max()
-            if verbose:
-                print(f"   SBS coordinate range: i=[{sbs_i_min:.1f}, {sbs_i_max:.1f}], j=[{sbs_j_min:.1f}, {sbs_j_max:.1f}]")
             
             # For phenotype_transformed, filter by coordinates within SBS range
             site_phenotype = phenotype_transformed[
@@ -125,24 +263,13 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
             ].copy()
 
         else:
-            print("❌ No SBS cells found for selected site")
             return None
-        
-        print(f"🔍 Site '{selected_site}' cell counts:")
-        print(f"   Merged matches: {len(site_merged)}")
-        print(f"   Matches within {distance_threshold}px: {len(filtered_merged)}")
-        print(f"   Total phenotype cells at site '{selected_site}': {len(site_phenotype)}")
-        print(f"   Total SBS cells at site '{selected_site}': {len(site_sbs)}")
-        
-
         
         # For phenotype: match using stitched_cell_id_0 from raw_matches vs stitched_cell_id from phenotype_transformed
         if 'stitched_cell_id_0' not in filtered_merged.columns:
-            print("❌ Error: 'stitched_cell_id_0' column not found in raw_matches data")
             return None
         
         if 'stitched_cell_id' not in site_phenotype.columns:
-            print("❌ Error: 'stitched_cell_id' column not found in phenotype_transformed data")
             return None
         
         matched_phenotype_stitched_ids = set(filtered_merged['stitched_cell_id_0'].dropna().unique())
@@ -150,140 +277,13 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
         
         # For SBS: match using stitched_cell_id_1 from raw_matches vs stitched_cell_id from sbs_positions
         if 'stitched_cell_id_1' not in filtered_merged.columns:
-            print("❌ Error: 'stitched_cell_id_1' column not found in raw_matches data")
             return None
             
         if 'stitched_cell_id' not in site_sbs.columns:
-            print("❌ Error: 'stitched_cell_id' column not found in sbs_positions data")
             return None
             
         matched_sbs_stitched_ids = set(filtered_merged['stitched_cell_id_1'].dropna().unique())
         unmatched_sbs = site_sbs[~site_sbs['stitched_cell_id'].isin(matched_sbs_stitched_ids)].copy()
-        
-        print(f"   Unmatched phenotype cells: {len(unmatched_phenotype)}")
-        print(f"   Unmatched SBS cells: {len(unmatched_sbs)}")
-        
-        # Calculate match rates
-        total_phenotype = len(site_phenotype)
-        total_sbs = len(site_sbs)
-        match_rate_phenotype = len(filtered_merged) / total_phenotype if total_phenotype > 0 else 0
-        match_rate_sbs = len(filtered_merged) / total_sbs if total_sbs > 0 else 0
-        
-        print(f"   Phenotype match rate at site: {match_rate_phenotype:.1%}")
-        print(f"   SBS match rate at site: {match_rate_sbs:.1%}")
-        
-        if len(filtered_merged) == 0:
-            print(f"⚠️  No matches found within {distance_threshold}px threshold")
-        
-        # Calculate statistics for matched cells
-        if len(filtered_merged) > 0:
-            distances = filtered_merged['distance']
-            print(f"   Distance statistics for matched cells:")
-            print(f"     Mean: {distances.mean():.2f}px")
-            print(f"     Median: {distances.median():.2f}px")
-            print(f"     Min: {distances.min():.2f}px")
-            print(f"     Max: {distances.max():.2f}px")
-            print(f"     Within 5px: {(distances <= 5).sum()} ({(distances <= 5).sum()/len(distances)*100:.1f}%)")
-            print(f"     Within 10px: {(distances <= 10).sum()} ({(distances <= 10).sum()/len(distances)*100:.1f}%)")
-        
-        if verbose:
-            # Prepare display data - limit rows for performance
-            display_sections = []
-            
-            # 1. Matched cells
-            if len(filtered_merged) > 0:
-                display_matched = filtered_merged.head(max_display_rows // 3) if len(filtered_merged) > max_display_rows // 3 else filtered_merged
-                display_matched = display_matched.assign(match_status='MATCHED').copy()
-                display_sections.append(('MATCHED CELLS', display_matched, len(filtered_merged)))
-            
-            # 2. Unmatched phenotype cells
-            if len(site_phenotype) > 0:
-                display_unmatched_ph = site_phenotype.head(max_display_rows // 3) if len(site_phenotype) > max_display_rows // 3 else site_phenotype
-                # Standardize columns to match merged data format
-                unmatched_ph_display = pd.DataFrame({
-                    'plate': plate,
-                    'well': well,
-                    'site': selected_site,
-                    'tile': selected_site,
-                    'cell_0': display_unmatched_ph.get('cell', pd.NA),
-                    'cell_1': pd.NA,
-                    'i_0': display_unmatched_ph['i'],
-                    'j_0': display_unmatched_ph['j'],
-                    'i_1': pd.NA,
-                    'j_1': pd.NA,
-                    'area_0': display_unmatched_ph.get('area', pd.NA),
-                    'area_1': pd.NA,
-                    'distance': pd.NA,
-                    'stitched_cell_id_0': display_unmatched_ph['stitched_cell_id'],
-                    'stitched_cell_id_1': pd.NA,
-                    'match_status': 'RAW_PHENOTYPE'
-                })
-                display_sections.append(('RAW PHENOTYPE CELLS', unmatched_ph_display, len(site_phenotype)))
-            
-            # 3. Unmatched SBS cells
-            if len(site_sbs) > 0:
-                display_unmatched_sbs = site_sbs.head(max_display_rows // 3) if len(site_sbs) > max_display_rows // 3 else site_sbs
-                # Standardize columns to match merged data format
-                unmatched_sbs_display = pd.DataFrame({
-                    'plate': plate,
-                    'well': well,
-                    'site': selected_site,
-                    'tile': selected_site,
-                    'cell_0': pd.NA,
-                    'cell_1': display_unmatched_sbs.get('cell', pd.NA),
-                    'i_0': pd.NA,
-                    'j_0': pd.NA,
-                    'i_1': display_unmatched_sbs['i'],
-                    'j_1': display_unmatched_sbs['j'],
-                    'area_0': pd.NA,
-                    'area_1': display_unmatched_sbs.get('area', pd.NA),
-                    'distance': pd.NA,
-                    'stitched_cell_id_0': pd.NA,
-                    'stitched_cell_id_1': display_unmatched_sbs['stitched_cell_id'],
-                    'match_status': 'RAW_SBS'
-                })
-                display_sections.append(('RAW SBS CELLS', unmatched_sbs_display, len(unmatched_sbs)))
-            
-            # Display each section
-            display_columns = [
-                'match_status', 'stitched_cell_id_0', 'stitched_cell_id_1', 'cell_0', 'cell_1', 
-                'i_0', 'j_0', 'i_1', 'j_1', 'area_0', 'area_1', 'distance'
-            ]
-            
-            # Set pandas display options for better formatting
-            pd.set_option('display.max_columns', None)
-            pd.set_option('display.width', None)
-            pd.set_option('display.max_colwidth', 15)
-            
-            print("\n" + "="*160)
-            print(f"CELL MATCHING ANALYSIS - SITE: {selected_site}")
-            print(f"Distance Threshold: ≤{distance_threshold}px | Matching by stitched_cell_id")
-            print("="*160)
-        
-            for section_name, section_data, total_count in display_sections:
-                print(f"\n{section_name} (Showing {len(section_data)} of {total_count}):")
-                print("-" * 120)
-                
-                # Round numerical columns for better display
-                display_data = section_data.copy()
-                numerical_cols = ['i_0', 'j_0', 'i_1', 'j_1', 'area_0', 'area_1', 'distance']
-                for col in numerical_cols:
-                    if col in display_data.columns:
-                        if col == 'distance':
-                            display_data[col] = pd.to_numeric(display_data[col], errors='coerce').round(2)
-                        else:
-                            display_data[col] = pd.to_numeric(display_data[col], errors='coerce').round(1)
-                
-                # Show only existing columns
-                existing_display_cols = [col for col in display_columns if col in display_data.columns]
-                print(display_data[existing_display_cols].to_string(index=False))
-            
-            # Reset pandas options
-            pd.reset_option('display.max_columns')
-            pd.reset_option('display.width')  
-            pd.reset_option('display.max_colwidth')
-            
-            print("\n" + "="*160)
         
         # Create enhanced visualization
         create_enhanced_match_visualization(
@@ -296,10 +296,26 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
             distance_threshold=distance_threshold
         )
         
+        # Return summary statistics for programmatic use
+        total_phenotype = len(site_phenotype)
+        total_sbs = len(site_sbs)
+        
+        summary_stats = {
+            'site': selected_site,
+            'total_phenotype_cells': total_phenotype,
+            'total_sbs_cells': total_sbs,
+            'matched_cells': len(filtered_merged),
+            'unmatched_phenotype_cells': len(unmatched_phenotype),
+            'unmatched_sbs_cells': len(unmatched_sbs),
+            'phenotype_match_rate': len(filtered_merged) / total_phenotype if total_phenotype > 0 else 0,
+            'sbs_match_rate': len(filtered_merged) / total_sbs if total_sbs > 0 else 0,
+            'mean_match_distance': filtered_merged['distance'].mean() if len(filtered_merged) > 0 else None,
+            'median_match_distance': filtered_merged['distance'].median() if len(filtered_merged) > 0 else None
+        }
+        
+        return summary_stats
+        
     except Exception as e:
-        print(f"❌ Error loading or processing cell data: {e}")
-        import traceback
-        traceback.print_exc()
         return None
 
 
@@ -450,25 +466,14 @@ def run_enhanced_cell_matching_qc(root_fp, plate, well, selected_site=None,
         distance_threshold (float): Maximum distance to show matches (default 15.0)
         max_display_rows (int): Maximum number of rows to display (default 1000)
         verbose (bool): Whether to print detailed logs
-    """
-    print(f"🔬 CELL MATCHING ANALYSIS for Plate {plate}, Well {well}")
-    print("="*80)
     
+    Returns:
+        dict: Summary statistics from the analysis
+    """
     # Run the cell matching analysis
     summary_stats = display_matched_and_unmatched_cells_for_site(
         root_fp, plate, well, selected_site, distance_threshold, max_display_rows, verbose
     )
-    
-    if summary_stats:
-        print(f"\n📊 SUMMARY STATISTICS:")
-        print(f"   Site: {summary_stats['site']}")
-        print(f"   Phenotype cells: {summary_stats['total_phenotype_cells']:,}")
-        print(f"   SBS cells: {summary_stats['total_sbs_cells']:,}")
-        print(f"   Matched cells: {summary_stats['matched_cells']:,}")
-        print(f"   Phenotype match rate: {summary_stats['phenotype_match_rate']:.1%}")
-        print(f"   SBS match rate: {summary_stats['sbs_match_rate']:.1%}")
-        if summary_stats['mean_match_distance']:
-            print(f"   Mean match distance: {summary_stats['mean_match_distance']:.1f}px")
     
     return summary_stats
 
@@ -488,15 +493,12 @@ def run_well_alignment_qc(root_fp, plate, well, det_range, score, threshold,
         selected_site (str, optional): Specific site to display merged cells for
         distance_threshold (float): Maximum distance to show matches (default 15.0)
         max_display_rows (int): Maximum number of rows to display (default 1000)
-    """
-    print(f"Running Well Alignment QC for Plate {plate}, Well {well}")
-    print("-" * 60)
     
+    Returns:
+        dict: Alignment data dictionary
+    """
     # Load alignment data
     alignment_data = load_well_alignment_outputs(root_fp, plate, well)
-    
-    # Display summary
-    display_well_alignment_summary(alignment_data)
     
     return alignment_data
 
@@ -521,8 +523,6 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
     alignment_path = merge_fp / "well_alignment" / f"P-{plate}_W-{well}__alignment.parquet"
     if alignment_path.exists():
         outputs['alignment_params'] = pd.read_parquet(alignment_path)
-        if verbose:
-            print(f"✅ Loaded alignment parameters: {len(outputs['alignment_params'])} entries")
     else:
         raise FileNotFoundError(f"Alignment parameters not found: {alignment_path}")
     
@@ -531,26 +531,19 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
     if summary_path.exists():
         with open(summary_path, 'r') as f:
             outputs['alignment_summary'] = yaml.safe_load(f)
-        if verbose:
-            print("✅ Loaded alignment summary")
     else:
-        print(f"⚠️  Alignment summary not found: {summary_path}")
         outputs['alignment_summary'] = {}
     
     # Load original cell positions (needed to recreate regions)
     pheno_pos_path = merge_fp / "cell_positions" / f"P-{plate}_W-{well}__phenotype_cell_positions.parquet"
     if pheno_pos_path.exists():
         outputs['phenotype_positions'] = pd.read_parquet(pheno_pos_path)
-        if verbose:
-            print(f"✅ Loaded phenotype positions: {len(outputs['phenotype_positions'])} cells")
     else:
         raise FileNotFoundError(f"Phenotype positions not found: {pheno_pos_path}")
     
     sbs_pos_path = merge_fp / "cell_positions" / f"P-{plate}_W-{well}__sbs_cell_positions.parquet"
     if sbs_pos_path.exists():
         outputs['sbs_positions'] = pd.read_parquet(sbs_pos_path)
-        if verbose:
-            print(f"✅ Loaded SBS positions: {len(outputs['sbs_positions'])} cells")
     else:
         raise FileNotFoundError(f"SBS positions not found: {sbs_pos_path}")
     
@@ -558,8 +551,6 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
     scaled_path = merge_fp / "well_alignment" / f"P-{plate}_W-{well}__phenotype_scaled.parquet"
     if scaled_path.exists():
         outputs['phenotype_scaled'] = pd.read_parquet(scaled_path)
-        if verbose:
-            print(f"✅ Loaded scaled phenotype positions: {len(outputs['phenotype_scaled'])} cells")
     else:
         raise FileNotFoundError(f"Scaled phenotype positions not found: {scaled_path}")
     
@@ -567,8 +558,6 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
     transformed_path = merge_fp / "well_alignment" / f"P-{plate}_W-{well}__phenotype_transformed.parquet"
     if transformed_path.exists():
         outputs['phenotype_transformed'] = pd.read_parquet(transformed_path)
-        if verbose:
-            print(f"✅ Loaded transformed phenotype positions: {len(outputs['phenotype_transformed'])} cells")
     else:
         raise FileNotFoundError(f"Transformed phenotype positions not found: {transformed_path}")
     
@@ -580,42 +569,6 @@ def display_well_alignment_summary(alignment_data):
     Args:
         alignment_data (dict): Output from load_well_alignment_outputs
     """
-    alignment_params = alignment_data['alignment_params'].iloc[0]
-    summary = alignment_data.get('alignment_summary', {})
-    
-    print("=" * 60)
-    print("WELL ALIGNMENT SUMMARY")
-    print("=" * 60)
-    
-    # Basic info
-    print(f"Plate: {summary.get('plate', 'Unknown')}, Well: {summary.get('well', 'Unknown')}")
-    
-    # Scale factor and overlap
-    print(f"\nCoordinate Scaling:")
-    print(f"  Scale factor: {summary.get('scale_factor', 'Unknown'):.6f}")
-    print(f"  Overlap fraction: {summary.get('overlap_fraction', 0):.1%}")
-    
-    # Triangle hashing
-    if verbose:
-        print(f"\nTriangle Hashing:")
-        print(f"  Phenotype triangles: {summary.get('phenotype_triangles', 0):,}")
-        print(f"  SBS triangles: {summary.get('sbs_triangles', 0):,}")
-    
-    # Alignment results
-    alignment_info = summary.get('alignment', {})
-    print(f"\nAlignment Results:")
-    print(f"  Approach: {alignment_info.get('approach', 'Unknown')}")
-    print(f"  Transformation: {alignment_info.get('transformation_type', 'Unknown')}")
-    print(f"  Score: {alignment_info.get('score', 0):.3f}")
-    print(f"  Determinant: {alignment_info.get('determinant', 1):.6f}")
-    print(f"  Region size: {alignment_info.get('region_size', 'Unknown')}")
-    print(f"  Attempts: {alignment_info.get('attempts', 'Unknown')}")
-    
-    # Cell counts
-    print(f"\nCell Counts:")
-    print(f"  Original phenotype: {len(alignment_data.get('phenotype_positions', []))}")
-    print(f"  Original SBS: {len(alignment_data.get('sbs_positions', []))}")
-    print(f"  Scaled phenotype: {len(alignment_data.get('phenotype_scaled', []))}")
-    print(f"  Transformed phenotype: {len(alignment_data.get('phenotype_transformed', []))}")
-    
-    print("=" * 60)
+    # This function is kept for backward compatibility but does nothing
+    # All summary printing has been removed
+    pass

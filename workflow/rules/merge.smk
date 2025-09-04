@@ -48,12 +48,12 @@ rule estimate_stitch_sbs:
 rule stitch_phenotype_well:
     input:
         phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
-        phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"],
+        phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"][0],
     output:
-        phenotype_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_phenotype_image"],
-        phenotype_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_phenotype_mask"],
-        phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype_positions"],
-        phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype_qc"],
+        phenotype_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][0],
+        phenotype_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][1],
+        phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][2],
+        phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][3],
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
@@ -73,12 +73,12 @@ rule stitch_phenotype_well:
 rule stitch_sbs_well:
     input:
         sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
-        sbs_stitch_config=MERGE_OUTPUTS["estimate_stitch_sbs"],
+        sbs_stitch_config=MERGE_OUTPUTS["estimate_stitch_sbs"][0],
     output:
-        sbs_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_sbs_image"],
-        sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs_mask"],
-        sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs_positions"],
-        sbs_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_sbs_qc"],
+        sbs_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][0],
+        sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][1],
+        sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][2],
+        sbs_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][3],
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
@@ -103,7 +103,7 @@ if merge_approach == "tile":
             ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
             ancient(SBS_OUTPUTS["combine_sbs_info"]),
         output:
-            MERGE_OUTPUTS_MAPPED["fast_alignment"],
+            MERGE_OUTPUTS_MAPPED["fast_alignment"][0],
         params:
             sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
             det_range=config["merge"]["det_range"],
@@ -118,9 +118,9 @@ if merge_approach == "tile":
         input:
             ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
             ancient(SBS_OUTPUTS["combine_sbs_info"]),
-            MERGE_OUTPUTS["fast_alignment"],
+            MERGE_OUTPUTS["fast_alignment"][0],
         output:
-            MERGE_OUTPUTS_MAPPED["merge"],
+            MERGE_OUTPUTS_MAPPED["merge_tile"][0],
         params:
             det_range=config["merge"]["det_range"],
             score=config["merge"]["score"],
@@ -132,8 +132,8 @@ if merge_approach == "tile":
 if merge_approach == "well":
     rule well_alignment:
         input:
-            phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"][0],
-            sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"][0],
+            phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_well"][2],  # phenotype_cell_positions
+            sbs_positions=MERGE_OUTPUTS["stitch_sbs_well"][2],  # sbs_cell_positions
         output:
             scaled_phenotype_positions=temp(MERGE_OUTPUTS["well_alignment"][0]),      
             phenotype_triangles=temp(MERGE_OUTPUTS["well_alignment"][1]),             
@@ -152,7 +152,7 @@ if merge_approach == "well":
     rule well_cell_merge:
         input:
             scaled_phenotype_positions=MERGE_OUTPUTS["well_alignment"][0],      
-            sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"][0],
+            sbs_positions=MERGE_OUTPUTS["stitch_sbs_well"][0],  # sbs_cell_positions
             alignment_params=MERGE_OUTPUTS["well_alignment"][3],
             transformed_phenotype_positions=MERGE_OUTPUTS["well_alignment"][5],               
         output:
@@ -177,7 +177,7 @@ if merge_approach == "well":
             raw_matches=MERGE_OUTPUTS["well_cell_merge"][0],                    
             merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],                   
         output:
-            deduplicated_cells=(MERGE_OUTPUTS["well_merge_deduplicate"][0]),      
+            deduplicated_cells=MERGE_OUTPUTS["well_merge_deduplicate"][0],      
             deduplication_summary=temp(MERGE_OUTPUTS["well_merge_deduplicate"][1]),   
         params:
             plate=lambda wildcards: wildcards.plate,
@@ -187,9 +187,9 @@ if merge_approach == "well":
 
     rule merge_well:
         input:
-            MERGE_OUTPUTS["well_merge_deduplicate"][0]
+            MERGE_OUTPUTS["well_merge_deduplicate"][0]  # deduplicated_cells
         output:
-            MERGE_OUTPUTS_MAPPED["merge"],
+            MERGE_OUTPUTS_MAPPED["merge_well"][0],
         params:
             approach=config.get("merge", {}).get("approach", "tile"),
         run:
@@ -207,15 +207,20 @@ if merge_approach == "well":
 
 rule format_merge:
     input:
-        MERGE_OUTPUTS["merge"],
+        lambda wildcards: (
+            MERGE_OUTPUTS["merge_well"][0]  # Use well merge output for well approach
+            if config.get("merge", {}).get("approach", "tile") == "well" 
+            else MERGE_OUTPUTS["merge_tile"][0]  # Use tile merge output for tile approach
+        ),
         ancient(SBS_OUTPUTS["combine_cells"]),
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1]),
     output:
-        MERGE_OUTPUTS_MAPPED["format_merge"],
+        MERGE_OUTPUTS_MAPPED["format_merge"][0],
     params:
         approach=config.get("merge", {}).get("approach", "tile"),
     script:
         "../scripts/merge/format_merge.py"
+
 
 
 rule deduplicate_merge:
@@ -256,11 +261,11 @@ rule final_merge:
         lambda wildcards: (
             MERGE_OUTPUTS["format_merge"][0]  # Use formatted data directly for well approach
             if config.get("merge", {}).get("approach", "tile") == "well" 
-            else MERGE_OUTPUTS["deduplicate_merge"][1]
+            else MERGE_OUTPUTS["deduplicate_merge"][1]  # Use deduplicated data for tile approach
         ),
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0]),
     output:
-        MERGE_OUTPUTS_MAPPED["final_merge"],
+        MERGE_OUTPUTS_MAPPED["final_merge"][0],
     params:
         approach=config.get("merge", {}).get("approach", "tile"),
     script:

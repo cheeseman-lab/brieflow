@@ -6,7 +6,7 @@ import yaml
 from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.eval_stitch import create_tile_arrangement_qc_plot
+from lib.merge.stitch_well import create_tile_arrangement_qc_plot
 from lib.merge.stitch_well import (
     assemble_aligned_tiff_well,
     extract_cell_positions_from_stitched_mask,
@@ -162,14 +162,27 @@ print(f"Stitched mask saved: {snakemake.output[1]}")
 cell_positions.to_parquet(snakemake.output[2])
 print(f"Cell positions saved: {snakemake.output[2]} ({len(cell_positions)} cells)")
 
-# Create QC plot if output is defined
+# Create QC plot if output is defined and we have cell positions
 if len(snakemake.output) > 3:
-    create_tile_arrangement_qc_plot(
-        cell_positions, 
-        plate, 
-        well, 
-        data_type, 
-        snakemake.output[3]
-    )
+    if len(cell_positions) > 0:
+        print("Creating QC plot...")
+        create_tile_arrangement_qc_plot(
+            cell_positions_df=cell_positions,
+            output_path=snakemake.output[3],
+            data_type=data_type
+        )
+        print(f"QC plot saved: {snakemake.output[3]}")
+    else:
+        print("No cell positions available, creating empty QC plot...")
+        # Create a minimal placeholder plot
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        ax.text(0.5, 0.5, f'No cells found for {data_type} well {well}', 
+                ha='center', va='center', transform=ax.transAxes, fontsize=14)
+        ax.set_title(f'{data_type.title()} Well {well} - No Cells Detected')
+        plt.tight_layout()
+        plt.savefig(snakemake.output[3], dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"Empty QC plot saved: {snakemake.output[3]}")
 
 print(f"{data_type} stitching completed successfully")

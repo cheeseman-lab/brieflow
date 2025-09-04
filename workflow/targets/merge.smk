@@ -24,42 +24,42 @@ MERGE_OUTPUTS = {
     # Well-based stitching outputs (only needed for well approach)
     "stitch_phenotype_image": [
         MERGE_FP
-        / "stitched_images"
+        / "images"
         / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_stitched_image", "npy"
         ),
     ],
     "stitch_phenotype_mask": [
         MERGE_FP
-        / "stitched_masks"
+        / "images"
         / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_stitched_mask", "npy"
         ),
     ],
     "stitch_phenotype_positions": [
         MERGE_FP
-        / "cell_positions"
+        / "parquets"
         / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_cell_positions", "parquet"
         ),
     ],
     "stitch_sbs_image": [
         MERGE_FP
-        / "stitched_images"
+        / "images"
         / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_image", "npy"
         ),
     ],
     "stitch_sbs_mask": [
         MERGE_FP
-        / "stitched_masks"
+        / "images"
         / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_mask", "npy"
         ),
     ],
     "stitch_sbs_positions": [
         MERGE_FP
-        / "cell_positions"
+        / "parquets"
         / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_cell_positions", "parquet"
         ),
@@ -243,18 +243,17 @@ def get_merge_targets_by_approach():
 
 
 MERGE_OUTPUT_MAPPINGS = {
-    "estimate_stitch_phenotype": None,
-    "estimate_stitch_sbs": None,
+    "estimate_stitch_phenotype": temp,
+    "estimate_stitch_sbs": temp,
     "stitch_phenotype_image": None,
     "stitch_phenotype_mask": None, 
-    "stitch_phenotype_positions": None,
+    "stitch_phenotype_positions": temp,
     "stitch_sbs_image": None,
     "stitch_sbs_mask": None,
     "stitch_sbs_positions": None,
     "well_alignment": None,
     "well_cell_merge": None,
     "well_merge_deduplicate": None,
-    "well_merge": None,
     "fast_alignment": None,
     "merge_tile": None,
     "merge": None,

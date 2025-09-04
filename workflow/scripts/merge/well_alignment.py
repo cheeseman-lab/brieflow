@@ -224,6 +224,11 @@ def main():
             ),
             "score": float(best_alignment.get("score", 0)),
             "determinant": float(best_alignment.get("determinant", 1)),
+            
+            # Add the missing transformation details
+            "rotation_matrix": best_alignment.get("rotation", np.eye(2)).tolist() if isinstance(best_alignment.get("rotation"), np.ndarray) else [[1.0, 0.0], [0.0, 1.0]],
+            "translation_vector": best_alignment.get("translation", np.array([0.0, 0.0])).tolist() if isinstance(best_alignment.get("translation"), np.ndarray) else [0.0, 0.0],
+            
             "validation_mean_distance": float(
                 best_alignment.get("validation_mean_distance", 0)
             ),

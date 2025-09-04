@@ -1031,3 +1031,335 @@ def batch_qc_report(base_path, plate_wells):
     print(summary_df.to_string(index=False))
 
     return summary_df
+
+def create_tile_arrangement_qc_plot(
+    cell_positions_df: pd.DataFrame, output_path: str, data_type: str = "phenotype"
+):
+    """Create QC plot showing tile arrangement and cell distribution."""
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig.suptitle(f"{data_type.title()} Tile Arrangement QC", fontsize=16)
+
+    # Use the correct column for preserved tile mapping
+    tile_column = (
+        "original_tile_id"
+        if "original_tile_id" in cell_positions_df.columns
+        else "tile"
+    )
+
+    # Plot 1: Cell positions colored by tile
+    ax1 = axes[0, 0]
+    if tile_column in cell_positions_df.columns:
+        scatter = ax1.scatter(
+            cell_positions_df["j"],
+            cell_positions_df["i"],
+            c=cell_positions_df[tile_column],
+            cmap="tab20",
+            s=0.1,
+            alpha=0.7,
+        )
+        plt.colorbar(scatter, ax=ax1, label="Original Tile ID")
+    ax1.set_title("Cell Positions by Original Tile")
+    ax1.set_xlabel("X Position (pixels)")
+    ax1.set_ylabel("Y Position (pixels)")
+    ax1.invert_yaxis()
+
+    # Plot 2: Stage coordinates with tile numbers
+    ax2 = axes[0, 1]
+    if (
+        "stage_x" in cell_positions_df.columns
+        and "stage_y" in cell_positions_df.columns
+    ):
+        tile_info = (
+            cell_positions_df.groupby(tile_column)
+            .agg({"stage_x": "first", "stage_y": "first"})
+            .reset_index()
+        )
+
+        ax2.scatter(tile_info["stage_x"], tile_info["stage_y"], s=50)
+        for _, row in tile_info.iterrows():
+            if not pd.isna(row["stage_x"]) and not np.isnan(row["stage_x"]):
+                ax2.annotate(
+                    f"{int(row[tile_column])}",
+                    (row["stage_x"], row["stage_y"]),
+                    fontsize=8,
+                    ha="center",
+                )
+    ax2.set_title("Tile Arrangement (Stage Coordinates)")
+    ax2.set_xlabel("Stage X (μm)")
+    ax2.set_ylabel("Stage Y (μm)")
+
+    # Plot 3: Cells per tile histogram
+    ax3 = axes[1, 0]
+    if tile_column in cell_positions_df.columns:
+        tile_counts = cell_positions_df[tile_column].value_counts()
+        ax3.hist(tile_counts.values, bins=50, alpha=0.7)
+        ax3.axvline(
+            tile_counts.mean(),
+            color="red",
+            linestyle="--",
+            label=f"Mean: {tile_counts.mean():.1f}",
+        )
+        ax3.legend()
+    ax3.set_title("Distribution of Cells per Original Tile")
+    ax3.set_xlabel("Cells per Tile")
+    ax3.set_ylabel("Number of Tiles")
+
+    # Plot 4: Tile boundaries overlay
+    ax4 = axes[1, 1]
+    if "tile_i" in cell_positions_df.columns and "tile_j" in cell_positions_df.columns:
+        ax4.scatter(
+            cell_positions_df["tile_j"],
+            cell_positions_df["tile_i"],
+            c=cell_positions_df[tile_column],
+            cmap="tab20",
+            s=0.1,
+            alpha=0.7,
+        )
+    ax4.set_title("Relative Positions within Original Tiles")
+    ax4.set_xlabel("Tile-relative X")
+    ax4.set_ylabel("Tile-relative Y")
+    ax4.invert_yaxis()
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+    print(f"QC plot saved to: {output_path}")
+
+
+def verify_cell_id_preservation(
+    enhanced_positions: pd.DataFrame,
+    original_data_path: str,
+    well: str,
+    data_type: str = "phenotype",
+) -> None:
+    """
+    Verify the quality of cell ID preservation by comparing with original data.
+    Call this after running the enhanced pipeline to check quality.
+    """
+    print(f"\n=== VERIFYING CELL ID PRESERVATION ===")
+    print(f"Well: {well}, Data type: {data_type}")
+
+    try:
+        # Load original data
+        if Path(original_data_path).exists():
+            original_data = pd.read_parquet(original_data_path)
+            print(f"✅ Loaded original data: {len(original_data)} cells")
+        else:
+            print(f"❌ Original data not found: {original_data_path}")
+            return
+
+        # Overall statistics
+        total_stitched = len(enhanced_positions)
+        direct_mapped = len(
+            enhanced_positions[enhanced_positions["mapping_method"] == "direct_mapping"]
+        )
+        position_estimated = len(
+            enhanced_positions[
+                enhanced_positions["mapping_method"] == "position_estimate"
+            ]
+        )
+
+        print(f"\n📊 Overall Statistics:")
+        print(f"  Original cells: {len(original_data)}")
+        print(f"  Stitched cells: {total_stitched}")
+        print(
+            f"  Direct mappings: {direct_mapped} ({direct_mapped / total_stitched * 100:.1f}%)"
+        )
+        print(
+            f"  Position estimates: {position_estimated} ({position_estimated / total_stitched * 100:.1f}%)"
+        )
+
+        # Per-tile analysis
+        print(f"\n🔍 Per-Tile Analysis:")
+        tile_comparison = []
+
+        for tile_id in enhanced_positions["original_tile_id"].unique():
+            if pd.isna(tile_id) or tile_id == -1:
+                continue
+
+            tile_id = int(tile_id)
+
+            # Count in stitched data
+            stitched_count = len(
+                enhanced_positions[enhanced_positions["original_tile_id"] == tile_id]
+            )
+
+            # Count in original data
+            original_count = len(original_data[original_data["tile"] == tile_id])
+
+            recovery_rate = stitched_count / original_count if original_count > 0 else 0
+
+            tile_comparison.append(
+                {
+                    "tile": tile_id,
+                    "original": original_count,
+                    "stitched": stitched_count,
+                    "recovery": recovery_rate,
+                }
+            )
+
+        if tile_comparison:
+            tile_df = pd.DataFrame(tile_comparison)
+            mean_recovery = tile_df["recovery"].mean()
+            good_tiles = len(tile_df[tile_df["recovery"] > 0.8])
+
+            print(f"  Mean recovery rate: {mean_recovery:.3f}")
+            print(f"  Tiles with >80% recovery: {good_tiles}/{len(tile_df)}")
+            print(
+                f"  Total original cells accounted: {tile_df['stitched'].sum()}/{tile_df['original'].sum()}"
+            )
+
+            # Show worst performing tiles
+            worst_tiles = tile_df.nsmallest(3, "recovery")
+            if len(worst_tiles) > 0:
+                print(f"\n⚠️  Tiles needing attention:")
+                for _, row in worst_tiles.iterrows():
+                    print(
+                        f"    Tile {row['tile']}: {row['stitched']}/{row['original']} ({row['recovery']:.3f})"
+                    )
+
+        print(f"\n✅ Verification complete!")
+
+    except Exception as e:
+        print(f"❌ Verification failed: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+def estimate_stitch_sbs_coordinate_based(
+    metadata_df: pd.DataFrame,
+    well: str,
+    flipud: bool = False,
+    fliplr: bool = False,
+    rot90: int = 0,
+    channel: int = 0,
+) -> Dict[str, Dict]:
+    """Coordinate-based stitching for SBS data with correct scaling."""
+
+    well_metadata = metadata_df[metadata_df["well"] == well].copy()
+
+    if len(well_metadata) == 0:
+        print(f"No SBS tiles found for well {well}")
+        return {"total_translation": {}, "confidence": {well: {}}}
+
+    coords = well_metadata[["x_pos", "y_pos"]].values
+    tile_ids = well_metadata["tile"].values
+    tile_size = (1200, 1200)  # SBS tile size in pixels
+
+    print(f"Creating coordinate-based SBS stitch config for {len(tile_ids)} tiles")
+
+    # Use proven spacing detection
+    from scipy.spatial.distance import pdist
+
+    distances = pdist(coords)
+    actual_spacing = np.percentile(distances[distances > 0], 10)  # 10th percentile
+
+    print(f"SBS detected spacing: {actual_spacing:.1f} μm")
+    print(f"SBS tile size: {tile_size} pixels")
+
+    # FIXED: Use pixel size from metadata
+    if (
+        "pixel_size_x" in well_metadata.columns
+        and "pixel_size_y" in well_metadata.columns
+    ):
+        # Use pixel size from metadata (in μm per pixel)
+        pixel_size_um = well_metadata["pixel_size_x"].iloc[0]  # μm per pixel
+        pixels_per_micron = 1.0 / pixel_size_um  # pixels per μm
+        print(f"SBS pixel size from metadata: {pixel_size_um:.6f} μm/pixel")
+        print(f"SBS pixels per micron: {pixels_per_micron:.4f}")
+
+        # Verify pixel_size_y matches pixel_size_x
+        pixel_size_y = well_metadata["pixel_size_y"].iloc[0]
+        if abs(pixel_size_um - pixel_size_y) > 1e-6:
+            print(
+                f"⚠️  Warning: pixel_size_x ({pixel_size_um:.6f}) != pixel_size_y ({pixel_size_y:.6f})"
+            )
+    else:
+        print(
+            "⚠️  pixel_size_x/y not found in metadata, falling back to calculated values"
+        )
+        # Fallback: SBS specs: 1560 μm field of view, 1200 pixels -> 0.7692 pixels/μm
+        sbs_field_of_view_um = 1560.0  # μm
+        pixels_per_micron = tile_size[0] / sbs_field_of_view_um
+        print(f"SBS fallback - field of view: {sbs_field_of_view_um} μm")
+        print(f"SBS fallback - pixels per micron: {pixels_per_micron:.4f}")
+
+    x_min, y_min = coords.min(axis=0)
+
+    total_translation = {}
+    confidence = {}
+
+    for i, tile_id in enumerate(tile_ids):
+        x_pos, y_pos = coords[i]
+
+        # Convert directly to pixel coordinates using correct scale
+        pixel_x = int((x_pos - x_min) * pixels_per_micron)
+        pixel_y = int((y_pos - y_min) * pixels_per_micron)
+
+        total_translation[f"{well}/{tile_id}"] = [pixel_y, pixel_x]
+
+        # High confidence since using direct coordinates
+        confidence[f"coord_{i}"] = [[pixel_y, pixel_x], [pixel_y, pixel_x], 0.9]
+
+    print(f"Generated {len(total_translation)} SBS coordinate-based positions")
+
+    # Verify output size and spacing
+    y_shifts = [shift[0] for shift in total_translation.values()]
+    x_shifts = [shift[1] for shift in total_translation.values()]
+
+    if len(y_shifts) > 1:
+        pixel_spacings = []
+        for i in range(len(coords)):
+            for j in range(i + 1, len(coords)):
+                stage_dist = np.sqrt(
+                    (coords[i][0] - coords[j][0]) ** 2
+                    + (coords[i][1] - coords[j][1]) ** 2
+                )
+                pixel_dist = np.sqrt(
+                    (y_shifts[i] - y_shifts[j]) ** 2 + (x_shifts[i] - x_shifts[j]) ** 2
+                )
+                if stage_dist > 0:
+                    pixel_spacings.append(pixel_dist / stage_dist)
+
+        if pixel_spacings:
+            avg_pixel_spacing = np.mean(pixel_spacings)
+            print(
+                f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm"
+            )
+
+            # Check for expected tile overlap
+            expected_tile_spacing_pixels = actual_spacing * pixels_per_micron
+            actual_avg_spacing = np.mean(
+                [
+                    np.sqrt(
+                        (y_shifts[i] - y_shifts[j]) ** 2
+                        + (x_shifts[i] - x_shifts[j]) ** 2
+                    )
+                    for i in range(len(y_shifts))
+                    for j in range(i + 1, len(y_shifts))
+                ]
+            )
+
+            if actual_avg_spacing > 0:
+                overlap_percent = (
+                    (tile_size[0] - actual_avg_spacing) / tile_size[0] * 100
+                )
+                print(f"SBS tile overlap: {overlap_percent:.1f}%")
+                if overlap_percent < 0:
+                    print("⚠️  Warning: Negative overlap detected - tiles may have gaps")
+                elif overlap_percent > 50:
+                    print(
+                        "⚠️  Warning: Very high overlap detected - may indicate scaling issues"
+                    )
+
+    final_size = (max(y_shifts) + tile_size[0], max(x_shifts) + tile_size[1])
+    memory_gb = final_size[0] * final_size[1] * 2 / 1e9
+
+    print(f"SBS final image size: {final_size}")
+    print(f"SBS memory estimate: {memory_gb:.1f} GB")
+
+    return {"total_translation": total_translation, "confidence": {well: confidence}}

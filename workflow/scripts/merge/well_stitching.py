@@ -155,21 +155,29 @@ def process_stitching(metadata_df, stitch_config, plate, well, data_type, params
 
     print_progress(f"Using {len(shifts)} tile shifts from stitch config")
 
-    # Step 1: Assemble stitched image
-    print_progress("Assembling stitched image...")
-    try:
-        stitched_image = assemble_aligned_tiff_well(
-            metadata_df=well_metadata,
-            shifts=shifts,
-            well=well,
-            data_type=data_type,
-            flipud=params.flipud,
-            fliplr=params.fliplr,
-            rot90=params.rot90,
-        )
-        print_success(f"Stitched image created: {stitched_image.shape}")
-    except Exception as e:
-        raise RuntimeError(f"Image stitching failed: {e}")
+    # Check if stitched image creation is enabled
+    create_stitched_image = getattr(params, 'stitched_image', True)  # Default to True for backward compatibility
+    
+    # Step 1: Conditionally assemble stitched image
+    if create_stitched_image:
+        print_progress("Assembling stitched image...")
+        try:
+            stitched_image = assemble_aligned_tiff_well(
+                metadata_df=well_metadata,
+                shifts=shifts,
+                well=well,
+                data_type=data_type,
+                flipud=params.flipud,
+                fliplr=params.fliplr,
+                rot90=params.rot90,
+            )
+            print_success(f"Stitched image created: {stitched_image.shape}")
+        except Exception as e:
+            raise RuntimeError(f"Image stitching failed: {e}")
+    else:
+        print_progress("Skipping stitched image creation (disabled by config)")
+        # Create a minimal placeholder array to maintain output structure
+        stitched_image = np.array([[0]], dtype=np.uint16)
 
     # Step 2: Assemble stitched masks (if available)
     cell_positions = pd.DataFrame(
@@ -220,7 +228,9 @@ def process_stitching(metadata_df, stitch_config, plate, well, data_type, params
             print_warning("Created empty mask, continuing with image only")
     else:
         # Create empty mask when no mask files are available
-        stitched_mask = np.zeros(stitched_image.shape, dtype=np.uint16)
+        # Use minimal shape if image creation was skipped
+        mask_shape = stitched_image.shape if create_stitched_image else (1, 1)
+        stitched_mask = np.zeros(mask_shape, dtype=np.uint16)
         print_progress("Created empty mask (no mask files available)")
 
     cleanup_memory()

@@ -60,6 +60,7 @@ rule stitch_phenotype_well:
         flipud=config.get("merge", {}).get("flipud", False),
         fliplr=config.get("merge", {}).get("fliplr", False),
         rot90=config.get("merge", {}).get("rot90", 0),
+        stitched_image=config.get("merge", {}).get("stitched_image", True),
     resources:
         mem_mb=400000,     
         cpus_per_task=8,
@@ -83,6 +84,7 @@ rule stitch_sbs_well:
         flipud=config.get("merge", {}).get("flipud", False),
         fliplr=config.get("merge", {}).get("fliplr", False),
         rot90=config.get("merge", {}).get("rot90", 0),
+        stitched_image=config.get("merge", {}).get("stitched_image", True),
     resources:
         mem_mb=400000,     
         cpus_per_task=8,
@@ -91,7 +93,6 @@ rule stitch_sbs_well:
         "../scripts/merge/well_stitching.py"
 
 
-# TILE-ONLY RULES - Only used under tile approach
 if merge_approach == "tile":
     rule fast_alignment:
         input:
@@ -125,18 +126,17 @@ if merge_approach == "tile":
         script:
             "../scripts/merge/merge.py"
 
-
-# WELL-ONLY RULES - Only define if using well approach  
+ 
 if merge_approach == "well":
     rule well_alignment:
         input:
             phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"][0],
             sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"][0],
         output:
-            scaled_phenotype_positions=MERGE_OUTPUTS["well_alignment"][0],      
-            phenotype_triangles=MERGE_OUTPUTS["well_alignment"][1],             
-            sbs_triangles=MERGE_OUTPUTS["well_alignment"][2],                   
-            alignment_params=MERGE_OUTPUTS["well_alignment"][3],                
+            scaled_phenotype_positions=temp(MERGE_OUTPUTS["well_alignment"][0]),      
+            phenotype_triangles=temp(MERGE_OUTPUTS["well_alignment"][1]),             
+            sbs_triangles=temp(MERGE_OUTPUTS["well_alignment"][2]),                   
+            alignment_params=temp(MERGE_OUTPUTS["well_alignment"][3]),                
             alignment_summary=MERGE_OUTPUTS["well_alignment"][4],
             transformed_phenotype_positions=MERGE_OUTPUTS["well_alignment"][5],
         params:
@@ -154,7 +154,7 @@ if merge_approach == "well":
             alignment_params=MERGE_OUTPUTS["well_alignment"][3],
             transformed_phenotype_positions=MERGE_OUTPUTS["well_alignment"][5],               
         output:
-            raw_matches=MERGE_OUTPUTS["well_cell_merge"][0],                    
+            raw_matches=temp(MERGE_OUTPUTS["well_cell_merge"][0]),                    
             merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],                   
             merge_summary=MERGE_OUTPUTS["well_cell_merge"][2],                  
         params:
@@ -175,7 +175,7 @@ if merge_approach == "well":
             raw_matches=MERGE_OUTPUTS["well_cell_merge"][0],                    
             merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],                   
         output:
-            deduplicated_cells=MERGE_OUTPUTS["well_merge_deduplicate"][0],      
+            deduplicated_cells=temp(MERGE_OUTPUTS["well_merge_deduplicate"][0]),      
             deduplication_summary=MERGE_OUTPUTS["well_merge_deduplicate"][1],   
         params:
             plate=lambda wildcards: wildcards.plate,
@@ -185,7 +185,7 @@ if merge_approach == "well":
 
     rule merge_well:
         input:
-            MERGE_OUTPUTS["well_merge_deduplicate"][0]  # deduplicated_cells.parquet
+            MERGE_OUTPUTS["well_merge_deduplicate"][0]
         output:
             MERGE_OUTPUTS_MAPPED["merge"],
         params:
@@ -194,30 +194,13 @@ if merge_approach == "well":
             import pandas as pd
             from lib.shared.file_utils import validate_dtypes
             
-            # Simply copy the chosen approach to the standard merge output
+            # Copy the chosen approach to the standard merge output
             merge_data = validate_dtypes(pd.read_parquet(input[0]))
             merge_data.to_parquet(output[0])
             
             approach = params.approach
             print(f"Using {approach} merge approach")
             print(f"Merged {len(merge_data)} cells")
-
-
-# SHARED RULES (used by both approaches)
-rule well_merge:
-    input:
-        phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_positions"],
-        sbs_positions=MERGE_OUTPUTS["stitch_sbs_positions"],
-    output:
-        MERGE_OUTPUTS_MAPPED["well_merge"],
-    params:
-        det_range=config["merge"]["det_range"],
-        score=config["merge"]["score"],
-        threshold=config["merge"]["threshold"],
-        plate=lambda wildcards: wildcards.plate,
-        well=lambda wildcards: wildcards.well,
-    script:
-        "../scripts/merge/well_merge.py"
 
 
 rule format_merge:

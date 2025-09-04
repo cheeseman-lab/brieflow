@@ -34,6 +34,7 @@ def display_matched_and_unmatched_cells_for_site(root_fp, plate, well, selected_
         selected_site (str, optional): Site to filter by (if None, shows first available site)
         distance_threshold (float): Maximum distance to show matches
         max_display_rows (int): Maximum rows to display for performance
+        verbose (bool): Whether to print detailed logs
     """
     from pathlib import Path
     import pandas as pd
@@ -448,6 +449,7 @@ def run_enhanced_cell_matching_qc(root_fp, plate, well, selected_site=None,
         selected_site (str, optional): Specific site to display cells for
         distance_threshold (float): Maximum distance to show matches (default 15.0)
         max_display_rows (int): Maximum number of rows to display (default 1000)
+        verbose (bool): Whether to print detailed logs
     """
     print(f"🔬 CELL MATCHING ANALYSIS for Plate {plate}, Well {well}")
     print("="*80)
@@ -472,7 +474,8 @@ def run_enhanced_cell_matching_qc(root_fp, plate, well, selected_site=None,
 
 
 def run_well_alignment_qc(root_fp, plate, well, det_range, score, threshold, 
-                          selected_site=None, distance_threshold=15.0, max_display_rows=1000):
+                          selected_site=None, distance_threshold=15.0, max_display_rows=1000,
+                          verbose=False):
     """Run complete QC visualization for a well alignment with merged cells display.
     
     Args:
@@ -504,6 +507,7 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
         root_fp (str/Path): Root analysis directory path
         plate (str): Plate identifier
         well (str): Well identifier
+        verbose (bool): Whether to print detailed logs
         
     Returns:
         dict: Dictionary containing all loaded alignment data
@@ -584,8 +588,7 @@ def display_well_alignment_summary(alignment_data):
     print("=" * 60)
     
     # Basic info
-    print(f"Plate: {summary.get('plate', 'Unknown')}")
-    print(f"Well: {summary.get('well', 'Unknown')}")
+    print(f"Plate: {summary.get('plate', 'Unknown')}, Well: {summary.get('well', 'Unknown')}")
     
     # Scale factor and overlap
     print(f"\nCoordinate Scaling:")

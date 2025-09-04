@@ -681,3 +681,111 @@ def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
             "good_quality": good_quality,
         },
     }
+
+def filter_tiles_by_diversity(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
+    """Filter out tiles that have only one unique original_cell_id.
+    
+    Removes tiles with insufficient cell diversity which can cause issues
+    in downstream processing. Tiles with only one unique cell ID are typically
+    artifacts or low-quality regions.
+
+    Args:
+        df: DataFrame with cell data containing 'tile' and 'original_cell_id' columns
+        data_type: String describing the data type for logging (e.g., "Phenotype", "SBS")
+
+    Returns:
+        Filtered DataFrame containing only tiles with multiple unique cell IDs
+    """
+    if "original_cell_id" not in df.columns or "tile" not in df.columns:
+        print(
+            f"⚠️  WARNING: Cannot filter {data_type} tiles - missing original_cell_id or tile columns"
+        )
+        return df
+
+    # Count unique original_cell_ids per tile
+    tile_diversity = df.groupby("tile")["original_cell_id"].nunique()
+
+    # Find tiles with more than 1 unique original_cell_id
+    diverse_tiles = tile_diversity[tile_diversity > 1].index
+
+    # Filter to keep only diverse tiles
+    filtered_df = df[df["tile"].isin(diverse_tiles)]
+
+    removed_tiles = len(tile_diversity) - len(diverse_tiles)
+    removed_cells = len(df) - len(filtered_df)
+
+    print(f"{data_type} tile diversity filtering:")
+    print(f"  Input: {len(df):,} cells across {len(tile_diversity)} tiles")
+    print(f"  Removed: {removed_tiles} tiles with single cell diversity")
+    print(f"  Output: {len(filtered_df):,} cells across {len(diverse_tiles)} tiles")
+    print(f"  Tiles kept: {sorted(diverse_tiles.tolist())}")
+
+    return filtered_df
+
+# Create empty output files when processing fails
+def create_empty_outputs(reason: str) -> None:
+    """Create empty output files when processing fails.
+    
+    Generates placeholder output files with proper structure when the main
+    processing pipeline encounters errors. Ensures downstream steps can
+    continue with empty results.
+
+    Args:
+        reason: String describing the reason for failure
+    """
+    empty_columns = [
+        "plate",
+        "well", 
+        "site",
+        "tile",
+        "cell_0",
+        "i_0",
+        "j_0",
+        "area_0",
+        "cell_1",
+        "i_1",
+        "j_1",
+        "area_1",
+        "distance",
+        "stitched_cell_id_0",
+        "stitched_cell_id_1",
+    ]
+
+    empty_matches = pd.DataFrame(columns=empty_columns)
+
+    # Add default values
+    empty_matches["plate"] = snakemake.params.plate
+    empty_matches["well"] = snakemake.params.well
+    empty_matches["site"] = 1
+    empty_matches["tile"] = 1
+
+    # Save both outputs
+    empty_matches.to_parquet(str(snakemake.output.raw_matches))
+    empty_matches.to_parquet(str(snakemake.output.merged_cells))
+
+    # Create failure summary as TSV (key-value format for aggregation script)
+    summary_data = {
+        "metric": [
+            "status",
+            "reason", 
+            "plate",
+            "well",
+            "output_format_columns_included",
+            "output_format_cell_0_contains",
+            "output_format_cell_1_contains"
+        ],
+        "value": [
+            "failed",
+            reason,
+            snakemake.params.plate,
+            snakemake.params.well,
+            ";".join(empty_columns),
+            "original_phenotype_cell_ids",
+            "original_sbs_cell_ids"
+        ]
+    }
+    
+    summary_df = pd.DataFrame(summary_data)
+    summary_df.to_csv(str(snakemake.output.merge_summary), sep='\t', index=False)
+
+    print(f"❌ Created empty outputs due to: {reason}")

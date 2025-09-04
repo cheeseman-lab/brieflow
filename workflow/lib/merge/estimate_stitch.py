@@ -314,73 +314,28 @@ def estimate_stitch_phenotype_coordinate_based(
     return {"total_translation": total_translation, "confidence": {well: confidence}}
 
 
-def _verify_stitch_quality(
-    coords: np.ndarray,
-    total_translation: Dict[str, list],
-    tile_size: tuple,
-    actual_spacing: float,
-    pixels_per_micron: float,
-    data_type: str,
-) -> None:
-    """Verify the quality of stitching estimation by checking spacing and overlap.
+def convert_numpy_types(obj):
+    """Convert numpy types to Python native types for YAML serialization.
+
+    YAML serialization requires native Python types, but numpy arrays and
+    scalars need to be converted first.
 
     Args:
-        coords: Array of stage coordinates
-        total_translation: Dictionary of pixel translations
-        tile_size: Tuple of (height, width) in pixels
-        actual_spacing: Detected spacing between tiles in micrometers
-        pixels_per_micron: Conversion factor from micrometers to pixels
-        data_type: Type of data ("SBS" or "Phenotype") for logging
+        obj: Object that may contain numpy types (dict, list, numpy types, etc.)
+
+    Returns:
+        Object with numpy types converted to Python native types
     """
-    y_shifts = [shift[0] for shift in total_translation.values()]
-    x_shifts = [shift[1] for shift in total_translation.values()]
-
-    if len(y_shifts) > 1:
-        pixel_spacings = []
-        for i in range(len(coords)):
-            for j in range(i + 1, len(coords)):
-                stage_dist = np.sqrt(
-                    (coords[i][0] - coords[j][0]) ** 2
-                    + (coords[i][1] - coords[j][1]) ** 2
-                )
-                pixel_dist = np.sqrt(
-                    (y_shifts[i] - y_shifts[j]) ** 2 + (x_shifts[i] - x_shifts[j]) ** 2
-                )
-                if stage_dist > 0:
-                    pixel_spacings.append(pixel_dist / stage_dist)
-
-        if pixel_spacings:
-            avg_pixel_spacing = np.mean(pixel_spacings)
-            print(
-                f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm"
-            )
-
-            # Calculate actual average spacing between tiles
-            actual_avg_spacing = np.mean(
-                [
-                    np.sqrt(
-                        (y_shifts[i] - y_shifts[j]) ** 2
-                        + (x_shifts[i] - x_shifts[j]) ** 2
-                    )
-                    for i in range(len(y_shifts))
-                    for j in range(i + 1, len(y_shifts))
-                ]
-            )
-
-            if actual_avg_spacing > 0:
-                overlap_percent = (
-                    (tile_size[0] - actual_avg_spacing) / tile_size[0] * 100
-                )
-                print(f"{data_type} tile overlap: {overlap_percent:.1f}%")
-                if overlap_percent < 0:
-                    print("⚠️  Warning: Negative overlap detected - tiles may have gaps")
-                elif overlap_percent > 50:
-                    print(
-                        "⚠️  Warning: Very high overlap detected - may indicate scaling issues"
-                    )
-
-    final_size = (max(y_shifts) + tile_size[0], max(x_shifts) + tile_size[1])
-    memory_gb = final_size[0] * final_size[1] * 2 / 1e9
-
-    print(f"{data_type} final image size: {final_size}")
-    print(f"{data_type} memory estimate: {memory_gb:.1f} GB")
+    if isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
+    

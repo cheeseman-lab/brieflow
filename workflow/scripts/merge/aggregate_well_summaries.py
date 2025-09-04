@@ -29,7 +29,22 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import warnings
 
+print("=== AGGREGATE WELL SUMMARIES ===")
 
+plate = snakemake.params.plate
+print(f"Processing plate: {plate}")
+
+# Get input file paths
+alignment_paths = snakemake.input.alignment_summary_paths
+merge_paths = snakemake.input.merge_summary_paths  
+dedup_paths = snakemake.input.dedup_summary_paths
+
+print(f"Input files:")
+print(f"  Alignment summaries: {len(alignment_paths)}")
+print(f"  Merge summaries: {len(merge_paths)}")
+print(f"  Deduplication summaries: {len(dedup_paths)}")
+
+# Extract plate and well identifiers from file path
 def extract_well_id_from_path(file_path: str) -> tuple[str, str]:
     """Extract plate and well identifiers from file path.
     
@@ -66,7 +81,7 @@ def extract_well_id_from_path(file_path: str) -> tuple[str, str]:
     
     return plate, well
 
-
+# Load alignment summary file (already in row format)
 def load_alignment_summary(file_path: str) -> Optional[pd.DataFrame]:
     """Load alignment summary file (already in row format).
     
@@ -93,7 +108,7 @@ def load_alignment_summary(file_path: str) -> Optional[pd.DataFrame]:
         print(f"⚠️  Failed to load alignment summary {file_path}: {e}")
         return None
 
-
+# Load and convert key-value format summary to row format
 def load_key_value_summary(file_path: str, summary_type: str) -> Optional[pd.DataFrame]:
     """Load and convert key-value format summary to row format.
     
@@ -151,7 +166,7 @@ def load_key_value_summary(file_path: str, summary_type: str) -> Optional[pd.Dat
         print(f"⚠️  Failed to load {summary_type} summary {file_path}: {e}")
         return None
 
-
+# Create placeholder row for failed wells
 def create_failed_well_placeholder(plate: str, well: str, summary_type: str) -> pd.DataFrame:
     """Create placeholder row for failed wells.
     
@@ -209,7 +224,7 @@ def create_failed_well_placeholder(plate: str, well: str, summary_type: str) -> 
     
     return pd.DataFrame([placeholder_data])
 
-
+# Extract all expected well identifiers from file paths
 def get_all_expected_wells(file_paths: List[str]) -> List[tuple[str, str]]:
     """Extract all expected well identifiers from file paths.
     
@@ -230,7 +245,7 @@ def get_all_expected_wells(file_paths: List[str]) -> List[tuple[str, str]]:
     
     return sorted(set(wells))  # Remove duplicates and sort
 
-
+# Aggregate summary files into a single DataFrame
 def aggregate_summaries(file_paths: List[str], summary_type: str) -> pd.DataFrame:
     """Aggregate summary files into a single DataFrame.
     
@@ -298,98 +313,76 @@ def aggregate_summaries(file_paths: List[str], summary_type: str) -> pd.DataFram
         print(f"❌ No {summary_type} summaries could be processed")
         return pd.DataFrame()
 
-
-def main():
-    """Main aggregation function."""
-    print("=== AGGREGATE WELL SUMMARIES ===")
+# Aggregate each summary type
+try:
+    # Process alignment summaries (already in row format)
+    alignment_df = aggregate_summaries(alignment_paths, 'alignment')
     
-    plate = snakemake.params.plate
-    print(f"Processing plate: {plate}")
+    # Process merge summaries (convert from key-value to row format)
+    merge_df = aggregate_summaries(merge_paths, 'merge')
     
-    # Get input file paths
-    alignment_paths = snakemake.input.alignment_summary_paths
-    merge_paths = snakemake.input.merge_summary_paths  
-    dedup_paths = snakemake.input.dedup_summary_paths
+    # Process deduplication summaries (convert from key-value to row format)  
+    dedup_df = aggregate_summaries(dedup_paths, 'dedup')
     
-    print(f"Input files:")
-    print(f"  Alignment summaries: {len(alignment_paths)}")
-    print(f"  Merge summaries: {len(merge_paths)}")
-    print(f"  Deduplication summaries: {len(dedup_paths)}")
+    # Save aggregated summaries
+    print("\nSaving aggregated summaries...")
     
-    # Aggregate each summary type
-    try:
-        # Process alignment summaries (already in row format)
-        alignment_df = aggregate_summaries(alignment_paths, 'alignment')
+    # Create output directories if needed
+    for output_path in [snakemake.output.alignment_summaries, 
+                      snakemake.output.cell_merge_summaries,
+                      snakemake.output.dedup_summaries]:
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    
+    # Save alignment summaries
+    if not alignment_df.empty:
+        alignment_df.to_csv(snakemake.output.alignment_summaries, sep='\t', index=False)
+        print(f"✅ Saved alignment summaries: {snakemake.output.alignment_summaries}")
+        print(f"   {len(alignment_df)} wells processed")
+    else:
+        # Create empty file with headers
+        pd.DataFrame(columns=['plate', 'well', 'status']).to_csv(
+            snakemake.output.alignment_summaries, sep='\t', index=False)
+        print(f"⚠️  Saved empty alignment summaries: {snakemake.output.alignment_summaries}")
+    
+    # Save cell merge summaries  
+    if not merge_df.empty:
+        merge_df.to_csv(snakemake.output.cell_merge_summaries, sep='\t', index=False)
+        print(f"✅ Saved cell merge summaries: {snakemake.output.cell_merge_summaries}")
+        print(f"   {len(merge_df)} wells processed")
+    else:
+        pd.DataFrame(columns=['plate', 'well', 'status']).to_csv(
+            snakemake.output.cell_merge_summaries, sep='\t', index=False)
+        print(f"⚠️  Saved empty cell merge summaries: {snakemake.output.cell_merge_summaries}")
+    
+    # Save deduplication summaries
+    if not dedup_df.empty:
+        dedup_df.to_csv(snakemake.output.dedup_summaries, sep='\t', index=False)
+        print(f"✅ Saved deduplication summaries: {snakemake.output.dedup_summaries}")  
+        print(f"   {len(dedup_df)} wells processed")
+    else:
+        pd.DataFrame(columns=['plate', 'well', 'status']).to_csv(
+            snakemake.output.dedup_summaries, sep='\t', index=False)
+        print(f"⚠️  Saved empty deduplication summaries: {snakemake.output.dedup_summaries}")
+    
+    print(f"\n🎉 Successfully aggregated summaries for plate {plate}")
+    
+    # Print summary statistics
+    successful_wells = []
+    if not alignment_df.empty:
+        successful_alignment = len(alignment_df[alignment_df['status'] != 'failed'])
+        successful_wells.append(f"Alignment: {successful_alignment}/{len(alignment_df)}")
+    
+    if not merge_df.empty:
+        successful_merge = len(merge_df[merge_df['status'] != 'failed'])  
+        successful_wells.append(f"Merge: {successful_merge}/{len(merge_df)}")
         
-        # Process merge summaries (convert from key-value to row format)
-        merge_df = aggregate_summaries(merge_paths, 'merge')
-        
-        # Process deduplication summaries (convert from key-value to row format)  
-        dedup_df = aggregate_summaries(dedup_paths, 'dedup')
-        
-        # Save aggregated summaries
-        print("\nSaving aggregated summaries...")
-        
-        # Create output directories if needed
-        for output_path in [snakemake.output.alignment_summaries, 
-                          snakemake.output.cell_merge_summaries,
-                          snakemake.output.dedup_summaries]:
-            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        
-        # Save alignment summaries
-        if not alignment_df.empty:
-            alignment_df.to_csv(snakemake.output.alignment_summaries, sep='\t', index=False)
-            print(f"✅ Saved alignment summaries: {snakemake.output.alignment_summaries}")
-            print(f"   {len(alignment_df)} wells processed")
-        else:
-            # Create empty file with headers
-            pd.DataFrame(columns=['plate', 'well', 'status']).to_csv(
-                snakemake.output.alignment_summaries, sep='\t', index=False)
-            print(f"⚠️  Saved empty alignment summaries: {snakemake.output.alignment_summaries}")
-        
-        # Save cell merge summaries  
-        if not merge_df.empty:
-            merge_df.to_csv(snakemake.output.cell_merge_summaries, sep='\t', index=False)
-            print(f"✅ Saved cell merge summaries: {snakemake.output.cell_merge_summaries}")
-            print(f"   {len(merge_df)} wells processed")
-        else:
-            pd.DataFrame(columns=['plate', 'well', 'status']).to_csv(
-                snakemake.output.cell_merge_summaries, sep='\t', index=False)
-            print(f"⚠️  Saved empty cell merge summaries: {snakemake.output.cell_merge_summaries}")
-        
-        # Save deduplication summaries
-        if not dedup_df.empty:
-            dedup_df.to_csv(snakemake.output.dedup_summaries, sep='\t', index=False)
-            print(f"✅ Saved deduplication summaries: {snakemake.output.dedup_summaries}")  
-            print(f"   {len(dedup_df)} wells processed")
-        else:
-            pd.DataFrame(columns=['plate', 'well', 'status']).to_csv(
-                snakemake.output.dedup_summaries, sep='\t', index=False)
-            print(f"⚠️  Saved empty deduplication summaries: {snakemake.output.dedup_summaries}")
-        
-        print(f"\n🎉 Successfully aggregated summaries for plate {plate}")
-        
-        # Print summary statistics
-        successful_wells = []
-        if not alignment_df.empty:
-            successful_alignment = len(alignment_df[alignment_df['status'] != 'failed'])
-            successful_wells.append(f"Alignment: {successful_alignment}/{len(alignment_df)}")
-        
-        if not merge_df.empty:
-            successful_merge = len(merge_df[merge_df['status'] != 'failed'])  
-            successful_wells.append(f"Merge: {successful_merge}/{len(merge_df)}")
-            
-        if not dedup_df.empty:
-            successful_dedup = len(dedup_df[dedup_df['status'] != 'failed'])
-            successful_wells.append(f"Dedup: {successful_dedup}/{len(dedup_df)}")
-        
-        if successful_wells:
-            print(f"Success rates: {', '.join(successful_wells)}")
-        
-    except Exception as e:
-        print(f"❌ Error during aggregation: {e}")
-        raise
-
-
-if __name__ == "__main__":
-    main()
+    if not dedup_df.empty:
+        successful_dedup = len(dedup_df[dedup_df['status'] != 'failed'])
+        successful_wells.append(f"Dedup: {successful_dedup}/{len(dedup_df)}")
+    
+    if successful_wells:
+        print(f"Success rates: {', '.join(successful_wells)}")
+    
+except Exception as e:
+    print(f"❌ Error during aggregation: {e}")
+    raise

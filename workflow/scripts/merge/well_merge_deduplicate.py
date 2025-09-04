@@ -13,7 +13,7 @@ Input:
 
 Output:  
     - deduplicated_cells.parquet: Spatially deduplicated matches
-    - dedup_summary.yaml: Comprehensive processing and quality metrics
+    - dedup_summary.tsv: Comprehensive processing and quality metrics
 
 This script is designed for the well-based merge approach and requires stitched cell IDs
 for proper spatial deduplication.
@@ -21,7 +21,6 @@ for proper spatial deduplication.
 
 import pandas as pd
 import numpy as np
-import yaml
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -153,22 +152,20 @@ def create_empty_output(error_message: str) -> None:
 
     empty_df.to_parquet(str(snakemake.output.deduplicated_cells))
 
-    # Create failure summary for debugging and pipeline monitoring
-    summary = {
-        "status": "failed",
-        "plate": snakemake.params.plate,
-        "well": snakemake.params.well,
-        "error": error_message,
-        "processing": {"final_matches_output": 0},
-        "deduplication": {
-            "method": "deduplicate_matches_by_stitched_ids",
-            "achieved_1to1_stitched": False,
-        },
-        "output_format": {"ready_for_format_merge": False},
-    }
+    # Create failure summary as TSV for debugging and pipeline monitoring
+    summary_data = [
+        ["status", "failed"],
+        ["plate", snakemake.params.plate],
+        ["well", snakemake.params.well],
+        ["error", error_message],
+        ["processing_final_matches_output", 0],
+        ["deduplication_method", "deduplicate_matches_by_stitched_ids"],
+        ["deduplication_achieved_1to1_stitched", False],
+        ["output_format_ready_for_format_merge", False],
+    ]
 
-    with open(str(snakemake.output.deduplication_summary), "w") as f:
-        yaml.dump(summary, f, default_flow_style=False)
+    summary_df = pd.DataFrame(summary_data, columns=["metric", "value"])
+    summary_df.to_csv(str(snakemake.output.deduplication_summary), sep='\t', index=False)
 
 
 def main() -> None:
@@ -260,34 +257,69 @@ def main() -> None:
         # Save deduplicated results
         final_output.to_parquet(str(snakemake.output.deduplicated_cells))
 
-        # Create comprehensive summary for pipeline monitoring and debugging
-        summary = {
-            "status": "success",
-            "plate": plate,
-            "well": well,
-            "processing": {
-                "raw_matches_input": len(raw_matches),
-                "simple_matches_input": len(merged_cells),
-                "final_matches_output": len(final_output),
-                "matches_removed": len(raw_matches) - len(final_output),
-                "efficiency": len(final_output) / len(raw_matches),
-            },
-            "deduplication": {
-                "method": "deduplicate_matches_by_stitched_ids",
-                "uses_stitched_ids": True,
-                "preserves_original_ids": True,
-                "achieved_1to1_stitched": validation_results["is_1to1_stitched"],
-            },
-            "validation": validation_results,
-            "quality": quality_metrics,
-            "output_format": {
-                "columns": list(final_output.columns),
-                "ready_for_format_merge": True,
-            },
-        }
+        # Create comprehensive summary as TSV for pipeline monitoring and debugging
+        summary_data = []
+        
+        # Basic information
+        summary_data.extend([
+            ["status", "success"],
+            ["plate", plate],
+            ["well", well],
+        ])
+        
+        # Processing metrics
+        summary_data.extend([
+            ["processing_raw_matches_input", len(raw_matches)],
+            ["processing_simple_matches_input", len(merged_cells)],
+            ["processing_final_matches_output", len(final_output)],
+            ["processing_matches_removed", len(raw_matches) - len(final_output)],
+            ["processing_efficiency", len(final_output) / len(raw_matches)],
+        ])
+        
+        # Deduplication information
+        summary_data.extend([
+            ["deduplication_method", "deduplicate_matches_by_stitched_ids"],
+            ["deduplication_uses_stitched_ids", True],
+            ["deduplication_preserves_original_ids", True],
+            ["deduplication_achieved_1to1_stitched", validation_results["is_1to1_stitched"]],
+        ])
+        
+        # Validation results - flatten the nested dictionary
+        summary_data.append(["validation_is_1to1_stitched", validation_results["is_1to1_stitched"]])
+        summary_data.append(["validation_match_count", validation_results["match_count"]])
+        
+        # Distance statistics
+        dist_stats = validation_results.get("distance_stats", {})
+        for key, value in dist_stats.items():
+            summary_data.append([f"validation_distance_{key}", value])
+            
+        # Distance distribution
+        dist_dist = validation_results.get("distance_distribution", {})
+        for key, value in dist_dist.items():
+            summary_data.append([f"validation_distribution_{key}", value])
+            
+        # Quality metrics
+        qual_metrics = validation_results.get("quality_metrics", {})
+        for key, value in qual_metrics.items():
+            summary_data.append([f"validation_quality_{key}", value])
+            
+        # Duplication check
+        dup_check = validation_results.get("duplication_check", {})
+        for key, value in dup_check.items():
+            summary_data.append([f"validation_duplication_{key}", value])
+        
+        # Quality metrics (extracted earlier)
+        for key, value in quality_metrics.items():
+            summary_data.append([f"quality_{key}", value])
+        
+        # Output format information
+        summary_data.extend([
+            ["output_format_columns", ";".join(final_output.columns)],
+            ["output_format_ready_for_format_merge", True],
+        ])
 
-        with open(str(snakemake.output.deduplication_summary), "w") as f:
-            yaml.dump(summary, f, default_flow_style=False)
+        summary_df = pd.DataFrame(summary_data, columns=["metric", "value"])
+        summary_df.to_csv(str(snakemake.output.deduplication_summary), sep='\t', index=False)
 
         print(f"✅ Well {plate}-{well} deduplication successful")
 

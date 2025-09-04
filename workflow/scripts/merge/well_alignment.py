@@ -6,6 +6,7 @@ This script performs the first step of the well-level merge pipeline:
 3. Generates triangle hash features for both datasets
 4. Performs adaptive regional triangle hash alignment
 5. Saves alignment parameters and transformed coordinates
+6. Outputs alignment summary in TSV format for multi-well analysis
 
 The alignment process uses triangle-based feature matching with RANSAC to
 estimate robust transformation parameters between imaging modalities.
@@ -108,19 +109,21 @@ def main():
         )
         failed_alignment.to_parquet(str(snakemake.output.alignment_params))
 
-        # Save failure summary
-        summary = {
-            "status": "failed",
-            "reason": "insufficient_triangles",
-            "scale_factor": float(scale_factor),
-            "phenotype_triangles": 0,
-            "sbs_triangles": 0,
-            "overlap_fraction": float(overlap_fraction),
-        }
-
-        with open(str(snakemake.output.alignment_summary), "w") as f:
-            yaml.dump(summary, f)
-
+        # Save failure summary in TSV format
+        summary = create_alignment_summary_row(
+            plate=plate,
+            well=well,
+            status="failed",
+            reason="insufficient_triangles",
+            scale_factor=scale_factor,
+            overlap_fraction=overlap_fraction,
+            phenotype_triangles=0,
+            sbs_triangles=0,
+            score_threshold=score,
+            alignment_dict={}
+        )
+        
+        save_tsv_summary(summary, snakemake.output.alignment_summary)
         return
 
     print(f"✅ Generated {len(phenotype_triangles)} phenotype triangles")
@@ -202,44 +205,21 @@ def main():
 
     print(f"✅ Saved alignment parameters: {snakemake.output.alignment_params}")
 
-    # Create alignment summary
-    summary = {
-        "status": alignment_status,
-        "plate": plate,
-        "well": well,
-        "scale_factor": float(scale_factor),
-        "overlap_fraction": float(overlap_fraction),
-        "phenotype_triangles": len(phenotype_triangles),
-        "sbs_triangles": len(sbs_triangles),
-        "parameters_used": {
-            "threshold_triangle": 0.3,
-            "score": float(score),
-            "threshold_point": 2.0,
-            "note": "Using config-specified score threshold for alignment quality"
-        },
-        "alignment": {
-            "approach": str(best_alignment.get("approach", "unknown")),
-            "transformation_type": str(
-                best_alignment.get("transformation_type", "unknown")
-            ),
-            "score": float(best_alignment.get("score", 0)),
-            "determinant": float(best_alignment.get("determinant", 1)),
-            
-            # Add the missing transformation details
-            "rotation_matrix": best_alignment.get("rotation", np.eye(2)).tolist() if isinstance(best_alignment.get("rotation"), np.ndarray) else [[1.0, 0.0], [0.0, 1.0]],
-            "translation_vector": best_alignment.get("translation", np.array([0.0, 0.0])).tolist() if isinstance(best_alignment.get("translation"), np.ndarray) else [0.0, 0.0],
-            
-            "validation_mean_distance": float(
-                best_alignment.get("validation_mean_distance", 0)
-            ),
-            "region_size": float(best_alignment.get("final_region_size", 0)),
-            "attempts": int(best_alignment.get("attempts", 0)),
-        },
-    }
+    # Create alignment summary in TSV format
+    summary = create_alignment_summary_row(
+        plate=plate,
+        well=well,
+        status=alignment_status,
+        reason=None,
+        scale_factor=scale_factor,
+        overlap_fraction=overlap_fraction,
+        phenotype_triangles=len(phenotype_triangles),
+        sbs_triangles=len(sbs_triangles),
+        score_threshold=score,
+        alignment_dict=best_alignment
+    )
 
-    with open(str(snakemake.output.alignment_summary), "w") as f:
-        yaml.dump(summary, f, default_flow_style=False)
-
+    save_tsv_summary(summary, snakemake.output.alignment_summary)
     print(f"✅ Saved alignment summary: {snakemake.output.alignment_summary}")
 
     # =================================================================
@@ -286,6 +266,130 @@ def main():
     )
 
     print(f"\n🎉 Alignment completed successfully!")
+
+
+def create_alignment_summary_row(
+    plate: str,
+    well: str,
+    status: str,
+    reason: str = None,
+    scale_factor: float = 0.0,
+    overlap_fraction: float = 0.0,
+    phenotype_triangles: int = 0,
+    sbs_triangles: int = 0,
+    score_threshold: float = 0.0,
+    alignment_dict: dict = None
+) -> dict:
+    """Create a single row summary for TSV output.
+    
+    Args:
+        plate: Plate identifier
+        well: Well identifier  
+        status: Alignment status
+        reason: Failure reason (if applicable)
+        scale_factor: Calculated scale factor
+        overlap_fraction: Coordinate overlap fraction
+        phenotype_triangles: Number of phenotype triangles generated
+        sbs_triangles: Number of SBS triangles generated
+        score_threshold: Score threshold used
+        alignment_dict: Dictionary containing alignment parameters
+        
+    Returns:
+        Dictionary with summary data formatted for TSV output
+    """
+    if alignment_dict is None:
+        alignment_dict = {}
+    
+    def safe_float(value, default: float = 0.0, precision: int = 6) -> float:
+        """Safely convert value to float with specified precision."""
+        try:
+            if value is None:
+                return default
+            return round(float(value), precision)
+        except (ValueError, TypeError):
+            return default
+
+    def safe_int(value, default: int = 0) -> int:
+        """Safely convert value to int."""
+        try:
+            if value is None:
+                return default
+            return int(value)
+        except (ValueError, TypeError):
+            return default
+    
+    # Extract rotation matrix components
+    rotation_matrix = alignment_dict.get("rotation", np.eye(2))
+    if isinstance(rotation_matrix, np.ndarray):
+        r00, r01 = float(rotation_matrix[0, 0]), float(rotation_matrix[0, 1])
+        r10, r11 = float(rotation_matrix[1, 0]), float(rotation_matrix[1, 1])
+    else:
+        r00, r01, r10, r11 = 1.0, 0.0, 0.0, 1.0
+    
+    # Extract translation vector components
+    translation_vector = alignment_dict.get("translation", np.array([0.0, 0.0]))
+    if isinstance(translation_vector, np.ndarray):
+        tx, ty = float(translation_vector[0]), float(translation_vector[1])
+    else:
+        tx, ty = 0.0, 0.0
+
+    return {
+        # Well identifiers
+        'plate': str(plate),
+        'well': str(well),
+        
+        # Status and basic metrics
+        'status': str(status),
+        'failure_reason': str(reason) if reason else '',
+        'scale_factor': safe_float(scale_factor),
+        'overlap_fraction': safe_float(overlap_fraction, precision=3),
+        
+        # Triangle generation
+        'phenotype_triangles': safe_int(phenotype_triangles),
+        'sbs_triangles': safe_int(sbs_triangles),
+        
+        # Alignment parameters
+        'threshold_triangle': 0.3,  # Fixed parameter
+        'score_threshold': safe_float(score_threshold, precision=3),
+        'threshold_point': 2.0,  # Fixed parameter
+        
+        # Alignment results
+        'approach': str(alignment_dict.get('approach', '')),
+        'transformation_type': str(alignment_dict.get('transformation_type', '')),
+        'alignment_score': safe_float(alignment_dict.get('score', 0), precision=3),
+        'determinant': safe_float(alignment_dict.get('determinant', 1), precision=6),
+        
+        # Transformation matrix components
+        'rotation_r00': safe_float(r00, precision=6),
+        'rotation_r01': safe_float(r01, precision=6),
+        'rotation_r10': safe_float(r10, precision=6),
+        'rotation_r11': safe_float(r11, precision=6),
+        'translation_tx': safe_float(tx, precision=3),
+        'translation_ty': safe_float(ty, precision=3),
+        
+        # Validation metrics
+        'validation_mean_distance': safe_float(alignment_dict.get('validation_mean_distance', 0), precision=3),
+        'validation_median_distance': safe_float(alignment_dict.get('validation_median_distance', 0), precision=3),
+        
+        # Regional sampling details
+        'region_size': safe_float(alignment_dict.get('final_region_size', 0), precision=0),
+        'sampling_attempts': safe_int(alignment_dict.get('attempts', 0)),
+        'triangles_matched': safe_int(alignment_dict.get('triangles_matched', 0)),
+    }
+
+
+def save_tsv_summary(summary: dict, output_path: str):
+    """Save alignment summary as TSV file.
+    
+    Args:
+        summary: Summary dictionary to save
+        output_path: Path to save TSV file
+    """
+    # Convert to DataFrame for easy TSV writing
+    df = pd.DataFrame([summary])
+    
+    # Save as TSV
+    df.to_csv(output_path, sep='\t', index=False, float_format='%.6g')
 
 
 def create_failed_alignment(scale_factor: float, reason: str) -> pd.DataFrame:

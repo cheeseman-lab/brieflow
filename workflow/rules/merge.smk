@@ -175,7 +175,7 @@ if merge_approach == "well":
             raw_matches=MERGE_OUTPUTS["well_cell_merge"][0],                    
             merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],                   
         output:
-            deduplicated_cells=temp(MERGE_OUTPUTS["well_merge_deduplicate"][0]),      
+            deduplicated_cells=(MERGE_OUTPUTS["well_merge_deduplicate"][0]),      
             deduplication_summary=MERGE_OUTPUTS["well_merge_deduplicate"][1],   
         params:
             plate=lambda wildcards: wildcards.plate,
@@ -236,14 +236,14 @@ rule deduplicate_merge:
             
             # Create dummy outputs to match expected structure
             # Save the formatted data as "deduplicated" (no additional deduplication needed)
-            formatted_data.to_parquet(output[1])  # merge_deduplicated.parquet
+            formatted_data.to_parquet(output[1]) 
             
             # Create dummy stats files
             import pandas as pd
             dummy_stats = pd.DataFrame({"info": ["No additional deduplication - already done in well_merge_deduplicate"]})
-            dummy_stats.to_csv(output[0], sep='\t', index=False)  # deduplication_stats.tsv
-            dummy_stats.to_csv(output[2], sep='\t', index=False)  # final_sbs_matching_rates.tsv  
-            dummy_stats.to_csv(output[3], sep='\t', index=False)  # final_phenotype_matching_rates.tsv
+            dummy_stats.to_csv(output[0], sep='\t', index=False)
+            dummy_stats.to_csv(output[2], sep='\t', index=False)
+            dummy_stats.to_csv(output[3], sep='\t', index=False) 
         else:
             # For tile approach, run the actual deduplication script
             shell("python {workflow.basedir}/scripts/merge/deduplicate_merge.py")

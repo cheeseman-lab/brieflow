@@ -90,8 +90,8 @@ MERGE_OUTPUTS = {
         MERGE_FP / "well_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "alignment", "parquet"
         ),  # [3]
-        MERGE_FP / "well_alignment" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "alignment_summary", "yaml"
+        MERGE_FP / "tsvs" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "alignment_summary", "tsv"
         ),  # [4]
         MERGE_FP / "well_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_transformed", "parquet"
@@ -104,16 +104,16 @@ MERGE_OUTPUTS = {
         MERGE_FP / "well_cell_merge" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merged_cells", "parquet"
         ),  # [1]
-        MERGE_FP / "well_cell_merge" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "merge_summary", "yaml"
+        MERGE_FP / "tsvs" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "merge_summary", "tsv"
         ),  # [2]
     ],
     "well_merge_deduplicate": [
         MERGE_FP / "well_merge_deduplicate" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "deduplicated_cells", "parquet"
         ),  # [0]
-        MERGE_FP / "well_merge_deduplicate" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "dedup_summary", "yaml"
+        MERGE_FP / "tsvs" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "dedup_summary", "tsv"
         ),  # [1]
     ],
     
@@ -253,7 +253,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "stitch_sbs_positions": None,
     "well_alignment": None,
     "well_cell_merge": None,
-    "well_merge_deduplicate": None,
+    "well_merge_deduplicate": temp,
     "fast_alignment": None,
     "merge_tile": None,
     "merge": None,

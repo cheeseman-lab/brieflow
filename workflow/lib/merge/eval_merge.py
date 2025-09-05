@@ -365,9 +365,9 @@ def create_enhanced_match_visualization(
     """Create enhanced visualization showing matched and unmatched cells.
 
     Args:
-        matched_data (pd.DataFrame): Matched cell data
-        site_phenotype (pd.DataFrame): Raw phenotype cells
-        site_sbs (pd.DataFrame): Raw SBS cells
+        matched_data (pd.DataFrame): Matched cell data with columns: i_0, j_0, i_1, j_1, distance
+        site_phenotype (pd.DataFrame): Raw phenotype cells with columns: i, j
+        site_sbs (pd.DataFrame): Raw SBS cells with columns: i, j
         unmatched_phenotype (pd.DataFrame): Unmatched phenotype cells
         unmatched_sbs (pd.DataFrame): Unmatched SBS cells
         site (str): Site name for title
@@ -415,12 +415,12 @@ def create_enhanced_match_visualization(
         )
         ax1.set_title("Match Distance Distribution")
 
-    # 2. Spatial overview - all cells
+    # 2. Spatial overview - Raw positions + Matched cells colored by distance
     ax2 = axes[0, 1]
 
-    # Plot unmatched cells first (so matched cells appear on top)
+    # Plot raw phenotype positions
     if len(site_phenotype) > 0:
-        sample_size = min(2000, len(site_phenotype))  # Limit for performance
+        sample_size = min(2000, len(site_phenotype))
         sample_ph = (
             site_phenotype.sample(n=sample_size)
             if len(site_phenotype) > sample_size
@@ -435,6 +435,7 @@ def create_enhanced_match_visualization(
             label=f"Raw Phenotype ({len(site_phenotype)})",
         )
 
+    # Plot raw SBS positions
     if len(site_sbs) > 0:
         sample_size = min(2000, len(site_sbs))
         sample_sbs = (
@@ -449,70 +450,100 @@ def create_enhanced_match_visualization(
             label=f"Raw SBS ({len(site_sbs)})",
         )
 
-    # Plot matched cells on top with borders
+    # Plot matched cell pairs with connecting lines, colored by distance
     if len(matched_data) > 0:
-        sample_size = min(2000, len(matched_data))
+        sample_size = min(1000, len(matched_data))  # Reduced for performance with lines
         sample_matched = (
             matched_data.sample(n=sample_size)
             if len(matched_data) > sample_size
             else matched_data
         )
-        # Color by distance with black borders for visibility
-        scatter = ax2.scatter(
+        
+        # Draw lines connecting matched pairs
+        for _, row in sample_matched.iterrows():
+            ax2.plot(
+                [row["j_0"], row["j_1"]], 
+                [row["i_0"], row["i_1"]], 
+                'k-', 
+                alpha=0.8, 
+                linewidth=1
+            )
+
+        # Plot matched SBS positions
+        ax2.scatter(
+            sample_matched["j_1"],
+            sample_matched["i_1"],
+            c="lightblue",
+            s=20,
+            alpha=0.8,
+            marker='o',
+        )
+        
+        # Plot matched phenotype positions
+        scatter_ph = ax2.scatter(
             sample_matched["j_0"],
             sample_matched["i_0"],
             c=sample_matched["distance"],
-            s=15,
-            alpha=0.9,
+            s=20,
+            alpha=0.8,
             cmap="viridis",
             edgecolors="black",
-            linewidths=0.5,
-            label=f"Matched ({len(matched_data)})",
+            linewidths=0.8,
+            marker='o',
+            label=f"Matched Phenotype ({len(matched_data)})",
         )
-        plt.colorbar(scatter, ax=ax2, label="Match Distance (px)", shrink=0.8)
+        
+        plt.colorbar(scatter_ph, ax=ax2, label="Match Distance (px)", shrink=0.8)
 
     ax2.set_xlabel("j (pixels)")
     ax2.set_ylabel("i (pixels)")
-    ax2.set_title("Cell Positions Overview")
+    ax2.set_title("Raw Phenotype Positions, Raw SBS Positions, Matched Cells Colored by Distance")
     ax2.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-    ax2.invert_yaxis()  # Match image coordinates
+    ax2.invert_yaxis()
 
-    # 3. Match quality pie chart
+    # 3. CORRECTED: Pie chart showing % of phenotype cells with a match
     ax3 = axes[1, 0]
 
     total_phenotype = len(site_phenotype)
-    total_sbs = len(site_sbs)
+    matched_phenotype_count = len(matched_data)
+    unmatched_phenotype_count = total_phenotype - matched_phenotype_count
 
-    # Show phenotype matching breakdown
     labels = ["Matched", "Unmatched"]
-    sizes = [len(matched_data), len(site_phenotype)]
+    sizes = [matched_phenotype_count, unmatched_phenotype_count]
     colors = ["#2ecc71", "#e74c3c"]
 
-    if sum(sizes) > 0:
+    if total_phenotype > 0:
         wedges, texts, autotexts = ax3.pie(
-            sizes, labels=labels, colors=colors, autopct="%1.1f%%", startangle=90
+            sizes, 
+            labels=labels, 
+            colors=colors, 
+            autopct="%1.1f%%", 
+            startangle=90
         )
         for autotext in autotexts:
             autotext.set_color("white")
             autotext.set_fontweight("bold")
+    else:
+        ax3.text(0.5, 0.5, "No phenotype cells", ha="center", va="center", 
+                transform=ax3.transAxes, fontsize=12)
 
-    ax3.set_title(f"Phenotype Match Rate\n({total_phenotype} total cells)")
+    ax3.set_title(f"% of Phenotype Cells with a Match\n({total_phenotype} total phenotype cells)")
 
     # 4. Summary statistics table
     ax4 = axes[1, 1]
     ax4.axis("off")
 
+    total_sbs = len(site_sbs)
+
     # Create summary table
     summary_data = [
         ["Metric", "Phenotype", "SBS"],
         ["Total Cells", f"{total_phenotype}", f"{total_sbs}"],
-        ["Matched Cells", f"{len(matched_data)}", f"{len(matched_data)}"],
-        ["Unmatched Cells", f"{len(site_phenotype)}", f"{len(site_sbs)}"],
+        ["Matched Cells", f"{matched_phenotype_count}", f"{len(matched_data)}"],
+        ["Unmatched Cells", f"{unmatched_phenotype_count}", f"{total_sbs - len(matched_data)}"],
         [
             "Match Rate",
-            f"{len(matched_data) / total_phenotype:.1%}"
-            if total_phenotype > 0
-            else "N/A",
+            f"{matched_phenotype_count / total_phenotype:.1%}" if total_phenotype > 0 else "N/A",
             f"{len(matched_data) / total_sbs:.1%}" if total_sbs > 0 else "N/A",
         ],
     ]
@@ -526,7 +557,7 @@ def create_enhanced_match_visualization(
                 ["Excellent (≤2px)", f"{(distances <= 2).sum()}", ""],
                 ["Very Good (≤5px)", f"{(distances <= 5).sum()}", ""],
                 ["Good (≤10px)", f"{(distances <= 10).sum()}", ""],
-                ["Fair (≤15px)", f"{(distances > 10).sum()}", ""],
+                ["Fair (>10px)", f"{(distances > 10).sum()}", ""],
             ]
         )
 
@@ -551,7 +582,6 @@ def create_enhanced_match_visualization(
 
     plt.tight_layout()
     plt.show()
-
 
 
 def run_well_alignment_qc(

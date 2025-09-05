@@ -147,10 +147,6 @@ if merge_approach == "well":
             well=lambda wildcards: wildcards.well,
             threshold=config["merge"]["threshold"],
             score=config["merge"]["score"],
-        resources:
-            mem_mb=8000,
-            cpus_per_task=2,
-            runtime=60,
         script:
             "../scripts/merge/well_cell_merge.py"
 

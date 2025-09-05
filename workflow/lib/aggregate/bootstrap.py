@@ -9,6 +9,7 @@ p-value calculation at both construct and gene levels.
 import numpy as np
 import pandas as pd
 from typing import Tuple, List
+from scipy.stats import false_discovery_control
 
 
 def get_construct_features(
@@ -141,3 +142,75 @@ def load_construct_null_arrays(file_paths: List[str]) -> List[np.ndarray]:
         List of loaded numpy arrays.
     """
     return [np.load(path, allow_pickle=False) for path in file_paths]
+
+
+def apply_multiple_hypothesis_correction(df, feature_cols):
+    """Apply multiple hypothesis testing correction to p-values."""
+    print("Applying multiple hypothesis testing correction...")
+
+    # Create copies for corrected values
+    df_corrected = df.copy()
+
+    for feature in feature_cols:
+        print(f"Processing feature: {feature}")
+
+        # Get p-values for this feature
+        pvals = df[feature].values
+
+        # Handle missing/invalid p-values
+        valid_mask = pd.notna(pvals) & (pvals > 0) & (pvals <= 1)
+
+        if valid_mask.sum() == 0:
+            print(f"  No valid p-values found for {feature}")
+            df_corrected[f"{feature}_log10"] = np.nan
+            df_corrected[f"{feature}_fdr"] = np.nan
+            continue
+
+        print(f"  Found {valid_mask.sum()} valid p-values out of {len(pvals)}")
+
+        # Convert to -log10 (handle zeros by setting to minimum detectable p-value)
+        log10_pvals = np.full(len(pvals), np.nan)
+
+        # For valid p-values > 0
+        nonzero_mask = valid_mask & (pvals > 0)
+        if nonzero_mask.sum() > 0:
+            log10_pvals[nonzero_mask] = -np.log10(pvals[nonzero_mask])
+
+        # For p-values that are exactly 0 (perfect separation), set to high value
+        zero_mask = valid_mask & (pvals == 0)
+        if zero_mask.sum() > 0:
+            print(
+                f"  Found {zero_mask.sum()} p-values of exactly 0, setting to -log10(p) = 6"
+            )
+            log10_pvals[zero_mask] = 6.0  # Equivalent to p = 1e-6
+
+        # Cap -log10 p-values at 4 (equivalent to p = 1e-4)
+        log10_pvals = np.where(log10_pvals > 4, 4, log10_pvals)
+
+        # Apply FDR correction (Benjamini-Hochberg)
+        fdr_pvals = np.full(len(pvals), np.nan)
+        if valid_mask.sum() > 1:  # Need at least 2 valid p-values for FDR
+            try:
+                # Extract valid p-values
+                valid_pvals = pvals[valid_mask]
+
+                # Apply FDR correction
+                fdr_corrected = false_discovery_control(valid_pvals, method="bh")
+
+                # Put corrected values back
+                fdr_pvals[valid_mask] = fdr_corrected
+
+                print(
+                    f"  FDR correction applied. Significant at 0.05: {(fdr_corrected < 0.05).sum()}"
+                )
+
+            except Exception as e:
+                print(f"  FDR correction failed for {feature}: {e}")
+        else:
+            print(f"  Insufficient valid p-values for FDR correction on {feature}")
+
+        # Add corrected columns
+        df_corrected[f"{feature}_log10"] = log10_pvals
+        df_corrected[f"{feature}_fdr"] = fdr_pvals
+
+    return df_corrected

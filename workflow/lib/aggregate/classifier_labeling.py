@@ -1518,7 +1518,7 @@ def consolidate_manual_classifications(
                 f"Built consolidated dataset with {len(consolidated_df)} rows (write=False)."
             )
 
-    return consolidated_df
+    return consolidated_df, out_path if write else None
 
 
 # ----------------------------------------------------------------------------- #

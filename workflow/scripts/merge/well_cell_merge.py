@@ -88,25 +88,34 @@ def create_empty_outputs_with_summary(failure_reason: str):
     empty_matches.to_parquet(str(snakemake.output.raw_matches))
     empty_matches.to_parquet(str(snakemake.output.merged_cells))
 
-    # Create failure summary
-    summary_data = [
-        ["status", "failed"],
-        ["failure_reason", failure_reason],
-        ["plate", plate],
-        ["well", well],
-        ["distance_threshold_pixels", float(threshold)],
-        ["phenotype_cells_before_filtering", len(phenotype_scaled)],
-        ["sbs_cells_before_filtering", len(sbs_positions)],
-        ["raw_matches_found", 0],
-        ["mean_match_distance", 0.0],
-        ["max_match_distance", 0.0],
-        ["matches_under_5px", 0],
-        ["matches_under_10px", 0],
-        ["match_rate_phenotype", 0.0],
-        ["match_rate_sbs", 0.0],
-    ]
+    # Create failure summary in wide format
+    failure_summary = {
+        "plate": plate,
+        "well": well,
+        "status": "failed",
+        "failure_reason": failure_reason,
+        "distance_threshold_pixels": float(threshold),
+        "phenotype_cells_before_filtering": len(phenotype_scaled),
+        "sbs_cells_before_filtering": len(sbs_positions),
+        "phenotype_cells_after_filtering": 0,
+        "sbs_cells_after_filtering": 0,
+        "phenotype_tiles_removed": 0,
+        "sbs_tiles_removed": 0,
+        "alignment_approach": "unknown",
+        "alignment_transformation_type": "unknown",
+        "alignment_score": 0.0,
+        "alignment_determinant": 1.0,
+        "raw_matches_found": 0,
+        "mean_match_distance": 0.0,
+        "max_match_distance": 0.0,
+        "matches_under_5px": 0,
+        "matches_under_10px": 0,
+        "match_rate_phenotype": 0.0,
+        "match_rate_sbs": 0.0,
+        "validation_status": "failed",
+    }
 
-    summary_df = pd.DataFrame(summary_data, columns=["metric", "value"])
+    summary_df = pd.DataFrame([failure_summary])
     summary_df.to_csv(str(snakemake.output.merge_summary), sep="\t", index=False)
     return
 
@@ -333,189 +342,77 @@ else:
                             f"❌ WARNING: Match validation failed: {validation_results.get('status', 'unknown')}"
                         )
 
-                    # Create comprehensive summary as TSV
-                    summary_data = []
+                    # Create comprehensive summary in wide format
+                    summary_dict = {
+                        "plate": plate,
+                        "well": well,
+                        "status": "success",
+                        "distance_threshold_pixels": float(threshold),
+                        
+                        # Input data metrics
+                        "phenotype_cells_before_filtering": len(phenotype_scaled),
+                        "sbs_cells_before_filtering": len(sbs_positions),
+                        "phenotype_cells_after_filtering": len(phenotype_filtered),
+                        "sbs_cells_after_filtering": len(sbs_filtered),
+                        
+                        # Tile filtering metrics
+                        "phenotype_tiles_removed": (
+                            len(phenotype_scaled["tile"].unique()) - len(phenotype_filtered["tile"].unique())
+                            if "tile" in phenotype_scaled.columns else 0
+                        ),
+                        "sbs_tiles_removed": (
+                            len(sbs_positions["tile"].unique()) - len(sbs_filtered["tile"].unique())
+                            if "tile" in sbs_positions.columns else 0
+                        ),
+                        
+                        # Alignment information
+                        "alignment_approach": str(alignment.get("approach", "unknown")),
+                        "alignment_transformation_type": str(alignment.get("transformation_type", "unknown")),
+                        "alignment_score": float(alignment.get("score", 0)),
+                        "alignment_determinant": float(alignment.get("determinant", 1)),
+                        
+                        # Matching results
+                        "raw_matches_found": len(final_matches),
+                        "mean_match_distance": float(final_matches["distance"].mean()) if len(final_matches) > 0 else 0.0,
+                        "max_match_distance": float(final_matches["distance"].max()) if len(final_matches) > 0 else 0.0,
+                        "matches_under_5px": int((final_matches["distance"] < 5).sum()) if len(final_matches) > 0 else 0,
+                        "matches_under_10px": int((final_matches["distance"] < 10).sum()) if len(final_matches) > 0 else 0,
+                        "match_rate_phenotype": float(len(final_matches) / len(phenotype_filtered)) if len(phenotype_filtered) > 0 else 0.0,
+                        "match_rate_sbs": float(len(final_matches) / len(sbs_filtered)) if len(sbs_filtered) > 0 else 0.0,
+                    }
 
-                    # Basic information
-                    summary_data.extend(
-                        [
-                            ["status", "success"],
-                            ["plate", plate],
-                            ["well", well],
-                            ["distance_threshold_pixels", float(threshold)],
-                        ]
-                    )
-
-                    # Input data metrics
-                    summary_data.extend(
-                        [
-                            ["phenotype_cells_before_filtering", len(phenotype_scaled)],
-                            ["sbs_cells_before_filtering", len(sbs_positions)],
-                            [
-                                "phenotype_cells_after_filtering",
-                                len(phenotype_filtered),
-                            ],
-                            ["sbs_cells_after_filtering", len(sbs_filtered)],
-                        ]
-                    )
-
-                    # Tile filtering metrics
-                    summary_data.extend(
-                        [
-                            [
-                                "phenotype_tiles_removed",
-                                len(phenotype_scaled["tile"].unique())
-                                - len(phenotype_filtered["tile"].unique())
-                                if "tile" in phenotype_scaled.columns
-                                else 0,
-                            ],
-                            [
-                                "sbs_tiles_removed",
-                                len(sbs_positions["tile"].unique())
-                                - len(sbs_filtered["tile"].unique())
-                                if "tile" in sbs_positions.columns
-                                else 0,
-                            ],
-                            [
-                                "phenotype_tiles_kept",
-                                ";".join(
-                                    map(
-                                        str,
-                                        sorted(
-                                            phenotype_filtered["tile"].unique().tolist()
-                                        ),
-                                    )
-                                )
-                                if "tile" in phenotype_filtered.columns
-                                else "",
-                            ],
-                            [
-                                "sbs_tiles_kept",
-                                ";".join(
-                                    map(
-                                        str,
-                                        sorted(sbs_filtered["tile"].unique().tolist()),
-                                    )
-                                )
-                                if "tile" in sbs_filtered.columns
-                                else "",
-                            ],
-                        ]
-                    )
-
-                    # Alignment information
-                    summary_data.extend(
-                        [
-                            [
-                                "alignment_approach",
-                                str(alignment.get("approach", "unknown")),
-                            ],
-                            [
-                                "alignment_transformation_type",
-                                str(alignment.get("transformation_type", "unknown")),
-                            ],
-                            ["alignment_score", float(alignment.get("score", 0))],
-                            [
-                                "alignment_determinant",
-                                float(alignment.get("determinant", 1)),
-                            ],
-                        ]
-                    )
-
-                    # Matching results
-                    summary_data.extend(
-                        [
-                            ["raw_matches_found", len(final_matches)],
-                            [
-                                "mean_match_distance",
-                                float(final_matches["distance"].mean())
-                                if len(final_matches) > 0
-                                else 0.0,
-                            ],
-                            [
-                                "max_match_distance",
-                                float(final_matches["distance"].max())
-                                if len(final_matches) > 0
-                                else 0.0,
-                            ],
-                            [
-                                "matches_under_5px",
-                                int((final_matches["distance"] < 5).sum())
-                                if len(final_matches) > 0
-                                else 0,
-                            ],
-                            [
-                                "matches_under_10px",
-                                int((final_matches["distance"] < 10).sum())
-                                if len(final_matches) > 0
-                                else 0,
-                            ],
-                            [
-                                "match_rate_phenotype",
-                                float(len(final_matches) / len(phenotype_filtered))
-                                if len(phenotype_filtered) > 0
-                                else 0.0,
-                            ],
-                            [
-                                "match_rate_sbs",
-                                float(len(final_matches) / len(sbs_filtered))
-                                if len(sbs_filtered) > 0
-                                else 0.0,
-                            ],
-                        ]
-                    )
-
-                    # Validation results - flatten the nested dictionary
+                    # Add validation results if available
                     if validation_results:
-                        summary_data.append(
-                            [
-                                "validation_status",
-                                validation_results.get("status", "unknown"),
-                            ]
-                        )
+                        summary_dict.update({
+                            "validation_status": validation_results.get("status", "unknown"),
+                            
+                            # Distance stats
+                            "validation_distance_mean": validation_results.get("distance_stats", {}).get("mean", 0),
+                            "validation_distance_median": validation_results.get("distance_stats", {}).get("median", 0),
+                            "validation_distance_max": validation_results.get("distance_stats", {}).get("max", 0),
+                            "validation_distance_std": validation_results.get("distance_stats", {}).get("std", 0),
+                            
+                            # Distance distribution
+                            "validation_distribution_under_1px": validation_results.get("distance_distribution", {}).get("under_1px", 0),
+                            "validation_distribution_under_2px": validation_results.get("distance_distribution", {}).get("under_2px", 0),
+                            "validation_distribution_under_5px": validation_results.get("distance_distribution", {}).get("under_5px", 0),
+                            "validation_distribution_under_10px": validation_results.get("distance_distribution", {}).get("under_10px", 0),
+                            "validation_distribution_over_20px": validation_results.get("distance_distribution", {}).get("over_20px", 0),
+                            
+                            # Quality flags
+                            "validation_quality_has_duplicates": validation_results.get("quality_flags", {}).get("has_duplicates", False),
+                            "validation_quality_has_large_distances": validation_results.get("quality_flags", {}).get("has_large_distances", False),
+                            "validation_quality_good_quality": validation_results.get("quality_flags", {}).get("good_quality", False),
+                            
+                            # Duplication info
+                            "validation_duplication_phenotype_duplicates": validation_results.get("duplication", {}).get("phenotype_duplicates", 0),
+                            "validation_duplication_sbs_duplicates": validation_results.get("duplication", {}).get("sbs_duplicates", 0),
+                            "validation_duplication_has_duplicates": validation_results.get("duplication", {}).get("has_duplicates", False),
+                        })
 
-                        # Distance stats
-                        dist_stats = validation_results.get("distance_stats", {})
-                        for key, value in dist_stats.items():
-                            summary_data.append([f"validation_distance_{key}", value])
-
-                        # Distance distribution
-                        dist_dist = validation_results.get("distance_distribution", {})
-                        for key, value in dist_dist.items():
-                            summary_data.append(
-                                [f"validation_distribution_{key}", value]
-                            )
-
-                        # Quality flags
-                        quality_flags = validation_results.get("quality_flags", {})
-                        for key, value in quality_flags.items():
-                            summary_data.append([f"validation_quality_{key}", value])
-
-                        # Duplication info
-                        duplication = validation_results.get("duplication", {})
-                        for key, value in duplication.items():
-                            summary_data.append(
-                                [f"validation_duplication_{key}", value]
-                            )
-
-                    # Output format information
-                    summary_data.extend(
-                        [
-                            [
-                                "output_columns_included",
-                                ";".join(final_matches.columns),
-                            ],
-                            ["output_cell_0_contains", "original_phenotype_cell_ids"],
-                            ["output_cell_1_contains", "original_sbs_cell_ids"],
-                            ["output_stitched_ids_preserved", True],
-                            ["output_ready_for_format_merge", True],
-                        ]
-                    )
-
-                    summary_df = pd.DataFrame(summary_data, columns=["metric", "value"])
-                    summary_df.to_csv(
-                        str(snakemake.output.merge_summary), sep="\t", index=False
-                    )
+                    # Create single-row DataFrame
+                    summary_df = pd.DataFrame([summary_dict])
+                    summary_df.to_csv(str(snakemake.output.merge_summary), sep="\t", index=False)
 
                     print(f"✅ Completed successfully!")
                     print(

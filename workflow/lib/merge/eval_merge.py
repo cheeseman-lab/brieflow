@@ -498,7 +498,7 @@ def create_enhanced_match_visualization(
     ax2.set_xlabel("j (pixels)")
     ax2.set_ylabel("i (pixels)")
     ax2.set_title("Raw Phenotype Positions, Raw SBS Positions, Matched Cells Colored by Distance")
-    ax2.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+    ax2.legend(bbox_to_anchor=(1.20, 1), loc="upper left", fontsize=10)
     ax2.invert_yaxis()
 
     # 3. CORRECTED: Pie chart showing % of phenotype cells with a match

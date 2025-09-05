@@ -93,18 +93,35 @@ try:
         # Save empty deduplicated cells
         empty_df.to_parquet(str(snakemake.output.deduplicated_cells))
 
-        # Create failure summary
-        summary_data = [
-            ["status", "failed"],
-            ["plate", plate],
-            ["well", well],
-            ["error", error_message],
-            ["processing_final_matches_output", 0],
-            ["deduplication_method", "deduplicate_matches_by_stitched_ids"],
-            ["deduplication_achieved_1to1_stitched", False],
-            ["output_format_ready_for_format_merge", False],
-        ]
-        summary_df = pd.DataFrame(summary_data, columns=["metric", "value"])
+        # Create failure summary in wide format
+        failure_summary = {
+            "plate": plate,
+            "well": well,
+            "status": "failed",
+            "error": error_message,
+            "processing_raw_matches_input": len(raw_matches) if 'raw_matches' in locals() else 0,
+            "processing_simple_matches_input": len(merged_cells) if 'merged_cells' in locals() else 0,
+            "processing_final_matches_output": 0,
+            "processing_matches_removed": 0,
+            "processing_efficiency": 0.0,
+            "qc_sbs_total_cells": 0,
+            "qc_sbs_matched_cells": 0,
+            "qc_sbs_match_rate": 0.0,
+            "qc_phenotype_total_cells": 0,
+            "qc_phenotype_matched_cells": 0,
+            "qc_phenotype_match_rate": 0.0,
+            "deduplication_method": "deduplicate_matches_by_stitched_ids",
+            "deduplication_uses_stitched_ids": True,
+            "deduplication_preserves_original_ids": True,
+            "deduplication_achieved_1to1_stitched": False,
+            "validation_is_1to1_stitched": False,
+            "validation_match_count": 0,
+            "output_format_ready_for_format_merge": False,
+            "qc_analysis_completed": False,
+            "qc_outputs_generated": False,
+        }
+
+        summary_df = pd.DataFrame([failure_summary])
         summary_df.to_csv(
             str(snakemake.output.deduplication_summary), sep="\t", index=False
         )
@@ -276,116 +293,76 @@ try:
         f"✅ Saved phenotype matching rates: {snakemake.output.phenotype_matching_rates}"
     )
 
-    # Create comprehensive deduplication summary
-    summary_data = []
+    # Create comprehensive deduplication summary in wide format
+    summary_dict = {
+        "plate": plate,
+        "well": well,
+        "status": "success",
+        
+        # Processing metrics
+        "processing_raw_matches_input": len(raw_matches),
+        "processing_simple_matches_input": len(merged_cells),
+        "processing_final_matches_output": len(final_output),
+        "processing_matches_removed": len(raw_matches) - len(final_output),
+        "processing_efficiency": float(len(final_output) / len(raw_matches)) if len(raw_matches) > 0 else 0.0,
+        
+        # QC metrics
+        "qc_sbs_total_cells": len(well_sbs_cells),
+        "qc_sbs_matched_cells": sbs_rates["matched_cells"].iloc[0] if not sbs_rates.empty else 0,
+        "qc_sbs_match_rate": sbs_rates["match_rate"].iloc[0] if not sbs_rates.empty else 0.0,
+        "qc_phenotype_total_cells": len(well_phenotype_cells),
+        "qc_phenotype_matched_cells": phenotype_rates["matched_cells"].iloc[0] if not phenotype_rates.empty else 0,
+        "qc_phenotype_match_rate": phenotype_rates["match_rate"].iloc[0] if not phenotype_rates.empty else 0.0,
+        
+        # Deduplication information
+        "deduplication_method": "deduplicate_matches_by_stitched_ids",
+        "deduplication_uses_stitched_ids": True,
+        "deduplication_preserves_original_ids": True,
+        "deduplication_achieved_1to1_stitched": validation_results["is_1to1_stitched"],
+        
+        # Validation results
+        "validation_is_1to1_stitched": validation_results["is_1to1_stitched"],
+        "validation_match_count": validation_results["match_count"],
+        
+        # Output format information
+        "output_format_columns": ";".join(final_output.columns),
+        "output_format_ready_for_format_merge": True,
+        "qc_analysis_completed": True,
+        "qc_outputs_generated": True,
+    }
 
-    # Basic information
-    summary_data.extend(
-        [
-            ["status", "success"],
-            ["plate", plate],
-            ["well", well],
-        ]
-    )
-
-    # Processing metrics
-    summary_data.extend(
-        [
-            ["processing_raw_matches_input", len(raw_matches)],
-            ["processing_simple_matches_input", len(merged_cells)],
-            ["processing_final_matches_output", len(final_output)],
-            ["processing_matches_removed", len(raw_matches) - len(final_output)],
-            [
-                "processing_efficiency",
-                float(len(final_output) / len(raw_matches))
-                if len(raw_matches) > 0
-                else 0.0,
-            ],
-        ]
-    )
-
-    # QC metrics
-    summary_data.extend(
-        [
-            ["qc_sbs_total_cells", len(well_sbs_cells)],
-            [
-                "qc_sbs_matched_cells",
-                sbs_rates["matched_cells"].iloc[0] if not sbs_rates.empty else 0,
-            ],
-            [
-                "qc_sbs_match_rate",
-                sbs_rates["match_rate"].iloc[0] if not sbs_rates.empty else 0.0,
-            ],
-            ["qc_phenotype_total_cells", len(well_phenotype_cells)],
-            [
-                "qc_phenotype_matched_cells",
-                phenotype_rates["matched_cells"].iloc[0]
-                if not phenotype_rates.empty
-                else 0,
-            ],
-            [
-                "qc_phenotype_match_rate",
-                phenotype_rates["match_rate"].iloc[0]
-                if not phenotype_rates.empty
-                else 0.0,
-            ],
-        ]
-    )
-
-    # Deduplication information
-    summary_data.extend(
-        [
-            ["deduplication_method", "deduplicate_matches_by_stitched_ids"],
-            ["deduplication_uses_stitched_ids", True],
-            ["deduplication_preserves_original_ids", True],
-            [
-                "deduplication_achieved_1to1_stitched",
-                validation_results["is_1to1_stitched"],
-            ],
-        ]
-    )
-
-    # Validation results - flatten the nested dictionary
-    summary_data.append(
-        ["validation_is_1to1_stitched", validation_results["is_1to1_stitched"]]
-    )
-    summary_data.append(["validation_match_count", validation_results["match_count"]])
-
-    # Distance statistics
+    # Add distance statistics
     dist_stats = validation_results.get("distance_stats", {})
     for key, value in dist_stats.items():
-        summary_data.append([f"validation_distance_{key}", value])
+        summary_dict[f"validation_distance_{key}"] = value
 
-    # Distance distribution
+    # Add distance distribution
     dist_dist = validation_results.get("distance_distribution", {})
     for key, value in dist_dist.items():
-        summary_data.append([f"validation_distribution_{key}", value])
+        summary_dict[f"validation_distribution_{key}"] = value
 
-    # Quality metrics
+    # Add quality metrics
     qual_metrics = validation_results.get("quality_metrics", {})
     for key, value in qual_metrics.items():
-        summary_data.append([f"validation_quality_{key}", value])
+        summary_dict[f"validation_quality_{key}"] = value
 
-    # Duplication check
-    dup_check = validation_results.get("duplication_check", {})
-    for key, value in dup_check.items():
-        summary_data.append([f"validation_duplication_{key}", value])
+    # Add duplication check
+    stitched_duplicates = validation_results.get("stitched_duplicates", {})
+    original_duplicates = validation_results.get("original_duplicates", {})
+    
+    summary_dict.update({
+        "validation_stitched_duplicates_phenotype": stitched_duplicates.get("phenotype", 0),
+        "validation_stitched_duplicates_sbs": stitched_duplicates.get("sbs", 0),
+        "validation_original_duplicates_phenotype": original_duplicates.get("phenotype", 0),
+        "validation_original_duplicates_sbs": original_duplicates.get("sbs", 0),
+    })
 
-    # Quality metrics (extracted earlier)
+    # Add quality metrics (extracted earlier)
     for key, value in quality_metrics.items():
-        summary_data.append([f"quality_{key}", value])
+        summary_dict[f"quality_{key}"] = value
 
-    # Output format information
-    summary_data.extend(
-        [
-            ["output_format_columns", ";".join(final_output.columns)],
-            ["output_format_ready_for_format_merge", True],
-            ["qc_analysis_completed", True],
-            ["qc_outputs_generated", True],
-        ]
-    )
-
-    summary_df = pd.DataFrame(summary_data, columns=["metric", "value"])
+    # Create single-row DataFrame
+    summary_df = pd.DataFrame([summary_dict])
     summary_df.to_csv(
         str(snakemake.output.deduplication_summary), sep="\t", index=False
     )
@@ -437,20 +414,35 @@ except Exception as e:
     empty_df["tile"] = 1
     empty_df.to_parquet(str(snakemake.output.deduplicated_cells))
 
-    # Create failure summary
-    summary_data = [
-        ["status", "failed"],
-        ["plate", plate_val],
-        ["well", well_val],
-        ["error", error_message],
-        ["processing_final_matches_output", 0],
-        ["deduplication_method", "deduplicate_matches_by_stitched_ids"],
-        ["deduplication_achieved_1to1_stitched", False],
-        ["output_format_ready_for_format_merge", False],
-        ["qc_analysis_completed", False],
-        ["qc_outputs_generated", False],
-    ]
-    summary_df = pd.DataFrame(summary_data, columns=["metric", "value"])
+    # Create failure summary in wide format
+    failure_summary = {
+        "plate": plate_val,
+        "well": well_val,
+        "status": "failed",
+        "error": error_message,
+        "processing_raw_matches_input": 0,
+        "processing_simple_matches_input": 0,
+        "processing_final_matches_output": 0,
+        "processing_matches_removed": 0,
+        "processing_efficiency": 0.0,
+        "qc_sbs_total_cells": 0,
+        "qc_sbs_matched_cells": 0,
+        "qc_sbs_match_rate": 0.0,
+        "qc_phenotype_total_cells": 0,
+        "qc_phenotype_matched_cells": 0,
+        "qc_phenotype_match_rate": 0.0,
+        "deduplication_method": "deduplicate_matches_by_stitched_ids",
+        "deduplication_uses_stitched_ids": True,
+        "deduplication_preserves_original_ids": True,
+        "deduplication_achieved_1to1_stitched": False,
+        "validation_is_1to1_stitched": False,
+        "validation_match_count": 0,
+        "output_format_ready_for_format_merge": False,
+        "qc_analysis_completed": False,
+        "qc_outputs_generated": False,
+    }
+
+    summary_df = pd.DataFrame([failure_summary])
     summary_df.to_csv(
         str(snakemake.output.deduplication_summary), sep="\t", index=False
     )

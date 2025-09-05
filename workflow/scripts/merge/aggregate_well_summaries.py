@@ -433,4 +433,127 @@ except Exception as e:
     traceback.print_exc()
     raise
 
-print("=== AGGREGATE WELL SUMMARIES COMPLETED ===")
+print("\n--- Generating Plate-Level QC Plots ---")
+
+try:
+    # Import the function
+    from lib.merge.eval_stitch import plot_cell_positions_plate_scatter
+    
+    # Generate phenotype plate QC plot
+    print("Creating phenotype plate scatter plot...")
+    try:
+        phenotype_files = snakemake.input.phenotype_positions_paths
+        if phenotype_files:
+            plot_cell_positions_plate_scatter(
+                parquet_files=phenotype_files,
+                output_path=snakemake.output.phenotype_plate_qc,
+                data_type="phenotype",
+                plate=plate,
+                title=f"Phenotype Cell Positions - Plate {plate}",
+                point_size=0.1,
+                alpha=0.8,
+                cmap="tab20",
+                colorbar_label="Original Tile ID",
+                figsize=(16, 11),
+            )
+            print(f"✅ Phenotype plate QC plot saved: {snakemake.output.phenotype_plate_qc}")
+        else:
+            print("⚠️  No phenotype position files available")
+            # Create empty plot file
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+            ax.text(0.5, 0.5, f'Error generating SBS plot\nfor plate {plate}', 
+                ha='center', va='center', transform=ax.transAxes, fontsize=14)
+        ax.set_title(f'SBS Plate {plate} - Error')
+        plt.tight_layout()
+        plt.savefig(snakemake.output.sbs_plate_qc, dpi=150, bbox_inches='tight')
+        plt.close()
+
+except ImportError as e:
+    print(f"❌ Could not import plot_cell_positions_plate_scatter: {e}")
+    # Create placeholder plots
+    import matplotlib.pyplot as plt
+    
+    for output_path, data_type in [(snakemake.output.phenotype_plate_qc, "phenotype"), 
+                                   (snakemake.output.sbs_plate_qc, "sbs")]:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        ax.text(0.5, 0.5, f'Plot function not available\nfor {data_type} plate {plate}', 
+                ha='center', va='center', transform=ax.transAxes, fontsize=14)
+        ax.set_title(f'{data_type.title()} Plate {plate} - Function Missing')
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        plt.close()
+
+except Exception as e:
+    print(f"❌ Unexpected error during plate QC plot generation: {e}")
+    import traceback
+    traceback.print_exc()
+    
+    # Create error plots for both outputs
+    import matplotlib.pyplot as plt
+    
+    for output_path, data_type in [(snakemake.output.phenotype_plate_qc, "phenotype"), 
+                                   (snakemake.output.sbs_plate_qc, "sbs")]:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        ax.text(0.5, 0.5, f'Unexpected error\nfor {data_type} plate {plate}', 
+                ha='center', va='center', transform=ax.transAxes, fontsize=14)
+        ax.set_title(f'{data_type.title()} Plate {plate} - Error')
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        plt.close()
+
+print(f"\n🎉 Successfully completed aggregation and QC plot generation for plate {plate}")
+
+print("=== AGGREGATE WELL SUMMARIES COMPLETED ===")'No phenotype data available for plate {plate}', 
+                    ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            ax.set_title(f'Phenotype Plate {plate} - No Data')
+            plt.tight_layout()
+            plt.savefig(snakemake.output.phenotype_plate_qc, dpi=150, bbox_inches='tight')
+            plt.close()
+    except Exception as e:
+        print(f"❌ Error creating phenotype plate QC plot: {e}")
+        # Create error plot
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        ax.text(0.5, 0.5, f'Error generating phenotype plot\nfor plate {plate}', 
+                ha='center', va='center', transform=ax.transAxes, fontsize=14)
+        ax.set_title(f'Phenotype Plate {plate} - Error')
+        plt.tight_layout()
+        plt.savefig(snakemake.output.phenotype_plate_qc, dpi=150, bbox_inches='tight')
+        plt.close()
+    
+    # Generate SBS plate QC plot
+    print("Creating SBS plate scatter plot...")
+    try:
+        sbs_files = snakemake.input.sbs_positions_paths
+        if sbs_files:
+            plot_cell_positions_plate_scatter(
+                parquet_files=sbs_files,
+                output_path=snakemake.output.sbs_plate_qc,
+                data_type="sbs",
+                plate=plate,
+                title=f"SBS Cell Positions - Plate {plate}",
+                point_size=0.1,
+                alpha=0.8,
+                cmap="tab20",
+                colorbar_label="Original Tile ID",
+                figsize=(16, 11),
+            )
+            print(f"✅ SBS plate QC plot saved: {snakemake.output.sbs_plate_qc}")
+        else:
+            print("⚠️  No SBS position files available")
+            # Create empty plot file
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+            ax.text(0.5, 0.5, f'No SBS data available for plate {plate}', 
+                    ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            ax.set_title(f'SBS Plate {plate} - No Data')
+            plt.tight_layout()
+            plt.savefig(snakemake.output.sbs_plate_qc, dpi=150, bbox_inches='tight')
+            plt.close()
+    except Exception as e:
+        print(f"❌ Error creating SBS plate QC plot: {e}")
+        # Create error plot
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        ax.text(0.5, 0.5, f

@@ -25,39 +25,33 @@ MERGE_OUTPUTS = {
     "stitch_phenotype_well": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_cell_positions", "parquet"
-        ),  # [0] - phenotype_cell_positions
+        ),  # [0] - phenotype_cell_positions (always)
         MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_tile_qc", "png"
-        ),  # [1] - phenotype_qc_plot
-    ] + (
-        [
-            MERGE_FP / "images" / get_filename(
-                {"plate": "{plate}", "well": "{well}"}, "phenotype_stitched_image", "npy"
-            ),  # [2] - phenotype_stitched_image (conditional)
-            MERGE_FP / "images" / get_filename(
-                {"plate": "{plate}", "well": "{well}"}, "phenotype_stitched_mask", "npy"
-            ),  # [3] - phenotype_stitched_mask (conditional)
-        ] if config.get("merge", {}).get("stitched_image", True) else []
-    ),
+        ),  # [1] - phenotype_qc_plot (always)
+        MERGE_FP / "images" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_stitched_image", "npy"
+        ),  # [2] - phenotype_stitched_image (conditional - may be empty file)
+        MERGE_FP / "images" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_stitched_mask", "npy"
+        ),  # [3] - phenotype_stitched_mask (conditional - may be empty file)
+    ],
     
     # stitch_sbs_well rule outputs  
     "stitch_sbs_well": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_cell_positions", "parquet"
-        ),  # [0] - sbs_cell_positions
+        ),  # [0] - sbs_cell_positions (always)
         MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_tile_qc", "png"
-        ),  # [1] - sbs_qc_plot
-    ] + (
-        [
-            MERGE_FP / "images" / get_filename(
-                {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_image", "npy"
-            ),  # [2] - sbs_stitched_image (conditional)
-            MERGE_FP / "images" / get_filename(
-                {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_mask", "npy"
-            ),  # [3] - sbs_stitched_mask (conditional)
-        ] if config.get("merge", {}).get("stitched_image", True) else []
-    ),
+        ),  # [1] - sbs_qc_plot (always)
+        MERGE_FP / "images" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_image", "npy"
+        ),  # [2] - sbs_stitched_image (conditional - may be empty file)
+        MERGE_FP / "images" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_mask", "npy"
+        ),  # [3] - sbs_stitched_mask (conditional - may be empty file)
+    ],
     
     # well_alignment rule outputs
     "well_alignment": [

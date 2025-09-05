@@ -15,10 +15,6 @@ rule estimate_stitch_phenotype:
         fliplr=config.get("merge", {}).get("fliplr", False),
         rot90=config.get("merge", {}).get("rot90", 0),
         data_type="phenotype",
-    resources:
-        mem_mb=15000,
-        cpus_per_task=8,
-        runtime=180,
     script:
         "../scripts/merge/estimate_stitch_phenotype.py"
 
@@ -37,10 +33,6 @@ rule estimate_stitch_sbs:
         data_type="sbs",
         # SBS-specific params
         sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
-    resources:
-        mem_mb=8000,
-        cpus_per_task=4,
-        runtime=60,
     script:
         "../scripts/merge/estimate_stitch_sbs.py"
 
@@ -50,10 +42,10 @@ rule stitch_phenotype_well:
         phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
         phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"][0],
     output:
-        phenotype_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][0],
-        phenotype_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][1],
-        phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][2],
-        phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][3],
+        phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][0],
+        phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][1],
+        phenotype_stitched_image=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][2]),
+        phenotype_stitched_mask=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][3]),
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
@@ -75,10 +67,10 @@ rule stitch_sbs_well:
         sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
         sbs_stitch_config=MERGE_OUTPUTS["estimate_stitch_sbs"][0],
     output:
-        sbs_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][0],
-        sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][1],
-        sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][2],
-        sbs_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][3],
+        sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][0],
+        sbs_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][1],
+        sbs_stitched_image=temp(MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][2]),
+        sbs_stitched_mask=temp(MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][3]),
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
@@ -132,8 +124,8 @@ if merge_approach == "tile":
 if merge_approach == "well":
     rule well_alignment:
         input:
-            phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_well"][2],  # phenotype_cell_positions
-            sbs_positions=MERGE_OUTPUTS["stitch_sbs_well"][2],  # sbs_cell_positions
+            phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_well"][0],  # phenotype_cell_positions
+            sbs_positions=MERGE_OUTPUTS["stitch_sbs_well"][0],  # sbs_cell_positions
         output:
             scaled_phenotype_positions=temp(MERGE_OUTPUTS["well_alignment"][0]),      
             phenotype_triangles=temp(MERGE_OUTPUTS["well_alignment"][1]),             

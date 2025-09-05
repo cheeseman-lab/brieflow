@@ -338,4 +338,3 @@ def convert_numpy_types(obj):
         return obj.tolist()
     else:
         return obj
-    

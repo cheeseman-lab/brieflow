@@ -2,7 +2,7 @@
 
 This script performs the first step of the well-level merge pipeline:
 1. Auto-calculates scale factor based on coordinate ranges
-2. Scales phenotype coordinates to match SBS coordinate system  
+2. Scales phenotype coordinates to match SBS coordinate system
 3. Generates triangle hash features for both datasets
 4. Performs adaptive regional triangle hash alignment
 5. Saves alignment parameters and transformed coordinates
@@ -29,7 +29,8 @@ from lib.merge.well_alignment import (
 
 print("=== WELL ALIGNMENT ===")
 
-# Load cell positions
+# Load cell positions - these now come from the stitching outputs at index [0]
+# Input references: phenotype_positions and sbs_positions (named inputs from rules)
 phenotype_positions = validate_dtypes(
     pd.read_parquet(snakemake.input.phenotype_positions)
 )
@@ -50,9 +51,7 @@ print(f"SBS cells: {len(sbs_positions):,}")
 print("\n--- Auto-calculating Scale Factor from Position Ranges ---")
 
 # Calculate scale factor from coordinate ranges
-scale_factor = calculate_scale_factor_from_positions(
-    phenotype_positions, sbs_positions
-)
+scale_factor = calculate_scale_factor_from_positions(phenotype_positions, sbs_positions)
 
 print(f"Auto-calculated scale factor: {scale_factor:.6f}")
 
@@ -72,7 +71,7 @@ print(
 overlap_fraction = calculate_coordinate_overlap(phenotype_scaled, sbs_positions)
 print(f"Coordinate overlap: {overlap_fraction:.1%} of SBS area")
 
-# Save scaled coordinates
+# Save scaled coordinates - output index [0]
 phenotype_scaled.to_parquet(str(snakemake.output.scaled_phenotype_positions))
 print(
     f"✅ Saved scaled phenotype positions: {snakemake.output.scaled_phenotype_positions}"
@@ -93,14 +92,12 @@ sbs_triangles = well_level_triangle_hash(sbs_positions)
 if len(phenotype_triangles) == 0 or len(sbs_triangles) == 0:
     print("❌ Triangle hash generation failed")
 
-    # Save empty triangle files
-    empty_triangles = pd.DataFrame(
-        columns=["V_0", "V_1", "c_0", "c_1", "magnitude"]
-    )
+    # Save empty triangle files - outputs index [1] and [2]
+    empty_triangles = pd.DataFrame(columns=["V_0", "V_1", "c_0", "c_1", "magnitude"])
     empty_triangles.to_parquet(str(snakemake.output.phenotype_triangles))
     empty_triangles.to_parquet(str(snakemake.output.sbs_triangles))
 
-    # Create failed alignment with identity transformation
+    # Create failed alignment with identity transformation - output index [3]
     failed_alignment_data = {
         "rotation_matrix_flat": [1.0, 0.0, 0.0, 1.0],
         "translation_vector": [0.0, 0.0],
@@ -114,11 +111,11 @@ if len(phenotype_triangles) == 0 or len(sbs_triangles) == 0:
         "validation_median_distance": 0.0,
         "has_overlap": False,
     }
-    
+
     failed_alignment = pd.DataFrame([failed_alignment_data])
     failed_alignment.to_parquet(str(snakemake.output.alignment_params))
 
-    # Create failure summary in TSV format
+    # Create failure summary in TSV format - output index [4]
     def safe_float(value, default: float = 0.0, precision: int = 6) -> float:
         try:
             if value is None:
@@ -137,57 +134,59 @@ if len(phenotype_triangles) == 0 or len(sbs_triangles) == 0:
 
     summary = {
         # Well identifiers
-        'plate': str(plate),
-        'well': str(well),
-        
+        "plate": str(plate),
+        "well": str(well),
         # Status and basic metrics
-        'status': 'failed',
-        'failure_reason': 'insufficient_triangles',
-        'scale_factor': safe_float(scale_factor),
-        'overlap_fraction': safe_float(overlap_fraction, precision=3),
-        
+        "status": "failed",
+        "failure_reason": "insufficient_triangles",
+        "scale_factor": safe_float(scale_factor),
+        "overlap_fraction": safe_float(overlap_fraction, precision=3),
         # Triangle generation
-        'phenotype_triangles': 0,
-        'sbs_triangles': 0,
-        
+        "phenotype_triangles": 0,
+        "sbs_triangles": 0,
         # Alignment parameters
-        'threshold_triangle': 0.3,
-        'score_threshold': safe_float(score, precision=3),
-        'threshold_point': 2.0,
-        
+        "threshold_triangle": 0.3,
+        "score_threshold": safe_float(score, precision=3),
+        "threshold_point": 2.0,
         # Alignment results
-        'approach': 'failed',
-        'transformation_type': 'failed_insufficient_triangles',
-        'alignment_score': 0.0,
-        'determinant': 1.0,
-        
+        "approach": "failed",
+        "transformation_type": "failed_insufficient_triangles",
+        "alignment_score": 0.0,
+        "determinant": 1.0,
         # Transformation matrix components
-        'rotation_r00': 1.0,
-        'rotation_r01': 0.0,
-        'rotation_r10': 0.0,
-        'rotation_r11': 1.0,
-        'translation_tx': 0.0,
-        'translation_ty': 0.0,
-        
+        "rotation_r00": 1.0,
+        "rotation_r01": 0.0,
+        "rotation_r10": 0.0,
+        "rotation_r11": 1.0,
+        "translation_tx": 0.0,
+        "translation_ty": 0.0,
         # Validation metrics
-        'validation_mean_distance': 0.0,
-        'validation_median_distance': 0.0,
-        
+        "validation_mean_distance": 0.0,
+        "validation_median_distance": 0.0,
         # Regional sampling details
-        'region_size': 0.0,
-        'sampling_attempts': 0,
-        'triangles_matched': 0,
+        "region_size": 0.0,
+        "sampling_attempts": 0,
+        "triangles_matched": 0,
     }
 
     # Save failure summary as TSV
     summary_df = pd.DataFrame([summary])
-    summary_df.to_csv(str(snakemake.output.alignment_summary), sep='\t', index=False, float_format='%.6g')
-    
+    summary_df.to_csv(
+        str(snakemake.output.alignment_summary),
+        sep="\t",
+        index=False,
+        float_format="%.6g",
+    )
+
+    # Create empty transformed positions - output index [5]
+    empty_transformed = phenotype_positions.copy()
+    empty_transformed.to_parquet(str(snakemake.output.transformed_phenotype_positions))
+
 else:
     print(f"✅ Generated {len(phenotype_triangles)} phenotype triangles")
     print(f"✅ Generated {len(sbs_triangles)} SBS triangles")
 
-    # Save triangle hashes
+    # Save triangle hashes - outputs index [1] and [2]
     phenotype_triangles.to_parquet(str(snakemake.output.phenotype_triangles))
     sbs_triangles.to_parquet(str(snakemake.output.sbs_triangles))
 
@@ -320,6 +319,7 @@ else:
     }
 
     essential_alignment = pd.DataFrame([essential_alignment_data])
+    # Save alignment parameters - output index [3]
     essential_alignment.to_parquet(str(snakemake.output.alignment_params))
 
     print(f"✅ Saved alignment parameters: {snakemake.output.alignment_params}")
@@ -342,14 +342,14 @@ else:
             return int(value)
         except (ValueError, TypeError):
             return default
-    
+
     # Extract rotation matrix components
     if isinstance(rotation_matrix, np.ndarray):
         r00, r01 = float(rotation_matrix[0, 0]), float(rotation_matrix[0, 1])
         r10, r11 = float(rotation_matrix[1, 0]), float(rotation_matrix[1, 1])
     else:
         r00, r01, r10, r11 = 1.0, 0.0, 0.0, 1.0
-    
+
     # Extract translation vector components
     if isinstance(translation_vector, np.ndarray):
         tx, ty = float(translation_vector[0]), float(translation_vector[1])
@@ -358,51 +358,61 @@ else:
 
     summary = {
         # Well identifiers
-        'plate': str(plate),
-        'well': str(well),
-        
+        "plate": str(plate),
+        "well": str(well),
         # Status and basic metrics
-        'status': str(alignment_status),
-        'failure_reason': '',
-        'scale_factor': safe_float_summary(scale_factor),
-        'overlap_fraction': safe_float_summary(overlap_fraction, precision=3),
-        
+        "status": str(alignment_status),
+        "failure_reason": "",
+        "scale_factor": safe_float_summary(scale_factor),
+        "overlap_fraction": safe_float_summary(overlap_fraction, precision=3),
         # Triangle generation
-        'phenotype_triangles': safe_int_summary(len(phenotype_triangles)),
-        'sbs_triangles': safe_int_summary(len(sbs_triangles)),
-        
+        "phenotype_triangles": safe_int_summary(len(phenotype_triangles)),
+        "sbs_triangles": safe_int_summary(len(sbs_triangles)),
         # Alignment parameters
-        'threshold_triangle': 0.3,  # Fixed parameter
-        'score_threshold': safe_float_summary(score, precision=3),
-        'threshold_point': 2.0,  # Fixed parameter
-        
+        "threshold_triangle": 0.3,  # Fixed parameter
+        "score_threshold": safe_float_summary(score, precision=3),
+        "threshold_point": 2.0,  # Fixed parameter
         # Alignment results
-        'approach': str(best_alignment.get('approach', '')),
-        'transformation_type': str(best_alignment.get('transformation_type', '')),
-        'alignment_score': safe_float_summary(best_alignment.get('score', 0), precision=3),
-        'determinant': safe_float_summary(best_alignment.get('determinant', 1), precision=6),
-        
+        "approach": str(best_alignment.get("approach", "")),
+        "transformation_type": str(best_alignment.get("transformation_type", "")),
+        "alignment_score": safe_float_summary(
+            best_alignment.get("score", 0), precision=3
+        ),
+        "determinant": safe_float_summary(
+            best_alignment.get("determinant", 1), precision=6
+        ),
         # Transformation matrix components
-        'rotation_r00': safe_float_summary(r00, precision=6),
-        'rotation_r01': safe_float_summary(r01, precision=6),
-        'rotation_r10': safe_float_summary(r10, precision=6),
-        'rotation_r11': safe_float_summary(r11, precision=6),
-        'translation_tx': safe_float_summary(tx, precision=3),
-        'translation_ty': safe_float_summary(ty, precision=3),
-        
+        "rotation_r00": safe_float_summary(r00, precision=6),
+        "rotation_r01": safe_float_summary(r01, precision=6),
+        "rotation_r10": safe_float_summary(r10, precision=6),
+        "rotation_r11": safe_float_summary(r11, precision=6),
+        "translation_tx": safe_float_summary(tx, precision=3),
+        "translation_ty": safe_float_summary(ty, precision=3),
         # Validation metrics
-        'validation_mean_distance': safe_float_summary(best_alignment.get('validation_mean_distance', 0), precision=3),
-        'validation_median_distance': safe_float_summary(best_alignment.get('validation_median_distance', 0), precision=3),
-        
+        "validation_mean_distance": safe_float_summary(
+            best_alignment.get("validation_mean_distance", 0), precision=3
+        ),
+        "validation_median_distance": safe_float_summary(
+            best_alignment.get("validation_median_distance", 0), precision=3
+        ),
         # Regional sampling details
-        'region_size': safe_float_summary(best_alignment.get('final_region_size', 0), precision=0),
-        'sampling_attempts': safe_int_summary(best_alignment.get('attempts', 0)),
-        'triangles_matched': safe_int_summary(best_alignment.get('triangles_matched', 0)),
+        "region_size": safe_float_summary(
+            best_alignment.get("final_region_size", 0), precision=0
+        ),
+        "sampling_attempts": safe_int_summary(best_alignment.get("attempts", 0)),
+        "triangles_matched": safe_int_summary(
+            best_alignment.get("triangles_matched", 0)
+        ),
     }
 
-    # Save alignment summary as TSV
+    # Save alignment summary as TSV - output index [4]
     summary_df = pd.DataFrame([summary])
-    summary_df.to_csv(str(snakemake.output.alignment_summary), sep='\t', index=False, float_format='%.6g')
+    summary_df.to_csv(
+        str(snakemake.output.alignment_summary),
+        sep="\t",
+        index=False,
+        float_format="%.6g",
+    )
     print(f"✅ Saved alignment summary: {snakemake.output.alignment_summary}")
 
     # =================================================================
@@ -437,7 +447,7 @@ else:
         f"  Transformed range: i=[{phenotype_transformed['i'].min():.0f}, {phenotype_transformed['i'].max():.0f}], j=[{phenotype_transformed['j'].min():.0f}, {phenotype_transformed['j'].max():.0f}]"
     )
 
-    # Save transformed coordinates
+    # Save transformed coordinates - output index [5]
     phenotype_transformed.to_parquet(
         str(snakemake.output.transformed_phenotype_positions)
     )
@@ -445,4 +455,4 @@ else:
         f"✅ Saved transformed phenotype positions: {snakemake.output.transformed_phenotype_positions}"
     )
 
-    print(f"\n🎉 Alignment completed successfully!")
+print(f"\n🎉 Alignment completed successfully!")

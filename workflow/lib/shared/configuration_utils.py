@@ -473,6 +473,7 @@ def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
     plt.tight_layout()
     plt.show()
 
+
 def preview_mask_transformations(
     metadata,
     root_fp=None,
@@ -485,7 +486,7 @@ def preview_mask_transformations(
     figsize=(20, 10),
 ):
     """Preview mask transformations (flipud, fliplr, rot90) on the first N tiles.
-    
+
     Arranged according to coordinate-based stitching estimates.
     """
     if root_fp is None:
@@ -497,7 +498,9 @@ def preview_mask_transformations(
     first_tiles = metadata.head(num_tiles).copy()
     well = first_tiles["well"].iloc[0]
 
-    print(f"Testing transformations on first {len(first_tiles)} {data_type} tiles ({mask_type} masks)")
+    print(
+        f"Testing transformations on first {len(first_tiles)} {data_type} tiles ({mask_type} masks)"
+    )
     print(f"Transformation: flipud={flipud}, fliplr={fliplr}, rot90={rot90}")
 
     # --- determine pixel scaling from metadata or fallback ---
@@ -530,15 +533,19 @@ def preview_mask_transformations(
 
     for _, row in first_tiles.iterrows():
         try:
-            filename = f"P-{row['plate']}_W-{row['well']}_T-{row['tile']}__{mask_type}.tiff"
+            filename = (
+                f"P-{row['plate']}_W-{row['well']}_T-{row['tile']}__{mask_type}.tiff"
+            )
             tile_path = root_fp / data_type / "images" / filename
 
             if tile_path.exists():
                 try:
                     import tifffile
+
                     tile_data = tifffile.imread(str(tile_path))
                 except ImportError:
                     from PIL import Image
+
                     tile_data = np.array(Image.open(str(tile_path)))
                 files_found += 1
 
@@ -546,7 +553,11 @@ def preview_mask_transformations(
                     if tile_data.shape[0] < 10:  # channels-first
                         tile_data = np.max(tile_data, axis=0)
                     else:
-                        tile_data = tile_data[..., 0] if tile_data.shape[-1] < 10 else tile_data[0]
+                        tile_data = (
+                            tile_data[..., 0]
+                            if tile_data.shape[-1] < 10
+                            else tile_data[0]
+                        )
             else:
                 tile_data = np.zeros(tile_size)
                 tile_data[100:150, 100:150] = row["tile"] % 255
@@ -599,7 +610,10 @@ def preview_mask_transformations(
     for ax, tiles, title in zip(
         axes,
         [loaded_tiles, transformed_tiles],
-        ["Original Tiles", f"Transformed (flipud={flipud}, fliplr={fliplr}, rot90={rot90})"],
+        [
+            "Original Tiles",
+            f"Transformed (flipud={flipud}, fliplr={fliplr}, rot90={rot90})",
+        ],
     ):
         ax.set_title(title, fontsize=14, weight="bold")
         ax.set_aspect("equal")
@@ -610,16 +624,14 @@ def preview_mask_transformations(
                 tile,
                 cmap=new_cmap,
                 origin="lower",
-                extent=(x, x + tile.shape[1], y, y + tile.shape[0])
+                extent=(x, x + tile.shape[1], y, y + tile.shape[0]),
             )
 
         # Set axis limits to encompass all tiles
         ax.set_xlim(x_min_plot, x_max_plot)
         ax.set_ylim(y_min_plot, y_max_plot)
 
-
     plt.tight_layout()
     plt.show()
 
     return {"flipud": flipud, "fliplr": fliplr, "rot90": rot90}
-

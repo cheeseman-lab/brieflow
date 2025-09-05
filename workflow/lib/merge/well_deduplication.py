@@ -174,7 +174,7 @@ def deduplicate_matches_by_stitched_ids(raw_matches: pd.DataFrame) -> pd.DataFra
 
     Algorithm:
     1. For each phenotype stitched cell, keeps the SBS match with minimum distance
-    2. For each SBS stitched cell, keeps the phenotype match with minimum distance  
+    2. For each SBS stitched cell, keeps the phenotype match with minimum distance
     3. Results in 1:1 mapping between stitched cell IDs
     4. Preserves original cell IDs in cell_0/cell_1 columns
 
@@ -207,7 +207,7 @@ def deduplicate_matches_by_stitched_ids(raw_matches: pd.DataFrame) -> pd.DataFra
     """
     required_cols = [
         "stitched_cell_id_0",
-        "stitched_cell_id_1", 
+        "stitched_cell_id_1",
         "cell_0",
         "cell_1",
         "distance",

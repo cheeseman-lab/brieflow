@@ -5,9 +5,9 @@ consolidated plate-level summaries. Converts key-value format summaries (merge/d
 to one-row-per-well format for easier analysis.
 
 This script processes:
-1. Alignment summaries (already in row format) 
-2. Cell merge summaries (converts from key-value to row format)
-3. Deduplication summaries (converts from key-value to row format)
+1. Alignment summaries (already in row format) - from well_alignment rule output [4]
+2. Cell merge summaries (converts from key-value to row format) - from well_cell_merge rule output [2]
+3. Deduplication summaries (converts from key-value to row format) - from well_merge_deduplicate rule output [1]
 
 Input files (per well):
 - alignment_summary.tsv: Well alignment metrics (row format)
@@ -15,9 +15,9 @@ Input files (per well):
 - dedup_summary.tsv: Deduplication metrics (key-value format)
 
 Output files (per plate):
-- alignment_summaries.tsv: Aggregated alignment data across all wells
-- cell_merge_summaries.tsv: Aggregated cell merge data across all wells  
-- dedup_summaries.tsv: Aggregated deduplication data across all wells
+- alignment_summaries.tsv: Aggregated alignment data across all wells (output [0])
+- cell_merge_summaries.tsv: Aggregated cell merge data across all wells (output [1])
+- dedup_summaries.tsv: Aggregated deduplication data across all wells (output [2])
 
 Each output file contains one row per well with plate and well identifier columns.
 Failed wells are included with status='failed' and placeholder values.
@@ -26,15 +26,16 @@ Failed wells are included with status='failed' and placeholder values.
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import warnings
+import re
 
 print("=== AGGREGATE WELL SUMMARIES ===")
 
 plate = snakemake.params.plate
 print(f"Processing plate: {plate}")
 
-# Get input file paths
+# Get input file paths - using named inputs from rule
 alignment_paths = snakemake.input.alignment_summary_paths
 merge_paths = snakemake.input.merge_summary_paths  
 dedup_paths = snakemake.input.dedup_summary_paths
@@ -44,11 +45,11 @@ print(f"  Alignment summaries: {len(alignment_paths)}")
 print(f"  Merge summaries: {len(merge_paths)}")
 print(f"  Deduplication summaries: {len(dedup_paths)}")
 
-# Extract plate and well identifiers from file path
-def extract_well_id_from_path(file_path: str) -> tuple[str, str]:
+def extract_well_id_from_path(file_path: str) -> Tuple[str, str]:
     """Extract plate and well identifiers from file path.
     
-    Assumes file paths follow the pattern containing plate and well identifiers.
+    Uses regex patterns to find plate and well identifiers in the file path.
+    Handles various naming conventions commonly used in the pipeline.
     
     Args:
         file_path: Path to summary file
@@ -59,29 +60,49 @@ def extract_well_id_from_path(file_path: str) -> tuple[str, str]:
     Raises:
         ValueError: If plate/well cannot be extracted from path
     """
-    path = Path(file_path)
+    path_str = str(file_path)
     
-    # Try to extract from filename patterns like: plate_P001_well_A01_summary.tsv
-    filename = path.stem
-    parts = filename.split('_')
+    # Try different patterns to extract plate and well
+    patterns = [
+        # Pattern 1: P-123_W-A01 (common in generated filenames)
+        r'P-(\d+)_W-([A-H]\d{2})',
+        # Pattern 2: plate_123_well_A01
+        r'plate[_-](\d+)[_-]well[_-]([A-H]\d{2})',
+        # Pattern 3: P123_A01
+        r'P(\d+)[_-]([A-H]\d{2})',
+        # Pattern 4: just numbers and well format: 123_A01
+        r'(\d+)[_-]([A-H]\d{2})',
+    ]
     
-    plate, well = None, None
+    for pattern in patterns:
+        match = re.search(pattern, path_str, re.IGNORECASE)
+        if match:
+            plate_id = match.group(1)
+            well_id = match.group(2).upper()  # Ensure well is uppercase
+            return plate_id, well_id
     
-    # Look for plate and well in filename parts
-    for i, part in enumerate(parts):
-        if part == 'plate' and i + 1 < len(parts):
-            plate = parts[i + 1]
-        elif part == 'well' and i + 1 < len(parts):
-            well = parts[i + 1]
+    # If no pattern matches, try to extract from directory structure
+    path_parts = Path(file_path).parts
+    plate_val, well_val = None, None
     
-    if plate is None or well is None:
-        # Fallback: try to extract from directory structure or other patterns
-        # This is a backup strategy - adjust based on your actual file naming
-        raise ValueError(f"Could not extract plate/well from path: {file_path}")
+    for part in path_parts:
+        # Look for plate-like patterns
+        if plate_val is None:
+            plate_match = re.search(r'[Pp]-?(\d+)', part)
+            if plate_match:
+                plate_val = plate_match.group(1)
+        
+        # Look for well-like patterns  
+        if well_val is None:
+            well_match = re.search(r'([A-H]\d{2})', part, re.IGNORECASE)
+            if well_match:
+                well_val = well_match.group(1).upper()
     
-    return plate, well
+    if plate_val and well_val:
+        return plate_val, well_val
+    
+    raise ValueError(f"Could not extract plate/well from path: {file_path}")
 
-# Load alignment summary file (already in row format)
 def load_alignment_summary(file_path: str) -> Optional[pd.DataFrame]:
     """Load alignment summary file (already in row format).
     
@@ -92,15 +113,27 @@ def load_alignment_summary(file_path: str) -> Optional[pd.DataFrame]:
         DataFrame with alignment summary or None if loading fails
     """
     try:
+        if not Path(file_path).exists():
+            print(f"⚠️  Alignment summary file not found: {file_path}")
+            return None
+            
         df = pd.read_csv(file_path, sep='\t')
+        
+        if df.empty:
+            print(f"⚠️  Empty alignment summary file: {file_path}")
+            return None
         
         # Ensure required columns exist
         if 'plate' not in df.columns or 'well' not in df.columns:
-            plate, well = extract_well_id_from_path(file_path)
-            if 'plate' not in df.columns:
-                df['plate'] = plate
-            if 'well' not in df.columns:
-                df['well'] = well
+            try:
+                plate_id, well_id = extract_well_id_from_path(file_path)
+                if 'plate' not in df.columns:
+                    df['plate'] = plate_id
+                if 'well' not in df.columns:
+                    df['well'] = well_id
+            except ValueError as e:
+                print(f"⚠️  Could not add plate/well to alignment summary: {e}")
+                return None
         
         return df
         
@@ -108,7 +141,6 @@ def load_alignment_summary(file_path: str) -> Optional[pd.DataFrame]:
         print(f"⚠️  Failed to load alignment summary {file_path}: {e}")
         return None
 
-# Load and convert key-value format summary to row format
 def load_key_value_summary(file_path: str, summary_type: str) -> Optional[pd.DataFrame]:
     """Load and convert key-value format summary to row format.
     
@@ -120,7 +152,15 @@ def load_key_value_summary(file_path: str, summary_type: str) -> Optional[pd.Dat
         DataFrame with single row containing all metrics or None if loading fails
     """
     try:
+        if not Path(file_path).exists():
+            print(f"⚠️  {summary_type} summary file not found: {file_path}")
+            return None
+            
         df = pd.read_csv(file_path, sep='\t')
+        
+        if df.empty:
+            print(f"⚠️  Empty {summary_type} summary file: {file_path}")
+            return None
         
         # Expect columns: metric, value
         if 'metric' not in df.columns or 'value' not in df.columns:
@@ -139,11 +179,11 @@ def load_key_value_summary(file_path: str, summary_type: str) -> Optional[pd.Dat
             elif isinstance(value, str):
                 # Try to convert numeric strings
                 try:
-                    if '.' in value:
+                    if '.' in value or 'e' in value.lower():
                         row_data[metric] = float(value)
                     else:
                         row_data[metric] = int(value)
-                except ValueError:
+                except (ValueError, AttributeError):
                     row_data[metric] = value
             else:
                 row_data[metric] = value
@@ -151,11 +191,11 @@ def load_key_value_summary(file_path: str, summary_type: str) -> Optional[pd.Dat
         # Extract plate/well if not present in the data
         if 'plate' not in row_data or 'well' not in row_data:
             try:
-                plate, well = extract_well_id_from_path(file_path)
+                plate_id, well_id = extract_well_id_from_path(file_path)
                 if 'plate' not in row_data:
-                    row_data['plate'] = plate
+                    row_data['plate'] = plate_id
                 if 'well' not in row_data:
-                    row_data['well'] = well
+                    row_data['well'] = well_id
             except ValueError as e:
                 print(f"⚠️  Could not extract well ID for {summary_type} summary: {e}")
                 return None
@@ -166,21 +206,20 @@ def load_key_value_summary(file_path: str, summary_type: str) -> Optional[pd.Dat
         print(f"⚠️  Failed to load {summary_type} summary {file_path}: {e}")
         return None
 
-# Create placeholder row for failed wells
-def create_failed_well_placeholder(plate: str, well: str, summary_type: str) -> pd.DataFrame:
+def create_failed_well_placeholder(plate_id: str, well_id: str, summary_type: str) -> pd.DataFrame:
     """Create placeholder row for failed wells.
     
     Args:
-        plate: Plate identifier
-        well: Well identifier
+        plate_id: Plate identifier
+        well_id: Well identifier
         summary_type: Type of summary for appropriate default columns
         
     Returns:
         DataFrame with single placeholder row
     """
     base_data = {
-        'plate': plate,
-        'well': well,
+        'plate': plate_id,
+        'well': well_id,
         'status': 'failed',
     }
     
@@ -224,8 +263,7 @@ def create_failed_well_placeholder(plate: str, well: str, summary_type: str) -> 
     
     return pd.DataFrame([placeholder_data])
 
-# Extract all expected well identifiers from file paths
-def get_all_expected_wells(file_paths: List[str]) -> List[tuple[str, str]]:
+def get_all_expected_wells(file_paths: List[str]) -> List[Tuple[str, str]]:
     """Extract all expected well identifiers from file paths.
     
     Args:
@@ -237,15 +275,14 @@ def get_all_expected_wells(file_paths: List[str]) -> List[tuple[str, str]]:
     wells = []
     for path in file_paths:
         try:
-            plate, well = extract_well_id_from_path(path)
-            wells.append((plate, well))
+            plate_id, well_id = extract_well_id_from_path(path)
+            wells.append((plate_id, well_id))
         except ValueError:
             print(f"⚠️  Could not extract well ID from path: {path}")
             continue
     
     return sorted(set(wells))  # Remove duplicates and sort
 
-# Aggregate summary files into a single DataFrame
 def aggregate_summaries(file_paths: List[str], summary_type: str) -> pd.DataFrame:
     """Aggregate summary files into a single DataFrame.
     
@@ -258,6 +295,10 @@ def aggregate_summaries(file_paths: List[str], summary_type: str) -> pd.DataFram
     """
     print(f"Aggregating {len(file_paths)} {summary_type} summary files...")
     
+    if not file_paths:
+        print(f"⚠️  No {summary_type} summary files provided")
+        return pd.DataFrame()
+    
     all_wells = get_all_expected_wells(file_paths)
     print(f"Expected wells: {len(all_wells)}")
     
@@ -267,8 +308,8 @@ def aggregate_summaries(file_paths: List[str], summary_type: str) -> pd.DataFram
     # Process existing files
     for file_path in file_paths:
         try:
-            plate, well = extract_well_id_from_path(file_path)
-            well_key = (plate, well)
+            plate_id, well_id = extract_well_id_from_path(file_path)
+            well_key = (plate_id, well_id)
             
             if summary_type == 'alignment':
                 df = load_alignment_summary(file_path)
@@ -277,15 +318,15 @@ def aggregate_summaries(file_paths: List[str], summary_type: str) -> pd.DataFram
             
             if df is not None and not df.empty:
                 # Ensure plate/well columns are present and correct
-                df['plate'] = plate
-                df['well'] = well
+                df['plate'] = plate_id
+                df['well'] = well_id
                 aggregated_rows.append(df)
                 processed_wells.add(well_key)
-                print(f"✅ Processed {summary_type} summary for {plate}-{well}")
+                print(f"✅ Processed {summary_type} summary for {plate_id}-{well_id}")
             else:
-                print(f"⚠️  Empty or invalid {summary_type} summary for {plate}-{well}")
+                print(f"⚠️  Empty or invalid {summary_type} summary for {plate_id}-{well_id}")
                 # Create placeholder for invalid file
-                placeholder = create_failed_well_placeholder(plate, well, summary_type)
+                placeholder = create_failed_well_placeholder(plate_id, well_id, summary_type)
                 aggregated_rows.append(placeholder)
                 processed_wells.add(well_key)
         
@@ -295,9 +336,9 @@ def aggregate_summaries(file_paths: List[str], summary_type: str) -> pd.DataFram
     
     # Create placeholders for missing wells
     missing_wells = set(all_wells) - processed_wells
-    for plate, well in missing_wells:
-        print(f"⚠️  Creating placeholder for missing {summary_type} summary: {plate}-{well}")
-        placeholder = create_failed_well_placeholder(plate, well, summary_type)
+    for plate_id, well_id in missing_wells:
+        print(f"⚠️  Creating placeholder for missing {summary_type} summary: {plate_id}-{well_id}")
+        placeholder = create_failed_well_placeholder(plate_id, well_id, summary_type)
         aggregated_rows.append(placeholder)
     
     # Combine all rows
@@ -313,19 +354,22 @@ def aggregate_summaries(file_paths: List[str], summary_type: str) -> pd.DataFram
         print(f"❌ No {summary_type} summaries could be processed")
         return pd.DataFrame()
 
-# Aggregate each summary type
+# Main aggregation logic
 try:
     # Process alignment summaries (already in row format)
+    print("\n--- Processing Alignment Summaries ---")
     alignment_df = aggregate_summaries(alignment_paths, 'alignment')
     
     # Process merge summaries (convert from key-value to row format)
+    print("\n--- Processing Cell Merge Summaries ---")
     merge_df = aggregate_summaries(merge_paths, 'merge')
     
     # Process deduplication summaries (convert from key-value to row format)  
+    print("\n--- Processing Deduplication Summaries ---")
     dedup_df = aggregate_summaries(dedup_paths, 'dedup')
     
     # Save aggregated summaries
-    print("\nSaving aggregated summaries...")
+    print("\n--- Saving Aggregated Summaries ---")
     
     # Create output directories if needed
     for output_path in [snakemake.output.alignment_summaries, 
@@ -369,15 +413,15 @@ try:
     # Print summary statistics
     successful_wells = []
     if not alignment_df.empty:
-        successful_alignment = len(alignment_df[alignment_df['status'] != 'failed'])
+        successful_alignment = len(alignment_df[alignment_df.get('status', '') != 'failed'])
         successful_wells.append(f"Alignment: {successful_alignment}/{len(alignment_df)}")
     
     if not merge_df.empty:
-        successful_merge = len(merge_df[merge_df['status'] != 'failed'])  
+        successful_merge = len(merge_df[merge_df.get('status', '') != 'failed'])  
         successful_wells.append(f"Merge: {successful_merge}/{len(merge_df)}")
         
     if not dedup_df.empty:
-        successful_dedup = len(dedup_df[dedup_df['status'] != 'failed'])
+        successful_dedup = len(dedup_df[dedup_df.get('status', '') != 'failed'])
         successful_wells.append(f"Dedup: {successful_dedup}/{len(dedup_df)}")
     
     if successful_wells:
@@ -385,4 +429,8 @@ try:
     
 except Exception as e:
     print(f"❌ Error during aggregation: {e}")
+    import traceback
+    traceback.print_exc()
     raise
+
+print("=== AGGREGATE WELL SUMMARIES COMPLETED ===")

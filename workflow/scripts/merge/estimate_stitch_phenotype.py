@@ -11,7 +11,10 @@ import numpy as np
 from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.estimate_stitch import estimate_stitch_phenotype_coordinate_based, convert_numpy_types
+from lib.merge.estimate_stitch import (
+    estimate_stitch_phenotype_coordinate_based,
+    convert_numpy_types,
+)
 
 
 # Load phenotype metadata
@@ -26,8 +29,7 @@ plate = snakemake.params.plate
 well = snakemake.params.well
 
 phenotype_well_metadata = phenotype_metadata[
-    (phenotype_metadata["plate"] == int(plate))
-    & (phenotype_metadata["well"] == well)
+    (phenotype_metadata["plate"] == int(plate)) & (phenotype_metadata["well"] == well)
 ]
 
 print(f"=== Estimating Phenotype Stitching for Plate {plate}, Well {well} ===")

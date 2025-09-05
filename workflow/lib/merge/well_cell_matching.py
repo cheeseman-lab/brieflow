@@ -138,7 +138,7 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
         translation_list = translation_list.tolist()
     elif isinstance(translation_list, str):
         # String representation - handle different formats
-        
+
         # Check if it's a numpy array string format (has spaces between numbers)
         if " " in translation_list.strip("[]") and "," not in translation_list:
             # Numpy array format like "[-85.4958813  -95.79037779]"
@@ -243,7 +243,7 @@ def find_cell_matches(
     transformed_phenotype_positions: pd.DataFrame = None,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """Find cell matches using alignment transformation.
-    
+
     Matches cells between phenotype and SBS datasets using spatial alignment.
     Automatically chooses between direct and chunked approaches based on memory
     requirements.
@@ -324,13 +324,13 @@ def _find_matches_direct(
     scale_factor: float,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """Direct approach optimized for large datasets with sufficient memory.
-    
+
     Computes full distance matrix in memory for optimal performance when
     memory requirements are manageable.
 
     Args:
         phenotype_positions: DataFrame with phenotype cell data
-        sbs_positions: DataFrame with SBS cell data  
+        sbs_positions: DataFrame with SBS cell data
         transformed_coords: Transformed phenotype coordinates
         sbs_coords: SBS coordinates
         threshold: Distance threshold for valid matches
@@ -405,7 +405,7 @@ def _find_matches_chunked(
     scale_factor: float,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """Chunked approach with aggressive memory management.
-    
+
     Processes large datasets in chunks to avoid memory overflow while
     maintaining matching accuracy.
 
@@ -413,7 +413,7 @@ def _find_matches_chunked(
         phenotype_positions: DataFrame with phenotype cell data
         sbs_positions: DataFrame with SBS cell data
         transformed_coords: Transformed phenotype coordinates
-        sbs_coords: SBS coordinates  
+        sbs_coords: SBS coordinates
         threshold: Distance threshold for valid matches
         chunk_size: Number of SBS cells to process per chunk
         scale_factor: Scale factor for coordinate system
@@ -534,7 +534,7 @@ def _build_matches_dataframe(
     scale_factor: float,
 ) -> pd.DataFrame:
     """Build matches DataFrame using the coordinates that were used for distance calculation.
-    
+
     Creates the final matches DataFrame with cell IDs, coordinates, and metadata.
     Uses 'stitched_cell_id' for coordinates matching when available.
 
@@ -682,9 +682,10 @@ def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
         },
     }
 
+
 def filter_tiles_by_diversity(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
     """Filter out tiles that have only one unique original_cell_id.
-    
+
     Removes tiles with insufficient cell diversity which can cause issues
     in downstream processing. Tiles with only one unique cell ID are typically
     artifacts or low-quality regions.
@@ -722,10 +723,11 @@ def filter_tiles_by_diversity(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
 
     return filtered_df
 
+
 # Create empty output files when processing fails
 def create_empty_outputs(reason: str) -> None:
     """Create empty output files when processing fails.
-    
+
     Generates placeholder output files with proper structure when the main
     processing pipeline encounters errors. Ensures downstream steps can
     continue with empty results.
@@ -735,7 +737,7 @@ def create_empty_outputs(reason: str) -> None:
     """
     empty_columns = [
         "plate",
-        "well", 
+        "well",
         "site",
         "tile",
         "cell_0",
@@ -767,12 +769,12 @@ def create_empty_outputs(reason: str) -> None:
     summary_data = {
         "metric": [
             "status",
-            "reason", 
+            "reason",
             "plate",
             "well",
             "output_format_columns_included",
             "output_format_cell_0_contains",
-            "output_format_cell_1_contains"
+            "output_format_cell_1_contains",
         ],
         "value": [
             "failed",
@@ -781,11 +783,11 @@ def create_empty_outputs(reason: str) -> None:
             snakemake.params.well,
             ";".join(empty_columns),
             "original_phenotype_cell_ids",
-            "original_sbs_cell_ids"
-        ]
+            "original_sbs_cell_ids",
+        ],
     }
-    
+
     summary_df = pd.DataFrame(summary_data)
-    summary_df.to_csv(str(snakemake.output.merge_summary), sep='\t', index=False)
+    summary_df.to_csv(str(snakemake.output.merge_summary), sep="\t", index=False)
 
     print(f"❌ Created empty outputs due to: {reason}")

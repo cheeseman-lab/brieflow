@@ -186,7 +186,6 @@ def display_matched_and_unmatched_cells_for_site(
     well,
     selected_site=None,
     distance_threshold=15.0,
-    max_display_rows=1000,
     verbose=False,
 ):
     """Display matched and unmatched cells using stitched_cell_id for matching.
@@ -197,7 +196,6 @@ def display_matched_and_unmatched_cells_for_site(
         well (str): Well identifier
         selected_site (str, optional): Site to filter by (if None, shows first available site)
         distance_threshold (float): Maximum distance to show matches
-        max_display_rows (int): Maximum rows to display for performance
         verbose (bool): Whether to print detailed logs
     """
     from pathlib import Path
@@ -208,7 +206,7 @@ def display_matched_and_unmatched_cells_for_site(
     merge_fp = root_path / "merge"
 
     merged_cells_path = (
-        merge_fp / "well_cell_merge" / f"P-{plate}_W-{well}__raw_matches.parquet"
+        merge_fp / "parquets" / f"P-{plate}_W-{well}__merge.parquet"
     )
     phenotype_transformed_path = (
         merge_fp
@@ -216,7 +214,7 @@ def display_matched_and_unmatched_cells_for_site(
         / f"P-{plate}_W-{well}__phenotype_transformed.parquet"
     )
     sbs_positions_path = (
-        merge_fp / "cell_positions" / f"P-{plate}_W-{well}__sbs_cell_positions.parquet"
+        merge_fp / "parquets" / f"P-{plate}_W-{well}__sbs_cell_positions.parquet"
     )
 
     # Check if all required files exist
@@ -229,6 +227,9 @@ def display_matched_and_unmatched_cells_for_site(
         missing_files.append(f"SBS positions: {sbs_positions_path}")
 
     if missing_files:
+        print("Missing required files:")
+        for f in missing_files:
+            print(f" - {f}")
         return None
 
     try:
@@ -552,42 +553,6 @@ def create_enhanced_match_visualization(
     plt.show()
 
 
-def run_enhanced_cell_matching_qc(
-    root_fp,
-    plate,
-    well,
-    selected_site=None,
-    distance_threshold=15.0,
-    max_display_rows=1000,
-    verbose=False,
-):
-    """Streamlined function focused only on cell matching analysis.
-
-    Args:
-        root_fp (str/Path): Root analysis directory
-        plate (str): Plate identifier
-        well (str): Well identifier
-        selected_site (str, optional): Specific site to display cells for
-        distance_threshold (float): Maximum distance to show matches (default 15.0)
-        max_display_rows (int): Maximum number of rows to display (default 1000)
-        verbose (bool): Whether to print detailed logs
-
-    Returns:
-        dict: Summary statistics from the analysis
-    """
-    # Run the cell matching analysis
-    summary_stats = display_matched_and_unmatched_cells_for_site(
-        root_fp,
-        plate,
-        well,
-        selected_site,
-        distance_threshold,
-        max_display_rows,
-        verbose,
-    )
-
-    return summary_stats
-
 
 def run_well_alignment_qc(
     root_fp,
@@ -598,7 +563,6 @@ def run_well_alignment_qc(
     threshold,
     selected_site=None,
     distance_threshold=15.0,
-    max_display_rows=1000,
     verbose=False,
 ):
     """Run complete QC visualization for a well alignment with merged cells display.
@@ -612,7 +576,6 @@ def run_well_alignment_qc(
         threshold (float): Distance threshold from config
         selected_site (str, optional): Specific site to display merged cells for
         distance_threshold (float): Maximum distance to show matches (default 15.0)
-        max_display_rows (int): Maximum number of rows to display (default 1000)
         verbose (bool): Whether to print detailed logs
 
     Returns:

@@ -26,25 +26,61 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.patches import Circle
 
+
 def plot_cell_positions_plate_scatter(
     parquet_files,
-    plate="6W",
-    point_size=0.1,
-    alpha=0.8,
-    cmap="tab20",
-    title=None,                  # keep None to match your heatmap (no suptitle)
-    tile_column=None,            # auto-detect if None
-    colorbar_label="Original Tile ID",
-    figsize=(16, 11),            # Increased figure size to give more room
+    plate: str = "6W",
+    point_size: float = 0.1,
+    alpha: float = 0.8,
+    cmap: str = "tab20",
+    title: str | None = None,
+    tile_column: str | None = None,
+    colorbar_label: str = "Original Tile ID",
+    figsize: tuple[int, int] = (16, 11),
 ):
-    """
-    Step 1: Concatenate parquets
-    Step 2: Make a well-layout grid (6W/24W/96W)
-    Step 3: Scatter per well with heatmap-like aesthetics:
-            - same font size feel
-            - no axis lines/ticks
-            - circular mask
-            - colorbar far right
+    """Create a plate-wide scatter plot of cell positions across all wells.
+
+    This function visualizes cell positions from one or more parquet files
+    in a plate layout (6-well, 24-well, or 96-well). Each subplot corresponds
+    to a well, and cells are displayed with consistent aesthetics similar to
+    a heatmap.
+
+    Parameters
+    ----------
+    parquet_files : str | Path | list[str | Path]
+        One or multiple parquet file paths containing cell position data.
+    plate : {"6W", "24W", "96W"}, default="6W"
+        Plate format to determine well grid layout.
+    point_size : float, default=0.1
+        Size of each cell scatter point.
+    alpha : float, default=0.8
+        Transparency of scatter points.
+    cmap : str, default="tab20"
+        Colormap used to distinguish tile IDs (or categories from `tile_column`).
+    title : str, optional
+        Global title displayed above the entire plate layout.
+    tile_column : str, optional
+        Column name in the parquet file to use for coloring points.
+        If None, defaults to "tile" or similar column in the data.
+    colorbar_label : str, default="Original Tile ID"
+        Label for the colorbar on the right side of the figure.
+    figsize : tuple of int, default=(16, 11)
+        Overall figure size in inches (width, height).
+
+    Returns:
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib Figure object containing the plate scatter plot.
+    axes : ndarray of matplotlib.axes.Axes
+        The grid of subplot Axes, indexed by well position.
+
+    Notes:
+    -----
+    - Subplots are arranged in a plate-like grid.
+    - Each well plot has no axis lines or ticks, and points are masked
+      to a circular outline.
+    - A shared colorbar is placed far to the right for clarity.
+    - Designed for visual QC of cell positions across plates.
     """
     # ----------------- Load & concat -----------------
     dfs = []
@@ -56,7 +92,7 @@ def plot_cell_positions_plate_scatter(
         df = pd.read_parquet(p)
         # Extract well name (A1..H12) from filename if not present
         if "well" not in df.columns:
-            m = re.search(r'([A-H]\d{1,2})', p.stem)
+            m = re.search(r"([A-H]\d{1,2})", p.stem)
             if not m:
                 raise ValueError(f"Could not infer 'well' from filename: {p.name}")
             df["well"] = m.group(1)
@@ -84,7 +120,7 @@ def plot_cell_positions_plate_scatter(
     # map wells to grid positions
     well_pos = {}
     if plate == "6W":
-        order = ["A1","A2","A3","B1","B2","B3"]
+        order = ["A1", "A2", "A3", "B1", "B2", "B3"]
         for i, w in enumerate(order):
             well_pos[w] = (i // 3, i % 3)
     else:
@@ -93,31 +129,37 @@ def plot_cell_positions_plate_scatter(
         col_nums = ncols
         for r in range(row_letters):
             for c in range(col_nums):
-                well_pos[f"{chr(65+r)}{c+1}"] = (r, c)
+                well_pos[f"{chr(65 + r)}{c + 1}"] = (r, c)
 
     # ----------------- Style to match heatmap -----------------
-    mpl.rcParams.update({
-        "font.family": "DejaVu Sans",  # matches matplotlib default look in your heatmap
-        "font.size": 28,                # Increased base font size
-        "axes.linewidth": 0.0,          # no axis lines
-        "xtick.major.size": 0,
-        "ytick.major.size": 0,
-        "axes.titlesize": 32,           # Explicit title size
-    })
+    mpl.rcParams.update(
+        {
+            "font.family": "DejaVu Sans",  # matches matplotlib default look in your heatmap
+            "font.size": 28,  # Increased base font size
+            "axes.linewidth": 0.0,  # no axis lines
+            "xtick.major.size": 0,
+            "ytick.major.size": 0,
+            "axes.titlesize": 32,  # Explicit title size
+        }
+    )
 
     # Create figure with more generous spacing
     fig, axes = plt.subplots(
-        nrows, ncols, figsize=figsize,
+        nrows,
+        ncols,
+        figsize=figsize,
         gridspec_kw={
-            "right": 0.83,      # More generous right margin for colorbar
-            "hspace": 0.4,      # Increased vertical spacing between subplots
-            "wspace": 0.4       # Increased horizontal spacing between subplots
-        }
+            "right": 0.83,  # More generous right margin for colorbar
+            "hspace": 0.4,  # Increased vertical spacing between subplots
+            "wspace": 0.4,  # Increased horizontal spacing between subplots
+        },
     )
     axes = np.asarray(axes).reshape(nrows, ncols)
 
     # ----------------- Plot per well -----------------
-    unique_wells = sorted(cell_positions_df["well"].unique(), key=lambda x: (x[0], int(x[1:])))
+    unique_wells = sorted(
+        cell_positions_df["well"].unique(), key=lambda x: (x[0], int(x[1:]))
+    )
 
     last_scatter = None
     for well in well_pos:
@@ -125,7 +167,8 @@ def plot_cell_positions_plate_scatter(
         ax = axes[r, c]
 
         # clear axis cosmetics to match heatmap
-        ax.set_xticks([]); ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_yticks([])
         for sp in ax.spines.values():
             sp.set_visible(False)
 
@@ -133,7 +176,8 @@ def plot_cell_positions_plate_scatter(
         if wdf.empty:
             ax.set_title(f"Well {well}", fontsize=24)  # Explicit font size
             ax.set_frame_on(False)
-            ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
             ax.set_aspect("equal")
             continue
 
@@ -150,13 +194,16 @@ def plot_cell_positions_plate_scatter(
         ax.invert_yaxis()
 
         # circular clip so points outside the well are hidden - NO EDGE COLOR
-        circle = Circle((cx, cy), r_pix, facecolor="none", edgecolor="none", linewidth=0)
+        circle = Circle(
+            (cx, cy), r_pix, facecolor="none", edgecolor="none", linewidth=0
+        )
         ax.add_patch(circle)
 
         # scatter
         if tile_column and tile_column in wdf.columns:
             last_scatter = ax.scatter(
-                wdf["j"], wdf["i"],
+                wdf["j"],
+                wdf["i"],
                 c=wdf[tile_column],
                 cmap=cmap,
                 s=point_size,
@@ -167,8 +214,12 @@ def plot_cell_positions_plate_scatter(
             last_scatter.set_clip_path(circle)
         else:
             last_scatter = ax.scatter(
-                wdf["j"], wdf["i"],
-                s=point_size, alpha=alpha, color="k", linewidths=0,
+                wdf["j"],
+                wdf["i"],
+                s=point_size,
+                alpha=alpha,
+                color="k",
+                linewidths=0,
             )
             last_scatter.set_clip_path(circle)
 
@@ -195,7 +246,7 @@ def plot_cell_positions_plate_scatter(
 
     # Use less restrictive layout - let matplotlib handle most of the spacing
     plt.subplots_adjust(left=0.05, bottom=0.05, right=0.83, top=0.93)
-    
+
     return fig, axes
 
 

@@ -1,8 +1,11 @@
-"""Well Merge Deduplication Script.
+"""Well Merge Deduplication Script with Comprehensive QC.
 
-Performs 1:1 spatial deduplication using stitched cell IDs for well-based merge processing.
+Performs 1:1 spatial deduplication using stitched cell IDs for well-based merge processing
+with comprehensive QC analysis including matching rates and deduplication statistics.
+
 This script operates on raw cell matches to produce spatially accurate deduplicated matches
-while preserving original cell IDs for downstream processing compatibility.
+while preserving original cell IDs for downstream processing compatibility. It also generates
+detailed QC outputs comparable to the tile-based approach.
 
 The deduplication process ensures that each stitched cell ID appears at most once in the
 final matches, creating a proper 1:1 spatial mapping between phenotype and SBS datasets.
@@ -10,10 +13,14 @@ final matches, creating a proper 1:1 spatial mapping between phenotype and SBS d
 Input:
     - raw_matches: From well_cell_merge rule output [0]
     - merged_cells: From well_cell_merge rule output [1] (for comparison/validation)
+    - sbs_cells: Original SBS cell data for QC analysis
+    - phenotype_min_cp: Original phenotype cell data for QC analysis
 
 Output:
     - deduplicated_cells: well_merge_deduplicate output [0] - spatially deduplicated matches
     - dedup_summary: well_merge_deduplicate output [1] - comprehensive processing metrics
+    - sbs_matching_rates: well_merge_deduplicate output [2] - SBS cell matching rate analysis
+    - phenotype_matching_rates: well_merge_deduplicate output [3] - Phenotype cell matching rate analysis
 
 This script is designed for the well-based merge approach and requires stitched cell IDs
 for proper spatial deduplication.
@@ -29,13 +36,19 @@ from lib.merge.well_deduplication import (
     validate_final_matches,
     deduplicate_matches_by_stitched_ids,
 )
+from lib.merge.deduplicate_merge import check_matching_rates
+from lib.merge.format_merge import identify_single_gene_mappings
 
-print("=== WELL MERGE DEDUPLICATION ===")
+print("=== WELL MERGE DEDUPLICATION WITH QC ===")
 
-# Load and validate input data - using named inputs from rule
+# Load and validate input data
 try:
     raw_matches = validate_dtypes(pd.read_parquet(snakemake.input.raw_matches))
     merged_cells = validate_dtypes(pd.read_parquet(snakemake.input.merged_cells))
+    sbs_cells = validate_dtypes(pd.read_parquet(snakemake.input.sbs_cells))
+    phenotype_min_cp = validate_dtypes(
+        pd.read_parquet(snakemake.input.phenotype_min_cp)
+    )
 
     plate = snakemake.params.plate
     well = snakemake.params.well
@@ -43,6 +56,9 @@ try:
     print(f"Processing Well {plate}-{well}")
     print(
         f"Input: {len(raw_matches):,} raw matches → {len(merged_cells):,} simple matches"
+    )
+    print(
+        f"QC data: {len(sbs_cells):,} SBS cells, {len(phenotype_min_cp):,} phenotype cells"
     )
 
     def create_empty_outputs_with_summary(error_message: str):
@@ -69,17 +85,15 @@ try:
                 "stitched_cell_id_1",
             ]
         )
-
-        # Add minimal required metadata
         empty_df["plate"] = plate
         empty_df["well"] = well
         empty_df["site"] = 1
         empty_df["tile"] = 1
 
-        # Save to named outputs
+        # Save empty deduplicated cells
         empty_df.to_parquet(str(snakemake.output.deduplicated_cells))
 
-        # Create failure summary as TSV (key-value format for aggregation script)
+        # Create failure summary
         summary_data = [
             ["status", "failed"],
             ["plate", plate],
@@ -90,10 +104,16 @@ try:
             ["deduplication_achieved_1to1_stitched", False],
             ["output_format_ready_for_format_merge", False],
         ]
-
         summary_df = pd.DataFrame(summary_data, columns=["metric", "value"])
         summary_df.to_csv(
             str(snakemake.output.deduplication_summary), sep="\t", index=False
+        )
+
+        # Create empty QC files
+        empty_qc = pd.DataFrame({"info": ["No QC data - deduplication failed"]})
+        empty_qc.to_csv(str(snakemake.output.sbs_matching_rates), sep="\t", index=False)
+        empty_qc.to_csv(
+            str(snakemake.output.phenotype_matching_rates), sep="\t", index=False
         )
         return
 
@@ -101,9 +121,9 @@ try:
     if raw_matches.empty:
         create_empty_outputs_with_summary("No raw matches to process")
         print("⚠️  No matches to deduplicate - creating empty outputs")
-        exit(0)  # Not an error, just no data to process
+        exit(0)
 
-    # Apply spatial deduplication using stitched cell IDs
+    # STEP 1: Apply spatial deduplication using stitched cell IDs
     try:
         final_matches = deduplicate_matches_by_stitched_ids(raw_matches)
     except ValueError as e:
@@ -113,12 +133,10 @@ try:
     if final_matches.empty:
         create_empty_outputs_with_summary("Deduplication eliminated all matches")
         print("⚠️  All matches were eliminated during deduplication")
-        exit(0)  # Not necessarily an error, might be due to poor alignment
+        exit(0)
 
-    # Validate final matches for spatial accuracy and quality
+    # STEP 2: Validate final matches for spatial accuracy and quality
     validation_results = validate_final_matches(final_matches)
-
-    # Extract quality metrics from comprehensive validation
     quality_metrics = {
         "match_count": validation_results["match_count"],
         "mean_distance": validation_results["distance_stats"]["mean"],
@@ -132,8 +150,7 @@ try:
         "quality_tier": validation_results["quality_metrics"]["quality_tier"],
     }
 
-    # Prepare final output with correct column ordering and validation
-    # Required columns for downstream processing compatibility
+    # STEP 3: Prepare final output with correct column ordering
     required_columns = [
         "plate",
         "well",
@@ -147,7 +164,6 @@ try:
         "j_1",
         "distance",
     ]
-    # Optional columns that are preserved if present
     optional_columns = ["area_0", "area_1", "stitched_cell_id_0", "stitched_cell_id_1"]
 
     # Check for missing required columns
@@ -160,15 +176,70 @@ try:
         )
         raise RuntimeError(f"Missing required columns: {missing_required}")
 
-    # Select columns for output (required + available optional)
+    # Select columns for output
     output_columns = [col for col in required_columns if col in final_matches.columns]
     output_columns.extend(
         [col for col in optional_columns if col in final_matches.columns]
     )
-
     final_output = final_matches[output_columns].copy()
 
-    # Generate user-friendly status reporting
+    # STEP 4: Generate comprehensive QC analysis (similar to tile approach)
+    print("\n=== QC ANALYSIS ===")
+
+    # Filter SBS and phenotype data to current well
+    well_sbs_cells = sbs_cells[sbs_cells.well == well].copy()
+    well_phenotype_cells = phenotype_min_cp[phenotype_min_cp.well == well].copy()
+
+    # Identify single gene mappings for SBS
+    well_sbs_cells["mapped_single_gene"] = well_sbs_cells.apply(
+        lambda x: identify_single_gene_mappings(x), axis=1
+    )
+
+    # Calculate matching rates for SBS cells
+    print("Calculating SBS matching rates...")
+    try:
+        sbs_rates = check_matching_rates(
+            well_sbs_cells, final_output, modality="sbs", return_stats=True
+        )
+        sbs_rates["plate"] = plate
+        sbs_rates["well"] = well
+        print(f"SBS matching rates calculated: {len(sbs_rates)} entries")
+    except Exception as e:
+        print(f"⚠️  SBS matching rate calculation failed: {e}")
+        sbs_rates = pd.DataFrame(
+            {
+                "well": [well],
+                "total_cells": [len(well_sbs_cells)],
+                "matched_cells": [0],
+                "match_rate": [0.0],
+                "plate": [plate],
+                "error": [str(e)],
+            }
+        )
+
+    # Calculate matching rates for phenotype cells
+    print("Calculating phenotype matching rates...")
+    try:
+        phenotype_rates = check_matching_rates(
+            well_phenotype_cells, final_output, modality="phenotype", return_stats=True
+        )
+        phenotype_rates["plate"] = plate
+        phenotype_rates["well"] = well
+        print(f"Phenotype matching rates calculated: {len(phenotype_rates)} entries")
+    except Exception as e:
+        print(f"⚠️  Phenotype matching rate calculation failed: {e}")
+        phenotype_rates = pd.DataFrame(
+            {
+                "well": [well],
+                "total_cells": [len(well_phenotype_cells)],
+                "matched_cells": [0],
+                "match_rate": [0.0],
+                "plate": [plate],
+                "error": [str(e)],
+            }
+        )
+
+    # STEP 5: Generate status reporting
     stitched_status = (
         "✅ 1:1 stitched mapping"
         if validation_results["is_1to1_stitched"]
@@ -183,17 +254,29 @@ try:
         f"Quality metrics: mean distance {quality_metrics['mean_distance']:.2f}px, <5px precision {quality_metrics['precision_5px']:.1%}"
     )
 
-    # Warn about potential alignment issues
     if quality_metrics["large_distance_count"] > 0:
         print(
             f"⚠️  {quality_metrics['large_distance_count']} matches >50px may indicate alignment issues"
         )
 
-    # Save deduplicated results - using named outputs
+    # STEP 6: Save all outputs
+
+    # Save deduplicated cells
     final_output.to_parquet(str(snakemake.output.deduplicated_cells))
     print(f"✅ Saved deduplicated cells: {snakemake.output.deduplicated_cells}")
 
-    # Create comprehensive summary as TSV for pipeline monitoring and debugging
+    # Save QC outputs
+    sbs_rates.to_csv(str(snakemake.output.sbs_matching_rates), sep="\t", index=False)
+    print(f"✅ Saved SBS matching rates: {snakemake.output.sbs_matching_rates}")
+
+    phenotype_rates.to_csv(
+        str(snakemake.output.phenotype_matching_rates), sep="\t", index=False
+    )
+    print(
+        f"✅ Saved phenotype matching rates: {snakemake.output.phenotype_matching_rates}"
+    )
+
+    # Create comprehensive deduplication summary
     summary_data = []
 
     # Basic information
@@ -216,6 +299,34 @@ try:
                 "processing_efficiency",
                 float(len(final_output) / len(raw_matches))
                 if len(raw_matches) > 0
+                else 0.0,
+            ],
+        ]
+    )
+
+    # QC metrics
+    summary_data.extend(
+        [
+            ["qc_sbs_total_cells", len(well_sbs_cells)],
+            [
+                "qc_sbs_matched_cells",
+                sbs_rates["matched_cells"].iloc[0] if not sbs_rates.empty else 0,
+            ],
+            [
+                "qc_sbs_match_rate",
+                sbs_rates["match_rate"].iloc[0] if not sbs_rates.empty else 0.0,
+            ],
+            ["qc_phenotype_total_cells", len(well_phenotype_cells)],
+            [
+                "qc_phenotype_matched_cells",
+                phenotype_rates["matched_cells"].iloc[0]
+                if not phenotype_rates.empty
+                else 0,
+            ],
+            [
+                "qc_phenotype_match_rate",
+                phenotype_rates["match_rate"].iloc[0]
+                if not phenotype_rates.empty
                 else 0.0,
             ],
         ]
@@ -269,6 +380,8 @@ try:
         [
             ["output_format_columns", ";".join(final_output.columns)],
             ["output_format_ready_for_format_merge", True],
+            ["qc_analysis_completed", True],
+            ["qc_outputs_generated", True],
         ]
     )
 
@@ -278,9 +391,12 @@ try:
     )
     print(f"✅ Saved deduplication summary: {snakemake.output.deduplication_summary}")
 
-    print(f"✅ Well {plate}-{well} deduplication completed successfully")
+    print(f"✅ Well {plate}-{well} deduplication with QC completed successfully")
     print(
         f"Final result: {len(final_output):,} deduplicated matches ready for downstream processing"
+    )
+    print(
+        f"QC summary: SBS {sbs_rates['match_rate'].iloc[0]:.1f}% match rate, Phenotype {phenotype_rates['match_rate'].iloc[0]:.1f}% match rate"
     )
 
 except Exception as e:
@@ -295,7 +411,7 @@ except Exception as e:
         plate_val = "unknown"
         well_val = "unknown"
 
-    # Create empty DataFrame with correct schema for downstream compatibility
+    # Create empty outputs
     empty_df = pd.DataFrame(
         columns=[
             "plate",
@@ -315,16 +431,13 @@ except Exception as e:
             "stitched_cell_id_1",
         ]
     )
-
-    # Add minimal required metadata
     empty_df["plate"] = plate_val
     empty_df["well"] = well_val
     empty_df["site"] = 1
     empty_df["tile"] = 1
-
     empty_df.to_parquet(str(snakemake.output.deduplicated_cells))
 
-    # Create failure summary as TSV (key-value format for aggregation script)
+    # Create failure summary
     summary_data = [
         ["status", "failed"],
         ["plate", plate_val],
@@ -334,12 +447,20 @@ except Exception as e:
         ["deduplication_method", "deduplicate_matches_by_stitched_ids"],
         ["deduplication_achieved_1to1_stitched", False],
         ["output_format_ready_for_format_merge", False],
+        ["qc_analysis_completed", False],
+        ["qc_outputs_generated", False],
     ]
-
     summary_df = pd.DataFrame(summary_data, columns=["metric", "value"])
     summary_df.to_csv(
         str(snakemake.output.deduplication_summary), sep="\t", index=False
     )
+
+    # Create empty QC files
+    empty_qc = pd.DataFrame({"info": ["No QC data - processing failed"]})
+    empty_qc.to_csv(str(snakemake.output.sbs_matching_rates), sep="\t", index=False)
+    empty_qc.to_csv(
+        str(snakemake.output.phenotype_matching_rates), sep="\t", index=False
+    )
     raise
 
-print("=== WELL MERGE DEDUPLICATION COMPLETED ===")
+print("=== WELL MERGE DEDUPLICATION WITH QC COMPLETED ===")

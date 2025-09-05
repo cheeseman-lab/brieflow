@@ -38,7 +38,6 @@ sbs_positions = validate_dtypes(pd.read_parquet(snakemake.input.sbs_positions))
 
 plate = snakemake.params.plate
 well = snakemake.params.well
-det_range = snakemake.params.det_range
 score = snakemake.params.score
 
 print(f"Processing Plate {plate}, Well {well}")
@@ -211,17 +210,14 @@ else:
         if not alignment_result.empty:
             best_alignment = alignment_result.iloc[0]
 
-            # Check alignment quality
-            det = best_alignment.get("determinant", 0)
+            # Check alignment quality (only score-based validation)
             alignment_score = best_alignment.get("score", 0)
-
-            det_ok = det_range[0] <= det <= det_range[1]
             score_ok = alignment_score >= score
 
-            if det_ok and score_ok:
+            if score_ok:
                 print(f"✅ Regional triangle hash alignment successful:")
                 print(f"   Score: {alignment_score:.3f} (min required: {score})")
-                print(f"   Determinant: {det:.6f}")
+                print(f"   Determinant: {best_alignment.get('determinant', 'N/A'):.6f}")
                 print(
                     f"   Region size: {best_alignment.get('final_region_size', 'unknown')}"
                 )
@@ -230,8 +226,7 @@ else:
             else:
                 print(f"⚠️  Alignment quality issues:")
                 print(f"   Score: {alignment_score:.3f} (min required: {score})")
-                print(f"   Determinant: {det:.6f} (range: {det_range})")
-                alignment_status = "quality_warning"
+                alignment_status = "low_score"
         else:
             print("❌ Regional triangle hash alignment returned empty result")
             alignment_result = None

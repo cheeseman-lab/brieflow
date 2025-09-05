@@ -5,7 +5,6 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 MERGE_FP = ROOT_FP / "merge"
 
 MERGE_OUTPUTS = {
-    # Stitching configuration outputs (only needed for well approach)
     "estimate_stitch_phenotype": [
         MERGE_FP
         / "stitch_configs"
@@ -20,8 +19,6 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "sbs_stitch_config", "yml"
         ),
     ],
-    
-    # stitch_phenotype_well rule outputs
     "stitch_phenotype_well": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_cell_positions", "parquet"
@@ -35,9 +32,7 @@ MERGE_OUTPUTS = {
         MERGE_FP / "images" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_stitched_mask", "npy"
         ),  # [3] - phenotype_stitched_mask (conditional - may be empty file)
-    ],
-    
-    # stitch_sbs_well rule outputs  
+    ],  
     "stitch_sbs_well": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_cell_positions", "parquet"
@@ -52,8 +47,6 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_mask", "npy"
         ),  # [3] - sbs_stitched_mask (conditional - may be empty file)
     ],
-    
-    # well_alignment rule outputs
     "well_alignment": [
         MERGE_FP / "well_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_scaled", "parquet"
@@ -74,8 +67,6 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "phenotype_transformed", "parquet"
         ),  # [5] - transformed_phenotype_positions
     ],
-    
-    # well_cell_merge rule outputs
     "well_cell_merge": [
         MERGE_FP / "well_cell_merge" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "raw_matches", "parquet"
@@ -87,8 +78,6 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "merge_summary", "tsv"
         ),  # [2] - merge_summary
     ],
-    
-    # well_merge_deduplicate rule outputs
     "well_merge_deduplicate": [
         MERGE_FP / "well_merge_deduplicate" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "deduplicated_cells", "parquet"
@@ -96,37 +85,33 @@ MERGE_OUTPUTS = {
         MERGE_FP / "tsvs" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "dedup_summary", "tsv"
         ),  # [1] - deduplication_summary
+        MERGE_FP / "eval" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "sbs_matching_rates", "tsv"
+        ),  # [2] - sbs_matching_rates (NEW)
+        MERGE_FP / "eval" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_matching_rates", "tsv"
+        ),  # [3] - phenotype_matching_rates (NEW)
     ],
-    
-    # fast_alignment rule output (tile approach)
     "fast_alignment": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "fast_alignment", "parquet"
         ),
     ],
-    
-    # merge_tile rule output (tile approach)
     "merge_tile": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merge_tile", "parquet"
         ),
     ],
-    
-    # merge_well rule output (well approach) 
     "merge_well": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merge", "parquet"
         ),
     ],
-    
-    # format_merge rule output
     "format_merge": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merge_formatted", "parquet"
         ),
     ],
-    
-    # deduplicate_merge rule outputs (tile approach)
     "deduplicate_merge": [
         MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "deduplication_stats", "tsv"
@@ -141,15 +126,11 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "final_phenotype_matching_rates", "tsv"
         ),  # [3] - final_phenotype_matching_rates
     ],
-    
-    # final_merge rule output
     "final_merge": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merge_final", "parquet"
         ),
     ],
-    
-    # eval_merge rule outputs
     "eval_merge": [
         MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}"}, "cell_mapping_stats", "tsv"
@@ -173,8 +154,6 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}"}, "cells_with_channel_min_0", "png"
         ),  # [6]
     ],
-    
-    # aggregate_well_summaries rule outputs (well approach)
     "aggregate_well_summaries": [
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "alignment_summaries", "tsv"
@@ -185,6 +164,12 @@ MERGE_OUTPUTS = {
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "dedup_summaries", "tsv"
         ),  # [2] - dedup_summaries
+        MERGE_FP / "tsvs" / "aggregated" / get_filename(
+            {"plate": "{plate}"}, "sbs_matching_summaries", "tsv"
+        ),  # [3] - sbs_matching_summaries (NEW)
+        MERGE_FP / "tsvs" / "aggregated" / get_filename(
+            {"plate": "{plate}"}, "phenotype_matching_summaries", "tsv"
+        ),  # [4] - phenotype_matching_summaries (NEW)
     ],
 }
 
@@ -225,7 +210,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "stitch_sbs_well": None,
     "well_alignment": None,
     "well_cell_merge": None,
-    "well_merge_deduplicate": temp,
+    "well_merge_deduplicate": None,
     "fast_alignment": None,
     "merge_tile": None,
     "merge_well": None,

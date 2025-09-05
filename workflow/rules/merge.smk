@@ -43,9 +43,9 @@ rule stitch_phenotype_well:
         phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"][0],
     output:
         phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][0],
-        phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][1],
-        phenotype_stitched_image=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][2]),
-        phenotype_stitched_mask=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][3]),
+        phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][1],  
+        phenotype_stitched_image=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][2]), 
+        phenotype_stitched_mask=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][3]), 
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
@@ -53,11 +53,7 @@ rule stitch_phenotype_well:
         flipud=config.get("merge", {}).get("flipud", False),
         fliplr=config.get("merge", {}).get("fliplr", False),
         rot90=config.get("merge", {}).get("rot90", 0),
-        stitched_image=config.get("merge", {}).get("stitched_image", True),
-    resources:
-        mem_mb=400000,     
-        cpus_per_task=8,
-        runtime=180,       
+        stitched_image=config.get("merge", {}).get("stitched_image", True),     
     script:
         "../scripts/merge/well_stitching.py"
 
@@ -70,7 +66,7 @@ rule stitch_sbs_well:
         sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][0],
         sbs_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][1],
         sbs_stitched_image=temp(MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][2]),
-        sbs_stitched_mask=temp(MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][3]),
+        sbs_stitched_mask=temp(MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][3]), 
     params:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
@@ -78,11 +74,7 @@ rule stitch_sbs_well:
         flipud=config.get("merge", {}).get("flipud", False),
         fliplr=config.get("merge", {}).get("fliplr", False),
         rot90=config.get("merge", {}).get("rot90", 0),
-        stitched_image=config.get("merge", {}).get("stitched_image", True),
-    resources:
-        mem_mb=400000,     
-        cpus_per_task=8,
-        runtime=180,       
+        stitched_image=config.get("merge", {}).get("stitched_image", True),     
     script:
         "../scripts/merge/well_stitching.py"
 
@@ -136,7 +128,6 @@ if merge_approach == "well":
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
-            det_range=config["merge"]["det_range"],
             score=config["merge"]["score"],
         script:
             "../scripts/merge/well_alignment.py"
@@ -155,7 +146,6 @@ if merge_approach == "well":
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
             threshold=config["merge"]["threshold"],
-            det_range=config["merge"]["det_range"],
             score=config["merge"]["score"],
         resources:
             mem_mb=8000,
@@ -167,10 +157,14 @@ if merge_approach == "well":
     rule well_merge_deduplicate:
         input:
             raw_matches=MERGE_OUTPUTS["well_cell_merge"][0],                    
-            merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],                   
+            merged_cells=MERGE_OUTPUTS["well_cell_merge"][1],
+            sbs_cells=ancient(SBS_OUTPUTS["combine_cells"]),
+            phenotype_min_cp=ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1]),
         output:
             deduplicated_cells=MERGE_OUTPUTS["well_merge_deduplicate"][0],      
-            deduplication_summary=temp(MERGE_OUTPUTS["well_merge_deduplicate"][1]),   
+            deduplication_summary=temp(MERGE_OUTPUTS["well_merge_deduplicate"][1]),
+            sbs_matching_rates=MERGE_OUTPUTS["well_merge_deduplicate"][2],
+            phenotype_matching_rates=MERGE_OUTPUTS["well_merge_deduplicate"][3],
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -291,7 +285,6 @@ rule eval_merge:
     script:
         "../scripts/merge/eval_merge.py"
 
-
 if merge_approach == "well":
     rule aggregate_well_summaries:
         input:
@@ -313,16 +306,27 @@ if merge_approach == "well":
                 expansion_values=["well"],
                 metadata_combos=merge_wildcard_combos,
             ),
+            sbs_matching_rates_paths=lambda wildcards: output_to_input(
+                MERGE_OUTPUTS["well_merge_deduplicate"][2],  # sbs_matching_rates.tsv
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=merge_wildcard_combos,
+            ),
+            phenotype_matching_rates_paths=lambda wildcards: output_to_input(
+                MERGE_OUTPUTS["well_merge_deduplicate"][3],  # phenotype_matching_rates.tsv
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=merge_wildcard_combos,
+            ),
         output:
             alignment_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][0],
             cell_merge_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][1],
             dedup_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][2],
+            # Add QC summary outputs
+            sbs_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][3],
+            phenotype_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][4],
         params:
             plate=lambda wildcards: wildcards.plate,
-        resources:
-            mem_mb=4000,
-            cpus_per_task=1,
-            runtime=30,
         script:
             "../scripts/merge/aggregate_well_summaries.py"
 

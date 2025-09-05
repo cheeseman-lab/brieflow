@@ -902,7 +902,7 @@ def assemble_aligned_tiff_well(
     return stitched.astype(np.uint16)
 
 
-def assemble_stitched_masks_simple(
+def assemble_stitched_masks(
     metadata_df,
     shifts,
     well,
@@ -963,13 +963,17 @@ def assemble_stitched_masks_simple(
     cell_id_mapping = {}
     next_global_id = 1
 
+    # Track statistics
+    processed_tiles = 0
+    tiles_with_no_cells = []
+    total_cells_placed = 0
+
     # Process each tile
     for _, row in metadata_df.iterrows():
         tile_id = row["tile"]
         tile_key = f"{well}/{tile_id}"
 
         if tile_key not in shifts:
-            print(f"⚠️  No shift found for tile {tile_id}")
             continue
 
         # Load tile mask
@@ -979,7 +983,6 @@ def assemble_stitched_masks_simple(
         )
 
         if not Path(mask_path).exists():
-            print(f"⚠️  Mask not found: {mask_path}")
             continue
 
         try:
@@ -997,14 +1000,12 @@ def assemble_stitched_masks_simple(
             unique_labels = np.unique(tile_mask)
             original_cell_ids = unique_labels[unique_labels > 0]
 
-            if len(original_cell_ids) == 0:
-                print(f"Tile {tile_id}: No cells found")
-                continue
+            processed_tiles += 1
 
-            print(
-                f"Tile {tile_id}: Found {len(original_cell_ids)} cells "
-                f"(original IDs: {original_cell_ids.min()}-{original_cell_ids.max()})"
-            )
+            # Report only tiles with no cells
+            if len(original_cell_ids) == 0:
+                tiles_with_no_cells.append(tile_id)
+                continue
 
             # Create mapping before relabeling
             tile_registry = {}
@@ -1031,44 +1032,34 @@ def assemble_stitched_masks_simple(
             # Place cells (no overlap checking needed since edge nuclei are removed)
             mask_region[tile_region > 0] = tile_region[tile_region > 0]
 
-            # Verify placement
-            placed_labels = np.unique(tile_region[tile_region > 0])
-            placed_cells = len(placed_labels)
-            expected_cells = len(original_cell_ids)
-            if placed_cells != expected_cells:
-                print(
-                    f"⚠️  Tile {tile_id}: Expected {expected_cells}, "
-                    f"placed {placed_cells}"
-                )
-
-            print(
-                f"✅ Tile {tile_id}: {len(original_cell_ids)} cells placed "
-                f"(global IDs: {min(tile_registry.values())}-"
-                f"{max(tile_registry.values())})"
-            )
+            total_cells_placed += len(original_cell_ids)
 
         except Exception as e:
             print(f"❌ Error processing tile {tile_id}: {e}")
             continue
 
-    # Final statistics with integrity check
+    # Report tiles with no cells found
+    if tiles_with_no_cells:
+        print(f"⚠️  Tiles with no cells found: {tiles_with_no_cells}")
+
+    # Final statistics
     final_labels = np.unique(stitched_mask)
     final_cells = final_labels[final_labels > 0]
 
     print(f"🎉 STITCHING COMPLETE:")
+    print(f"  Processed tiles: {processed_tiles}")
     print(f"  Final cell count: {len(final_cells):,}")
-    print(f"  Max global ID: {final_cells.max() if len(final_cells) > 0 else 0}")
-    print(f"  Mapping entries: {len(cell_id_mapping)}")
+    print(f"  Cells placed: {total_cells_placed:,}")
+    if tiles_with_no_cells:
+        print(f"  Empty tiles: {len(tiles_with_no_cells)}")
 
-    # Verify mapping integrity
+    # Verify mapping integrity (silent unless there are issues)
     mapped_globals = set(cell_id_mapping.keys())
     mask_globals = set(final_cells)
     missing_mappings = mask_globals - mapped_globals
     extra_mappings = mapped_globals - mask_globals
 
-    if not missing_mappings and not extra_mappings:
-        print(f"✅ Perfect mapping integrity: {len(cell_id_mapping)} mappings")
-    else:
+    if missing_mappings or extra_mappings:
         if missing_mappings:
             print(f"⚠️  Missing mappings for {len(missing_mappings)} cells")
         if extra_mappings:
@@ -1151,8 +1142,6 @@ def extract_cell_positions_from_stitched_mask(
             ]
         )
 
-    print(f"Found {len(props)} cells in stitched mask")
-
     # Validate required parameters
     if cell_id_mapping is None:
         raise ValueError("cell_id_mapping is required for preserved cell ID extraction")
@@ -1164,8 +1153,6 @@ def extract_cell_positions_from_stitched_mask(
     # Auto-detect tile size if not provided
     if tile_size is None:
         tile_size = (2400, 2400) if data_type == "phenotype" else (1200, 1200)
-
-    print("✅ Using preserved cell ID mapping")
 
     # Create metadata and shift lookups
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
@@ -1182,7 +1169,6 @@ def extract_cell_positions_from_stitched_mask(
 
     # Extract cell information using preserved mapping
     cell_data = []
-    direct_mappings = 0
     missing_mappings = 0
 
     for prop in props:
@@ -1204,7 +1190,6 @@ def extract_cell_positions_from_stitched_mask(
         if stitched_label in cell_id_mapping:
             original_tile_id, original_cell_id = cell_id_mapping[stitched_label]
             mapping_method = "preserved_mapping"
-            direct_mappings += 1
 
             # Calculate relative position within original tile
             if original_tile_id in tile_shift_lookup:
@@ -1279,52 +1264,27 @@ def extract_cell_positions_from_stitched_mask(
 
     print(f"✅ EXTRACTION COMPLETE:")
     print(f"  Total cells: {len(df)}")
-    print(f"  Direct mappings: {direct_mappings}")
-    print(f"  Missing mappings: {missing_mappings}")
+    direct_mappings = len(df) - missing_mappings
+    print(f"  Mapped cells: {direct_mappings}")
+    if missing_mappings > 0:
+        print(f"  Missing mappings: {missing_mappings}")
     print(f"  Success rate: {direct_mappings / len(df) * 100:.1f}%")
-
-    # Show tile distribution
-    if len(df) > 0 and "original_tile_id" in df.columns:
-        tile_counts = df["original_tile_id"].value_counts()
-        valid_tiles = tile_counts[tile_counts.index.notna() & (tile_counts.index != -1)]
-        if len(valid_tiles) > 0:
-            print(
-                f"  Cells per tile: min={valid_tiles.min()}, max={valid_tiles.max()}, "
-                f"mean={valid_tiles.mean():.1f}"
-            )
-            print(f"  Active tiles: {len(valid_tiles)}")
-
-    # Validate cell/label consistency for preserved mappings
-    if len(df) > 0:
-        preserved_rows = df[df["mapping_method"] == "preserved_mapping"]
-        if len(preserved_rows) > 0:
-            if (preserved_rows["cell"] == preserved_rows["label"]).all():
-                print(
-                    f"✅ Cell/label consistency verified for {len(preserved_rows)} "
-                    f"preserved mappings"
-                )
-            else:
-                print(f"⚠️  Warning: Cell/label mismatch detected in preserved mappings")
-
-    # Show column summary
-    if len(df) > 0:
-        print(f"📊 Column Summary:")
-        print(f"  Plates: {df['plate'].nunique()} unique")
-        print(f"  Wells: {df['well'].nunique()} unique")
-        print(f"  Tiles: {df['tile'].nunique()} unique")
-        print(f"  Cell ID range: {df['cell'].min()} - {df['cell'].max()}")
-        print(f"  Label range: {df['label'].min()} - {df['label'].max()}")
 
     return df
 
 
 def create_tile_arrangement_qc_plot(
-    cell_positions_df: pd.DataFrame, output_path: str, data_type: str = "phenotype"
+    cell_positions_df: pd.DataFrame,
+    output_path: str,
+    data_type: str = "phenotype",
+    well: str = None,
+    plate: str = None,
 ):
     """Create QC plot showing tile arrangement and cell distribution.
 
     This function generates a comprehensive quality control plot that visualizes
-    tile arrangement, cell distributions, and spatial relationships.
+    tile arrangement, cell distributions, and spatial relationships using scatter plots
+    similar to plot_cell_positions_plate_scatter.
 
     Parameters
     ----------
@@ -1334,99 +1294,200 @@ def create_tile_arrangement_qc_plot(
         Path where to save the QC plot
     data_type : str, default "phenotype"
         Type of data for plot title
+    well : str, optional
+        Well identifier for title
+    plate : str, optional
+        Plate identifier for title
     """
     import matplotlib.pyplot as plt
+    import numpy as np
+    from pathlib import Path
 
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-    fig.suptitle(f"{data_type.title()} Tile Arrangement QC", fontsize=16)
+    # Check if we have cell positions data
+    if len(cell_positions_df) == 0:
+        print("Skipping QC plot - no cell positions available")
+        # Create a minimal placeholder plot
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        title_parts = [f"{data_type.title()} Tile Arrangement QC"]
+        if plate and well:
+            title_parts.append(f"Plate {plate}, Well {well}")
+        ax.text(0.5, 0.5, f'No cells found', 
+                ha='center', va='center', transform=ax.transAxes, fontsize=14)
+        ax.set_title(" - ".join(title_parts))
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        return None
 
-    # Use the correct column for tile mapping
-    tile_column = (
-        "original_tile_id"
-        if "original_tile_id" in cell_positions_df.columns
-        else "tile"
-    )
+    try:
+        # Ensure output directory exists
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Plot 1: Cell positions colored by tile
-    ax1 = axes[0, 0]
-    if tile_column in cell_positions_df.columns:
-        scatter = ax1.scatter(
-            cell_positions_df["j"],
-            cell_positions_df["i"],
-            c=cell_positions_df[tile_column],
-            cmap="tab20",
-            s=0.1,
-            alpha=0.7,
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # Create title
+        title_parts = [f"{data_type.title()} Tile Arrangement QC"]
+        if plate and well:
+            title_parts.append(f"Plate {plate}, Well {well}")
+        fig.suptitle(" - ".join(title_parts), fontsize=16)
+
+        # Use the correct column for tile mapping
+        tile_column = (
+            "original_tile_id"
+            if "original_tile_id" in cell_positions_df.columns
+            else "tile"
         )
-        plt.colorbar(scatter, ax=ax1, label="Original Tile ID")
-    ax1.set_title("Cell Positions by Original Tile")
-    ax1.set_xlabel("X Position (pixels)")
-    ax1.set_ylabel("Y Position (pixels)")
-    ax1.invert_yaxis()
 
-    # Plot 2: Stage coordinates with tile numbers
-    ax2 = axes[0, 1]
-    if (
-        "stage_x" in cell_positions_df.columns
-        and "stage_y" in cell_positions_df.columns
-    ):
-        tile_info = (
-            cell_positions_df.groupby(tile_column)
-            .agg({"stage_x": "first", "stage_y": "first"})
-            .reset_index()
-        )
+        # Plot 1: Cell positions colored by tile (matches plot_cell_positions_plate_scatter style)
+        ax1 = axes[0, 0]
+        if tile_column in cell_positions_df.columns:
+            scatter = ax1.scatter(
+                cell_positions_df["j"],
+                cell_positions_df["i"],
+                c=cell_positions_df[tile_column],
+                cmap="tab20",
+                s=0.1,
+                alpha=0.7,
+                linewidths=0,
+            )
+            plt.colorbar(scatter, ax=ax1, label="Original Tile ID")
+        else:
+            ax1.scatter(
+                cell_positions_df["j"],
+                cell_positions_df["i"],
+                s=0.1,
+                alpha=0.7,
+                color="k",
+                linewidths=0,
+            )
+        ax1.set_title("Cell Positions by Original Tile")
+        ax1.set_xlabel("X Position (pixels)")
+        ax1.set_ylabel("Y Position (pixels)")
+        ax1.invert_yaxis()
+        ax1.set_aspect("equal", adjustable="box")
 
-        ax2.scatter(tile_info["stage_x"], tile_info["stage_y"], s=50)
-        for _, row in tile_info.iterrows():
-            if not pd.isna(row["stage_x"]) and not np.isnan(row["stage_x"]):
-                ax2.annotate(
-                    f"{int(row[tile_column])}",
-                    (row["stage_x"], row["stage_y"]),
-                    fontsize=8,
-                    ha="center",
+        # Plot 2: Stage coordinates with tile numbers (if available)
+        ax2 = axes[0, 1]
+        if (
+            "stage_x" in cell_positions_df.columns
+            and "stage_y" in cell_positions_df.columns
+        ):
+            # Get unique tile positions
+            tile_info = (
+                cell_positions_df.groupby(tile_column)
+                .agg({"stage_x": "first", "stage_y": "first"})
+                .reset_index()
+            )
+            
+            # Filter out NaN values
+            tile_info = tile_info.dropna(subset=["stage_x", "stage_y"])
+            
+            if len(tile_info) > 0:
+                ax2.scatter(tile_info["stage_x"], tile_info["stage_y"], s=50)
+                for _, row in tile_info.iterrows():
+                    ax2.annotate(
+                        f"{int(row[tile_column])}",
+                        (row["stage_x"], row["stage_y"]),
+                        fontsize=8,
+                        ha="center",
+                    )
+                ax2.set_xlabel("Stage X (μm)")
+                ax2.set_ylabel("Stage Y (μm)")
+            else:
+                ax2.text(0.5, 0.5, "No stage coordinates available", 
+                        ha="center", va="center", transform=ax2.transAxes)
+        else:
+            ax2.text(0.5, 0.5, "No stage coordinates available", 
+                    ha="center", va="center", transform=ax2.transAxes)
+        ax2.set_title("Tile Arrangement (Stage Coordinates)")
+
+        # Plot 3: Cells per tile histogram
+        ax3 = axes[1, 0]
+        if tile_column in cell_positions_df.columns:
+            tile_counts = cell_positions_df[tile_column].value_counts()
+            if len(tile_counts) > 0:
+                ax3.hist(tile_counts.values, bins=min(50, len(tile_counts)), alpha=0.7)
+                ax3.axvline(
+                    tile_counts.mean(),
+                    color="red",
+                    linestyle="--",
+                    label=f"Mean: {tile_counts.mean():.1f}",
                 )
-    ax2.set_title("Tile Arrangement (Stage Coordinates)")
-    ax2.set_xlabel("Stage X (μm)")
-    ax2.set_ylabel("Stage Y (μm)")
+                ax3.legend()
+                ax3.set_xlabel("Cells per Tile")
+                ax3.set_ylabel("Number of Tiles")
+            else:
+                ax3.text(0.5, 0.5, "No tile data available", 
+                        ha="center", va="center", transform=ax3.transAxes)
+        else:
+            ax3.text(0.5, 0.5, "No tile column found", 
+                    ha="center", va="center", transform=ax3.transAxes)
+        ax3.set_title("Distribution of Cells per Original Tile")
 
-    # Plot 3: Cells per tile histogram
-    ax3 = axes[1, 0]
-    if tile_column in cell_positions_df.columns:
-        tile_counts = cell_positions_df[tile_column].value_counts()
-        ax3.hist(tile_counts.values, bins=50, alpha=0.7)
-        ax3.axvline(
-            tile_counts.mean(),
-            color="red",
-            linestyle="--",
-            label=f"Mean: {tile_counts.mean():.1f}",
-        )
-        ax3.legend()
-    ax3.set_title("Distribution of Cells per Original Tile")
-    ax3.set_xlabel("Cells per Tile")
-    ax3.set_ylabel("Number of Tiles")
+        # Plot 4: Relative positions within original tiles (if available)
+        ax4 = axes[1, 1]
+        if "tile_i" in cell_positions_df.columns and "tile_j" in cell_positions_df.columns:
+            # Filter out invalid relative positions
+            valid_positions = cell_positions_df[
+                (cell_positions_df["tile_i"] >= 0) & 
+                (cell_positions_df["tile_j"] >= 0)
+            ]
+            
+            if len(valid_positions) > 0 and tile_column in valid_positions.columns:
+                ax4.scatter(
+                    valid_positions["tile_j"],
+                    valid_positions["tile_i"],
+                    c=valid_positions[tile_column],
+                    cmap="tab20",
+                    s=0.1,
+                    alpha=0.7,
+                    linewidths=0,
+                )
+                ax4.set_xlabel("Tile-relative X")
+                ax4.set_ylabel("Tile-relative Y")
+                ax4.invert_yaxis()
+            else:
+                ax4.text(0.5, 0.5, "No valid relative positions", 
+                        ha="center", va="center", transform=ax4.transAxes)
+        else:
+            ax4.text(0.5, 0.5, "No relative position data available", 
+                    ha="center", va="center", transform=ax4.transAxes)
+        ax4.set_title("Relative Positions within Original Tiles")
 
-    # Plot 4: Tile boundaries overlay
-    ax4 = axes[1, 1]
-    if "tile_i" in cell_positions_df.columns and "tile_j" in cell_positions_df.columns:
-        ax4.scatter(
-            cell_positions_df["tile_j"],
-            cell_positions_df["tile_i"],
-            c=cell_positions_df[tile_column],
-            cmap="tab20",
-            s=0.1,
-            alpha=0.7,
-        )
-    ax4.set_title("Relative Positions within Original Tiles")
-    ax4.set_xlabel("Tile-relative X")
-    ax4.set_ylabel("Tile-relative Y")
-    ax4.invert_yaxis()
+        # Add summary statistics
+        total_cells = len(cell_positions_df)
+        if tile_column in cell_positions_df.columns:
+            unique_tiles = cell_positions_df[tile_column].nunique()
+            mean_cells_per_tile = total_cells / unique_tiles if unique_tiles > 0 else 0
+        else:
+            unique_tiles = 0
+            mean_cells_per_tile = 0
 
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+        stats_text = f"Total Cells: {total_cells:,}\nTiles: {unique_tiles}\nMean/Tile: {mean_cells_per_tile:.0f}"
+        
+        # Add stats text to the figure
+        fig.text(0.02, 0.02, stats_text, fontsize=10, 
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
 
-    print(f"QC plot saved to: {output_path}")
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close()
 
+        print(f"QC plot saved: {output_path}")
+        return output_path
 
-# Legacy alias for backward compatibility
-assemble_stitched_masks_reliable = assemble_stitched_masks_simple
+    except Exception as e:
+        print(f"QC plot creation failed: {e}")
+        # Create error plot
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        title_parts = [f"{data_type.title()} Tile Arrangement QC"]
+        if plate and well:
+            title_parts.append(f"Plate {plate}, Well {well}")
+        ax.text(0.5, 0.5, f'Error creating plot: {str(e)}', 
+                ha='center', va='center', transform=ax.transAxes, fontsize=12)
+        ax.set_title(" - ".join(title_parts))
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        return None

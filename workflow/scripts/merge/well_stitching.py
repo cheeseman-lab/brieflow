@@ -10,7 +10,7 @@ from lib.merge.stitch_well import create_tile_arrangement_qc_plot
 from lib.merge.stitch_well import (
     assemble_aligned_tiff_well,
     extract_cell_positions_from_stitched_mask,
-    assemble_stitched_masks_simple,
+    assemble_stitched_masks,
 )
 
 data_type = snakemake.params.data_type
@@ -46,9 +46,7 @@ with open(stitch_config_path, "r") as f:
 print(f"Starting {data_type} stitching for plate {plate}, well {well}")
 
 # Filter metadata to specific plate and well
-well_metadata = metadata[
-    (metadata["plate"] == int(plate)) & (metadata["well"] == well)
-]
+well_metadata = metadata[(metadata["plate"] == int(plate)) & (metadata["well"] == well)]
 
 if len(well_metadata) == 0:
     raise ValueError(f"No {data_type} tiles found for plate {plate}, well {well}")
@@ -86,7 +84,7 @@ if len(shifts) == 0:
 print(f"Using {len(shifts)} tile shifts from stitch config")
 
 # Check if stitched image creation is enabled
-create_stitched_image = getattr(snakemake.params, 'stitched_image', True)
+create_stitched_image = getattr(snakemake.params, "stitched_image", True)
 
 # Assemble stitched image
 if create_stitched_image:
@@ -109,15 +107,13 @@ else:
     stitched_image = np.array([[0]], dtype=np.uint16)
 
 # Initialize cell positions
-cell_positions = pd.DataFrame(
-    columns=["well", "cell", "i", "j", "area", "data_type"]
-)
+cell_positions = pd.DataFrame(columns=["well", "cell", "i", "j", "area", "data_type"])
 
 # Assemble stitched masks
 if masks_exist:
     print("Assembling stitched masks...")
     try:
-        stitched_mask, cell_id_mapping = assemble_stitched_masks_simple(
+        stitched_mask, cell_id_mapping = assemble_stitched_masks(
             metadata_df=well_metadata,
             shifts=shifts,
             well=well,
@@ -127,7 +123,9 @@ if masks_exist:
             rot90=snakemake.params.rot90,
             return_cell_mapping=True,
         )
-        print(f"Stitched mask created: {stitched_mask.shape}, max label: {stitched_mask.max()}")
+        print(
+            f"Stitched mask created: {stitched_mask.shape}, max label: {stitched_mask.max()}"
+        )
 
         # Extract cell positions
         if stitched_mask.max() > 0:
@@ -162,9 +160,9 @@ else:
 print("Saving outputs...")
 
 # Always save cell positions (index 0)
-if hasattr(snakemake.output, 'phenotype_cell_positions'):
+if hasattr(snakemake.output, "phenotype_cell_positions"):
     output_positions = snakemake.output.phenotype_cell_positions
-elif hasattr(snakemake.output, 'sbs_cell_positions'):
+elif hasattr(snakemake.output, "sbs_cell_positions"):
     output_positions = snakemake.output.sbs_cell_positions
 else:
     output_positions = snakemake.output[0]  # fallback
@@ -173,9 +171,9 @@ cell_positions.to_parquet(output_positions)
 print(f"Cell positions saved: {output_positions} ({len(cell_positions)} cells)")
 
 # Always save QC plot (index 1)
-if hasattr(snakemake.output, 'phenotype_qc_plot'):
+if hasattr(snakemake.output, "phenotype_qc_plot"):
     output_qc = snakemake.output.phenotype_qc_plot
-elif hasattr(snakemake.output, 'sbs_qc_plot'):
+elif hasattr(snakemake.output, "sbs_qc_plot"):
     output_qc = snakemake.output.sbs_qc_plot
 else:
     output_qc = snakemake.output[1]  # fallback
@@ -183,50 +181,56 @@ else:
 if len(cell_positions) > 0:
     print("Creating QC plot...")
     create_tile_arrangement_qc_plot(
-        cell_positions_df=cell_positions,
-        output_path=output_qc,
-        data_type=data_type
+        cell_positions_df=cell_positions, output_path=output_qc, data_type=data_type
     )
     print(f"QC plot saved: {output_qc}")
 else:
     print("No cell positions available, creating empty QC plot...")
     # Create a minimal placeholder plot
     import matplotlib.pyplot as plt
+
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-    ax.text(0.5, 0.5, f'No cells found for {data_type} well {well}', 
-            ha='center', va='center', transform=ax.transAxes, fontsize=14)
-    ax.set_title(f'{data_type.title()} Well {well} - No Cells Detected')
+    ax.text(
+        0.5,
+        0.5,
+        f"No cells found for {data_type} well {well}",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=14,
+    )
+    ax.set_title(f"{data_type.title()} Well {well} - No Cells Detected")
     plt.tight_layout()
-    plt.savefig(output_qc, dpi=150, bbox_inches='tight')
+    plt.savefig(output_qc, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"Empty QC plot saved: {output_qc}")
 
 # Conditionally save stitched image and mask when enabled
 if create_stitched_image:
     # Save stitched image (index 2)
-    if hasattr(snakemake.output, 'phenotype_stitched_image'):
+    if hasattr(snakemake.output, "phenotype_stitched_image"):
         output_image = snakemake.output.phenotype_stitched_image
-    elif hasattr(snakemake.output, 'sbs_stitched_image'):
+    elif hasattr(snakemake.output, "sbs_stitched_image"):
         output_image = snakemake.output.sbs_stitched_image
     elif len(snakemake.output) > 2:
         output_image = snakemake.output[2]  # fallback
     else:
         output_image = None
-    
+
     if output_image:
         np.save(output_image, stitched_image)
         print(f"Stitched image saved: {output_image}")
-    
+
     # Save stitched mask (index 3)
-    if hasattr(snakemake.output, 'phenotype_stitched_mask'):
+    if hasattr(snakemake.output, "phenotype_stitched_mask"):
         output_mask = snakemake.output.phenotype_stitched_mask
-    elif hasattr(snakemake.output, 'sbs_stitched_mask'):
+    elif hasattr(snakemake.output, "sbs_stitched_mask"):
         output_mask = snakemake.output.sbs_stitched_mask
     elif len(snakemake.output) > 3:
         output_mask = snakemake.output[3]  # fallback
     else:
         output_mask = None
-    
+
     if output_mask:
         np.save(output_mask, stitched_mask)
         print(f"Stitched mask saved: {output_mask}")
@@ -234,33 +238,33 @@ else:
     print("Skipping stitched image and mask saving (stitched_image=False)")
     # Create minimal empty files to satisfy Snakemake output requirements
     # Save tiny placeholder arrays to save disk space
-    
+
     # Create empty image file (index 2)
-    if hasattr(snakemake.output, 'phenotype_stitched_image'):
+    if hasattr(snakemake.output, "phenotype_stitched_image"):
         output_image = snakemake.output.phenotype_stitched_image
-    elif hasattr(snakemake.output, 'sbs_stitched_image'):
+    elif hasattr(snakemake.output, "sbs_stitched_image"):
         output_image = snakemake.output.sbs_stitched_image
     elif len(snakemake.output) > 2:
         output_image = snakemake.output[2]  # fallback
     else:
         output_image = None
-    
+
     if output_image:
         # Save minimal placeholder array to satisfy output requirement
         placeholder_image = np.array([[0]], dtype=np.uint16)
         np.save(output_image, placeholder_image)
         print(f"Empty placeholder image saved: {output_image}")
-    
-    # Create empty mask file (index 3)  
-    if hasattr(snakemake.output, 'phenotype_stitched_mask'):
+
+    # Create empty mask file (index 3)
+    if hasattr(snakemake.output, "phenotype_stitched_mask"):
         output_mask = snakemake.output.phenotype_stitched_mask
-    elif hasattr(snakemake.output, 'sbs_stitched_mask'):
+    elif hasattr(snakemake.output, "sbs_stitched_mask"):
         output_mask = snakemake.output.sbs_stitched_mask
     elif len(snakemake.output) > 3:
         output_mask = snakemake.output[3]  # fallback
     else:
         output_mask = None
-    
+
     if output_mask:
         # Save minimal placeholder array to satisfy output requirement
         placeholder_mask = np.array([[0]], dtype=np.uint16)

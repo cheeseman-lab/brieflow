@@ -434,7 +434,7 @@ def compute_peak_fraction(df_cells):
 
 def visualize_parameter_results(results_df, df_cells=None, save_plots=False):
     """Visualize the results of parameter search for barcode mapping performance.
-    
+
     This function generates a 2x2 grid of heatmaps summarizing key metrics:
     fraction of cells mapped to any barcode, the fraction mapped to a single barcode,
     the gap between these fractions, and the significance of a secondary peak in the data.

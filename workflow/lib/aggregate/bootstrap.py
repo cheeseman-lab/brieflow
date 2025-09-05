@@ -42,13 +42,9 @@ def run_single_bootstrap_simulation(
     Returns:
         Median values from the simulation.
     """
-    # Get unique control construct IDs
-    unique_control_ids = np.unique(controls_arr[:, 0])
+    random_cell_idx = np.random.choice(controls_arr.shape[0], 1, replace=False)[0]
+    control_id = controls_arr[random_cell_idx, 0]
 
-    # Select a random control construct
-    control_id = np.random.choice(unique_control_ids, 1, replace=False)[0]
-
-    # Get all cells from this control construct
     indices = np.where(controls_arr[:, 0] == control_id)[0]
     control_construct_arr = controls_arr[indices]
 
@@ -115,12 +111,19 @@ def run_construct_bootstrap(
         median_arr = run_single_bootstrap_simulation(controls_arr, sample_size)
         null_medians_arr[i, :] = median_arr
 
-    # Verify simulations ran properly (no constant values)
-    all_same = np.max(null_medians_arr, axis=1) == np.min(null_medians_arr, axis=1)
-    if len(null_medians_arr[all_same]) > 0:
-        raise ValueError(
-            "Bootstrap simulation failed - some simulations returned constant values"
-        )
+    # Modified verification for single feature case
+    if null_medians_arr.shape[1] == 1:
+        # For single feature, check if all values are identical (which would be weird)
+        all_identical = len(np.unique(null_medians_arr)) == 1
+        if all_identical:
+            raise ValueError("All bootstrap simulations returned identical values")
+    else:
+        # Original verification for multiple features
+        all_same = np.max(null_medians_arr, axis=1) == np.min(null_medians_arr, axis=1)
+        if len(null_medians_arr[all_same]) > 0:
+            raise ValueError(
+                "Bootstrap simulation failed - some simulations returned constant values"
+            )
 
     # Calculate p-values
     p_vals = calculate_pvals(null_medians_arr, observed_medians)

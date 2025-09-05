@@ -214,12 +214,27 @@ def centerscale_by_batch(
     return features
 
 
+def median_absolute_deviation(arr):
+    """Calculate MAD with scaling factor for normal distribution equivalence.
+
+    Args:
+        arr (np.ndarray): Input array to calculate MAD.
+
+    Returns:
+        np.ndarray: Scaled MAD values.
+    """
+    median = np.median(arr, axis=0)
+    mad = np.median(np.abs(arr - median), axis=0)
+    return mad * 0.6745
+
+
 def centerscale_on_controls(
     embeddings: np.ndarray,
     metadata: pd.DataFrame,
     pert_col: str,
     control_key: str,
     batch_col: str | None = None,
+    method: str = "standard",
 ) -> np.ndarray:
     """Center and scale the embeddings on the control perturbation units in the metadata.
 
@@ -228,14 +243,19 @@ def centerscale_on_controls(
     Args:
         embeddings (numpy.ndarray): The embeddings to be aligned.
         metadata (pandas.DataFrame): The metadata containing information about the embeddings.
-        pert_col (str, optional): The column in the metadata containing perturbation information.
-        control_key (str, optional): The key for non-targeting controls in the metadata.
+        pert_col (str): The column in the metadata containing perturbation information.
+        control_key (str): The key for non-targeting controls in the metadata.
         batch_col (str, optional): Column name in the metadata representing the batch labels.
             Defaults to None.
+        method (str, optional): Scaling method to use. Options are "standard" (mean/std)
+            or "mad" (median/MAD). Defaults to "standard".
 
     Returns:
         numpy.ndarray: The aligned embeddings.
     """
+    if method not in ["standard", "mad"]:
+        raise ValueError(f"Unknown scaling method: {method}. Use 'standard' or 'mad'.")
+
     if batch_col is not None:
         batches = metadata[batch_col].unique()
         for batch in batches:
@@ -243,12 +263,31 @@ def centerscale_on_controls(
             batch_control_ind = (
                 batch_ind & (metadata[pert_col].str.startswith(control_key)).to_list()
             )
-            embeddings[batch_ind] = (
-                StandardScaler(copy=False)
-                .fit(embeddings[batch_control_ind])
-                .transform(embeddings[batch_ind])
-            )
+
+            if method == "standard":
+                embeddings[batch_ind] = (
+                    StandardScaler(copy=False)
+                    .fit(embeddings[batch_control_ind])
+                    .transform(embeddings[batch_ind])
+                )
+            elif method == "mad":
+                control_data = embeddings[batch_control_ind]
+                median = np.median(control_data, axis=0)
+                mad_scaled = median_absolute_deviation(control_data)
+                embeddings[batch_ind] = (embeddings[batch_ind] - median) / mad_scaled
+
         return embeddings
 
     control_ind = metadata[pert_col].str.startswith(control_key).to_list()
-    return StandardScaler(copy=False).fit(embeddings[control_ind]).transform(embeddings)
+
+    if method == "standard":
+        return (
+            StandardScaler(copy=False)
+            .fit(embeddings[control_ind])
+            .transform(embeddings)
+        )
+    elif method == "mad":
+        control_data = embeddings[control_ind]
+        median = np.median(control_data, axis=0)
+        mad_scaled = median_absolute_deviation(control_data)
+        return (embeddings - median) / mad_scaled

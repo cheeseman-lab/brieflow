@@ -21,27 +21,12 @@ from typing import Dict, Any, Tuple
 def filter_single_cell_tiles(
     matches_df: pd.DataFrame,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Filter out single-cell tiles that cause phenotype extraction failures.
-
-    Single-cell tiles are dropped during phenotype extraction due to early exit
-    conditions in extract_phenotype_cp_multichannel, but they still appear in
-    merge data. This causes NaN lookups in format_merge.
-
-    Args:
-        matches_df: DataFrame with cell matches containing plate, well, site, tile columns
-
-    Returns:
-        Tuple of (filtered_df, filtering_stats) where:
-        - filtered_df: DataFrame with single-cell tiles removed
-        - filtering_stats: Dictionary with filtering statistics
-    """
+    """Filter out single-cell tiles that cause phenotype extraction failures."""
     if matches_df.empty:
         return matches_df, {"tiles_removed": 0, "cells_removed": 0, "cells_kept": 0}
 
     # Count cells per tile
     tile_cell_counts = matches_df.groupby(["plate", "well", "site", "tile"]).size()
-
-    # Identify single-cell tiles
     single_cell_tiles = tile_cell_counts[tile_cell_counts == 1].index
 
     if len(single_cell_tiles) == 0:
@@ -75,52 +60,28 @@ def filter_single_cell_tiles(
 
 
 def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
-    """Load alignment parameters from a DataFrame row.
-
-    Parses alignment parameters from various formats including string representations
-    of arrays and handles different data types that may result from parquet storage.
-
-    Args:
-        alignment_row: Single row from alignment parameters DataFrame containing
-                      rotation_matrix_flat, translation_vector, scale_factor, etc.
-
-    Returns:
-        Dictionary with parsed alignment parameters:
-        - rotation: 2x2 numpy array for rotation transformation
-        - translation: 2-element numpy array for translation
-        - scale_factor: float for coordinate scaling
-        - score: alignment quality score
-        - determinant: transformation determinant
-        - transformation_type: string describing transformation type
-        - approach: string describing alignment approach
-        - validation_mean_distance: mean distance from validation
-    """
+    """Load alignment parameters from a DataFrame row."""
     # Extract rotation matrix - handle different formats
     rotation_flat = alignment_row.get("rotation_matrix_flat", [1.0, 0.0, 0.0, 1.0])
 
     if isinstance(rotation_flat, str):
         try:
-            # Try direct evaluation for list format like "[1.0, 0.0, 0.0, 1.0]"
             rotation_flat = eval(rotation_flat)
         except SyntaxError:
             try:
-                # Try numpy array string format like "[1. 0. 0. 1.]"
                 clean_str = rotation_flat.strip("[]")
                 rotation_flat = [float(x) for x in clean_str.split()]
             except (ValueError, AttributeError):
                 try:
-                    # Use numpy to parse array string
                     rotation_flat = np.fromstring(
                         rotation_flat.strip("[]"), sep=" "
                     ).tolist()
                 except:
-                    # Fallback: identity matrix
                     print(
                         f"Warning: Could not parse rotation matrix '{rotation_flat}', using identity"
                     )
                     rotation_flat = [1.0, 0.0, 0.0, 1.0]
 
-    # Ensure it's a list and has 4 elements
     if not isinstance(rotation_flat, (list, tuple)) or len(rotation_flat) != 4:
         print(
             f"Warning: Invalid rotation matrix format, using identity. Got: {rotation_flat}"
@@ -132,16 +93,10 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
     # Extract translation vector - handle different formats
     translation_list = alignment_row.get("translation_vector", [0.0, 0.0])
 
-    # Handle pandas/parquet data types
     if isinstance(translation_list, np.ndarray):
-        # NumPy array - convert to list
         translation_list = translation_list.tolist()
     elif isinstance(translation_list, str):
-        # String representation - handle different formats
-
-        # Check if it's a numpy array string format (has spaces between numbers)
         if " " in translation_list.strip("[]") and "," not in translation_list:
-            # Numpy array format like "[-85.4958813  -95.79037779]"
             try:
                 clean_str = translation_list.strip("[]")
                 translation_list = [float(x) for x in clean_str.split()]
@@ -151,7 +106,6 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
                 )
                 translation_list = [0.0, 0.0]
         else:
-            # Regular list format like "[-85.4, -95.8]"
             try:
                 translation_list = eval(translation_list)
             except (SyntaxError, NameError):
@@ -164,23 +118,18 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
                     )
                     translation_list = [0.0, 0.0]
 
-    # Ensure we have a proper list/tuple and handle different lengths
     if isinstance(translation_list, (list, tuple)):
         if len(translation_list) == 1:
-            # Single element - assume this is X translation, Y is zero
             translation_list = [float(translation_list[0]), 0.0]
             print(
                 f"Note: Using single-element translation vector: [{translation_list[0]:.1f}, 0.0]"
             )
         elif len(translation_list) == 2:
-            # Two elements - use as is
             translation_list = [float(translation_list[0]), float(translation_list[1])]
         elif len(translation_list) == 0:
-            # Empty - use zero
             print(f"Warning: Empty translation vector, using zero")
             translation_list = [0.0, 0.0]
         else:
-            # Invalid length - truncate to first 2 elements or pad with zeros
             if len(translation_list) > 2:
                 print(
                     f"Warning: Translation vector too long ({len(translation_list)}), using first 2 elements"
@@ -195,9 +144,7 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
                 )
                 translation_list = [0.0, 0.0]
     else:
-        # Not a list/tuple - check if it's a scalar that should be zero
         try:
-            # Try to convert to float - might be a scalar
             scalar_val = float(translation_list)
             translation_list = [scalar_val, 0.0]
             print(
@@ -211,7 +158,7 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
 
     translation = np.array(translation_list)
 
-    # Extract scale factor for coordinate system correction
+    # Extract scale factor
     scale_factor = alignment_row.get("scale_factor", 1.0)
     if isinstance(scale_factor, str):
         try:
@@ -239,28 +186,10 @@ def find_cell_matches(
     sbs_positions: pd.DataFrame,
     alignment: Dict[str, Any],
     threshold: float = 10.0,
-    chunk_size: int = 50000,
+    chunk_size: int = 10000,  # Reduced from 50000 to 10000
     transformed_phenotype_positions: pd.DataFrame = None,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Find cell matches using alignment transformation.
-
-    Matches cells between phenotype and SBS datasets using spatial alignment.
-    Automatically chooses between direct and chunked approaches based on memory
-    requirements.
-
-    Args:
-        phenotype_positions: DataFrame with phenotype cell positions (i, j columns)
-        sbs_positions: DataFrame with SBS cell positions (i, j columns)
-        alignment: Dictionary with alignment parameters (rotation, translation, scale_factor)
-        threshold: Maximum distance for valid matches in pixels
-        chunk_size: Size of chunks for memory-efficient processing
-        transformed_phenotype_positions: Pre-calculated transformed coordinates (optional)
-
-    Returns:
-        Tuple of (matches_df, stats) where:
-        - matches_df: DataFrame with matched cells and their properties
-        - stats: Dictionary with matching statistics and performance metrics
-    """
+    """Find cell matches using alignment transformation."""
     print(
         f"Finding matches: {len(phenotype_positions):,} phenotype × {len(sbs_positions):,} SBS cells"
     )
@@ -285,10 +214,10 @@ def find_cell_matches(
 
     # Calculate memory requirement for full matrix
     total_comparisons = len(sbs_positions) * len(phenotype_positions)
-    memory_required_gb = (total_comparisons * 8) / (1024**3)  # 8 bytes per float64
+    memory_required_gb = (total_comparisons * 8) / (1024**3)
 
-    # Choose approach based on memory requirements
-    if memory_required_gb < 400:
+    # Use more conservative memory threshold to force chunking for large datasets
+    if memory_required_gb < 50:  # Reduced from 400 to 50
         print(f"Using direct approach ({memory_required_gb:.1f}GB required)")
         raw_matches, stats = _find_matches_direct(
             phenotype_positions,
@@ -323,30 +252,12 @@ def _find_matches_direct(
     threshold: float,
     scale_factor: float,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Direct approach optimized for large datasets with sufficient memory.
-
-    Computes full distance matrix in memory for optimal performance when
-    memory requirements are manageable.
-
-    Args:
-        phenotype_positions: DataFrame with phenotype cell data
-        sbs_positions: DataFrame with SBS cell data
-        transformed_coords: Transformed phenotype coordinates
-        sbs_coords: SBS coordinates
-        threshold: Distance threshold for valid matches
-        scale_factor: Scale factor for coordinate system
-
-    Returns:
-        Tuple of (matches_df, stats) with match results and statistics
-    """
+    """Direct approach optimized for large datasets with sufficient memory."""
     print(
         f"Computing distance matrix: {len(sbs_coords):,} × {len(transformed_coords):,}"
     )
 
-    # Calculate distances using coordinates in same coordinate system
     distances = cdist(sbs_coords, transformed_coords, metric="euclidean")
-
-    # For each SBS cell, find closest phenotype cell
     closest_pheno_idx = distances.argmin(axis=1)
     min_distances = distances.min(axis=1)
 
@@ -404,27 +315,11 @@ def _find_matches_chunked(
     chunk_size: int,
     scale_factor: float,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Chunked approach with aggressive memory management.
-
-    Processes large datasets in chunks to avoid memory overflow while
-    maintaining matching accuracy.
-
-    Args:
-        phenotype_positions: DataFrame with phenotype cell data
-        sbs_positions: DataFrame with SBS cell data
-        transformed_coords: Transformed phenotype coordinates
-        sbs_coords: SBS coordinates
-        threshold: Distance threshold for valid matches
-        chunk_size: Number of SBS cells to process per chunk
-        scale_factor: Scale factor for coordinate system
-
-    Returns:
-        Tuple of (matches_df, stats) with match results and statistics
-    """
+    """Chunked approach with aggressive memory management and clean logging."""
     all_matches = []
     n_chunks = (len(sbs_positions) + chunk_size - 1) // chunk_size
 
-    print(f"Processing {len(sbs_positions):,} SBS cells in {n_chunks} chunks")
+    print(f"Processing {len(sbs_positions):,} SBS cells in {n_chunks} chunks of {chunk_size:,}")
 
     total_matches = 0
     all_distances = []
@@ -434,10 +329,11 @@ def _find_matches_chunked(
         end_idx = min((chunk_idx + 1) * chunk_size, len(sbs_positions))
         chunk_size_actual = end_idx - start_idx
 
-        if chunk_idx % 2 == 0:  # Print progress every other chunk
-            print(
-                f"Processing chunk {chunk_idx + 1}/{n_chunks} ({chunk_size_actual:,} cells)"
-            )
+        # Clean progress reporting - show every 10% or every 5 chunks, whichever is less frequent
+        progress_interval = max(1, min(5, n_chunks // 10))
+        if chunk_idx % progress_interval == 0:
+            progress = (chunk_idx / n_chunks) * 100
+            print(f"  Progress: {progress:.0f}% (chunk {chunk_idx + 1}/{n_chunks}, {chunk_size_actual:,} cells)")
 
         # Get chunk of SBS coordinates
         sbs_chunk_coords = sbs_coords[start_idx:end_idx]
@@ -507,9 +403,6 @@ def _find_matches_chunked(
         "raw_matches": len(raw_matches),
         "method": "chunked",
         "chunks_processed": n_chunks,
-        "chunks_with_matches": len(all_matches)
-        if "all_matches" in locals() and all_matches
-        else 0,
         "chunk_size": chunk_size,
         "mean_distance": mean_distance,
         "max_distance": max_distance,
@@ -533,26 +426,8 @@ def _build_matches_dataframe(
     sbs_coords: np.ndarray,
     scale_factor: float,
 ) -> pd.DataFrame:
-    """Build matches DataFrame using the coordinates that were used for distance calculation.
-
-    Creates the final matches DataFrame with cell IDs, coordinates, and metadata.
-    Uses 'stitched_cell_id' for coordinates matching when available.
-
-    Args:
-        phenotype_positions: DataFrame with phenotype cell data
-        sbs_positions: DataFrame with SBS cell data
-        pheno_indices: Array of phenotype cell indices for matches
-        sbs_indices: Array of SBS cell indices for matches
-        distances: Array of match distances
-        transformed_coords: Transformed phenotype coordinates used for matching
-        sbs_coords: SBS coordinates used for matching
-        scale_factor: Scale factor applied during matching
-
-    Returns:
-        DataFrame with matched cell pairs and their properties
-    """
+    """Build matches DataFrame using the coordinates that were used for distance calculation."""
     # Determine which cell ID column to use for each dataset
-    # Priority: stitched_cell_id > label > original_cell_id
     pheno_id_col = None
     sbs_id_col = None
 
@@ -571,8 +446,7 @@ def _build_matches_dataframe(
             "No suitable SBS cell ID column found (stitched_cell_id, label, or original_cell_id)"
         )
 
-    print(f"Using phenotype ID column: {pheno_id_col}")
-    print(f"Using SBS ID column: {sbs_id_col}")
+    print(f"Using phenotype ID column: {pheno_id_col}, SBS ID column: {sbs_id_col}")
 
     matches_df = pd.DataFrame(
         {
@@ -601,24 +475,7 @@ def _build_matches_dataframe(
 
 
 def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
-    """Validate cell matches and return quality metrics.
-
-    Analyzes the quality of cell matches including distance statistics,
-    duplication rates, and overall quality flags.
-
-    Args:
-        matches_df: DataFrame with cell matches containing distance and cell ID columns
-
-    Returns:
-        Dictionary with comprehensive validation metrics:
-        - status: Overall validation status
-        - match_count: Total number of matches
-        - unique_phenotype_cells/unique_sbs_cells: Count of unique cells
-        - distance_stats: Mean, median, max, std of match distances
-        - distance_distribution: Counts at various distance thresholds
-        - duplication: Analysis of duplicate matches
-        - quality_flags: Overall quality assessment
-    """
+    """Validate cell matches and return quality metrics."""
     if matches_df.empty:
         return {"status": "empty", "match_count": 0}
 
@@ -684,57 +541,33 @@ def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def filter_tiles_by_diversity(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
-    """Filter out tiles that have only one unique original_cell_id.
-
-    Removes tiles with insufficient cell diversity which can cause issues
-    in downstream processing. Tiles with only one unique cell ID are typically
-    artifacts or low-quality regions.
-
-    Args:
-        df: DataFrame with cell data containing 'tile' and 'original_cell_id' columns
-        data_type: String describing the data type for logging (e.g., "Phenotype", "SBS")
-
-    Returns:
-        Filtered DataFrame containing only tiles with multiple unique cell IDs
-    """
+    """Filter out tiles that have only one unique original_cell_id with clean logging."""
     if "original_cell_id" not in df.columns or "tile" not in df.columns:
-        print(
-            f"⚠️  WARNING: Cannot filter {data_type} tiles - missing original_cell_id or tile columns"
-        )
+        print(f"⚠️  Cannot filter {data_type} tiles - missing required columns")
         return df
 
     # Count unique original_cell_ids per tile
     tile_diversity = df.groupby("tile")["original_cell_id"].nunique()
-
-    # Find tiles with more than 1 unique original_cell_id
     diverse_tiles = tile_diversity[tile_diversity > 1].index
-
-    # Filter to keep only diverse tiles
     filtered_df = df[df["tile"].isin(diverse_tiles)]
 
     removed_tiles = len(tile_diversity) - len(diverse_tiles)
-    removed_cells = len(df) - len(filtered_df)
-
-    print(f"{data_type} tile diversity filtering:")
-    print(f"  Input: {len(df):,} cells across {len(tile_diversity)} tiles")
-    print(f"  Removed: {removed_tiles} tiles with single cell diversity")
-    print(f"  Output: {len(filtered_df):,} cells across {len(diverse_tiles)} tiles")
-    print(f"  Tiles kept: {sorted(diverse_tiles.tolist())}")
+    
+    print(f"{data_type} filtering: {len(df):,} → {len(filtered_df):,} cells "
+          f"({removed_tiles} tiles removed)")
+    
+    # Only show tile details if reasonable number, otherwise show summary
+    if len(diverse_tiles) <= 20:
+        print(f"  Tiles kept: {sorted(diverse_tiles.tolist())}")
+    else:
+        tile_range = f"{min(diverse_tiles)}-{max(diverse_tiles)}"
+        print(f"  Tiles kept: {len(diverse_tiles)} tiles (range: {tile_range})")
 
     return filtered_df
 
 
-# Create empty output files when processing fails
 def create_empty_outputs(reason: str) -> None:
-    """Create empty output files when processing fails.
-
-    Generates placeholder output files with proper structure when the main
-    processing pipeline encounters errors. Ensures downstream steps can
-    continue with empty results.
-
-    Args:
-        reason: String describing the reason for failure
-    """
+    """Create empty output files when processing fails."""
     empty_columns = [
         "plate",
         "well",
@@ -765,7 +598,7 @@ def create_empty_outputs(reason: str) -> None:
     empty_matches.to_parquet(str(snakemake.output.raw_matches))
     empty_matches.to_parquet(str(snakemake.output.merged_cells))
 
-    # Create failure summary as TSV (key-value format for aggregation script)
+    # Create failure summary
     summary_data = {
         "metric": [
             "status",

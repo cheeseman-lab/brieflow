@@ -98,30 +98,6 @@ def create_pseudogene_groups(
     return pseudogene_groups, remaining_constructs
 
 
-def write_pseudogene_data(pseudogene_group, output_dir):
-    """Write construct data file for a pseudo-gene group."""
-    pseudogene_id = pseudogene_group["pseudogene_id"]
-    constructs = pseudogene_group["constructs"]
-
-    print(f"  Writing pseudo-gene: {pseudogene_id} with {len(constructs)} constructs")
-
-    # Create combined ID for the pseudo-gene
-    combined_id = f"{pseudogene_id}__{pseudogene_id}"
-
-    # Create metadata file for the pseudo-gene
-    construct_data = pd.DataFrame(
-        {
-            "construct_id": [pseudogene_id],
-            "gene": [pseudogene_id],
-            "combined_id": [combined_id],
-        }
-    )
-
-    # Save using combined_id for filename
-    output_file = output_dir / f"{combined_id}__construct_data.tsv"
-    construct_data.to_csv(output_file, sep="\t", index=False)
-
-
 def write_construct_data(
     construct_id,
     construct_features_df,

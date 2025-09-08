@@ -10,7 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
 from lib.aggregate.bootstrap import (
-    write_pseudogene_data,
     write_construct_data,
     create_pseudogene_groups,
 )
@@ -138,11 +137,36 @@ if pseudogene_patterns:
         construct_features_df, pseudogene_patterns, perturbation_col
     )
 
-    # Write pseudo-gene data files
+    # Write pseudo-gene construct data files (individual constructs with pseudo-gene names)
     if pseudogene_groups:
-        print(f"Creating {len(pseudogene_groups)} pseudo-gene data files...")
+        print(f"Processing {len(pseudogene_groups)} pseudo-gene groups...")
         for pseudogene_group in pseudogene_groups:
-            write_pseudogene_data(pseudogene_group, output_dir)
+            pseudogene_id = pseudogene_group["pseudogene_id"]
+            constructs = pseudogene_group["constructs"]
+
+            print(f"  Creating construct files for pseudo-gene: {pseudogene_id}")
+
+            # Create individual construct files for each construct in the group
+            for construct in constructs:
+                construct_id = construct[perturbation_id_col]
+
+                # Create combined ID with pseudo-gene as "gene"
+                combined_id = f"{pseudogene_id}__{construct_id}"
+
+                # Create metadata file for the construct with pseudo-gene as gene
+                construct_data = pd.DataFrame(
+                    {
+                        "construct_id": [construct_id],
+                        "gene": [pseudogene_id],  # Use pseudo-gene name as gene
+                        "combined_id": [combined_id],
+                    }
+                )
+
+                # Save using combined_id for filename
+                output_file = output_dir / f"{combined_id}__construct_data.tsv"
+                construct_data.to_csv(output_file, sep="\t", index=False)
+
+                print(f"    Created: {combined_id}__construct_data.tsv")
 
     # Write remaining individual construct data files
     if len(remaining_constructs) > 0:
@@ -176,5 +200,3 @@ else:
             perturbation_id_col,
             output_dir,
         )
-
-print("Bootstrap data preparation complete!")

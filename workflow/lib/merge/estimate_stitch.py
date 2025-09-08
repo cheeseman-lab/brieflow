@@ -105,54 +105,41 @@ def estimate_stitch_sbs_coordinate_based(
 
     print(f"Generated {len(total_translation)} SBS coordinate-based positions")
 
-    # Verify output size and spacing
+    # OPTIMIZED verification section - avoid O(n²) loops
     y_shifts = [shift[0] for shift in total_translation.values()]
     x_shifts = [shift[1] for shift in total_translation.values()]
 
     if len(y_shifts) > 1:
-        pixel_spacings = []
-        for i in range(len(coords)):
-            for j in range(i + 1, len(coords)):
-                stage_dist = np.sqrt(
-                    (coords[i][0] - coords[j][0]) ** 2
-                    + (coords[i][1] - coords[j][1]) ** 2
-                )
-                pixel_dist = np.sqrt(
-                    (y_shifts[i] - y_shifts[j]) ** 2 + (x_shifts[i] - x_shifts[j]) ** 2
-                )
-                if stage_dist > 0:
-                    pixel_spacings.append(pixel_dist / stage_dist)
+        # Calculate average pixel spacing more efficiently
+        pixel_coords = np.array([[y_shifts[i], x_shifts[i]] for i in range(len(y_shifts))])
+        pixel_distances = pdist(pixel_coords)
+        
+        if len(pixel_distances) > 0:
+            # Calculate stage distances for the same pairs
+            stage_distances = pdist(coords)
+            
+            # Calculate pixel/stage ratios for verification
+            valid_ratios = pixel_distances[stage_distances > 0] / stage_distances[stage_distances > 0]
+            
+            if len(valid_ratios) > 0:
+                avg_pixel_spacing = np.mean(valid_ratios)
+                print(f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm")
 
-        if pixel_spacings:
-            avg_pixel_spacing = np.mean(pixel_spacings)
-            print(
-                f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm"
-            )
+                # Check for expected tile overlap using average spacing
+                expected_tile_spacing_pixels = actual_spacing * pixels_per_micron
+                actual_avg_spacing = np.mean(pixel_distances)
 
-            # Check for expected tile overlap
-            expected_tile_spacing_pixels = actual_spacing * pixels_per_micron
-            actual_avg_spacing = np.mean(
-                [
-                    np.sqrt(
-                        (y_shifts[i] - y_shifts[j]) ** 2
-                        + (x_shifts[i] - x_shifts[j]) ** 2
+                if actual_avg_spacing > 0:
+                    overlap_percent = (
+                        (tile_size[0] - actual_avg_spacing) / tile_size[0] * 100
                     )
-                    for i in range(len(y_shifts))
-                    for j in range(i + 1, len(y_shifts))
-                ]
-            )
-
-            if actual_avg_spacing > 0:
-                overlap_percent = (
-                    (tile_size[0] - actual_avg_spacing) / tile_size[0] * 100
-                )
-                print(f"SBS tile overlap: {overlap_percent:.1f}%")
-                if overlap_percent < 0:
-                    print("⚠️  Warning: Negative overlap detected - tiles may have gaps")
-                elif overlap_percent > 50:
-                    print(
-                        "⚠️  Warning: Very high overlap detected - may indicate scaling issues"
-                    )
+                    print(f"SBS tile overlap: {overlap_percent:.1f}%")
+                    if overlap_percent < 0:
+                        print("⚠️  Warning: Negative overlap detected - tiles may have gaps")
+                    elif overlap_percent > 50:
+                        print(
+                            "⚠️  Warning: Very high overlap detected - may indicate scaling issues"
+                        )
 
     final_size = (max(y_shifts) + tile_size[0], max(x_shifts) + tile_size[1])
     memory_gb = final_size[0] * final_size[1] * 2 / 1e9
@@ -256,54 +243,41 @@ def estimate_stitch_phenotype_coordinate_based(
 
     print(f"Generated {len(total_translation)} phenotype coordinate-based positions")
 
-    # Verify output size and spacing
+    # OPTIMIZED verification section - avoid O(n²) loops
     y_shifts = [shift[0] for shift in total_translation.values()]
     x_shifts = [shift[1] for shift in total_translation.values()]
 
     if len(y_shifts) > 1:
-        pixel_spacings = []
-        for i in range(len(coords)):
-            for j in range(i + 1, len(coords)):
-                stage_dist = np.sqrt(
-                    (coords[i][0] - coords[j][0]) ** 2
-                    + (coords[i][1] - coords[j][1]) ** 2
-                )
-                pixel_dist = np.sqrt(
-                    (y_shifts[i] - y_shifts[j]) ** 2 + (x_shifts[i] - x_shifts[j]) ** 2
-                )
-                if stage_dist > 0:
-                    pixel_spacings.append(pixel_dist / stage_dist)
+        # Calculate average pixel spacing more efficiently
+        pixel_coords = np.array([[y_shifts[i], x_shifts[i]] for i in range(len(y_shifts))])
+        pixel_distances = pdist(pixel_coords)
+        
+        if len(pixel_distances) > 0:
+            # Calculate stage distances for the same pairs
+            stage_distances = pdist(coords)
+            
+            # Calculate pixel/stage ratios for verification
+            valid_ratios = pixel_distances[stage_distances > 0] / stage_distances[stage_distances > 0]
+            
+            if len(valid_ratios) > 0:
+                avg_pixel_spacing = np.mean(valid_ratios)
+                print(f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm")
 
-        if pixel_spacings:
-            avg_pixel_spacing = np.mean(pixel_spacings)
-            print(
-                f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm"
-            )
+                # Check for expected tile overlap using average spacing
+                expected_tile_spacing_pixels = actual_spacing * pixels_per_micron
+                actual_avg_spacing = np.mean(pixel_distances)
 
-            # Check for expected tile overlap
-            expected_tile_spacing_pixels = actual_spacing * pixels_per_micron
-            actual_avg_spacing = np.mean(
-                [
-                    np.sqrt(
-                        (y_shifts[i] - y_shifts[j]) ** 2
-                        + (x_shifts[i] - x_shifts[j]) ** 2
+                if actual_avg_spacing > 0:
+                    overlap_percent = (
+                        (tile_size[0] - actual_avg_spacing) / tile_size[0] * 100
                     )
-                    for i in range(len(y_shifts))
-                    for j in range(i + 1, len(y_shifts))
-                ]
-            )
-
-            if actual_avg_spacing > 0:
-                overlap_percent = (
-                    (tile_size[0] - actual_avg_spacing) / tile_size[0] * 100
-                )
-                print(f"Phenotype tile overlap: {overlap_percent:.1f}%")
-                if overlap_percent < 0:
-                    print("⚠️  Warning: Negative overlap detected - tiles may have gaps")
-                elif overlap_percent > 50:
-                    print(
-                        "⚠️  Warning: Very high overlap detected - may indicate scaling issues"
-                    )
+                    print(f"Phenotype tile overlap: {overlap_percent:.1f}%")
+                    if overlap_percent < 0:
+                        print("⚠️  Warning: Negative overlap detected - tiles may have gaps")
+                    elif overlap_percent > 50:
+                        print(
+                            "⚠️  Warning: Very high overlap detected - may indicate scaling issues"
+                        )
 
     final_size = (max(y_shifts) + tile_size[0], max(x_shifts) + tile_size[1])
     memory_gb = final_size[0] * final_size[1] * 2 / 1e9

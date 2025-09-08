@@ -11,6 +11,7 @@ from lib.aggregate.cell_data_utils import (
     split_cell_data,
     get_feature_table_cols,
 )
+from lib.aggregate.bootstrap import create_pseudogene_groups
 
 # get snakemake parameters
 pert_col = snakemake.params.perturbation_name_col
@@ -149,6 +150,70 @@ gene_columns = [pert_col, "cell_count"] + feature_cols
 final_gene_table = final_gene_table[gene_columns]
 
 print(f"Gene table shape: {final_gene_table.shape}")
+
+# Add pseudo-gene entries if specified
+pseudogene_patterns = snakemake.params.get("pseudogene_patterns", None)
+
+if pseudogene_patterns:
+    print("Adding pseudo-gene entries to gene table...")
+
+    # Import the pseudo-gene grouping function
+    from lib.aggregate.bootstrap import create_pseudogene_groups
+
+    # Create pseudo-gene groups from construct table
+    pseudogene_groups, remaining_constructs = create_pseudogene_groups(
+        construct_table, pseudogene_patterns, pert_col, seed=42
+    )
+
+    pseudogene_rows = []
+
+    for pseudogene_group in pseudogene_groups:
+        pseudogene_id = pseudogene_group["pseudogene_id"]
+        constructs = pseudogene_group["constructs"]
+
+        print(f"  Creating gene table entry for: {pseudogene_id}")
+
+        # Get construct IDs from this pseudo-gene group
+        construct_ids_in_group = [c[pert_id_col] for c in constructs]
+
+        # Find matching rows in construct_table
+        group_mask = construct_table[pert_id_col].isin(construct_ids_in_group)
+        group_constructs = construct_table[group_mask]
+
+        if len(group_constructs) == 0:
+            print(f"    Warning: No matching constructs found for {pseudogene_id}")
+            continue
+
+        # Aggregate features (median across constructs)
+        feature_medians = group_constructs[feature_cols].median()
+
+        # Sum cell counts
+        total_cells = group_constructs["cell_count"].sum()
+
+        # Create pseudo-gene row
+        pseudogene_row = {pert_col: pseudogene_id, "cell_count": total_cells}
+        pseudogene_row.update(feature_medians.to_dict())
+
+        pseudogene_rows.append(pseudogene_row)
+
+        print(
+            f"    Aggregated {len(group_constructs)} constructs, {total_cells} total cells"
+        )
+
+    if pseudogene_rows:
+        # Create DataFrame from pseudo-gene rows
+        pseudogene_df = pd.DataFrame(pseudogene_rows)
+
+        # Ensure column order matches final_gene_table
+        pseudogene_df = pseudogene_df[gene_columns]
+
+        # Append to final gene table
+        final_gene_table = pd.concat(
+            [final_gene_table, pseudogene_df], ignore_index=True
+        )
+
+        print(f"Added {len(pseudogene_rows)} pseudo-gene entries to gene table")
+        print(f"Final gene table shape: {final_gene_table.shape}")
 
 # OUTPUT 2 & 3: Save both tables
 construct_output = snakemake.output[1]

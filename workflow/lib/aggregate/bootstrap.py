@@ -34,13 +34,17 @@ def get_construct_features(
 
 
 def create_pseudogene_groups(
-    construct_features_df, pseudogene_patterns, perturbation_col
+    construct_features_df, pseudogene_patterns, perturbation_col, seed=42
 ):
     """Group constructs into pseudo-genes based on patterns."""
     if not pseudogene_patterns:
         return [], construct_features_df
 
     print(f"Pseudogene patterns provided: {pseudogene_patterns}")
+    print(f"Using random seed: {seed}")
+
+    # Set random seed for reproducible grouping
+    random.seed(seed)
 
     pseudogene_groups = []
     remaining_constructs = construct_features_df.copy()
@@ -69,8 +73,12 @@ def create_pseudogene_groups(
         # Remove matched constructs from remaining pool
         remaining_constructs = remaining_constructs[~mask]
 
-        # Shuffle and group into pseudo-genes
-        construct_list = matching_constructs.to_dict("records")
+        # Sort constructs by ID for deterministic ordering before shuffle
+        construct_list = matching_constructs.sort_values(perturbation_col).to_dict(
+            "records"
+        )
+
+        # Shuffle with seeded random state
         random.shuffle(construct_list)
 
         # Create pseudo-gene groups

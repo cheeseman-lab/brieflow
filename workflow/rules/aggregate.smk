@@ -62,6 +62,7 @@ rule generate_feature_table:
         batch_cols=config["aggregate"]["batch_cols"],
         batches=10,
         feature_normalization=config["aggregate"].get("feature_normalization", "standard"),
+        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None), 
     script:
         "../scripts/aggregate/generate_feature_table.py"
 

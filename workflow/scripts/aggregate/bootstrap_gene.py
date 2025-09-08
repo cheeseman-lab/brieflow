@@ -47,16 +47,53 @@ if len(gene_row) == 0:
     print(f"Available genes: {sorted(gene_table['gene_symbol_0'].unique())}")
     raise ValueError(f"Gene {gene_id} not found in gene table")
 
-# Get feature names (excluding metadata columns)
-feature_names = [
+# # Get available features from gene table (same as prepare_bootstrap_data.py)
+# available_features = [
+#     col
+#     for col in gene_table.columns
+#     if col not in ["gene_symbol_0", "cell_count"]
+# ]
+# print(f"Using {len(available_features)} features for bootstrap analysis")
+
+# TODO: remove starting here
+# Get available features from gene table (same as prepare_bootstrap_data.py)
+available_features = [
     col for col in gene_table.columns if col not in ["gene_symbol_0", "cell_count"]
 ]
 
-# Get observed gene medians
-observed_gene_medians = gene_row[feature_names].values[0].astype(float)
+# Apply the same filtering as in prepare_bootstrap_data.py
+# Filter to only cell_[channel]_mean and nucleus_[channel]_mean features
+filtered_features = []
+for feature in available_features:
+    if (
+        feature.startswith("cell_")
+        and feature.endswith("_mean")
+        or feature.endswith("_median")
+        and not "edge" in feature
+        and not "frac" in feature
+    ):
+        filtered_features.append(feature)
+    elif (
+        feature.startswith("nucleus_")
+        and feature.endswith("_mean")
+        or feature.endswith("_median")
+        and not "edge" in feature
+        and not "frac" in feature
+    ):
+        filtered_features.append(feature)
+    elif feature in ["cell_area", "nucleus_area"]:
+        filtered_features.append(feature)
+
+available_features = filtered_features
+print(f"Using {len(available_features)} filtered features for bootstrap analysis")
+print(f"Features: {available_features}")
+# TODO: remove until here
+
+# Get observed gene medians (now with filtered features)
+observed_gene_medians = gene_row[available_features].values[0].astype(float)
 total_cells = int(gene_row["cell_count"].iloc[0])
 
-print(f"Number of features: {len(feature_names)}")
+print(f"Number of filtered features: {len(available_features)}")
 print(f"Construct null array shapes: {[arr.shape for arr in construct_null_arrays]}")
 
 # Aggregate construct null distributions to gene level
@@ -75,14 +112,14 @@ print(
     f"Gene-level aggregation complete! Aggregated {len(construct_null_arrays)} constructs"
 )
 
-# Format results
+# Format results using the filtered features
 pval_df = pd.DataFrame(
     {
         "gene": [gene_id],
         "num_constructs": [len(construct_null_arrays)],
         "total_cells": [total_cells],
         "num_sims": [num_sims],
-        **{feature: [pval] for feature, pval in zip(feature_names, p_vals)},
+        **{feature: [pval] for feature, pval in zip(available_features, p_vals)},
     }
 )
 

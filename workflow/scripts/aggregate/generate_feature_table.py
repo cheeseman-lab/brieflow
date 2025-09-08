@@ -25,7 +25,11 @@ cell_data = ds.dataset(snakemake.input.filtered_paths, format="parquet")
 cell_data_cols = cell_data.schema.names
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, True)
 feature_cols = [col for col in cell_data.schema.names if col not in metadata_cols]
-feature_cols = get_feature_table_cols(feature_cols)
+# feature_cols = get_feature_table_cols(feature_cols) TODO: remove
+print(
+    f"Number of metadata columns: {len(metadata_cols)}"
+    f" | Number of feature columns: {len(feature_cols)}"
+)
 
 # load cell data and convert numerical columns to float32
 cell_data = cell_data.to_table(
@@ -58,6 +62,7 @@ features = centerscale_on_controls(
     pert_col,
     control_key,
     "batch_values",
+    method=snakemake.params.feature_normalization,
 ).astype(np.float32)
 
 # OUTPUT 1: Save center-scaled single-cell data for bootstrap

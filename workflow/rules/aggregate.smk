@@ -61,6 +61,7 @@ rule generate_feature_table:
         control_key=config["aggregate"]["control_key"],
         batch_cols=config["aggregate"]["batch_cols"],
         batches=10,
+        feature_normalization=config["aggregate"].get("feature_normalization", "standard"),
     script:
         "../scripts/aggregate/generate_feature_table.py"
 
@@ -221,6 +222,7 @@ checkpoint prepare_bootstrap_data:
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
         exclusion_string=config.get("aggregate", {}).get("exclusion_string", None),
+        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None), 
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 
@@ -317,5 +319,5 @@ rule combine_bootstrap:
 rule all_aggregate:
     input:
         AGGREGATE_TARGETS_ALL,
-        MONTAGE_TARGETS_ALL,
         BOOTSTRAP_TARGETS_ALL,
+        # MONTAGE_TARGETS_ALL, TODO: remove

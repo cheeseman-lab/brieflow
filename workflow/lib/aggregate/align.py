@@ -225,7 +225,7 @@ def median_absolute_deviation(arr):
     """
     median = np.median(arr, axis=0)
     mad = np.median(np.abs(arr - median), axis=0)
-    return mad * 0.6745
+    return mad
 
 
 def centerscale_on_controls(
@@ -273,8 +273,8 @@ def centerscale_on_controls(
             elif method == "mad":
                 control_data = embeddings[batch_control_ind]
                 median = np.median(control_data, axis=0)
-                mad_scaled = median_absolute_deviation(control_data)
-                embeddings[batch_ind] = (embeddings[batch_ind] - median) / mad_scaled
+                mad = median_absolute_deviation(control_data)
+                embeddings[batch_ind] = 0.6745 * (embeddings[batch_ind] - median) / mad
 
         return embeddings
 
@@ -289,5 +289,5 @@ def centerscale_on_controls(
     elif method == "mad":
         control_data = embeddings[control_ind]
         median = np.median(control_data, axis=0)
-        mad_scaled = median_absolute_deviation(control_data)
-        return (embeddings - median) / mad_scaled
+        mad = median_absolute_deviation(control_data)
+        return 0.6745 * (embeddings - median) / mad

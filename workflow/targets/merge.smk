@@ -157,19 +157,25 @@ MERGE_OUTPUTS = {
     "aggregate_well_summaries": [
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "alignment_summaries", "tsv"
-        ),  # [0] - alignment_summaries
+        ),
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "cell_merge_summaries", "tsv"
-        ),  # [1] - cell_merge_summaries
+        ),
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "dedup_summaries", "tsv"
-        ),  # [2] - dedup_summaries
+        ),
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "sbs_matching_summaries", "tsv"
-        ),  # [3] - sbs_matching_summaries (NEW)
+        ),
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "phenotype_matching_summaries", "tsv"
-        ),  # [4] - phenotype_matching_summaries (NEW)
+        ),
+        MERGE_FP / "eval" / get_filename(
+            {"plate": "{plate}"}, "phenotype_cell_positions", "png"
+        ),
+        MERGE_FP / "eval" / get_filename(
+            {"plate": "{plate}"}, "sbs_cell_positions", "png"
+        ),
     ],
 }
 

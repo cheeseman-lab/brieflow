@@ -281,50 +281,62 @@ rule eval_merge:
     script:
         "../scripts/merge/eval_merge.py"
 
-if merge_approach == "well":
-    rule aggregate_well_summaries:
-        input:
-            alignment_summary_paths=lambda wildcards: output_to_input(
-                MERGE_OUTPUTS["well_alignment"][4],  # alignment_summary.tsv
-                wildcards=wildcards,
-                expansion_values=["well"],
-                metadata_combos=merge_wildcard_combos,
-            ),
-            merge_summary_paths=lambda wildcards: output_to_input(
-                MERGE_OUTPUTS["well_cell_merge"][2],  # merge_summary.tsv
-                wildcards=wildcards,
-                expansion_values=["well"],
-                metadata_combos=merge_wildcard_combos,
-            ),
-            dedup_summary_paths=lambda wildcards: output_to_input(
-                MERGE_OUTPUTS["well_merge_deduplicate"][1],  # dedup_summary.tsv
-                wildcards=wildcards,
-                expansion_values=["well"],
-                metadata_combos=merge_wildcard_combos,
-            ),
-            sbs_matching_rates_paths=lambda wildcards: output_to_input(
-                MERGE_OUTPUTS["well_merge_deduplicate"][2],  # sbs_matching_rates.tsv
-                wildcards=wildcards,
-                expansion_values=["well"],
-                metadata_combos=merge_wildcard_combos,
-            ),
-            phenotype_matching_rates_paths=lambda wildcards: output_to_input(
-                MERGE_OUTPUTS["well_merge_deduplicate"][3],  # phenotype_matching_rates.tsv
-                wildcards=wildcards,
-                expansion_values=["well"],
-                metadata_combos=merge_wildcard_combos,
-            ),
-        output:
-            alignment_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][0],
-            cell_merge_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][1],
-            dedup_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][2],
-            # Add QC summary outputs
-            sbs_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][3],
-            phenotype_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][4],
-        params:
-            plate=lambda wildcards: wildcards.plate,
-        script:
-            "../scripts/merge/aggregate_well_summaries.py"
+rule aggregate_well_summaries:
+    input:
+        alignment_summary_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["well_alignment"][4],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
+        ),
+        merge_summary_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["well_cell_merge"][2],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
+        ),
+        dedup_summary_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["well_merge_deduplicate"][1],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
+        ),
+        sbs_matching_rates_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["well_merge_deduplicate"][2],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
+        ),
+        phenotype_matching_rates_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["well_merge_deduplicate"][3],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
+        ),
+        phenotype_cell_positions_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["stitch_phenotype_well"][0],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
+        ),
+        sbs_cell_positions_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["stitch_sbs_well"][0],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
+        ),
+    output:
+        alignment_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][0],
+        cell_merge_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][1],
+        dedup_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][2],
+        sbs_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][3],
+        phenotype_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][4],
+        phenotype_cell_positions_plot=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][5],
+        sbs_cell_positions_plot=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][6],
+    params:
+        plate=lambda wildcards: wildcards.plate,
+    script:
+        "../scripts/merge/aggregate_well_summaries.py"
 
 # Rule for all merge processing steps
 rule all_merge:

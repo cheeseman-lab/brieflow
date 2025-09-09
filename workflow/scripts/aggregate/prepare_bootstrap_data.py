@@ -35,39 +35,12 @@ print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 metadata_cols = load_metadata_cols(metadata_cols_fp, include_classification_cols=True)
 controls_metadata, controls_features = split_cell_data(control_cells, metadata_cols)
 
-# TODO: remove starting here
 # Get available features from construct table
 available_features = [
     col
     for col in construct_table.columns
     if col not in [perturbation_id_col, perturbation_col, "cell_count"]
 ]
-# ADD THIS FILTERING STEP:
-# Filter to only cell_[channel]_mean and nucleus_[channel]_mean features and cell_area, nucleus_area
-filtered_features = []
-for feature in available_features:
-    if (
-        feature.startswith("cell_")
-        and feature.endswith("_mean")
-        or feature.endswith("_median")
-        and not "edge" in feature
-        and not "frac" in feature
-    ):
-        filtered_features.append(feature)
-    elif (
-        feature.startswith("nucleus_")
-        and feature.endswith("_mean")
-        or feature.endswith("_median")
-        and not "edge" in feature
-        and not "frac" in feature
-    ):
-        filtered_features.append(feature)
-    elif feature in ["cell_area", "nucleus_area"]:
-        filtered_features.append(feature)
-available_features = filtered_features
-print(f"Using {len(available_features)} filtered features for bootstrap analysis")
-print(f"Features: {available_features}")
-# TODO: remove until here
 
 # Filter control features to match available features
 controls_features_selected = controls_features[available_features]

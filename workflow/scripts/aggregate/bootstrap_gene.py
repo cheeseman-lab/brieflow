@@ -47,47 +47,13 @@ if len(gene_row) == 0:
     print(f"Available genes: {sorted(gene_table['gene_symbol_0'].unique())}")
     raise ValueError(f"Gene {gene_id} not found in gene table")
 
-# # Get available features from gene table (same as prepare_bootstrap_data.py)
-# available_features = [
-#     col
-#     for col in gene_table.columns
-#     if col not in ["gene_symbol_0", "cell_count"]
-# ]
-# print(f"Using {len(available_features)} features for bootstrap analysis")
-
-# TODO: remove starting here
 # Get available features from gene table (same as prepare_bootstrap_data.py)
 available_features = [
-    col for col in gene_table.columns if col not in ["gene_symbol_0", "cell_count"]
+    col
+    for col in gene_table.columns
+    if col not in ["gene_symbol_0", "cell_count"]
 ]
-
-# Apply the same filtering as in prepare_bootstrap_data.py
-# Filter to only cell_[channel]_mean and nucleus_[channel]_mean features
-filtered_features = []
-for feature in available_features:
-    if (
-        feature.startswith("cell_")
-        and feature.endswith("_mean")
-        or feature.endswith("_median")
-        and not "edge" in feature
-        and not "frac" in feature
-    ):
-        filtered_features.append(feature)
-    elif (
-        feature.startswith("nucleus_")
-        and feature.endswith("_mean")
-        or feature.endswith("_median")
-        and not "edge" in feature
-        and not "frac" in feature
-    ):
-        filtered_features.append(feature)
-    elif feature in ["cell_area", "nucleus_area"]:
-        filtered_features.append(feature)
-
-available_features = filtered_features
-print(f"Using {len(available_features)} filtered features for bootstrap analysis")
-print(f"Features: {available_features}")
-# TODO: remove until here
+print(f"Using {len(available_features)} features for bootstrap analysis")
 
 # Get observed gene medians (now with filtered features)
 observed_gene_medians = gene_row[available_features].values[0].astype(float)

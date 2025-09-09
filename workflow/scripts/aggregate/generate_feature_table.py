@@ -26,7 +26,8 @@ cell_data = ds.dataset(snakemake.input.filtered_paths, format="parquet")
 cell_data_cols = cell_data.schema.names
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, True)
 feature_cols = [col for col in cell_data.schema.names if col not in metadata_cols]
-# feature_cols = get_feature_table_cols(feature_cols) TODO: remove
+feature_cols = get_feature_table_cols(feature_cols)
+
 print(
     f"Number of metadata columns: {len(metadata_cols)}"
     f" | Number of feature columns: {len(feature_cols)}"

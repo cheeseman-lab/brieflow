@@ -227,7 +227,6 @@ checkpoint prepare_bootstrap_data:
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
         exclusion_string=config.get("aggregate", {}).get("exclusion_string", None),
-        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None), 
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 
@@ -324,5 +323,5 @@ rule combine_bootstrap:
 rule all_aggregate:
     input:
         AGGREGATE_TARGETS_ALL,
+        MONTAGE_TARGETS_ALL,
         BOOTSTRAP_TARGETS_ALL,
-        # MONTAGE_TARGETS_ALL, TODO: remove

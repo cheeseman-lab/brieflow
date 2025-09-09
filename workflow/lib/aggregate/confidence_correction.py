@@ -82,7 +82,7 @@ def _get_prefit_estimator(trained_classifier) -> object:
     """Extract the prefit estimator from your CellClassifier or sklearn Pipeline.
 
     Returns the estimator to be wrapped by CalibratedClassifierCV(cv='prefit').
-    
+
     Args:
         trained_classifier: A CellClassifier instance or a sklearn estimator.
 
@@ -101,11 +101,11 @@ def _choose_calibration_method(
     min_samples_isotonic: int = 50,
 ) -> Tuple[str, bool]:
     """Ensure a safe calibration method. If 'isotonic' but any class has < threshold samples, fallback to 'sigmoid'.
-    
+
     Args:
         requested: 'isotonic' or 'sigmoid' (case-insensitive).
         y_manual: Array-like of manual class labels (encoded if needed).
-        min_samples_isotonic: Minimum samples per class to use isotonic safely. 
+        min_samples_isotonic: Minimum samples per class to use isotonic safely.
 
     Returns:
         (chosen_method, did_fallback)
@@ -132,6 +132,7 @@ def _encode_labels_if_needed(clf, y: Sequence) -> Tuple[np.ndarray, bool]:
 
 
 # ----------------------------- main calibration entry point ----------------------------- #
+
 
 def calibrate_confidence(
     *,

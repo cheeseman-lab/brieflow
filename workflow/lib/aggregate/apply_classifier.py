@@ -102,7 +102,7 @@ def display_pngs_in_plots_and_list_models(
     unique_models: bool = True,
 ) -> Tuple[List[Path], Optional[pd.DataFrame], List[str], Optional[Path]]:
     """Display all .png images from a 'plots' subfolder.
-    
+
     Also look for a results CSV (commonly under 'result(s)/' or as 'result(s).csv') to print
     out the available models listed in its 'model' column.
 
@@ -241,7 +241,7 @@ def resolve_classifier_model_dill_path(
     model_name: Optional[str] = None,
 ) -> Path:
     """Resolve the path to a model's dill file.
-    
+
         If model_name is None, attempts to find the best model by accuracy from a results CSV.
 
     Args:

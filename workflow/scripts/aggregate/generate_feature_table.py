@@ -11,6 +11,7 @@ from lib.aggregate.cell_data_utils import (
     split_cell_data,
     get_feature_table_cols,
 )
+from lib.aggregate.bootstrap import create_pseudogene_groups
 
 # get snakemake parameters
 pert_col = snakemake.params.perturbation_name_col
@@ -25,7 +26,11 @@ cell_data = ds.dataset(snakemake.input.filtered_paths, format="parquet")
 cell_data_cols = cell_data.schema.names
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, True)
 feature_cols = [col for col in cell_data.schema.names if col not in metadata_cols]
-feature_cols = get_feature_table_cols(feature_cols)
+# feature_cols = get_feature_table_cols(feature_cols) TODO: remove
+print(
+    f"Number of metadata columns: {len(metadata_cols)}"
+    f" | Number of feature columns: {len(feature_cols)}"
+)
 
 # load cell data and convert numerical columns to float32
 cell_data = cell_data.to_table(
@@ -58,7 +63,17 @@ features = centerscale_on_controls(
     pert_col,
     control_key,
     "batch_values",
+    method=snakemake.params.feature_normalization,
 ).astype(np.float32)
+
+# OUTPUT 1: Save center-scaled single-cell data for bootstrap
+print("Saving center-scaled single-cell data for bootstrap...")
+aligned_cell_data = pd.concat(
+    [metadata, pd.DataFrame(features, columns=feature_cols)], axis=1
+)
+aligned_output = snakemake.output[0]
+aligned_cell_data.to_parquet(aligned_output, index=False)
+print(f"Saved aligned cell data to: {aligned_output}")
 
 # TABLE 1: Construct-level table (one row per sgRNA)
 print("Creating construct-level table...")
@@ -74,10 +89,12 @@ construct_gene_map = (
 )
 
 # Get median features at sgRNA level
-features = pd.DataFrame(features, columns=feature_cols)
-features[pert_id_col] = metadata[pert_id_col].values
+features_df = pd.DataFrame(features, columns=feature_cols)
+features_df[pert_id_col] = metadata[pert_id_col].values
 
-construct_features = features.groupby(pert_id_col, sort=False, observed=True).median()
+construct_features = features_df.groupby(
+    pert_id_col, sort=False, observed=True
+).median()
 construct_features = construct_features.reset_index()
 
 # Merge everything for construct table
@@ -134,14 +151,119 @@ final_gene_table = final_gene_table[gene_columns]
 
 print(f"Gene table shape: {final_gene_table.shape}")
 
-# Save both tables
-construct_output = snakemake.output[0].replace(
-    "feature_table.tsv", "construct_table.tsv"
-)
-gene_output = snakemake.output[0]  # Keep original name for gene table
+# Add pseudo-gene entries if specified
+pseudogene_patterns = snakemake.params.get("pseudogene_patterns", None)
+
+if pseudogene_patterns:
+    print("Adding pseudo-gene entries to gene table...")
+
+    # Import the pseudo-gene grouping function
+    from lib.aggregate.bootstrap import create_pseudogene_groups
+
+    # Create pseudo-gene groups from construct table
+    pseudogene_groups, remaining_constructs = create_pseudogene_groups(
+        construct_table, pseudogene_patterns, pert_col, seed=42
+    )
+
+    pseudogene_rows = []
+
+    for pseudogene_group in pseudogene_groups:
+        pseudogene_id = pseudogene_group["pseudogene_id"]
+        constructs = pseudogene_group["constructs"]
+
+        print(f"  Creating gene table entry for: {pseudogene_id}")
+
+        # Get construct IDs from this pseudo-gene group
+        construct_ids_in_group = [c[pert_id_col] for c in constructs]
+
+        # Find matching rows in construct_table
+        group_mask = construct_table[pert_id_col].isin(construct_ids_in_group)
+        group_constructs = construct_table[group_mask]
+
+        if len(group_constructs) == 0:
+            print(f"    Warning: No matching constructs found for {pseudogene_id}")
+            continue
+
+        # Aggregate features (median across constructs)
+        feature_medians = group_constructs[feature_cols].median()
+
+        # Sum cell counts
+        total_cells = group_constructs["cell_count"].sum()
+
+        # Create pseudo-gene row
+        pseudogene_row = {pert_col: pseudogene_id, "cell_count": total_cells}
+        pseudogene_row.update(feature_medians.to_dict())
+
+        pseudogene_rows.append(pseudogene_row)
+
+        print(
+            f"    Aggregated {len(group_constructs)} constructs, {total_cells} total cells"
+        )
+
+    if pseudogene_rows:
+        # Create DataFrame from pseudo-gene rows
+        pseudogene_df = pd.DataFrame(pseudogene_rows)
+
+        # Ensure column order matches final_gene_table
+        pseudogene_df = pseudogene_df[gene_columns]
+
+        # Append to final gene table
+        final_gene_table = pd.concat(
+            [final_gene_table, pseudogene_df], ignore_index=True
+        )
+
+        print(f"Added {len(pseudogene_rows)} pseudo-gene entries to gene table")
+        print(f"Final gene table shape: {final_gene_table.shape}")
+
+    # Also modify construct table - change gene names for pseudo-gene constructs
+    print("Modifying construct table with pseudo-gene assignments...")
+
+    # Create pseudo-gene construct entries
+    pseudogene_construct_rows = []
+    original_construct_ids_to_remove = []
+
+    for pseudogene_group in pseudogene_groups:
+        pseudogene_id = pseudogene_group["pseudogene_id"]
+        for construct in pseudogene_group["constructs"]:
+            construct_id = construct[pert_id_col]
+
+            # Find the original construct in construct_table
+            construct_mask = construct_table[pert_id_col] == construct_id
+            original_construct = construct_table[construct_mask]
+
+            if len(original_construct) > 0:
+                # Create new row with pseudo-gene as the "gene"
+                new_row = original_construct.iloc[0].copy()
+                new_row[pert_col] = pseudogene_id  # Change gene to pseudo-gene name
+                pseudogene_construct_rows.append(new_row)
+                original_construct_ids_to_remove.append(construct_id)
+
+    if pseudogene_construct_rows:
+        # Remove original constructs that are now part of pseudo-genes
+        construct_table = construct_table[
+            ~construct_table[pert_id_col].isin(original_construct_ids_to_remove)
+        ]
+
+        # Add pseudo-gene constructs
+        pseudogene_construct_df = pd.DataFrame(pseudogene_construct_rows)
+        construct_table = pd.concat(
+            [construct_table, pseudogene_construct_df], ignore_index=True
+        )
+
+        print(
+            f"Modified construct table with {len(pseudogene_construct_rows)} pseudo-gene construct entries"
+        )
+        print(
+            f"Removed {len(original_construct_ids_to_remove)} original construct entries"
+        )
+        print(f"Final construct table shape: {construct_table.shape}")
+
+# OUTPUT 2 & 3: Save both tables
+construct_output = snakemake.output[1]
+gene_output = snakemake.output[2]
 
 construct_table.to_csv(construct_output, sep="\t", index=False)
 final_gene_table.to_csv(gene_output, sep="\t", index=False)
 
-print(f"Saved construct table to: {construct_output}")
 print(f"Saved gene table to: {gene_output}")
+print(f"Saved construct table to: {construct_output}")

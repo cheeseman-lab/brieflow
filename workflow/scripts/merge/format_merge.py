@@ -35,6 +35,10 @@ merge_formatted = merge_formatted.merge(
             "cell",
             "sgRNA_0",
             "gene_symbol_0",
+            "no_recomb_0",
+            "cell_barcode_1",
+            "gene_symbol_1",
+            "no_recomb_1",
             "mapped_single_gene",
         ]
     ].rename({"tile": "site", "cell": "cell_1"}, axis=1),

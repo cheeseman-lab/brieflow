@@ -1,5 +1,9 @@
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
+<<<<<<< HEAD
 from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_construct_nulls_for_gene
+=======
+from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_bootstrap_construct_outputs
+>>>>>>> bootstrap-multi
 
 
 # Create datasets with cell classes and channel combos
@@ -61,6 +65,8 @@ rule generate_feature_table:
         control_key=config["aggregate"]["control_key"],
         batch_cols=config["aggregate"]["batch_cols"],
         batches=10,
+        feature_normalization=config["aggregate"].get("feature_normalization", "standard"),
+        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None), 
     script:
         "../scripts/aggregate/generate_feature_table.py"
 
@@ -191,33 +197,27 @@ rule initiate_montage:
 
 
 # BOOTSTRAP STATISTICAL TESTING
-# NOTE: Bootstrap creation happens dynamically
-# We create a checkpoint once the bootstrap data is prepared
-# Then we initiate bootstrap analysis based on the checkpoint
-# Then create a flag once bootstrap analysis is done
+# Bootstrap analysis is performed dynamically based on construct data
+# 1. Prepare bootstrap data and create checkpoint
+# 2. Bootstrap individual constructs in parallel
+# 3. Create completion flag for construct bootstrap
+# 4. Aggregate construct results to gene level
+# 5. Combine all results and create final outputs
 
-
-# Prepare bootstrap data and create a checkpoint
+# Prepare bootstrap data and create checkpoint
 checkpoint prepare_bootstrap_data:
     input:
-        # Construct table should be the first input (sgRNA-level data)
+        features_singlecell=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][0]).format(
+            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
+        ),
         construct_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][1]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
-        # Filtered cell data for control sampling
-        filtered_data=lambda wildcards: output_to_input(
-            AGGREGATE_OUTPUTS_MAPPED["filter"],
-            wildcards={
-                "cell_class": wildcards.cell_class,
-                "channel_combo": wildcards.channel_combo,
-            },
-            expansion_values=["plate", "well"],
-            metadata_combos=aggregate_wildcard_combos,
+        gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][2]).format(
+            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
     output:
-        # Directory should be in output, not input
         directory(BOOTSTRAP_OUTPUTS["bootstrap_data_dir"]),
-        # Also create the arrays as outputs of this rule
         controls_arr=BOOTSTRAP_OUTPUTS["controls_arr"],
         construct_features_arr=BOOTSTRAP_OUTPUTS["construct_features_arr"],
         sample_sizes=BOOTSTRAP_OUTPUTS["sample_sizes"],
@@ -227,11 +227,12 @@ checkpoint prepare_bootstrap_data:
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
         exclusion_string=config.get("aggregate", {}).get("exclusion_string", None),
+        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None), 
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 
 
-# Bootstrap individual constructs (sgRNAs)
+# Bootstrap individual constructs
 rule bootstrap_construct:
     input:
         construct_data=BOOTSTRAP_OUTPUTS["construct_data"],
@@ -253,18 +254,25 @@ rule bootstrap_construct:
         "../scripts/aggregate/bootstrap_construct.py"
 
 
-# Aggregate bootstrap results to gene level
-rule bootstrap_gene:
+# Create completion flag for construct bootstrap
+rule construct_bootstrap_complete:
     input:
-        construct_nulls=lambda wildcards: get_construct_nulls_for_gene(
+        lambda wildcards: get_bootstrap_construct_outputs(
             checkpoints.prepare_bootstrap_data,
             BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
+            BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
             wildcards.cell_class,
             wildcards.channel_combo,
-            wildcards.gene,
         ),
-        # Need gene table for observed gene medians
-        gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][0]).format(
+    output:
+        touch(AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__construct_bootstrap_complete.flag"),
+
+
+# Aggregate construct results to gene level
+rule bootstrap_gene:
+    input:
+        construct_flag=AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__construct_bootstrap_complete.flag",
+        gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][2]).format(
             cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
         ),
     output:
@@ -272,15 +280,19 @@ rule bootstrap_gene:
         BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
     params:
         num_sims=config.get("aggregate", {}).get("num_sims", 100000),
+        construct_nulls_pattern=lambda wildcards: str(BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"]).format(
+            cell_class=wildcards.cell_class,
+            channel_combo=wildcards.channel_combo,
+            gene=wildcards.gene,
+            construct="{construct}"
+        ),
     script:
         "../scripts/aggregate/bootstrap_gene.py"
 
 
-# Initiate bootstrap based on checkpoint
-# Create a flag to indicate bootstrap is done
+# Create final bootstrap completion flag
 rule initiate_bootstrap:
     input:
-        # This should trigger all the individual bootstrap jobs
         lambda wildcards: get_bootstrap_inputs(
             checkpoints.prepare_bootstrap_data,
             BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
@@ -312,5 +324,5 @@ rule combine_bootstrap:
 rule all_aggregate:
     input:
         AGGREGATE_TARGETS_ALL,
-        MONTAGE_TARGETS_ALL,
         BOOTSTRAP_TARGETS_ALL,
+        # MONTAGE_TARGETS_ALL, TODO: remove

@@ -49,9 +49,7 @@ if len(gene_row) == 0:
 
 # Get available features from gene table (same as prepare_bootstrap_data.py)
 available_features = [
-    col
-    for col in gene_table.columns
-    if col not in ["gene_symbol_0", "cell_count"]
+    col for col in gene_table.columns if col not in ["gene_symbol_0", "cell_count"]
 ]
 print(f"Using {len(available_features)} features for bootstrap analysis")
 

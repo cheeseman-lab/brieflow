@@ -1,3 +1,5 @@
+"""This notebook contains function used to test classifiers and determine confidence threshold."""
+
 from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -16,11 +18,9 @@ from matplotlib import colors as mcolors
 from skimage import segmentation, measure
 
 
-
 def _find_results_csv(base: Path) -> Tuple[pd.DataFrame, Path]:
-    """
-    Descriptions...
-        Find a results CSV under `base` by checking common locations:
+    """Find a results CSV under `base` by checking common locations.
+
         - base/result.csv, base/results.csv, base/result*.csv
         - base/result/*.csv, base/results/*.csv
         Prefer a CSV containing BOTH 'model' and 'accuracy' (case-insensitive).
@@ -101,11 +101,10 @@ def display_pngs_in_plots_and_list_models(
     results_root: Optional[str | Path] = None,
     unique_models: bool = True,
 ) -> Tuple[List[Path], Optional[pd.DataFrame], List[str], Optional[Path]]:
-    """
-    Descriptions...
-        Display all .png images from a 'plots' subfolder, and also look for a
-        results CSV (commonly under 'result(s)/' or as 'result(s).csv') to print
-        out the available models listed in its 'model' column.
+    """Display all .png images from a 'plots' subfolder.
+    
+    Also look for a results CSV (commonly under 'result(s)/' or as 'result(s).csv') to print
+    out the available models listed in its 'model' column.
 
     Args:
         folder_path (str | Path):
@@ -133,12 +132,16 @@ def display_pngs_in_plots_and_list_models(
         FileNotFoundError: If 'plots' cannot be located.
     """
     folder_path = Path(folder_path)
-    plots_dir = folder_path if folder_path.name.lower() == "plots" else folder_path / "plots"
+    plots_dir = (
+        folder_path if folder_path.name.lower() == "plots" else folder_path / "plots"
+    )
     if not plots_dir.exists() or not plots_dir.is_dir():
         raise FileNotFoundError(f"Couldn't find a 'plots' folder at: {plots_dir}")
 
     # Collect PNGs (case-insensitive)
-    pngs = [p for p in plots_dir.iterdir() if p.is_file() and p.suffix.lower() == ".png"]
+    pngs = [
+        p for p in plots_dir.iterdir() if p.is_file() and p.suffix.lower() == ".png"
+    ]
 
     # Sort images
     if sort_by == "mtime":
@@ -148,7 +151,7 @@ def display_pngs_in_plots_and_list_models(
 
     # Limit
     if limit is not None:
-        pngs = pngs[:int(limit)]
+        pngs = pngs[: int(limit)]
 
     # Display images
     for img_path in pngs:
@@ -157,7 +160,9 @@ def display_pngs_in_plots_and_list_models(
     # Locate and print models from a results CSV
     if results_root is None:
         # If we're inside 'plots', search parent; else search the provided folder
-        results_root = folder_path if folder_path.name.lower() != "plots" else folder_path.parent
+        results_root = (
+            folder_path if folder_path.name.lower() != "plots" else folder_path.parent
+        )
     results_root = Path(results_root)
 
     results_df: Optional[pd.DataFrame] = None
@@ -167,7 +172,9 @@ def display_pngs_in_plots_and_list_models(
     try:
         results_df, results_csv_path = _find_results_csv(results_root)
         if "model" not in results_df.columns:
-            raise ValueError("Results CSV found but lacks 'model' column after normalization.")
+            raise ValueError(
+                "Results CSV found but lacks 'model' column after normalization."
+            )
 
         models_series = results_df["model"].dropna().astype(str).map(str.strip)
         if unique_models:
@@ -186,13 +193,13 @@ def display_pngs_in_plots_and_list_models(
 
     return pngs, results_df, printed_models, results_csv_path
 
+
 def show_model_evaluation_pngs(
     CLASSIFIER_DIR_PATH: Union[str, Path],
     model_name: str,
     width: Optional[int] = 1200,
 ) -> List[Path]:
-    """
-    Display all .png images in CLASSIFIER_DIR_PATH/models/<model_name>/evaluation.
+    """Display all .png images in CLASSIFIER_DIR_PATH/models/<model_name>/evaluation.
 
     Args:
         CLASSIFIER_DIR_PATH: Root classifier directory.
@@ -212,8 +219,10 @@ def show_model_evaluation_pngs(
     if not eval_dir.is_dir():
         raise FileNotFoundError(f"Evaluation folder not found: {eval_dir}")
 
-    pngs = sorted((p for p in eval_dir.iterdir() if p.is_file() and p.suffix.lower() == ".png"),
-                  key=lambda p: p.name.lower())
+    pngs = sorted(
+        (p for p in eval_dir.iterdir() if p.is_file() and p.suffix.lower() == ".png"),
+        key=lambda p: p.name.lower(),
+    )
 
     if not pngs:
         raise FileNotFoundError(f"No PNG files found in: {eval_dir}")
@@ -226,37 +235,25 @@ def show_model_evaluation_pngs(
 
     return pngs
 
+
 def resolve_classifier_model_dill_path(
     CLASSIFIER_path: str | Path,
     model_name: Optional[str] = None,
 ) -> Path:
-    """
-    Descriptions...
-        Build and validate the path to a model's .dill file:
-        CLASSIFIER_PATH / 'model' / <model_name> / f"{model_name}_model.dill"
-
-        If `model_name` is None, the function will search for a results CSV under
-        CLASSIFIER_PATH (commonly 'result(s).csv' or files inside 'result(s)/'),
-        pick the row with the highest 'accuracy' (case-insensitive), and use its
-        'model' value as `model_name`.
+    """Resolve the path to a model's dill file.
+    
+        If model_name is None, attempts to find the best model by accuracy from a results CSV.
 
     Args:
-        CLASSIFIER_path (str | Path):
-            The classifier root directory that contains 'model/' and results CSVs.
-        model_name (str | None):
-            The specific model name folder to use, or None to auto-select the best model
-            by 'accuracy' from the results CSV.
+        CLASSIFIER_path (str | Path): Root classifier directory.
+        model_name (str | None): Specific model name to use. If None, auto-select best by accuracy.
 
     Returns:
-        Tuple[Path, str]:
-            (dill_path, model_name)
+        Path to the model's dill file.
 
     Raises:
-        FileNotFoundError:
-            If the model folder doesn't exist or the dill file is missing.
-        ValueError:
-            If model_name is None and a suitable results CSV with 'model' and 'accuracy'
-            cannot be found or parsed.
+        FileNotFoundError: If the model folder or dill file is missing.
+        ValueError: If model_name is None and no results CSV or accuracy column is found.
     """
     root = Path(CLASSIFIER_path)
 
@@ -312,6 +309,7 @@ from pathlib import Path
 from typing import Union, Iterable, Tuple, Dict, Any, Optional, List
 import pandas as pd
 
+
 def build_master_phenotype_df(
     plates: Union[str, int, Iterable[Union[str, int]]],
     wells: Union[str, int, Iterable[Union[str, int]]],
@@ -323,8 +321,7 @@ def build_master_phenotype_df(
     preview_rows: int = 5,
     display_fn: Optional[Any] = None,  # pass IPython.display.display from the notebook
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """
-    Load per-(plate, well) parquet files and concatenate into a master DataFrame.
+    """Load per-(plate, well) parquet files and concatenate into a master DataFrame.
 
     Args:
         plates: Plate ID or iterable of IDs (str/int).
@@ -348,6 +345,7 @@ def build_master_phenotype_df(
                 "parquet_dir": str,
               }
     """
+
     # Normalize inputs to lists of strings
     def _to_list(x):
         return list(x) if isinstance(x, (list, tuple)) else [x]
@@ -389,7 +387,9 @@ def build_master_phenotype_df(
     else:
         master_df = pd.DataFrame()
         if verbose:
-            print("No files loaded. Check 'plates_to_classify' and 'wells_to_classify' in config.")
+            print(
+                "No files loaded. Check 'plates_to_classify' and 'wells_to_classify' in config."
+            )
 
     if missing_files and verbose:
         print("Missing files (not found):")
@@ -411,6 +411,7 @@ def build_master_phenotype_df(
     }
     return master_df, info
 
+
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 import os
@@ -421,6 +422,7 @@ import matplotlib.pyplot as plt
 
 from lib.aggregate.montage_utils import create_cell_montage, add_filenames
 from lib.aggregate.eval_aggregate import summarize_cell_data
+
 
 def build_montages_and_summary(
     *,
@@ -436,10 +438,15 @@ def build_montages_and_summary(
     verbose: bool = True,
     show_figure: bool = True,
     display_fn: Optional[Callable[[pd.DataFrame], None]] = None,
-) -> Tuple[Optional[plt.Figure], Optional[np.ndarray], List[np.ndarray], List[str], List[str], pd.DataFrame]:
-    """
-    Merge coordinates, prepare filenames, map display class names, build montages,
-    and produce a summary DataFrame.
+) -> Tuple[
+    Optional[plt.Figure],
+    Optional[np.ndarray],
+    List[np.ndarray],
+    List[str],
+    List[str],
+    pd.DataFrame,
+]:
+    """Merge coordinates, prepare filenames, map display class names, build montages and produce a summary DataFrame.
 
     Uses imported helpers:
       - add_filenames (lib.aggregate.montage_utils)
@@ -472,13 +479,20 @@ def build_montages_and_summary(
         coord_cols_present = ("vacuole_i", "vacuole_j")
         join_keys = ["vacuole_id", "plate", "well", "tile"]
     else:
-        raise ValueError(f"Unsupported classify_by value: {classify_by}. Use 'cell' or 'vacuole'.")
+        raise ValueError(
+            f"Unsupported classify_by value: {classify_by}. Use 'cell' or 'vacuole'."
+        )
 
     # Validate master_phenotype_df has required columns
     required_master_cols = join_keys + [coord_cols_present[0], coord_cols_present[1]]
-    missing_master = [c for c in required_master_cols if c not in master_phenotype_df.columns]
+    missing_master = [
+        c for c in required_master_cols if c not in master_phenotype_df.columns
+    ]
     if missing_master:
-        raise KeyError("Missing required columns in master_phenotype_df: " + ", ".join(missing_master))
+        raise KeyError(
+            "Missing required columns in master_phenotype_df: "
+            + ", ".join(missing_master)
+        )
 
     # 2) Merge coordinates into classified metadata (work on a copy)
     coords_and_keys = list(required_master_cols)
@@ -500,12 +514,18 @@ def build_montages_and_summary(
         cm["label"] = pd.to_numeric(cm["label"], errors="coerce").astype("Int64")
 
     # 4) Drop rows missing essentials and cast to int
-    required_cols = [c for c in ["plate", "well", "tile", coord_cols_present[0], coord_cols_present[1]] if c in cm.columns]
+    required_cols = [
+        c
+        for c in ["plate", "well", "tile", coord_cols_present[0], coord_cols_present[1]]
+        if c in cm.columns
+    ]
     before = len(cm)
     cm = cm.dropna(subset=required_cols)
     after = len(cm)
     if verbose and after < before:
-        print(f"Dropped {before - after} rows with missing plate/well/tile/coords before montage.")
+        print(
+            f"Dropped {before - after} rows with missing plate/well/tile/coords before montage."
+        )
 
     for col in ["plate", "tile"]:
         if col in cm.columns:
@@ -515,7 +535,11 @@ def build_montages_and_summary(
     cm = add_filenames(cm, root_fp)
 
     # 6) Build display class names (mapping numeric ids to strings)
-    label_to_class = class_mapping.get("label_to_class", {}) if isinstance(class_mapping, dict) else {}
+    label_to_class = (
+        class_mapping.get("label_to_class", {})
+        if isinstance(class_mapping, dict)
+        else {}
+    )
 
     def to_display(v):
         try:
@@ -526,7 +550,11 @@ def build_montages_and_summary(
     cm["__display__"] = cm[class_title].map(to_display)
 
     # Ordered display names from mapping, filtered to present ones
-    ordered_display_all = [label_to_class[k] for k in label_to_class] if label_to_class else list(cm["__display__"].unique())
+    ordered_display_all = (
+        [label_to_class[k] for k in label_to_class]
+        if label_to_class
+        else list(cm["__display__"].unique())
+    )
     present_display = set(cm["__display__"].unique())
     ordered_classes = [d for d in ordered_display_all if d in present_display]
 
@@ -543,7 +571,10 @@ def build_montages_and_summary(
             print("Example missing:", missing_paths[:3])
 
     # 8) Partition rows per class (display names)
-    cell_class_dfs = {display_name: cm[cm["__display__"] == display_name] for display_name in ordered_classes}
+    cell_class_dfs = {
+        display_name: cm[cm["__display__"] == display_name]
+        for display_name in ordered_classes
+    }
 
     # 9) Montage generation
     title_templates = {
@@ -573,7 +604,11 @@ def build_montages_and_summary(
             )
             montage = montage_dict[montage_channel]
             montages.append(montage)
-            titles.append(title_templates[ascending].format(cell_class=display_name, channel=montage_channel))
+            titles.append(
+                title_templates[ascending].format(
+                    cell_class=display_name, channel=montage_channel
+                )
+            )
 
     # 10) Plot montages in a (rows = classes, cols = 2) grid
     if len(ordered_classes) == 0:
@@ -606,7 +641,9 @@ def build_montages_and_summary(
 
     return fig, axes, montages, titles, ordered_classes, summary_df
 
+
 # apply_classifier.py
+
 
 def launch_rankline_ui(
     *,
@@ -616,24 +653,23 @@ def launch_rankline_ui(
     classify_by: str,  # 'cell'/'cells'/'cp' or 'vacuole'/'vacuoles'/'vac'
     class_mapping: Dict,  # expects {"label_to_class": {id: name, ...}} or {id: name}
     phenotype_output_fp: Union[str, Path],
-    channel_names: Sequence[str],           # e.g. config["phenotype"]["channel_names"]
-    display_channels: Sequence[str],        # e.g. DISPLAY_CHANNEL
+    channel_names: Sequence[str],  # e.g. config["phenotype"]["channel_names"]
+    display_channels: Sequence[str],  # e.g. DISPLAY_CHANNEL
     channel_colors: Optional[Sequence[str]] = None,  # e.g. CHANNEL_COLORS; can be None
     # optional filters/filename formatting
     test_plate: Optional[Iterable] = None,
     test_well: Optional[Iterable] = None,
     filename_well_pad_2: bool = False,
     # scale-bar options (choose one of px directly, or µm + pixel size)
-    scale_bar_px: int = 0,          # preferred explicit px length (overrides others if >0)
-    scale_bar_um: float = 0.0,      # desired µm length (used if pixel_size_um>0 and scale_bar_px==0)
-    pixel_size_um: float = 0.0,     # µm per pixel (for converting scale_bar_um→px)
+    scale_bar_px: int = 0,  # preferred explicit px length (overrides others if >0)
+    scale_bar_um: float = 0.0,  # desired µm length (used if pixel_size_um>0 and scale_bar_px==0)
+    pixel_size_um: float = 0.0,  # µm per pixel (for converting scale_bar_um→px)
     # UI tuning
     minimum_difference: float = 0.01,
     thumbnail_px: int = 150,
     auto_display: bool = True,
 ) -> widgets.VBox:
-    """
-    Launches an interactive, rank-based number line UI for browsing per-class examples.
+    """Launches an interactive, rank-based number line UI for browsing per-class examples.
 
     Returns:
         container (widgets.VBox): the root widget; also displayed if auto_display=True.
@@ -641,7 +677,9 @@ def launch_rankline_ui(
     # ---------- basic validations ----------
     phenotype_output_fp = Path(phenotype_output_fp)
     if not phenotype_output_fp.exists():
-        raise FileNotFoundError(f"PHENOTYPE_OUTPUT_FP does not exist: {phenotype_output_fp}")
+        raise FileNotFoundError(
+            f"PHENOTYPE_OUTPUT_FP does not exist: {phenotype_output_fp}"
+        )
 
     if len(set(display_channels)) != len(display_channels):
         raise ValueError("display_channels contains duplicates.")
@@ -655,8 +693,12 @@ def launch_rankline_ui(
     # Resolve colors per display channel
     resolved_colors: List[Tuple[str, Tuple[float, float, float]]] = []
     for i, ch in enumerate(display_channels):
-        name = (channel_colors[i] if (channel_colors and i < len(channel_colors)) else None)
-        resolved_colors.append(("gray", (1, 1, 1)) if name is None else ("rgb", mcolors.to_rgb(name)))
+        name = (
+            channel_colors[i] if (channel_colors and i < len(channel_colors)) else None
+        )
+        resolved_colors.append(
+            ("gray", (1, 1, 1)) if name is None else ("rgb", mcolors.to_rgb(name))
+        )
 
     # Mode & ID column
     mode = str(classify_by).lower()
@@ -672,11 +714,18 @@ def launch_rankline_ui(
 
     # ---------- STATE per launch ----------
     STATE = {
-        "aligned_cache": {}, "mask_cache": {}, "parquet_cache": {},
+        "aligned_cache": {},
+        "mask_cache": {},
+        "parquet_cache": {},
         "per_class": {},  # class_id -> { df, n, lo_idx, hi_idx, mid_idx, seen_windows, gmin_conf, gmax_conf }
-        "class_dropdown": None, "container": None,
-        "status_html": None, "numberline_html": None, "warning_html": None,
-        "buttons": {}, "grid_box": None, "last_class_id": None,
+        "class_dropdown": None,
+        "container": None,
+        "status_html": None,
+        "numberline_html": None,
+        "warning_html": None,
+        "buttons": {},
+        "grid_box": None,
+        "last_class_id": None,
     }
 
     # ---------- helpers: filename formatting ----------
@@ -695,7 +744,9 @@ def launch_rankline_ui(
     def _robust_norm(img2d: np.ndarray) -> np.ndarray:
         img = img2d.astype(np.float32, copy=False)
         if not np.isfinite(img).all():
-            img = np.nan_to_num(img, nan=np.nanmin(img), posinf=np.nanmax(img), neginf=np.nanmin(img))
+            img = np.nan_to_num(
+                img, nan=np.nanmin(img), posinf=np.nanmax(img), neginf=np.nanmin(img)
+            )
         lo, hi = np.percentile(img, [1, 99])
         hi = max(hi, lo + 1)
         return np.clip((img - lo) / (hi - lo), 0, 1)
@@ -724,11 +775,17 @@ def launch_rankline_ui(
         p2 = images_dir / f"P-{plate}_W-{wname}_T-{tile}__aligned.tif"
         path = p1 if p1.exists() else (p2 if p2.exists() else None)
         if path is None:
-            raise FileNotFoundError(f"Aligned TIFF not found for P-{plate} W-{wname} T-{tile}")
+            raise FileNotFoundError(
+                f"Aligned TIFF not found for P-{plate} W-{wname} T-{tile}"
+            )
         arr = tifffile.imread(path)
         if arr.ndim == 2:
             arr = arr[np.newaxis, ...]
-        elif arr.ndim == 3 and arr.shape[0] != len(channel_names) and arr.shape[-1] == len(channel_names):
+        elif (
+            arr.ndim == 3
+            and arr.shape[0] != len(channel_names)
+            and arr.shape[-1] == len(channel_names)
+        ):
             arr = np.moveaxis(arr, -1, 0)
         if arr.ndim != 3:
             raise ValueError(f"Aligned TIFF must be 3D; got {arr.shape}")
@@ -744,15 +801,21 @@ def launch_rankline_ui(
         wname = _well_for_filename(well)
         images_dir = phenotype_output_fp / "images"
         candidates = (
-            [images_dir / f"P-{plate}_W-{wname}_T-{tile}__identified_vacuoles.tiff",
-             images_dir / f"P-{plate}_W-{wname}_T-{tile}__identified_vacuoles.tif"]
-            if mode_ == "vacuole" else
-            [images_dir / f"P-{plate}_W-{wname}_T-{tile}__cells.tiff",
-             images_dir / f"P-{plate}_W-{wname}_T-{tile}__cells.tif"]
+            [
+                images_dir / f"P-{plate}_W-{wname}_T-{tile}__identified_vacuoles.tiff",
+                images_dir / f"P-{plate}_W-{wname}_T-{tile}__identified_vacuoles.tif",
+            ]
+            if mode_ == "vacuole"
+            else [
+                images_dir / f"P-{plate}_W-{wname}_T-{tile}__cells.tiff",
+                images_dir / f"P-{plate}_W-{wname}_T-{tile}__cells.tif",
+            ]
         )
         path = next((p for p in candidates if p.exists()), None)
         if path is None:
-            raise FileNotFoundError(f"Mask not found for mode={mode_} P-{plate} W-{wname} T-{tile}")
+            raise FileNotFoundError(
+                f"Mask not found for mode={mode_} P-{plate} W-{wname} T-{tile}"
+            )
         labels = tifffile.imread(path)
         if labels.ndim != 2:
             raise ValueError(f"Mask must be 2D; got {labels.shape}")
@@ -765,22 +828,31 @@ def launch_rankline_ui(
             return STATE["parquet_cache"][key]
         wname = _well_for_filename(well)
         pq_dir = phenotype_output_fp / "parquets"
-        pq = pq_dir / (f"P-{plate}_W-{wname}__phenotype_vacuoles.parquet" if mode_ == "vacuole"
-                       else f"P-{plate}_W-{wname}__phenotype_cp.parquet")
+        pq = pq_dir / (
+            f"P-{plate}_W-{wname}__phenotype_vacuoles.parquet"
+            if mode_ == "vacuole"
+            else f"P-{plate}_W-{wname}__phenotype_cp.parquet"
+        )
         if not pq.exists():
             raise FileNotFoundError(f"Parquet not found: {pq}")
         df = pd.read_parquet(pq)
         STATE["parquet_cache"][key] = df
         return df
 
-    def _get_coords_for_mask(mode_: str, plate: int, well: str, tile: int, mask_label: int) -> Tuple[int, int]:
+    def _get_coords_for_mask(
+        mode_: str, plate: int, well: str, tile: int, mask_label: int
+    ) -> Tuple[int, int]:
         df = _load_parquet(mode_, plate, well)
         if mode_ == "vacuole":
             sub = df[(df["tile"] == tile) & (df["vacuole_id"] == mask_label)]
             if sub.empty:
                 raise KeyError("No parquet row for vacuole.")
             return int(sub.iloc[0]["vacuole_i"]), int(sub.iloc[0]["vacuole_j"])
-        label_col = "cell_id" if "cell_id" in df.columns else ("label" if "label" in df.columns else None)
+        label_col = (
+            "cell_id"
+            if "cell_id" in df.columns
+            else ("label" if "label" in df.columns else None)
+        )
         if label_col is None:
             raise KeyError("Missing cell id / label.")
         sub = df[(df["tile"] == tile) & (df[label_col] == mask_label)]
@@ -788,16 +860,23 @@ def launch_rankline_ui(
             raise KeyError("No parquet row for cell.")
         return int(sub.iloc[0]["cell_i"]), int(sub.iloc[0]["cell_j"])
 
-    def _compute_crop_bounds(mode_: str, plate: int, well: str, tile: int, mask_label: int,
-                             img_shape: Tuple[int, int]) -> Tuple[int, int, int, int]:
+    def _compute_crop_bounds(
+        mode_: str,
+        plate: int,
+        well: str,
+        tile: int,
+        mask_label: int,
+        img_shape: Tuple[int, int],
+    ) -> Tuple[int, int, int, int]:
         H, W = img_shape
         labels = _load_mask_labels(mode_, plate, well, tile)
-        mask = (labels == mask_label)
+        mask = labels == mask_label
         if np.any(mask):
             props = measure.regionprops(mask.astype(np.uint8))
             if props:
                 r = props[0]
-                h = r.bbox[2] - r.bbox[0]; w = r.bbox[3] - r.bbox[1]
+                h = r.bbox[2] - r.bbox[0]
+                w = r.bbox[3] - r.bbox[1]
                 half = int(np.ceil(max(h, w) / 2.0) + 6)
                 half = max(20, min(half, max(H, W)))
             else:
@@ -805,38 +884,52 @@ def launch_rankline_ui(
         else:
             half = 20
         ci, cj = _get_coords_for_mask(mode_, plate, well, tile, mask_label)
-        y0 = max(0, ci - half); y1 = min(H, ci + half)
-        x0 = max(0, cj - half); x1 = min(W, cj + half)
+        y0 = max(0, ci - half)
+        y1 = min(H, ci + half)
+        x0 = max(0, cj - half)
+        x1 = min(W, cj + half)
         return y0, y1, x0, x1
 
     # ---------- filtering & class table ----------
     def _canon_plate(v):
-        if pd.isna(v): return None
-        if isinstance(v, (int, np.integer)): return str(int(v))
-        if isinstance(v, float) and np.isfinite(v) and abs(v - round(v)) < 1e-8: return str(int(round(v)))
+        if pd.isna(v):
+            return None
+        if isinstance(v, (int, np.integer)):
+            return str(int(v))
+        if isinstance(v, float) and np.isfinite(v) and abs(v - round(v)) < 1e-8:
+            return str(int(round(v)))
         s = str(v).strip()
         return s[:-2] if s.endswith(".0") else s
 
     def _canon_well(v):
-        if pd.isna(v): return None
+        if pd.isna(v):
+            return None
         return str(v).strip().upper()
 
     def _canon_list(vals, plate=False, well=False):
-        if vals is None: return None
-        if not isinstance(vals, (list, tuple, set)): vals = [vals]
-        return [(_canon_plate(v) if plate else (_canon_well(v) if well else v)) for v in vals]
+        if vals is None:
+            return None
+        if not isinstance(vals, (list, tuple, set)):
+            vals = [vals]
+        return [
+            (_canon_plate(v) if plate else (_canon_well(v) if well else v))
+            for v in vals
+        ]
 
     def filter_classified_metadata(df: pd.DataFrame) -> pd.DataFrame:
         if "plate" not in df.columns or "well" not in df.columns:
             raise KeyError("Expected 'plate' and 'well' in classified_metadata.")
         df = df.copy()
         df["_plate_canon"] = df["plate"].map(_canon_plate)
-        df["_well_canon"]  = df["well"].map(_canon_well)
+        df["_well_canon"] = df["well"].map(_canon_well)
         cplates = _canon_list(test_plate, plate=True)
-        cwells  = _canon_list(test_well,  well=True)
-        if cplates is None and cwells is None: return df
-        if cplates is None: return df[df["_well_canon"].isin(cwells)]
-        if cwells  is None: return df[df["_plate_canon"].isin(cplates)]
+        cwells = _canon_list(test_well, well=True)
+        if cplates is None and cwells is None:
+            return df
+        if cplates is None:
+            return df[df["_well_canon"].isin(cwells)]
+        if cwells is None:
+            return df[df["_plate_canon"].isin(cplates)]
         return df[(df["_plate_canon"].isin(cplates)) & (df["_well_canon"].isin(cwells))]
 
     def _prepare_class_table(df_all: pd.DataFrame, class_id) -> pd.DataFrame:
@@ -854,58 +947,67 @@ def launch_rankline_ui(
 
     # ---------- scale bar ----------
     SCALE_BAR_MARGIN_FRAC = 0.02
-    SCALE_BAR_THICK_FRAC  = 0.01
-    SCALE_BAR_MIN_THICK   = 2
-    SCALE_BAR_COLOR       = 1.0
+    SCALE_BAR_THICK_FRAC = 0.01
+    SCALE_BAR_MIN_THICK = 2
+    SCALE_BAR_COLOR = 1.0
     SCALE_BAR_DASHED_IF_TOO_LONG = True
-    SCALE_BAR_DASH_COUNT  = 5
+    SCALE_BAR_DASH_COUNT = 5
 
     def _get_scale_bar_px() -> int:
-        if int(scale_bar_px) > 0: return int(scale_bar_px)
+        if int(scale_bar_px) > 0:
+            return int(scale_bar_px)
         if scale_bar_um > 0 and pixel_size_um > 0:
             return int(round(scale_bar_um / pixel_size_um))
         return 0
 
     def _overlay_scale_bar_inplace(img_rgb01: np.ndarray):
-        if img_rgb01.ndim != 3 or img_rgb01.shape[2] != 3: return
+        if img_rgb01.ndim != 3 or img_rgb01.shape[2] != 3:
+            return
         Hc, Wc = img_rgb01.shape[:2]
         bar_px = _get_scale_bar_px()
-        if bar_px <= 0: return
-        m  = max(2, int(round(min(Hc, Wc) * SCALE_BAR_MARGIN_FRAC)))
+        if bar_px <= 0:
+            return
+        m = max(2, int(round(min(Hc, Wc) * SCALE_BAR_MARGIN_FRAC)))
         th = max(SCALE_BAR_MIN_THICK, int(round(min(Hc, Wc) * SCALE_BAR_THICK_FRAC)))
         dashed = False
-        if bar_px + 2*m > Wc:
+        if bar_px + 2 * m > Wc:
             if SCALE_BAR_DASHED_IF_TOO_LONG:
                 dashed = True
-                bar_px = Wc - 2*m
-                if bar_px <= 0: return
+                bar_px = Wc - 2 * m
+                if bar_px <= 0:
+                    return
             else:
-                bar_px = Wc - 2*m
-                if bar_px <= 0: return
+                bar_px = Wc - 2 * m
+                if bar_px <= 0:
+                    return
         y_end = Hc - m - 1
         y_start = max(0, y_end - th + 1)
         if not dashed:
             x_end = Wc - m - 1
             x_start = max(0, x_end - bar_px + 1)
-            img_rgb01[y_start:y_end+1, x_start:x_end+1, :] = SCALE_BAR_COLOR
+            img_rgb01[y_start : y_end + 1, x_start : x_end + 1, :] = SCALE_BAR_COLOR
         else:
-            start_x = m; end_x = Wc - m - 1
+            start_x = m
+            end_x = Wc - m - 1
             total = max(0, end_x - start_x + 1)
-            if total <= 0: return
+            if total <= 0:
+                return
             segs = 2 * max(1, int(SCALE_BAR_DASH_COUNT)) + 1
             group = total / segs
             dash_len = max(1, int(round(group)))
             for i in range(max(1, int(SCALE_BAR_DASH_COUNT))):
-                xs = int(round(start_x + group * (2*i + 1)))
+                xs = int(round(start_x + group * (2 * i + 1)))
                 xe = min(end_x, xs + dash_len - 1)
                 if xs <= xe:
-                    img_rgb01[y_start:y_end+1, xs:xe+1, :] = SCALE_BAR_COLOR
+                    img_rgb01[y_start : y_end + 1, xs : xe + 1, :] = SCALE_BAR_COLOR
 
     # ---------- small utilities ----------
     def _window_indices_around(idx: int, n: int, k: int = 5) -> List[int]:
-        if n <= 0: return []
-        if n <= k: return list(range(n))
-        left = max(0, idx - (k//2))
+        if n <= 0:
+            return []
+        if n <= k:
+            return list(range(n))
+        left = max(0, idx - (k // 2))
         right = left + k - 1
         if right >= n:
             right = n - 1
@@ -928,7 +1030,7 @@ def launch_rankline_ui(
             return
         df_all = filter_classified_metadata(classified_metadata)
         conf_col = f"{class_title}_confidence"
-        df_class = _prepare_class_table(df_all, class_id)   # ASC by conf; adds __rank
+        df_class = _prepare_class_table(df_all, class_id)  # ASC by conf; adds __rank
         n = len(df_class)
         df_class["__total_in_class"] = n
         st = {
@@ -950,38 +1052,43 @@ def launch_rankline_ui(
     def _window_mid_index(class_id: int) -> int:
         st = STATE["per_class"][class_id]
         win = _window_indices_for_class(class_id, k=5)
-        return st["mid_idx"] if not win else win[len(win)//2]
+        return st["mid_idx"] if not win else win[len(win) // 2]
 
     # ---------- number-line & status renderers ----------
     def _render_numberline_html(class_id: int):
         st = STATE["per_class"][class_id]
-        df = st["df"]; conf_col = f"{class_title}_confidence"
+        df = st["df"]
+        conf_col = f"{class_title}_confidence"
         n = st["n"]
         if n == 0:
             STATE["numberline_html"].value = "<i>No items to display.</i>"
             return
 
         lo_i, hi_i, mid_i = st["lo_idx"], st["hi_idx"], st["mid_idx"]
-        lo_c = float(df.loc[lo_i, conf_col]); hi_c = float(df.loc[hi_i, conf_col]); mid_c = float(df.loc[mid_i, conf_col])
+        lo_c = float(df.loc[lo_i, conf_col])
+        hi_c = float(df.loc[hi_i, conf_col])
+        mid_c = float(df.loc[mid_i, conf_col])
 
         win = _window_indices_for_class(class_id, k=5)
         left_i, right_i = (win[0], win[-1]) if win else (mid_i, mid_i)
-        left_c = float(df.loc[left_i, conf_col]); right_c = float(df.loc[right_i, conf_col])
+        left_c = float(df.loc[left_i, conf_col])
+        right_c = float(df.loc[right_i, conf_col])
 
-        p_wmin  = _pct_rank(lo_i,   n)
-        p_wmax  = _pct_rank(hi_i,   n)
-        p_mid   = _pct_rank(mid_i,  n)
-        p_left  = _pct_rank(left_i, n)
+        p_wmin = _pct_rank(lo_i, n)
+        p_wmax = _pct_rank(hi_i, n)
+        p_mid = _pct_rank(mid_i, n)
+        p_left = _pct_rank(left_i, n)
         p_right = _pct_rank(right_i, n)
 
         width_pct = max(0.5, p_right - p_left)
-        left_pct  = min(max(0.0, p_left), 100.0 - 0.5)
+        left_pct = min(max(0.0, p_left), 100.0 - 0.5)
 
         def tick(left_pct, label, cls, thick=False):
             w = 3 if thick else 2
             return f"<div class='tick {cls}' style='left:{left_pct:.2f}%; border-left-width:{w}px' title='{label}'></div>"
 
-        gmin_conf = st["gmin_conf"]; gmax_conf = st["gmax_conf"]
+        gmin_conf = st["gmin_conf"]
+        gmax_conf = st["gmax_conf"]
 
         html = f"""
         <style>
@@ -1008,20 +1115,20 @@ def launch_rankline_ui(
         <div class='nl-wrap'>
           <div class='nl-bar'>
             <div class='win' style='left:{left_pct:.2f}%; width:{width_pct:.2f}%;'
-                 title='Window ranks {left_i+1}–{right_i+1} (conf {left_c:.5f}–{right_c:.5f})'></div>
+                 title='Window ranks {left_i + 1}–{right_i + 1} (conf {left_c:.5f}–{right_c:.5f})'></div>
 
-            {tick(0.0,   f'Global Min (rank 1) conf {gmin_conf:.5f}', 'gmin')}
-            {tick(p_wmin, f'Working Min (rank {lo_i+1}) conf {lo_c:.5f}', 'wmin', thick=True)}
-            <div class='mid-tri' style='left:{p_mid:.2f}%' title='Mid (rank {mid_i+1}) conf {mid_c:.5f}'></div>
-            {tick(p_wmax, f'Working Max (rank {hi_i+1}) conf {hi_c:.5f}', 'wmax', thick=True)}
-            {tick(100.0, f'Global Max (rank {n}) conf {gmax_conf:.5f}', 'gmax')}
+            {tick(0.0, f"Global Min (rank 1) conf {gmin_conf:.5f}", "gmin")}
+            {tick(p_wmin, f"Working Min (rank {lo_i + 1}) conf {lo_c:.5f}", "wmin", thick=True)}
+            <div class='mid-tri' style='left:{p_mid:.2f}%' title='Mid (rank {mid_i + 1}) conf {mid_c:.5f}'></div>
+            {tick(p_wmax, f"Working Max (rank {hi_i + 1}) conf {hi_c:.5f}", "wmax", thick=True)}
+            {tick(100.0, f"Global Max (rank {n}) conf {gmax_conf:.5f}", "gmax")}
           </div>
 
           <div class='legend'>
             <span class='g'>Global Min: rank 1<span class='small'>(conf {gmin_conf:.5f})</span></span>
-            <span class='w'>Working Min: rank {lo_i+1}<span class='small'>(conf {lo_c:.5f})</span></span>
-            <span class='m'>Mid: rank {mid_i+1}<span class='small'>(conf {mid_c:.5f})</span></span>
-            <span class='w'>Working Max: rank {hi_i+1}<span class='small'>(conf {hi_c:.5f})</span></span>
+            <span class='w'>Working Min: rank {lo_i + 1}<span class='small'>(conf {lo_c:.5f})</span></span>
+            <span class='m'>Mid: rank {mid_i + 1}<span class='small'>(conf {mid_c:.5f})</span></span>
+            <span class='w'>Working Max: rank {hi_i + 1}<span class='small'>(conf {hi_c:.5f})</span></span>
             <span class='g'>Global Max: rank {n}<span class='small'>(conf {gmax_conf:.5f})</span></span>
             <span class='winl'>Blue box = Current window</span>
           </div>
@@ -1032,58 +1139,76 @@ def launch_rankline_ui(
     def _render_status_text(class_id: int):
         st = STATE["per_class"][class_id]
         if st["n"] == 0:
-            STATE["status_html"].value = "<i>No items in this class after filtering.</i>"
+            STATE[
+                "status_html"
+            ].value = "<i>No items in this class after filtering.</i>"
             return
-        df = st["df"]; conf_col = f"{class_title}_confidence"
+        df = st["df"]
+        conf_col = f"{class_title}_confidence"
         lo_i, hi_i, mid_i = st["lo_idx"], st["hi_idx"], st["mid_idx"]
-        lo_c = float(df.loc[lo_i, conf_col]); hi_c = float(df.loc[hi_i, conf_col]); mid_c = float(df.loc[mid_i, conf_col])
+        lo_c = float(df.loc[lo_i, conf_col])
+        hi_c = float(df.loc[hi_i, conf_col])
+        mid_c = float(df.loc[mid_i, conf_col])
         STATE["status_html"].value = (
             f"Class “{_class_name_for_id(class_id)}” — "
-            f"Working ranks: {lo_i+1} (min) | {mid_i+1} (mid) | {hi_i+1} (max) "
+            f"Working ranks: {lo_i + 1} (min) | {mid_i + 1} (mid) | {hi_i + 1} (max) "
             f"&nbsp;&nbsp;[conf: {lo_c:.5f} | {mid_c:.5f} | {hi_c:.5f}]"
         )
 
     # ---------- rendering of one column ----------
-    def _render_one_column(row: pd.Series, thumb_px: int = thumbnail_px) -> widgets.VBox:
-        plate = int(row["plate"]); well = str(row["well"]); tile = int(row["tile"])
-        mask_label = int(row[id_col]); conf = float(row[f"{class_title}_confidence"])
-        rank = int(row["__rank"]); n_in_class = int(row["__total_in_class"])
+    def _render_one_column(
+        row: pd.Series, thumb_px: int = thumbnail_px
+    ) -> widgets.VBox:
+        plate = int(row["plate"])
+        well = str(row["well"])
+        tile = int(row["tile"])
+        mask_label = int(row[id_col])
+        conf = float(row[f"{class_title}_confidence"])
+        rank = int(row["__rank"])
+        n_in_class = int(row["__total_in_class"])
 
         stack = _load_aligned_stack(plate, well, tile)
         H, W = stack.shape[1], stack.shape[2]
         labels_full = _load_mask_labels(mode, plate, well, tile)
 
-        y0, y1, x0, x1 = _compute_crop_bounds(mode, plate, well, tile, mask_label, (H, W))
+        y0, y1, x0, x1 = _compute_crop_bounds(
+            mode, plate, well, tile, mask_label, (H, W)
+        )
         labels_crop = labels_full[y0:y1, x0:x1]
-        mask_crop = (labels_crop == mask_label)
+        mask_crop = labels_crop == mask_label
 
         single_widgets: List[widgets.Image] = []
         merged = np.zeros((y1 - y0, x1 - x0, 3), dtype=np.float32)
         for ch_idx, color_tag_rgb in zip(channel_indices, resolved_colors):
             ch_crop = stack[ch_idx, y0:y1, x0:x1]
             ch_norm = _robust_norm(ch_crop)
-            ch_rgb  = _colorize(ch_norm, color_tag_rgb)
-            iw = widgets.Image(value=_to_png_bytes(ch_rgb), format='png')
-            iw.layout = widgets.Layout(width=f'{thumb_px}px', height=f'{thumb_px}px')
+            ch_rgb = _colorize(ch_norm, color_tag_rgb)
+            iw = widgets.Image(value=_to_png_bytes(ch_rgb), format="png")
+            iw.layout = widgets.Layout(width=f"{thumb_px}px", height=f"{thumb_px}px")
             single_widgets.append(iw)
             merged += ch_rgb
         merged = np.clip(merged, 0, 1)
 
         if np.any(mask_crop):
-            boundary = segmentation.find_boundaries(mask_crop, mode='outer')
+            boundary = segmentation.find_boundaries(mask_crop, mode="outer")
             coords = np.argwhere(boundary)
             if len(coords) > 0:
                 merged[coords[::2, 0], coords[::2, 1], :] = 1.0
 
         _overlay_scale_bar_inplace(merged)
 
-        merged_w = widgets.Image(value=_to_png_bytes(merged), format='png')
-        merged_w.layout = widgets.Layout(width=f'{thumb_px}px', height=f'{thumb_px}px')
+        merged_w = widgets.Image(value=_to_png_bytes(merged), format="png")
+        merged_w.layout = widgets.Layout(width=f"{thumb_px}px", height=f"{thumb_px}px")
 
         meta_line = f"P-{plate} W-{well} T-{tile} | mask {mask_label}"
         conf_line = f"Confidence: {conf:.5f}   (Rank {rank}/{n_in_class})"
-        lbl = widgets.HTML(f"<div style='text-align:center; font-size:12px'>{meta_line}<br>{conf_line}</div>")
-        return widgets.VBox(single_widgets + [merged_w, lbl], layout=widgets.Layout(align_items='center'))
+        lbl = widgets.HTML(
+            f"<div style='text-align:center; font-size:12px'>{meta_line}<br>{conf_line}</div>"
+        )
+        return widgets.VBox(
+            single_widgets + [merged_w, lbl],
+            layout=widgets.Layout(align_items="center"),
+        )
 
     # ---------- UI state helpers ----------
     def _recenter_mid_within_working(class_id: int):
@@ -1092,47 +1217,55 @@ def launch_rankline_ui(
 
     def _set_working_bounds(class_id: int, lo_idx: int, hi_idx: int):
         st = STATE["per_class"][class_id]
-        st["lo_idx"] = int(lo_idx); st["hi_idx"] = int(hi_idx)
+        st["lo_idx"] = int(lo_idx)
+        st["hi_idx"] = int(hi_idx)
         _recenter_mid_within_working(class_id)
 
     # ---------- UI update/draw ----------
     def _update_button_states(class_id: int):
-        st = STATE["per_class"][class_id]; n = st["n"]
+        st = STATE["per_class"][class_id]
+        n = st["n"]
         if n == 0:
             for b in STATE["buttons"].values():
                 b.disabled = True
             return
         win = _window_indices_for_class(class_id, k=5)
         left_i, right_i = win[0], win[-1]
-        STATE["buttons"]["left1"].disabled  = (left_i - 1 < 0)
-        STATE["buttons"]["left5"].disabled  = (left_i - 5 < 0)
-        STATE["buttons"]["right1"].disabled = (right_i + 1 > n - 1)
-        STATE["buttons"]["right5"].disabled = (right_i + 5 > n - 1)
+        STATE["buttons"]["left1"].disabled = left_i - 1 < 0
+        STATE["buttons"]["left5"].disabled = left_i - 5 < 0
+        STATE["buttons"]["right1"].disabled = right_i + 1 > n - 1
+        STATE["buttons"]["right5"].disabled = right_i + 5 > n - 1
         within = (left_i >= st["lo_idx"]) and (right_i <= st["hi_idx"])
         STATE["buttons"]["good"].disabled = not within
-        STATE["buttons"]["bad"].disabled  = not within
+        STATE["buttons"]["bad"].disabled = not within
 
     def _redraw_class(class_id: int):
         clear_output(wait=True)
         st = STATE["per_class"][class_id]
         STATE["container"].children = []
 
-        header = widgets.HBox([
-            STATE["class_dropdown"],
-            widgets.HTML("<div style='width:8px'></div>"),
-            STATE["buttons"]["left5"], STATE["buttons"]["left1"],
-            widgets.HTML("<div style='width:8px'></div>"),
-            STATE["buttons"]["right1"], STATE["buttons"]["right5"],
-            widgets.HTML("<div style='width:16px'></div>"),
-            STATE["buttons"]["good"],
-            STATE["buttons"]["bad"],
-            STATE["buttons"]["refresh"],
-        ])
+        header = widgets.HBox(
+            [
+                STATE["class_dropdown"],
+                widgets.HTML("<div style='width:8px'></div>"),
+                STATE["buttons"]["left5"],
+                STATE["buttons"]["left1"],
+                widgets.HTML("<div style='width:8px'></div>"),
+                STATE["buttons"]["right1"],
+                STATE["buttons"]["right5"],
+                widgets.HTML("<div style='width:16px'></div>"),
+                STATE["buttons"]["good"],
+                STATE["buttons"]["bad"],
+                STATE["buttons"]["refresh"],
+            ]
+        )
 
         _render_status_text(class_id)
         _render_numberline_html(class_id)
 
-        df = st["df"]; n = st["n"]; warnings = []
+        df = st["df"]
+        n = st["n"]
+        warnings = []
         if n == 0:
             STATE["warning_html"].value = "<i>No items in this class.</i>"
             STATE["grid_box"].children = []
@@ -1149,9 +1282,12 @@ def launch_rankline_ui(
                 warnings.append("<b>halving limit reached</b>")
 
             conf_col = f"{class_title}_confidence"
-            lo_c = float(df.loc[st["lo_idx"], conf_col]); hi_c = float(df.loc[st["hi_idx"], conf_col])
+            lo_c = float(df.loc[st["lo_idx"], conf_col])
+            hi_c = float(df.loc[st["hi_idx"], conf_col])
             if (hi_c - lo_c) < float(minimum_difference):
-                warnings.append(f"<b>MINIMUM_DIFFERENCE REACHED!!! (span={hi_c - lo_c:.5f})</b>")
+                warnings.append(
+                    f"<b>MINIMUM_DIFFERENCE REACHED!!! (span={hi_c - lo_c:.5f})</b>"
+                )
 
             STATE["warning_html"].value = "<br>".join(warnings)
 
@@ -1169,51 +1305,76 @@ def launch_rankline_ui(
 
     # ---------- event handlers ----------
     def _on_left1_clicked(_):
-        cid = STATE["last_class_id"];  st = STATE["per_class"][cid]
-        if st["n"] == 0: return
-        st["mid_idx"] = max(0, st["mid_idx"] - 1); _redraw_class(cid)
+        cid = STATE["last_class_id"]
+        st = STATE["per_class"][cid]
+        if st["n"] == 0:
+            return
+        st["mid_idx"] = max(0, st["mid_idx"] - 1)
+        _redraw_class(cid)
 
     def _on_left5_clicked(_):
-        cid = STATE["last_class_id"];  st = STATE["per_class"][cid]
-        if st["n"] == 0: return
-        st["mid_idx"] = max(0, st["mid_idx"] - 5); _redraw_class(cid)
+        cid = STATE["last_class_id"]
+        st = STATE["per_class"][cid]
+        if st["n"] == 0:
+            return
+        st["mid_idx"] = max(0, st["mid_idx"] - 5)
+        _redraw_class(cid)
 
     def _on_right1_clicked(_):
-        cid = STATE["last_class_id"];  st = STATE["per_class"][cid]
-        if st["n"] == 0: return
-        st["mid_idx"] = min(st["n"] - 1, st["mid_idx"] + 1); _redraw_class(cid)
+        cid = STATE["last_class_id"]
+        st = STATE["per_class"][cid]
+        if st["n"] == 0:
+            return
+        st["mid_idx"] = min(st["n"] - 1, st["mid_idx"] + 1)
+        _redraw_class(cid)
 
     def _on_right5_clicked(_):
-        cid = STATE["last_class_id"];  st = STATE["per_class"][cid]
-        if st["n"] == 0: return
-        st["mid_idx"] = min(st["n"] - 1, st["mid_idx"] + 5); _redraw_class(cid)
+        cid = STATE["last_class_id"]
+        st = STATE["per_class"][cid]
+        if st["n"] == 0:
+            return
+        st["mid_idx"] = min(st["n"] - 1, st["mid_idx"] + 5)
+        _redraw_class(cid)
 
     def _on_good_clicked(_):
-        cid = STATE["last_class_id"];  st = STATE["per_class"][cid]
-        if st["n"] == 0: return
+        cid = STATE["last_class_id"]
+        st = STATE["per_class"][cid]
+        if st["n"] == 0:
+            return
         center_idx = _window_mid_index(cid)
         _set_working_bounds(cid, st["lo_idx"], center_idx)
         _redraw_class(cid)
 
     def _on_bad_clicked(_):
-        cid = STATE["last_class_id"];  st = STATE["per_class"][cid]
-        if st["n"] == 0: return
+        cid = STATE["last_class_id"]
+        st = STATE["per_class"][cid]
+        if st["n"] == 0:
+            return
         center_idx = _window_mid_index(cid)
         _set_working_bounds(cid, center_idx, st["hi_idx"])
         _redraw_class(cid)
 
     def _on_refresh_clicked(_):
-        cid = STATE["last_class_id"];  st = STATE["per_class"][cid]
-        if st["n"] == 0: return
-        st["lo_idx"] = 0; st["hi_idx"] = st["n"] - 1; st["seen_windows"] = set()
-        _recenter_mid_within_working(cid); _redraw_class(cid)
+        cid = STATE["last_class_id"]
+        st = STATE["per_class"][cid]
+        if st["n"] == 0:
+            return
+        st["lo_idx"] = 0
+        st["hi_idx"] = st["n"] - 1
+        st["seen_windows"] = set()
+        _recenter_mid_within_working(cid)
+        _redraw_class(cid)
 
     def _on_class_changed(change):
-        if change["name"] != "value": return
+        if change["name"] != "value":
+            return
         cname = change["new"]
-        inv = {v: k for k, v in class_mapping.get("label_to_class", class_mapping).items()}
+        inv = {
+            v: k for k, v in class_mapping.get("label_to_class", class_mapping).items()
+        }
         cid = inv.get(cname, None)
-        if cid is None: return
+        if cid is None:
+            return
         STATE["last_class_id"] = cid
         _per_class_init(cid)
         _redraw_class(cid)
@@ -1221,37 +1382,76 @@ def launch_rankline_ui(
     # ---------- boot ----------
     if STATE["container"] is None:
         label_to_class = class_mapping.get("label_to_class", class_mapping)
-        class_names = [label_to_class[k] for k in sorted(label_to_class.keys(),
-                        key=lambda x: int(x) if str(x).isdigit() else str(x))]
-        dd = widgets.Dropdown(options=class_names, description="Class:", layout=widgets.Layout(width='280px'))
+        class_names = [
+            label_to_class[k]
+            for k in sorted(
+                label_to_class.keys(),
+                key=lambda x: int(x) if str(x).isdigit() else str(x),
+            )
+        ]
+        dd = widgets.Dropdown(
+            options=class_names,
+            description="Class:",
+            layout=widgets.Layout(width="280px"),
+        )
         dd.observe(_on_class_changed, names="value")
         STATE["class_dropdown"] = dd
 
         # nav + decisions
         btn_l5 = widgets.Button(description="<<<", layout=widgets.Layout(width="80px"))
-        btn_l1 = widgets.Button(description="<",   layout=widgets.Layout(width="80px"))
-        btn_r1 = widgets.Button(description=">",   layout=widgets.Layout(width="80px"))
+        btn_l1 = widgets.Button(description="<", layout=widgets.Layout(width="80px"))
+        btn_r1 = widgets.Button(description=">", layout=widgets.Layout(width="80px"))
         btn_r5 = widgets.Button(description=">>>", layout=widgets.Layout(width="80px"))
-        btn_l5.on_click(_on_left5_clicked); btn_l1.on_click(_on_left1_clicked)
-        btn_r1.on_click(_on_right1_clicked); btn_r5.on_click(_on_right5_clicked)
+        btn_l5.on_click(_on_left5_clicked)
+        btn_l1.on_click(_on_left1_clicked)
+        btn_r1.on_click(_on_right1_clicked)
+        btn_r5.on_click(_on_right5_clicked)
 
-        btn_good = widgets.Button(description="good", button_style='success', layout=widgets.Layout(width="120px"))
-        btn_bad  = widgets.Button(description="bad",  button_style='danger',  layout=widgets.Layout(width="120px"))
-        btn_ref  = widgets.Button(description="refresh", button_style='info', layout=widgets.Layout(width="120px"))
-        btn_good.on_click(_on_good_clicked); btn_bad.on_click(_on_bad_clicked); btn_ref.on_click(_on_refresh_clicked)
+        btn_good = widgets.Button(
+            description="good",
+            button_style="success",
+            layout=widgets.Layout(width="120px"),
+        )
+        btn_bad = widgets.Button(
+            description="bad",
+            button_style="danger",
+            layout=widgets.Layout(width="120px"),
+        )
+        btn_ref = widgets.Button(
+            description="refresh",
+            button_style="info",
+            layout=widgets.Layout(width="120px"),
+        )
+        btn_good.on_click(_on_good_clicked)
+        btn_bad.on_click(_on_bad_clicked)
+        btn_ref.on_click(_on_refresh_clicked)
 
-        STATE["buttons"] = {"left5": btn_l5, "left1": btn_l1, "right1": btn_r1, "right5": btn_r5,
-                            "good": btn_good, "bad": btn_bad, "refresh": btn_ref}
+        STATE["buttons"] = {
+            "left5": btn_l5,
+            "left1": btn_l1,
+            "right1": btn_r1,
+            "right5": btn_r5,
+            "good": btn_good,
+            "bad": btn_bad,
+            "refresh": btn_ref,
+        }
 
-        STATE["status_html"]     = widgets.HTML()
+        STATE["status_html"] = widgets.HTML()
         STATE["numberline_html"] = widgets.HTML()
-        STATE["warning_html"]    = widgets.HTML()
-        STATE["grid_box"]        = widgets.HBox([], layout=widgets.Layout(align_items='flex-start', justify_content='space-between'))
-        STATE["container"]       = widgets.VBox([])
+        STATE["warning_html"] = widgets.HTML()
+        STATE["grid_box"] = widgets.HBox(
+            [],
+            layout=widgets.Layout(
+                align_items="flex-start", justify_content="space-between"
+            ),
+        )
+        STATE["container"] = widgets.VBox([])
 
     if STATE["last_class_id"] is None:
         first_name = STATE["class_dropdown"].options[0]
-        inv = {v: k for k, v in class_mapping.get("label_to_class", class_mapping).items()}
+        inv = {
+            v: k for k, v in class_mapping.get("label_to_class", class_mapping).items()
+        }
         STATE["last_class_id"] = inv[first_name]
         _per_class_init(STATE["last_class_id"])
         _redraw_class(STATE["last_class_id"])

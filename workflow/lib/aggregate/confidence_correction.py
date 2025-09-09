@@ -1,3 +1,4 @@
+"""this code based contains code for model confidence calibration using manually labeled data."""
 # lib/aggregate/confidence_calibration.py
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from lib.aggregate.cell_classification import CellClassifier  # your classifier 
 
 
 # ----------------------------- helpers (kept small & reusable) ----------------------------- #
+
 
 def _canon_plate_value(v) -> Optional[str]:
     """Normalize plate values to 'string int' (e.g., 1 -> '1'), preserving None."""
@@ -36,10 +38,7 @@ def _canon_well_value(v) -> Optional[str]:
 
 
 def _normalize_keys_inplace(df: pd.DataFrame, *, id_col: str) -> pd.DataFrame:
-    """
-    Normalize plate/well/tile/id dtypes for reliable merges.
-    Operates in place and returns the same frame for chaining.
-    """
+    """In-place normalization of plate, well, tile, and id_col in the given DataFrame."""
     if "plate" in df.columns:
         df["plate"] = df["plate"].apply(_canon_plate_value)
     if "well" in df.columns:
@@ -74,13 +73,21 @@ def _resolve_join_keys(classify_by: str) -> Tuple[List[str], str]:
         return ["label", "plate", "well", "tile"], "label"
     if ctype in {"vacuole", "vacuoles", "vac"}:
         return ["vacuole_id", "plate", "well", "tile"], "vacuole_id"
-    raise ValueError(f"Unsupported classify_by value: {classify_by!r}. Use 'cell' or 'vacuole'.")
+    raise ValueError(
+        f"Unsupported classify_by value: {classify_by!r}. Use 'cell' or 'vacuole'."
+    )
 
 
 def _get_prefit_estimator(trained_classifier) -> object:
-    """
-    Extract the prefit estimator from your CellClassifier or sklearn Pipeline.
+    """Extract the prefit estimator from your CellClassifier or sklearn Pipeline.
+
     Returns the estimator to be wrapped by CalibratedClassifierCV(cv='prefit').
+    
+    Args:
+        trained_classifier: A CellClassifier instance or a sklearn estimator.
+
+    Returns:
+        The underlying sklearn estimator (not a Pipeline).
     """
     est = getattr(trained_classifier, "model", trained_classifier)
     if hasattr(est, "named_steps"):  # sklearn Pipeline
@@ -93,9 +100,15 @@ def _choose_calibration_method(
     y_manual: Sequence,
     min_samples_isotonic: int = 50,
 ) -> Tuple[str, bool]:
-    """
-    Ensure a safe calibration method. If 'isotonic' but any class has < threshold samples,
-    fallback to 'sigmoid'. Returns (chosen_method, did_fallback).
+    """Ensure a safe calibration method. If 'isotonic' but any class has < threshold samples, fallback to 'sigmoid'.
+    
+    Args:
+        requested: 'isotonic' or 'sigmoid' (case-insensitive).
+        y_manual: Array-like of manual class labels (encoded if needed).
+        min_samples_isotonic: Minimum samples per class to use isotonic safely. 
+
+    Returns:
+        (chosen_method, did_fallback)
     """
     method = str(requested).lower()
     did_fallback = False
@@ -107,7 +120,7 @@ def _choose_calibration_method(
     elif method != "sigmoid":
         # Unknown → default to sigmoid for safety
         method = "sigmoid"
-        did_fallback = (requested.lower() != "sigmoid")
+        did_fallback = requested.lower() != "sigmoid"
     return method, did_fallback
 
 
@@ -131,33 +144,35 @@ def calibrate_confidence(
     class_title: str,
     classifier_path: Union[str, Path],
     # calibration controls
-    confidence_correction: Optional[str] = None,   # None or 'post-hoc' (aliases accepted)
-    calibration_method: str = "isotonic",          # 'isotonic' or 'sigmoid'
+    confidence_correction: Optional[
+        str
+    ] = None,  # None or 'post-hoc' (aliases accepted)
+    calibration_method: str = "isotonic",  # 'isotonic' or 'sigmoid'
     test_plate: Optional[Iterable] = None,
     test_well: Optional[Iterable] = None,
     min_samples_isotonic: int = 50,
     # misc
     verbose: bool = True,
 ) -> Tuple[pd.DataFrame, Dict[str, Union[str, int, bool]]]:
-    """
-    Post-hoc confidence calibration & in-place replacement of <class_title>_confidence.
+    """Post-hoc confidence calibration & in-place replacement of <class_title>_confidence.
 
     - Keeps predicted class labels unchanged.
     - Replaces only the confidence column where calibrated probabilities are available.
     - Joins rows via normalized keys for robust alignment.
 
     Args:
-        master_phenotype_df: Wide feature frame (must include join keys + model feature columns).
-        classified_metadata: Model predictions (must include join keys, class_title, and confidence column).
-        manual_labeled_data: Human-labeled rows (must include join keys + class_title) for calibration.
-        classify_by: 'cell'/'cells'/'cp' or 'vacuole'/'vacuoles'/'vac'.
-        class_title: Column containing predicted class IDs (e.g., 'pred_label').
-        classifier_path: Path to a previously trained classifier saved via CellClassifier.
-        confidence_correction: None (pass-through) or 'post-hoc' (also accepts 'posthoc','post_hoc').
-        calibration_method: 'isotonic' or 'sigmoid'. If isotonic has sparse classes, we fallback to sigmoid.
-        test_plate/test_well: Optional subsets for calibration & replacement (applied to all three frames).
-        min_samples_isotonic: Per-class minimum to use isotonic safely.
-        verbose: Print a short summary.
+        master_phenotype_df: DataFrame with all objects and features.
+        classified_metadata: DataFrame with predicted classes and confidences.
+        manual_labeled_data: DataFrame with manually labeled objects for calibration.
+        classify_by: 'cell' or 'vacuole' (determines join keys).
+        class_title: Column name for predicted class labels (e.g., 'phenotype').
+        classifier_path: Path to the trained CellClassifier file.
+        confidence_correction: None or 'post-hoc' (currently only 'post-hoc' is supported).
+        calibration_method: 'isotonic' or 'sigmoid' (fallback to 'sigmoid' if isotonic is unsafe).
+        test_plate: Optional list of plate identifiers to filter by (None = no filter).
+        test_well: Optional list of well identifiers to filter by (None = no filter).
+        min_samples_isotonic: Minimum samples per class to use isotonic safely.
+        verbose: Whether to print progress messages.
 
     Returns:
         (out_df, info)
@@ -179,10 +194,16 @@ def calibrate_confidence(
         Designed to be easily extended to additional correction types (registry pattern ready).
     """
     # -------------------------------- early exit -------------------------------- #
-    cc = None if confidence_correction is None else str(confidence_correction).strip().lower()
+    cc = (
+        None
+        if confidence_correction is None
+        else str(confidence_correction).strip().lower()
+    )
     if not cc or cc in {"", "none"}:
         if verbose:
-            print("confidence_correction=None → pass-through original classified_metadata.")
+            print(
+                "confidence_correction=None → pass-through original classified_metadata."
+            )
         return classified_metadata.copy(deep=True), {
             "correction": "none",
             "calibration_method": "",
@@ -199,7 +220,9 @@ def calibrate_confidence(
     if cc in {"post-hoc", "posthoc", "post_hoc"}:
         correction_name = "post-hoc"
     else:
-        raise ValueError(f"Unsupported confidence_correction={confidence_correction!r}. Currently only 'post-hoc' is supported.")
+        raise ValueError(
+            f"Unsupported confidence_correction={confidence_correction!r}. Currently only 'post-hoc' is supported."
+        )
 
     # -------------------------------- resolve keys -------------------------------- #
     join_keys, id_col = _resolve_join_keys(classify_by)
@@ -208,15 +231,23 @@ def calibrate_confidence(
     required_cls_cols = set(join_keys + [class_title, f"{class_title}_confidence"])
     missing_cls = required_cls_cols - set(classified_metadata.columns)
     if missing_cls:
-        raise KeyError(f"classified_metadata missing required columns: {sorted(missing_cls)}")
+        raise KeyError(
+            f"classified_metadata missing required columns: {sorted(missing_cls)}"
+        )
 
     # -------------------------------- normalize & filter frames -------------------------------- #
-    master_norm = _normalize_keys_inplace(master_phenotype_df.copy(deep=True), id_col=id_col)
-    cls_norm    = _normalize_keys_inplace(classified_metadata.copy(deep=True),       id_col=id_col)
-    manual_norm = _normalize_keys_inplace(manual_labeled_data.copy(deep=True),       id_col=id_col)
+    master_norm = _normalize_keys_inplace(
+        master_phenotype_df.copy(deep=True), id_col=id_col
+    )
+    cls_norm = _normalize_keys_inplace(
+        classified_metadata.copy(deep=True), id_col=id_col
+    )
+    manual_norm = _normalize_keys_inplace(
+        manual_labeled_data.copy(deep=True), id_col=id_col
+    )
 
     master_norm = _apply_test_filters(master_norm, test_plate, test_well)
-    cls_norm    = _apply_test_filters(cls_norm,    test_plate, test_well)
+    cls_norm = _apply_test_filters(cls_norm, test_plate, test_well)
     manual_norm = _apply_test_filters(manual_norm, test_plate, test_well)
 
     # -------------------------------- load classifier & features -------------------------------- #
@@ -224,16 +255,26 @@ def calibrate_confidence(
     est_prefit = _get_prefit_estimator(clf)
     feature_cols = list(getattr(clf, "features", []))
     if not feature_cols:
-        raise ValueError("No feature list found on the loaded classifier (clf.features is empty).")
+        raise ValueError(
+            "No feature list found on the loaded classifier (clf.features is empty)."
+        )
 
     # Build master features table (one row per join key)
-    feat_master = master_norm[join_keys + feature_cols].drop_duplicates(subset=join_keys).copy()
+    feat_master = (
+        master_norm[join_keys + feature_cols].drop_duplicates(subset=join_keys).copy()
+    )
 
     # -------------------------------- manual calibration set -------------------------------- #
-    manual_join = manual_norm[join_keys + [class_title]].dropna(subset=join_keys + [class_title]).copy()
+    manual_join = (
+        manual_norm[join_keys + [class_title]]
+        .dropna(subset=join_keys + [class_title])
+        .copy()
+    )
     cal_df = manual_join.merge(feat_master, on=join_keys, how="inner")
     if cal_df.empty:
-        raise ValueError("No overlap between manual_labeled_data and feature table on the specified keys.")
+        raise ValueError(
+            "No overlap between manual_labeled_data and feature table on the specified keys."
+        )
 
     # Ensure all requested features exist
     missing_feats = [c for c in feature_cols if c not in cal_df.columns]
@@ -252,20 +293,28 @@ def calibrate_confidence(
     )
 
     # Fit calibrator on the prefit estimator
-    cal_wrapper = CalibratedClassifierCV(estimator=est_prefit, cv="prefit", method=chosen_method)
+    cal_wrapper = CalibratedClassifierCV(
+        estimator=est_prefit, cv="prefit", method=chosen_method
+    )
     cal_wrapper.fit(X_manual, y_manual_enc)
 
     # -------------------------------- target set to correct -------------------------------- #
-    target_df = cls_norm.merge(feat_master, on=join_keys, how="left", suffixes=("", "_feat"))
+    target_df = cls_norm.merge(
+        feat_master, on=join_keys, how="left", suffixes=("", "_feat")
+    )
     feat_missing_mask = target_df[feature_cols].isna().any(axis=1)
     total_candidates = int((~feat_missing_mask).sum())
     if verbose and feat_missing_mask.any():
-        print(f"Note: {int(feat_missing_mask.sum())} rows lack features; keeping their original confidence.")
+        print(
+            f"Note: {int(feat_missing_mask.sum())} rows lack features; keeping their original confidence."
+        )
 
     if total_candidates == 0:
         # Nothing to replace; return original as-is
         if verbose:
-            print("No rows with complete features in target set; returning original classified_metadata.")
+            print(
+                "No rows with complete features in target set; returning original classified_metadata."
+            )
         return classified_metadata.copy(deep=True), {
             "correction": correction_name,
             "calibration_method": chosen_method,
@@ -301,6 +350,7 @@ def calibrate_confidence(
             except Exception:
                 return None
     else:
+
         def to_enc_safe(v):
             return v
 
@@ -340,11 +390,15 @@ def calibrate_confidence(
     # Set the calibrated values into the original DF
     if conf_col not in out_df.columns:
         out_df[conf_col] = np.nan
-    out_df.iloc[pos_in_left, out_df.columns.get_loc(conf_col)] = cal_conf[:rows_replaced]
+    out_df.iloc[pos_in_left, out_df.columns.get_loc(conf_col)] = cal_conf[
+        :rows_replaced
+    ]
 
     if verbose:
-        print(f"Replaced {rows_replaced} confidences via normalized-key merge "
-              f"(method={chosen_method}, cv='prefit').")
+        print(
+            f"Replaced {rows_replaced} confidences via normalized-key merge "
+            f"(method={chosen_method}, cv='prefit')."
+        )
 
     info = {
         "correction": correction_name,

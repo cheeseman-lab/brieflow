@@ -215,6 +215,49 @@ if pseudogene_patterns:
         print(f"Added {len(pseudogene_rows)} pseudo-gene entries to gene table")
         print(f"Final gene table shape: {final_gene_table.shape}")
 
+    # Also modify construct table - change gene names for pseudo-gene constructs
+    print("Modifying construct table with pseudo-gene assignments...")
+
+    # Create pseudo-gene construct entries
+    pseudogene_construct_rows = []
+    original_construct_ids_to_remove = []
+
+    for pseudogene_group in pseudogene_groups:
+        pseudogene_id = pseudogene_group["pseudogene_id"]
+        for construct in pseudogene_group["constructs"]:
+            construct_id = construct[pert_id_col]
+
+            # Find the original construct in construct_table
+            construct_mask = construct_table[pert_id_col] == construct_id
+            original_construct = construct_table[construct_mask]
+
+            if len(original_construct) > 0:
+                # Create new row with pseudo-gene as the "gene"
+                new_row = original_construct.iloc[0].copy()
+                new_row[pert_col] = pseudogene_id  # Change gene to pseudo-gene name
+                pseudogene_construct_rows.append(new_row)
+                original_construct_ids_to_remove.append(construct_id)
+
+    if pseudogene_construct_rows:
+        # Remove original constructs that are now part of pseudo-genes
+        construct_table = construct_table[
+            ~construct_table[pert_id_col].isin(original_construct_ids_to_remove)
+        ]
+
+        # Add pseudo-gene constructs
+        pseudogene_construct_df = pd.DataFrame(pseudogene_construct_rows)
+        construct_table = pd.concat(
+            [construct_table, pseudogene_construct_df], ignore_index=True
+        )
+
+        print(
+            f"Modified construct table with {len(pseudogene_construct_rows)} pseudo-gene construct entries"
+        )
+        print(
+            f"Removed {len(original_construct_ids_to_remove)} original construct entries"
+        )
+        print(f"Final construct table shape: {construct_table.shape}")
+
 # OUTPUT 2 & 3: Save both tables
 construct_output = snakemake.output[1]
 gene_output = snakemake.output[2]

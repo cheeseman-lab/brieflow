@@ -4,15 +4,10 @@ from pathlib import Path
 import multiprocessing
 import numpy as np
 import pandas as pd
-import re
-import random
 from concurrent.futures import ThreadPoolExecutor
 
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
-from lib.aggregate.bootstrap import (
-    write_construct_data,
-    create_pseudogene_groups,
-)
+from lib.aggregate.bootstrap import write_construct_data
 
 # Get parameters
 perturbation_col = snakemake.params.perturbation_name_col
@@ -20,7 +15,6 @@ perturbation_id_col = snakemake.params.perturbation_id_col
 control_key = snakemake.params.control_key
 exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp
-pseudogene_patterns = snakemake.params.pseudogene_patterns
 
 print("Loading single-cell features data...")
 all_features_cells = pd.read_parquet(snakemake.input.features_singlecell)
@@ -40,14 +34,6 @@ print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 # Load metadata columns and split control cell data
 metadata_cols = load_metadata_cols(metadata_cols_fp, include_classification_cols=True)
 controls_metadata, controls_features = split_cell_data(control_cells, metadata_cols)
-
-# # Get available features from construct table
-# available_features = [
-#     col
-#     for col in construct_table.columns
-#     if col not in [perturbation_id_col, perturbation_col, "cell_count"]
-# ]
-# print(f"Using {len(available_features)} features for bootstrap analysis")
 
 # TODO: remove starting here
 # Get available features from construct table
@@ -130,73 +116,18 @@ sample_sizes_df.to_csv(snakemake.output.sample_sizes, sep="\t", index=False)
 output_dir = Path(snakemake.output[0])
 output_dir.mkdir(parents=True, exist_ok=True)
 
-# Handle pseudo-gene grouping
-if pseudogene_patterns:
-    print("Creating pseudo-gene groups...")
-    pseudogene_groups, remaining_constructs = create_pseudogene_groups(
-        construct_features_df, pseudogene_patterns, perturbation_col
+# Create construct data files (pseudo-gene assignments already in construct table)
+construct_ids = [str(row[0]) for row in construct_features_arr if not pd.isna(row[0])]
+print(f"Found {len(construct_ids)} unique constructs")
+
+print(f"Creating {len(construct_ids)} construct data files...")
+for construct_id in construct_ids:
+    write_construct_data(
+        construct_id,
+        construct_features_df,
+        perturbation_col,
+        perturbation_id_col,
+        output_dir,
     )
 
-    # Write pseudo-gene construct data files (individual constructs with pseudo-gene names)
-    if pseudogene_groups:
-        print(f"Processing {len(pseudogene_groups)} pseudo-gene groups...")
-        for pseudogene_group in pseudogene_groups:
-            pseudogene_id = pseudogene_group["pseudogene_id"]
-            constructs = pseudogene_group["constructs"]
-
-            print(f"  Creating construct files for pseudo-gene: {pseudogene_id}")
-
-            # Create individual construct files for each construct in the group
-            for construct in constructs:
-                construct_id = construct[perturbation_id_col]
-
-                # Create combined ID with pseudo-gene as "gene"
-                combined_id = f"{pseudogene_id}__{construct_id}"
-
-                # Create metadata file for the construct with pseudo-gene as gene
-                construct_data = pd.DataFrame(
-                    {
-                        "construct_id": [construct_id],
-                        "gene": [pseudogene_id],  # Use pseudo-gene name as gene
-                        "combined_id": [combined_id],
-                    }
-                )
-
-                # Save using combined_id for filename
-                output_file = output_dir / f"{combined_id}__construct_data.tsv"
-                construct_data.to_csv(output_file, sep="\t", index=False)
-
-                print(f"    Created: {combined_id}__construct_data.tsv")
-
-    # Write remaining individual construct data files
-    if len(remaining_constructs) > 0:
-        remaining_construct_ids = remaining_constructs[perturbation_id_col].tolist()
-        print(
-            f"Creating {len(remaining_construct_ids)} individual construct data files..."
-        )
-        for construct_id in remaining_construct_ids:
-            write_construct_data(
-                construct_id,
-                construct_features_df,
-                perturbation_col,
-                perturbation_id_col,
-                output_dir,
-            )
-
-else:
-    print("No pseudo-gene patterns provided...")
-    # Write individual construct files
-    construct_ids = [
-        str(row[0]) for row in construct_features_arr if not pd.isna(row[0])
-    ]
-    print(f"Found {len(construct_ids)} unique constructs")
-
-    print(f"Creating {len(construct_ids)} construct data files...")
-    for construct_id in construct_ids:
-        write_construct_data(
-            construct_id,
-            construct_features_df,
-            perturbation_col,
-            perturbation_id_col,
-            output_dir,
-        )
+print("Bootstrap data preparation complete!")

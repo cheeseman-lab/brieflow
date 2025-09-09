@@ -56,13 +56,6 @@ AGGREGATE_OUTPUTS = {
             "features_genes",
             "tsv",
         ),
-        AGGREGATE_FP
-        / "tsvs"
-        / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "construct_table",
-            "tsv",
-        ),
     ],
     "align": [
         AGGREGATE_FP

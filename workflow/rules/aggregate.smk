@@ -3,6 +3,20 @@ from lib.shared.rule_utils import get_montage_inputs
 
 
 # Create datasets with cell classes and channel combos
+rule aggregate_cells_vacuoles:
+    input:
+        merge_final=MERGE_OUTPUTS["final_merge"][0],
+        phenotype_vacuoles=ancient(PHENOTYPE_OUTPUTS["merge_phenotype_vacuoles"][0]),
+    output:
+        aggregated_data=MERGE_OUTPUTS_MAPPED["aggregate_cells_vacuoles"][0],
+    params:
+        strategy=config["aggregate"]["agg_strategy"],
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: wildcards.well,
+    script:
+        "../scripts/merge/aggregate_cells_vacuoles.py"
+    
+
 rule split_datasets:
     input:
         # final merge data

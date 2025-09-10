@@ -6,6 +6,11 @@ AGGREGATE_FP = ROOT_FP / "aggregate"
 
 # Define standard (non-montage) aggreagte outputs
 AGGREGATE_OUTPUTS = {
+    "aggregate_cells_vacuoles": [
+        MERGE_FP / "parquets" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "aggregated_cells_vacuoles", "parquet"
+        ),
+    ],
     "split_datasets": [
         AGGREGATE_FP
         / "parquets"
@@ -87,6 +92,7 @@ AGGREGATE_OUTPUTS = {
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
+    "aggregate_cells_vacuoles": None,
     "split_datasets": None,
     "filter": None,
     "align": None,

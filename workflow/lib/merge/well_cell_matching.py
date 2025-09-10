@@ -319,7 +319,9 @@ def _find_matches_chunked(
     all_matches = []
     n_chunks = (len(sbs_positions) + chunk_size - 1) // chunk_size
 
-    print(f"Processing {len(sbs_positions):,} SBS cells in {n_chunks} chunks of {chunk_size:,}")
+    print(
+        f"Processing {len(sbs_positions):,} SBS cells in {n_chunks} chunks of {chunk_size:,}"
+    )
 
     total_matches = 0
     all_distances = []
@@ -333,7 +335,9 @@ def _find_matches_chunked(
         progress_interval = max(1, min(5, n_chunks // 10))
         if chunk_idx % progress_interval == 0:
             progress = (chunk_idx / n_chunks) * 100
-            print(f"  Progress: {progress:.0f}% (chunk {chunk_idx + 1}/{n_chunks}, {chunk_size_actual:,} cells)")
+            print(
+                f"  Progress: {progress:.0f}% (chunk {chunk_idx + 1}/{n_chunks}, {chunk_size_actual:,} cells)"
+            )
 
         # Get chunk of SBS coordinates
         sbs_chunk_coords = sbs_coords[start_idx:end_idx]
@@ -552,10 +556,12 @@ def filter_tiles_by_diversity(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
     filtered_df = df[df["tile"].isin(diverse_tiles)]
 
     removed_tiles = len(tile_diversity) - len(diverse_tiles)
-    
-    print(f"{data_type} filtering: {len(df):,} → {len(filtered_df):,} cells "
-          f"({removed_tiles} tiles removed)")
-    
+
+    print(
+        f"{data_type} filtering: {len(df):,} → {len(filtered_df):,} cells "
+        f"({removed_tiles} tiles removed)"
+    )
+
     # Only show tile details if reasonable number, otherwise show summary
     if len(diverse_tiles) <= 20:
         print(f"  Tiles kept: {sorted(diverse_tiles.tolist())}")

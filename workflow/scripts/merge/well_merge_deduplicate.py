@@ -99,8 +99,12 @@ try:
             "well": well,
             "status": "failed",
             "error": error_message,
-            "processing_raw_matches_input": len(raw_matches) if 'raw_matches' in locals() else 0,
-            "processing_simple_matches_input": len(merged_cells) if 'merged_cells' in locals() else 0,
+            "processing_raw_matches_input": len(raw_matches)
+            if "raw_matches" in locals()
+            else 0,
+            "processing_simple_matches_input": len(merged_cells)
+            if "merged_cells" in locals()
+            else 0,
             "processing_final_matches_output": 0,
             "processing_matches_removed": 0,
             "processing_efficiency": 0.0,
@@ -298,32 +302,37 @@ try:
         "plate": plate,
         "well": well,
         "status": "success",
-        
         # Processing metrics
         "processing_raw_matches_input": len(raw_matches),
         "processing_simple_matches_input": len(merged_cells),
         "processing_final_matches_output": len(final_output),
         "processing_matches_removed": len(raw_matches) - len(final_output),
-        "processing_efficiency": float(len(final_output) / len(raw_matches)) if len(raw_matches) > 0 else 0.0,
-        
+        "processing_efficiency": float(len(final_output) / len(raw_matches))
+        if len(raw_matches) > 0
+        else 0.0,
         # QC metrics
         "qc_sbs_total_cells": len(well_sbs_cells),
-        "qc_sbs_matched_cells": sbs_rates["matched_cells"].iloc[0] if not sbs_rates.empty else 0,
-        "qc_sbs_match_rate": sbs_rates["match_rate"].iloc[0] if not sbs_rates.empty else 0.0,
+        "qc_sbs_matched_cells": sbs_rates["matched_cells"].iloc[0]
+        if not sbs_rates.empty
+        else 0,
+        "qc_sbs_match_rate": sbs_rates["match_rate"].iloc[0]
+        if not sbs_rates.empty
+        else 0.0,
         "qc_phenotype_total_cells": len(well_phenotype_cells),
-        "qc_phenotype_matched_cells": phenotype_rates["matched_cells"].iloc[0] if not phenotype_rates.empty else 0,
-        "qc_phenotype_match_rate": phenotype_rates["match_rate"].iloc[0] if not phenotype_rates.empty else 0.0,
-        
+        "qc_phenotype_matched_cells": phenotype_rates["matched_cells"].iloc[0]
+        if not phenotype_rates.empty
+        else 0,
+        "qc_phenotype_match_rate": phenotype_rates["match_rate"].iloc[0]
+        if not phenotype_rates.empty
+        else 0.0,
         # Deduplication information
         "deduplication_method": "deduplicate_matches_by_stitched_ids",
         "deduplication_uses_stitched_ids": True,
         "deduplication_preserves_original_ids": True,
         "deduplication_achieved_1to1_stitched": validation_results["is_1to1_stitched"],
-        
         # Validation results
         "validation_is_1to1_stitched": validation_results["is_1to1_stitched"],
         "validation_match_count": validation_results["match_count"],
-        
         # Output format information
         "output_format_columns": ";".join(final_output.columns),
         "output_format_ready_for_format_merge": True,
@@ -349,13 +358,19 @@ try:
     # Add duplication check
     stitched_duplicates = validation_results.get("stitched_duplicates", {})
     original_duplicates = validation_results.get("original_duplicates", {})
-    
-    summary_dict.update({
-        "validation_stitched_duplicates_phenotype": stitched_duplicates.get("phenotype", 0),
-        "validation_stitched_duplicates_sbs": stitched_duplicates.get("sbs", 0),
-        "validation_original_duplicates_phenotype": original_duplicates.get("phenotype", 0),
-        "validation_original_duplicates_sbs": original_duplicates.get("sbs", 0),
-    })
+
+    summary_dict.update(
+        {
+            "validation_stitched_duplicates_phenotype": stitched_duplicates.get(
+                "phenotype", 0
+            ),
+            "validation_stitched_duplicates_sbs": stitched_duplicates.get("sbs", 0),
+            "validation_original_duplicates_phenotype": original_duplicates.get(
+                "phenotype", 0
+            ),
+            "validation_original_duplicates_sbs": original_duplicates.get("sbs", 0),
+        }
+    )
 
     # Add quality metrics (extracted earlier)
     for key, value in quality_metrics.items():

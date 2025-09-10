@@ -7,7 +7,7 @@ AGGREGATE_FP = ROOT_FP / "aggregate"
 # Define standard (non-montage) aggreagte outputs
 AGGREGATE_OUTPUTS = {
     "aggregate_cells_vacuoles": [
-        MERGE_FP / "parquets" / get_filename(
+        AGGREGATE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "aggregated_cells_vacuoles", "parquet"
         ),
     ],

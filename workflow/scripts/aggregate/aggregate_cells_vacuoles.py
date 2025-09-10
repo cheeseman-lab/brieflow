@@ -11,8 +11,8 @@ from lib.aggregate.vacuole_utils import aggregate_vacuole_data
 from lib.shared.file_utils import validate_dtypes
 
 # Get inputs from Snakemake
-merge_final_path = snakemake.input[0]
-phenotype_vacuoles_path = snakemake.input[1]
+merge_final_path = snakemake.input.merge_final
+phenotype_vacuoles_path = snakemake.input.phenotype_vacuoles
 
 # Get output paths
 aggregated_data_path = snakemake.output[0]

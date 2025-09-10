@@ -29,7 +29,7 @@ rule split_datasets:
     params:
         all_channels=config["phenotype"]["channel_names"],
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
-        classifier_path=config["aggregate"]["classifier_path"],
+        classifier_path=config["aggregate"].get("classifier_path"),
         cell_classes=aggregate_wildcard_combos["cell_class"].unique(),
         channel_combos=aggregate_wildcard_combos["channel_combo"].unique(),
     script:

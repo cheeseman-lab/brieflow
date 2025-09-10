@@ -205,9 +205,7 @@ def display_matched_and_unmatched_cells_for_site(
     root_path = Path(root_fp)
     merge_fp = root_path / "merge"
 
-    merged_cells_path = (
-        merge_fp / "parquets" / f"P-{plate}_W-{well}__merge.parquet"
-    )
+    merged_cells_path = merge_fp / "parquets" / f"P-{plate}_W-{well}__merge.parquet"
     phenotype_transformed_path = (
         merge_fp
         / "well_alignment"
@@ -458,15 +456,15 @@ def create_enhanced_match_visualization(
             if len(matched_data) > sample_size
             else matched_data
         )
-        
+
         # Draw lines connecting matched pairs
         for _, row in sample_matched.iterrows():
             ax2.plot(
-                [row["j_0"], row["j_1"]], 
-                [row["i_0"], row["i_1"]], 
-                'k-', 
-                alpha=0.8, 
-                linewidth=1
+                [row["j_0"], row["j_1"]],
+                [row["i_0"], row["i_1"]],
+                "k-",
+                alpha=0.8,
+                linewidth=1,
             )
 
         # Plot matched SBS positions
@@ -476,9 +474,9 @@ def create_enhanced_match_visualization(
             c="lightblue",
             s=20,
             alpha=0.8,
-            marker='o',
+            marker="o",
         )
-        
+
         # Plot matched phenotype positions
         scatter_ph = ax2.scatter(
             sample_matched["j_0"],
@@ -489,15 +487,17 @@ def create_enhanced_match_visualization(
             cmap="viridis",
             edgecolors="black",
             linewidths=0.8,
-            marker='o',
+            marker="o",
             label=f"Matched Phenotype ({len(matched_data)})",
         )
-        
+
         plt.colorbar(scatter_ph, ax=ax2, label="Match Distance (px)", shrink=0.8)
 
     ax2.set_xlabel("j (pixels)")
     ax2.set_ylabel("i (pixels)")
-    ax2.set_title("Raw Phenotype Positions, Raw SBS Positions, Matched Cells Colored by Distance")
+    ax2.set_title(
+        "Raw Phenotype Positions, Raw SBS Positions, Matched Cells Colored by Distance"
+    )
     ax2.legend(bbox_to_anchor=(1.20, 1), loc="upper left", fontsize=10)
     ax2.invert_yaxis()
 
@@ -514,20 +514,25 @@ def create_enhanced_match_visualization(
 
     if total_phenotype > 0:
         wedges, texts, autotexts = ax3.pie(
-            sizes, 
-            labels=labels, 
-            colors=colors, 
-            autopct="%1.1f%%", 
-            startangle=90
+            sizes, labels=labels, colors=colors, autopct="%1.1f%%", startangle=90
         )
         for autotext in autotexts:
             autotext.set_color("white")
             autotext.set_fontweight("bold")
     else:
-        ax3.text(0.5, 0.5, "No phenotype cells", ha="center", va="center", 
-                transform=ax3.transAxes, fontsize=12)
+        ax3.text(
+            0.5,
+            0.5,
+            "No phenotype cells",
+            ha="center",
+            va="center",
+            transform=ax3.transAxes,
+            fontsize=12,
+        )
 
-    ax3.set_title(f"% of Phenotype Cells with a Match\n({total_phenotype} total phenotype cells)")
+    ax3.set_title(
+        f"% of Phenotype Cells with a Match\n({total_phenotype} total phenotype cells)"
+    )
 
     # 4. Summary statistics table
     ax4 = axes[1, 1]
@@ -540,10 +545,16 @@ def create_enhanced_match_visualization(
         ["Metric", "Phenotype", "SBS"],
         ["Total Cells", f"{total_phenotype}", f"{total_sbs}"],
         ["Matched Cells", f"{matched_phenotype_count}", f"{len(matched_data)}"],
-        ["Unmatched Cells", f"{unmatched_phenotype_count}", f"{total_sbs - len(matched_data)}"],
+        [
+            "Unmatched Cells",
+            f"{unmatched_phenotype_count}",
+            f"{total_sbs - len(matched_data)}",
+        ],
         [
             "Match Rate",
-            f"{matched_phenotype_count / total_phenotype:.1%}" if total_phenotype > 0 else "N/A",
+            f"{matched_phenotype_count / total_phenotype:.1%}"
+            if total_phenotype > 0
+            else "N/A",
             f"{len(matched_data) / total_sbs:.1%}" if total_sbs > 0 else "N/A",
         ],
     ]

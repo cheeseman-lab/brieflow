@@ -1311,11 +1311,18 @@ def create_tile_arrangement_qc_plot(
         title_parts = [f"{data_type.title()} Tile Arrangement QC"]
         if plate and well:
             title_parts.append(f"Plate {plate}, Well {well}")
-        ax.text(0.5, 0.5, f'No cells found', 
-                ha='center', va='center', transform=ax.transAxes, fontsize=14)
+        ax.text(
+            0.5,
+            0.5,
+            f"No cells found",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=14,
+        )
         ax.set_title(" - ".join(title_parts))
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close()
         return None
 
@@ -1325,7 +1332,7 @@ def create_tile_arrangement_qc_plot(
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-        
+
         # Create title
         title_parts = [f"{data_type.title()} Tile Arrangement QC"]
         if plate and well:
@@ -1379,10 +1386,10 @@ def create_tile_arrangement_qc_plot(
                 .agg({"stage_x": "first", "stage_y": "first"})
                 .reset_index()
             )
-            
+
             # Filter out NaN values
             tile_info = tile_info.dropna(subset=["stage_x", "stage_y"])
-            
+
             if len(tile_info) > 0:
                 ax2.scatter(tile_info["stage_x"], tile_info["stage_y"], s=50)
                 for _, row in tile_info.iterrows():
@@ -1395,11 +1402,23 @@ def create_tile_arrangement_qc_plot(
                 ax2.set_xlabel("Stage X (μm)")
                 ax2.set_ylabel("Stage Y (μm)")
             else:
-                ax2.text(0.5, 0.5, "No stage coordinates available", 
-                        ha="center", va="center", transform=ax2.transAxes)
+                ax2.text(
+                    0.5,
+                    0.5,
+                    "No stage coordinates available",
+                    ha="center",
+                    va="center",
+                    transform=ax2.transAxes,
+                )
         else:
-            ax2.text(0.5, 0.5, "No stage coordinates available", 
-                    ha="center", va="center", transform=ax2.transAxes)
+            ax2.text(
+                0.5,
+                0.5,
+                "No stage coordinates available",
+                ha="center",
+                va="center",
+                transform=ax2.transAxes,
+            )
         ax2.set_title("Tile Arrangement (Stage Coordinates)")
 
         # Plot 3: Cells per tile histogram
@@ -1418,22 +1437,36 @@ def create_tile_arrangement_qc_plot(
                 ax3.set_xlabel("Cells per Tile")
                 ax3.set_ylabel("Number of Tiles")
             else:
-                ax3.text(0.5, 0.5, "No tile data available", 
-                        ha="center", va="center", transform=ax3.transAxes)
+                ax3.text(
+                    0.5,
+                    0.5,
+                    "No tile data available",
+                    ha="center",
+                    va="center",
+                    transform=ax3.transAxes,
+                )
         else:
-            ax3.text(0.5, 0.5, "No tile column found", 
-                    ha="center", va="center", transform=ax3.transAxes)
+            ax3.text(
+                0.5,
+                0.5,
+                "No tile column found",
+                ha="center",
+                va="center",
+                transform=ax3.transAxes,
+            )
         ax3.set_title("Distribution of Cells per Original Tile")
 
         # Plot 4: Relative positions within original tiles (if available)
         ax4 = axes[1, 1]
-        if "tile_i" in cell_positions_df.columns and "tile_j" in cell_positions_df.columns:
+        if (
+            "tile_i" in cell_positions_df.columns
+            and "tile_j" in cell_positions_df.columns
+        ):
             # Filter out invalid relative positions
             valid_positions = cell_positions_df[
-                (cell_positions_df["tile_i"] >= 0) & 
-                (cell_positions_df["tile_j"] >= 0)
+                (cell_positions_df["tile_i"] >= 0) & (cell_positions_df["tile_j"] >= 0)
             ]
-            
+
             if len(valid_positions) > 0 and tile_column in valid_positions.columns:
                 ax4.scatter(
                     valid_positions["tile_j"],
@@ -1448,11 +1481,23 @@ def create_tile_arrangement_qc_plot(
                 ax4.set_ylabel("Tile-relative Y")
                 ax4.invert_yaxis()
             else:
-                ax4.text(0.5, 0.5, "No valid relative positions", 
-                        ha="center", va="center", transform=ax4.transAxes)
+                ax4.text(
+                    0.5,
+                    0.5,
+                    "No valid relative positions",
+                    ha="center",
+                    va="center",
+                    transform=ax4.transAxes,
+                )
         else:
-            ax4.text(0.5, 0.5, "No relative position data available", 
-                    ha="center", va="center", transform=ax4.transAxes)
+            ax4.text(
+                0.5,
+                0.5,
+                "No relative position data available",
+                ha="center",
+                va="center",
+                transform=ax4.transAxes,
+            )
         ax4.set_title("Relative Positions within Original Tiles")
 
         # Add summary statistics
@@ -1465,10 +1510,15 @@ def create_tile_arrangement_qc_plot(
             mean_cells_per_tile = 0
 
         stats_text = f"Total Cells: {total_cells:,}\nTiles: {unique_tiles}\nMean/Tile: {mean_cells_per_tile:.0f}"
-        
+
         # Add stats text to the figure
-        fig.text(0.02, 0.02, stats_text, fontsize=10, 
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+        fig.text(
+            0.02,
+            0.02,
+            stats_text,
+            fontsize=10,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+        )
 
         plt.tight_layout()
         plt.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -1484,10 +1534,17 @@ def create_tile_arrangement_qc_plot(
         title_parts = [f"{data_type.title()} Tile Arrangement QC"]
         if plate and well:
             title_parts.append(f"Plate {plate}, Well {well}")
-        ax.text(0.5, 0.5, f'Error creating plot: {str(e)}', 
-                ha='center', va='center', transform=ax.transAxes, fontsize=12)
+        ax.text(
+            0.5,
+            0.5,
+            f"Error creating plot: {str(e)}",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=12,
+        )
         ax.set_title(" - ".join(title_parts))
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close()
         return None

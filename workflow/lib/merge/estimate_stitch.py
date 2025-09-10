@@ -111,19 +111,26 @@ def estimate_stitch_sbs_coordinate_based(
 
     if len(y_shifts) > 1:
         # Calculate average pixel spacing more efficiently
-        pixel_coords = np.array([[y_shifts[i], x_shifts[i]] for i in range(len(y_shifts))])
+        pixel_coords = np.array(
+            [[y_shifts[i], x_shifts[i]] for i in range(len(y_shifts))]
+        )
         pixel_distances = pdist(pixel_coords)
-        
+
         if len(pixel_distances) > 0:
             # Calculate stage distances for the same pairs
             stage_distances = pdist(coords)
-            
+
             # Calculate pixel/stage ratios for verification
-            valid_ratios = pixel_distances[stage_distances > 0] / stage_distances[stage_distances > 0]
-            
+            valid_ratios = (
+                pixel_distances[stage_distances > 0]
+                / stage_distances[stage_distances > 0]
+            )
+
             if len(valid_ratios) > 0:
                 avg_pixel_spacing = np.mean(valid_ratios)
-                print(f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm")
+                print(
+                    f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm"
+                )
 
                 # Check for expected tile overlap using average spacing
                 expected_tile_spacing_pixels = actual_spacing * pixels_per_micron
@@ -135,7 +142,9 @@ def estimate_stitch_sbs_coordinate_based(
                     )
                     print(f"SBS tile overlap: {overlap_percent:.1f}%")
                     if overlap_percent < 0:
-                        print("⚠️  Warning: Negative overlap detected - tiles may have gaps")
+                        print(
+                            "⚠️  Warning: Negative overlap detected - tiles may have gaps"
+                        )
                     elif overlap_percent > 50:
                         print(
                             "⚠️  Warning: Very high overlap detected - may indicate scaling issues"
@@ -249,19 +258,26 @@ def estimate_stitch_phenotype_coordinate_based(
 
     if len(y_shifts) > 1:
         # Calculate average pixel spacing more efficiently
-        pixel_coords = np.array([[y_shifts[i], x_shifts[i]] for i in range(len(y_shifts))])
+        pixel_coords = np.array(
+            [[y_shifts[i], x_shifts[i]] for i in range(len(y_shifts))]
+        )
         pixel_distances = pdist(pixel_coords)
-        
+
         if len(pixel_distances) > 0:
             # Calculate stage distances for the same pairs
             stage_distances = pdist(coords)
-            
+
             # Calculate pixel/stage ratios for verification
-            valid_ratios = pixel_distances[stage_distances > 0] / stage_distances[stage_distances > 0]
-            
+            valid_ratios = (
+                pixel_distances[stage_distances > 0]
+                / stage_distances[stage_distances > 0]
+            )
+
             if len(valid_ratios) > 0:
                 avg_pixel_spacing = np.mean(valid_ratios)
-                print(f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm")
+                print(
+                    f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm"
+                )
 
                 # Check for expected tile overlap using average spacing
                 expected_tile_spacing_pixels = actual_spacing * pixels_per_micron
@@ -273,7 +289,9 @@ def estimate_stitch_phenotype_coordinate_based(
                     )
                     print(f"Phenotype tile overlap: {overlap_percent:.1f}%")
                     if overlap_percent < 0:
-                        print("⚠️  Warning: Negative overlap detected - tiles may have gaps")
+                        print(
+                            "⚠️  Warning: Negative overlap detected - tiles may have gaps"
+                        )
                     elif overlap_percent > 50:
                         print(
                             "⚠️  Warning: Very high overlap detected - may indicate scaling issues"

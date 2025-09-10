@@ -348,71 +348,121 @@ else:
                         "well": well,
                         "status": "success",
                         "distance_threshold_pixels": float(threshold),
-                        
                         # Input data metrics
                         "phenotype_cells_before_filtering": len(phenotype_scaled),
                         "sbs_cells_before_filtering": len(sbs_positions),
                         "phenotype_cells_after_filtering": len(phenotype_filtered),
                         "sbs_cells_after_filtering": len(sbs_filtered),
-                        
                         # Tile filtering metrics
                         "phenotype_tiles_removed": (
-                            len(phenotype_scaled["tile"].unique()) - len(phenotype_filtered["tile"].unique())
-                            if "tile" in phenotype_scaled.columns else 0
+                            len(phenotype_scaled["tile"].unique())
+                            - len(phenotype_filtered["tile"].unique())
+                            if "tile" in phenotype_scaled.columns
+                            else 0
                         ),
                         "sbs_tiles_removed": (
-                            len(sbs_positions["tile"].unique()) - len(sbs_filtered["tile"].unique())
-                            if "tile" in sbs_positions.columns else 0
+                            len(sbs_positions["tile"].unique())
+                            - len(sbs_filtered["tile"].unique())
+                            if "tile" in sbs_positions.columns
+                            else 0
                         ),
-                        
                         # Alignment information
                         "alignment_approach": str(alignment.get("approach", "unknown")),
-                        "alignment_transformation_type": str(alignment.get("transformation_type", "unknown")),
+                        "alignment_transformation_type": str(
+                            alignment.get("transformation_type", "unknown")
+                        ),
                         "alignment_score": float(alignment.get("score", 0)),
                         "alignment_determinant": float(alignment.get("determinant", 1)),
-                        
                         # Matching results
                         "raw_matches_found": len(final_matches),
-                        "mean_match_distance": float(final_matches["distance"].mean()) if len(final_matches) > 0 else 0.0,
-                        "max_match_distance": float(final_matches["distance"].max()) if len(final_matches) > 0 else 0.0,
-                        "matches_under_5px": int((final_matches["distance"] < 5).sum()) if len(final_matches) > 0 else 0,
-                        "matches_under_10px": int((final_matches["distance"] < 10).sum()) if len(final_matches) > 0 else 0,
-                        "match_rate_phenotype": float(len(final_matches) / len(phenotype_filtered)) if len(phenotype_filtered) > 0 else 0.0,
-                        "match_rate_sbs": float(len(final_matches) / len(sbs_filtered)) if len(sbs_filtered) > 0 else 0.0,
+                        "mean_match_distance": float(final_matches["distance"].mean())
+                        if len(final_matches) > 0
+                        else 0.0,
+                        "max_match_distance": float(final_matches["distance"].max())
+                        if len(final_matches) > 0
+                        else 0.0,
+                        "matches_under_5px": int((final_matches["distance"] < 5).sum())
+                        if len(final_matches) > 0
+                        else 0,
+                        "matches_under_10px": int(
+                            (final_matches["distance"] < 10).sum()
+                        )
+                        if len(final_matches) > 0
+                        else 0,
+                        "match_rate_phenotype": float(
+                            len(final_matches) / len(phenotype_filtered)
+                        )
+                        if len(phenotype_filtered) > 0
+                        else 0.0,
+                        "match_rate_sbs": float(len(final_matches) / len(sbs_filtered))
+                        if len(sbs_filtered) > 0
+                        else 0.0,
                     }
 
                     # Add validation results if available
                     if validation_results:
-                        summary_dict.update({
-                            "validation_status": validation_results.get("status", "unknown"),
-                            
-                            # Distance stats
-                            "validation_distance_mean": validation_results.get("distance_stats", {}).get("mean", 0),
-                            "validation_distance_median": validation_results.get("distance_stats", {}).get("median", 0),
-                            "validation_distance_max": validation_results.get("distance_stats", {}).get("max", 0),
-                            "validation_distance_std": validation_results.get("distance_stats", {}).get("std", 0),
-                            
-                            # Distance distribution
-                            "validation_distribution_under_1px": validation_results.get("distance_distribution", {}).get("under_1px", 0),
-                            "validation_distribution_under_2px": validation_results.get("distance_distribution", {}).get("under_2px", 0),
-                            "validation_distribution_under_5px": validation_results.get("distance_distribution", {}).get("under_5px", 0),
-                            "validation_distribution_under_10px": validation_results.get("distance_distribution", {}).get("under_10px", 0),
-                            "validation_distribution_over_20px": validation_results.get("distance_distribution", {}).get("over_20px", 0),
-                            
-                            # Quality flags
-                            "validation_quality_has_duplicates": validation_results.get("quality_flags", {}).get("has_duplicates", False),
-                            "validation_quality_has_large_distances": validation_results.get("quality_flags", {}).get("has_large_distances", False),
-                            "validation_quality_good_quality": validation_results.get("quality_flags", {}).get("good_quality", False),
-                            
-                            # Duplication info
-                            "validation_duplication_phenotype_duplicates": validation_results.get("duplication", {}).get("phenotype_duplicates", 0),
-                            "validation_duplication_sbs_duplicates": validation_results.get("duplication", {}).get("sbs_duplicates", 0),
-                            "validation_duplication_has_duplicates": validation_results.get("duplication", {}).get("has_duplicates", False),
-                        })
+                        summary_dict.update(
+                            {
+                                "validation_status": validation_results.get(
+                                    "status", "unknown"
+                                ),
+                                # Distance stats
+                                "validation_distance_mean": validation_results.get(
+                                    "distance_stats", {}
+                                ).get("mean", 0),
+                                "validation_distance_median": validation_results.get(
+                                    "distance_stats", {}
+                                ).get("median", 0),
+                                "validation_distance_max": validation_results.get(
+                                    "distance_stats", {}
+                                ).get("max", 0),
+                                "validation_distance_std": validation_results.get(
+                                    "distance_stats", {}
+                                ).get("std", 0),
+                                # Distance distribution
+                                "validation_distribution_under_1px": validation_results.get(
+                                    "distance_distribution", {}
+                                ).get("under_1px", 0),
+                                "validation_distribution_under_2px": validation_results.get(
+                                    "distance_distribution", {}
+                                ).get("under_2px", 0),
+                                "validation_distribution_under_5px": validation_results.get(
+                                    "distance_distribution", {}
+                                ).get("under_5px", 0),
+                                "validation_distribution_under_10px": validation_results.get(
+                                    "distance_distribution", {}
+                                ).get("under_10px", 0),
+                                "validation_distribution_over_20px": validation_results.get(
+                                    "distance_distribution", {}
+                                ).get("over_20px", 0),
+                                # Quality flags
+                                "validation_quality_has_duplicates": validation_results.get(
+                                    "quality_flags", {}
+                                ).get("has_duplicates", False),
+                                "validation_quality_has_large_distances": validation_results.get(
+                                    "quality_flags", {}
+                                ).get("has_large_distances", False),
+                                "validation_quality_good_quality": validation_results.get(
+                                    "quality_flags", {}
+                                ).get("good_quality", False),
+                                # Duplication info
+                                "validation_duplication_phenotype_duplicates": validation_results.get(
+                                    "duplication", {}
+                                ).get("phenotype_duplicates", 0),
+                                "validation_duplication_sbs_duplicates": validation_results.get(
+                                    "duplication", {}
+                                ).get("sbs_duplicates", 0),
+                                "validation_duplication_has_duplicates": validation_results.get(
+                                    "duplication", {}
+                                ).get("has_duplicates", False),
+                            }
+                        )
 
                     # Create single-row DataFrame
                     summary_df = pd.DataFrame([summary_dict])
-                    summary_df.to_csv(str(snakemake.output.merge_summary), sep="\t", index=False)
+                    summary_df.to_csv(
+                        str(snakemake.output.merge_summary), sep="\t", index=False
+                    )
 
                     print(f"✅ Completed successfully!")
                     print(

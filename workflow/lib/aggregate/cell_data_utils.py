@@ -84,6 +84,31 @@ def channel_combo_subset(features, channel_combo, all_channels):
 
     return features[columns_to_keep]
 
+def compartment_subset(features, compartments_to_include):
+    """Filter features to include only columns from specified compartments.
+
+    Args:
+        features (pd.DataFrame): DataFrame containing feature data.
+        compartments_to_include (list): List of compartment prefixes to include 
+            (e.g., ['nucleus', 'cell']).
+
+    Returns:
+        pd.DataFrame: DataFrame with features filtered to include only
+            columns from the specified compartments.
+    """
+    # Get all column names
+    columns = features.columns.tolist()
+    
+    # Find columns to keep (those starting with included compartment prefixes)
+    columns_to_keep = []
+    for col in columns:
+        for comp in compartments_to_include:
+            if col.startswith(comp + '_'):
+                columns_to_keep.append(col)
+                break
+    
+    return features[columns_to_keep]
+
 
 def get_feature_table_cols(feature_cols):
     """Filter feature columns based on specific tags and compartments.

@@ -24,7 +24,7 @@ rule split_datasets:
         map_wildcard_outputs(
             aggregate_wildcard_combos,
             AGGREGATE_OUTPUTS["split_datasets"][0],
-            ["cell_class", "channel_combo"],
+            ["cell_class", "channel_combo", "compartment_combo"],
         ),
     params:
         all_channels=config["phenotype"]["channel_names"],
@@ -32,6 +32,7 @@ rule split_datasets:
         classifier_path=config["aggregate"].get("classifier_path"),
         cell_classes=aggregate_wildcard_combos["cell_class"].unique(),
         channel_combos=aggregate_wildcard_combos["channel_combo"].unique(),
+        compartment_combos=config["aggregate"]["compartment_combos"],
     script:
         "../scripts/aggregate/split_datasets.py"
 
@@ -61,6 +62,7 @@ rule generate_feature_table:
             wildcards={
                 "cell_class": wildcards.cell_class,
                 "channel_combo": wildcards.channel_combo,
+                "compartment_combo": wildcards.compartment_combo,
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
@@ -125,7 +127,7 @@ rule eval_aggregate:
             AGGREGATE_OUTPUTS_MAPPED["split_datasets"],
             wildcards={
                 "cell_class": wildcards.cell_class,
-                "channel_combo": wildcards.channel_combo,
+                "channel_combo": wildcards.channel_combo,]"compartment_combo": wildcards.compartment_combo,
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
@@ -150,9 +152,8 @@ checkpoint prepare_montage_data:
             AGGREGATE_OUTPUTS["filter"],
             wildcards={
                 "cell_class": wildcards.cell_class,
-                "channel_combo": aggregate_wildcard_combos["channel_combo"].unique()[
-                    0
-                ],
+                "channel_combo": aggregate_wildcard_combos["channel_combo"].unique()[0],
+                "compartment_combo": wildcards.compartment_combo,
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,

@@ -4,7 +4,6 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 AGGREGATE_FP = ROOT_FP / "aggregate"
 
-# Define standard (non-montage) aggreagte outputs
 AGGREGATE_OUTPUTS = {
     "aggregate_cells_vacuoles": [
         AGGREGATE_FP / "parquets" / get_filename(
@@ -20,6 +19,7 @@ AGGREGATE_OUTPUTS = {
                 "well": "{well}",
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
+                "compartment_combo": "{compartment_combo}",
             },
             "merge_data",
             "parquet",
@@ -34,6 +34,7 @@ AGGREGATE_OUTPUTS = {
                 "well": "{well}",
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
+                "compartment_combo": "{compartment_combo}",
             },
             "filtered",
             "parquet",
@@ -43,7 +44,11 @@ AGGREGATE_OUTPUTS = {
         AGGREGATE_FP
         / "tsvs"
         / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            {
+                "cell_class": "{cell_class}", 
+                "channel_combo": "{channel_combo}",
+                "compartment_combo": "{compartment_combo}",
+            },
             "feature_table",
             "tsv",
         ),
@@ -52,7 +57,11 @@ AGGREGATE_OUTPUTS = {
         AGGREGATE_FP
         / "parquets"
         / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            {
+                "cell_class": "{cell_class}", 
+                "channel_combo": "{channel_combo}",
+                "compartment_combo": "{compartment_combo}",
+            },
             "aligned",
             "parquet",
         ),
@@ -61,7 +70,11 @@ AGGREGATE_OUTPUTS = {
         AGGREGATE_FP
         / "tsvs"
         / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            {
+                "cell_class": "{cell_class}", 
+                "channel_combo": "{channel_combo}",
+                "compartment_combo": "{compartment_combo}",
+            },
             "aggregated",
             "tsv",
         ),
@@ -70,21 +83,33 @@ AGGREGATE_OUTPUTS = {
         AGGREGATE_FP
         / "eval"
         / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            {
+                "cell_class": "{cell_class}", 
+                "channel_combo": "{channel_combo}",
+                "compartment_combo": "{compartment_combo}",
+            },
             "na_stats",
             "tsv",
         ),
         AGGREGATE_FP
         / "eval"
         / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            {
+                "cell_class": "{cell_class}", 
+                "channel_combo": "{channel_combo}",
+                "compartment_combo": "{compartment_combo}",
+            },
             "na_stats",
             "png",
         ),
         AGGREGATE_FP
         / "eval"
         / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            {
+                "cell_class": "{cell_class}", 
+                "channel_combo": "{channel_combo}",
+                "compartment_combo": "{compartment_combo}",
+            },
             "feature_distributions",
             "png",
         ),
@@ -119,10 +144,10 @@ AGGREGATE_TARGETS_ALL = outputs_to_targets(
 # Define montage outputs
 # These are special because we dynamically derive outputs
 MONTAGE_OUTPUTS = {
-    "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__montage_data",
+    "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__{compartment_combo}__montage_data",
     "montage_data": AGGREGATE_FP
     / "montages"
-    / "{cell_class}__montage_data"
+    / "{cell_class}__{compartment_combo}__montage_data"
     / get_filename(
         {"gene": "{gene}", "sgrna": "{sgrna}"},
         "montage_data",
@@ -130,7 +155,7 @@ MONTAGE_OUTPUTS = {
     ),
     "montage": AGGREGATE_FP
     / "montages"
-    / "{cell_class}__montages"
+    / "{cell_class}__{compartment_combo}__montages"
     / "{gene}"
     / "{sgrna}"
     / get_filename(
@@ -140,7 +165,7 @@ MONTAGE_OUTPUTS = {
     ),
     "montage_overlay": AGGREGATE_FP
     / "montages"
-    / "{cell_class}__montages"
+    / "{cell_class}__{compartment_combo}__montages"
     / "{gene}"
     / "{sgrna}"
     / get_filename(
@@ -148,10 +173,15 @@ MONTAGE_OUTPUTS = {
         "overlay_montage",
         "tiff",
     ),
-    "montage_flag": AGGREGATE_FP / "montages" / "{cell_class}__montages_complete.flag",
+    "montage_flag": AGGREGATE_FP / "montages" / "{cell_class}__{compartment_combo}__montages_complete.flag",
 }
 cell_classes = aggregate_wildcard_combos["cell_class"].unique()
-MONTAGE_TARGETS_ALL = [
-    str(MONTAGE_OUTPUTS["montage_flag"]).format(cell_class=cell_class)
-    for cell_class in cell_classes
-]
+compartment_combos = aggregate_wildcard_combos["compartment_combo"].unique()
+
+MONTAGE_TARGETS_ALL = []
+for cell_class in cell_classes:
+    for compartment_combo in compartment_combos:
+        target = str(MONTAGE_OUTPUTS["montage_flag"]).format(
+            cell_class=cell_class, compartment_combo=compartment_combo
+        )
+        MONTAGE_TARGETS_ALL.append(target)

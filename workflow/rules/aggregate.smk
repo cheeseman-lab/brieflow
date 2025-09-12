@@ -176,13 +176,17 @@ rule generate_montage:
         expand(
             str(MONTAGE_OUTPUTS["montage"]),
             cell_class="{cell_class}",
+            compartment_combo="{compartment_combo}",
             gene="{gene}",
             sgrna="{sgrna}",
             channel=config["phenotype"]["channel_names"],
         )
         + [
             str(MONTAGE_OUTPUTS["montage_overlay"]).format(
-                cell_class="{cell_class}", gene="{gene}", sgrna="{sgrna}"
+                cell_class="{cell_class}", 
+                compartment_combo="{compartment_combo}",
+                gene="{gene}", 
+                sgrna="{sgrna}"
             )
         ],
     params:
@@ -201,6 +205,7 @@ rule initiate_montage:
             MONTAGE_OUTPUTS["montage_overlay"],
             config["phenotype"]["channel_names"],
             wildcards.cell_class,
+            wildcards.compartment_combo,
         ),
     output:
         touch(MONTAGE_OUTPUTS["montage_flag"]),

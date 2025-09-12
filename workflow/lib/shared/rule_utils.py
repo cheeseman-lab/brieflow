@@ -217,6 +217,7 @@ def get_montage_inputs(
     montage_overlay_template,
     channels,
     cell_class,
+    compartment_combo,
 ):
     """Generate montage input file paths based on checkpoint data and output template.
 
@@ -226,13 +227,17 @@ def get_montage_inputs(
         montage_overlay_template (str): Template string for generating overlay file paths.
         channels (list): List of channels to include in the output file paths.
         cell_class (str): Cell class for which the montage is being generated.
+        compartment_combo (str): Compartment combination for which the montage is being generated.
 
     Returns:
         list: List of generated output file paths for each channel.
     """
     # Resolve the checkpoint output directory using .get()
     checkpoint_output = Path(
-        montage_data_checkpoint.get(cell_class=cell_class).output[0]
+        montage_data_checkpoint.get(
+            cell_class=cell_class, 
+            compartment_combo=compartment_combo
+        ).output[0]
     )
 
     # Get actual existing files
@@ -249,7 +254,11 @@ def get_montage_inputs(
         for channel in channels:
             # Generate the output file path using the template
             output_file = str(montage_output_template).format(
-                gene=gene, sgrna=sgrna, channel=channel, cell_class=cell_class
+                gene=gene, 
+                sgrna=sgrna, 
+                channel=channel, 
+                cell_class=cell_class,
+                compartment_combo=compartment_combo
             )
 
             # Append the output file path to the list
@@ -257,7 +266,10 @@ def get_montage_inputs(
 
     # Add the overlay file path
     overlay_file = str(montage_overlay_template).format(
-        gene=gene, sgrna=sgrna, cell_class=cell_class
+        gene=gene, 
+        sgrna=sgrna, 
+        cell_class=cell_class,
+        compartment_combo=compartment_combo
     )
     output_files.append(overlay_file)
 

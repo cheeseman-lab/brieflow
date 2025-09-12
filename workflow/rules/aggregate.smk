@@ -14,7 +14,7 @@ rule aggregate_cells_vacuoles:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
     script:
-        "../scripts/merge/aggregate_cells_vacuoles.py"
+        "../scripts/aggregate/aggregate_cells_vacuoles.py"
     
 
 rule split_datasets:

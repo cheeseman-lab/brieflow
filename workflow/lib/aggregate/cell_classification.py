@@ -54,7 +54,7 @@ class CellClassifier(ABC):
         """
         if filename is None:
             return None
-        
+
         with open(filename, "rb") as f:
             return dill.load(f)
 

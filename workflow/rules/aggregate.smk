@@ -87,6 +87,7 @@ rule align:
             wildcards={
                 "cell_class": wildcards.cell_class,
                 "channel_combo": wildcards.channel_combo,
+                "compartment_combo": wildcards.compartment_combo,
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
@@ -127,7 +128,8 @@ rule eval_aggregate:
             AGGREGATE_OUTPUTS_MAPPED["split_datasets"],
             wildcards={
                 "cell_class": wildcards.cell_class,
-                "channel_combo": wildcards.channel_combo,]"compartment_combo": wildcards.compartment_combo,
+                "channel_combo": wildcards.channel_combo,
+                "compartment_combo": wildcards.compartment_combo,
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,

@@ -29,8 +29,7 @@ feature_cols = [col for col in cell_data.schema.names if col not in metadata_col
 feature_cols = get_feature_table_cols(feature_cols)
 
 print(
-    f"Number of metadata columns: {len(metadata_cols)}"
-    f" | Number of feature columns: {len(feature_cols)}"
+    f"Number of metadata columns: {len(metadata_cols)} | Number of feature columns: {len(feature_cols)}"
 )
 
 # load cell data and convert numerical columns to float32

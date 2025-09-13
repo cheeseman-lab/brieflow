@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import random
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any, Optional, Union
 from scipy.stats import false_discovery_control
 
 
@@ -20,11 +20,14 @@ def get_construct_features(
     """Extract feature array for a specific construct.
 
     Args:
-        construct_id: Identifier for the construct.
-        construct_features_arr: Array containing all construct features.
+        construct_id (str): Identifier for the construct.
+        construct_features_arr (np.ndarray): Array containing all construct features.
 
     Returns:
-        Feature array for the specified construct (excluding ID column).
+        np.ndarray: Feature array for the specified construct (excluding ID column).
+
+    Raises:
+        ValueError: If the construct is not found in the features array.
     """
     indices = np.where(construct_features_arr[:, 0] == construct_id)[0]
     if len(indices) == 0:
@@ -34,9 +37,27 @@ def get_construct_features(
 
 
 def create_pseudogene_groups(
-    construct_features_df, pseudogene_patterns, perturbation_col, seed=42
-):
-    """Group constructs into pseudo-genes based on patterns."""
+    construct_features_df: pd.DataFrame,
+    pseudogene_patterns: Dict[str, Dict[str, Union[str, int]]],
+    perturbation_col: str,
+    seed: int = 42,
+) -> Tuple[List[Dict[str, Any]], pd.DataFrame]:
+    """Group constructs into pseudo-genes based on patterns.
+
+    Args:
+        construct_features_df (pd.DataFrame): DataFrame containing construct features.
+        pseudogene_patterns (Dict[str, Dict[str, Union[str, int]]]): Dictionary mapping
+            category names to pattern configurations. Each configuration should contain
+            'pattern' (str) and 'constructs_per_pseudogene' (int) keys.
+        perturbation_col (str): Name of the column containing perturbation identifiers.
+        seed (int, optional): Random seed for reproducible grouping. Defaults to 42.
+
+    Returns:
+        Tuple[List[Dict[str, Any]], pd.DataFrame]: A tuple containing:
+            - List of pseudo-gene group dictionaries with 'pseudogene_id', 'category',
+              and 'constructs' keys
+            - DataFrame of remaining individual constructs not grouped into pseudo-genes
+    """
     if not pseudogene_patterns:
         return [], construct_features_df
 
@@ -107,13 +128,21 @@ def create_pseudogene_groups(
 
 
 def write_construct_data(
-    construct_id,
-    construct_features_df,
-    perturbation_col,
-    perturbation_id_col,
-    output_dir,
-):
-    """Write construct data file for a single construct."""
+    construct_id: str,
+    construct_features_df: pd.DataFrame,
+    perturbation_col: str,
+    perturbation_id_col: str,
+    output_dir: Path,
+) -> None:
+    """Write construct data file for a single construct.
+
+    Args:
+        construct_id (str): Identifier for the construct.
+        construct_features_df (pd.DataFrame): DataFrame containing construct features.
+        perturbation_col (str): Name of the column containing perturbation/gene names.
+        perturbation_id_col (str): Name of the column containing perturbation IDs.
+        output_dir (Path): Directory where the construct data file will be saved.
+    """
     # Get the gene for this construct
     construct_row = construct_features_df[
         construct_features_df[perturbation_id_col] == construct_id
@@ -142,11 +171,12 @@ def run_single_bootstrap_simulation(
     """Run a single bootstrap simulation.
 
     Args:
-        controls_arr: Array of control data.
-        sample_size: Size of sample to draw.
+        controls_arr (np.ndarray): Array of control data where first column contains
+            identifiers and remaining columns contain features.
+        sample_size (int): Size of sample to draw for the simulation.
 
     Returns:
-        Median values from the simulation.
+        np.ndarray: Median values from the simulation across all features.
     """
     random_cell_idx = np.random.choice(controls_arr.shape[0], 1, replace=False)[0]
     control_id = controls_arr[random_cell_idx, 0]
@@ -169,11 +199,13 @@ def calculate_pvals(
     """Calculate two-tailed p-values from bootstrap null distribution.
 
     Args:
-        null_medians_arr: Array of null distribution medians from simulations.
-        observed_medians: Array of observed median values.
+        null_medians_arr (np.ndarray): Array of null distribution medians from
+            bootstrap simulations. Shape: (n_simulations, n_features).
+        observed_medians (np.ndarray): Array of observed median values for each feature.
+            Shape: (n_features,).
 
     Returns:
-        Array of two-tailed p-values.
+        np.ndarray: Array of two-tailed p-values for each feature.
     """
     # Calculate one-tailed p-values
     pvals_one_tail = (null_medians_arr > observed_medians).mean(axis=0)
@@ -195,16 +227,22 @@ def run_construct_bootstrap(
     """Run bootstrap analysis for a single construct.
 
     Args:
-        construct_id: Identifier for the construct to analyze.
-        construct_features_arr: Array containing all construct features.
-        controls_arr: Array of control data.
-        sample_size: Sample size for bootstrap simulations.
-        num_sims: Number of bootstrap simulations to run.
+        construct_id (str): Identifier for the construct to analyze.
+        construct_features_arr (np.ndarray): Array containing all construct features
+            where first column contains construct IDs and remaining columns contain features.
+        controls_arr (np.ndarray): Array of control data where first column contains
+            control IDs and remaining columns contain features.
+        sample_size (int): Sample size for each bootstrap simulation.
+        num_sims (int): Number of bootstrap simulations to run.
 
     Returns:
-        Tuple containing:
-        - null_medians_arr: Array of null distribution medians
-        - p_vals: Array of p-values for each feature
+        Tuple[np.ndarray, np.ndarray]: A tuple containing:
+            - null_medians_arr: Array of null distribution medians from all simulations.
+              Shape: (num_sims, n_features)
+            - p_vals: Array of p-values for each feature. Shape: (n_features,)
+
+    Raises:
+        ValueError: If bootstrap simulation fails due to constant values across simulations.
     """
     # Get observed medians for this construct
     observed_medians = get_construct_features(construct_id, construct_features_arr)
@@ -241,27 +279,31 @@ def load_construct_null_arrays(file_paths: List[str]) -> List[np.ndarray]:
     """Load multiple construct null distribution arrays.
 
     Args:
-        file_paths: List of paths to null distribution files.
+        file_paths (List[str]): List of file paths to null distribution numpy arrays.
 
     Returns:
-        List of loaded numpy arrays.
+        List[np.ndarray]: List of loaded numpy arrays containing null distributions.
     """
     return [np.load(path, allow_pickle=False) for path in file_paths]
 
 
-def apply_multiple_hypothesis_correction(df, feature_cols, min_p_value=None):
+def apply_multiple_hypothesis_correction(
+    df: pd.DataFrame, feature_cols: List[str], min_p_value: Optional[float] = None
+) -> pd.DataFrame:
     """Apply multiple hypothesis testing correction to p-values.
 
     Args:
-        df: DataFrame with p-values
-        feature_cols: List of columns containing p-values
-        min_p_value: Minimum detectable p-value (1/n_bootstrap_sims), or None to auto-detect
+        df (pd.DataFrame): DataFrame containing p-values to be corrected.
+        feature_cols (List[str]): List of column names containing p-values to correct.
+        min_p_value (Optional[float], optional): Minimum detectable p-value for FDR
+            correction. If None, will be auto-detected from 'num_sims' column or
+            default to 1e-5. Defaults to None.
 
     Returns:
-        DataFrame with additional columns:
-        - {feature}_pval: Original p-values (including 0s)
-        - {feature}_log10: -log10(p-values), with ceiling for p=0 cases
-        - {feature}_fdr: FDR-corrected p-values
+        pd.DataFrame: DataFrame with additional columns for each feature:
+            - {feature}_pval: Original p-values (including 0s)
+            - {feature}_log10: -log10(p-values), with ceiling for p=0 cases
+            - {feature}_fdr: FDR-corrected p-values using Benjamini-Hochberg method
     """
     print("Applying multiple hypothesis testing correction...")
 

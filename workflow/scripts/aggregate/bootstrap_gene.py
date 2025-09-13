@@ -64,10 +64,8 @@ print(f"Construct null array shapes: {[arr.shape for arr in construct_null_array
 print("Aggregating construct bootstrap results to gene level...")
 
 # Stack all construct null distributions and take median across constructs
-stacked_nulls = np.stack(
-    construct_null_arrays
-)  # (num_constructs, num_sims, num_features)
-gene_null_medians = np.median(stacked_nulls, axis=0)  # (num_sims, num_features)
+stacked_nulls = np.stack(construct_null_arrays)
+gene_null_medians = np.median(stacked_nulls, axis=0)
 
 # Calculate p-values
 p_vals = calculate_pvals(gene_null_medians, observed_gene_medians)

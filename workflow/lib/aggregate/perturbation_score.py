@@ -21,7 +21,7 @@ def calculate_perturbation_scores(
     gene: str,
     feature_cols: list[str],
     perturbation_col: str = "gene_symbol_0",
-    n_differential_features: int = 200,
+    n_differential_features: int = 100,
     minimum_cell_count: int = 100,
 ) -> tuple[pd.Series, float]:
     """Calculate per-cell perturbation scores via 5-fold out-of-fold logistic regression with top-k feature selection.

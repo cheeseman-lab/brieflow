@@ -33,6 +33,30 @@ print("Loading phenotype vacuoles data...")
 vacuoles_df = validate_dtypes(pd.read_parquet(phenotype_vacuoles_path))
 print(f"Loaded {len(vacuoles_df)} vacuoles from phenotype")
 
+print("Converting data types for consistent filtering...")
+
+# Convert plate columns to match parameter type
+if "plate" in cells_df.columns:
+    print(f"Original cells plate dtype: {cells_df['plate'].dtype}")
+    # Convert to same type as parameter (string)
+    cells_df['plate'] = cells_df['plate'].astype(str)
+    print(f"Converted cells plate dtype: {cells_df['plate'].dtype}")
+
+if "plate" in vacuoles_df.columns:
+    print(f"Original vacuoles plate dtype: {vacuoles_df['plate'].dtype}")
+    # Convert to same type as parameter (string)  
+    vacuoles_df['plate'] = vacuoles_df['plate'].astype(str)
+    print(f"Converted vacuoles plate dtype: {vacuoles_df['plate'].dtype}")
+
+# Ensure well columns are strings (they should already be, but be explicit)
+if "well" in cells_df.columns:
+    cells_df['well'] = cells_df['well'].astype(str)
+    
+if "well" in vacuoles_df.columns:
+    vacuoles_df['well'] = vacuoles_df['well'].astype(str)
+
+print(f"Parameter types: plate='{plate}' (type: {type(plate)}), well='{well}' (type: {type(well)})")
+
 # Validate required columns
 required_cells_cols = ["plate", "well", "tile", "cell_0"]
 required_vacuoles_cols = ["plate", "well", "tile", "cell_id"]
@@ -52,16 +76,27 @@ print(f"Vacuole data columns: {list(vacuoles_df.columns)}")
 
 # Filter data to current plate/well if needed
 if "plate" in cells_df.columns and "well" in cells_df.columns:
+    print(f"Filtering cells for plate='{plate}', well='{well}'")
+    cells_before = len(cells_df)
     cells_df = cells_df[
         (cells_df["plate"] == plate) & (cells_df["well"] == well)
     ].copy()
-    print(f"Filtered to {len(cells_df)} cells for plate {plate}, well {well}")
+    print(f"Filtered from {cells_before} to {len(cells_df)} cells for plate {plate}, well {well}")
 
 if "plate" in vacuoles_df.columns and "well" in vacuoles_df.columns:
+    print(f"Filtering vacuoles for plate='{plate}', well='{well}'")
+    vacuoles_before = len(vacuoles_df)
     vacuoles_df = vacuoles_df[
         (vacuoles_df["plate"] == plate) & (vacuoles_df["well"] == well)
     ].copy()
-    print(f"Filtered to {len(vacuoles_df)} vacuoles for plate {plate}, well {well}")
+    print(f"Filtered from {vacuoles_before} to {len(vacuoles_df)} vacuoles for plate {plate}, well {well}")
+
+# Check if we have any data after filtering
+if len(cells_df) == 0:
+    print("WARNING: No cells found after filtering!")
+    
+if len(vacuoles_df) == 0:
+    print("WARNING: No vacuoles found after filtering!")
 
 # Perform aggregation
 print(f"Aggregating data using strategy: {agg_strategy}")

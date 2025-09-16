@@ -28,6 +28,11 @@ def query_filter(metadata, features, queries):
     """
     if queries is None:
         return metadata, features
+    
+    # Check if we start with empty data
+    if len(metadata) == 0:
+        print("Warning: Starting with 0 cells, skipping query filters")
+        return metadata, features
 
     for q in queries:
         before = len(metadata)
@@ -38,6 +43,11 @@ def query_filter(metadata, features, queries):
         after = len(metadata_filtered)
         print(f"Query '{q}' filtered out {before - after} cells")
         metadata, features = metadata_filtered, features_filtered
+        
+        # Check if we've filtered out all cells
+        if len(metadata) == 0:
+            print(f"Warning: No cells remaining after query '{q}'")
+            break
 
     return metadata.reset_index(drop=True), features.reset_index(drop=True)
 
@@ -57,6 +67,11 @@ def perturbation_filter(
     Returns:
         tuple: (filtered_metadata, filtered_features)
     """
+    # Check if we start with empty data
+    if len(metadata) == 0:
+        print("Warning: No cells to filter for perturbations")
+        return metadata, features
+    
     # Get indices of cells with perturbation assignments
     valid_indices = metadata[metadata[perturbation_name_col].notna()].index
 
@@ -96,6 +111,11 @@ def missing_values_filter(
     Returns:
         tuple: (filtered_metadata, filtered_features)
     """
+    # Check if we start with empty data
+    if len(metadata) == 0 or len(features) == 0:
+        print("Warning: No cells to filter for missing values")
+        return metadata, features
+    
     # Get columns with missing values
     cols_with_na = features.columns[features.isna().any()].tolist()
 
@@ -133,6 +153,11 @@ def missing_values_filter(
         print(
             f"Dropped {original_row_count - features.shape[0]} rows with ≥{drop_rows_threshold * 100}% missing values"
         )
+        
+        # Check if we've filtered out all rows
+        if len(features) == 0:
+            print("Warning: No cells remaining after missing values filtering")
+            return metadata, features
 
     # Impute remaining missing values if requested
     if impute:
@@ -148,6 +173,15 @@ def missing_values_filter(
             has_na_mask = features[remaining_cols_with_na].isna().any(axis=1)
             na_rows_idx = features.index[has_na_mask]
             non_na_rows_idx = features.index[~has_na_mask]
+            
+            # Check if we have enough data for imputation
+            if len(non_na_rows_idx) == 0:
+                print("Warning: No complete rows available for imputation, skipping imputation")
+                return metadata, features
+            
+            if len(na_rows_idx) == 0:
+                print("No rows with missing values found for imputation")
+                return metadata, features
 
             np.random.seed(42)
             # Process NA rows in batches
@@ -167,8 +201,13 @@ def missing_values_filter(
                 # Combine sampled non-NA rows with current batch of NA rows
                 batch_idx = np.concatenate([batch_na_idx, sampled_non_na_idx])
 
+                # Check if we have enough samples for KNN (need at least k+1 samples)
+                if len(batch_idx) < 6:  # KNN uses 5 neighbors by default
+                    print(f"Warning: Not enough samples ({len(batch_idx)}) for KNN imputation, skipping batch")
+                    continue
+
                 # Perform KNN imputation on this batch
-                imputer = KNNImputer(n_neighbors=5)
+                imputer = KNNImputer(n_neighbors=min(5, len(batch_idx) - 1))
                 imputed_values = imputer.fit_transform(
                     features.loc[batch_idx, remaining_cols_with_na]
                 )
@@ -200,6 +239,16 @@ def intensity_filter(
     Returns:
         tuple: (filtered_metadata, filtered_features) DataFrames with outliers removed.
     """
+    # Check if we have any data to filter
+    if len(metadata) == 0 or len(features) == 0:
+        print("Warning: No cells available for intensity filtering")
+        return metadata, features
+    
+    # Check if channel_names is provided
+    if channel_names is None or len(channel_names) == 0:
+        print("Warning: No channel names provided for intensity filtering, skipping")
+        return metadata, features
+    
     # Identify feature cols
     feature_cols = features.columns.tolist()
 
@@ -209,14 +258,39 @@ def intensity_filter(
         for col in feature_cols
         if any(col.endswith(f"_{channel}_mean") for channel in channel_names)
     ]
+    
+    # Check if we found any intensity columns
+    if len(intensity_cols) == 0:
+        print(f"Warning: No intensity columns found for channels {channel_names}, skipping intensity filtering")
+        return metadata, features
+    
+    # Check if we have enough samples for LocalOutlierFactor
+    min_samples_needed = max(2, int(1 / contamination)) if contamination > 0 else 2
+    if len(features) < min_samples_needed:
+        print(f"Warning: Not enough samples ({len(features)}) for LocalOutlierFactor (need at least {min_samples_needed}), skipping intensity filtering")
+        return metadata, features
+    
+    # Check for any missing values in intensity columns
+    if features[intensity_cols].isna().any().any():
+        print("Warning: Missing values found in intensity columns, skipping intensity filtering")
+        return metadata, features
 
-    # Fit LocalOutlierFactor to intensity cols and get mask
-    mask = LocalOutlierFactor(
-        contamination=contamination,
-        n_jobs=-1,
-    ).fit_predict(features[intensity_cols])
+    try:
+        # Fit LocalOutlierFactor to intensity cols and get mask
+        mask = LocalOutlierFactor(
+            contamination=contamination,
+            n_jobs=-1,
+        ).fit_predict(features[intensity_cols])
 
-    # Return filtered cell data
-    return metadata[mask == 1].reset_index(drop=True), features[mask == 1].reset_index(
-        drop=True
-    )
+        # Count outliers detected
+        outliers_detected = (mask == -1).sum()
+        print(f"Intensity filtering detected {outliers_detected} outliers out of {len(features)} cells")
+
+        # Return filtered cell data
+        return metadata[mask == 1].reset_index(drop=True), features[mask == 1].reset_index(
+            drop=True
+        )
+    except Exception as e:
+        print(f"Error in intensity filtering: {e}")
+        print("Skipping intensity filtering and returning original data")
+        return metadata, features

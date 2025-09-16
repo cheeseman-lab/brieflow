@@ -146,6 +146,7 @@ def plot_feature_distributions(
         2,
         figsize=(16, 3 * len(original_feature_cols)),
         sharey=False,
+        squeeze=False,
     )
     fig.suptitle("Original vs Aligned Feature Distributions")
 

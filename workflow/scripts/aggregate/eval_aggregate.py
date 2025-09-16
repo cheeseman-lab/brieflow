@@ -39,13 +39,32 @@ aligned_data = aligned_data.to_pandas(use_threads=True, memory_pool=None)
 
 # determine original and aligned columns
 random.seed(42)
-merge_feature_cols = [
-    col for col in merge_data.columns if ("cell_" in col and col.endswith("_mean"))
-]
+for compartment_combo in snakemake.params.compartment_combos:
+    # Handle both single compartments and combinations
+    if isinstance(compartment_combo, list):
+        compartments = compartment_combo
+        combo_name = "_".join(compartment_combo)
+    else:
+        compartments = [compartment_combo]
+        combo_name = compartment_combo
+   
+    merge_feature_cols = []
+    for compartment in compartments:
+        # Get all columns for this specific compartment that end with "_mean"
+        compartment_pattern = f"{compartment}_"
+        compartment_cols = [
+            col for col in merge_data.columns 
+            if col.startswith(compartment_pattern) and col.endswith("_mean")
+        ]
+        merge_feature_cols.extend(compartment_cols)
 pc_cols = [col for col in aligned_data.columns if col.startswith("PC_")]
 aligned_feature_cols = random.sample(
     pc_cols, k=min(len(merge_feature_cols), len(pc_cols))
 )
+
+print(f"Processing compartment combination: {combo_name}")
+print(f"Found {len(merge_feature_cols)} feature columns")
+print(f"Selected {len(aligned_feature_cols)} aligned feature columns")
 
 # Evaluate feature distributions
 feature_distributions_fig = plot_feature_distributions(

@@ -10,7 +10,7 @@ rule aggregate_cells_vacuoles:
     output:
         aggregated_data=AGGREGATE_OUTPUTS["aggregate_cells_vacuoles"][0],
     params:
-        strategy=config["aggregate"]["agg_strategy"],
+        agg_strategy=config["aggregate"]["agg_strategy"],
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: wildcards.well,
     script:
@@ -74,6 +74,7 @@ rule generate_feature_table:
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
+        classifier_path=config["aggregate"].get("classifier_path"),
         batch_cols=config["aggregate"]["batch_cols"],
         batches=10,
     script:
@@ -136,6 +137,8 @@ rule eval_aggregate:
         ),
     output:
         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
+    params:
+        compartment_combos=config["aggregate"]["compartment_combos"],
     script:
         "../scripts/aggregate/eval_aggregate.py"
 

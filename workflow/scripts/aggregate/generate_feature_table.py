@@ -18,9 +18,13 @@ control_key = snakemake.params.control_key
 print("Loading cell data")
 cell_data = ds.dataset(snakemake.input.filtered_paths, format="parquet")
 
+# If classifier was applied, include columns in metadata
+classifier_path = snakemake.params.get("classifier_path")
+include_classification_cols = classifier_path is not None
+
 # determine cols
 cell_data_cols = cell_data.schema.names
-metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, True)
+metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, include_classification_cols)
 feature_cols = [col for col in cell_data.schema.names if col not in metadata_cols]
 feature_cols = get_feature_table_cols(feature_cols)
 

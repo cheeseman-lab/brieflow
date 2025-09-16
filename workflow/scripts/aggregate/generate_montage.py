@@ -9,8 +9,18 @@ from lib.aggregate.montage_utils import create_cell_montage
 # read cell data
 montage_data = pd.read_csv(snakemake.input[0], sep="\t")
 
+# Get coordinate column names from config (if needed by create_cell_montage)
+i_col = snakemake.params.get("i_col", "i_0")
+j_col = snakemake.params.get("j_col", "j_0")
+
 # create cell montage
-montage = create_cell_montage(montage_data, snakemake.params.channels, cell_size=100)
+montage = create_cell_montage(
+    montage_data, 
+    snakemake.params.channels, 
+    cell_size=100,
+    i_col=i_col,  # Pass coordinate columns if create_cell_montage supports them
+    j_col=j_col
+)
 
 # save montages
 overlay = []

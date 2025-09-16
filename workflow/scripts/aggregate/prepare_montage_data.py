@@ -12,6 +12,10 @@ from lib.shared.file_utils import get_filename
 output_dir = Path(snakemake.output[0])
 output_dir.mkdir(parents=True, exist_ok=True)
 
+# Get coordinate column names from config
+i_col = snakemake.params.i_col
+j_col = snakemake.params.j_col
+
 # Load cell data
 montage_columns = [
     "gene_symbol_0",
@@ -19,8 +23,8 @@ montage_columns = [
     "plate",
     "well",
     "tile",
-    "i_0",
-    "j_0",
+    i_col,
+    j_col,
 ]
 
 cell_data = ds.dataset(snakemake.input, format="parquet")

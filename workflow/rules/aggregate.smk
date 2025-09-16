@@ -167,6 +167,8 @@ checkpoint prepare_montage_data:
         directory(MONTAGE_OUTPUTS["montage_data_dir"]),
     params:
         root_fp=config["all"]["root_fp"],
+        i_col=config["aggregate"]["i_col"],
+        j_col=config["aggregate"]["j_col"],
     script:
         "../scripts/aggregate/prepare_montage_data.py"
 
@@ -194,6 +196,8 @@ rule generate_montage:
         ],
     params:
         channels=config["phenotype"]["channel_names"],
+        i_col=config["aggregate"]["i_col"],
+        j_col=config["aggregate"]["j_col"],
     script:
         "../scripts/aggregate/generate_montage.py"
 

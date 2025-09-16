@@ -96,6 +96,7 @@ def plot_mapping_vs_threshold(
             x=f"{threshold_var}_threshold",
             y="mapping_rate",
             ax=ax,
+            color="dodgerblue",
             **kwargs,
         )
 
@@ -122,12 +123,12 @@ def plot_mapping_vs_threshold(
         )
 
         # Labels and titles
-        ax.set_ylabel("Fraction of Reads\nMatching Expected Barcodes", fontsize=12)
+        ax.set_ylabel("Fraction of Reads\nMatching Expected Barcodes", fontsize=12, color="dodgerblue")
         ax.set_xlabel(
             f"{threshold_var.replace('_', ' ').title()} Threshold Cutoff", fontsize=12
         )
         ax.set_title(f"Read Mapping Quality vs Threshold\n({title})", fontsize=14)
-        ax_right.set_ylabel("Number of Mapped Features", fontsize=12)
+        ax_right.set_ylabel("Number of Mapped Features", fontsize=12, color="coral")
 
     # Create shared legend below plots
     legend_elements = [

@@ -73,13 +73,14 @@ metadata, features = prepare_alignment_data(
 
 features = features.astype(np.float32)
 
-# Modify pert col for nontargeting entries by appending pert id value
-control_ind = metadata[pert_col].str.startswith(control_key).to_list()
-metadata.loc[control_ind, pert_col] = (
-    metadata.loc[control_ind, pert_col]
-    + "_"
-    + metadata.loc[control_ind, snakemake.params.perturbation_id_col]
-)
+# Modify pert col for nontargeting entries by appending pert id value.
+if snakemake.params.perturbation_id_col is not None:
+    control_ind = metadata[pert_col].str.startswith(control_key).to_list()
+    metadata.loc[control_ind, pert_col] = (
+        metadata.loc[control_ind, pert_col]
+        + "_"
+        + metadata.loc[control_ind, snakemake.params.perturbation_id_col]
+    )
 
 # centerscale features on controls
 features = centerscale_on_controls(

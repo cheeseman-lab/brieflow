@@ -15,5 +15,20 @@ merged_final = merge_deduplicated.merge(
     on=["plate", "well", "tile", "cell_0"],
 )
 
+# Rename coordinate columns to global naming convention
+coordinate_rename_map = {
+    "i_0": "global_i_0",
+    "j_0": "global_j_0", 
+    "i_1": "global_i_1",
+    "j_1": "global_j_1"
+}
+
+# Only rename columns that exist in the dataframe
+existing_columns = merged_final.columns.tolist()
+rename_map = {old: new for old, new in coordinate_rename_map.items() if old in existing_columns}
+
+if rename_map:
+    merged_final = merged_final.rename(columns=rename_map)
+
 # Save final merged dataset
 merged_final.to_parquet(snakemake.output[0])

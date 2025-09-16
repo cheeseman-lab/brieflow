@@ -205,7 +205,7 @@ def display_matched_and_unmatched_cells_for_site(
     root_path = Path(root_fp)
     merge_fp = root_path / "merge"
 
-    merged_cells_path = merge_fp / "parquets" / f"P-{plate}_W-{well}__merge.parquet"
+    merged_cells_path = merge_fp / "parquets" / f"P-{plate}_W-{well}__merge_final.parquet"
     phenotype_transformed_path = (
         merge_fp
         / "well_alignment"
@@ -363,7 +363,7 @@ def create_enhanced_match_visualization(
     """Create enhanced visualization showing matched and unmatched cells.
 
     Args:
-        matched_data (pd.DataFrame): Matched cell data with columns: i_0, j_0, i_1, j_1, distance
+        matched_data (pd.DataFrame): Matched cell data with columns: global_i_0, global_j_0, global_i_1, global_j_1, distance
         site_phenotype (pd.DataFrame): Raw phenotype cells with columns: i, j
         site_sbs (pd.DataFrame): Raw SBS cells with columns: i, j
         unmatched_phenotype (pd.DataFrame): Unmatched phenotype cells
@@ -373,6 +373,12 @@ def create_enhanced_match_visualization(
     """
     import matplotlib.pyplot as plt
     import numpy as np
+
+    # Check which coordinate column names exist in matched_data
+    i_0_col = "global_i_0" if "global_i_0" in matched_data.columns else "i_0"
+    j_0_col = "global_j_0" if "global_j_0" in matched_data.columns else "j_0"
+    i_1_col = "global_i_1" if "global_i_1" in matched_data.columns else "i_1"
+    j_1_col = "global_j_1" if "global_j_1" in matched_data.columns else "j_1"
 
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
     fig.suptitle(f"Cell Matching Analysis - Site: {site}", fontsize=16)
@@ -460,8 +466,8 @@ def create_enhanced_match_visualization(
         # Draw lines connecting matched pairs
         for _, row in sample_matched.iterrows():
             ax2.plot(
-                [row["j_0"], row["j_1"]],
-                [row["i_0"], row["i_1"]],
+                [row[j_0_col], row[j_1_col]],
+                [row[i_0_col], row[i_1_col]],
                 "k-",
                 alpha=0.8,
                 linewidth=1,
@@ -469,8 +475,8 @@ def create_enhanced_match_visualization(
 
         # Plot matched SBS positions
         ax2.scatter(
-            sample_matched["j_1"],
-            sample_matched["i_1"],
+            sample_matched[j_1_col],
+            sample_matched[i_1_col],
             c="lightblue",
             s=20,
             alpha=0.8,
@@ -479,8 +485,8 @@ def create_enhanced_match_visualization(
 
         # Plot matched phenotype positions
         scatter_ph = ax2.scatter(
-            sample_matched["j_0"],
-            sample_matched["i_0"],
+            sample_matched[j_0_col],
+            sample_matched[i_0_col],
             c=sample_matched["distance"],
             s=20,
             alpha=0.8,

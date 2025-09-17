@@ -111,53 +111,75 @@ def compartment_subset(features, compartment_combos):
     return features[columns_to_keep]
 
 
-def get_feature_table_cols(feature_cols):
+def get_feature_table_cols(feature_cols, compartment_combos=None):
     """Filter feature columns based on specific tags and compartments.
 
     Args:
         feature_cols (list): List of feature column names.
+        compartment_combos (list, optional): List of compartment prefixes to include
+            (e.g., ['nucleus', 'cell', 'vacuole']). Defaults to ['nucleus', 'cell'].
 
     Returns:
         list: Filtered list of feature column names.
     """
-    # Define the specific tags to look for
-    intensity_tags = [
-        "mean",
-        "int",
-        "mass_displacement",
-        "mean_edge",
-        "std_edge",
-        "mean_frac_0",
-        "mean_frac_3",
-    ]
-    shape_tags = ["area", "solidity", "form_factor", "eccentricity"]
-    overlap_tags = ["manders"]
-
-    # Define the specific compartments to look for
-    compartments = ["nucleus", "cell"]
+    # Default to nucleus and cell if no compartments specified
+    if compartment_combos is None:
+        compartment_combos = ["nucleus", "cell"]
+    
+    # Define compartment-specific tags
+    compartment_tags = {
+        "nucleus": {
+            "intensity": ["mean", "int", "mass_displacement", "mean_edge", "std_edge", "mean_frac_0", "mean_frac_3"],
+            "shape": ["area", "solidity", "form_factor", "eccentricity"],
+            "overlap": ["manders"]
+        },
+        "cell": {
+            "intensity": ["mean", "int", "mass_displacement", "mean_edge", "std_edge", "mean_frac_0", "mean_frac_3"],
+            "shape": ["area", "solidity", "form_factor", "eccentricity"],
+            "overlap": ["manders"]
+        },
+        "vacuole": {
+            "intensity": ["mean"],
+            "shape": ["area", "diameter"],
+            "distance": ["distance_to_nucleus"]
+        }
+    }
 
     # Initialize lists to store columns for each feature type
     intensity_cols = []
     shape_cols = []
     overlap_cols = []
+    distance_cols = []  # New category for vacuole distance measurements
 
     # Filter columns based on compartments and tags
     for col in feature_cols:
-        # Only include columns for nucleus or cell compartments
-        if any(compartment in col for compartment in compartments):
-            # Intensity features - must be at END of string
-            if any(col.lower().endswith(tag) for tag in intensity_tags):
-                intensity_cols.append(col)
+        # Check if column belongs to any of the specified compartments
+        for compartment in compartment_combos:
+            if col.startswith(f"{compartment}_"):
+                # Get tags for this compartment
+                tags = compartment_tags.get(compartment, {})
+                
+                # Check intensity features - must be at END of string
+                if any(col.lower().endswith(tag) for tag in tags.get("intensity", [])):
+                    intensity_cols.append(col)
+                    break
+                
+                # Check shape features - must be at END of string
+                elif any(col.lower().endswith(tag) for tag in tags.get("shape", [])):
+                    shape_cols.append(col)
+                    break
+                
+                # Check overlap features - can be anywhere in string
+                elif any(tag in col.lower() for tag in tags.get("overlap", [])):
+                    overlap_cols.append(col)
+                    break
+                
+                # Check distance features - can be anywhere in string
+                elif any(tag in col.lower() for tag in tags.get("distance", [])):
+                    distance_cols.append(col)
+                    break
 
-            # Shape features - must be at END of string
-            elif any(col.lower().endswith(tag) for tag in shape_tags):
-                shape_cols.append(col)
-
-            # Overlap features - can be anywhere in string
-            elif any(tag in col.lower() for tag in overlap_tags):
-                overlap_cols.append(col)
-
-    # Create a new DataFrame with selected columns, preserving the label column if it exists
+    # Create a new list with selected columns, preserving the label column if it exists
     selected_columns = []
     if "label" in feature_cols:
         selected_columns.append("label")
@@ -166,5 +188,6 @@ def get_feature_table_cols(feature_cols):
     selected_columns.extend(intensity_cols)
     selected_columns.extend(shape_cols)
     selected_columns.extend(overlap_cols)
+    selected_columns.extend(distance_cols)
 
     return selected_columns

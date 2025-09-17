@@ -26,24 +26,21 @@ include_classification_cols = classifier_path is not None
 cell_data_cols = cell_data.schema.names
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, include_classification_cols)
 feature_cols = [col for col in cell_data.schema.names if col not in metadata_cols]
-feature_cols = get_feature_table_cols(feature_cols)
 
-# Define vacuole-specific columns to include
-vacuole_cols = [
-    "num_vacuoles",
-    "total_vacuole_area",
-    "vacuole_area_ratio",
-    "mean_vacuole_diameter",
-    "mean_distance_to_nucleus",
-]
+# Get compartment combo from wildcards (should be something like "vacuole")
+compartment_combo = snakemake.wildcards.compartment_combo
+compartment_combos = compartment_combo.split("_") if compartment_combo else None
 
-# Add vacuole columns to feature_cols if they exist in the data
-available_vacuole_cols = [col for col in vacuole_cols if col in cell_data_cols]
-if available_vacuole_cols:
-    feature_cols.extend(available_vacuole_cols)
-    print(f"Added vacuole columns: {available_vacuole_cols}")
+print(f"Processing compartment combo: {compartment_combos}")
+
+# Filter feature columns based on compartments
+feature_cols = get_feature_table_cols(feature_cols, compartment_combos)
+
+print(f"Selected {len(feature_cols)} feature columns for compartments {compartment_combos}")
+if feature_cols:
+    print(f"Feature columns: {feature_cols}")
 else:
-    print("Warning: No vacuole columns found in the dataset")
+    print("Warning: No feature columns found matching the specified compartments and tags")
 
 # load cell data and convert numerical columns to float32
 cell_data = cell_data.to_table(
@@ -72,15 +69,6 @@ metadata, features = prepare_alignment_data(
 )
 
 features = features.astype(np.float32)
-
-# Modify pert col for nontargeting entries by appending pert id value.
-if snakemake.params.perturbation_id_col is not None:
-    control_ind = metadata[pert_col].str.startswith(control_key).to_list()
-    metadata.loc[control_ind, pert_col] = (
-        metadata.loc[control_ind, pert_col]
-        + "_"
-        + metadata.loc[control_ind, snakemake.params.perturbation_id_col]
-    )
 
 # centerscale features on controls
 features = centerscale_on_controls(

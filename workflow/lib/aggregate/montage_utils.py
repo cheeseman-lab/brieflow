@@ -64,6 +64,8 @@ def create_cell_montage(
     shape=(3, 10),
     selection_params={"method": "head"},
     coordinate_cols=None,
+    i_col="i_0",
+    j_col="j_0",
 ):
     """Create a montage of cells from DataFrame with flexible parameters.
 
@@ -80,11 +82,16 @@ def create_cell_montage(
                 'ascending': True/False if method='sorted'
             }
         coordinate_cols (list): Names of coordinate columns for bounds, defaults to ['i_0', 'j_0'].
+        i_col (str): Name of i coordinate column (alternative to coordinate_cols).
+        j_col (str): Name of j coordinate column (alternative to coordinate_cols).
 
     Returns:
         dict: Dictionary mapping channels to their montage arrays.
     """
-    if coordinate_cols is None:
+    # Handle coordinate column specification - prioritize i_col/j_col if provided
+    if i_col is not None and j_col is not None:
+        coordinate_cols = [i_col, j_col]
+    elif coordinate_cols is None:
         coordinate_cols = ["i_0", "j_0"]
 
     if selection_params is None:

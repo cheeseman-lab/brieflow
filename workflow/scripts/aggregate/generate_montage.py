@@ -18,7 +18,7 @@ montage = create_cell_montage(
     montage_data, 
     snakemake.params.channels, 
     cell_size=100,
-    i_col=i_col,  # Pass coordinate columns if create_cell_montage supports them
+    i_col=i_col,
     j_col=j_col
 )
 

@@ -13,7 +13,7 @@ from scipy import linalg
 
 
 def prepare_alignment_data(
-    metadata, features, batch_cols, pert_col, control_key, pert_id_col
+    metadata, features, batch_cols
 ):
     """Prepare batch values and split metadata and feature DataFrames.
 
@@ -21,9 +21,6 @@ def prepare_alignment_data(
         metadata (pd.DataFrame): Input DataFrame containing metadata.
         features (pd.DataFrame): DataFrame containing feature data.
         batch_cols (list): List of column names used to generate batch values.
-        pert_col (str): Column name representing perturbation labels.
-        control_key (str): Key for identifying control samples in the metadata.
-        pert_id_col (str): Column name for perturbation IDs.
 
     Returns:
         tuple: metadata (pd.DataFrame), features (numpy.ndarray)
@@ -37,13 +34,6 @@ def prepare_alignment_data(
 
     # Add batch values to metadata
     metadata["batch_values"] = batch_values
-
-    # Add unique number suffix to perturbation names based on pert_id_col
-    if control_key is not None and pert_col is not None and pert_id_col is not None:
-        control_mask = metadata[pert_col] == control_key
-        metadata.loc[control_mask, pert_col] = (
-            control_key + "_" + metadata.loc[control_mask, pert_id_col].astype(str)
-        )
 
     # Extract feature data
     features = features.to_numpy()

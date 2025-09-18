@@ -83,9 +83,6 @@ for i, indices in enumerate(subset_indices):
         metadata,
         features,
         snakemake.params.batch_cols,
-        snakemake.params.perturbation_name_col,
-        snakemake.params.control_key,
-        snakemake.params.perturbation_id_col,
     )
 
     features = centerscale_by_batch(features, metadata, "batch_values")
@@ -95,7 +92,7 @@ for i, indices in enumerate(subset_indices):
     features = tvn_on_controls(
         features,
         metadata,
-        snakemake.params.perturbation_name_col,
+        snakemake.params.perturbation_id_col,
         snakemake.params.control_key,
         "batch_values",
     )

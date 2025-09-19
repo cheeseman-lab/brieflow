@@ -22,6 +22,10 @@ fast_alignment_filtered = fast_alignment[
     & (fast_alignment["score"] > snakemake.params.score)
 ]
 
+print(f"Original tile-by-tile merge approach")
+print(f"Total alignments: {len(fast_alignment)}")
+print(f"Filtered alignments: {len(fast_alignment_filtered)}")
+
 # Merge cells across well
 merge_data = []
 for index, alignment_row in fast_alignment_filtered.iterrows():
@@ -44,4 +48,6 @@ for index, alignment_row in fast_alignment_filtered.iterrows():
 
 # Compile and save merge data
 merge_data = pd.concat(merge_data, ignore_index=True)
+print(f"Legacy merge completed: {len(merge_data)} cells merged")
+
 merge_data.to_parquet(snakemake.output[0])

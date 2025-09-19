@@ -16,7 +16,7 @@ rule estimate_stitch_phenotype:
         rot90=config.get("merge", {}).get("rot90", 0),
         data_type="phenotype",
     script:
-        "../scripts/merge/estimate_stitch_phenotype.py"
+        "../scripts/merge/estimate_stitch.py"
 
 
 rule estimate_stitch_sbs:
@@ -34,7 +34,7 @@ rule estimate_stitch_sbs:
         # SBS-specific params
         sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
     script:
-        "../scripts/merge/estimate_stitch_sbs.py"
+        "../scripts/merge/estimate_stitch.py"
 
 
 rule stitch_phenotype_well:

@@ -14,15 +14,16 @@ from typing import Dict
 from scipy.spatial.distance import pdist
 
 
-def estimate_stitch_sbs_coordinate_based(
+def estimate_stitch_coordinate_based(
     metadata_df: pd.DataFrame,
     well: str,
+    data_type: str,
 ) -> Dict[str, Dict]:
-    """Estimate stitching positions for SBS tiles using coordinate-based approach.
+    """Estimate stitching positions using coordinate-based approach.
 
     This function converts stage coordinates (in micrometers) to pixel coordinates
-    for image stitching. It uses either metadata pixel size or fallback SBS
-    specifications to ensure accurate scaling.
+    for image stitching. It uses either metadata pixel size or fallback specifications
+    to ensure accurate scaling.
 
     Args:
         metadata_df: DataFrame containing tile metadata with columns:
@@ -31,33 +32,49 @@ def estimate_stitch_sbs_coordinate_based(
             - tile: Tile identifier
             - pixel_size_x, pixel_size_y: Optional pixel sizes in μm/pixel
         well: Well identifier to process
+        data_type: Data type ("sbs" or "phenotype") to determine specifications
 
     Returns:
         Dictionary containing:
             - total_translation: Dict mapping tile IDs to [y_pixel, x_pixel] positions
             - confidence: Dict with confidence scores for each position
-
-    Note:
-        SBS specifications: 1560 μm field of view, 1200x1200 pixel tiles
     """
+    # Data type specifications
+    specs = {
+        "sbs": {
+            "tile_size": (1200, 1200),
+            "field_of_view_um": 1560.0,
+            "display_name": "SBS"
+        },
+        "phenotype": {
+            "tile_size": (2400, 2400), 
+            "field_of_view_um": 260.0,
+            "display_name": "Phenotype"
+        }
+    }
+    
+    spec = specs[data_type]
+    tile_size = spec["tile_size"]
+    field_of_view_um = spec["field_of_view_um"]
+    display_name = spec["display_name"]
+    
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
 
     if len(well_metadata) == 0:
-        print(f"No SBS tiles found for well {well}")
+        print(f"No {display_name} tiles found for well {well}")
         return {"total_translation": {}, "confidence": {well: {}}}
 
     coords = well_metadata[["x_pos", "y_pos"]].values
     tile_ids = well_metadata["tile"].values
-    tile_size = (1200, 1200)  # SBS tile size in pixels
 
-    print(f"Creating coordinate-based SBS stitch config for {len(tile_ids)} tiles")
+    print(f"Creating coordinate-based {display_name} stitch config for {len(tile_ids)} tiles")
 
     # Detect actual spacing between adjacent tiles
     distances = pdist(coords)
     actual_spacing = np.percentile(distances[distances > 0], 10)  # 10th percentile
 
-    print(f"SBS detected spacing: {actual_spacing:.1f} μm")
-    print(f"SBS tile size: {tile_size} pixels")
+    print(f"{display_name} detected spacing: {actual_spacing:.1f} μm")
+    print(f"{display_name} tile size: {tile_size} pixels")
 
     # Determine pixel scaling from metadata or use fallback values
     if (
@@ -67,8 +84,8 @@ def estimate_stitch_sbs_coordinate_based(
         # Use pixel size from metadata (in μm per pixel)
         pixel_size_um = well_metadata["pixel_size_x"].iloc[0]  # μm per pixel
         pixels_per_micron = 1.0 / pixel_size_um  # pixels per μm
-        print(f"SBS pixel size from metadata: {pixel_size_um:.6f} μm/pixel")
-        print(f"SBS pixels per micron: {pixels_per_micron:.4f}")
+        print(f"{display_name} pixel size from metadata: {pixel_size_um:.6f} μm/pixel")
+        print(f"{display_name} pixels per micron: {pixels_per_micron:.4f}")
 
         # Verify pixel_size_y matches pixel_size_x
         pixel_size_y = well_metadata["pixel_size_y"].iloc[0]
@@ -80,11 +97,10 @@ def estimate_stitch_sbs_coordinate_based(
         print(
             "⚠️  pixel_size_x/y not found in metadata, falling back to calculated values"
         )
-        # Fallback: SBS specs: 1560 μm field of view, 1200 pixels -> 0.7692 pixels/μm
-        sbs_field_of_view_um = 1560.0  # μm
-        pixels_per_micron = tile_size[0] / sbs_field_of_view_um
-        print(f"SBS fallback - field of view: {sbs_field_of_view_um} μm")
-        print(f"SBS fallback - pixels per micron: {pixels_per_micron:.4f}")
+        # Fallback: use specs
+        pixels_per_micron = tile_size[0] / field_of_view_um
+        print(f"{display_name} fallback - field of view: {field_of_view_um} μm")
+        print(f"{display_name} fallback - pixels per micron: {pixels_per_micron:.4f}")
 
     x_min, y_min = coords.min(axis=0)
 
@@ -103,7 +119,7 @@ def estimate_stitch_sbs_coordinate_based(
         # High confidence since using direct coordinates
         confidence[f"coord_{i}"] = [[pixel_y, pixel_x], [pixel_y, pixel_x], 0.9]
 
-    print(f"Generated {len(total_translation)} SBS coordinate-based positions")
+    print(f"Generated {len(total_translation)} {display_name} coordinate-based positions")
 
     # OPTIMIZED verification section - avoid O(n²) loops
     y_shifts = [shift[0] for shift in total_translation.values()]
@@ -140,7 +156,7 @@ def estimate_stitch_sbs_coordinate_based(
                     overlap_percent = (
                         (tile_size[0] - actual_avg_spacing) / tile_size[0] * 100
                     )
-                    print(f"SBS tile overlap: {overlap_percent:.1f}%")
+                    print(f"{display_name} tile overlap: {overlap_percent:.1f}%")
                     if overlap_percent < 0:
                         print(
                             "⚠️  Warning: Negative overlap detected - tiles may have gaps"
@@ -153,180 +169,7 @@ def estimate_stitch_sbs_coordinate_based(
     final_size = (max(y_shifts) + tile_size[0], max(x_shifts) + tile_size[1])
     memory_gb = final_size[0] * final_size[1] * 2 / 1e9
 
-    print(f"SBS final image size: {final_size}")
-    print(f"SBS memory estimate: {memory_gb:.1f} GB")
+    print(f"{display_name} final image size: {final_size}")
+    print(f"{display_name} memory estimate: {memory_gb:.1f} GB")
 
     return {"total_translation": total_translation, "confidence": {well: confidence}}
-
-
-def estimate_stitch_phenotype_coordinate_based(
-    metadata_df: pd.DataFrame,
-    well: str,
-) -> Dict[str, Dict]:
-    """Estimate stitching positions for phenotype tiles using coordinate-based approach.
-
-    This function converts stage coordinates (in micrometers) to pixel coordinates
-    for image stitching. It uses either metadata pixel size or fallback phenotype
-    specifications to ensure accurate scaling.
-
-    Args:
-        metadata_df: DataFrame containing tile metadata with columns:
-            - well: Well identifier
-            - x_pos, y_pos: Stage coordinates in micrometers
-            - tile: Tile identifier
-            - pixel_size_x, pixel_size_y: Optional pixel sizes in μm/pixel
-        well: Well identifier to process
-
-    Returns:
-        Dictionary containing:
-            - total_translation: Dict mapping tile IDs to [y_pixel, x_pixel] positions
-            - confidence: Dict with confidence scores for each position
-
-    Note:
-        Phenotype specifications: 260 μm field of view, 2400x2400 pixel tiles
-    """
-    well_metadata = metadata_df[metadata_df["well"] == well].copy()
-
-    if len(well_metadata) == 0:
-        print(f"No phenotype tiles found for well {well}")
-        return {"total_translation": {}, "confidence": {well: {}}}
-
-    coords = well_metadata[["x_pos", "y_pos"]].values
-    tile_ids = well_metadata["tile"].values
-    tile_size = (2400, 2400)  # Phenotype tile size in pixels
-
-    print(
-        f"Creating coordinate-based phenotype stitch config for {len(tile_ids)} tiles"
-    )
-
-    # Detect actual spacing between adjacent tiles
-    distances = pdist(coords)
-    actual_spacing = np.percentile(distances[distances > 0], 10)  # 10th percentile
-
-    print(f"Phenotype detected spacing: {actual_spacing:.1f} μm")
-    print(f"Phenotype tile size: {tile_size} pixels")
-
-    # Determine pixel scaling from metadata or use fallback values
-    if (
-        "pixel_size_x" in well_metadata.columns
-        and "pixel_size_y" in well_metadata.columns
-    ):
-        # Use pixel size from metadata (in μm per pixel)
-        pixel_size_um = well_metadata["pixel_size_x"].iloc[0]  # μm per pixel
-        pixels_per_micron = 1.0 / pixel_size_um  # pixels per μm
-        print(f"Phenotype pixel size from metadata: {pixel_size_um:.6f} μm/pixel")
-        print(f"Phenotype pixels per micron: {pixels_per_micron:.4f}")
-
-        # Verify pixel_size_y matches pixel_size_x
-        pixel_size_y = well_metadata["pixel_size_y"].iloc[0]
-        if abs(pixel_size_um - pixel_size_y) > 1e-6:
-            print(
-                f"⚠️  Warning: pixel_size_x ({pixel_size_um:.6f}) != pixel_size_y ({pixel_size_y:.6f})"
-            )
-    else:
-        print(
-            "⚠️  pixel_size_x/y not found in metadata, falling back to calculated values"
-        )
-        # Fallback: Phenotype specs: 260 μm field of view, 2400 pixels -> 9.2308 pixels/μm
-        phenotype_field_of_view_um = 260.0  # μm
-        pixels_per_micron = tile_size[0] / phenotype_field_of_view_um
-        print(f"Phenotype fallback - field of view: {phenotype_field_of_view_um} μm")
-        print(f"Phenotype fallback - pixels per micron: {pixels_per_micron:.4f}")
-
-    x_min, y_min = coords.min(axis=0)
-
-    total_translation = {}
-    confidence = {}
-
-    for i, tile_id in enumerate(tile_ids):
-        x_pos, y_pos = coords[i]
-
-        # Convert stage coordinates to pixel coordinates
-        pixel_x = int((x_pos - x_min) * pixels_per_micron)
-        pixel_y = int((y_pos - y_min) * pixels_per_micron)
-
-        total_translation[f"{well}/{tile_id}"] = [pixel_y, pixel_x]
-
-        # High confidence since using direct coordinates
-        confidence[f"coord_{i}"] = [[pixel_y, pixel_x], [pixel_y, pixel_x], 0.9]
-
-    print(f"Generated {len(total_translation)} phenotype coordinate-based positions")
-
-    # OPTIMIZED verification section - avoid O(n²) loops
-    y_shifts = [shift[0] for shift in total_translation.values()]
-    x_shifts = [shift[1] for shift in total_translation.values()]
-
-    if len(y_shifts) > 1:
-        # Calculate average pixel spacing more efficiently
-        pixel_coords = np.array(
-            [[y_shifts[i], x_shifts[i]] for i in range(len(y_shifts))]
-        )
-        pixel_distances = pdist(pixel_coords)
-
-        if len(pixel_distances) > 0:
-            # Calculate stage distances for the same pairs
-            stage_distances = pdist(coords)
-
-            # Calculate pixel/stage ratios for verification
-            valid_ratios = (
-                pixel_distances[stage_distances > 0]
-                / stage_distances[stage_distances > 0]
-            )
-
-            if len(valid_ratios) > 0:
-                avg_pixel_spacing = np.mean(valid_ratios)
-                print(
-                    f"Verification - Average pixel spacing ratio: {avg_pixel_spacing:.4f} pixels/μm"
-                )
-
-                # Check for expected tile overlap using average spacing
-                expected_tile_spacing_pixels = actual_spacing * pixels_per_micron
-                actual_avg_spacing = np.mean(pixel_distances)
-
-                if actual_avg_spacing > 0:
-                    overlap_percent = (
-                        (tile_size[0] - actual_avg_spacing) / tile_size[0] * 100
-                    )
-                    print(f"Phenotype tile overlap: {overlap_percent:.1f}%")
-                    if overlap_percent < 0:
-                        print(
-                            "⚠️  Warning: Negative overlap detected - tiles may have gaps"
-                        )
-                    elif overlap_percent > 50:
-                        print(
-                            "⚠️  Warning: Very high overlap detected - may indicate scaling issues"
-                        )
-
-    final_size = (max(y_shifts) + tile_size[0], max(x_shifts) + tile_size[1])
-    memory_gb = final_size[0] * final_size[1] * 2 / 1e9
-
-    print(f"Phenotype final image size: {final_size}")
-    print(f"Phenotype memory estimate: {memory_gb:.1f} GB")
-
-    return {"total_translation": total_translation, "confidence": {well: confidence}}
-
-
-def convert_numpy_types(obj):
-    """Convert numpy types to Python native types for YAML serialization.
-
-    YAML serialization requires native Python types, but numpy arrays and
-    scalars need to be converted first.
-
-    Args:
-        obj: Object that may contain numpy types (dict, list, numpy types, etc.)
-
-    Returns:
-        Object with numpy types converted to Python native types
-    """
-    if isinstance(obj, dict):
-        return {key: convert_numpy_types(value) for key, value in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_numpy_types(item) for item in obj]
-    elif isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, np.floating):
-        return float(obj)
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    else:
-        return obj

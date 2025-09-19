@@ -23,7 +23,14 @@ plate = snakemake.params.plate
 well = snakemake.params.well
 data_type = snakemake.params.data_type
 
-# Load metadata - use the first (and only) input file
+# Get fallback pixel sizes from config
+fallback_pixel_size = None
+if data_type == "sbs":
+    fallback_pixel_size = snakemake.params.get("sbs_pixel_size", None)
+elif data_type == "phenotype":
+    fallback_pixel_size = snakemake.params.get("phenotype_pixel_size", None)
+
+# Load metadata 
 metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 
 if data_type == "sbs":
@@ -39,15 +46,13 @@ if data_type == "sbs":
 elif data_type == "phenotype":
     print(f"Loaded phenotype metadata: {len(metadata)} entries")
 
-# Filter to specific plate and well
-well_metadata = metadata[
-    (metadata["plate"] == int(plate)) & (metadata["well"] == well)
-]
-
 print(f"=== Estimating {data_type.upper()} Stitching for Plate {plate}, Well {well} ===")
-print(f"{data_type.capitalize()} tiles: {len(well_metadata)}")
+print(f"{data_type.capitalize()} tiles: {len(metadata)}")
 
-if len(well_metadata) == 0:
+if fallback_pixel_size is not None:
+    print(f"Using fallback pixel size from config: {fallback_pixel_size} μm/pixel")
+
+if len(metadata) == 0:
     print(f"Warning: No {data_type} tiles found for this well")
     # Create empty config
     empty_config = {"total_translation": {}, "confidence": {well: {}}}
@@ -60,18 +65,19 @@ else:
     # Estimate stitching using coordinate-based approach
     print(f"Using coordinate-based estimation for {data_type} data")
     stitch_result = estimate_stitch_coordinate_based(
-        metadata_df=well_metadata,
+        metadata_df=metadata,
         well=well,
         data_type=data_type,
+        fallback_pixel_size=fallback_pixel_size,  # Pass the fallback pixel size
     )
 
     # Validate results
     shifts = stitch_result["total_translation"]
     print(f"Generated {len(shifts)} {data_type} tile positions")
 
-    coverage_percent = len(shifts) / len(well_metadata) * 100
+    coverage_percent = len(shifts) / len(metadata) * 100
     
-    print(f"Coverage: {len(shifts)}/{len(well_metadata)} = {coverage_percent:.1f}%")
+    print(f"Coverage: {len(shifts)}/{len(metadata)} = {coverage_percent:.1f}%")
 
     # Save results
     with open(snakemake.output[0], "w") as f:

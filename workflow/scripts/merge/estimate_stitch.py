@@ -30,7 +30,7 @@ if data_type == "sbs":
 elif data_type == "phenotype":
     fallback_pixel_size = snakemake.params.get("phenotype_pixel_size", None)
 
-# Load metadata 
+# Load metadata
 metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 
 if data_type == "sbs":
@@ -55,7 +55,7 @@ if fallback_pixel_size is not None:
 if len(metadata) == 0:
     print(f"Warning: No {data_type} tiles found for this well")
     # Create empty config
-    empty_config = {"total_translation": {}, "confidence": {well: {}}}
+    empty_config = {"total_translation": {}}
 
     with open(snakemake.output[0], "w") as f:
         yaml.dump(convert_numpy_types(empty_config), f)

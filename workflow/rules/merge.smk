@@ -42,6 +42,20 @@ rule stitch_phenotype_well:
     input:
         phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
         phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"][0],
+        phenotype_tiles=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["align_phenotype"],
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
+            ancient_output=True,
+        ),
+        phenotype_masks=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["segment_phenotype"][0],
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=phenotype_wildcard_combos,
+            ancient_output=True,
+        ),
     output:
         phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][0],
         phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype_well"][1],  
@@ -54,6 +68,7 @@ rule stitch_phenotype_well:
         flipud=config.get("merge", {}).get("flipud", False),
         fliplr=config.get("merge", {}).get("fliplr", False),
         rot90=config.get("merge", {}).get("rot90", 0),
+        overlap_fraction=config.get("merge", {}).get("overlap_fraction"),
         stitched_image=config.get("merge", {}).get("stitched_image", True),     
     script:
         "../scripts/merge/well_stitching.py"
@@ -242,9 +257,9 @@ rule deduplicate_merge:
 rule final_merge:
     input:
         lambda wildcards: (
-            MERGE_OUTPUTS["format_merge"][0]  # Use formatted data directly for well approach
+            MERGE_OUTPUTS["format_merge"][0]
             if config.get("merge", {}).get("approach", "tile") == "well" 
-            else MERGE_OUTPUTS["deduplicate_merge"][1]  # Use deduplicated data for tile approach
+            else MERGE_OUTPUTS["deduplicate_merge"][1]
         ),
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0]),
     output:

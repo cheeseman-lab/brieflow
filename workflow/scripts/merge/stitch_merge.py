@@ -28,17 +28,23 @@ from lib.merge.stitch_merge import (
 print("=== WELL CELL MERGE ===")
 
 # Load all inputs
-phenotype_scaled = validate_dtypes(pd.read_parquet(snakemake.input.scaled_phenotype_positions))
+phenotype_scaled = validate_dtypes(
+    pd.read_parquet(snakemake.input.scaled_phenotype_positions)
+)
 sbs_positions = validate_dtypes(pd.read_parquet(snakemake.input.sbs_positions))
 alignment_params = validate_dtypes(pd.read_parquet(snakemake.input.alignment_params))
-phenotype_transformed = validate_dtypes(pd.read_parquet(snakemake.input.transformed_phenotype_positions))
+phenotype_transformed = validate_dtypes(
+    pd.read_parquet(snakemake.input.transformed_phenotype_positions)
+)
 
 plate = snakemake.params.plate
 well = snakemake.params.well
 threshold = snakemake.params.threshold
 
 print(f"Processing Plate {plate}, Well {well}")
-print(f"Input: {len(phenotype_scaled):,} phenotype cells, {len(sbs_positions):,} SBS cells")
+print(
+    f"Input: {len(phenotype_scaled):,} phenotype cells, {len(sbs_positions):,} SBS cells"
+)
 print(f"Distance threshold: {threshold} px")
 
 # Step 1: Filter tiles by diversity
@@ -50,11 +56,15 @@ phenotype_transformed_filtered = phenotype_transformed[
     phenotype_transformed.index.isin(phenotype_filtered.index)
 ]
 
-print(f"After filtering: {len(phenotype_filtered):,} phenotype, {len(sbs_filtered):,} SBS cells")
+print(
+    f"After filtering: {len(phenotype_filtered):,} phenotype, {len(sbs_filtered):,} SBS cells"
+)
 
 # Step 2: Load alignment and find matches
 alignment = load_alignment_parameters(alignment_params.iloc[0])
-print(f"Using {alignment.get('approach', 'unknown')} alignment (score: {alignment.get('score', 0):.3f})")
+print(
+    f"Using {alignment.get('approach', 'unknown')} alignment (score: {alignment.get('score', 0):.3f})"
+)
 
 raw_matches, match_stats = find_cell_matches(
     phenotype_positions=phenotype_filtered,

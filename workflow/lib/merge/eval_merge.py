@@ -205,7 +205,9 @@ def display_matched_and_unmatched_cells_for_site(
     root_path = Path(root_fp)
     merge_fp = root_path / "merge"
 
-    merged_cells_path = merge_fp / "parquets" / f"P-{plate}_W-{well}__merge_final.parquet"
+    merged_cells_path = (
+        merge_fp / "parquets" / f"P-{plate}_W-{well}__merge_final.parquet"
+    )
     phenotype_transformed_path = (
         merge_fp
         / "well_alignment"

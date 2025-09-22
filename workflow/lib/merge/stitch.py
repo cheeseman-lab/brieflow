@@ -676,10 +676,26 @@ class LimitedSizeDict(OrderedDict):
     """A dictionary that maintains a maximum size by removing oldest items."""
 
     def __init__(self, max_size):
+        """Initialize LimitedSizeDict with maximum size.
+
+        Parameters
+        ----------
+        max_size : int
+            Maximum number of items to store in the dictionary
+        """
         super().__init__()
         self.max_size = max_size
 
     def __setitem__(self, key, value):
+        """Set item and remove oldest if size exceeds maximum.
+
+        Parameters
+        ----------
+        key : Any
+            Dictionary key
+        value : Any
+            Dictionary value
+        """
         super().__setitem__(key, value)
         if len(self) > self.max_size:
             self.popitem(last=False)
@@ -689,6 +705,21 @@ class TileCache:
     """Generic cache for loading tiles with transformations."""
 
     def __init__(self, tile_files, flipud=False, fliplr=False, rot90=0, channel=None):
+        """Initialize TileCache with file paths and transformation parameters.
+
+        Parameters
+        ----------
+        tile_files : Dict[int, str]
+            Mapping from tile_id to file paths
+        flipud : bool, default False
+            Whether to flip tiles vertically
+        fliplr : bool, default False
+            Whether to flip tiles horizontally
+        rot90 : int, default 0
+            Number of 90-degree rotations
+        channel : int or None, default None
+            Channel to extract for multi-channel images
+        """
         self.cache = LimitedSizeDict(max_size=50)
         self.tile_files = tile_files
         self.flipud = flipud
@@ -697,6 +728,23 @@ class TileCache:
         self.channel = channel
 
     def __getitem__(self, tile_id):
+        """Get tile from cache or load if not cached.
+
+        Parameters
+        ----------
+        tile_id : int
+            Tile identifier
+
+        Returns:
+        -------
+        np.ndarray
+            Tile array
+
+        Raises:
+        ------
+        KeyError
+            If tile cannot be found or loaded
+        """
         if tile_id in self.cache:
             return self.cache[tile_id]
         tile_data = self.load_tile(tile_id)
@@ -713,6 +761,18 @@ class AlignedTiffTileCache(TileCache):
     """Cache for loading aligned TIFF tiles."""
 
     def load_tile(self, tile_id):
+        """Load and cache an aligned TIFF tile.
+
+        Parameters
+        ----------
+        tile_id : int
+            Tile identifier
+
+        Returns:
+        -------
+        np.ndarray or None
+            Loaded and transformed tile array, or None if loading fails
+        """
         if tile_id not in self.tile_files:
             print(f"No file path found for tile {tile_id}")
             return None
@@ -733,6 +793,18 @@ class MaskTileCache(TileCache):
     """Cache for loading segmentation mask tiles."""
 
     def load_tile(self, tile_id):
+        """Load and cache a segmentation mask tile.
+
+        Parameters
+        ----------
+        tile_id : int
+            Tile identifier
+
+        Returns:
+        -------
+        np.ndarray or None
+            Loaded and transformed mask array, or None if loading fails
+        """
         if tile_id not in self.tile_files:
             print(f"No file path found for mask tile {tile_id}")
             return None
@@ -750,7 +822,21 @@ class MaskTileCache(TileCache):
 
 
 class AlignedTiffEdge:
-    """Edge between two tiles for registration using aligned TIFF images."""
+    """Edge between two tiles for registration using aligned TIFF images.
+
+    Parameters
+    ----------
+    tile_a_id : int
+        First tile identifier
+    tile_b_id : int
+        Second tile identifier
+    tile_cache : TileCache
+        Cache object for loading tiles
+    tile_positions : Dict[int, Tuple[int, int]]
+        Mapping from tile_id to grid positions
+    overlap_fraction : float, default 0.03
+        Fraction of tile size to use for overlap region
+    """
 
     def __init__(
         self,
@@ -771,7 +857,13 @@ class AlignedTiffEdge:
         self.model = self.get_offset()
 
     def get_offset(self) -> TranslationRegistrationModel:
-        """Calculate offset between two tiles using image registration."""
+        """Calculate offset between two tiles using image registration.
+
+        Returns:
+        -------
+        TranslationRegistrationModel
+            Registration model containing shift vector and confidence
+        """
         tile_a = self.tile_cache[self.tile_a_id]
         tile_b = self.tile_cache[self.tile_b_id]
 
@@ -790,7 +882,24 @@ class AlignedTiffEdge:
 def augment_tile(
     tile: np.ndarray, flipud: bool, fliplr: bool, rot90: int
 ) -> np.ndarray:
-    """Apply geometric transformations to a tile."""
+    """Apply geometric transformations to a tile.
+
+    Parameters
+    ----------
+    tile : np.ndarray
+        Input tile array
+    flipud : bool
+        Whether to flip tile vertically
+    fliplr : bool
+        Whether to flip tile horizontally
+    rot90 : int
+        Number of 90-degree rotations to apply
+
+    Returns:
+    -------
+    np.ndarray
+        Transformed tile array
+    """
     if flipud:
         tile = np.flip(tile, axis=-2)
     if fliplr:
@@ -801,7 +910,20 @@ def augment_tile(
 
 
 def load_aligned_tiff(file_path: str, channel: int = 0) -> Optional[np.ndarray]:
-    """Load an aligned TIFF file and extract specific channel."""
+    """Load an aligned TIFF file and extract specific channel.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to TIFF file
+    channel : int, default 0
+        Channel index to extract from multi-channel images
+
+    Returns:
+    -------
+    Optional[np.ndarray]
+        Loaded image array, or None if loading fails
+    """
     try:
         image = io.imread(file_path)
 
@@ -820,7 +942,24 @@ def load_aligned_tiff(file_path: str, channel: int = 0) -> Optional[np.ndarray]:
 def offset_tiff(
     image_a: np.ndarray, image_b: np.ndarray, relation: Tuple[int, int], overlap: int
 ) -> TranslationRegistrationModel:
-    """Calculate offset between two images based on their spatial relationship."""
+    """Calculate offset between two images based on their spatial relationship.
+
+    Parameters
+    ----------
+    image_a : np.ndarray
+        First image array
+    image_b : np.ndarray
+        Second image array
+    relation : Tuple[int, int]
+        Spatial relationship between tiles (row_diff, col_diff)
+    overlap : int
+        Overlap region size in pixels
+
+    Returns:
+    -------
+    TranslationRegistrationModel
+        Registration model containing shift vector and confidence
+    """
     shape = image_a.shape
 
     # Determine overlap region based on spatial relationship
@@ -883,7 +1022,20 @@ def offset_tiff(
 def get_output_shape_tiff(
     shifts: Dict[str, List[int]], tile_size: Tuple[int, int]
 ) -> Tuple[int, int]:
-    """Calculate the output shape needed for stitched image."""
+    """Calculate the output shape needed for stitched image.
+
+    Parameters
+    ----------
+    shifts : Dict[str, List[int]]
+        Tile shift positions as {well/tile_id: [y, x]}
+    tile_size : Tuple[int, int]
+        Size of individual tiles (height, width)
+
+    Returns:
+    -------
+    Tuple[int, int]
+        Required output dimensions (height, width)
+    """
     if not shifts:
         return tile_size
 
@@ -904,7 +1056,30 @@ def create_cell_info(
     tile_metadata_lookup: Dict,
     tile_shift_lookup: Dict,
 ) -> Dict:
-    """Create cell info dictionary from region properties."""
+    """Create cell info dictionary from region properties.
+
+    Parameters
+    ----------
+    prop : RegionProperties
+        Scikit-image region properties object
+    well : str
+        Well identifier
+    plate : str
+        Plate identifier
+    data_type : str
+        Type of data being processed
+    cell_id_mapping : Dict[int, Tuple[int, int]]
+        Mapping from stitched cell ID to (tile_id, original_cell_id)
+    tile_metadata_lookup : Dict
+        Dictionary mapping tile_id to metadata
+    tile_shift_lookup : Dict
+        Dictionary mapping tile_id to shift positions
+
+    Returns:
+    -------
+    Dict
+        Cell information dictionary with all relevant metadata
+    """
     stitched_label = prop.label
 
     # Base info

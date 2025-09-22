@@ -169,32 +169,33 @@ def validate_dtypes(df):
 
     return df
 
+
 def files_to_tile_mapping(file_paths):
     """Convert list of file paths to tile_id -> file_path mapping.
-    
+
     Args:
         file_paths (list): List of file paths with tile information in filename
-        
+
     Returns:
         dict: Mapping from tile_id to file_path
     """
     tile_mapping = {}
     for file_path in file_paths:
         metadata, _, _ = parse_filename(file_path)
-        if 'tile' in metadata:
-            tile_mapping[metadata['tile']] = str(file_path)
+        if "tile" in metadata:
+            tile_mapping[metadata["tile"]] = str(file_path)
     return tile_mapping
 
 
 def validate_data_type(data_type):
     """Validate data type parameter.
-    
+
     Args:
         data_type (str): Data type to validate
-        
+
     Returns:
         str: Validated data type
-        
+
     Raises:
         ValueError: If data type is not valid
     """

@@ -2,7 +2,7 @@
 
 This script generates a YAML configuration file containing tile positions
 for stitching microscopy images. It works for both SBS (Sequencing By Synthesis)
-and phenotype data types, using coordinate-based estimation to convert stage 
+and phenotype data types, using coordinate-based estimation to convert stage
 positions to pixel coordinates.
 """
 
@@ -40,13 +40,15 @@ if data_type == "sbs":
         for filter_key, filter_value in sbs_filters.items():
             print(f"Filtering SBS metadata: {filter_key} == {filter_value}")
             metadata = metadata[metadata[filter_key] == filter_value]
-    
+
     print(f"After filtering - SBS metadata: {len(metadata)} entries")
-    
+
 elif data_type == "phenotype":
     print(f"Loaded phenotype metadata: {len(metadata)} entries")
 
-print(f"=== Estimating {data_type.upper()} Stitching for Plate {plate}, Well {well} ===")
+print(
+    f"=== Estimating {data_type.upper()} Stitching for Plate {plate}, Well {well} ==="
+)
 print(f"{data_type.capitalize()} tiles: {len(metadata)}")
 
 if fallback_pixel_size is not None:
@@ -76,7 +78,7 @@ else:
     print(f"Generated {len(shifts)} {data_type} tile positions")
 
     coverage_percent = len(shifts) / len(metadata) * 100
-    
+
     print(f"Coverage: {len(shifts)}/{len(metadata)} = {coverage_percent:.1f}%")
 
     # Save results

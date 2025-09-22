@@ -40,13 +40,10 @@ def estimate_stitch_coordinate_based(
             - confidence: Dict with confidence scores for each position
     """
     # Data type specifications
-    display_names = {
-        "sbs": "SBS",
-        "phenotype": "Phenotype"
-    }
-    
+    display_names = {"sbs": "SBS", "phenotype": "Phenotype"}
+
     display_name = display_names[data_type]
-    
+
     well_metadata = metadata_df[metadata_df["well"] == well].copy()
 
     if len(well_metadata) == 0:
@@ -56,7 +53,9 @@ def estimate_stitch_coordinate_based(
     coords = well_metadata[["x_pos", "y_pos"]].values
     tile_ids = well_metadata["tile"].values
 
-    print(f"Creating coordinate-based {display_name} stitch config for {len(tile_ids)} tiles")
+    print(
+        f"Creating coordinate-based {display_name} stitch config for {len(tile_ids)} tiles"
+    )
 
     # Determine pixel scaling from metadata or use fallback values
     if (
@@ -65,8 +64,8 @@ def estimate_stitch_coordinate_based(
         and not well_metadata["pixel_size_x"].isna().iloc[0]
     ):
         # Use pixel size from metadata (in μm per pixel)
-        pixel_size_um = well_metadata["pixel_size_x"].iloc[0] 
-        pixels_per_micron = 1.0 / pixel_size_um 
+        pixel_size_um = well_metadata["pixel_size_x"].iloc[0]
+        pixels_per_micron = 1.0 / pixel_size_um
         print(f"{display_name} pixel size from metadata: {pixel_size_um:.6f} μm/pixel")
         print(f"{display_name} pixels per micron: {pixels_per_micron:.4f}")
 
@@ -79,8 +78,10 @@ def estimate_stitch_coordinate_based(
     elif fallback_pixel_size is not None:
         # Use fallback pixel size from config
         pixel_size_um = fallback_pixel_size
-        pixels_per_micron = 1.0 / pixel_size_um 
-        print(f"{display_name} using config fallback pixel size: {pixel_size_um:.6f} μm/pixel")
+        pixels_per_micron = 1.0 / pixel_size_um
+        print(
+            f"{display_name} using config fallback pixel size: {pixel_size_um:.6f} μm/pixel"
+        )
         print(f"{display_name} pixels per micron: {pixels_per_micron:.4f}")
     else:
         print(f"⚠️  No pixel size available for {display_name} - skipping well {well}")
@@ -98,7 +99,9 @@ def estimate_stitch_coordinate_based(
 
         total_translation[f"{well}/{tile_id}"] = [pixel_y, pixel_x]
 
-    print(f"Generated {len(total_translation)} {display_name} coordinate-based positions")
+    print(
+        f"Generated {len(total_translation)} {display_name} coordinate-based positions"
+    )
 
     print(f"{display_name} stitching estimation completed")
 

@@ -11,20 +11,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 import warnings
+import re
+import matplotlib as mpl
+from matplotlib.patches import Circle
 
 warnings.filterwarnings("ignore")
 
 # Set up plotting
 plt.style.use("default")
-
-
-import re
-from pathlib import Path
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib.patches import Circle
 
 
 def plot_cell_positions_plate_scatter(
@@ -441,3 +435,280 @@ def create_tile_arrangement_qc_plot(
     except Exception as e:
         print(f"QC plot creation failed: {e}")
         return None
+
+def create_tile_arrangement_qc_plot(
+    cell_positions_df: pd.DataFrame,
+    output_path: str,
+    data_type: str = "phenotype",
+    well: str = None,
+    plate: str = None,
+):
+    """Create QC plot showing tile arrangement and cell distribution.
+
+    This function generates a comprehensive quality control plot that visualizes
+    tile arrangement, cell distributions, and spatial relationships using scatter plots
+    similar to plot_cell_positions_plate_scatter.
+
+    Parameters
+    ----------
+    cell_positions_df : pd.DataFrame
+        Cell positions dataframe with tile information
+    output_path : str
+        Path where to save the QC plot
+    data_type : str, default "phenotype"
+        Type of data for plot title
+    well : str, optional
+        Well identifier for title
+    plate : str, optional
+        Plate identifier for title
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from pathlib import Path
+
+    # Check if we have cell positions data
+    if len(cell_positions_df) == 0:
+        print("Skipping QC plot - no cell positions available")
+        # Create a minimal placeholder plot
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        title_parts = [f"{data_type.title()} Tile Arrangement QC"]
+        if plate and well:
+            title_parts.append(f"Plate {plate}, Well {well}")
+        ax.text(
+            0.5,
+            0.5,
+            f"No cells found",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=14,
+        )
+        ax.set_title(" - ".join(title_parts))
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close()
+        return None
+
+    try:
+        # Ensure output directory exists
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+
+        # Create title
+        title_parts = [f"{data_type.title()} Tile Arrangement QC"]
+        if plate and well:
+            title_parts.append(f"Plate {plate}, Well {well}")
+        fig.suptitle(" - ".join(title_parts), fontsize=16)
+
+        # Use the correct column for tile mapping
+        tile_column = (
+            "original_tile_id"
+            if "original_tile_id" in cell_positions_df.columns
+            else "tile"
+        )
+
+        # Plot 1: Cell positions colored by tile
+        ax1 = axes[0, 0]
+        if tile_column in cell_positions_df.columns:
+            scatter = ax1.scatter(
+                cell_positions_df["j"],
+                cell_positions_df["i"],
+                c=cell_positions_df[tile_column],
+                cmap="tab20",
+                s=0.1,
+                alpha=0.7,
+                linewidths=0,
+            )
+            plt.colorbar(scatter, ax=ax1, label="Original Tile ID")
+        else:
+            ax1.scatter(
+                cell_positions_df["j"],
+                cell_positions_df["i"],
+                s=0.1,
+                alpha=0.7,
+                color="k",
+                linewidths=0,
+            )
+        ax1.set_title("Cell Positions by Original Tile")
+        ax1.set_xlabel("X Position (pixels)")
+        ax1.set_ylabel("Y Position (pixels)")
+        ax1.invert_yaxis()
+        ax1.set_aspect("equal", adjustable="box")
+
+        # Plot 2: Stage coordinates with tile numbers (if available)
+        ax2 = axes[0, 1]
+        if (
+            "stage_x" in cell_positions_df.columns
+            and "stage_y" in cell_positions_df.columns
+        ):
+            # Get unique tile positions
+            tile_info = (
+                cell_positions_df.groupby(tile_column)
+                .agg({"stage_x": "first", "stage_y": "first"})
+                .reset_index()
+            )
+
+            # Filter out NaN values
+            tile_info = tile_info.dropna(subset=["stage_x", "stage_y"])
+
+            if len(tile_info) > 0:
+                ax2.scatter(tile_info["stage_x"], tile_info["stage_y"], s=50)
+                for _, row in tile_info.iterrows():
+                    ax2.annotate(
+                        f"{int(row[tile_column])}",
+                        (row["stage_x"], row["stage_y"]),
+                        fontsize=8,
+                        ha="center",
+                    )
+                ax2.set_xlabel("Stage X (μm)")
+                ax2.set_ylabel("Stage Y (μm)")
+            else:
+                ax2.text(
+                    0.5,
+                    0.5,
+                    "No stage coordinates available",
+                    ha="center",
+                    va="center",
+                    transform=ax2.transAxes,
+                )
+        else:
+            ax2.text(
+                0.5,
+                0.5,
+                "No stage coordinates available",
+                ha="center",
+                va="center",
+                transform=ax2.transAxes,
+            )
+        ax2.set_title("Tile Arrangement (Stage Coordinates)")
+
+        # Plot 3: Cells per tile histogram
+        ax3 = axes[1, 0]
+        if tile_column in cell_positions_df.columns:
+            tile_counts = cell_positions_df[tile_column].value_counts()
+            if len(tile_counts) > 0:
+                ax3.hist(tile_counts.values, bins=min(50, len(tile_counts)), alpha=0.7)
+                ax3.axvline(
+                    tile_counts.mean(),
+                    color="red",
+                    linestyle="--",
+                    label=f"Mean: {tile_counts.mean():.1f}",
+                )
+                ax3.legend()
+                ax3.set_xlabel("Cells per Tile")
+                ax3.set_ylabel("Number of Tiles")
+            else:
+                ax3.text(
+                    0.5,
+                    0.5,
+                    "No tile data available",
+                    ha="center",
+                    va="center",
+                    transform=ax3.transAxes,
+                )
+        else:
+            ax3.text(
+                0.5,
+                0.5,
+                "No tile column found",
+                ha="center",
+                va="center",
+                transform=ax3.transAxes,
+            )
+        ax3.set_title("Distribution of Cells per Original Tile")
+
+        # Plot 4: Relative positions within original tiles (if available)
+        ax4 = axes[1, 1]
+        if (
+            "tile_i" in cell_positions_df.columns
+            and "tile_j" in cell_positions_df.columns
+        ):
+            # Filter out invalid relative positions
+            valid_positions = cell_positions_df[
+                (cell_positions_df["tile_i"] >= 0) & (cell_positions_df["tile_j"] >= 0)
+            ]
+
+            if len(valid_positions) > 0 and tile_column in valid_positions.columns:
+                ax4.scatter(
+                    valid_positions["tile_j"],
+                    valid_positions["tile_i"],
+                    c=valid_positions[tile_column],
+                    cmap="tab20",
+                    s=0.1,
+                    alpha=0.7,
+                    linewidths=0,
+                )
+                ax4.set_xlabel("Tile-relative X")
+                ax4.set_ylabel("Tile-relative Y")
+                ax4.invert_yaxis()
+            else:
+                ax4.text(
+                    0.5,
+                    0.5,
+                    "No valid relative positions",
+                    ha="center",
+                    va="center",
+                    transform=ax4.transAxes,
+                )
+        else:
+            ax4.text(
+                0.5,
+                0.5,
+                "No relative position data available",
+                ha="center",
+                va="center",
+                transform=ax4.transAxes,
+            )
+        ax4.set_title("Relative Positions within Original Tiles")
+
+        # Add summary statistics
+        total_cells = len(cell_positions_df)
+        if tile_column in cell_positions_df.columns:
+            unique_tiles = cell_positions_df[tile_column].nunique()
+            mean_cells_per_tile = total_cells / unique_tiles if unique_tiles > 0 else 0
+        else:
+            unique_tiles = 0
+            mean_cells_per_tile = 0
+
+        stats_text = f"Total Cells: {total_cells:,}\nTiles: {unique_tiles}\nMean/Tile: {mean_cells_per_tile:.0f}"
+
+        # Add stats text to the figure
+        fig.text(
+            0.02,
+            0.02,
+            stats_text,
+            fontsize=10,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+        )
+
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close()
+
+        print(f"QC plot saved: {output_path}")
+        return output_path
+
+    except Exception as e:
+        print(f"QC plot creation failed: {e}")
+        # Create error plot
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        title_parts = [f"{data_type.title()} Tile Arrangement QC"]
+        if plate and well:
+            title_parts.append(f"Plate {plate}, Well {well}")
+        ax.text(
+            0.5,
+            0.5,
+            f"Error creating plot: {str(e)}",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=12,
+        )
+        ax.set_title(" - ".join(title_parts))
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close()
+        return None
+

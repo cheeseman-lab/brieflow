@@ -15,6 +15,7 @@ rule estimate_stitch_phenotype:
         fliplr=config.get("merge", {}).get("fliplr", False),
         rot90=config.get("merge", {}).get("rot90", 0),
         data_type="phenotype",
+        phenotype_pixel_size=config.get("merge", {}).get("phenotype_pixel_size", None),
     script:
         "../scripts/merge/estimate_stitch.py"
 
@@ -31,8 +32,8 @@ rule estimate_stitch_sbs:
         fliplr=config.get("merge", {}).get("fliplr", False),
         rot90=config.get("merge", {}).get("rot90", 0),
         data_type="sbs",
-        # SBS-specific params
         sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
+        sbs_pixel_size=config.get("merge", {}).get("sbs_pixel_size", None),
     script:
         "../scripts/merge/estimate_stitch.py"
 
@@ -116,8 +117,8 @@ if merge_approach == "tile":
 if merge_approach == "well":
     rule well_alignment:
         input:
-            phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_well"][0],  # phenotype_cell_positions
-            sbs_positions=MERGE_OUTPUTS["stitch_sbs_well"][0],  # sbs_cell_positions
+            phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_well"][0],
+            sbs_positions=MERGE_OUTPUTS["stitch_sbs_well"][0],
         output:
             scaled_phenotype_positions=temp(MERGE_OUTPUTS["well_alignment"][0]),      
             phenotype_triangles=temp(MERGE_OUTPUTS["well_alignment"][1]),             

@@ -630,3 +630,245 @@ def create_empty_outputs(reason: str) -> None:
     summary_df.to_csv(str(snakemake.output.merge_summary), sep="\t", index=False)
 
     print(f"❌ Created empty outputs due to: {reason}")
+
+def build_final_matches(
+    raw_matches: pd.DataFrame,
+    phenotype_filtered: pd.DataFrame,
+    sbs_filtered: pd.DataFrame,
+    plate: str,
+    well: str,
+) -> pd.DataFrame:
+    """Build final matches DataFrame with metadata extraction.
+    
+    Args:
+        raw_matches: Raw match results from find_cell_matches
+        phenotype_filtered: Filtered phenotype positions
+        sbs_filtered: Filtered SBS positions  
+        plate: Plate identifier
+        well: Well identifier
+        
+    Returns:
+        DataFrame with complete match information including metadata
+    """
+    if raw_matches.empty:
+        return _create_empty_matches_df(plate, well)
+    
+    print(f"Building final matches from {len(raw_matches):,} raw matches...")
+    
+    # Map stitched IDs back to row indices
+    pheno_stitched_to_idx = (
+        phenotype_filtered.reset_index()
+        .set_index("stitched_cell_id")["index"]
+        .to_dict()
+    )
+    sbs_stitched_to_idx = (
+        sbs_filtered.reset_index()
+        .set_index("stitched_cell_id")["index"]
+        .to_dict()
+    )
+    
+    # Get indices for matched cells
+    pheno_indices = [pheno_stitched_to_idx[cell_id] for cell_id in raw_matches["cell_0"]]
+    sbs_indices = [sbs_stitched_to_idx[cell_id] for cell_id in raw_matches["cell_1"]]
+    
+    # Extract matched rows
+    phenotype_match_rows = phenotype_filtered.loc[pheno_indices]
+    sbs_match_rows = sbs_filtered.loc[sbs_indices]
+    
+    # Build final DataFrame
+    final_matches = pd.DataFrame({
+        "plate": plate,
+        "well": well,
+        "site": sbs_match_rows["tile"].values,
+        "tile": phenotype_match_rows["tile"].values,
+        "cell_0": phenotype_match_rows["original_cell_id"].values,
+        "cell_1": sbs_match_rows["original_cell_id"].values,
+        "i_0": raw_matches["i_0"].values,
+        "j_0": raw_matches["j_0"].values,
+        "i_1": raw_matches["i_1"].values,
+        "j_1": raw_matches["j_1"].values,
+        "area_0": phenotype_match_rows.get("area", pd.Series([np.nan] * len(pheno_indices))).values,
+        "area_1": sbs_match_rows.get("area", pd.Series([np.nan] * len(sbs_indices))).values,
+        "distance": raw_matches["distance"].values,
+        "stitched_cell_id_0": phenotype_match_rows["stitched_cell_id"].values,
+        "stitched_cell_id_1": sbs_match_rows["stitched_cell_id"].values,
+    })
+    
+    final_matches["site"] = final_matches["site"].astype(int)
+    final_matches["tile"] = final_matches["tile"].astype(int)
+    
+    print(f"✅ Built {len(final_matches):,} final matches")
+    
+    return final_matches
+
+
+def create_merge_summary(
+    final_matches: pd.DataFrame,
+    phenotype_scaled: pd.DataFrame,
+    sbs_positions: pd.DataFrame,
+    phenotype_filtered: pd.DataFrame,
+    sbs_filtered: pd.DataFrame,
+    alignment: dict,
+    threshold: float,
+    plate: str,
+    well: str,
+) -> pd.DataFrame:
+    """Create comprehensive merge summary with validation metrics.
+    
+    Args:
+        final_matches: Final matched cells DataFrame
+        phenotype_scaled: Original phenotype positions before filtering
+        sbs_positions: Original SBS positions before filtering
+        phenotype_filtered: Filtered phenotype positions
+        sbs_filtered: Filtered SBS positions
+        alignment: Alignment parameters dictionary
+        threshold: Distance threshold used for matching
+        plate: Plate identifier
+        well: Well identifier
+        
+    Returns:
+        Single-row DataFrame with comprehensive statistics
+    """
+    if final_matches.empty:
+        return _create_failure_summary(
+            plate, well, threshold, phenotype_scaled, sbs_positions, "no_matches_found"
+        )
+    
+    # Validate and log quality
+    validation_results = validate_matches(final_matches)
+    _log_validation_results(validation_results)
+    
+    # Build summary dictionary
+    summary_dict = {
+        "plate": plate,
+        "well": well,
+        "status": "success",
+        "distance_threshold_pixels": float(threshold),
+        "phenotype_cells_before_filtering": len(phenotype_scaled),
+        "sbs_cells_before_filtering": len(sbs_positions),
+        "phenotype_cells_after_filtering": len(phenotype_filtered),
+        "sbs_cells_after_filtering": len(sbs_filtered),
+        "phenotype_tiles_removed": _count_tiles_removed(phenotype_scaled, phenotype_filtered),
+        "sbs_tiles_removed": _count_tiles_removed(sbs_positions, sbs_filtered),
+        "alignment_approach": str(alignment.get("approach", "unknown")),
+        "alignment_transformation_type": str(alignment.get("transformation_type", "unknown")),
+        "alignment_score": float(alignment.get("score", 0)),
+        "alignment_determinant": float(alignment.get("determinant", 1)),
+        "raw_matches_found": len(final_matches),
+        "mean_match_distance": float(final_matches["distance"].mean()),
+        "max_match_distance": float(final_matches["distance"].max()),
+        "matches_under_5px": int((final_matches["distance"] < 5).sum()),
+        "matches_under_10px": int((final_matches["distance"] < 10).sum()),
+        "match_rate_phenotype": float(len(final_matches) / len(phenotype_filtered)) if len(phenotype_filtered) > 0 else 0.0,
+        "match_rate_sbs": float(len(final_matches) / len(sbs_filtered)) if len(sbs_filtered) > 0 else 0.0,
+    }
+    
+    # Add validation metrics
+    if validation_results:
+        summary_dict.update(_extract_validation_metrics(validation_results))
+    
+    return pd.DataFrame([summary_dict])
+
+
+def _create_empty_matches_df(plate: str, well: str) -> pd.DataFrame:
+    """Create empty matches DataFrame with correct schema."""
+    return pd.DataFrame(
+        columns=[
+            "plate", "well", "site", "tile",
+            "cell_0", "cell_1", "i_0", "j_0", "i_1", "j_1",
+            "area_0", "area_1", "distance",
+            "stitched_cell_id_0", "stitched_cell_id_1",
+        ]
+    ).assign(plate=plate, well=well)
+
+
+def _create_failure_summary(
+    plate: str, well: str, threshold: float,
+    phenotype_scaled: pd.DataFrame, sbs_positions: pd.DataFrame,
+    reason: str
+) -> pd.DataFrame:
+    """Create failure summary for empty outputs."""
+    return pd.DataFrame([{
+        "plate": plate,
+        "well": well,
+        "status": "failed",
+        "failure_reason": reason,
+        "distance_threshold_pixels": float(threshold),
+        "phenotype_cells_before_filtering": len(phenotype_scaled),
+        "sbs_cells_before_filtering": len(sbs_positions),
+        "phenotype_cells_after_filtering": 0,
+        "sbs_cells_after_filtering": 0,
+        "phenotype_tiles_removed": 0,
+        "sbs_tiles_removed": 0,
+        "alignment_approach": "unknown",
+        "alignment_transformation_type": "unknown",
+        "alignment_score": 0.0,
+        "alignment_determinant": 1.0,
+        "raw_matches_found": 0,
+        "mean_match_distance": 0.0,
+        "max_match_distance": 0.0,
+        "matches_under_5px": 0,
+        "matches_under_10px": 0,
+        "match_rate_phenotype": 0.0,
+        "match_rate_sbs": 0.0,
+        "validation_status": "failed",
+    }])
+
+
+def _count_tiles_removed(original_df: pd.DataFrame, filtered_df: pd.DataFrame) -> int:
+    """Count number of tiles removed during filtering."""
+    if "tile" not in original_df.columns:
+        return 0
+    return len(original_df["tile"].unique()) - len(filtered_df["tile"].unique())
+
+
+def _log_validation_results(validation_results: dict) -> None:
+    """Log validation results with appropriate warnings."""
+    if validation_results.get("status") != "valid":
+        print(f"❌ WARNING: Match validation failed: {validation_results.get('status', 'unknown')}")
+        return
+    
+    # Quality assessment
+    if validation_results.get("quality_flags", {}).get("good_quality", False):
+        print("✅ Match quality: GOOD")
+    else:
+        print("⚠️  Match quality: ACCEPTABLE")
+    
+    # Distance stats
+    dist_stats = validation_results.get("distance_stats", {})
+    dist_dist = validation_results.get("distance_distribution", {})
+    print(f"Distance: mean={dist_stats.get('mean', 0):.1f}px, max={dist_stats.get('max', 0):.1f}px")
+    print(f"Quality: {dist_dist.get('under_5px', 0)} under 5px, {dist_dist.get('under_10px', 0)} under 10px")
+    
+    # Warnings
+    if validation_results.get("duplication", {}).get("has_duplicates", False):
+        dups = validation_results["duplication"]
+        print(f"⚠️  WARNING: Duplicates (phenotype: {dups['phenotype_duplicates']}, SBS: {dups['sbs_duplicates']})")
+    
+    if dist_dist.get("over_20px", 0) > 0:
+        print(f"⚠️  WARNING: {dist_dist['over_20px']} matches have distance >20px")
+
+
+def _extract_validation_metrics(validation_results: dict) -> dict:
+    """Extract validation metrics into flat dictionary for summary."""
+    metrics = {
+        "validation_status": validation_results.get("status", "unknown"),
+    }
+    
+    # Distance stats
+    for key, value in validation_results.get("distance_stats", {}).items():
+        metrics[f"validation_distance_{key}"] = value
+    
+    # Distance distribution
+    for key, value in validation_results.get("distance_distribution", {}).items():
+        metrics[f"validation_distribution_{key}"] = value
+    
+    # Quality flags
+    for key, value in validation_results.get("quality_flags", {}).items():
+        metrics[f"validation_quality_{key}"] = value
+    
+    # Duplication info
+    for key, value in validation_results.get("duplication", {}).items():
+        metrics[f"validation_duplication_{key}"] = value
+    
+    return metrics

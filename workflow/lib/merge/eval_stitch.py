@@ -712,3 +712,14 @@ def create_tile_arrangement_qc_plot(
         plt.close()
         return None
 
+def create_empty_qc_plot(output_path, data_type, well):
+    """Create placeholder QC plot when no cells are found."""
+    import matplotlib.pyplot as plt
+    
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.text(0.5, 0.5, f"No cells found for {data_type} well {well}",
+            ha="center", va="center", transform=ax.transAxes, fontsize=14)
+    ax.set_title(f"{data_type.title()} Well {well} - No Cells Detected")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()

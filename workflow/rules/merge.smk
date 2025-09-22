@@ -38,7 +38,7 @@ rule estimate_stitch_sbs:
         "../scripts/merge/estimate_stitch.py"
 
 
-rule stitch_phenotype_well:
+rule stitch_phenotype:
     input:
         phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
         phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"][0],
@@ -71,13 +71,27 @@ rule stitch_phenotype_well:
         overlap_fraction=config.get("merge", {}).get("overlap_fraction"),
         stitched_image=config.get("merge", {}).get("stitched_image", True),     
     script:
-        "../scripts/merge/well_stitching.py"
+        "../scripts/merge/stitch.py"
 
 
-rule stitch_sbs_well:
+rule stitch_sbs:
     input:
         sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
         sbs_stitch_config=MERGE_OUTPUTS["estimate_stitch_sbs"][0],
+        sbs_tiles=lambda wildcards: output_to_input(
+            SBS_OUTPUTS["align_sbs"],
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=sbs_wildcard_combos,
+            ancient_output=True,
+        ),
+        sbs_masks=lambda wildcards: output_to_input(
+            SBS_OUTPUTS["segment_sbs"][0],
+            wildcards=wildcards,
+            expansion_values=["tile"],
+            metadata_combos=sbs_wildcard_combos,
+            ancient_output=True,
+        ),
     output:
         sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][0],
         sbs_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_sbs_well"][1],
@@ -90,9 +104,10 @@ rule stitch_sbs_well:
         flipud=config.get("merge", {}).get("flipud", False),
         fliplr=config.get("merge", {}).get("fliplr", False),
         rot90=config.get("merge", {}).get("rot90", 0),
+        overlap_fraction=config.get("merge", {}).get("overlap_fraction"),
         stitched_image=config.get("merge", {}).get("stitched_image", True),     
     script:
-        "../scripts/merge/well_stitching.py"
+        "../scripts/merge/stitch.py"
 
 
 if merge_approach == "tile":
@@ -130,7 +145,7 @@ if merge_approach == "tile":
 
  
 if merge_approach == "well":
-    rule well_alignment:
+    rule stitch_alignment:
         input:
             phenotype_positions=MERGE_OUTPUTS["stitch_phenotype_well"][0],
             sbs_positions=MERGE_OUTPUTS["stitch_sbs_well"][0],
@@ -146,7 +161,7 @@ if merge_approach == "well":
             well=lambda wildcards: wildcards.well,
             score=config["merge"]["score"],
         script:
-            "../scripts/merge/well_alignment.py"
+            "../scripts/merge/stitch_alignment.py"
 
     rule well_cell_merge:
         input:

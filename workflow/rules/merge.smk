@@ -179,7 +179,7 @@ if merge_approach == "well":
             threshold=config["merge"]["threshold"],
             score=config["merge"]["score"],
         script:
-            "../scripts/merge/well_cell_merge.py"
+            "../scripts/merge/stitch_merge.py"
 
     rule well_merge_deduplicate:
         input:

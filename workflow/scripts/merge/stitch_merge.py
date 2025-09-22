@@ -17,7 +17,7 @@ Output files:
 
 import pandas as pd
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.well_cell_matching import (
+from lib.merge.stitch_merge import (
     load_alignment_parameters,
     find_cell_matches,
     filter_tiles_by_diversity,

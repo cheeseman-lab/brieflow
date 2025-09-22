@@ -83,13 +83,16 @@ for i, indices in enumerate(subset_indices):
     )
 
     # CALCULATE PERTURBATION SCORE
-    perturbation_score(
-        subset_df,
-        metadata_cols,
-        snakemake.params.perturbation_name_col,
-        snakemake.params.control_key,
-        auc_threshold=0.6,  # TODO: use snakemake.params.auc_threshold
-    )
+    subset_df["perturbation_score"] = np.nan
+    subset_df["perturbation_auc"] = np.nan
+    metadata_cols += ["perturbation_score", "perturbation_auc"]
+    if not snakemake.params.skip_perturbation_score:
+        perturbation_score(
+            subset_df,
+            metadata_cols,
+            snakemake.params.perturbation_name_col,
+            snakemake.params.control_key,
+        )
 
     for col in subset_df.columns:
         if is_numeric_dtype(subset_df[col]):

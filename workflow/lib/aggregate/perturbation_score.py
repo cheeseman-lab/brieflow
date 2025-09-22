@@ -21,7 +21,7 @@ def calculate_perturbation_scores(
     gene: str,
     feature_cols: list[str],
     perturbation_col: str = "gene_symbol_0",
-    n_differential_features: int = 100,
+    n_differential_features: int = 200,
     minimum_cell_count: int = 100,
 ) -> tuple[pd.Series, float]:
     """Calculate per-cell perturbation scores via 5-fold out-of-fold logistic regression with top-k feature selection.
@@ -75,7 +75,6 @@ def perturbation_score(
     metadata_cols: list[str],
     perturbation_name_col: str,
     control_key: str,
-    auc_threshold: float = 0.6,
 ) -> None:
     """Process all perturbations and assign perturbation scores to cells based on AUC threshold.
 
@@ -88,15 +87,7 @@ def perturbation_score(
         metadata_cols (list[str]): List of metadata column names that will be updated to include 'perturbation_score'.
         perturbation_name_col (str): Column name containing perturbation identifiers.
         control_key (str): Prefix identifying control perturbations (e.g., 'nontargeting').
-        auc_threshold (float, optional): Minimum AUC required to assign perturbation scores. Defaults to 0.6.
-
-    Returns:
-        None: The function modifies cell_data and metadata_cols in-place.
     """
-    # start with all perturbation scores = 0
-    cell_data["perturbation_score"] = np.nan
-    metadata_cols.append("perturbation_score")
-
     perturbation_col = cell_data[perturbation_name_col]
     perturbed_genes = [
         gene
@@ -150,13 +141,11 @@ def perturbation_score(
             perturbation_col="gene_symbol_0",
         )
 
-        # if auc is greater than the cutoff, this perturbation is significant and we give perturbed cells their score
-        # otherwise, this perturbation is not significant and the score is nan
-        if auc > auc_threshold:
-            print(f"!! {gene} qualified for perturbation scoring with AUC of {auc:.3f}")
+        print(
+            f"!! {gene} perturbation score details| Number of Cells: {gene_subset_df.shape[0] // 2} AUC: {auc:.3f}"
+        )
 
-            # set the gene rows in original cell dataset to perturbation scores
-            perturbation_scores.index = original_idx
-            cell_data.loc[gene_idx, "perturbation_score"] = perturbation_scores[
-                gene_idx
-            ]
+        # set the gene rows in original cell dataset to perturbation scores
+        perturbation_scores.index = original_idx
+        cell_data.loc[gene_idx, "perturbation_score"] = perturbation_scores[gene_idx]
+        cell_data.loc[gene_idx, "perturbation_auc"] = auc

@@ -51,8 +51,6 @@ def aggregate(
         raise ValueError(
             "At least one of ps_probability_threshold or ps_percentile_threshold must be set"
         )
-    print(ps_probability_threshold, ps_percentile_threshold)
-    print(ps_percentile_threshold is not None)
 
     # filter by ps_probability_threshold; keep NaNs
     if ps_probability_threshold is not None:
@@ -64,16 +62,14 @@ def aggregate(
 
     # filter by ps_percentile_threshold; keep NaNs
     if ps_percentile_threshold is not None:
-        print("trying percentile threshold")
-        if not metadata["perturbation_score"].isna().all():
-            threshold_value = np.nanpercentile(
-                metadata["perturbation_score"], ps_percentile_threshold * 100
-            )
-            mask = metadata["perturbation_score"].isna() | (
-                metadata["perturbation_score"] >= threshold_value
-            )
-            metadata = metadata.loc[mask].reset_index(drop=True)
-            embeddings = embeddings[mask.to_numpy(), :]
+        threshold_value = np.nanpercentile(
+            metadata["perturbation_score"], ps_percentile_threshold * 100
+        )
+        mask = metadata["perturbation_score"].isna() | (
+            metadata["perturbation_score"] >= threshold_value
+        )
+        metadata = metadata.loc[mask].reset_index(drop=True)
+        embeddings = embeddings[mask.to_numpy(), :]
 
     grouping = metadata.groupby(pert_col)
     for pert, group in grouping:
@@ -87,13 +83,13 @@ def aggregate(
             else np.nan
         )
 
-        aggregated_metadata.append(
-            {
-                pert_col: pert,
-                "cell_count": len(group),
-                "aggregated_perturbation_score": pert_score,
-                "perturbation_auc": group["perturbation_auc"].iloc[0],
-            }
-        )
+        agg_meta = {
+            pert_col: pert,
+            "cell_count": len(group),
+            "aggregated_perturbation_score": pert_score,
+            "perturbation_auc": group["perturbation_auc"].iloc[0],
+        }
+
+        aggregated_metadata.append(agg_meta)
 
     return np.vstack(aggregated_embeddings), pd.DataFrame(aggregated_metadata)

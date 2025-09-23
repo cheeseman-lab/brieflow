@@ -100,8 +100,10 @@ rule aggregate:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         agg_method=config["aggregate"]["agg_method"],
-        ps_probability_threshold=config["aggregate"]["ps_probability_threshold"],
-        ps_percentile_threshold=config["aggregate"]["ps_percentile_threshold"],
+        ps_probability_threshold=config["aggregate"].get(
+            "ps_probability_threshold", None
+        ),
+        ps_percentile_threshold=config["aggregate"].get("ps_percentile_threshold", None),
     script:
         "../scripts/aggregate/aggregate.py"
 

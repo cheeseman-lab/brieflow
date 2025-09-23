@@ -14,7 +14,8 @@ def aggregate(
     metadata: pd.DataFrame,
     pert_col: str,
     method="mean",
-    perturbation_score_threshold=0.5,
+    ps_probability_threshold=None,
+    ps_percentile_threshold=None,
 ) -> tuple[np.ndarray, pd.DataFrame]:
     """Apply mean or median aggregation to replicate embeddings and perturbation scores for each perturbation.
 
@@ -28,7 +29,8 @@ def aggregate(
         pert_col (str): The column in the metadata containing perturbation information.
         method (str, optional): The aggregation method to use. Must be either "mean" or "median".
             Defaults to "mean".
-        perturbation_score_threshold (float, optional): Threshold for filtering based on perturbation score.
+        ps_probability_threshold (float, optional): Threshold for filtering based on perturbation score.
+        ps_percentile_threshold (float, optional): Percentile threshold for filtering based on perturbation score.
 
     Returns:
         tuple:
@@ -45,14 +47,33 @@ def aggregate(
     )
     if aggr_func is None:
         raise ValueError(f"Invalid aggregation method: {method}")
+    if ps_probability_threshold is None and ps_percentile_threshold is None:
+        raise ValueError(
+            "At least one of ps_probability_threshold or ps_percentile_threshold must be set"
+        )
+    print(ps_probability_threshold, ps_percentile_threshold)
+    print(ps_percentile_threshold is not None)
 
-    # filter by perturbation_score threshold; keep NaNs
-    if perturbation_score_threshold is not None:
+    # filter by ps_probability_threshold; keep NaNs
+    if ps_probability_threshold is not None:
         mask = metadata["perturbation_score"].isna() | (
-            metadata["perturbation_score"] >= perturbation_score_threshold
+            metadata["perturbation_score"] >= ps_probability_threshold
         )
         metadata = metadata.loc[mask].reset_index(drop=True)
         embeddings = embeddings[mask.to_numpy(), :]
+
+    # filter by ps_percentile_threshold; keep NaNs
+    if ps_percentile_threshold is not None:
+        print("trying percentile threshold")
+        if not metadata["perturbation_score"].isna().all():
+            threshold_value = np.nanpercentile(
+                metadata["perturbation_score"], ps_percentile_threshold * 100
+            )
+            mask = metadata["perturbation_score"].isna() | (
+                metadata["perturbation_score"] >= threshold_value
+            )
+            metadata = metadata.loc[mask].reset_index(drop=True)
+            embeddings = embeddings[mask.to_numpy(), :]
 
     grouping = metadata.groupby(pert_col)
     for pert, group in grouping:
@@ -71,6 +92,7 @@ def aggregate(
                 pert_col: pert,
                 "cell_count": len(group),
                 "aggregated_perturbation_score": pert_score,
+                "perturbation_auc": group["perturbation_auc"].iloc[0],
             }
         )
 

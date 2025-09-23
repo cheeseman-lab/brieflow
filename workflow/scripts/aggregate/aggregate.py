@@ -24,7 +24,8 @@ aggregated_embeddings, aggregated_metadata = aggregate(
     metadata,
     snakemake.params.perturbation_name_col,
     method=snakemake.params.agg_method,
-    perturbation_score_threshold=snakemake.params.perturbation_score_threshold,
+    ps_probability_threshold=snakemake.params.ps_probability_threshold,
+    ps_percentile_threshold=snakemake.params.ps_percentile_threshold,
 )
 
 # Save aggregated data

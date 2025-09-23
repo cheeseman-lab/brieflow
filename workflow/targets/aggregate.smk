@@ -52,15 +52,15 @@ AGGREGATE_OUTPUTS = {
             "parquet",
         ),
     ],
-    # "aggregate": [
-    #     AGGREGATE_FP
-    #     / "tsvs"
-    #     / get_filename(
-    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-    #         "aggregated",
-    #         "tsv",
-    #     ),
-    # ],
+    "aggregate": [
+        AGGREGATE_FP
+        / "tsvs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "aggregated",
+            "tsv",
+        ),
+    ],
     # "eval_aggregate": [
     #     AGGREGATE_FP
     #     / "eval"

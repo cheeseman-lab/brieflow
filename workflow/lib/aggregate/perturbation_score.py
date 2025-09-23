@@ -98,6 +98,8 @@ def perturbation_score(
         perturbation_col.str.startswith(control_key)
     ].to_numpy()
 
+    # TODO: remove
+    gene_num = 0
     for gene in perturbed_genes:
         print(f"Processing {gene}...")
         gene_idx = perturbation_col.index[perturbation_col == gene].to_numpy()
@@ -149,3 +151,7 @@ def perturbation_score(
         perturbation_scores.index = original_idx
         cell_data.loc[gene_idx, "perturbation_score"] = perturbation_scores[gene_idx]
         cell_data.loc[gene_idx, "perturbation_auc"] = auc
+
+        gene_num += 1
+        if gene_num > 50:
+            return

@@ -19,7 +19,7 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "sbs_stitch_config", "yml"
         ),
     ],
-    "stitch_phenotype_well": [
+    "stitch_phenotype": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_cell_positions", "parquet"
         ),  # [0] - phenotype_cell_positions (always)
@@ -33,7 +33,7 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "phenotype_stitched_mask", "npy"
         ),  # [3] - phenotype_stitched_mask (conditional - may be empty file)
     ],  
-    "stitch_sbs_well": [
+    "stitch_sbs": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_cell_positions", "parquet"
         ),  # [0] - sbs_cell_positions (always)
@@ -47,31 +47,31 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_mask", "npy"
         ),  # [3] - sbs_stitched_mask (conditional - may be empty file)
     ],
-    "well_alignment": [
-        MERGE_FP / "well_alignment" / get_filename(
+    "stitch_alignment": [
+        MERGE_FP / "stitch_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_scaled", "parquet"
         ),  # [0] - scaled_phenotype_positions
-        MERGE_FP / "well_alignment" / get_filename(
+        MERGE_FP / "stitch_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_triangles", "parquet"
         ),  # [1] - phenotype_triangles
-        MERGE_FP / "well_alignment" / get_filename(
+        MERGE_FP / "stitch_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_triangles", "parquet"
         ),  # [2] - sbs_triangles
-        MERGE_FP / "well_alignment" / get_filename(
+        MERGE_FP / "stitch_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "alignment", "parquet"
         ),  # [3] - alignment_params
         MERGE_FP / "tsvs" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "alignment_summary", "tsv"
         ),  # [4] - alignment_summary
-        MERGE_FP / "well_alignment" / get_filename(
+        MERGE_FP / "stitch_alignment" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_transformed", "parquet"
         ),  # [5] - transformed_phenotype_positions
     ],
-    "well_cell_merge": [
-        MERGE_FP / "well_cell_merge" / get_filename(
+    "stitch_merge": [
+        MERGE_FP / "stitch_merge" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "raw_matches", "parquet"
         ),  # [0] - raw_matches
-        MERGE_FP / "well_cell_merge" / get_filename(
+        MERGE_FP / "stitch_merge" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merged_cells", "parquet"
         ),  # [1] - merged_cells
         MERGE_FP / "tsvs" / get_filename(
@@ -97,9 +97,9 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "fast_alignment", "parquet"
         ),
     ],
-    "merge_tile": [
+    "fast_merge": [
         MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "merge_tile", "parquet"
+            {"plate": "{plate}", "well": "{well}"}, "fast_merge", "parquet"
         ),
     ],
     "merge_well": [
@@ -190,8 +190,8 @@ def get_merge_targets_by_approach():
     if approach == "well":
         approach_targets = [
             "estimate_stitch_phenotype", "estimate_stitch_sbs",
-            "stitch_phenotype_well", "stitch_sbs_well",
-            "well_alignment", "well_cell_merge", "well_merge_deduplicate", "merge_well"
+            "stitch_phenotype", "stitch_sbs",
+            "stitch_alignment", "stitch_merge", "well_merge_deduplicate", "merge_well"
         ]
         # Add aggregate summaries target for well approach
         core_targets.append("aggregate_well_summaries")
@@ -199,7 +199,7 @@ def get_merge_targets_by_approach():
     else:
         # Tile approach targets
         approach_targets = [
-            "fast_alignment", "merge_tile"
+            "fast_alignment", "fast_merge"
         ]
         # Tile approach needs the additional deduplicate_merge step
         core_targets.insert(-2, "deduplicate_merge")  # Insert before final_merge and eval_merge
@@ -212,13 +212,13 @@ def get_merge_targets_by_approach():
 MERGE_OUTPUT_MAPPINGS = {
     "estimate_stitch_phenotype": temp,
     "estimate_stitch_sbs": temp,
-    "stitch_phenotype_well": None,
-    "stitch_sbs_well": None,
-    "well_alignment": None,
-    "well_cell_merge": None,
+    "stitch_phenotype": None,
+    "stitch_sbs": None,
+    "stitch_alignment": None,
+    "stitch_merge": None,
     "well_merge_deduplicate": None,
     "fast_alignment": None,
-    "merge_tile": None,
+    "fast_merge": None,
     "merge_well": None,
     "format_merge": None,
     "eval_merge": None,

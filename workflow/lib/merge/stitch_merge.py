@@ -3,14 +3,6 @@
 This module provides functions for aligning and matching cells from phenotype and SBS
 datasets using spatial transformations. It includes coordinate system alignment,
 distance-based matching, and validation of match quality.
-
-Key functions:
-- load_alignment_parameters: Parse alignment parameters from DataFrame
-- find_cell_matches: Main function for finding cell matches using spatial alignment
-- validate_matches: Quality assessment of matching results
-- filter_tiles_by_diversity: Remove tiles with insufficient cell diversity
-- build_final_matches: Build final matches DataFrame with metadata
-- create_merge_summary: Create comprehensive summary statistics
 """
 
 import gc
@@ -20,10 +12,18 @@ from scipy.spatial.distance import cdist
 from typing import Dict, Any, Tuple, Optional
 
 
+# Schema definitions
+MATCHES_COLUMNS = [
+    "plate", "well", "site", "tile", "cell_0", "cell_1",
+    "i_0", "j_0", "i_1", "j_1", "area_0", "area_1",
+    "distance", "stitched_cell_id_0", "stitched_cell_id_1"
+]
+
+
 def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
     """Load alignment parameters from a DataFrame row.
 
-    Assumes valid input from pipeline. Single validation check for data integrity.
+    Single validation check for data integrity.
     """
     # Extract rotation matrix
     rotation_flat = alignment_row.get("rotation_matrix_flat", [1.0, 0.0, 0.0, 1.0])
@@ -81,7 +81,7 @@ def find_cell_matches(
     verbose: bool = True,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """Find cell matches using alignment transformation.
-
+    
     Args:
         phenotype_positions: Phenotype cell positions
         sbs_positions: SBS cell positions
@@ -90,7 +90,7 @@ def find_cell_matches(
         chunk_size: Chunk size for memory-efficient processing
         transformed_phenotype_positions: Pre-calculated transformed coordinates
         verbose: Print progress messages
-
+    
     Returns:
         Tuple of (matches DataFrame, statistics dictionary)
     """
@@ -146,6 +146,34 @@ def find_cell_matches(
         )
 
 
+def _process_distance_chunk(
+    sbs_coords: np.ndarray,
+    transformed_coords: np.ndarray,
+    threshold: float,
+    sbs_offset: int = 0,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute distances and filter by threshold for a coordinate chunk.
+    
+    Returns:
+        Tuple of (valid_sbs_indices, valid_pheno_indices, valid_distances)
+    """
+    # Calculate distances
+    distances = cdist(sbs_coords, transformed_coords, metric="euclidean")
+    closest_pheno_idx = distances.argmin(axis=1)
+    min_distances = distances.min(axis=1)
+
+    del distances
+    gc.collect()
+
+    # Filter by threshold
+    valid_mask = min_distances < threshold
+    valid_sbs_idx = np.arange(len(sbs_coords))[valid_mask] + sbs_offset
+    valid_pheno_idx = closest_pheno_idx[valid_mask]
+    valid_distances = min_distances[valid_mask]
+
+    return valid_sbs_idx, valid_pheno_idx, valid_distances
+
+
 def _find_matches_direct(
     phenotype_positions: pd.DataFrame,
     sbs_positions: pd.DataFrame,
@@ -161,16 +189,12 @@ def _find_matches_direct(
             f"Computing distance matrix: {len(sbs_coords):,} × {len(transformed_coords):,}"
         )
 
-    distances = cdist(sbs_coords, transformed_coords, metric="euclidean")
-    closest_pheno_idx = distances.argmin(axis=1)
-    min_distances = distances.min(axis=1)
+    # Process all coordinates at once
+    valid_sbs_idx, valid_pheno_idx, valid_distances = _process_distance_chunk(
+        sbs_coords, transformed_coords, threshold
+    )
 
-    del distances
-    gc.collect()
-
-    # Filter by threshold
-    valid_mask = min_distances < threshold
-    n_valid = valid_mask.sum()
+    n_valid = len(valid_distances)
 
     if verbose:
         print(f"Found {n_valid:,} matches within {threshold}px threshold")
@@ -179,10 +203,6 @@ def _find_matches_direct(
         return pd.DataFrame(), {"raw_matches": 0, "method": "direct"}
 
     # Build matches
-    valid_sbs_idx = np.where(valid_mask)[0]
-    valid_pheno_idx = closest_pheno_idx[valid_mask]
-    valid_distances = min_distances[valid_mask]
-
     matches_df = _build_matches_dataframe(
         phenotype_positions,
         sbs_positions,
@@ -235,22 +255,11 @@ def _find_matches_chunked(
 
         # Calculate distances for chunk
         sbs_chunk = sbs_coords[start_idx:end_idx]
-        distances = cdist(sbs_chunk, transformed_coords, metric="euclidean")
+        chunk_sbs_idx, chunk_pheno_idx, chunk_distances = _process_distance_chunk(
+            sbs_chunk, transformed_coords, threshold, sbs_offset=start_idx
+        )
 
-        closest_pheno_idx = distances.argmin(axis=1)
-        min_distances = distances.min(axis=1)
-
-        del distances
-        gc.collect()
-
-        # Filter by threshold
-        valid_mask = min_distances < threshold
-
-        if valid_mask.sum() > 0:
-            chunk_sbs_idx = np.arange(start_idx, end_idx)[valid_mask]
-            chunk_pheno_idx = closest_pheno_idx[valid_mask]
-            chunk_distances = min_distances[valid_mask]
-
+        if len(chunk_distances) > 0:
             chunk_matches = _build_matches_dataframe(
                 phenotype_positions,
                 sbs_positions,
@@ -351,13 +360,6 @@ def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
     pheno_duplicates = matches_df["cell_0"].duplicated().sum()
     sbs_duplicates = matches_df["cell_1"].duplicated().sum()
 
-    # Quality flags
-    has_duplicates = pheno_duplicates > 0 or sbs_duplicates > 0
-    has_large_distances = over_20px > 0
-    good_quality = (
-        not has_duplicates and distances.mean() < 5.0 and over_20px < n_matches * 0.05
-    )
-
     return {
         "status": "valid",
         "match_count": n_matches,
@@ -379,12 +381,7 @@ def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
         "duplication": {
             "phenotype_duplicates": int(pheno_duplicates),
             "sbs_duplicates": int(sbs_duplicates),
-            "has_duplicates": has_duplicates,
-        },
-        "quality_flags": {
-            "has_duplicates": has_duplicates,
-            "has_large_distances": has_large_distances,
-            "good_quality": good_quality,
+            "has_duplicates": pheno_duplicates > 0 or sbs_duplicates > 0,
         },
     }
 
@@ -392,7 +389,7 @@ def validate_matches(matches_df: pd.DataFrame) -> Dict[str, Any]:
 def filter_tiles_by_diversity(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
     """Filter out tiles that have only one unique original_cell_id."""
     if "original_cell_id" not in df.columns or "tile" not in df.columns:
-        print(f"⚠️  Cannot filter {data_type} tiles - missing required columns")
+        print(f"Cannot filter {data_type} tiles - missing required columns")
         return df
 
     # Count unique original_cell_ids per tile
@@ -423,14 +420,14 @@ def build_final_matches(
     well: str,
 ) -> pd.DataFrame:
     """Build final matches DataFrame with metadata extraction.
-
+    
     Args:
         raw_matches: Raw match results from find_cell_matches
         phenotype_filtered: Filtered phenotype positions
         sbs_filtered: Filtered SBS positions
         plate: Plate identifier
         well: Well identifier
-
+    
     Returns:
         DataFrame with complete match information including metadata
     """
@@ -462,8 +459,8 @@ def build_final_matches(
         {
             "plate": plate,
             "well": well,
-            "site": sbs_rows["tile"].values.astype(int),
-            "tile": phenotype_rows["tile"].values.astype(int),
+            "site": sbs_rows["tile"].values,
+            "tile": phenotype_rows["tile"].values,
             "cell_0": phenotype_rows["original_cell_id"].values,
             "cell_1": sbs_rows["original_cell_id"].values,
             "i_0": raw_matches["i_0"].values,
@@ -482,7 +479,7 @@ def build_final_matches(
         }
     )
 
-    print(f"✅ Built {len(final_matches):,} final matches")
+    print(f"Built {len(final_matches):,} final matches")
 
     return final_matches
 
@@ -513,7 +510,7 @@ def create_merge_summary(
         "plate": plate,
         "well": well,
         "status": "success",
-        "distance_threshold_pixels": float(threshold),
+        "distance_threshold_pixels": threshold,
         "phenotype_cells_before_filtering": len(phenotype_scaled),
         "sbs_cells_before_filtering": len(sbs_positions),
         "phenotype_cells_after_filtering": len(phenotype_filtered),
@@ -522,21 +519,19 @@ def create_merge_summary(
             phenotype_scaled, phenotype_filtered
         ),
         "sbs_tiles_removed": _count_tiles_removed(sbs_positions, sbs_filtered),
-        "alignment_approach": str(alignment.get("approach", "unknown")),
-        "alignment_transformation_type": str(
-            alignment.get("transformation_type", "unknown")
-        ),
-        "alignment_score": float(alignment.get("score", 0)),
-        "alignment_determinant": float(alignment.get("determinant", 1)),
+        "alignment_approach": alignment.get("approach", "unknown"),
+        "alignment_transformation_type": alignment.get("transformation_type", "unknown"),
+        "alignment_score": alignment.get("score", 0),
+        "alignment_determinant": alignment.get("determinant", 1),
         "raw_matches_found": len(final_matches),
-        "mean_match_distance": float(final_matches["distance"].mean()),
-        "max_match_distance": float(final_matches["distance"].max()),
-        "matches_under_5px": int((final_matches["distance"] < 5).sum()),
-        "matches_under_10px": int((final_matches["distance"] < 10).sum()),
-        "match_rate_phenotype": float(len(final_matches) / len(phenotype_filtered))
+        "mean_match_distance": final_matches["distance"].mean(),
+        "max_match_distance": final_matches["distance"].max(),
+        "matches_under_5px": (final_matches["distance"] < 5).sum(),
+        "matches_under_10px": (final_matches["distance"] < 10).sum(),
+        "match_rate_phenotype": len(final_matches) / len(phenotype_filtered)
         if len(phenotype_filtered) > 0
         else 0.0,
-        "match_rate_sbs": float(len(final_matches) / len(sbs_filtered))
+        "match_rate_sbs": len(final_matches) / len(sbs_filtered)
         if len(sbs_filtered) > 0
         else 0.0,
     }
@@ -554,10 +549,6 @@ def create_merge_summary(
                 for k, v in validation.get("distance_distribution", {}).items()
             },
             **{
-                f"validation_quality_{k}": v
-                for k, v in validation.get("quality_flags", {}).items()
-            },
-            **{
                 f"validation_duplication_{k}": v
                 for k, v in validation.get("duplication", {}).items()
             },
@@ -569,25 +560,7 @@ def create_merge_summary(
 
 def _create_empty_matches_df(plate: str, well: str) -> pd.DataFrame:
     """Create empty matches DataFrame with correct schema."""
-    return pd.DataFrame(
-        columns=[
-            "plate",
-            "well",
-            "site",
-            "tile",
-            "cell_0",
-            "cell_1",
-            "i_0",
-            "j_0",
-            "i_1",
-            "j_1",
-            "area_0",
-            "area_1",
-            "distance",
-            "stitched_cell_id_0",
-            "stitched_cell_id_1",
-        ]
-    ).assign(plate=plate, well=well)
+    return pd.DataFrame(columns=MATCHES_COLUMNS).assign(plate=plate, well=well)
 
 
 def _create_failure_summary(
@@ -605,7 +578,7 @@ def _create_failure_summary(
                 "well": well,
                 "status": "failed",
                 "failure_reason": "no_matches_found",
-                "distance_threshold_pixels": float(threshold),
+                "distance_threshold_pixels": threshold,
                 "phenotype_cells_before_filtering": len(phenotype_scaled),
                 "sbs_cells_before_filtering": len(sbs_positions),
                 "phenotype_cells_after_filtering": 0,
@@ -637,22 +610,16 @@ def _count_tiles_removed(original_df: pd.DataFrame, filtered_df: pd.DataFrame) -
 
 
 def _log_validation_results(validation: Dict[str, Any]) -> None:
-    """Log validation results with appropriate warnings."""
+    """Log validation results with warnings for issues."""
     if validation.get("status") != "valid":
-        print(f"❌ Match validation failed: {validation.get('status', 'unknown')}")
+        print(f"Match validation failed: {validation.get('status', 'unknown')}")
         return
 
-    # Quality assessment
-    quality = (
-        "GOOD"
-        if validation.get("quality_flags", {}).get("good_quality")
-        else "ACCEPTABLE"
-    )
-    print(f"✅ Match quality: {quality}")
-
-    # Distance stats
     stats = validation.get("distance_stats", {})
     dist = validation.get("distance_distribution", {})
+    dups = validation.get("duplication", {})
+
+    # Distance stats
     print(
         f"Distance: mean={stats.get('mean', 0):.1f}px, max={stats.get('max', 0):.1f}px"
     )
@@ -661,11 +628,10 @@ def _log_validation_results(validation: Dict[str, Any]) -> None:
     )
 
     # Warnings
-    if validation.get("duplication", {}).get("has_duplicates"):
-        dups = validation["duplication"]
+    if dups.get("has_duplicates"):
         print(
-            f"⚠️  WARNING: Duplicates (phenotype: {dups['phenotype_duplicates']}, SBS: {dups['sbs_duplicates']})"
+            f"WARNING: Duplicates (phenotype: {dups['phenotype_duplicates']}, SBS: {dups['sbs_duplicates']})"
         )
 
     if dist.get("over_20px", 0) > 0:
-        print(f"⚠️  WARNING: {dist['over_20px']} matches >20px")
+        print(f"WARNING: {dist['over_20px']} matches >20px")

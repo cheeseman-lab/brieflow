@@ -14,9 +14,21 @@ from typing import Dict, Any, Tuple, Optional
 
 # Schema definitions
 MATCHES_COLUMNS = [
-    "plate", "well", "site", "tile", "cell_0", "cell_1",
-    "i_0", "j_0", "i_1", "j_1", "area_0", "area_1",
-    "distance", "stitched_cell_id_0", "stitched_cell_id_1"
+    "plate",
+    "well",
+    "site",
+    "tile",
+    "cell_0",
+    "cell_1",
+    "i_0",
+    "j_0",
+    "i_1",
+    "j_1",
+    "area_0",
+    "area_1",
+    "distance",
+    "stitched_cell_id_0",
+    "stitched_cell_id_1",
 ]
 
 
@@ -81,7 +93,7 @@ def find_cell_matches(
     verbose: bool = True,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """Find cell matches using alignment transformation.
-    
+
     Args:
         phenotype_positions: Phenotype cell positions
         sbs_positions: SBS cell positions
@@ -90,7 +102,7 @@ def find_cell_matches(
         chunk_size: Chunk size for memory-efficient processing
         transformed_phenotype_positions: Pre-calculated transformed coordinates
         verbose: Print progress messages
-    
+
     Returns:
         Tuple of (matches DataFrame, statistics dictionary)
     """
@@ -153,7 +165,7 @@ def _process_distance_chunk(
     sbs_offset: int = 0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute distances and filter by threshold for a coordinate chunk.
-    
+
     Returns:
         Tuple of (valid_sbs_indices, valid_pheno_indices, valid_distances)
     """
@@ -420,14 +432,14 @@ def build_final_matches(
     well: str,
 ) -> pd.DataFrame:
     """Build final matches DataFrame with metadata extraction.
-    
+
     Args:
         raw_matches: Raw match results from find_cell_matches
         phenotype_filtered: Filtered phenotype positions
         sbs_filtered: Filtered SBS positions
         plate: Plate identifier
         well: Well identifier
-    
+
     Returns:
         DataFrame with complete match information including metadata
     """
@@ -520,7 +532,9 @@ def create_merge_summary(
         ),
         "sbs_tiles_removed": _count_tiles_removed(sbs_positions, sbs_filtered),
         "alignment_approach": alignment.get("approach", "unknown"),
-        "alignment_transformation_type": alignment.get("transformation_type", "unknown"),
+        "alignment_transformation_type": alignment.get(
+            "transformation_type", "unknown"
+        ),
         "alignment_score": alignment.get("score", 0),
         "alignment_determinant": alignment.get("determinant", 1),
         "raw_matches_found": len(final_matches),

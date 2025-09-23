@@ -16,13 +16,14 @@ high-quality cell matching and tracking the merging efficiency.
 
 import pandas as pd
 
+
 def deduplicate_cells(
-    df, 
-    mapped_single_gene=False, 
+    df,
+    mapped_single_gene=False,
     return_stats=False,
     approach="fast",  # New parameter
     pheno_id_cols=None,  # New parameter
-    sbs_id_cols=None     # New parameter
+    sbs_id_cols=None,  # New parameter
 ):
     """Removes duplicate cell mappings in two steps.
 
@@ -41,7 +42,6 @@ def deduplicate_cells(
         If `return_stats` is False, returns a DataFrame with duplicates removed.
         If `return_stats` is True, returns a tuple of the deduplicated DataFrame and a statistics DataFrame.
     """
-    
     # Auto-determine ID columns based on approach
     if pheno_id_cols is None or sbs_id_cols is None:
         if approach == "stitch":
@@ -50,13 +50,13 @@ def deduplicate_cells(
         else:  # fast approach
             pheno_id_cols = ["plate", "well", "tile", "cell_0"]
             sbs_id_cols = ["plate", "well", "site", "cell_1"]
-    
+
     # Step 1: For each phenotype cell, keep best SBS match
     if approach == "stitch":
         # For stitched approach, sort by distance only
-        df_sbs_deduped = df.sort_values(
-            "distance", ascending=True
-        ).drop_duplicates(pheno_id_cols, keep="first")
+        df_sbs_deduped = df.sort_values("distance", ascending=True).drop_duplicates(
+            pheno_id_cols, keep="first"
+        )
     else:
         # Keep original tile approach logic
         df_sbs_deduped = df.sort_values(
@@ -152,20 +152,21 @@ def check_matching_rates(orig_data, merged_data, modality="sbs", return_stats=Fa
     if return_stats:
         return rates_df
 
+
 def analyze_distance_distribution(df):
     """Analyzes distance distribution for validation.
-    
+
     Args:
         df: DataFrame with 'distance' column
-        
+
     Returns:
         Dictionary with distance distribution metrics
     """
-    if df.empty or 'distance' not in df.columns:
+    if df.empty or "distance" not in df.columns:
         return {}
-        
-    distances = df['distance']
-    
+
+    distances = df["distance"]
+
     return {
         "distance_stats": {
             "mean": float(distances.mean()),
@@ -182,5 +183,5 @@ def analyze_distance_distribution(df):
             "under_10px": int((distances < 10).sum()),
             "over_20px": int((distances > 20).sum()),
             "over_50px": int((distances > 50).sum()),
-        }
+        },
     }

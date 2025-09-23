@@ -697,7 +697,7 @@ def display_well_alignment_summary(alignment_data):
 
     Args:
         alignment_data (dict): Output from load_well_alignment_outputs
-        
+
     Note:
         This function is kept for backward compatibility but does nothing.
         All summary printing has been removed.

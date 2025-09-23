@@ -186,8 +186,8 @@ if merge_approach == "fast":
  rule format_merge:
     input:
         lambda wildcards: (
-            MERGE_OUTPUTS["stitch_merge"][0]
-            if config.get("merge", {}).get("approach", "tile") == "well" 
+            MERGE_OUTPUTS["stitch_merge"][1]
+            if config.get("merge", {}).get("approach", "fast") == "stitch" 
             else MERGE_OUTPUTS["fast_merge"][0]
         ),
         ancient(SBS_OUTPUTS["combine_cells"]),
@@ -195,47 +195,9 @@ if merge_approach == "fast":
     output:
         MERGE_OUTPUTS_MAPPED["format_merge"][0],
     params:
-        approach=config.get("merge", {}).get("approach", "tile"),
+        approach=config.get("merge", {}).get("approach", "fast"),
     script:
         "../scripts/merge/format_merge.py"
-
-
-if merge_approach == "stitch":
-    rule well_merge_deduplicate:
-        input:
-            merged_cells=MERGE_OUTPUTS["format_merge"][0],
-            sbs_cells=ancient(SBS_OUTPUTS["combine_cells"]),
-            phenotype_min_cp=ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1]),
-        output:
-            deduplicated_cells=MERGE_OUTPUTS["well_merge_deduplicate"][0],      
-            deduplication_summary=temp(MERGE_OUTPUTS["well_merge_deduplicate"][1]),
-            sbs_matching_rates=MERGE_OUTPUTS["well_merge_deduplicate"][2],
-            phenotype_matching_rates=MERGE_OUTPUTS["well_merge_deduplicate"][3],
-        params:
-            plate=lambda wildcards: wildcards.plate,
-            well=lambda wildcards: wildcards.well,
-        script:
-            "../scripts/merge/well_merge_deduplicate.py"
-
-    rule merge_well:
-        input:
-            MERGE_OUTPUTS["well_merge_deduplicate"][0]  # deduplicated_cells
-        output:
-            MERGE_OUTPUTS_MAPPED["merge_well"][0],
-        params:
-            approach=config.get("merge", {}).get("approach", "tile"),
-        run:
-            import pandas as pd
-            from lib.shared.file_utils import validate_dtypes
-            
-            # Copy the chosen approach to the standard merge output
-            merge_data = validate_dtypes(pd.read_parquet(input[0]))
-            merge_data.to_parquet(output[0])
-            
-            approach = params.approach
-            print(f"Using {approach} merge approach")
-            print(f"Merged {len(merge_data)} cells")
-
 
 
 rule deduplicate_merge:
@@ -246,43 +208,23 @@ rule deduplicate_merge:
     output:
         MERGE_OUTPUTS_MAPPED["deduplicate_merge"],
     params:
-        approach=config.get("merge", {}).get("approach", "tile"),
-    run:
-        approach = params.approach
-        if approach == "well":
-            # For well approach, we already deduplicated, so just copy the formatted data
-            import pandas as pd
-            from lib.shared.file_utils import validate_dtypes
-            
-            formatted_data = validate_dtypes(pd.read_parquet(input[0]))
-            
-            # Create dummy outputs to match expected structure
-            # Save the formatted data as "deduplicated" (no additional deduplication needed)
-            formatted_data.to_parquet(output[1]) 
-            
-            # Create dummy stats files
-            import pandas as pd
-            dummy_stats = pd.DataFrame({"info": ["No additional deduplication - already done in well_merge_deduplicate"]})
-            dummy_stats.to_csv(output[0], sep='\t', index=False)
-            dummy_stats.to_csv(output[2], sep='\t', index=False)
-            dummy_stats.to_csv(output[3], sep='\t', index=False) 
-        else:
-            # For tile approach, run the actual deduplication script
-            shell("python {workflow.basedir}/scripts/merge/deduplicate_merge.py")
+        approach=config.get("merge", {}).get("approach", "fast"),
+    script:
+        "../scripts/merge/deduplicate_merge.py"
 
 
 rule final_merge:
     input:
         lambda wildcards: (
             MERGE_OUTPUTS["format_merge"][0]
-            if config.get("merge", {}).get("approach", "tile") == "well" 
+            if config.get("merge", {}).get("approach", "fast") == "well" 
             else MERGE_OUTPUTS["deduplicate_merge"][1]
         ),
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0]),
     output:
         MERGE_OUTPUTS_MAPPED["final_merge"][0],
     params:
-        approach=config.get("merge", {}).get("approach", "tile"),
+        approach=config.get("merge", {}).get("approach", "fast"),
     script:
         "../scripts/merge/final_merge.py"
 

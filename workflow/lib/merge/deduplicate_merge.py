@@ -16,35 +16,66 @@ high-quality cell matching and tracking the merging efficiency.
 
 import pandas as pd
 
-
-def deduplicate_cells(df, mapped_single_gene=False, return_stats=False):
+def deduplicate_cells(
+    df, 
+    mapped_single_gene=False, 
+    return_stats=False,
+    approach="fast",  # New parameter
+    pheno_id_cols=None,  # New parameter
+    sbs_id_cols=None     # New parameter
+):
     """Removes duplicate cell mappings in two steps.
 
-    1. For each phenotype cell (`cell_0`), keeps the best SBS cell match.
-    2. For each SBS cell (`cell_1`), keeps the best phenotype cell match.
+    1. For each phenotype cell, keeps the best SBS cell match.
+    2. For each SBS cell, keeps the best phenotype cell match.
 
     Args:
         df: DataFrame with merged cell data.
         mapped_single_gene: If True, filters to cells with single gene mappings. Defaults to False.
         return_stats: If True, returns a DataFrame with deduplication statistics. Defaults to False.
+        approach: "fast" or "stitch" to determine deduplication strategy. Defaults to "fast".
+        pheno_id_cols: Column(s) identifying phenotype cells. Auto-determined if None.
+        sbs_id_cols: Column(s) identifying SBS cells. Auto-determined if None.
 
     Returns:
         If `return_stats` is False, returns a DataFrame with duplicates removed.
         If `return_stats` is True, returns a tuple of the deduplicated DataFrame and a statistics DataFrame.
     """
+    
+    # Auto-determine ID columns based on approach
+    if pheno_id_cols is None or sbs_id_cols is None:
+        if approach == "stitch":
+            pheno_id_cols = "stitched_cell_id_0"
+            sbs_id_cols = "stitched_cell_id_1"
+        else:  # fast approach
+            pheno_id_cols = ["plate", "well", "tile", "cell_0"]
+            sbs_id_cols = ["plate", "well", "site", "cell_1"]
+    
     # Step 1: For each phenotype cell, keep best SBS match
-    # Sort by mapping quality and distance to center of well to prioritize better matches
-    df_sbs_deduped = df.sort_values(
-        ["mapped_single_gene", "fov_distance_1"], ascending=[False, True]
-    ).drop_duplicates(["plate", "well", "tile", "cell_0"], keep="first")
+    if approach == "stitch":
+        # For stitched approach, sort by distance only
+        df_sbs_deduped = df.sort_values(
+            "distance", ascending=True
+        ).drop_duplicates(pheno_id_cols, keep="first")
+    else:
+        # Keep original tile approach logic
+        df_sbs_deduped = df.sort_values(
+            ["mapped_single_gene", "fov_distance_1"], ascending=[False, True]
+        ).drop_duplicates(pheno_id_cols, keep="first")
 
     # Step 2: For each remaining SBS cell, keep best phenotype match
-    # Sort by distance to center of well to prioritize better matches
-    df_final = df_sbs_deduped.sort_values(
-        "fov_distance_0", ascending=True
-    ).drop_duplicates(["plate", "well", "site", "cell_1"], keep="first")
+    if approach == "stitch":
+        # For stitched approach, sort by distance only
+        df_final = df_sbs_deduped.sort_values(
+            "distance", ascending=True
+        ).drop_duplicates(sbs_id_cols, keep="first")
+    else:
+        # Keep original tile approach logic
+        df_final = df_sbs_deduped.sort_values(
+            "fov_distance_0", ascending=True
+        ).drop_duplicates(sbs_id_cols, keep="first")
 
-    # Calculate statistics
+    # Rest of the function stays exactly the same...
     stats = {
         "stage": ["Initial", "After SBS dedup", "After phenotype dedup"],
         "total_cells": [len(df), len(df_sbs_deduped), len(df_final)],
@@ -55,7 +86,7 @@ def deduplicate_cells(df, mapped_single_gene=False, return_stats=False):
         ],
     }
 
-    # Print summary statistics
+    # Print summary statistics (same as before)
     print(f"Initial cells: {stats['total_cells'][0]:,}")
     print(f"After SBS deduplication: {stats['total_cells'][1]:,}")
     print(f"After phenotype deduplication: {stats['total_cells'][2]:,}")
@@ -120,3 +151,36 @@ def check_matching_rates(orig_data, merged_data, modality="sbs", return_stats=Fa
 
     if return_stats:
         return rates_df
+
+def analyze_distance_distribution(df):
+    """Analyzes distance distribution for validation.
+    
+    Args:
+        df: DataFrame with 'distance' column
+        
+    Returns:
+        Dictionary with distance distribution metrics
+    """
+    if df.empty or 'distance' not in df.columns:
+        return {}
+        
+    distances = df['distance']
+    
+    return {
+        "distance_stats": {
+            "mean": float(distances.mean()),
+            "median": float(distances.median()),
+            "std": float(distances.std()),
+            "min": float(distances.min()),
+            "max": float(distances.max()),
+            "p95": float(distances.quantile(0.95)),
+        },
+        "distance_distribution": {
+            "under_1px": int((distances < 1).sum()),
+            "under_2px": int((distances < 2).sum()),
+            "under_5px": int((distances < 5).sum()),
+            "under_10px": int((distances < 10).sum()),
+            "over_20px": int((distances > 20).sum()),
+            "over_50px": int((distances > 50).sum()),
+        }
+    }

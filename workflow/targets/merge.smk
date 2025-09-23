@@ -78,20 +78,6 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "merge_summary", "tsv"
         ),  # [2] - merge_summary
     ],
-    "well_merge_deduplicate": [
-        MERGE_FP / "well_merge_deduplicate" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "deduplicated_cells", "parquet"
-        ),  # [0] - deduplicated_cells
-        MERGE_FP / "tsvs" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "dedup_summary", "tsv"
-        ),  # [1] - deduplication_summary
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "sbs_matching_rates", "tsv"
-        ),  # [2] - sbs_matching_rates (NEW)
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_matching_rates", "tsv"
-        ),  # [3] - phenotype_matching_rates (NEW)
-    ],
     "fast_alignment": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "fast_alignment", "parquet"
@@ -100,11 +86,6 @@ MERGE_OUTPUTS = {
     "fast_merge": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "fast_merge", "parquet"
-        ),
-    ],
-    "merge_well": [
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "merge", "parquet"
         ),
     ],
     "format_merge": [
@@ -157,52 +138,43 @@ MERGE_OUTPUTS = {
     "aggregate_well_summaries": [
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "alignment_summaries", "tsv"
-        ),
+        ),  # [0] - alignment_summaries
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "cell_merge_summaries", "tsv"
-        ),
+        ),  # [1] - cell_merge_summaries
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "dedup_summaries", "tsv"
-        ),
+        ),  # [2] - dedup_summaries
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "sbs_matching_summaries", "tsv"
-        ),
+        ),  # [3] - sbs_matching_summaries
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "phenotype_matching_summaries", "tsv"
-        ),
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}"}, "phenotype_cell_positions", "png"
-        ),
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}"}, "sbs_cell_positions", "png"
-        ),
+        ),  # [4] - phenotype_matching_summaries
     ],
 }
 
 
 def get_merge_targets_by_approach():
     """Get targets based on the configured approach"""
-    approach = config.get("merge", {}).get("approach", "tile")
+    approach = config.get("merge", {}).get("approach", "fast")
     
     # Core targets that are always needed
-    core_targets = ["format_merge", "final_merge", "eval_merge"]
+    core_targets = ["format_merge", "deduplicate_merge", "final_merge", "eval_merge"]
     
-    if approach == "well":
+    if approach == "stitch":
         approach_targets = [
             "estimate_stitch_phenotype", "estimate_stitch_sbs",
             "stitch_phenotype", "stitch_sbs",
-            "stitch_alignment", "stitch_merge", "well_merge_deduplicate", "merge_well"
+            "stitch_alignment", "stitch_merge"
         ]
-        # Add aggregate summaries target for well approach
+        # Add aggregate summaries target for stitch approach
         core_targets.append("aggregate_well_summaries")
-        # For well approach, we skip deduplicate_merge since deduplication is done in well_merge_deduplicate
     else:
-        # Tile approach targets
+        # Fast approach targets (default)
         approach_targets = [
             "fast_alignment", "fast_merge"
         ]
-        # Tile approach needs the additional deduplicate_merge step
-        core_targets.insert(-2, "deduplicate_merge")  # Insert before final_merge and eval_merge
     
     all_targets = approach_targets + core_targets
     
@@ -216,10 +188,8 @@ MERGE_OUTPUT_MAPPINGS = {
     "stitch_sbs": None,
     "stitch_alignment": None,
     "stitch_merge": None,
-    "well_merge_deduplicate": None,
     "fast_alignment": None,
     "fast_merge": None,
-    "merge_well": None,
     "format_merge": None,
     "eval_merge": None,
     "aggregate_well_summaries": None,

@@ -183,7 +183,7 @@ if merge_approach == "fast":
             "../scripts/merge/merge.py"
 
  
- rule format_merge:
+rule format_merge:
     input:
         lambda wildcards: (
             MERGE_OUTPUTS["stitch_merge"][1]
@@ -215,11 +215,7 @@ rule deduplicate_merge:
 
 rule final_merge:
     input:
-        lambda wildcards: (
-            MERGE_OUTPUTS["format_merge"][0]
-            if config.get("merge", {}).get("approach", "fast") == "well" 
-            else MERGE_OUTPUTS["deduplicate_merge"][1]
-        ),
+        MERGE_OUTPUTS["deduplicate_merge"][1],
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0]),
     output:
         MERGE_OUTPUTS_MAPPED["final_merge"][0],
@@ -271,31 +267,19 @@ rule aggregate_well_summaries:
             metadata_combos=merge_wildcard_combos,
         ),
         dedup_summary_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["well_merge_deduplicate"][1],
+            MERGE_OUTPUTS["deduplicate_merge"][0],
             wildcards=wildcards,
             expansion_values=["well"],
             metadata_combos=merge_wildcard_combos,
         ),
         sbs_matching_rates_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["well_merge_deduplicate"][2],
+            MERGE_OUTPUTS["deduplicate_merge"][2],
             wildcards=wildcards,
             expansion_values=["well"],
             metadata_combos=merge_wildcard_combos,
         ),
         phenotype_matching_rates_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["well_merge_deduplicate"][3],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-        phenotype_cell_positions_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["stitch_phenotype_well"][0],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-        sbs_cell_positions_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["stitch_sbs_well"][0],
+            MERGE_OUTPUTS["deduplicate_merge"][3],
             wildcards=wildcards,
             expansion_values=["well"],
             metadata_combos=merge_wildcard_combos,

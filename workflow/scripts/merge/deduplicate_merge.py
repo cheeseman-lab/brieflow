@@ -13,15 +13,16 @@ from lib.merge.deduplicate_merge import (
     check_matching_rates,
     analyze_distance_distribution,
 )
-from lib.merge.format_merge import identify_single_gene_mappings
 
 # Load input datasets with data type validation
 merge_formatted = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 sbs_cells = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 phenotype_min_cp = validate_dtypes(pd.read_parquet(snakemake.input[2]))
 
-# Extract merge approach configuration
+# Extract configuration parameters
 approach = getattr(snakemake.params, "approach", "fast")
+dedup_step1 = getattr(snakemake.params, "dedup_step1", None)
+dedup_step2 = getattr(snakemake.params, "dedup_step2", None)
 
 # Perform two-step cell deduplication with statistics tracking
 merge_deduplicated, deduplication_stats = deduplicate_cells(
@@ -29,6 +30,8 @@ merge_deduplicated, deduplication_stats = deduplicate_cells(
     mapped_single_gene=False,
     return_stats=True,
     approach=approach,
+    dedup_prior_step1=dedup_step1,
+    dedup_prior_step2=dedup_step2,
 )
 
 # Analyze spatial alignment quality through distance distribution
@@ -48,12 +51,6 @@ if distance_analysis:
 # Export deduplication statistics
 deduplication_stats.to_csv(snakemake.output[0], sep="\t", index=False)
 merge_deduplicated.to_parquet(snakemake.output[1])
-
-# Evaluate SBS cell retention rates
-# Add single gene mapping annotations for comprehensive evaluation
-sbs_cells["mapped_single_gene"] = sbs_cells.apply(
-    lambda x: identify_single_gene_mappings(x), axis=1
-)
 
 # Calculate and export SBS matching statistics
 sbs_rates = check_matching_rates(

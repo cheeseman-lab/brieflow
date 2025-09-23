@@ -15,7 +15,7 @@ rule estimate_stitch_phenotype:
         fliplr=config.get("merge", {}).get("fliplr", False),
         rot90=config.get("merge", {}).get("rot90", 0),
         data_type="phenotype",
-        phenotype_pixel_size=config.get("merge", {}).get("phenotype_pixel_size", None),
+        phenotype_pixel_size=config.get("merge", {}).get("phenotype_pixel_size"),
     script:
         "../scripts/merge/estimate_stitch.py"
 
@@ -33,7 +33,7 @@ rule estimate_stitch_sbs:
         rot90=config.get("merge", {}).get("rot90", 0),
         data_type="sbs",
         sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
-        sbs_pixel_size=config.get("merge", {}).get("sbs_pixel_size", None),
+        sbs_pixel_size=config.get("merge", {}).get("sbs_pixel_size"),
     script:
         "../scripts/merge/estimate_stitch.py"
 

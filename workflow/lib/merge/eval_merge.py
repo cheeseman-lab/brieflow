@@ -3,27 +3,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import matplotlib.patches as patches
-from matplotlib.colors import ListedColormap
-from matplotlib.widgets import Slider
-from matplotlib.patches import Rectangle
-from typing import Optional, Tuple, List, Dict, Any
-
 import pandas as pd
 from pathlib import Path
 from scipy.spatial.distance import cdist
 import yaml
 
 from lib.shared.eval import plot_plate_heatmap
-from lib.shared.configuration_utils import plot_merge_example
-from lib.merge.merge import build_linear_model
-from lib.merge.well_alignment import (
-    sample_region_for_alignment,
-    calculate_scale_factor_from_positions,
-    scale_coordinates,
-)
-
-"""Helper functions for evaluating results of merge process."""
 
 
 def plot_sbs_ph_matching_heatmap(
@@ -198,9 +183,6 @@ def display_matched_and_unmatched_cells_for_site(
         distance_threshold (float): Maximum distance to show matches
         verbose (bool): Whether to print detailed logs
     """
-    from pathlib import Path
-    import pandas as pd
-
     # Construct paths to required files
     root_path = Path(root_fp)
     merge_fp = root_path / "merge"
@@ -373,9 +355,6 @@ def create_enhanced_match_visualization(
         site (str): Site name for title
         distance_threshold (float): Distance threshold used
     """
-    import matplotlib.pyplot as plt
-    import numpy as np
-
     # Check which coordinate column names exist in matched_data
     i_0_col = "global_i_0" if "global_i_0" in matched_data.columns else "i_0"
     j_0_col = "global_j_0" if "global_j_0" in matched_data.columns else "j_0"
@@ -620,9 +599,9 @@ def run_well_alignment_qc(
         root_fp (str/Path): Root analysis directory
         plate (str): Plate identifier
         well (str): Well identifier
-        det_range (tuple): Determinant range from config
+        det_range (tuple): Determinant range from config (DEPRECATED - no longer used)
         score (float): Score threshold from config
-        threshold (float): Distance threshold from config
+        threshold (float): Distance threshold from config (DEPRECATED - no longer used)
         selected_site (str, optional): Specific site to display merged cells for
         distance_threshold (float): Maximum distance to show matches (default 15.0)
         verbose (bool): Whether to print detailed logs
@@ -662,21 +641,18 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
     else:
         raise FileNotFoundError(f"Alignment parameters not found: {alignment_path}")
 
-    # Load alignment summary
-    summary_path = (
-        merge_fp / "well_alignment" / f"P-{plate}_W-{well}__alignment_summary.yaml"
-    )
+    # Load alignment summary (TSV format, not YAML)
+    summary_path = merge_fp / "tsvs" / f"P-{plate}_W-{well}__alignment_summary.tsv"
     if summary_path.exists():
-        with open(summary_path, "r") as f:
-            outputs["alignment_summary"] = yaml.safe_load(f)
+        outputs["alignment_summary"] = pd.read_csv(summary_path, sep="\t").to_dict(
+            orient="records"
+        )[0]
     else:
         outputs["alignment_summary"] = {}
 
-    # Load original cell positions (needed to recreate regions)
+    # Load original cell positions
     pheno_pos_path = (
-        merge_fp
-        / "cell_positions"
-        / f"P-{plate}_W-{well}__phenotype_cell_positions.parquet"
+        merge_fp / "parquets" / f"P-{plate}_W-{well}__phenotype_cell_positions.parquet"
     )
     if pheno_pos_path.exists():
         outputs["phenotype_positions"] = pd.read_parquet(pheno_pos_path)
@@ -684,7 +660,7 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
         raise FileNotFoundError(f"Phenotype positions not found: {pheno_pos_path}")
 
     sbs_pos_path = (
-        merge_fp / "cell_positions" / f"P-{plate}_W-{well}__sbs_cell_positions.parquet"
+        merge_fp / "parquets" / f"P-{plate}_W-{well}__sbs_cell_positions.parquet"
     )
     if sbs_pos_path.exists():
         outputs["sbs_positions"] = pd.read_parquet(sbs_pos_path)
@@ -721,7 +697,9 @@ def display_well_alignment_summary(alignment_data):
 
     Args:
         alignment_data (dict): Output from load_well_alignment_outputs
+        
+    Note:
+        This function is kept for backward compatibility but does nothing.
+        All summary printing has been removed.
     """
-    # This function is kept for backward compatibility but does nothing
-    # All summary printing has been removed
     pass

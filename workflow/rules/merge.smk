@@ -306,8 +306,6 @@ rule aggregate_well_summaries:
         dedup_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][2],
         sbs_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][3],
         phenotype_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][4],
-        phenotype_cell_positions_plot=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][5],
-        sbs_cell_positions_plot=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][6],
     params:
         plate=lambda wildcards: wildcards.plate,
     script:

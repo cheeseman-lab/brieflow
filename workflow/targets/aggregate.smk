@@ -2,7 +2,7 @@ from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 
-AGGREGATE_FP = ROOT_FP / "aggregate_ps_test"  # TODO: remove _ps_test
+AGGREGATE_FP = ROOT_FP / "aggregate"
 
 # Define standard (non-montage) aggreagte outputs
 AGGREGATE_OUTPUTS = {
@@ -34,15 +34,15 @@ AGGREGATE_OUTPUTS = {
             "parquet",
         ),
     ],
-    # "generate_feature_table": [
-    #     AGGREGATE_FP
-    #     / "tsvs"
-    #     / get_filename(
-    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-    #         "feature_table",
-    #         "tsv",
-    #     ),
-    # ],
+    "generate_feature_table": [
+        AGGREGATE_FP
+        / "tsvs"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "feature_table",
+            "tsv",
+        ),
+    ],
     "align": [
         AGGREGATE_FP
         / "parquets"
@@ -61,29 +61,29 @@ AGGREGATE_OUTPUTS = {
             "tsv",
         ),
     ],
-    # "eval_aggregate": [
-    #     AGGREGATE_FP
-    #     / "eval"
-    #     / get_filename(
-    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-    #         "na_stats",
-    #         "tsv",
-    #     ),
-    #     AGGREGATE_FP
-    #     / "eval"
-    #     / get_filename(
-    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-    #         "na_stats",
-    #         "png",
-    #     ),
-    #     AGGREGATE_FP
-    #     / "eval"
-    #     / get_filename(
-    #         {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-    #         "feature_distributions",
-    #         "png",
-    #     ),
-    # ],
+    "eval_aggregate": [
+        AGGREGATE_FP
+        / "eval"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "na_stats",
+            "tsv",
+        ),
+        AGGREGATE_FP
+        / "eval"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "na_stats",
+            "png",
+        ),
+        AGGREGATE_FP
+        / "eval"
+        / get_filename(
+            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
+            "feature_distributions",
+            "png",
+        ),
+    ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
@@ -102,8 +102,8 @@ AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPI
 # aggregate_wildcard_combos = aggregate_wildcard_combos[
 #     (aggregate_wildcard_combos["plate"].isin([1]))
 #     & (aggregate_wildcard_combos["well"].isin(["A1"]))
-#     & (aggregate_wildcard_combos["cell_class"].isin(["Interphase"]))
-#     & (aggregate_wildcard_combos["channel_combo"].isin(["DAPI_CENPA"]))
+#     & (aggregate_wildcard_combos["cell_class"].isin(["Mitotic"]))
+#     & (aggregate_wildcard_combos["channel_combo"].isin(["DAPI_WGA"]))
 # ]
 
 AGGREGATE_TARGETS_ALL = outputs_to_targets(

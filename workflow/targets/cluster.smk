@@ -5,7 +5,7 @@ from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 
-CLUSTER_FP = ROOT_FP / "cluster_ps_test"
+CLUSTER_FP = ROOT_FP / "cluster"
 
 CLUSTER_OUTPUTS = {
     "clean_aggregate": [

@@ -132,6 +132,9 @@ aggregate:
   num_align_batches: 1
   ps_auc_threshold: 0.6
   perturbation_score_threshold: 0.5
+  skip_perturbation_score: true
+  ps_probability_threshold: null
+  ps_percentile_threshold: null
 cluster:
   cluster_combo_fp: config/cluster_combo.tsv
   uniprot_data_fp: config/benchmark_clusters/uniprot_data.tsv
@@ -145,5 +148,6 @@ cluster:
     all: 3
     interphase: 3
     mitotic: 0
-  phate_distance_metric: cosine
+  phate_distance_metric: euclidean
   string_pair_benchmark_fp: config/benchmark_clusters/string_pair_benchmark.tsv
+  perturbation_auc_threshold: 0.7

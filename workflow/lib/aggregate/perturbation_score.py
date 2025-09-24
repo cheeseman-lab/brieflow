@@ -75,6 +75,7 @@ def perturbation_score(
     metadata_cols: list[str],
     perturbation_name_col: str,
     control_key: str,
+    minimum_cell_count: int = 100,
 ) -> None:
     """Process all perturbations and assign perturbation scores to cells based on AUC threshold.
 
@@ -98,8 +99,6 @@ def perturbation_score(
         perturbation_col.str.startswith(control_key)
     ].to_numpy()
 
-    # TODO: remove
-    gene_num = 0
     for gene in perturbed_genes:
         print(f"Processing {gene}...")
         gene_idx = perturbation_col.index[perturbation_col == gene].to_numpy()
@@ -110,6 +109,12 @@ def perturbation_score(
         gene_subset_df = cell_data.iloc[keep_idx].copy()
         original_idx = gene_subset_df.index.copy()
         gene_subset_df = gene_subset_df.reset_index(drop=True)
+
+        if gene_subset_df.shape[0] < minimum_cell_count:
+            print(
+                f"!! Skipping {gene} due to low cell count ({gene_subset_df.shape[0]})"
+            )
+            continue
 
         # SCALE PERTURBATION GENE AND CONTROL FEATURES
 
@@ -123,6 +128,7 @@ def perturbation_score(
             "nontargeting",
             "sgRNA_0",
         )
+
         features = features.astype(np.float32)
         features = centerscale_on_controls(
             features,
@@ -151,7 +157,3 @@ def perturbation_score(
         perturbation_scores.index = original_idx
         cell_data.loc[gene_idx, "perturbation_score"] = perturbation_scores[gene_idx]
         cell_data.loc[gene_idx, "perturbation_auc"] = auc
-
-        gene_num += 1
-        if gene_num > 50:
-            return

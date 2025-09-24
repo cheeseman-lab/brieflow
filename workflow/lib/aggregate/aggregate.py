@@ -47,10 +47,6 @@ def aggregate(
     )
     if aggr_func is None:
         raise ValueError(f"Invalid aggregation method: {method}")
-    if ps_probability_threshold is None and ps_percentile_threshold is None:
-        raise ValueError(
-            "At least one of ps_probability_threshold or ps_percentile_threshold must be set"
-        )
 
     # filter by ps_probability_threshold; keep NaNs
     if ps_probability_threshold is not None:
@@ -76,19 +72,21 @@ def aggregate(
         final_emb = aggr_func(embeddings[group.index.values, :], axis=0)
         aggregated_embeddings.append(final_emb)
 
-        # aggregate perturbation score with same function
-        pert_score = (
-            aggr_func(group["perturbation_score"].dropna())
-            if not group["perturbation_score"].isna().all()
-            else np.nan
-        )
-
         agg_meta = {
             pert_col: pert,
             "cell_count": len(group),
-            "aggregated_perturbation_score": pert_score,
-            "perturbation_auc": group["perturbation_auc"].iloc[0],
         }
+
+        if ps_probability_threshold is not None or ps_percentile_threshold is not None:
+            # aggregate perturbation score with same function
+            pert_score = (
+                aggr_func(group["perturbation_score"].dropna())
+                if not group["perturbation_score"].isna().all()
+                else np.nan
+            )
+
+            agg_meta["aggregated_perturbation_score"] = pert_score
+            agg_meta["perturbation_auc"] = group["perturbation_auc"].iloc[0]
 
         aggregated_metadata.append(agg_meta)
 

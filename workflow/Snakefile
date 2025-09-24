@@ -134,30 +134,31 @@ if plate_filter is not None:
             f"Filtered phenotype samples to {len(phenotype_samples_df)} rows for plate {plate_filter}"
         )
 
-# include: "targets/preprocess.smk"
-# include: "rules/preprocess.smk"
+
+include: "targets/preprocess.smk"
+include: "rules/preprocess.smk"
 
 
-# if "sbs" in config and len(sbs_wildcard_combos) > 0:
-#     # TODO: test and implement segmentation paramsearch for updated brieflow setup
-#     # # Initialize parameter search configurations if needed
-#     # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
-#     #     config = initialize_segment_sbs_paramsearch(config)
+if "sbs" in config and len(sbs_wildcard_combos) > 0:
+    # TODO: test and implement segmentation paramsearch for updated brieflow setup
+    # # Initialize parameter search configurations if needed
+    # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
+    #     config = initialize_segment_sbs_paramsearch(config)
 
-#     # Include target and rule files
-#     include: "targets/sbs.smk"
-#     include: "rules/sbs.smk"
+    # Include target and rule files
+    include: "targets/sbs.smk"
+    include: "rules/sbs.smk"
 
 
-# if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
-#     # TODO: test and implement segmentation paramsearch for updated brieflow setup
-#     # # Initialize parameter search configurations if needed
-#     # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
-#     #     config = initialize_segment_phenotype_paramsearch(config)
+if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
+    # TODO: test and implement segmentation paramsearch for updated brieflow setup
+    # # Initialize parameter search configurations if needed
+    # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
+    #     config = initialize_segment_phenotype_paramsearch(config)
 
-#     # Include target and rule files
-#     include: "targets/phenotype.smk"
-#     include: "rules/phenotype.smk"
+    # Include target and rule files
+    include: "targets/phenotype.smk"
+    include: "rules/phenotype.smk"
 
 
 if "merge" in config:
@@ -166,9 +167,7 @@ if "merge" in config:
 
     # Include target and rule files
     include: "targets/merge.smk"
-
-
-# include: "rules/merge.smk"
+    include: "rules/merge.smk"
 
 
 if "aggregate" in config:
@@ -177,9 +176,7 @@ if "aggregate" in config:
 
     # Include target and rule files
     include: "targets/aggregate.smk"
-
-
-# include: "rules/aggregate.smk"
+    include: "rules/aggregate.smk"
 
 
 if "cluster" in config:

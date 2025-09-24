@@ -88,6 +88,7 @@ def perturbation_score(
         metadata_cols (list[str]): List of metadata column names that will be updated to include 'perturbation_score'.
         perturbation_name_col (str): Column name containing perturbation identifiers.
         control_key (str): Prefix identifying control perturbations (e.g., 'nontargeting').
+        minimum_cell_count (int, optional): Minimum number of cells required to process a perturbation. Defaults to 100.
     """
     perturbation_col = cell_data[perturbation_name_col]
     perturbed_genes = [

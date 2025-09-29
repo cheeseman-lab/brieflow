@@ -107,6 +107,7 @@ def estimate_stitch_coordinate_based(
 
     return {"total_translation": total_translation}
 
+
 def convert_numpy_types(obj):
     """Convert numpy types to Python native types for YAML serialization."""
     if isinstance(obj, dict):

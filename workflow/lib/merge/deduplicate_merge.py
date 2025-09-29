@@ -1,6 +1,6 @@
 """Cell deduplication utilities for optical pooled screening merge workflows.
 
-This module provides functions to deduplicate cell mappings between phenotype 
+This module provides functions to deduplicate cell mappings between phenotype
 and sequencing-by-synthesis (SBS) datasets using configurable quality metrics.
 
 Functions:
@@ -43,18 +43,18 @@ def deduplicate_cells(
     sbs_id_cols : str or list of str, optional
         Column(s) uniquely identifying SBS cells. Auto-determined if None
     sbs_dedup_prior : dict
-        Sorting priorities for step 1. Keys are column names, values are ascending 
+        Sorting priorities for step 1. Keys are column names, values are ascending
         sort order (True/False). Required parameter - see examples below
     pheno_dedup_prior : dict
         Sorting priorities for step 2. Required parameter - see examples below
 
-    Returns
+    Returns:
     -------
     pandas.DataFrame or tuple
-        Deduplicated cell mappings. If return_stats=True, returns tuple of 
+        Deduplicated cell mappings. If return_stats=True, returns tuple of
         (deduplicated_data, statistics_dataframe)
 
-    Raises
+    Raises:
     ------
     ValueError
         If sbs_dedup_prior or pheno_dedup_prior is not specified
@@ -74,7 +74,7 @@ def deduplicate_cells(
         raise ValueError(
             "sbs_dedup_prior must be specified. See documentation for examples."
         )
-    
+
     if pheno_dedup_prior is None:
         raise ValueError(
             "pheno_dedup_prior must be specified. See documentation for examples."
@@ -82,14 +82,12 @@ def deduplicate_cells(
 
     # Step 1: Retain best SBS match for each phenotype cell
     df_sbs_deduped = df.sort_values(
-        list(sbs_dedup_prior.keys()), 
-        ascending=list(sbs_dedup_prior.values())
+        list(sbs_dedup_prior.keys()), ascending=list(sbs_dedup_prior.values())
     ).drop_duplicates(pheno_id_cols, keep="first")
 
     # Step 2: Retain best phenotype match for each remaining SBS cell
     df_final = df_sbs_deduped.sort_values(
-        list(pheno_dedup_prior.keys()),
-        ascending=list(pheno_dedup_prior.values())
+        list(pheno_dedup_prior.keys()), ascending=list(pheno_dedup_prior.values())
     ).drop_duplicates(sbs_id_cols, keep="first")
 
     # Compile deduplication statistics
@@ -122,7 +120,7 @@ def deduplicate_cells(
 def check_matching_rates(orig_data, merged_data, modality="sbs", return_stats=False):
     """Calculate cell retention rates after merge and deduplication processing.
 
-    Quantifies the fraction of original cells that successfully matched and 
+    Quantifies the fraction of original cells that successfully matched and
     survived the merge/deduplication pipeline.
 
     Parameters
@@ -136,7 +134,7 @@ def check_matching_rates(orig_data, merged_data, modality="sbs", return_stats=Fa
     return_stats : bool, default False
         Return detailed matching statistics DataFrame
 
-    Returns
+    Returns:
     -------
     pandas.DataFrame, optional
         Per-well matching statistics if return_stats=True. Contains columns:
@@ -159,20 +157,22 @@ def check_matching_rates(orig_data, merged_data, modality="sbs", return_stats=Fa
     # Calculate per-well matching statistics
     rates = []
     print(f"\nFinal matching rates for {modality.upper()} cells:")
-    
+
     for well, df in checking_df.groupby("well"):
         total = len(df)
         matched = df.distance.notna().sum()
         rate = matched / total * 100
-        
+
         print(f"Well {well}: {rate:.1f}% ({matched:,}/{total:,} cells)")
 
-        rates.append({
-            "well": well,
-            "total_cells": total,
-            "matched_cells": matched,
-            "match_rate": rate,
-        })
+        rates.append(
+            {
+                "well": well,
+                "total_cells": total,
+                "matched_cells": matched,
+                "match_rate": rate,
+            }
+        )
 
     return pd.DataFrame(rates) if return_stats else None
 
@@ -180,7 +180,7 @@ def check_matching_rates(orig_data, merged_data, modality="sbs", return_stats=Fa
 def analyze_distance_distribution(df):
     """Analyze distance distribution for spatial alignment quality assessment.
 
-    Computes distance statistics and distribution metrics to assess the quality 
+    Computes distance statistics and distribution metrics to assess the quality
     of cell-to-cell spatial alignments in merged datasets.
 
     Parameters
@@ -188,7 +188,7 @@ def analyze_distance_distribution(df):
     df : pandas.DataFrame
         Merged dataset containing 'distance' column with spatial alignment distances
 
-    Returns
+    Returns:
     -------
     dict
         Dictionary containing:

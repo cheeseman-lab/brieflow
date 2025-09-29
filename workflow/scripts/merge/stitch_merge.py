@@ -25,8 +25,6 @@ from lib.merge.stitch_merge import (
     create_merge_summary,
 )
 
-print("=== WELL CELL MERGE ===")
-
 # Load all inputs
 phenotype_scaled = validate_dtypes(
     pd.read_parquet(snakemake.input.scaled_phenotype_positions)

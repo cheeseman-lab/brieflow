@@ -15,7 +15,6 @@ from pathlib import Path
 from lib.shared.file_utils import validate_dtypes
 from lib.merge.stitch_alignment import align_well_positions
 
-print("=== WELL ALIGNMENT ===")
 
 # Load inputs
 phenotype_positions = validate_dtypes(

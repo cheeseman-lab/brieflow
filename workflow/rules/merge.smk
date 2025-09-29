@@ -209,8 +209,8 @@ rule deduplicate_merge:
         MERGE_OUTPUTS_MAPPED["deduplicate_merge"],
     params:
         approach=config.get("merge", {}).get("approach", "fast"),
-        dedup_step1=config.get("merge", {}).get("dedup_prior_step1"),
-        dedup_step2=config.get("merge", {}).get("dedup_prior_step2"),
+        sbs_dedup_prior=config.get("merge", {}).get("sbs_dedup_prior"),
+        pheno_dedup_prior=config.get("merge", {}).get("pheno_dedup_prior"),
     script:
         "../scripts/merge/deduplicate_merge.py"
 

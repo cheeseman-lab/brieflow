@@ -30,8 +30,8 @@ merge_deduplicated, deduplication_stats = deduplicate_cells(
     mapped_single_gene=False,
     return_stats=True,
     approach=approach,
-    dedup_prior_step1=dedup_step1,
-    dedup_prior_step2=dedup_step2,
+    sbs_dedup_prior=dedup_step1,
+    pheno_dedup_prior=dedup_step2,
 )
 
 # Analyze spatial alignment quality through distance distribution

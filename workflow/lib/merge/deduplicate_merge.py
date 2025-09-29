@@ -19,8 +19,8 @@ def deduplicate_cells(
     approach="fast",
     pheno_id_cols=None,
     sbs_id_cols=None,
-    dedup_prior_step1=None,
-    dedup_prior_step2=None,
+    sbs_dedup_prior=None,
+    pheno_dedup_prior=None,
 ):
     """Remove duplicate cell mappings through two-step deduplication process.
 
@@ -42,10 +42,10 @@ def deduplicate_cells(
         Column(s) uniquely identifying phenotype cells. Auto-determined if None
     sbs_id_cols : str or list of str, optional
         Column(s) uniquely identifying SBS cells. Auto-determined if None
-    dedup_prior_step1 : dict
+    sbs_dedup_prior : dict
         Sorting priorities for step 1. Keys are column names, values are ascending 
         sort order (True/False). Required parameter - see examples below
-    dedup_prior_step2 : dict
+    pheno_dedup_prior : dict
         Sorting priorities for step 2. Required parameter - see examples below
 
     Returns
@@ -57,7 +57,7 @@ def deduplicate_cells(
     Raises
     ------
     ValueError
-        If dedup_prior_step1 or dedup_prior_step2 is not specified
+        If sbs_dedup_prior or pheno_dedup_prior is not specified
 
     """
     # Determine cell identification columns based on merge approach
@@ -70,26 +70,26 @@ def deduplicate_cells(
             sbs_id_cols = ["plate", "well", "site", "cell_1"]
 
     # Validate required deduplication priorities
-    if dedup_prior_step1 is None:
+    if sbs_dedup_prior is None:
         raise ValueError(
-            "dedup_prior_step1 must be specified. See documentation for examples."
+            "sbs_dedup_prior must be specified. See documentation for examples."
         )
     
-    if dedup_prior_step2 is None:
+    if pheno_dedup_prior is None:
         raise ValueError(
-            "dedup_prior_step2 must be specified. See documentation for examples."
+            "pheno_dedup_prior must be specified. See documentation for examples."
         )
 
     # Step 1: Retain best SBS match for each phenotype cell
     df_sbs_deduped = df.sort_values(
-        list(dedup_prior_step1.keys()), 
-        ascending=list(dedup_prior_step1.values())
+        list(sbs_dedup_prior.keys()), 
+        ascending=list(sbs_dedup_prior.values())
     ).drop_duplicates(pheno_id_cols, keep="first")
 
     # Step 2: Retain best phenotype match for each remaining SBS cell
     df_final = df_sbs_deduped.sort_values(
-        list(dedup_prior_step2.keys()),
-        ascending=list(dedup_prior_step2.values())
+        list(pheno_dedup_prior.keys()),
+        ascending=list(pheno_dedup_prior.values())
     ).drop_duplicates(sbs_id_cols, keep="first")
 
     # Compile deduplication statistics

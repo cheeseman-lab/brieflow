@@ -192,7 +192,7 @@ def display_matched_and_unmatched_cells_for_site(
     )
     phenotype_transformed_path = (
         merge_fp
-        / "well_alignment"
+        / "parquets"
         / f"P-{plate}_W-{well}__phenotype_transformed.parquet"
     )
     sbs_positions_path = (

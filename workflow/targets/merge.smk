@@ -190,10 +190,10 @@ MERGE_OUTPUT_MAPPINGS = {
     "stitch_merge": None,
     "fast_alignment": None,
     "fast_merge": None,
-    "format_merge": None,
+    "format_merge": temp,
     "eval_merge": None,
     "aggregate_well_summaries": None,
-    "deduplicate_merge": None,
+    "deduplicate_merge": temp,
     "final_merge": None,
 }
 

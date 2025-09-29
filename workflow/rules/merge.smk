@@ -58,7 +58,7 @@ if merge_approach == "stitch":
                 ancient_output=True,
             ),
         output:
-            phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][0],
+            phenotype_cell_positions=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype"][0]),
             phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][1],  
             phenotype_stitched_image=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype"][2]), 
             phenotype_stitched_mask=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype"][3]), 
@@ -294,6 +294,11 @@ rule aggregate_well_summaries:
         phenotype_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][4],
     params:
         plate=lambda wildcards: wildcards.plate,
+        wells=lambda wildcards: [
+            combo["well"] 
+            for combo in merge_wildcard_combos.to_dict('records') 
+            if combo["plate"] == wildcards.plate
+        ],
     script:
         "../scripts/merge/aggregate_well_summaries.py"
 

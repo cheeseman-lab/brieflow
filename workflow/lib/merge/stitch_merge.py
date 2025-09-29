@@ -41,7 +41,21 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
     rotation_flat = alignment_row.get("rotation_matrix_flat", [1.0, 0.0, 0.0, 1.0])
 
     if isinstance(rotation_flat, str):
-        rotation_flat = eval(rotation_flat)
+        # Handle both standard Python list strings and NumPy array strings
+        rotation_flat = rotation_flat.strip()
+        if rotation_flat.startswith("[") and rotation_flat.endswith("]"):
+            # Remove brackets and split on whitespace
+            rotation_flat = rotation_flat[1:-1].strip()
+            # Split on whitespace and convert to floats
+            rotation_flat = [float(x) for x in rotation_flat.split()]
+        else:
+            try:
+                rotation_flat = eval(rotation_flat)
+            except (SyntaxError, NameError, ValueError):
+                print(
+                    f"Warning: Could not parse rotation matrix string: {rotation_flat}"
+                )
+                rotation_flat = [1.0, 0.0, 0.0, 1.0]
 
     if (
         not isinstance(rotation_flat, (list, tuple, np.ndarray))
@@ -56,7 +70,21 @@ def load_alignment_parameters(alignment_row: pd.Series) -> Dict[str, Any]:
     translation_list = alignment_row.get("translation_vector", [0.0, 0.0])
 
     if isinstance(translation_list, str):
-        translation_list = eval(translation_list)
+        # Handle both standard Python list strings and NumPy array strings
+        translation_list = translation_list.strip()
+        if translation_list.startswith("[") and translation_list.endswith("]"):
+            # Remove brackets and split on whitespace
+            translation_list = translation_list[1:-1].strip()
+            # Split on whitespace and convert to floats
+            translation_list = [float(x) for x in translation_list.split()]
+        else:
+            try:
+                translation_list = eval(translation_list)
+            except (SyntaxError, NameError, ValueError):
+                print(
+                    f"Warning: Could not parse translation vector string: {translation_list}"
+                )
+                translation_list = [0.0, 0.0]
     elif isinstance(translation_list, np.ndarray):
         translation_list = translation_list.tolist()
 

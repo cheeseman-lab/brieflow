@@ -5,6 +5,16 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 MERGE_FP = ROOT_FP / "merge"
 
 MERGE_OUTPUTS = {
+    "fast_alignment": [
+        MERGE_FP / "parquets" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "fast_alignment", "parquet"
+        ),
+    ],
+    "fast_merge": [
+        MERGE_FP / "parquets" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "fast_merge", "parquet"
+        ),
+    ],
     "estimate_stitch_phenotype": [
         MERGE_FP
         / "stitch_configs"
@@ -77,16 +87,6 @@ MERGE_OUTPUTS = {
         MERGE_FP / "tsvs" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merge_summary", "tsv"
         ),  # [2] - merge_summary
-    ],
-    "fast_alignment": [
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "fast_alignment", "parquet"
-        ),
-    ],
-    "fast_merge": [
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "fast_merge", "parquet"
-        ),
     ],
     "format_merge": [
         MERGE_FP / "parquets" / get_filename(

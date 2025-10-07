@@ -1,4 +1,8 @@
-"""Snakemake script for stitching well tiles into complete well images."""
+"""Stitches tiles into wells and extracts cell positions.
+
+Applies transformations calculated in estimate stitch, assigns global cell
+coordinates and ID's. Optionally, generates stitched masks and images for QC.
+"""
 
 import pandas as pd
 import numpy as np

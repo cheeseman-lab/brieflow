@@ -18,11 +18,11 @@ print(f"Expected wells: {wells}")
 
 def extract_well_from_path(file_path):
     """Extract well identifier from file path.
-    
+
     Assumes file paths contain pattern like 'plate-{plate}_well-{well}'
     """
     path_str = str(file_path)
-    match = re.search(r'well-([A-Z0-9]+)', path_str)
+    match = re.search(r"well-([A-Z0-9]+)", path_str)
     if match:
         return match.group(1)
     return None
@@ -62,11 +62,11 @@ for summary_type, input_paths, output_path in summary_types:
     for file_path in input_paths:
         # Extract well from the file path itself
         well = extract_well_from_path(file_path)
-        
+
         if well is None:
             print(f"  ⚠️  Could not extract well from path: {file_path}")
             continue
-            
+
         try:
             if Path(file_path).exists():
                 df = pd.read_csv(file_path, sep="\t")

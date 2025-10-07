@@ -64,4 +64,6 @@ sbs_rates.to_csv(snakemake.output.final_sbs_matching_rates, sep="\t", index=Fals
 phenotype_rates = check_matching_rates(
     phenotype_min_cp, merge_deduplicated, modality="phenotype", return_stats=True
 )
-phenotype_rates.to_csv(snakemake.output.final_phenotype_matching_rates, sep="\t", index=False)
+phenotype_rates.to_csv(
+    snakemake.output.final_phenotype_matching_rates, sep="\t", index=False
+)

@@ -103,7 +103,7 @@ def align_well_positions(
     sbs_triangles = well_level_triangle_hash(sbs_positions)
 
     if len(phenotype_triangles) == 0 or len(sbs_triangles) == 0:
-        print("❌ Triangle generation failed - using identity fallback")
+        print(" Triangle generation failed - using identity fallback")
         return _create_failed_result(
             phenotype_positions=phenotype_positions,
             phenotype_scaled=phenotype_scaled,
@@ -120,7 +120,7 @@ def align_well_positions(
     print("\n--- Step 3: Triangle Hash Alignment ---")
 
     if not adaptive_region:
-        print("⚠️  Non-adaptive mode removed - using adaptive regional sampling")
+        print("Using adaptive regional sampling")
 
     alignment_result = _adaptive_regional_alignment(
         phenotype_scaled=phenotype_scaled,
@@ -136,7 +136,7 @@ def align_well_positions(
     print("\n--- Step 4: Finalization ---")
 
     if alignment_result is None or alignment_result.empty:
-        print("❌ Alignment failed - using identity fallback")
+        print(" Alignment failed - using identity fallback")
         return _create_failed_result(
             phenotype_positions=phenotype_positions,
             phenotype_scaled=phenotype_scaled,
@@ -154,10 +154,10 @@ def align_well_positions(
     # Determine status
     if alignment_score >= score_threshold:
         status = "success"
-        print(f"✅ Alignment successful: score={alignment_score:.3f}")
+        print(f" Alignment successful: score={alignment_score:.3f}")
     else:
         status = "low_score"
-        print(f"⚠️  Low alignment score: {alignment_score:.3f} < {score_threshold}")
+        print(f"  Low alignment score: {alignment_score:.3f} < {score_threshold}")
 
     # Step 5: Apply transformation
     rotation = best_alignment.get("rotation", np.eye(2))
@@ -439,12 +439,12 @@ def evaluate_well_match(
         filt_score = np.sqrt(distances.min(axis=0)) < threshold_region
         score = (np.sqrt(distances.min(axis=0))[filt_score] < threshold_point).mean()
 
-        print(f"✅ Single seed (42) result: det={determinant:.6f}, score={score:.3f}")
+        print(f" Single seed (42) result: det={determinant:.6f}, score={score:.3f}")
 
         return rotation, translation, score
 
     except Exception as e:
-        print(f"❌ RANSAC with seed 42 failed: {e}")
+        print(f" RANSAC with seed 42 failed: {e}")
         return None, None, -1
 
 

@@ -3,6 +3,40 @@ from lib.shared.target_utils import output_to_input
 # Get merge approach to determine which rules to include
 merge_approach = config.get("merge", {}).get("approach", "fast")
 
+if merge_approach == "fast":
+    rule fast_alignment:
+        input:
+            ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
+            ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
+            ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
+            ancient(SBS_OUTPUTS["combine_sbs_info"]),
+        output:
+            MERGE_OUTPUTS_MAPPED["fast_alignment"][0],
+        params:
+            sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
+            det_range=config["merge"]["det_range"],
+            score=config["merge"]["score"],
+            initial_sites=config["merge"]["initial_sites"],
+            plate=lambda wildcards: wildcards.plate,
+            well=lambda wildcards: wildcards.well,
+        script:
+            "../scripts/merge/fast_alignment.py"
+
+    rule fast_merge:
+        input:
+            ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
+            ancient(SBS_OUTPUTS["combine_sbs_info"]),
+            MERGE_OUTPUTS["fast_alignment"][0],
+        output:
+            MERGE_OUTPUTS_MAPPED["fast_merge"][0],
+        params:
+            det_range=config["merge"]["det_range"],
+            score=config["merge"]["score"],
+            threshold=config["merge"]["threshold"],
+        script:
+            "../scripts/merge/fast_merge.py"
+
+
 if merge_approach == "stitch":
     rule estimate_stitch_phenotype:
         input:
@@ -149,40 +183,6 @@ if merge_approach == "stitch":
             "../scripts/merge/stitch_merge.py"
 
 
-if merge_approach == "fast":
-    rule fast_alignment:
-        input:
-            ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
-            ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
-            ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
-            ancient(SBS_OUTPUTS["combine_sbs_info"]),
-        output:
-            MERGE_OUTPUTS_MAPPED["fast_alignment"][0],
-        params:
-            sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
-            det_range=config["merge"]["det_range"],
-            score=config["merge"]["score"],
-            initial_sites=config["merge"]["initial_sites"],
-            plate=lambda wildcards: wildcards.plate,
-            well=lambda wildcards: wildcards.well,
-        script:
-            "../scripts/merge/fast_alignment.py"
-
-    rule fast_merge:
-        input:
-            ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
-            ancient(SBS_OUTPUTS["combine_sbs_info"]),
-            MERGE_OUTPUTS["fast_alignment"][0],
-        output:
-            MERGE_OUTPUTS_MAPPED["fast_merge"][0],
-        params:
-            det_range=config["merge"]["det_range"],
-            score=config["merge"]["score"],
-            threshold=config["merge"]["threshold"],
-        script:
-            "../scripts/merge/merge.py"
-
- 
 rule format_merge:
     input:
         lambda wildcards: (
@@ -254,6 +254,7 @@ rule eval_merge:
     script:
         "../scripts/merge/eval_merge.py"
 
+
 rule aggregate_well_summaries:
     input:
         alignment_summary_paths=lambda wildcards: output_to_input(
@@ -301,6 +302,7 @@ rule aggregate_well_summaries:
         ],
     script:
         "../scripts/merge/aggregate_well_summaries.py"
+
 
 # Rule for all merge processing steps
 rule all_merge:

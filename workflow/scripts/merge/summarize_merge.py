@@ -1,4 +1,4 @@
-"""Aggregate Well Summaries.
+"""Summarize Merge.
 
 Simple aggregation of individual well summary TSV files into plate-level summaries.
 All input summaries are in wide format (one row per well).

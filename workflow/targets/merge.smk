@@ -135,7 +135,7 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}"}, "cells_with_channel_min_0", "png"
         ),  # [6]
     ],
-    "aggregate_well_summaries": [
+    "summarize_merge": [
         MERGE_FP / "tsvs" / "aggregated" / get_filename(
             {"plate": "{plate}"}, "alignment_summaries", "tsv"
         ),  # [0] - alignment_summaries
@@ -169,7 +169,7 @@ def get_merge_targets_by_approach():
             "stitch_alignment", "stitch_merge"
         ]
         # Add aggregate summaries target for stitch approach
-        core_targets.append("aggregate_well_summaries")
+        core_targets.append("summarize_merge")
     else:
         # Fast approach targets (default)
         approach_targets = [
@@ -192,7 +192,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "fast_merge": None,
     "format_merge": temp,
     "eval_merge": None,
-    "aggregate_well_summaries": None,
+    "summarize_merge": None,
     "deduplicate_merge": temp,
     "final_merge": None,
 }

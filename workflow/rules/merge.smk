@@ -255,7 +255,7 @@ rule eval_merge:
         "../scripts/merge/eval_merge.py"
 
 
-rule aggregate_well_summaries:
+rule summarize_merge:
     input:
         alignment_summary_paths=lambda wildcards: output_to_input(
             MERGE_OUTPUTS["stitch_alignment"][4],
@@ -288,11 +288,11 @@ rule aggregate_well_summaries:
             metadata_combos=merge_wildcard_combos,
         ),
     output:
-        alignment_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][0],
-        cell_merge_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][1],
-        dedup_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][2],
-        sbs_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][3],
-        phenotype_matching_summaries=MERGE_OUTPUTS_MAPPED["aggregate_well_summaries"][4],
+        alignment_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][0],
+        cell_merge_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][1],
+        dedup_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][2],
+        sbs_matching_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][3],
+        phenotype_matching_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][4],
     params:
         plate=lambda wildcards: wildcards.plate,
         wells=lambda wildcards: [
@@ -301,7 +301,7 @@ rule aggregate_well_summaries:
             if combo["plate"] == wildcards.plate
         ],
     script:
-        "../scripts/merge/aggregate_well_summaries.py"
+        "../scripts/merge/summarize_merge.py"
 
 
 # Rule for all merge processing steps

@@ -51,17 +51,17 @@ if distance_analysis:
     )
 
 # Export deduplication statistics
-deduplication_stats.to_csv(snakemake.output[0], sep="\t", index=False)
-merge_deduplicated.to_parquet(snakemake.output[1])
+deduplication_stats.to_csv(snakemake.output.deduplication_stats, sep="\t", index=False)
+merge_deduplicated.to_parquet(snakemake.output.deduplicated_data)
 
 # Calculate and export SBS matching statistics
 sbs_rates = check_matching_rates(
     sbs_cells, merge_deduplicated, modality="sbs", return_stats=True
 )
-sbs_rates.to_csv(snakemake.output[2], sep="\t", index=False)
+sbs_rates.to_csv(snakemake.output.final_sbs_matching_rates, sep="\t", index=False)
 
 # Calculate and export phenotype matching statistics
 phenotype_rates = check_matching_rates(
     phenotype_min_cp, merge_deduplicated, modality="phenotype", return_stats=True
 )
-phenotype_rates.to_csv(snakemake.output[3], sep="\t", index=False)
+phenotype_rates.to_csv(snakemake.output.final_phenotype_matching_rates, sep="\t", index=False)

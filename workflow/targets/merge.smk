@@ -193,7 +193,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "format_merge": temp,
     "eval_merge": None,
     "summarize_merge": None,
-    "deduplicate_merge": temp,
+    "deduplicate_merge": None,
     "final_merge": None,
 }
 

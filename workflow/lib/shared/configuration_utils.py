@@ -20,7 +20,7 @@ import skimage.morphology
 from scipy.spatial.distance import cdist
 import matplotlib.colors as mcolors
 
-from lib.merge.merge import build_linear_model
+from lib.merge.fast_merge import build_linear_model
 
 CONFIG_FILE_HEADER = """
 # ~BrieFlow analysis configuration file~

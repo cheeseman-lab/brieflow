@@ -1,4 +1,4 @@
-"""Snakemake script for cell deduplication in optical pooled screening workflows.
+"""Cell deduplication.
 
 This script performs two-step deduplication of merged phenotype-SBS cell mappings,
 evaluates cell retention rates, and generates quality control metrics for the

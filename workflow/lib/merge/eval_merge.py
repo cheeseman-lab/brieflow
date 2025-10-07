@@ -191,9 +191,7 @@ def display_matched_and_unmatched_cells_for_site(
         merge_fp / "parquets" / f"P-{plate}_W-{well}__merge_final.parquet"
     )
     phenotype_transformed_path = (
-        merge_fp
-        / "parquets"
-        / f"P-{plate}_W-{well}__phenotype_transformed.parquet"
+        merge_fp / "parquets" / f"P-{plate}_W-{well}__phenotype_transformed.parquet"
     )
     sbs_positions_path = (
         merge_fp / "parquets" / f"P-{plate}_W-{well}__sbs_cell_positions.parquet"

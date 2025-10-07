@@ -1,3 +1,9 @@
+"""Evaluate Merge Results.
+
+Evaluates merge results by analyzing SBS and phenotype matching rates
+and generating summary statistics and plots.
+"""
+
 import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes

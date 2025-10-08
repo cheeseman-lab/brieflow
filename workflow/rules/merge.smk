@@ -92,10 +92,10 @@ if merge_approach == "stitch":
                 ancient_output=True,
             ),
         output:
-            phenotype_cell_positions=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype"][0]),
+            phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][0],
             phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][1],  
-            phenotype_stitched_image=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype"][2]), 
-            phenotype_stitched_mask=temp(MERGE_OUTPUTS_MAPPED["stitch_phenotype"][3]), 
+            phenotype_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][2], 
+            phenotype_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][3], 
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -130,8 +130,8 @@ if merge_approach == "stitch":
         output:
             sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs"][0],
             sbs_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_sbs"][1],
-            sbs_stitched_image=temp(MERGE_OUTPUTS_MAPPED["stitch_sbs"][2]),
-            sbs_stitched_mask=temp(MERGE_OUTPUTS_MAPPED["stitch_sbs"][3]), 
+            sbs_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_sbs"][2],
+            sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs"][3], 
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -150,11 +150,11 @@ if merge_approach == "stitch":
             phenotype_positions=MERGE_OUTPUTS["stitch_phenotype"][0],
             sbs_positions=MERGE_OUTPUTS["stitch_sbs"][0],
         output:
-            scaled_phenotype_positions=temp(MERGE_OUTPUTS_MAPPED["stitch_alignment"][0]),      
-            phenotype_triangles=temp(MERGE_OUTPUTS_MAPPED["stitch_alignment"][1]),             
-            sbs_triangles=temp(MERGE_OUTPUTS_MAPPED["stitch_alignment"][2]),                   
-            alignment_params=temp(MERGE_OUTPUTS_MAPPED["stitch_alignment"][3]),                
-            alignment_summary=temp(MERGE_OUTPUTS_MAPPED["stitch_alignment"][4]),
+            scaled_phenotype_positions=MERGE_OUTPUTS_MAPPED["stitch_alignment"][0],      
+            phenotype_triangles=MERGE_OUTPUTS_MAPPED["stitch_alignment"][1],             
+            sbs_triangles=MERGE_OUTPUTS_MAPPED["stitch_alignment"][2],                   
+            alignment_params=MERGE_OUTPUTS_MAPPED["stitch_alignment"][3],                
+            alignment_summary=MERGE_OUTPUTS_MAPPED["stitch_alignment"][4],
             transformed_phenotype_positions=MERGE_OUTPUTS_MAPPED["stitch_alignment"][5],
         params:
             plate=lambda wildcards: wildcards.plate,
@@ -171,9 +171,9 @@ if merge_approach == "stitch":
             alignment_params=MERGE_OUTPUTS["stitch_alignment"][3],
             transformed_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][5],               
         output:
-            raw_matches=temp(MERGE_OUTPUTS_MAPPED["stitch_merge"][0]),                    
+            raw_matches=MERGE_OUTPUTS_MAPPED["stitch_merge"][0],                    
             merged_cells=MERGE_OUTPUTS_MAPPED["stitch_merge"][1],                   
-            merge_summary=temp(MERGE_OUTPUTS_MAPPED["stitch_merge"][2]),                  
+            merge_summary=MERGE_OUTPUTS_MAPPED["stitch_merge"][2],                  
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -305,9 +305,9 @@ rule summarize_merge:
     params:
         plate=lambda wildcards: wildcards.plate,
         wells=lambda wildcards: [
-            combo["well"] 
+            str(combo["well"]) 
             for combo in merge_wildcard_combos.to_dict('records') 
-            if combo["plate"] == wildcards.plate
+            if str(combo["plate"]) == str(wildcards.plate)
         ],
     script:
         "../scripts/merge/summarize_merge.py"

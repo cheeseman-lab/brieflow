@@ -182,19 +182,19 @@ def get_merge_targets_by_approach():
 
 
 MERGE_OUTPUT_MAPPINGS = {
-    "estimate_stitch_phenotype": temp,
-    "estimate_stitch_sbs": temp,
-    "stitch_phenotype": None,
-    "stitch_sbs": None,
-    "stitch_alignment": None,
-    "stitch_merge": None,
     "fast_alignment": None,
     "fast_merge": None,
-    "format_merge": temp,
+    "estimate_stitch_phenotype": temp,
+    "estimate_stitch_sbs": temp,
+    "stitch_phenotype": [temp, None, temp, temp],
+    "stitch_sbs": [None, None, temp, temp],
+    "stitch_alignment": [temp, temp, temp, temp, temp, None],
+    "stitch_merge": [temp, None, temp],
+    "format_merge": None,
+    "deduplicate_merge": [None, temp, None, None],
+    "final_merge": None,
     "eval_merge": None,
     "summarize_merge": None,
-    "deduplicate_merge": None,
-    "final_merge": None,
 }
 
 MERGE_OUTPUTS_MAPPED = map_outputs(MERGE_OUTPUTS, MERGE_OUTPUT_MAPPINGS)

@@ -1,8 +1,15 @@
 #!/bin/bash
 
 # Run only the preprocess rules
-snakemake --use-conda --cores all \
+# snakemake --use-conda --cores all \
+#     --snakefile "../../workflow/Snakefile" \
+#     --configfile "config/config.yml" \
+#     --rerun-triggers mtime \
+#     --until all_preprocess # all_sbs all_phenotype all_merge all_aggregate all_cluster
+
+snakemake --executor googlebatch \
+    --workflow-profile "google_batch/" \
     --snakefile "../../workflow/Snakefile" \
     --configfile "config/config.yml" \
     --rerun-triggers mtime \
-    --until all_preprocess all_sbs all_phenotype all_merge all_aggregate all_cluster
+    --until all_preprocess # all_sbs all_phenotype all_merge all_aggregate all_cluster

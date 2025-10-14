@@ -9,8 +9,10 @@ description = "Package for processing data from optical poooled screens."
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
-  "snakemake==8.30.0",
-  "snakemake-executor-plugin-slurm==1.4.0",
+  "snakemake==9.12.0",
+  "snakemake-executor-plugin-slurm==1.8.0",
+  "snakemake-executor-plugin-googlebatch==0.5.0",
+  "snakemake-storage-plugin-gcs==1.1.4",
   "sphinx-rtd-theme==3.0.2",
   "ipykernel==6.29.5",
   "pandas==2.3.0",

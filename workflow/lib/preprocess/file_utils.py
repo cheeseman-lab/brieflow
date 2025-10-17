@@ -11,6 +11,7 @@ def get_sample_fps(
     tile: Union[int, str] = None,
     cycle: Union[int, str] = None,
     channel: Union[int, str] = None,
+    z: Union[int, str] = None,
     round_order: List[Union[int, str]] = None,
     channel_order: List[Union[int, str]] = None,
     verbose: bool = False,
@@ -24,6 +25,7 @@ def get_sample_fps(
         tile (Union[int, str], optional): Tile number to filter by. For well organization, set to None. Defaults to None.
         cycle (Union[int, str], optional): Cycle number to filter by. Defaults to None.
         channel (Union[int, str], optional): Channel to filter by. Defaults to None.
+        z (Union[int, str], optional): Z-plane number to filter by. If None and z column exists, returns all z-planes sorted. Defaults to None.
         round_order (List[Union[int, str]], optional): Order of rounds to return. Defaults to None.
         channel_order (List[Union[int, str]], optional): Order of channels. Defaults to None.
         verbose (bool, optional): Whether to print verbose output. Defaults to False.
@@ -44,6 +46,11 @@ def get_sample_fps(
         filtered_df = filtered_df[filtered_df["cycle"].astype(str) == str(cycle)]
     if channel is not None:
         filtered_df = filtered_df[filtered_df["channel"].astype(str) == str(channel)]
+
+    # Handle z-dimension filtering
+    if z is not None:
+        if "z" in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df["z"].astype(str) == str(z)]
 
     if round_order is not None:
         # Filter to only include specified rounds
@@ -72,6 +79,9 @@ def get_sample_fps(
                 filtered_df = filtered_df[
                     filtered_df["channel"].astype(str) == str(channel)
                 ]
+            if z is not None:
+                if "z" in filtered_df.columns:
+                    filtered_df = filtered_df[filtered_df["z"].astype(str) == str(z)]
 
         # Create dictionary mapping round to DataFrame rows
         round_groups = {
@@ -91,16 +101,42 @@ def get_sample_fps(
 
             # If channel order is specified, get files in that order for this round
             if "channel" in round_df.columns and channel_order is not None:
-                # Create mapping of available channels to files for this round
-                channel_to_file = dict(zip(round_df["channel"], round_df["sample_fp"]))
+                # Group by channel, handling potential z-planes
+                channel_groups = {
+                    chan: group for chan, group in round_df.groupby("channel")
+                }
+
                 # Add files for each requested channel if available in this round
                 for channel in channel_order:
-                    if channel in channel_to_file:
-                        all_files.append(channel_to_file[channel])
+                    if channel in channel_groups:
+                        channel_df = channel_groups[channel]
+
+                        # Handle z-planes: if z column exists and z is None, add all z-planes sorted
+                        if "z" in channel_df.columns and z is None:
+                            z_sorted = channel_df.sort_values("z")
+                            z_files = z_sorted["sample_fp"].tolist()
+                            all_files.extend(z_files)
+                            if verbose:
+                                print(
+                                    f"Round {round_num}, Channel {channel}: Added {len(z_files)} z-planes"
+                                )
+                        else:
+                            # Single file per channel
+                            all_files.append(channel_df["sample_fp"].iloc[0])
+
                         final_channel_order.append(f"Round {round_num}: {channel}")
             else:
-                # If no channel order, just take the first file from this round
-                all_files.append(round_df["sample_fp"].iloc[0])
+                # If no channel order, handle z-planes if present
+                if "z" in round_df.columns and z is None:
+                    z_sorted = round_df.sort_values("z")
+                    z_files = z_sorted["sample_fp"].tolist()
+                    all_files.extend(z_files)
+                    if verbose:
+                        print(f"Round {round_num}: Added {len(z_files)} z-planes")
+                else:
+                    # Just take the first file from this round
+                    all_files.append(round_df["sample_fp"].iloc[0])
+
                 if "channel" in round_df.columns:
                     final_channel_order.append(
                         f"Round {round_num}: {round_df['channel'].iloc[0]}"
@@ -123,6 +159,15 @@ def get_sample_fps(
             for channel in channel_order
             if channel in channel_to_file
         ]
+
+    # Handle z-planes: if z column exists and z parameter is None, return all z-planes sorted
+    if "z" in filtered_df.columns and z is None:
+        # Sort by z-plane and return all files
+        z_sorted_df = filtered_df.sort_values("z")
+        z_files = z_sorted_df["sample_fp"].tolist()
+        if verbose:
+            print(f"Found {len(z_files)} z-planes, returning sorted list")
+        return z_files
 
     # Otherwise return single file path
     return filtered_df["sample_fp"].iloc[0]
@@ -190,7 +235,7 @@ def get_inputs_for_metadata_extraction(
 
     # Build filter arguments from available wildcards
     filter_args = {}
-    for attr in ["plate", "well", "tile", "cycle", "round"]:
+    for attr in ["plate", "well", "tile", "cycle", "round", "z"]:
         if hasattr(wildcards, attr):
             filter_args[attr] = getattr(wildcards, attr)
 

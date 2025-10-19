@@ -6,24 +6,36 @@ from lib.preprocess.file_utils import get_metadata_wildcard_combos
 from lib.shared.initialize_paramsearch import initialize_segment_sbs_paramsearch
 from lib.shared.initialize_paramsearch import initialize_segment_phenotype_paramsearch
 
+def file_exists(path):
+    """Check if file exists (handles both local and GCS paths)"""
+    if isinstance(path, str) and path.startswith("gs://"):
+        # For GCS paths, we can't easily check existence without downloading
+        # So we assume they exist and let pandas handle the error
+        return True
+    elif path is None:
+        return False
+    else:
+        return Path(path).exists()
+
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
 
 # Get paths to the sample and combo files dfs
-SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])
-SBS_COMBO_FP = Path(config["preprocess"]["sbs_combo_fp"])
-PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
-PHENOTYPE_COMBO_FP = Path(config["preprocess"]["phenotype_combo_fp"])
-SBS_METADATA_SAMPLES_DF_FP = Path(fp) if (fp := config["preprocess"].get("sbs_metadata_samples_df_fp")) else None
-PHENOTYPE_METADATA_SAMPLES_DF_FP = Path(fp) if (fp := config["preprocess"].get("phenotype_metadata_samples_df_fp")) else None
+# Keep as strings for GCS compatibility - don't use Path() for gs:// URLs
+SBS_SAMPLES_FP = config["preprocess"]["sbs_samples_fp"]
+SBS_COMBO_FP = config["preprocess"]["sbs_combo_fp"]
+PHENOTYPE_SAMPLES_FP = config["preprocess"]["phenotype_samples_fp"]
+PHENOTYPE_COMBO_FP = config["preprocess"]["phenotype_combo_fp"]
+SBS_METADATA_SAMPLES_DF_FP = config["preprocess"].get("sbs_metadata_samples_df_fp")
+PHENOTYPE_METADATA_SAMPLES_DF_FP = config["preprocess"].get("phenotype_metadata_samples_df_fp")
 
 # Load sbs samples if the file exists
-if SBS_SAMPLES_FP.exists():
-    sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
+if file_exists(SBS_SAMPLES_FP):
+    sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t", storage_options={"project": "lasagna-199723"})
     if len(sbs_samples_df) > 0:
-        sbs_wildcard_combos = pd.read_csv(SBS_COMBO_FP, sep="\t").astype(str)
-        if SBS_METADATA_SAMPLES_DF_FP and SBS_METADATA_SAMPLES_DF_FP.exists():
-            sbs_metadata_samples_df = pd.read_csv(SBS_METADATA_SAMPLES_DF_FP, sep="\t") 
+        sbs_wildcard_combos = pd.read_csv(SBS_COMBO_FP, sep="\t", storage_options={"project": "lasagna-199723"}).astype(str)
+        if file_exists(SBS_METADATA_SAMPLES_DF_FP):
+            sbs_metadata_samples_df = pd.read_csv(SBS_METADATA_SAMPLES_DF_FP, sep="\t", storage_options={"project": "lasagna-199723"})
         else:
             sbs_metadata_samples_df = pd.DataFrame()
     else:
@@ -37,12 +49,12 @@ else:
     sbs_metadata_samples_df = pd.DataFrame()
 
 # Load phenotype samples if the file exists
-if PHENOTYPE_SAMPLES_FP.exists():
-    phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
+if file_exists(PHENOTYPE_SAMPLES_FP):
+    phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t", storage_options={"project": "lasagna-199723"})
     if len(phenotype_samples_df) > 0:
-        phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t").astype(str)
-        if PHENOTYPE_METADATA_SAMPLES_DF_FP and PHENOTYPE_METADATA_SAMPLES_DF_FP.exists():
-            phenotype_metadata_samples_df = pd.read_csv(PHENOTYPE_METADATA_SAMPLES_DF_FP, sep="\t")
+        phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t", storage_options={"project": "lasagna-199723"}).astype(str)
+        if file_exists(PHENOTYPE_METADATA_SAMPLES_DF_FP):
+            phenotype_metadata_samples_df = pd.read_csv(PHENOTYPE_METADATA_SAMPLES_DF_FP, sep="\t", storage_options={"project": "lasagna-199723"})
         else:
             phenotype_metadata_samples_df = pd.DataFrame()
     else:
@@ -112,8 +124,8 @@ if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
 
 
 if "merge" in config:
-    MERGE_COMBO_FP = Path(config["merge"]["merge_combo_fp"])
-    merge_wildcard_combos = pd.read_csv(MERGE_COMBO_FP, sep="\t")
+    MERGE_COMBO_FP = config["merge"]["merge_combo_fp"]
+    merge_wildcard_combos = pd.read_csv(MERGE_COMBO_FP, sep="\t", storage_options={"project": "lasagna-199723"})
 
     # Include target and rule files
     include: "targets/merge.smk"
@@ -121,8 +133,8 @@ if "merge" in config:
 
 
 if "aggregate" in config:
-    AGGREGATE_COMBO_FP = Path(config["aggregate"]["aggregate_combo_fp"])
-    aggregate_wildcard_combos = pd.read_csv(AGGREGATE_COMBO_FP, sep="\t")
+    AGGREGATE_COMBO_FP = config["aggregate"]["aggregate_combo_fp"]
+    aggregate_wildcard_combos = pd.read_csv(AGGREGATE_COMBO_FP, sep="\t", storage_options={"project": "lasagna-199723"})
 
     # Include target and rule files
     include: "targets/aggregate.smk"
@@ -130,8 +142,8 @@ if "aggregate" in config:
 
 
 if "cluster" in config:
-    CLUSTER_COMBO_FP = Path(config["cluster"]["cluster_combo_fp"])
-    cluster_wildcard_combos = pd.read_csv(CLUSTER_COMBO_FP, sep="\t")
+    CLUSTER_COMBO_FP = config["cluster"]["cluster_combo_fp"]
+    cluster_wildcard_combos = pd.read_csv(CLUSTER_COMBO_FP, sep="\t", storage_options={"project": "lasagna-199723"})
 
     # Include target and rule files
     include: "targets/cluster.smk"

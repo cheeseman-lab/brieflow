@@ -766,7 +766,9 @@ def convert_tiff_to_array(
     # Handle deprecated z_stack parameter
     if "z_stack" in kwargs and kwargs["z_stack"] is True and n_z_planes is None:
         if verbose:
-            print("Warning: z_stack=True is deprecated. Use n_z_planes parameter instead.")
+            print(
+                "Warning: z_stack=True is deprecated. Use n_z_planes parameter instead."
+            )
         # Fallback: treat all files as z-planes of single channel (old behavior)
         n_z_planes = -1  # Special flag for old behavior
 
@@ -785,7 +787,9 @@ def convert_tiff_to_array(
             )
         n_channels = len(files) // n_z_planes
         if verbose:
-            print(f"Z-aware stacking: {n_channels} channels × {n_z_planes} z-planes = {len(files)} files")
+            print(
+                f"Z-aware stacking: {n_channels} channels × {n_z_planes} z-planes = {len(files)} files"
+            )
 
     # Read all TIFF files
     image_arrays = []
@@ -816,7 +820,9 @@ def convert_tiff_to_array(
     # Handle z-aware stacking for multi-channel z-stacks
     if n_z_planes is not None and n_z_planes > 1 and len(image_arrays) > 1:
         if verbose:
-            print(f"\nZ-aware stacking: Grouping {len(image_arrays)} files into channels of {n_z_planes} z-planes each")
+            print(
+                f"\nZ-aware stacking: Grouping {len(image_arrays)} files into channels of {n_z_planes} z-planes each"
+            )
 
         channel_results = []
         for ch_idx in range(n_channels):
@@ -826,7 +832,9 @@ def convert_tiff_to_array(
             z_planes = image_arrays[start_idx:end_idx]
 
             if verbose:
-                print(f"  Channel {ch_idx + 1}/{n_channels}: Stacking z-planes {start_idx} to {end_idx - 1}")
+                print(
+                    f"  Channel {ch_idx + 1}/{n_channels}: Stacking z-planes {start_idx} to {end_idx - 1}"
+                )
 
             # Each z_plane has shape (1, Y, X) for single-channel TIFFs
             # Stack them along Z axis: (1, Y, X) × n_z_planes → (1, n_z_planes, Y, X)
@@ -852,7 +860,9 @@ def convert_tiff_to_array(
     # Handle deprecated z_stack=True behavior (all files as z-planes of one channel)
     elif n_z_planes == -1 and len(image_arrays) > 1:
         if verbose:
-            print(f"Deprecated z_stack mode: Stacking {len(image_arrays)} z-planes as single channel")
+            print(
+                f"Deprecated z_stack mode: Stacking {len(image_arrays)} z-planes as single channel"
+            )
         stacked = np.stack(image_arrays, axis=1)
         result = np.max(stacked, axis=1)
         if verbose:
@@ -866,7 +876,9 @@ def convert_tiff_to_array(
             result = np.concatenate(image_arrays, axis=0)
 
         if verbose and len(image_arrays) > 1:
-            print(f"Concatenated {len(image_arrays)} files along channel axis: {result.shape}")
+            print(
+                f"Concatenated {len(image_arrays)} files along channel axis: {result.shape}"
+            )
 
     return result.astype(np.uint16)
 

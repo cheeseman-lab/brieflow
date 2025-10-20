@@ -15,7 +15,9 @@ print(f"Shape of input data: {cell_data.shape}")
 
 # Split aligned data into features and metadata
 metadata_cols = load_metadata_cols(
-    snakemake.params.metadata_cols_fp, gcs_project=gcs_project, include_classification_cols=True
+    snakemake.params.metadata_cols_fp,
+    gcs_project=gcs_project,
+    include_classification_cols=True,
 ) + ["batch_values"]
 metadata, tvn_normalized = split_cell_data(cell_data, metadata_cols)
 tvn_normalized = tvn_normalized.to_numpy()

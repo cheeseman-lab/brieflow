@@ -25,7 +25,11 @@ cell_data = ds.dataset(snakemake.input.filtered_paths, format="parquet")
 
 # determine cols
 cell_data_cols = cell_data.schema.names
-metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, gcs_project=gcs_project, include_classification_cols=True)
+metadata_cols = load_metadata_cols(
+    snakemake.params.metadata_cols_fp,
+    gcs_project=gcs_project,
+    include_classification_cols=True,
+)
 feature_cols = [col for col in cell_data.schema.names if col not in metadata_cols]
 feature_cols = get_feature_table_cols(feature_cols)
 

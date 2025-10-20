@@ -37,13 +37,19 @@ cluster_datasets = {
     "Shuffled": phate_leiden_clustering_shuffled,
 }
 
-string_pair_benchmark = read_csv_gcs_compatible(snakemake.params.string_pair_benchmark_fp, gcs_project=gcs_project, sep="\t")
+string_pair_benchmark = read_csv_gcs_compatible(
+    snakemake.params.string_pair_benchmark_fp, gcs_project=gcs_project, sep="\t"
+)
 pair_recall_benchmarks = {
     "STRING": string_pair_benchmark,
 }
 
-corum_group_benchmark = read_csv_gcs_compatible(snakemake.params.corum_group_benchmark_fp, gcs_project=gcs_project, sep="\t")
-kegg_group_benchmark = read_csv_gcs_compatible(snakemake.params.kegg_group_benchmark_fp, gcs_project=gcs_project, sep="\t")
+corum_group_benchmark = read_csv_gcs_compatible(
+    snakemake.params.corum_group_benchmark_fp, gcs_project=gcs_project, sep="\t"
+)
+kegg_group_benchmark = read_csv_gcs_compatible(
+    snakemake.params.kegg_group_benchmark_fp, gcs_project=gcs_project, sep="\t"
+)
 group_enrichment_benchmarks = {
     "CORUM": filter_complexes(
         corum_group_benchmark,

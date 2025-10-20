@@ -186,12 +186,6 @@ def read_csv_gcs_compatible(filepath, gcs_project=None, **kwargs):
 
     Raises:
         ValueError: If filepath is a GCS path but gcs_project is not specified
-
-    Examples:
-        >>> # Local file (no project needed)
-        >>> df = read_csv_gcs_compatible("local/file.tsv", sep="\t")
-        >>> # GCS file (project required)
-        >>> df = read_csv_gcs_compatible("gs://bucket/file.tsv", gcs_project="my-project", sep="\t")
     """
     # Add storage_options for GCS paths
     if isinstance(filepath, str) and filepath.startswith("gs://"):

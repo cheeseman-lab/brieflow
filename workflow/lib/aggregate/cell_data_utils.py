@@ -11,7 +11,9 @@ from lib.phenotype.constants import DEFAULT_METADATA_COLS
 from lib.shared.file_utils import read_csv_gcs_compatible
 
 
-def load_metadata_cols(metadata_cols_fp, gcs_project=None, include_classification_cols=False):
+def load_metadata_cols(
+    metadata_cols_fp, gcs_project=None, include_classification_cols=False
+):
     """Load metadata column names from a file.
 
     Args:
@@ -23,7 +25,9 @@ def load_metadata_cols(metadata_cols_fp, gcs_project=None, include_classificatio
     Returns:
         list: List of metadata column names.
     """
-    metadata_cols = read_csv_gcs_compatible(metadata_cols_fp, gcs_project=gcs_project, header=None, sep="\t")[0].tolist()
+    metadata_cols = read_csv_gcs_compatible(
+        metadata_cols_fp, gcs_project=gcs_project, header=None, sep="\t"
+    )[0].tolist()
 
     if include_classification_cols:
         metadata_cols += [

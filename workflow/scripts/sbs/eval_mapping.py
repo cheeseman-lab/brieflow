@@ -15,7 +15,9 @@ from lib.shared.file_utils import read_csv_gcs_compatible
 gcs_project = snakemake.config["all"].get("gcs_project")
 
 # Read barcodes
-df_barcode_library = read_csv_gcs_compatible(snakemake.params.df_barcode_library_fp, gcs_project=gcs_project, sep="\t")
+df_barcode_library = read_csv_gcs_compatible(
+    snakemake.params.df_barcode_library_fp, gcs_project=gcs_project, sep="\t"
+)
 barcodes = get_barcode_list(df_barcode_library)
 
 # Load SBS processing files

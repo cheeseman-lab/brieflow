@@ -13,6 +13,7 @@ import numpy as np
 
 try:
     import fsspec
+
     HAS_FSSPEC = True
 except ImportError:
     HAS_FSSPEC = False
@@ -46,7 +47,9 @@ class CellClassifier(ABC):
             filename (str): Path to save the serialized classifier (supports GCS paths).
         """
         # Use fsspec for GCS paths or when available, otherwise use built-in open
-        if HAS_FSSPEC and (filename.startswith("gs://") or filename.startswith("s3://")):
+        if HAS_FSSPEC and (
+            filename.startswith("gs://") or filename.startswith("s3://")
+        ):
             with fsspec.open(filename, "wb") as f:
                 dill.dump(self, f)
         else:
@@ -64,7 +67,9 @@ class CellClassifier(ABC):
             CellClassifier: The loaded classifier instance.
         """
         # Use fsspec for GCS paths or when available, otherwise use built-in open
-        if HAS_FSSPEC and (filename.startswith("gs://") or filename.startswith("s3://")):
+        if HAS_FSSPEC and (
+            filename.startswith("gs://") or filename.startswith("s3://")
+        ):
             with fsspec.open(filename, "rb") as f:
                 return dill.load(f)
         else:

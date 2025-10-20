@@ -37,6 +37,7 @@ def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, Any]:
         - channel_order_flip: Whether to reverse channel order
         - channel_order: List of channels in desired order
         - metadata_samples_df_fp: Path to metadata samples dataframe
+        - has_z_dimension: Whether input files are split by z-plane
     """
     base_config = config.get("preprocess", {})
 
@@ -54,6 +55,7 @@ def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, Any]:
         "metadata_samples_df_fp": base_config.get(
             f"{image_type}_metadata_samples_df_fp", None
         ),
+        "has_z_dimension": base_config.get(f"{image_type}_has_z_dimension", False),
     }
 
 
@@ -729,19 +731,28 @@ def convert_nd2_to_array_well(
 def convert_tiff_to_array(
     files: Union[str, List[str], Path, List[Path]],
     channel_order_flip: bool = False,
+    z_stack: bool = False,
     verbose: bool = False,
     **kwargs,
 ) -> np.ndarray:
     """Convert TIFF files to numpy array in CYX format.
 
+    Handles both regular TIFF files and z-split TIFF inputs where multiple
+    files represent different z-planes of the same position.
+
     Args:
         files: Path(s) to TIFF file(s)
         channel_order_flip: Reverse the order of channels
+        z_stack: If True, treat files as z-planes to stack and project
         verbose: Print debug information
         **kwargs: Additional arguments (for compatibility)
 
     Returns:
         numpy array in CYX format with dtype uint16
+
+    Notes:
+        - If z_stack=True: files are stacked along Z dimension, then max projected to CYX
+        - If z_stack=False: files are concatenated along channel axis (normal behavior)
     """
     try:
         from tifffile import imread
@@ -780,11 +791,29 @@ def convert_tiff_to_array(
 
         image_arrays.append(img_array)
 
-    # Concatenate along channel axis if multiple files
-    if len(image_arrays) == 1:
-        result = image_arrays[0]
+    # Handle z-stack case: stack and project
+    if z_stack and len(image_arrays) > 1:
+        if verbose:
+            print(f"Stacking {len(image_arrays)} z-planes and applying max projection")
+
+        # Stack along new Z axis (after channel axis)
+        # Each image is CYX, stack to get CZYX
+        stacked = np.stack(image_arrays, axis=1)  # Insert Z after C
+
+        if verbose:
+            print(f"Stacked shape (CZYX): {stacked.shape}")
+
+        # Max project along Z axis to get CYX
+        result = np.max(stacked, axis=1)
+
+        if verbose:
+            print(f"After max projection (CYX): {result.shape}")
     else:
-        result = np.concatenate(image_arrays, axis=0)
+        # Concatenate along channel axis if multiple files (normal behavior)
+        if len(image_arrays) == 1:
+            result = image_arrays[0]
+        else:
+            result = np.concatenate(image_arrays, axis=0)
 
     return result.astype(np.uint16)
 

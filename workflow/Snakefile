@@ -5,23 +5,13 @@ import pandas as pd
 from lib.preprocess.file_utils import get_metadata_wildcard_combos
 from lib.shared.initialize_paramsearch import initialize_segment_sbs_paramsearch
 from lib.shared.initialize_paramsearch import initialize_segment_phenotype_paramsearch
-
-def file_exists(path):
-    """Check if file exists (handles both local and GCS paths)"""
-    if isinstance(path, str) and path.startswith("gs://"):
-        # For GCS paths, we can't easily check existence without downloading
-        # So we assume they exist and let pandas handle the error
-        return True
-    elif path is None:
-        return False
-    else:
-        return Path(path).exists()
+from lib.shared.file_utils import read_csv_gcs_compatible
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
+GCS_PROJECT = config["all"].get("gcs_project")  # Optional GCS project ID
 
 # Get paths to the sample and combo files dfs
-# Keep as strings for GCS compatibility - don't use Path() for gs:// URLs
 SBS_SAMPLES_FP = config["preprocess"]["sbs_samples_fp"]
 SBS_COMBO_FP = config["preprocess"]["sbs_combo_fp"]
 PHENOTYPE_SAMPLES_FP = config["preprocess"]["phenotype_samples_fp"]
@@ -29,39 +19,45 @@ PHENOTYPE_COMBO_FP = config["preprocess"]["phenotype_combo_fp"]
 SBS_METADATA_SAMPLES_DF_FP = config["preprocess"].get("sbs_metadata_samples_df_fp")
 PHENOTYPE_METADATA_SAMPLES_DF_FP = config["preprocess"].get("phenotype_metadata_samples_df_fp")
 
-# Load sbs samples if the file exists
-if file_exists(SBS_SAMPLES_FP):
-    sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t", storage_options={"project": "lasagna-199723"})
+# Load sbs samples
+try:
+    sbs_samples_df = read_csv_gcs_compatible(SBS_SAMPLES_FP, gcs_project=GCS_PROJECT, sep="\t")
     if len(sbs_samples_df) > 0:
-        sbs_wildcard_combos = pd.read_csv(SBS_COMBO_FP, sep="\t", storage_options={"project": "lasagna-199723"}).astype(str)
-        if file_exists(SBS_METADATA_SAMPLES_DF_FP):
-            sbs_metadata_samples_df = pd.read_csv(SBS_METADATA_SAMPLES_DF_FP, sep="\t", storage_options={"project": "lasagna-199723"})
+        sbs_wildcard_combos = read_csv_gcs_compatible(SBS_COMBO_FP, gcs_project=GCS_PROJECT, sep="\t").astype(str)
+        if SBS_METADATA_SAMPLES_DF_FP:
+            try:
+                sbs_metadata_samples_df = read_csv_gcs_compatible(SBS_METADATA_SAMPLES_DF_FP, gcs_project=GCS_PROJECT, sep="\t")
+            except FileNotFoundError:
+                sbs_metadata_samples_df = pd.DataFrame()
         else:
             sbs_metadata_samples_df = pd.DataFrame()
     else:
         print("No SBS samples found in the file!")
         sbs_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"]).astype(str)
         sbs_metadata_samples_df = pd.DataFrame()
-else:
+except FileNotFoundError:
     print(f"SBS samples file not found: {SBS_SAMPLES_FP}")
     sbs_samples_df = pd.DataFrame()
     sbs_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"]).astype(str)
     sbs_metadata_samples_df = pd.DataFrame()
 
-# Load phenotype samples if the file exists
-if file_exists(PHENOTYPE_SAMPLES_FP):
-    phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t", storage_options={"project": "lasagna-199723"})
+# Load phenotype samples
+try:
+    phenotype_samples_df = read_csv_gcs_compatible(PHENOTYPE_SAMPLES_FP, gcs_project=GCS_PROJECT, sep="\t")
     if len(phenotype_samples_df) > 0:
-        phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t", storage_options={"project": "lasagna-199723"}).astype(str)
-        if file_exists(PHENOTYPE_METADATA_SAMPLES_DF_FP):
-            phenotype_metadata_samples_df = pd.read_csv(PHENOTYPE_METADATA_SAMPLES_DF_FP, sep="\t", storage_options={"project": "lasagna-199723"})
+        phenotype_wildcard_combos = read_csv_gcs_compatible(PHENOTYPE_COMBO_FP, gcs_project=GCS_PROJECT, sep="\t").astype(str)
+        if PHENOTYPE_METADATA_SAMPLES_DF_FP:
+            try:
+                phenotype_metadata_samples_df = read_csv_gcs_compatible(PHENOTYPE_METADATA_SAMPLES_DF_FP, gcs_project=GCS_PROJECT, sep="\t")
+            except FileNotFoundError:
+                phenotype_metadata_samples_df = pd.DataFrame()
         else:
             phenotype_metadata_samples_df = pd.DataFrame()
     else:
         print("No phenotype samples found in the file!")
         phenotype_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile"]).astype(str)
         phenotype_metadata_samples_df = pd.DataFrame()
-else:
+except FileNotFoundError:
     print(f"Phenotype samples file not found: {PHENOTYPE_SAMPLES_FP}")
     phenotype_samples_df = pd.DataFrame()
     phenotype_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile"]).astype(str)
@@ -125,7 +121,7 @@ if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
 
 if "merge" in config:
     MERGE_COMBO_FP = config["merge"]["merge_combo_fp"]
-    merge_wildcard_combos = pd.read_csv(MERGE_COMBO_FP, sep="\t", storage_options={"project": "lasagna-199723"})
+    merge_wildcard_combos = read_csv_gcs_compatible(MERGE_COMBO_FP, gcs_project=GCS_PROJECT, sep="\t")
 
     # Include target and rule files
     include: "targets/merge.smk"
@@ -134,7 +130,7 @@ if "merge" in config:
 
 if "aggregate" in config:
     AGGREGATE_COMBO_FP = config["aggregate"]["aggregate_combo_fp"]
-    aggregate_wildcard_combos = pd.read_csv(AGGREGATE_COMBO_FP, sep="\t", storage_options={"project": "lasagna-199723"})
+    aggregate_wildcard_combos = read_csv_gcs_compatible(AGGREGATE_COMBO_FP, gcs_project=GCS_PROJECT, sep="\t")
 
     # Include target and rule files
     include: "targets/aggregate.smk"
@@ -143,7 +139,7 @@ if "aggregate" in config:
 
 if "cluster" in config:
     CLUSTER_COMBO_FP = config["cluster"]["cluster_combo_fp"]
-    cluster_wildcard_combos = pd.read_csv(CLUSTER_COMBO_FP, sep="\t", storage_options={"project": "lasagna-199723"})
+    cluster_wildcard_combos = read_csv_gcs_compatible(CLUSTER_COMBO_FP, gcs_project=GCS_PROJECT, sep="\t")
 
     # Include target and rule files
     include: "targets/cluster.smk"

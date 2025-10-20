@@ -6,6 +6,10 @@ from lib.cluster.phate_leiden_clustering import (
     plot_phate_leiden_clusters,
     calculate_potential_to_nontargeting,
 )
+from lib.shared.file_utils import read_csv_gcs_compatible
+
+# Get GCS project from config
+gcs_project = snakemake.config["all"].get("gcs_project")
 
 # load aggregated data
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
@@ -19,7 +23,7 @@ phate_leiden_clustering, potential_df = phate_leiden_pipeline(
 )
 
 # add uniprot information
-uniprot_data = pd.read_csv(snakemake.params.uniprot_data_fp, sep="\t")
+uniprot_data = read_csv_gcs_compatible(snakemake.params.uniprot_data_fp, gcs_project=gcs_project, sep="\t")
 # Expand the rows of the uniprot data to deal with synonyms and homologs
 uniprot_data = uniprot_data.dropna(subset=["gene_names"])
 expanded_rows = []

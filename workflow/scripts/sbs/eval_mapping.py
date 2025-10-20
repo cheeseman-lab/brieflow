@@ -9,9 +9,13 @@ from lib.sbs.eval_mapping import (
     plot_gene_symbol_histogram,
     mapping_overview,
 )
+from lib.shared.file_utils import read_csv_gcs_compatible
+
+# Get GCS project from config
+gcs_project = snakemake.config["all"].get("gcs_project")
 
 # Read barcodes
-df_barcode_library = pd.read_csv(snakemake.params.df_barcode_library_fp, sep="\t")
+df_barcode_library = read_csv_gcs_compatible(snakemake.params.df_barcode_library_fp, gcs_project=gcs_project, sep="\t")
 barcodes = get_barcode_list(df_barcode_library)
 
 # Load SBS processing files

@@ -168,3 +168,40 @@ def validate_dtypes(df):
                     pass
 
     return df
+
+
+def read_csv_gcs_compatible(filepath, gcs_project=None, **kwargs):
+    """Read CSV/TSV file with automatic GCS support.
+
+    This function wraps pandas.read_csv to automatically add storage_options
+    for GCS paths (gs://) while remaining backward compatible with local paths.
+
+    Args:
+        filepath (str): Path to CSV/TSV file (local or GCS path starting with gs://)
+        gcs_project (str, optional): GCS project ID. Required for GCS paths.
+        **kwargs: Additional arguments to pass to pd.read_csv
+
+    Returns:
+        pd.DataFrame: Loaded DataFrame
+
+    Raises:
+        ValueError: If filepath is a GCS path but gcs_project is not specified
+
+    Examples:
+        >>> # Local file (no project needed)
+        >>> df = read_csv_gcs_compatible("local/file.tsv", sep="\t")
+        >>> # GCS file (project required)
+        >>> df = read_csv_gcs_compatible("gs://bucket/file.tsv", gcs_project="my-project", sep="\t")
+    """
+    # Add storage_options for GCS paths
+    if isinstance(filepath, str) and filepath.startswith("gs://"):
+        if "storage_options" not in kwargs:
+            if gcs_project is None:
+                raise ValueError(
+                    f"GCS project ID must be specified for GCS paths. "
+                    f"Add 'gcs_project: your-project-id' to the 'all:' section of your config file. "
+                    f"Path: {filepath}"
+                )
+            kwargs["storage_options"] = {"project": gcs_project}
+
+    return pd.read_csv(filepath, **kwargs)

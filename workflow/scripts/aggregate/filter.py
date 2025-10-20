@@ -8,10 +8,14 @@ from lib.aggregate.filter import (
     intensity_filter,
 )
 
+# Get GCS project from config
+gcs_project = snakemake.config["all"].get("gcs_project")
+
 # Load cell data
 cell_data = pd.read_parquet(snakemake.input[0])
 metadata_cols = load_metadata_cols(
     snakemake.params.metadata_cols_fp,
+    gcs_project=gcs_project,
     include_classification_cols=True,
 )
 metadata, features = split_cell_data(cell_data, metadata_cols)

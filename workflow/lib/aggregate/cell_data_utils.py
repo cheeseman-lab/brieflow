@@ -8,20 +8,22 @@ and filtering features based on channel combinations.
 import pandas as pd
 
 from lib.phenotype.constants import DEFAULT_METADATA_COLS
+from lib.shared.file_utils import read_csv_gcs_compatible
 
 
-def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
+def load_metadata_cols(metadata_cols_fp, gcs_project=None, include_classification_cols=False):
     """Load metadata column names from a file.
 
     Args:
-        metadata_cols_fp (str): File path to the metadata columns list.
+        metadata_cols_fp (str): File path to the metadata columns list (supports GCS paths).
+        gcs_project (str, optional): GCS project ID (required for GCS paths).
         include_classification_cols (bool, optional): Whether to include
             classification columns. Defaults to False.
 
     Returns:
         list: List of metadata column names.
     """
-    metadata_cols = pd.read_csv(metadata_cols_fp, header=None, sep="\t")[0].tolist()
+    metadata_cols = read_csv_gcs_compatible(metadata_cols_fp, gcs_project=gcs_project, header=None, sep="\t")[0].tolist()
 
     if include_classification_cols:
         metadata_cols += [

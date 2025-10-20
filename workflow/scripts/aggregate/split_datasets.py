@@ -7,11 +7,14 @@ from lib.aggregate.cell_data_utils import (
     channel_combo_subset,
 )
 
+# Get GCS project from config
+gcs_project = snakemake.config["all"].get("gcs_project")
+
 # Load merge data
 cell_data = pd.read_parquet(snakemake.input[0])
 
 # Split data into metadata and features
-metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp)
+metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, gcs_project=gcs_project)
 metadata, features = split_cell_data(cell_data, metadata_cols)
 
 # Classify cells

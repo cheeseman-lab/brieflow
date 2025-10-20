@@ -1,12 +1,16 @@
 import pandas as pd
 
 from lib.sbs.call_cells import call_cells
+from lib.shared.file_utils import read_csv_gcs_compatible
+
+# Get GCS project from config
+gcs_project = snakemake.config["all"].get("gcs_project")
 
 # load reads data
 reads_data = pd.read_csv(snakemake.input[0], sep="\t")
 
 # load df_barcode_library
-df_barcode_library = pd.read_csv(snakemake.params.df_barcode_library_fp, sep="\t")
+df_barcode_library = read_csv_gcs_compatible(snakemake.params.df_barcode_library_fp, gcs_project=gcs_project, sep="\t")
 
 # call cells
 cells_data = call_cells(

@@ -9,6 +9,10 @@ from lib.cluster.benchmark_clusters import (
 from lib.cluster.scrape_benchmarks import (
     filter_complexes,
 )
+from lib.shared.file_utils import read_csv_gcs_compatible
+
+# Get GCS project from config
+gcs_project = snakemake.config["all"].get("gcs_project")
 
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
 phate_leiden_clustering = pd.read_csv(snakemake.input[1], sep="\t")
@@ -33,13 +37,13 @@ cluster_datasets = {
     "Shuffled": phate_leiden_clustering_shuffled,
 }
 
-string_pair_benchmark = pd.read_csv(snakemake.params.string_pair_benchmark_fp, sep="\t")
+string_pair_benchmark = read_csv_gcs_compatible(snakemake.params.string_pair_benchmark_fp, gcs_project=gcs_project, sep="\t")
 pair_recall_benchmarks = {
     "STRING": string_pair_benchmark,
 }
 
-corum_group_benchmark = pd.read_csv(snakemake.params.corum_group_benchmark_fp, sep="\t")
-kegg_group_benchmark = pd.read_csv(snakemake.params.kegg_group_benchmark_fp, sep="\t")
+corum_group_benchmark = read_csv_gcs_compatible(snakemake.params.corum_group_benchmark_fp, gcs_project=gcs_project, sep="\t")
+kegg_group_benchmark = read_csv_gcs_compatible(snakemake.params.kegg_group_benchmark_fp, gcs_project=gcs_project, sep="\t")
 group_enrichment_benchmarks = {
     "CORUM": filter_complexes(
         corum_group_benchmark,

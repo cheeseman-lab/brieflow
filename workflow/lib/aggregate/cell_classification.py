@@ -11,6 +11,12 @@ import dill
 from sklearn.preprocessing import RobustScaler
 import numpy as np
 
+try:
+    import fsspec
+    HAS_FSSPEC = True
+except ImportError:
+    HAS_FSSPEC = False
+
 
 class CellClassifier(ABC):
     """Base class for cell classifiers."""
@@ -37,23 +43,33 @@ class CellClassifier(ABC):
         """Save the classifier to a file.
 
         Args:
-            filename (str): Path to save the serialized classifier.
+            filename (str): Path to save the serialized classifier (supports GCS paths).
         """
-        with open(filename, "wb") as f:
-            dill.dump(self, f)
+        # Use fsspec for GCS paths or when available, otherwise use built-in open
+        if HAS_FSSPEC and (filename.startswith("gs://") or filename.startswith("s3://")):
+            with fsspec.open(filename, "wb") as f:
+                dill.dump(self, f)
+        else:
+            with open(filename, "wb") as f:
+                dill.dump(self, f)
 
     @staticmethod
     def load(filename):
         """Load a classifier from a file.
 
         Args:
-            filename (str): Path to the serialized classifier file.
+            filename (str): Path to the serialized classifier file (supports GCS paths).
 
         Returns:
             CellClassifier: The loaded classifier instance.
         """
-        with open(filename, "rb") as f:
-            return dill.load(f)
+        # Use fsspec for GCS paths or when available, otherwise use built-in open
+        if HAS_FSSPEC and (filename.startswith("gs://") or filename.startswith("s3://")):
+            with fsspec.open(filename, "rb") as f:
+                return dill.load(f)
+        else:
+            with open(filename, "rb") as f:
+                return dill.load(f)
 
 
 class NaiveMitoticClassifier(CellClassifier):

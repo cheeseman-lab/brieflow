@@ -12,6 +12,9 @@ from lib.aggregate.cell_data_utils import (
     get_feature_table_cols,
 )
 
+# Get GCS project from config
+gcs_project = snakemake.config["all"].get("gcs_project")
+
 # get snakemake parameters
 pert_col = snakemake.params.perturbation_name_col
 control_key = snakemake.params.control_key
@@ -22,7 +25,7 @@ cell_data = ds.dataset(snakemake.input.filtered_paths, format="parquet")
 
 # determine cols
 cell_data_cols = cell_data.schema.names
-metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, True)
+metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, gcs_project=gcs_project, include_classification_cols=True)
 feature_cols = [col for col in cell_data.schema.names if col not in metadata_cols]
 feature_cols = get_feature_table_cols(feature_cols)
 

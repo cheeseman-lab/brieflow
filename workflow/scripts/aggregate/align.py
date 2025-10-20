@@ -18,6 +18,9 @@ from lib.aggregate.align import (
     tvn_on_controls,
 )
 
+# Get GCS project from config
+gcs_project = snakemake.config["all"].get("gcs_project")
+
 ## Step 1: Create PCA transformation
 PCA_SUBSET = 100000
 
@@ -38,7 +41,7 @@ sample_df = cell_dataset.scanner().take(random_indices)
 sample_df = sample_df.to_pandas(use_threads=True, memory_pool=None)
 
 # load sample df as pandas dataframe
-metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, True)
+metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, gcs_project=gcs_project, include_classification_cols=True)
 metadata, features = split_cell_data(sample_df, metadata_cols)
 metadata, features = prepare_alignment_data(
     metadata,

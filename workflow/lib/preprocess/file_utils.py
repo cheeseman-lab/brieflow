@@ -12,8 +12,8 @@ def get_sample_fps(
     cycle: Union[int, str] = None,
     channel: Union[int, str] = None,
     z: Union[int, str] = None,
-    round_order: List[Union[int, str]] = None,
-    channel_order: List[Union[int, str]] = None,
+    round_order: Union[int, str, List[Union[int, str]]] = None,
+    channel_order: Union[int, str, List[Union[int, str]]] = None,
     verbose: bool = False,
 ) -> Union[str, List[str]]:
     """Filters the samples DataFrame and ensures consistent channel and round order.
@@ -26,13 +26,25 @@ def get_sample_fps(
         cycle (Union[int, str], optional): Cycle number to filter by. Defaults to None.
         channel (Union[int, str], optional): Channel to filter by. Defaults to None.
         z (Union[int, str], optional): Z-plane number to filter by. If None and z column exists, returns all z-planes sorted. Defaults to None.
-        round_order (List[Union[int, str]], optional): Order of rounds to return. Defaults to None.
-        channel_order (List[Union[int, str]], optional): Order of channels. Defaults to None.
+        round_order (Union[int, str, List[Union[int, str]]], optional): Order of rounds to return. Can be a single value or a list. Defaults to None.
+        channel_order (Union[int, str, List[Union[int, str]]], optional): Order of channels. Can be a single value or a list. Defaults to None.
         verbose (bool, optional): Whether to print verbose output. Defaults to False.
 
     Returns:
         Union[str, List[str]]: Either a single filepath or ordered list of filepaths
     """
+    # Track whether inputs were single values (to return single string vs list)
+    round_was_single = round_order is not None and not isinstance(round_order, list)
+    channel_was_single = channel_order is not None and not isinstance(
+        channel_order, list
+    )
+
+    # Convert single values to lists for round_order and channel_order
+    if round_order is not None and not isinstance(round_order, list):
+        round_order = [round_order]
+    if channel_order is not None and not isinstance(channel_order, list):
+        channel_order = [channel_order]
+
     filtered_df = samples_df
     if plate is not None:
         filtered_df = filtered_df[filtered_df["plate"].astype(str) == str(plate)]
@@ -149,16 +161,23 @@ def get_sample_fps(
             for chan in final_channel_order:
                 print(f"  {chan}")
 
+        # Return single string if input was single value and result is single file
+        if round_was_single and len(all_files) == 1:
+            return all_files[0]
         return all_files
 
     # If no rounds specified but we have channels and channel order
     if "channel" in filtered_df.columns and channel_order is not None:
         channel_to_file = dict(zip(filtered_df["channel"], filtered_df["sample_fp"]))
-        return [
+        result = [
             channel_to_file[channel]
             for channel in channel_order
             if channel in channel_to_file
         ]
+        # Return single string if input was single value and result is single file
+        if channel_was_single and len(result) == 1:
+            return result[0]
+        return result
 
     # Handle z-planes: if z column exists and z parameter is None, return all z-planes sorted
     if "z" in filtered_df.columns and z is None:
@@ -191,9 +210,12 @@ def get_metadata_wildcard_combos(
             col for col in metadata_samples_df.columns if col != "sample_fp"
         ]
         return metadata_samples_df[metadata_columns].drop_duplicates().astype(str)
-    else:
+    elif not samples_df.empty:
         # Use image file structure for metadata extraction
         return samples_df.drop(columns=["sample_fp"]).drop_duplicates().astype(str)
+    else:
+        # Both DataFrames are empty - return empty DataFrame
+        return pd.DataFrame()
 
 
 def get_output_pattern(wildcard_combos: pd.DataFrame) -> Dict[str, str]:
@@ -274,8 +296,8 @@ def get_tile_count_from_well(
     plate: Union[int, str] = None,
     well: Union[int, str] = None,
     cycle: Union[int, str] = None,
-    round_order: List[Union[int, str]] = None,
-    channel_order: List[Union[int, str]] = None,
+    round_order: Union[int, str, List[Union[int, str]]] = None,
+    channel_order: Union[int, str, List[Union[int, str]]] = None,
     verbose: bool = False,
 ) -> int:
     """Get the number of tiles in a well-based ND2 file.
@@ -285,8 +307,8 @@ def get_tile_count_from_well(
         plate (Union[int, str], optional): Plate number to filter by. Defaults to None.
         well (Union[int, str], optional): Well identifier to filter by. Defaults to None.
         cycle (Union[int, str], optional): Cycle number to filter by (for SBS). Defaults to None.
-        round_order (List[Union[int, str]], optional): Round order to filter by (for phenotype). Defaults to None.
-        channel_order (List[Union[int, str]], optional): Channel order to use. Defaults to None.
+        round_order (Union[int, str, List[Union[int, str]]], optional): Round order to filter by (for phenotype). Can be a single value or a list. Defaults to None.
+        channel_order (Union[int, str, List[Union[int, str]]], optional): Channel order to use. Can be a single value or a list. Defaults to None.
         verbose (bool, optional): Whether to print verbose output. Defaults to False.
 
     Returns:

@@ -175,6 +175,7 @@ def read_csv_gcs_compatible(filepath, gcs_project=None, **kwargs):
 
     This function wraps pandas.read_csv to automatically add storage_options
     for GCS paths (gs://) while remaining backward compatible with local paths.
+    Returns an empty DataFrame if the file is empty.
 
     Args:
         filepath (str): Path to CSV/TSV file (local or GCS path starting with gs://)
@@ -182,7 +183,7 @@ def read_csv_gcs_compatible(filepath, gcs_project=None, **kwargs):
         **kwargs: Additional arguments to pass to pd.read_csv
 
     Returns:
-        pd.DataFrame: Loaded DataFrame
+        pd.DataFrame: Loaded DataFrame, or empty DataFrame if file is empty
 
     Raises:
         ValueError: If filepath is a GCS path but gcs_project is not specified
@@ -198,4 +199,8 @@ def read_csv_gcs_compatible(filepath, gcs_project=None, **kwargs):
                 )
             kwargs["storage_options"] = {"project": gcs_project}
 
-    return pd.read_csv(filepath, **kwargs)
+    try:
+        return pd.read_csv(filepath, **kwargs)
+    except pd.errors.EmptyDataError:
+        # Return empty DataFrame if the file has no data
+        return pd.DataFrame()

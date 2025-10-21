@@ -1,0 +1,24 @@
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-west1-docker.pkg.dev/lasagna-199723/brieflow-repo/brieflow:latest'
+      - '.'
+
+  # Push the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-west1-docker.pkg.dev/lasagna-199723/brieflow-repo/brieflow:latest'
+
+images:
+  - 'us-west1-docker.pkg.dev/lasagna-199723/brieflow-repo/brieflow:latest'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 3600s

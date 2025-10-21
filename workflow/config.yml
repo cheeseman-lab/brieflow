@@ -5,7 +5,7 @@
 
 # Parameters:
 all:
-  root_fp: brieflow_output/
+  root_fp: qinling/brieflow_output/
   gcs_project: lasagna-199723
 preprocess:
   sbs_samples_fp: gs://scale1/qinling/config/sbs_samples.tsv

@@ -67,18 +67,6 @@ except FileNotFoundError:
 sbs_metadata_wildcard_combos = get_metadata_wildcard_combos(sbs_samples_df, sbs_metadata_samples_df)
 phenotype_metadata_wildcard_combos = get_metadata_wildcard_combos(phenotype_samples_df, phenotype_metadata_samples_df)
 
-# Subset everything temporarily to just 1 plate, 1 well, 1 tile for testing
-phenotype_samples_df = phenotype_samples_df[(phenotype_samples_df["plate"] == 1) & (phenotype_samples_df["well"] == "A1") & (phenotype_samples_df["tile"] == 1)]
-phenotype_wildcard_combos = phenotype_wildcard_combos[(phenotype_wildcard_combos["plate"] == "1") & (phenotype_wildcard_combos["well"] == "A1") & (phenotype_wildcard_combos["tile"] == "1")]
-
-# Print out the samples and wildcard combos df temporarily for debugging
-print(f"Phenotype samples: {len(phenotype_samples_df)} (columns: {list(phenotype_samples_df.columns) if len(phenotype_samples_df) > 0 else 'none'})")
-print(f"Phenotype metadata: {len(phenotype_metadata_wildcard_combos)} (columns: {list(phenotype_metadata_wildcard_combos.columns) if len(phenotype_metadata_wildcard_combos) > 0 else 'none'})")
-
-# Print out the full samples and wildcard combos df for debugging
-print(f"Phenotype samples: {phenotype_samples_df}")
-print(f"Phenotype metadata: {phenotype_metadata_wildcard_combos}")
-
 print(f"SBS metadata jobs: {len(sbs_metadata_wildcard_combos)} (columns: {list(sbs_metadata_wildcard_combos.columns) if len(sbs_metadata_wildcard_combos) > 0 else 'none'})")
 print(f"SBS image processing jobs: {len(sbs_wildcard_combos)} (columns: {list(sbs_wildcard_combos.columns) if len(sbs_wildcard_combos) > 0 else 'none'})")
 

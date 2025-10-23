@@ -1,3 +1,23 @@
+# GCS Job Scheduler Patch - Must be imported FIRST
+import sys
+from pathlib import Path
+
+# Try to import the patch from workflow directory (gets packaged for Google Batch)
+try:
+    # Import the patch (it's in the same directory as this Snakefile)
+    if 'gcs_job_scheduler_patch' in sys.modules:
+        import importlib
+        importlib.reload(sys.modules['gcs_job_scheduler_patch'])
+    else:
+        import gcs_job_scheduler_patch
+
+    print("✓ GCS Job Scheduler Patch loaded successfully", file=sys.stderr, flush=True)
+
+except (ImportError, ModuleNotFoundError) as e:
+    # Patch not available - continue without it
+    print(f"⚠ GCS Job Scheduler Patch not loaded: {e}", file=sys.stderr, flush=True)
+    print("⚠ Running without job scheduler optimization", file=sys.stderr, flush=True)
+
 import warnings
 from pathlib import Path
 import pandas as pd
@@ -69,6 +89,9 @@ phenotype_metadata_wildcard_combos = get_metadata_wildcard_combos(phenotype_samp
 
 print(f"SBS metadata jobs: {len(sbs_metadata_wildcard_combos)} (columns: {list(sbs_metadata_wildcard_combos.columns) if len(sbs_metadata_wildcard_combos) > 0 else 'none'})")
 print(f"SBS image processing jobs: {len(sbs_wildcard_combos)} (columns: {list(sbs_wildcard_combos.columns) if len(sbs_wildcard_combos) > 0 else 'none'})")
+
+print(f"Phenotype metadata jobs: {len(phenotype_metadata_wildcard_combos)} (columns: {list(phenotype_metadata_wildcard_combos.columns) if len(phenotype_metadata_wildcard_combos) > 0 else 'none'})")
+print(f"Phenotype image processing jobs: {len(phenotype_wildcard_combos)} (columns: {list(phenotype_wildcard_combos.columns) if len(phenotype_wildcard_combos) > 0 else 'none'})")
 
 # Check for plate filter
 # If plate filter is set, only process the specified plate

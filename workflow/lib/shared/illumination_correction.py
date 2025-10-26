@@ -318,22 +318,52 @@ def combine_ic_images(images, indices):
     """Combine illumination correction images using specified indices.
 
     Args:
-        images: List of IC images [dapi_image, full_image]
-        indices: List of indices [dapi_index, None] where None means use all non-DAPI indices
+        images: List of IC images [extra_channels_image, base_channels_image]
+        indices: List of indices [extra_channel_indices, base_channel_indices].
+                If base_channel_indices is None, automatically selects all channels
+                except the extra_channel_indices for complementary selection.
 
     Returns:
-        Combined IC image with DAPI channel from first image
+        Combined IC image with extra channels from first image and base channels from second.
     """
-    dapi_img = images[0]
-    full_img = images[1]
+    extra_img = images[0]
+    base_img = images[1]
 
-    # Subset the images by the indices, if any
+    # Infer target from the larger image (usually has all channels)
+    target_channels = max(extra_img.shape[0], base_img.shape[0])
+
+    # Extract extra channels
     if indices[0] is not None:
-        dapi_img = dapi_img[indices[0]]
+        extra_channels = extra_img[indices[0]]
+        extra_indices_used = (
+            indices[0] if isinstance(indices[0], list) else [indices[0]]
+        )
+    else:
+        extra_channels = extra_img
+        extra_indices_used = list(range(extra_img.shape[0]))
+
+    # Extract base channels
     if indices[1] is not None:
-        full_img = full_img[indices[1]]
+        # Explicit base indices provided
+        base_channels = base_img[indices[1]]
+    else:
+        # Smart selection: all channels EXCEPT the extra channel indices
+        all_indices = list(range(target_channels))
+        base_indices = [i for i in all_indices if i not in extra_indices_used]
+        # If the base image has fewer channels than needed, adjust indices
+        if (
+            max(base_indices) >= base_img.shape[0]
+        ):  # base indices is out of bounds of base_img
+            base_indices = list(
+                range(len(base_indices))
+            )  # the length of the base indices starting from 0
+        # Extract base channels using the adjusted indices
+        base_channels = base_img[base_indices]
 
-    # Combine the images with the dapi_img as the first channel
-    combined_img = np.concatenate([dapi_img[np.newaxis], full_img], axis=0)
+    # Ensure both are 3D and concatenate
+    if extra_channels.ndim == 2:
+        extra_channels = extra_channels[np.newaxis]
+    if base_channels.ndim == 2:
+        base_channels = base_channels[np.newaxis]
 
-    return combined_img
+    return np.concatenate([extra_channels, base_channels], axis=0)

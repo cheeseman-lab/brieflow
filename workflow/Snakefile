@@ -1,8 +1,8 @@
 import warnings
 from pathlib import Path
-
 import pandas as pd
 
+from lib.preprocess.file_utils import get_metadata_wildcard_combos
 from lib.shared.initialize_paramsearch import initialize_segment_sbs_paramsearch
 from lib.shared.initialize_paramsearch import initialize_segment_phenotype_paramsearch
 
@@ -14,45 +14,53 @@ SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])
 SBS_COMBO_FP = Path(config["preprocess"]["sbs_combo_fp"])
 PHENOTYPE_SAMPLES_FP = Path(config["preprocess"]["phenotype_samples_fp"])
 PHENOTYPE_COMBO_FP = Path(config["preprocess"]["phenotype_combo_fp"])
+SBS_METADATA_SAMPLES_DF_FP = Path(fp) if (fp := config["preprocess"].get("sbs_metadata_samples_df_fp")) else None
+PHENOTYPE_METADATA_SAMPLES_DF_FP = Path(fp) if (fp := config["preprocess"].get("phenotype_metadata_samples_df_fp")) else None
 
 # Load sbs samples if the file exists
 if SBS_SAMPLES_FP.exists():
     sbs_samples_df = pd.read_csv(SBS_SAMPLES_FP, sep="\t")
     if len(sbs_samples_df) > 0:
         sbs_wildcard_combos = pd.read_csv(SBS_COMBO_FP, sep="\t").astype(str)
+        if SBS_METADATA_SAMPLES_DF_FP and SBS_METADATA_SAMPLES_DF_FP.exists():
+            sbs_metadata_samples_df = pd.read_csv(SBS_METADATA_SAMPLES_DF_FP, sep="\t") 
+        else:
+            sbs_metadata_samples_df = pd.DataFrame()
     else:
         print("No SBS samples found in the file!")
-        sbs_wildcard_combos = pd.DataFrame(
-            columns=["plate", "well", "tile", "cycle"]
-        ).astype(str)
+        sbs_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"]).astype(str)
+        sbs_metadata_samples_df = pd.DataFrame()
 else:
     print(f"SBS samples file not found: {SBS_SAMPLES_FP}")
     sbs_samples_df = pd.DataFrame()
-    sbs_wildcard_combos = pd.DataFrame(
-        columns=["plate", "well", "tile", "cycle"]
-    ).astype(str)
+    sbs_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile", "cycle"]).astype(str)
+    sbs_metadata_samples_df = pd.DataFrame()
 
 # Load phenotype samples if the file exists
 if PHENOTYPE_SAMPLES_FP.exists():
     phenotype_samples_df = pd.read_csv(PHENOTYPE_SAMPLES_FP, sep="\t")
     if len(phenotype_samples_df) > 0:
-        phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t").astype(
-            str
-        )
-        phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t").astype(
-            str
-        )
+        phenotype_wildcard_combos = pd.read_csv(PHENOTYPE_COMBO_FP, sep="\t").astype(str)
+        if PHENOTYPE_METADATA_SAMPLES_DF_FP and PHENOTYPE_METADATA_SAMPLES_DF_FP.exists():
+            phenotype_metadata_samples_df = pd.read_csv(PHENOTYPE_METADATA_SAMPLES_DF_FP, sep="\t")
+        else:
+            phenotype_metadata_samples_df = pd.DataFrame()
     else:
         print("No phenotype samples found in the file!")
-        phenotype_wildcard_combos = pd.DataFrame(
-            columns=["plate", "well", "tile", "cycle"]
-        ).astype(str)
+        phenotype_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile"]).astype(str)
+        phenotype_metadata_samples_df = pd.DataFrame()
 else:
     print(f"Phenotype samples file not found: {PHENOTYPE_SAMPLES_FP}")
     phenotype_samples_df = pd.DataFrame()
-    phenotype_wildcard_combos = pd.DataFrame(
-        columns=["plate", "well", "tile", "cycle"]
-    ).astype(str)
+    phenotype_wildcard_combos = pd.DataFrame(columns=["plate", "well", "tile"]).astype(str)
+    phenotype_metadata_samples_df = pd.DataFrame()
+
+# Generate metadata-specific wildcard combinations
+sbs_metadata_wildcard_combos = get_metadata_wildcard_combos(sbs_samples_df, sbs_metadata_samples_df)
+phenotype_metadata_wildcard_combos = get_metadata_wildcard_combos(phenotype_samples_df, phenotype_metadata_samples_df)
+
+print(f"SBS metadata jobs: {len(sbs_metadata_wildcard_combos)} (columns: {list(sbs_metadata_wildcard_combos.columns) if len(sbs_metadata_wildcard_combos) > 0 else 'none'})")
+print(f"SBS image processing jobs: {len(sbs_wildcard_combos)} (columns: {list(sbs_wildcard_combos.columns) if len(sbs_wildcard_combos) > 0 else 'none'})")
 
 # Check for plate filter
 # If plate filter is set, only process the specified plate
@@ -62,43 +70,20 @@ if plate_filter is not None:
     print(f"PLATE FILTER: Processing only plate {plate_filter}")
 
     if len(sbs_samples_df) > 0:
-        sbs_samples_df = sbs_samples_df[
-            sbs_samples_df["plate"].astype(str) == plate_filter
-        ]
-        sbs_wildcard_combos = sbs_wildcard_combos[
-            sbs_wildcard_combos["plate"] == plate_filter
-        ]
-        print(
-            f"Filtered SBS samples to {len(sbs_samples_df)} rows for plate {plate_filter}"
-        )
+        sbs_samples_df = sbs_samples_df[sbs_samples_df["plate"].astype(str) == plate_filter]
+        sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["plate"] == plate_filter]
+        sbs_metadata_wildcard_combos = sbs_metadata_wildcard_combos[sbs_metadata_wildcard_combos["plate"] == plate_filter]
+        if len(sbs_metadata_samples_df) > 0:
+            sbs_metadata_samples_df = sbs_metadata_samples_df[sbs_metadata_samples_df["plate"].astype(str) == plate_filter]
+        print(f"Filtered SBS samples to {len(sbs_samples_df)} rows for plate {plate_filter}")
+        
     if len(phenotype_samples_df) > 0:
-        phenotype_samples_df = phenotype_samples_df[
-            phenotype_samples_df["plate"].astype(str) == plate_filter
-        ]
-        phenotype_wildcard_combos = phenotype_wildcard_combos[
-            phenotype_wildcard_combos["plate"] == plate_filter
-        ]
-        print(
-            f"Filtered phenotype samples to {len(phenotype_samples_df)} rows for plate {plate_filter}"
-        )
-
-
-# TODO: restrict wells and tiles for testing
-# TODO: unrestrict wells and tiles after testing
-# sbs_wildcard_combos = sbs_wildcard_combos[
-#     ((sbs_wildcard_combos["plate"] == "1") & (sbs_wildcard_combos["well"] == "A1"))
-# ]
-# sbs_wildcard_combos = sbs_wildcard_combos[sbs_wildcard_combos["tile"].isin(["1", "2"])]
-# phenotype_wildcard_combos = phenotype_wildcard_combos[
-#     (
-#         (phenotype_wildcard_combos["plate"] == "1")
-#         & (phenotype_wildcard_combos["well"] == "A1")
-#     )
-# ]
-# phenotype_wildcard_combos = phenotype_wildcard_combos[
-#     phenotype_wildcard_combos["tile"].isin(["1", "2"])
-# ]
-
+        phenotype_samples_df = phenotype_samples_df[phenotype_samples_df["plate"].astype(str) == plate_filter]
+        phenotype_wildcard_combos = phenotype_wildcard_combos[phenotype_wildcard_combos["plate"] == plate_filter]
+        phenotype_metadata_wildcard_combos = phenotype_metadata_wildcard_combos[phenotype_metadata_wildcard_combos["plate"] == plate_filter]
+        if len(phenotype_metadata_samples_df) > 0:
+            phenotype_metadata_samples_df = phenotype_metadata_samples_df[phenotype_metadata_samples_df["plate"].astype(str) == plate_filter]
+        print(f"Filtered phenotype samples to {len(phenotype_samples_df)} rows for plate {plate_filter}")
 
 include: "targets/preprocess.smk"
 include: "rules/preprocess.smk"

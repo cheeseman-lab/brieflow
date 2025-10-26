@@ -163,7 +163,7 @@ SBS_OUTPUTS = {
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "reads_per_cell_histogram", "png"),
+        / get_filename({"plate": "{plate}"}, "cell_metric_histogram", "png"),
         SBS_FP
         / "eval"
         / "mapping"

@@ -12,6 +12,68 @@
 # Parameters:
 all:
   root_fp: brieflow_output/
+preprocess:
+  sbs_data_format: "nd2"
+  sbs_data_organization: "tile"    
+  phenotype_data_format: "nd2" 
+  phenotype_data_organization: "tile"
+  phenotype_channel_order: null
+  phenotype_channel_order_flip: true
+  phenotype_combo_fp: config/phenotype_combo.tsv
+  phenotype_round_order: null
+  phenotype_samples_fp: config/phenotype_samples.tsv
+  sample_fraction: 1
+  sbs_channel_order: null
+  sbs_channel_order_flip: true
+  sbs_combo_fp: config/sbs_combo.tsv
+  sbs_samples_fp: config/sbs_samples.tsv
+sbs:
+  alignment_method: null
+  channel_names:
+  - DAPI
+  - G
+  - T
+  - A
+  - C
+  upsample_factor: 2
+  skip_cycles_indices: null
+  manual_background_cycle_index: null
+  extra_channel_indices:
+  - 0
+  max_filter_width: 3
+  spot_detection_method: standard
+  dapi_cycle: 1
+  cyto_cycle: 11
+  cyto_cycle_index: 10
+  dapi_index: 0
+  cyto_index: 4
+  segmentation_method: cellpose
+  gpu: false
+  reconcile: contained_in_cells
+  segment_cells: true
+  df_barcode_library_fp: config/barcode_library.tsv
+  threshold_peaks: 400
+  call_reads_method: median
+  bases:
+  - G
+  - T
+  - A
+  - C
+  q_min: 0
+  barcode_col: sgRNA
+  prefix_col: null
+  sort_calls: count
+  error_correct: false
+  mode: null
+  peak_width: 5
+  nuclei_diameter: 9.166995688475083
+  cell_diameter: 19.86716534556202
+  cellpose_model: cyto3
+  nuclei_flow_threshold: 0.4
+  nuclei_cellprob_threshold: 0.0
+  cell_flow_threshold: 1
+  cell_cellprob_threshold: 0
+  cyto_model: cyto3
 phenotype:
   align: false
   cell_diameter: 53.075815293046055
@@ -32,46 +94,6 @@ phenotype:
   mode: null
   nuclei_diameter: 41.97813156768016
   reconcile: contained_in_cells
-preprocess:
-  phenotype_channel_order: null
-  phenotype_channel_order_flip: true
-  phenotype_combo_fp: config/phenotype_combo.tsv
-  phenotype_round_order: null
-  phenotype_samples_fp: config/phenotype_samples.tsv
-  sample_fraction: 1
-  sbs_channel_order: null
-  sbs_channel_order_flip: true
-  sbs_combo_fp: config/sbs_combo.tsv
-  sbs_samples_fp: config/sbs_samples.tsv
-sbs:
-  alignment_method: DAPI
-  barcode_col: sgRNA
-  bases:
-  - G
-  - T
-  - A
-  - C
-  call_reads_method: median
-  cell_diameter: 19.86716534556202
-  cellpose_model: cyto3
-  cellprob_threshold: 0
-  cyto_index: 4
-  dapi_index: 0
-  df_barcode_library_fp: config/barcode_library.tsv
-  error_correct: false
-  flow_threshold: 0.4
-  gpu: false
-  keep_extras: false
-  max_filter_width: 3
-  mode: null
-  nuclei_diameter: 9.166995688475083
-  q_min: 0
-  reconcile: contained_in_cells
-  segmentation_cycle_index: 10
-  spot_detection_method: standard
-  threshold_peaks: 400
-  segment_cells: true
-  segmentation_method: cellpose
 merge:
   det_range:
   - 0.06
@@ -108,6 +130,12 @@ aggregate:
   perturbation_name_col: gene_symbol_0
   variance_or_ncomp: 0.99
   num_align_batches: 1
+  feature_normalization: mad
+  num_sims: 100
+  exclusion_string: null
+  bootstrap_combinations:
+  - cell_class: interphase
+    channel_combo: DAPI_COXIV_CENPA_WGA
 cluster:
   cluster_combo_fp: config/cluster_combo.tsv
   uniprot_data_fp: config/benchmark_clusters/uniprot_data.tsv
@@ -121,5 +149,5 @@ cluster:
     all: 3
     interphase: 3
     mitotic: 0
-  phate_distance_metric: cosine
+  phate_distance_metric: euclidean
   string_pair_benchmark_fp: config/benchmark_clusters/string_pair_benchmark.tsv

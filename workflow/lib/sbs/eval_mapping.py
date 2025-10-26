@@ -327,13 +327,15 @@ def plot_cell_mapping_heatmap(
         return None
 
 
-def plot_reads_per_cell_histogram(df, x_cutoff=40):
-    """Plot a histogram of the number of reads per cell.
+def plot_cell_metric_histogram(df, sort_by="count", x_cutoff=None):
+    """Plot a histogram of cell metrics (reads per cell or peak intensity per cell).
 
     Args:
         df (pandas.DataFrame):
-            DataFrame containing the data with columns including 'barcode_count' representing the number of reads
-            per cell.
+            DataFrame containing the data with columns for barcode counts or peak intensities.
+        sort_by (str, optional):
+            Type of metric to plot. 'count' uses barcode_count, 'peak' uses sum of peak intensities.
+            Defaults to 'count'.
         x_cutoff (int, optional):
             Cutoff value for the x-axis. Defaults to 40.
 
@@ -345,21 +347,49 @@ def plot_reads_per_cell_histogram(df, x_cutoff=40):
     fig, ax = plt.subplots(figsize=(12, 7))
     sns.set_style("white")
 
+    # Determine metric column and labels based on sort_by parameter
+    if sort_by == "count":
+        if "barcode_count" not in df.columns:
+            raise ValueError(
+                "DataFrame must contain 'barcode_count' column when sort_by='count'"
+            )
+        metric_col = "barcode_count"
+        title = "Histogram of Barcode Count"
+        xlabel = "Number of ISS reads per cell"
+    elif sort_by == "peak":
+        # Create combined peak intensity metric
+        peak_0 = df.get("peak_0", 0).fillna(0)
+        peak_1 = df.get("peak_1", 0).fillna(0)
+        df_temp = df.copy()
+        df_temp["peak_intensity_total"] = peak_0 + peak_1
+        metric_col = "peak_intensity_total"
+        title = "Histogram of Peak Intensity"
+        xlabel = "Total peak intensity per cell"
+        df = df_temp
+    else:
+        raise ValueError(f"sort_by must be 'count' or 'peak', got '{sort_by}'")
+
+    # Auto-determine x_cutoff if not provided
+    if x_cutoff is None:
+        # Set cutoff to max of metric column
+        x_cutoff = df[metric_col].max()
+
     # Create bins from 0 to x_cutoff (inclusive)
-    bins = range(x_cutoff + 1)
+    bins = range(int(x_cutoff) + 1)
 
     # Plot the histogram
+    color = "skyblue" if sort_by == "count" else "lightcoral"
     sns.histplot(
-        data=df, x="barcode_count", bins=bins, color="skyblue", edgecolor="black", ax=ax
+        data=df, x=metric_col, bins=bins, color=color, edgecolor="black", ax=ax
     )
 
     # Set title and axis labels
-    ax.set_title("Histogram of Barcode Count", fontsize=16, fontweight="bold")
-    ax.set_xlabel("Number of ISS reads per cell", fontsize=12)
+    ax.set_title(title, fontsize=16, fontweight="bold")
+    ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel("Number of cells", fontsize=12)
 
     # Find outlier values
-    outliers = df[df["barcode_count"] > x_cutoff]["barcode_count"]
+    outliers = df[df[metric_col] > x_cutoff][metric_col]
 
     # Restrict x-axis to stop at x_cutoff and set integer ticks
     ax.set_xlim(0, x_cutoff)
@@ -438,7 +468,7 @@ def plot_gene_symbol_histogram(df, x_cutoff=None):
     return outliers, fig
 
 
-def mapping_overview(sbs_info, cells):
+def mapping_overview(sbs_info, cells, sort_by="count"):
     """Generate an overview of cell counts and mapping statistics per well.
 
     This function calculates the total number of cells per well and determines the counts and
@@ -453,7 +483,9 @@ def mapping_overview(sbs_info, cells):
     Args:
         sbs_info (pandas.DataFrame): DataFrame with information on cells, including the 'well' column.
         cells (pandas.DataFrame): DataFrame containing cell data with 'well', 'barcode_count', 'gene_symbol_0',
-                                  and 'gene_symbol_1' columns.
+                                  'gene_symbol_1', 'cell_barcode_0', and 'cell_barcode_1' columns.
+        sort_by (str, optional): Type of metric to analyze. 'count' uses barcode_count, 'peak' uses
+                                presence of valid barcode values. Defaults to 'count'.
 
     Returns:
         pandas.DataFrame: A summary DataFrame with mapping counts and percentages per well.
@@ -461,25 +493,55 @@ def mapping_overview(sbs_info, cells):
     # Count the total number of cells per well
     cell_counts = sbs_info.groupby("well").size().reset_index(name="total_cells__count")
 
-    # Count and calculate percent of cells with 1 barcode mapping per well
-    one_barcode_mapping = (
-        cells[cells["barcode_count"] == 1]
-        .groupby("well")
-        .size()
-        .reset_index(name="1_barcode_cells__count")
+    # For both count and peak modes, use the actual barcode columns to assess mapping
+    # Check if cell_barcode_0 and cell_barcode_1 are valid (not NaN and not empty)
+    cells_temp = cells.copy()
+    cells_temp["has_barcode_0"] = (~cells_temp["cell_barcode_0"].isna()) & (
+        cells_temp["cell_barcode_0"] != ""
     )
+    cells_temp["has_barcode_1"] = (~cells_temp["cell_barcode_1"].isna()) & (
+        cells_temp["cell_barcode_1"] != ""
+    )
+    cells_temp["barcode_mapping_count"] = cells_temp["has_barcode_0"].astype(
+        int
+    ) + cells_temp["has_barcode_1"].astype(int)
+
+    if sort_by == "count":
+        # Use the existing barcode_count column for count mode
+        one_barcode_mapping = (
+            cells[cells["barcode_count"] == 1]
+            .groupby("well")
+            .size()
+            .reset_index(name="1_barcode_cells__count")
+        )
+        multiple_barcode_mapping = (
+            cells[cells["barcode_count"] >= 1]
+            .groupby("well")
+            .size()
+            .reset_index(name="1_or_more_barcodes__count")
+        )
+    elif sort_by == "peak":
+        # Use the presence of valid barcodes for peak mode
+        one_barcode_mapping = (
+            cells_temp[cells_temp["barcode_mapping_count"] == 1]
+            .groupby("well")
+            .size()
+            .reset_index(name="1_barcode_cells__count")
+        )
+        multiple_barcode_mapping = (
+            cells_temp[cells_temp["barcode_mapping_count"] >= 1]
+            .groupby("well")
+            .size()
+            .reset_index(name="1_or_more_barcodes__count")
+        )
+    else:
+        raise ValueError(f"sort_by must be 'count' or 'peak', got '{sort_by}'")
+
+    # Calculate percentages
     one_barcode_mapping["1_barcode_cells__percent"] = (
         one_barcode_mapping["1_barcode_cells__count"]
         / cell_counts["total_cells__count"]
         * 100
-    )
-
-    # Count and calculate percent of cells with >=1 barcode mapping per well
-    multiple_barcode_mapping = (
-        cells[cells["barcode_count"] >= 1]
-        .groupby("well")
-        .size()
-        .reset_index(name="1_or_more_barcodes__count")
     )
     multiple_barcode_mapping["1_or_more_barcodes__percent"] = (
         multiple_barcode_mapping["1_or_more_barcodes__count"]

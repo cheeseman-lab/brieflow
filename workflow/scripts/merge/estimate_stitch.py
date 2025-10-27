@@ -34,11 +34,15 @@ elif data_type == "phenotype":
 metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 
 if data_type == "sbs":
-    # Apply SBS metadata filters (important for cycle filtering)
-    sbs_filters = snakemake.params.get("sbs_metadata_filters", None)
-    if sbs_filters is not None:
+    # Apply SBS metadata filters
+    sbs_filters = {}
+    if snakemake.params.sbs_metadata_cycle is not None:
+        sbs_filters["cycle"] = snakemake.params.sbs_metadata_cycle
+    if snakemake.params.sbs_metadata_channel is not None:
+        sbs_filters["channel"] = snakemake.params.sbs_metadata_channel
+
+    if sbs_filters:
         for filter_key, filter_value in sbs_filters.items():
-            print(f"Filtering SBS metadata: {filter_key} == {filter_value}")
             metadata = metadata[metadata[filter_key] == filter_value]
 
     print(f"After filtering - SBS metadata: {len(metadata)} entries")

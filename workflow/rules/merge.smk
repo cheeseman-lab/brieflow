@@ -13,7 +13,9 @@ if merge_approach == "fast":
         output:
             MERGE_OUTPUTS_MAPPED["fast_alignment"][0],
         params:
-            sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
+            sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
+            sbs_metadata_channel=config["merge"].get("sbs_metadata_channel"),
+            ph_metadata_channel=config["merge"].get("ph_metadata_channel"),
             det_range=config["merge"]["det_range"],
             score=config["merge"]["score"],
             initial_sites=config["merge"]["initial_sites"],
@@ -67,7 +69,8 @@ if merge_approach == "stitch":
             fliplr=config.get("merge", {}).get("fliplr", False),
             rot90=config.get("merge", {}).get("rot90", 0),
             data_type="sbs",
-            sbs_metadata_filters={"cycle": config["merge"]["sbs_metadata_cycle"]},
+            sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
+            sbs_metadata_channel=config["merge"].get("sbs_metadata_channel"),
             sbs_pixel_size=config.get("merge", {}).get("sbs_pixel_size"),
         script:
             "../scripts/merge/estimate_stitch.py"

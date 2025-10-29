@@ -212,3 +212,4 @@ for target in MERGE_TARGETS_SELECTED:
                 {target: MERGE_OUTPUT_MAPPINGS[target]}
             )
         )
+        

@@ -133,4 +133,4 @@ print(f" Alignment summary: {snakemake.output.alignment_summary}")
 phenotype_transformed.to_parquet(str(snakemake.output.transformed_phenotype_positions))
 print(f" Transformed positions: {snakemake.output.transformed_phenotype_positions}")
 
-print(f"\n🎉 Well alignment completed successfully for {plate}/{well}!")
+print(f"\n Well alignment completed successfully for {plate}/{well}!")

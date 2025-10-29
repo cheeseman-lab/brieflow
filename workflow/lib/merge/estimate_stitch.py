@@ -73,7 +73,7 @@ def estimate_stitch_coordinate_based(
         pixel_size_y = well_metadata["pixel_size_y"].iloc[0]
         if abs(pixel_size_um - pixel_size_y) > 1e-6:
             print(
-                f"⚠️  Warning: pixel_size_x ({pixel_size_um:.6f}) != pixel_size_y ({pixel_size_y:.6f})"
+                f"Warning: pixel_size_x ({pixel_size_um:.6f}) != pixel_size_y ({pixel_size_y:.6f})"
             )
     elif fallback_pixel_size is not None:
         # Use fallback pixel size from config
@@ -84,7 +84,7 @@ def estimate_stitch_coordinate_based(
         )
         print(f"{display_name} pixels per micron: {pixels_per_micron:.4f}")
     else:
-        print(f"⚠️  No pixel size available for {display_name} - skipping well {well}")
+        print(f"No pixel size available for {display_name} - skipping well {well}")
 
     x_min, y_min = coords.min(axis=0)
 

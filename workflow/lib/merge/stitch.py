@@ -443,9 +443,9 @@ def metadata_to_grid_positions(
             else 1.0
         )
         print(
-            "✅ Preserved circular well geometry"
+            " Preserved circular well geometry"
             if cv < 0.4
-            else f"⚠️  Geometry may be distorted (CV: {cv:.2f})"
+            else f" Geometry may be distorted (CV: {cv:.2f})"
         )
 
     return tile_positions

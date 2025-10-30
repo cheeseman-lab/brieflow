@@ -226,22 +226,22 @@ def get_segmentation_params(module: str, config: Dict[str, Any]) -> Dict[str, An
 
 def get_montage_inputs(
     montage_data_checkpoint,
-    montage_output_template: str,
-    montage_overlay_template: str,
-    channels: List[str],
-    cell_class: str,
-) -> List[str]:
+    montage_output_template,
+    montage_overlay_template,
+    channels,
+    cell_class,
+):
     """Generate montage input file paths based on checkpoint data and output template.
 
     Args:
-        montage_data_checkpoint: Checkpoint object containing output directory information.
+        montage_data_checkpoint (object): Checkpoint object containing output directory information.
         montage_output_template (str): Template string for generating output file paths.
         montage_overlay_template (str): Template string for generating overlay file paths.
-        channels (List[str]): List of channels to include in the output file paths.
+        channels (list): List of channels to include in the output file paths.
         cell_class (str): Cell class for which the montage is being generated.
 
     Returns:
-        List[str]: List of generated output file paths for each channel.
+        list: List of generated output file paths for each channel.
     """
     # Resolve the checkpoint output directory using .get()
     checkpoint_output = Path(

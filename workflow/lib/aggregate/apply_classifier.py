@@ -1,95 +1,38 @@
 """This notebook contains function used to test classifiers and determine confidence threshold."""
 
-from __future__ import annotations
+# Standard library
 from pathlib import Path
-from typing import List, Optional, Tuple
-import pandas as pd
-import io
-from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+import os
 
+# Third-party
 import numpy as np
 import pandas as pd
 import ipywidgets as widgets
 from IPython.display import display, clear_output, Image as DisplayImage
-from PIL import Image as PILImage
-import tifffile
 from matplotlib import colors as mcolors
-from skimage import segmentation, measure
+import matplotlib.pyplot as plt
 
-
-def _find_results_csv(base: Path) -> Tuple[pd.DataFrame, Path]:
-    """Find a results CSV under `base` by checking common locations.
-
-        - base/result.csv, base/results.csv, base/result*.csv
-        - base/result/*.csv, base/results/*.csv
-        Prefer a CSV containing BOTH 'model' and 'accuracy' (case-insensitive).
-        Otherwise accept any CSV that has a 'model' column.
-
-    Args:
-        base (Path): Root directory to search under.
-
-    Returns:
-        Tuple[pandas.DataFrame, Path]:
-            (DataFrame with normalized lowercase columns, the path to the CSV).
-
-    Raises:
-        FileNotFoundError: If no suitable CSV is found.
-        ValueError: If CSVs exist but none contain a 'model' column.
-    """
-    base = Path(base)
-    candidate_paths: List[Path] = []
-    # Common direct filenames
-    candidate_paths += [base / "result.csv", base / "results.csv"]
-    # Any result*.csv in base
-    candidate_paths += list(base.glob("result*.csv"))
-    # CSVs inside 'result' or 'results' subfolders
-    candidate_paths += list(base.glob("result/*.csv"))
-    candidate_paths += list(base.glob("results/*.csv"))
-
-    # Deduplicate while preserving order
-    seen = set()
-    ordered_candidates = []
-    for p in candidate_paths:
-        if p.exists() and p.is_file() and p.suffix.lower() == ".csv" and p not in seen:
-            ordered_candidates.append(p)
-            seen.add(p)
-
-    best_with_acc: Optional[Tuple[pd.DataFrame, Path]] = None
-    best_with_model: Optional[Tuple[pd.DataFrame, Path]] = None
-
-    for csv_path in ordered_candidates:
-        try:
-            df = pd.read_csv(csv_path)
-        except Exception:
-            continue  # unreadable; skip
-
-        # Normalize columns to lowercase for matching, keep original DF for values
-        lower_map = {c: c.lower() for c in df.columns}
-        df.columns = [lower_map[c] for c in df.columns]
-
-        has_model = "model" in df.columns
-        has_accuracy = "accuracy" in df.columns
-
-        if has_model and has_accuracy and best_with_acc is None:
-            best_with_acc = (df, csv_path)
-        elif has_model and best_with_model is None:
-            best_with_model = (df, csv_path)
-
-    if best_with_acc:
-        return best_with_acc
-    if best_with_model:
-        return best_with_model
-
-    if ordered_candidates:
-        raise ValueError(
-            "Found CSVs but none contained a 'model' column: "
-            + ", ".join(str(p) for p in ordered_candidates)
-        )
-    raise FileNotFoundError(
-        f"No results CSV found under {base}. "
-        "Expected result.csv/results.csv, result/*.csv, or results/*.csv."
-    )
+# Local imports
+from lib.aggregate.classifier_shared import (
+    to_png_bytes as _shared_to_png_bytes,
+    load_aligned_stack as _shared_load_aligned_stack,
+    load_mask_labels as _shared_load_mask_labels,
+    load_parquet as _shared_load_parquet,
+    get_coords_for_mask as _shared_get_coords_for_mask,
+    compute_crop_bounds as _shared_compute_crop_bounds,
+    overlay_scale_bar as _shared_overlay_scale_bar,
+    well_for_filename as _shared_well_for_filename,
+    compose_rgb_crops as _shared_compose_rgb_crops,
+    overlay_mask_boundary_inplace as _shared_overlay_mask_boundary_inplace,
+)
+from lib.shared.file_utils import get_filename, parse_filename
+from lib.aggregate.montage_utils import (
+    create_cell_montage,
+    add_filenames,
+    create_class_confidence_montages,
+)
+from lib.aggregate.eval_aggregate import summarize_cell_data
 
 
 def display_pngs_in_plots_and_list_models(
@@ -103,7 +46,7 @@ def display_pngs_in_plots_and_list_models(
 ) -> Tuple[List[Path], Optional[pd.DataFrame], List[str], Optional[Path]]:
     """Display all .png images from a 'plots' subfolder.
 
-    Also look for a results CSV (commonly under 'result(s)/' or as 'result(s).csv') to print
+    Also load a results CSV at '<run_root>/results/multiclass_classifier_results.csv' to print
     out the available models listed in its 'model' column.
 
     Args:
@@ -169,27 +112,19 @@ def display_pngs_in_plots_and_list_models(
     results_csv_path: Optional[Path] = None
     printed_models: List[str] = []
 
-    try:
-        results_df, results_csv_path = _find_results_csv(results_root)
-        if "model" not in results_df.columns:
-            raise ValueError(
-                "Results CSV found but lacks 'model' column after normalization."
-            )
+    # Directly load the expected CSV: <run_root>/results/multiclass_classifier_results.csv
+    results_csv_path = results_root / "results" / "multiclass_classifier_results.csv"
+    results_df = pd.read_csv(results_csv_path)
+    models_series = results_df["model"].dropna().astype(str).map(str.strip)
+    if unique_models:
+        # Preserve order while deduplicating
+        printed_models = list(dict.fromkeys(models_series.tolist()))
+    else:
+        printed_models = models_series.tolist()
 
-        models_series = results_df["model"].dropna().astype(str).map(str.strip)
-        if unique_models:
-            # Preserve order while deduplicating
-            printed_models = list(dict.fromkeys(models_series.tolist()))
-        else:
-            printed_models = models_series.tolist()
-
-        print("Available models:")
-        for m in printed_models:
-            print(m)
-
-    except (FileNotFoundError, ValueError) as e:
-        # No hard failure for images; just report we couldn't list models
-        print(f"[Info] Could not list models from results CSV: {e}")
+    print("Available models:")
+    for m in printed_models:
+        print(m)
 
     return pngs, results_df, printed_models, results_csv_path
 
@@ -212,9 +147,6 @@ def show_model_evaluation_pngs(
     Raises:
         FileNotFoundError: If the evaluation folder is missing or contains no PNGs.
     """
-    # Use IPython's Image (not PIL) to avoid name collisions
-    from IPython.display import display as _display, Image as _IPyImage
-
     eval_dir = Path(CLASSIFIER_DIR_PATH) / "models" / str(model_name) / "evaluation"
     if not eval_dir.is_dir():
         raise FileNotFoundError(f"Evaluation folder not found: {eval_dir}")
@@ -231,7 +163,7 @@ def show_model_evaluation_pngs(
         kwargs = {"filename": str(p)}
         if width is not None:
             kwargs["width"] = int(width)
-        _display(_IPyImage(**kwargs))
+        display(DisplayImage(**kwargs))
 
     return pngs
 
@@ -242,7 +174,7 @@ def resolve_classifier_model_dill_path(
 ) -> Path:
     """Resolve the path to a model's dill file.
 
-        If model_name is None, attempts to find the best model by accuracy from a results CSV.
+        If model_name is None, selects the best model by accuracy from '<run_root>/results/multiclass_classifier_results.csv'.
 
     Args:
         CLASSIFIER_path (str | Path): Root classifier directory.
@@ -259,38 +191,21 @@ def resolve_classifier_model_dill_path(
 
     # If model_name not provided, pick best by accuracy from results
     if model_name is None:
-        df, csv_path = _find_results_csv(root)
-        if "model" not in df.columns:
-            raise ValueError(f"'model' column not found in results CSV: {csv_path}")
+        csv_path = root / "results" / "multiclass_classifier_results.csv"
+        df = pd.read_csv(csv_path)
 
-        # Try to locate an accuracy-like column (strictly 'accuracy' per spec, but robust to variants)
+        # Expect 'model' and an accuracy-like column
         accuracy_col = None
         for cand in ["accuracy", "acc", "val_accuracy"]:
             if cand in df.columns:
                 accuracy_col = cand
                 break
-        if accuracy_col is None:
-            raise ValueError(
-                f"No 'accuracy' column found in results CSV: {csv_path}. "
-                "Expected a column named 'accuracy'."
-            )
 
-        # Coerce to numeric; tolerate percentages like '91.2%'
         acc_series = df[accuracy_col].astype(str).str.strip()
         acc_numeric = pd.to_numeric(acc_series.str.rstrip("%"), errors="coerce")
-        if acc_numeric.isna().all():
-            raise ValueError(
-                f"Could not parse numeric accuracy values from column '{accuracy_col}' in {csv_path}."
-            )
-
         best_idx = acc_numeric.idxmax()
         best_row = df.loc[best_idx]
         model_name = str(best_row["model"]).strip()
-
-        if not model_name:
-            raise ValueError(
-                f"Best row by '{accuracy_col}' does not contain a valid 'model' value (CSV: {csv_path})."
-            )
 
     # Construct the dill path
     model_dir = root / "models" / model_name
@@ -305,9 +220,111 @@ def resolve_classifier_model_dill_path(
     return dill_path, model_name
 
 
-from pathlib import Path
-from typing import Union, Iterable, Tuple, Dict, Any, Optional, List
-import pandas as pd
+# ============================= Business logic (testable) ============================= #
+
+
+def canon_plate(v) -> Optional[str]:
+    """Canonicalize plate IDs to strings without trailing '.0'.
+
+    Returns:
+        Canonicalized plate ID as string, or None if input is NaN.
+    """
+    if pd.isna(v):
+        return None
+    if isinstance(v, (int, np.integer)):
+        return str(int(v))
+    if isinstance(v, float) and np.isfinite(v) and abs(v - round(v)) < 1e-8:
+        return str(int(round(v)))
+    s = str(v).strip()
+    return s[:-2] if s.endswith(".0") else s
+
+
+def canon_well(v) -> Optional[str]:
+    """Canonicalize well IDs to uppercase strings without surrounding whitespace.
+
+    Returns:
+        Canonicalized well ID as string, or None if input is NaN.
+    """
+    if pd.isna(v):
+        return None
+    return str(v).strip().upper()
+
+
+def canon_list(vals, *, plate: bool = False, well: bool = False):
+    """Canonicalize a list of plate or well IDs.
+
+    Args:
+        vals: Single value or iterable of values to canonicalize.
+        plate: If True, canonicalize as plate IDs.
+        well: If True, canonicalize as well IDs.
+
+    Returns:
+        List of canonicalized values.
+    """
+    if vals is None:
+        return None
+    if not isinstance(vals, (list, tuple, set)):
+        vals = [vals]
+    return [(canon_plate(v) if plate else (canon_well(v) if well else v)) for v in vals]
+
+
+def filter_classified_metadata(
+    df: pd.DataFrame,
+    *,
+    test_plate=None,
+    test_well=None,
+) -> pd.DataFrame:
+    """Filter classified_metadata DataFrame by canonical plate and well IDs.
+
+    Args:
+        df: DataFrame containing classified metadata with 'plate' and 'well' columns.
+        test_plate: Single plate ID or iterable of plate IDs to filter by.
+        test_well: Single well ID or iterable of well IDs to filter by.
+
+    Returns:
+        Filtered DataFrame.
+    """
+    if "plate" not in df.columns or "well" not in df.columns:
+        raise KeyError("Expected 'plate' and 'well' in classified_metadata.")
+    out = df.copy()
+    out["_plate_canon"] = out["plate"].map(canon_plate)
+    out["_well_canon"] = out["well"].map(canon_well)
+    cplates = canon_list(test_plate, plate=True)
+    cwells = canon_list(test_well, well=True)
+    if cplates is None and cwells is None:
+        return out
+    if cplates is None:
+        return out[out["_well_canon"].isin(cwells)]
+    if cwells is None:
+        return out[out["_plate_canon"].isin(cplates)]
+    return out[(out["_plate_canon"].isin(cplates)) & (out["_well_canon"].isin(cwells))]
+
+
+def prepare_class_table(
+    df_all: pd.DataFrame, class_title: str, class_id
+) -> pd.DataFrame:
+    """Prepare a DataFrame filtered to a specific class, sorted by confidence, with rank.
+
+    Args:
+        df_all: DataFrame containing classification results.
+        class_title: Column name for the class/label IDs.
+        class_id: Specific class ID to filter for.
+
+    Returns:
+        Filtered and ranked DataFrame for the specified class.
+
+    """
+    if class_title not in df_all.columns:
+        raise KeyError(f"Missing class column '{class_title}'.")
+    conf_col = f"{class_title}_confidence"
+    if conf_col not in df_all.columns:
+        raise KeyError(f"Missing confidence column '{conf_col}'.")
+    mask = df_all[class_title].astype(str) == str(class_id)
+    df = df_all.loc[mask].copy()
+    df = df[df[conf_col].notna()].copy()
+    df.sort_values(conf_col, ascending=True, inplace=True, kind="mergesort")
+    df["__rank"] = np.arange(1, len(df) + 1, dtype=int)
+    return df
 
 
 def build_master_phenotype_df(
@@ -354,8 +371,11 @@ def build_master_phenotype_df(
     wells = [str(w) for w in _to_list(wells)]
     parquet_dir = Path(parquet_dir)
 
-    def build_filename(p, w, suffix):
-        return f"P-{p}_W-{w}__{suffix}"
+    # Parse name_suffix into info_type and file_type using shared utility
+    # Accepts values like 'phenotype_cp.parquet' or just 'phenotype_cp'
+    _, info_type, file_type = parse_filename(name_suffix)
+    if not file_type:
+        file_type = "parquet"
 
     read_kwargs = read_kwargs or {}
 
@@ -365,18 +385,29 @@ def build_master_phenotype_df(
 
     for p in plates:
         for w in wells:
-            fname = build_filename(p, w, name_suffix)
+            wnorm = _shared_well_for_filename(w)
+            fname = get_filename({"plate": p, "well": wnorm}, info_type, file_type)
             fpath = parquet_dir / fname
-            if fpath.exists():
+            candidates = [fpath]
+            # For phenotype_cp, also try phenotype_cp_min as a fallback
+            if info_type == "phenotype_cp" and file_type.lower() == "parquet":
+                alt_name = get_filename(
+                    {"plate": p, "well": wnorm}, "phenotype_cp_min", file_type
+                )
+                candidates.append(parquet_dir / alt_name)
+
+            chosen = next((c for c in candidates if c.exists()), None)
+            if chosen is not None:
                 try:
-                    df_part = pd.read_parquet(fpath, **read_kwargs)
+                    df_part = pd.read_parquet(chosen, **read_kwargs)
                     loaded_parts.append(df_part)
-                    found_files.append(str(fpath))
+                    found_files.append(str(chosen))
                 except Exception as e:
                     if verbose:
-                        print(f"Failed to read {fpath}: {e}")
-                    missing_files.append(f"{fpath} (read failed: {e})")
+                        print(f"Failed to read {chosen}: {e}")
+                    missing_files.append(f"{chosen} (read failed: {e})")
             else:
+                # Report the primary expected path only to keep the list concise
                 missing_files.append(str(fpath))
 
     if loaded_parts:
@@ -410,18 +441,6 @@ def build_master_phenotype_df(
         "parquet_dir": str(parquet_dir),
     }
     return master_df, info
-
-
-from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
-import os
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
-from lib.aggregate.montage_utils import create_cell_montage, add_filenames
-from lib.aggregate.eval_aggregate import summarize_cell_data
 
 
 def build_montages_and_summary(
@@ -576,39 +595,16 @@ def build_montages_and_summary(
         for display_name in ordered_classes
     }
 
-    # 9) Montage generation
-    title_templates = {
-        True: "Lowest Confidence {cell_class} - {channel}",
-        False: "Highest Confidence {cell_class} - {channel}",
-    }
+    # 9) Montage generation (delegate to montage_utils)
     conf_col = f"{class_title}_confidence"
-
-    montages: List[np.ndarray] = []
-    titles: List[str] = []
-
-    for display_name, cell_df in cell_class_dfs.items():
-        if cell_df.empty:
-            if verbose:
-                print(f"Skipping {display_name}: no rows available for montage.")
-            continue
-        for ascending in [True, False]:
-            montage_dict = create_cell_montage(
-                cell_data=cell_df,
-                channels=channels,
-                selection_params={
-                    "method": "sorted",
-                    "sort_by": conf_col,
-                    "ascending": ascending,
-                },
-                coordinate_cols=list(coord_cols_present),
-            )
-            montage = montage_dict[montage_channel]
-            montages.append(montage)
-            titles.append(
-                title_templates[ascending].format(
-                    cell_class=display_name, channel=montage_channel
-                )
-            )
+    montages, titles = create_class_confidence_montages(
+        cell_class_dfs,
+        channels,
+        conf_col,
+        list(coord_cols_present),
+        montage_channel,
+        verbose=verbose,
+    )
 
     # 10) Plot montages in a (rows = classes, cols = 2) grid
     if len(ordered_classes) == 0:
@@ -640,9 +636,6 @@ def build_montages_and_summary(
     cm_for_summary.drop(columns=["__display__"], inplace=True, errors="ignore")
 
     return fig, axes, montages, titles, ordered_classes, summary_df
-
-
-# apply_classifier.py
 
 
 def launch_rankline_ui(
@@ -728,222 +721,10 @@ def launch_rankline_ui(
         "last_class_id": None,
     }
 
-    # ---------- helpers: filename formatting ----------
-    def _well_for_filename(well: str) -> str:
-        s = str(well).strip().upper()
-        if not filename_well_pad_2:
-            return s
-        if len(s) >= 2 and s[0].isalpha():
-            try:
-                return f"{s[0]}{int(s[1:]):02d}"
-            except Exception:
-                return s
-        return s
-
-    # ---------- image I/O & rendering ----------
-    def _robust_norm(img2d: np.ndarray) -> np.ndarray:
-        img = img2d.astype(np.float32, copy=False)
-        if not np.isfinite(img).all():
-            img = np.nan_to_num(
-                img, nan=np.nanmin(img), posinf=np.nanmax(img), neginf=np.nanmin(img)
-            )
-        lo, hi = np.percentile(img, [1, 99])
-        hi = max(hi, lo + 1)
-        return np.clip((img - lo) / (hi - lo), 0, 1)
-
-    def _colorize(img2d_norm: np.ndarray, color_tag_rgb) -> np.ndarray:
-        tag, val = color_tag_rgb
-        if tag == "gray":
-            return np.stack([img2d_norm] * 3, axis=-1)
-        r, g, b = val
-        return np.stack([img2d_norm * r, img2d_norm * g, img2d_norm * b], axis=-1)
-
-    def _to_png_bytes(rgb01: np.ndarray) -> bytes:
-        arr = (np.clip(rgb01, 0, 1) * 255).astype(np.uint8)
-        im = PILImage.fromarray(arr, mode="RGB")
-        buf = io.BytesIO()
-        im.save(buf, format="PNG")
-        return buf.getvalue()
-
-    def _load_aligned_stack(plate: int, well: str, tile: int) -> np.ndarray:
-        key = (int(plate), str(well), int(tile))
-        if key in STATE["aligned_cache"]:
-            return STATE["aligned_cache"][key]
-        wname = _well_for_filename(well)
-        images_dir = phenotype_output_fp / "images"
-        p1 = images_dir / f"P-{plate}_W-{wname}_T-{tile}__aligned.tiff"
-        p2 = images_dir / f"P-{plate}_W-{wname}_T-{tile}__aligned.tif"
-        path = p1 if p1.exists() else (p2 if p2.exists() else None)
-        if path is None:
-            raise FileNotFoundError(
-                f"Aligned TIFF not found for P-{plate} W-{wname} T-{tile}"
-            )
-        arr = tifffile.imread(path)
-        if arr.ndim == 2:
-            arr = arr[np.newaxis, ...]
-        elif (
-            arr.ndim == 3
-            and arr.shape[0] != len(channel_names)
-            and arr.shape[-1] == len(channel_names)
-        ):
-            arr = np.moveaxis(arr, -1, 0)
-        if arr.ndim != 3:
-            raise ValueError(f"Aligned TIFF must be 3D; got {arr.shape}")
-        if arr.shape[0] != len(channel_names):
-            raise ValueError("Channel count mismatch.")
-        STATE["aligned_cache"][key] = arr
-        return arr
-
-    def _load_mask_labels(mode_: str, plate: int, well: str, tile: int) -> np.ndarray:
-        key = (mode_, int(plate), str(well), int(tile))
-        if key in STATE["mask_cache"]:
-            return STATE["mask_cache"][key]
-        wname = _well_for_filename(well)
-        images_dir = phenotype_output_fp / "images"
-        candidates = (
-            [
-                images_dir / f"P-{plate}_W-{wname}_T-{tile}__identified_vacuoles.tiff",
-                images_dir / f"P-{plate}_W-{wname}_T-{tile}__identified_vacuoles.tif",
-            ]
-            if mode_ == "vacuole"
-            else [
-                images_dir / f"P-{plate}_W-{wname}_T-{tile}__cells.tiff",
-                images_dir / f"P-{plate}_W-{wname}_T-{tile}__cells.tif",
-            ]
-        )
-        path = next((p for p in candidates if p.exists()), None)
-        if path is None:
-            raise FileNotFoundError(
-                f"Mask not found for mode={mode_} P-{plate} W-{wname} T-{tile}"
-            )
-        labels = tifffile.imread(path)
-        if labels.ndim != 2:
-            raise ValueError(f"Mask must be 2D; got {labels.shape}")
-        STATE["mask_cache"][key] = labels
-        return labels
-
-    def _load_parquet(mode_: str, plate: int, well: str) -> pd.DataFrame:
-        key = (mode_, int(plate), str(well))
-        if key in STATE["parquet_cache"]:
-            return STATE["parquet_cache"][key]
-        wname = _well_for_filename(well)
-        pq_dir = phenotype_output_fp / "parquets"
-        pq = pq_dir / (
-            f"P-{plate}_W-{wname}__phenotype_vacuoles.parquet"
-            if mode_ == "vacuole"
-            else f"P-{plate}_W-{wname}__phenotype_cp.parquet"
-        )
-        if not pq.exists():
-            raise FileNotFoundError(f"Parquet not found: {pq}")
-        df = pd.read_parquet(pq)
-        STATE["parquet_cache"][key] = df
-        return df
-
-    def _get_coords_for_mask(
-        mode_: str, plate: int, well: str, tile: int, mask_label: int
-    ) -> Tuple[int, int]:
-        df = _load_parquet(mode_, plate, well)
-        if mode_ == "vacuole":
-            sub = df[(df["tile"] == tile) & (df["vacuole_id"] == mask_label)]
-            if sub.empty:
-                raise KeyError("No parquet row for vacuole.")
-            return int(sub.iloc[0]["vacuole_i"]), int(sub.iloc[0]["vacuole_j"])
-        label_col = (
-            "cell_id"
-            if "cell_id" in df.columns
-            else ("label" if "label" in df.columns else None)
-        )
-        if label_col is None:
-            raise KeyError("Missing cell id / label.")
-        sub = df[(df["tile"] == tile) & (df[label_col] == mask_label)]
-        if sub.empty:
-            raise KeyError("No parquet row for cell.")
-        return int(sub.iloc[0]["cell_i"]), int(sub.iloc[0]["cell_j"])
-
-    def _compute_crop_bounds(
-        mode_: str,
-        plate: int,
-        well: str,
-        tile: int,
-        mask_label: int,
-        img_shape: Tuple[int, int],
-    ) -> Tuple[int, int, int, int]:
-        H, W = img_shape
-        labels = _load_mask_labels(mode_, plate, well, tile)
-        mask = labels == mask_label
-        if np.any(mask):
-            props = measure.regionprops(mask.astype(np.uint8))
-            if props:
-                r = props[0]
-                h = r.bbox[2] - r.bbox[0]
-                w = r.bbox[3] - r.bbox[1]
-                half = int(np.ceil(max(h, w) / 2.0) + 6)
-                half = max(20, min(half, max(H, W)))
-            else:
-                half = 20
-        else:
-            half = 20
-        ci, cj = _get_coords_for_mask(mode_, plate, well, tile, mask_label)
-        y0 = max(0, ci - half)
-        y1 = min(H, ci + half)
-        x0 = max(0, cj - half)
-        x1 = min(W, cj + half)
-        return y0, y1, x0, x1
+    # ---------- image I/O & rendering (use shared utils directly) ----------
 
     # ---------- filtering & class table ----------
-    def _canon_plate(v):
-        if pd.isna(v):
-            return None
-        if isinstance(v, (int, np.integer)):
-            return str(int(v))
-        if isinstance(v, float) and np.isfinite(v) and abs(v - round(v)) < 1e-8:
-            return str(int(round(v)))
-        s = str(v).strip()
-        return s[:-2] if s.endswith(".0") else s
-
-    def _canon_well(v):
-        if pd.isna(v):
-            return None
-        return str(v).strip().upper()
-
-    def _canon_list(vals, plate=False, well=False):
-        if vals is None:
-            return None
-        if not isinstance(vals, (list, tuple, set)):
-            vals = [vals]
-        return [
-            (_canon_plate(v) if plate else (_canon_well(v) if well else v))
-            for v in vals
-        ]
-
-    def filter_classified_metadata(df: pd.DataFrame) -> pd.DataFrame:
-        if "plate" not in df.columns or "well" not in df.columns:
-            raise KeyError("Expected 'plate' and 'well' in classified_metadata.")
-        df = df.copy()
-        df["_plate_canon"] = df["plate"].map(_canon_plate)
-        df["_well_canon"] = df["well"].map(_canon_well)
-        cplates = _canon_list(test_plate, plate=True)
-        cwells = _canon_list(test_well, well=True)
-        if cplates is None and cwells is None:
-            return df
-        if cplates is None:
-            return df[df["_well_canon"].isin(cwells)]
-        if cwells is None:
-            return df[df["_plate_canon"].isin(cplates)]
-        return df[(df["_plate_canon"].isin(cplates)) & (df["_well_canon"].isin(cwells))]
-
-    def _prepare_class_table(df_all: pd.DataFrame, class_id) -> pd.DataFrame:
-        if class_title not in df_all.columns:
-            raise KeyError(f"Missing class column '{class_title}'.")
-        conf_col = f"{class_title}_confidence"
-        if conf_col not in df_all.columns:
-            raise KeyError(f"Missing confidence column '{conf_col}'.")
-        mask = df_all[class_title].astype(str) == str(class_id)
-        df = df_all.loc[mask].copy()
-        df = df[df[conf_col].notna()].copy()
-        df.sort_values(conf_col, ascending=True, inplace=True, kind="mergesort")
-        df["__rank"] = np.arange(1, len(df) + 1, dtype=int)  # 1..N
-        return df
+    # use top-level business logic helpers
 
     # ---------- scale bar ----------
     SCALE_BAR_MARGIN_FRAC = 0.02
@@ -961,45 +742,20 @@ def launch_rankline_ui(
         return 0
 
     def _overlay_scale_bar_inplace(img_rgb01: np.ndarray):
-        if img_rgb01.ndim != 3 or img_rgb01.shape[2] != 3:
-            return
-        Hc, Wc = img_rgb01.shape[:2]
         bar_px = _get_scale_bar_px()
         if bar_px <= 0:
             return
-        m = max(2, int(round(min(Hc, Wc) * SCALE_BAR_MARGIN_FRAC)))
-        th = max(SCALE_BAR_MIN_THICK, int(round(min(Hc, Wc) * SCALE_BAR_THICK_FRAC)))
-        dashed = False
-        if bar_px + 2 * m > Wc:
-            if SCALE_BAR_DASHED_IF_TOO_LONG:
-                dashed = True
-                bar_px = Wc - 2 * m
-                if bar_px <= 0:
-                    return
-            else:
-                bar_px = Wc - 2 * m
-                if bar_px <= 0:
-                    return
-        y_end = Hc - m - 1
-        y_start = max(0, y_end - th + 1)
-        if not dashed:
-            x_end = Wc - m - 1
-            x_start = max(0, x_end - bar_px + 1)
-            img_rgb01[y_start : y_end + 1, x_start : x_end + 1, :] = SCALE_BAR_COLOR
-        else:
-            start_x = m
-            end_x = Wc - m - 1
-            total = max(0, end_x - start_x + 1)
-            if total <= 0:
-                return
-            segs = 2 * max(1, int(SCALE_BAR_DASH_COUNT)) + 1
-            group = total / segs
-            dash_len = max(1, int(round(group)))
-            for i in range(max(1, int(SCALE_BAR_DASH_COUNT))):
-                xs = int(round(start_x + group * (2 * i + 1)))
-                xe = min(end_x, xs + dash_len - 1)
-                if xs <= xe:
-                    img_rgb01[y_start : y_end + 1, xs : xe + 1, :] = SCALE_BAR_COLOR
+        _shared_overlay_scale_bar(
+            img_rgb01,
+            bar_px,
+            position="bottom-right",
+            color=SCALE_BAR_COLOR,
+            margin_frac=SCALE_BAR_MARGIN_FRAC,
+            thick_frac=SCALE_BAR_THICK_FRAC,
+            min_thick=SCALE_BAR_MIN_THICK,
+            dashed_if_too_long=SCALE_BAR_DASHED_IF_TOO_LONG,
+            dash_count=SCALE_BAR_DASH_COUNT,
+        )
 
     # ---------- small utilities ----------
     def _window_indices_around(idx: int, n: int, k: int = 5) -> List[int]:
@@ -1028,9 +784,13 @@ def launch_rankline_ui(
     def _per_class_init(class_id: int):
         if class_id in STATE["per_class"]:
             return
-        df_all = filter_classified_metadata(classified_metadata)
+        df_all = filter_classified_metadata(
+            classified_metadata, test_plate=test_plate, test_well=test_well
+        )
         conf_col = f"{class_title}_confidence"
-        df_class = _prepare_class_table(df_all, class_id)  # ASC by conf; adds __rank
+        df_class = prepare_class_table(
+            df_all, class_title, class_id
+        )  # ASC by conf; adds __rank
         n = len(df_class)
         df_class["__total_in_class"] = n
         st = {
@@ -1167,37 +927,53 @@ def launch_rankline_ui(
         rank = int(row["__rank"])
         n_in_class = int(row["__total_in_class"])
 
-        stack = _load_aligned_stack(plate, well, tile)
+        stack = _shared_load_aligned_stack(
+            phenotype_output_fp,
+            channel_names,
+            int(plate),
+            str(well),
+            int(tile),
+            cache=STATE.get("aligned_cache"),
+        )
         H, W = stack.shape[1], stack.shape[2]
-        labels_full = _load_mask_labels(mode, plate, well, tile)
+        labels_full = _shared_load_mask_labels(
+            phenotype_output_fp,
+            mode,
+            int(plate),
+            str(well),
+            int(tile),
+            cache=STATE.get("mask_cache"),
+        )
 
-        y0, y1, x0, x1 = _compute_crop_bounds(
-            mode, plate, well, tile, mask_label, (H, W)
+        y0, y1, x0, x1 = _shared_compute_crop_bounds(
+            phenotype_output_fp,
+            mode,
+            int(plate),
+            str(well),
+            int(tile),
+            int(mask_label),
+            (H, W),
+            mask_cache=STATE.get("mask_cache"),
+            parquet_cache=STATE.get("parquet_cache"),
         )
         labels_crop = labels_full[y0:y1, x0:x1]
         mask_crop = labels_crop == mask_label
 
         single_widgets: List[widgets.Image] = []
-        merged = np.zeros((y1 - y0, x1 - x0, 3), dtype=np.float32)
-        for ch_idx, color_tag_rgb in zip(channel_indices, resolved_colors):
-            ch_crop = stack[ch_idx, y0:y1, x0:x1]
-            ch_norm = _robust_norm(ch_crop)
-            ch_rgb = _colorize(ch_norm, color_tag_rgb)
-            iw = widgets.Image(value=_to_png_bytes(ch_rgb), format="png")
+        imgs, merged = _shared_compose_rgb_crops(
+            stack, y0, y1, x0, x1, channel_indices, resolved_colors
+        )
+        for ch_rgb in imgs:
+            iw = widgets.Image(value=_shared_to_png_bytes(ch_rgb), format="png")
             iw.layout = widgets.Layout(width=f"{thumb_px}px", height=f"{thumb_px}px")
             single_widgets.append(iw)
-            merged += ch_rgb
-        merged = np.clip(merged, 0, 1)
 
         if np.any(mask_crop):
-            boundary = segmentation.find_boundaries(mask_crop, mode="outer")
-            coords = np.argwhere(boundary)
-            if len(coords) > 0:
-                merged[coords[::2, 0], coords[::2, 1], :] = 1.0
+            _shared_overlay_mask_boundary_inplace(merged, mask_crop, step=2, value=1.0)
 
         _overlay_scale_bar_inplace(merged)
 
-        merged_w = widgets.Image(value=_to_png_bytes(merged), format="png")
+        merged_w = widgets.Image(value=_shared_to_png_bytes(merged), format="png")
         merged_w.layout = widgets.Layout(width=f"{thumb_px}px", height=f"{thumb_px}px")
 
         meta_line = f"P-{plate} W-{well} T-{tile} | mask {mask_label}"

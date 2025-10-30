@@ -29,7 +29,10 @@ from lib.shared.file_utils import get_filename
 # Rendering helpers
 # -----------------------------
 
-def robust_norm(img2d: np.ndarray, low: float = 1.0, high: float = 99.0, eps: float = 1e-6) -> np.ndarray:
+
+def robust_norm(
+    img2d: np.ndarray, low: float = 1.0, high: float = 99.0, eps: float = 1e-6
+) -> np.ndarray:
     """Robust percentile normalization to [0,1] on a 2D array.
 
     Handles NaN/Inf by mapping to finite min/max first.
@@ -52,7 +55,9 @@ def robust_norm(img2d: np.ndarray, low: float = 1.0, high: float = 99.0, eps: fl
     return np.clip((img - lo) / (hi - lo), 0.0, 1.0)
 
 
-def colorize(img2d_norm: np.ndarray, color_tag_rgb: Tuple[str, Tuple[float, float, float]]) -> np.ndarray:
+def colorize(
+    img2d_norm: np.ndarray, color_tag_rgb: Tuple[str, Tuple[float, float, float]]
+) -> np.ndarray:
     """Map a normalized 2D image to RGB using either gray or a provided RGB tuple.
 
     color_tag_rgb format: ("gray"|"rgb", (r,g,b)); when tag is "gray" the rgb tuple is ignored.
@@ -76,6 +81,7 @@ def to_png_bytes(rgb01: np.ndarray) -> bytes:
 # -----------------------------
 # Multi-channel composition & overlays
 # -----------------------------
+
 
 def compose_rgb_crops(
     stack: np.ndarray,
@@ -130,6 +136,7 @@ def overlay_mask_boundary_inplace(
 # File/path conventions
 # -----------------------------
 
+
 def well_for_filename(well: Union[str, int]) -> str:
     """Normalize well id for filenames using unpadded columns.
 
@@ -153,6 +160,7 @@ def well_for_filename(well: Union[str, int]) -> str:
 # IO helpers
 # -----------------------------
 
+
 def load_aligned_stack(
     phenotype_output_fp: Union[str, Path],
     channel_names: Sequence[str],
@@ -175,18 +183,30 @@ def load_aligned_stack(
     images_dir = phenotype_output_fp / "images"
     # Prefer using shared filename builder; try both tiff and tif
     candidates = [
-        images_dir / get_filename({"plate": plate, "well": wname, "tile": tile}, "aligned", "tiff"),
-        images_dir / get_filename({"plate": plate, "well": wname, "tile": tile}, "aligned", "tif"),
-        images_dir / get_filename({"plate": plate, "well": wpad, "tile": tile}, "aligned", "tiff"),
-        images_dir / get_filename({"plate": plate, "well": wpad, "tile": tile}, "aligned", "tif"),
+        images_dir
+        / get_filename(
+            {"plate": plate, "well": wname, "tile": tile}, "aligned", "tiff"
+        ),
+        images_dir
+        / get_filename({"plate": plate, "well": wname, "tile": tile}, "aligned", "tif"),
+        images_dir
+        / get_filename({"plate": plate, "well": wpad, "tile": tile}, "aligned", "tiff"),
+        images_dir
+        / get_filename({"plate": plate, "well": wpad, "tile": tile}, "aligned", "tif"),
     ]
     path = next((p for p in candidates if p.exists()), None)
     if path is None:
-        raise FileNotFoundError(f"Aligned TIFF not found for P-{plate} W-{wname} T-{tile}")
+        raise FileNotFoundError(
+            f"Aligned TIFF not found for P-{plate} W-{wname} T-{tile}"
+        )
     arr = tifffile.imread(path)
     if arr.ndim == 2:
         arr = arr[np.newaxis, ...]
-    elif arr.ndim == 3 and arr.shape[0] != len(channel_names) and arr.shape[-1] == len(channel_names):
+    elif (
+        arr.ndim == 3
+        and arr.shape[0] != len(channel_names)
+        and arr.shape[-1] == len(channel_names)
+    ):
         arr = np.moveaxis(arr, -1, 0)
     if arr.ndim != 3:
         raise ValueError(f"Aligned TIFF must be 3D; got {arr.shape}")
@@ -220,17 +240,49 @@ def load_mask_labels(
     images_dir = phenotype_output_fp / "images"
     if mode_ == "vacuole":
         candidates = [
-            images_dir / get_filename({"plate": plate, "well": wname, "tile": tile}, "identified_vacuoles", "tiff"),
-            images_dir / get_filename({"plate": plate, "well": wname, "tile": tile}, "identified_vacuoles", "tif"),
-            images_dir / get_filename({"plate": plate, "well": wpad, "tile": tile}, "identified_vacuoles", "tiff"),
-            images_dir / get_filename({"plate": plate, "well": wpad, "tile": tile}, "identified_vacuoles", "tif"),
+            images_dir
+            / get_filename(
+                {"plate": plate, "well": wname, "tile": tile},
+                "identified_vacuoles",
+                "tiff",
+            ),
+            images_dir
+            / get_filename(
+                {"plate": plate, "well": wname, "tile": tile},
+                "identified_vacuoles",
+                "tif",
+            ),
+            images_dir
+            / get_filename(
+                {"plate": plate, "well": wpad, "tile": tile},
+                "identified_vacuoles",
+                "tiff",
+            ),
+            images_dir
+            / get_filename(
+                {"plate": plate, "well": wpad, "tile": tile},
+                "identified_vacuoles",
+                "tif",
+            ),
         ]
     else:
         candidates = [
-            images_dir / get_filename({"plate": plate, "well": wname, "tile": tile}, "cells", "tiff"),
-            images_dir / get_filename({"plate": plate, "well": wname, "tile": tile}, "cells", "tif"),
-            images_dir / get_filename({"plate": plate, "well": wpad, "tile": tile}, "cells", "tiff"),
-            images_dir / get_filename({"plate": plate, "well": wpad, "tile": tile}, "cells", "tif"),
+            images_dir
+            / get_filename(
+                {"plate": plate, "well": wname, "tile": tile}, "cells", "tiff"
+            ),
+            images_dir
+            / get_filename(
+                {"plate": plate, "well": wname, "tile": tile}, "cells", "tif"
+            ),
+            images_dir
+            / get_filename(
+                {"plate": plate, "well": wpad, "tile": tile}, "cells", "tiff"
+            ),
+            images_dir
+            / get_filename(
+                {"plate": plate, "well": wpad, "tile": tile}, "cells", "tif"
+            ),
         ]
     path = next((p for p in candidates if p.exists()), None)
     if path is None:
@@ -269,15 +321,29 @@ def load_parquet(
     wpad = f"{m.group(1)}{int(m.group(2)):02d}" if m else wname
     if mode_ == "vacuole":
         candidates = [
-            pq_dir / get_filename({"plate": plate, "well": wname}, "phenotype_vacuoles", "parquet"),
-            pq_dir / get_filename({"plate": plate, "well": wpad}, "phenotype_vacuoles", "parquet"),
+            pq_dir
+            / get_filename(
+                {"plate": plate, "well": wname}, "phenotype_vacuoles", "parquet"
+            ),
+            pq_dir
+            / get_filename(
+                {"plate": plate, "well": wpad}, "phenotype_vacuoles", "parquet"
+            ),
         ]
     else:
         candidates = [
-            pq_dir / get_filename({"plate": plate, "well": wname}, "phenotype_cp", "parquet"),
-            pq_dir / get_filename({"plate": plate, "well": wname}, "phenotype_cp_min", "parquet"),
-            pq_dir / get_filename({"plate": plate, "well": wpad}, "phenotype_cp", "parquet"),
-            pq_dir / get_filename({"plate": plate, "well": wpad}, "phenotype_cp_min", "parquet"),
+            pq_dir
+            / get_filename({"plate": plate, "well": wname}, "phenotype_cp", "parquet"),
+            pq_dir
+            / get_filename(
+                {"plate": plate, "well": wname}, "phenotype_cp_min", "parquet"
+            ),
+            pq_dir
+            / get_filename({"plate": plate, "well": wpad}, "phenotype_cp", "parquet"),
+            pq_dir
+            / get_filename(
+                {"plate": plate, "well": wpad}, "phenotype_cp_min", "parquet"
+            ),
         ]
     pq = next((p for p in candidates if p.exists()), None)
     if pq is None:
@@ -294,6 +360,7 @@ def load_parquet(
 # -----------------------------
 # Geometry helpers
 # -----------------------------
+
 
 def get_coords_for_mask(
     phenotype_output_fp: Union[str, Path],
@@ -323,7 +390,9 @@ def get_coords_for_mask(
             label_col = cand
             break
     if label_col is None:
-        raise KeyError("Neither 'cell_id', 'label' nor 'labels' found in parquet columns")
+        raise KeyError(
+            "Neither 'cell_id', 'label' nor 'labels' found in parquet columns"
+        )
     sub = df[(df["tile"] == tile) & (df[label_col] == mask_label)]
     if sub.empty:
         raise KeyError(
@@ -351,7 +420,9 @@ def compute_crop_bounds(
     Falls back to default min_half when mask regionprops are unavailable or mask missing.
     """
     H, W = img_shape
-    labels = load_mask_labels(phenotype_output_fp, mode, plate, well, tile, cache=mask_cache)
+    labels = load_mask_labels(
+        phenotype_output_fp, mode, plate, well, tile, cache=mask_cache
+    )
     mask = labels == mask_label
     if np.any(mask):
         props = measure.regionprops(mask.astype(np.uint8))
@@ -367,7 +438,13 @@ def compute_crop_bounds(
         half = min_half
 
     ci, cj = get_coords_for_mask(
-        phenotype_output_fp, mode, plate, well, tile, mask_label, parquet_cache=parquet_cache
+        phenotype_output_fp,
+        mode,
+        plate,
+        well,
+        tile,
+        mask_label,
+        parquet_cache=parquet_cache,
     )
     y0 = max(0, ci - half)
     y1 = min(H, ci + half)
@@ -379,6 +456,7 @@ def compute_crop_bounds(
 # -----------------------------
 # Scale bar overlay
 # -----------------------------
+
 
 def overlay_scale_bar(
     img_rgb01: np.ndarray,

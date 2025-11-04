@@ -15,133 +15,6 @@ from itertools import product
 warnings.filterwarnings("ignore")
 
 
-# ============================================================================
-# Default Metric Functions
-# ============================================================================
-
-
-def metric_one_barcode_fraction(df_cells):
-    """Calculate fraction of cells mapping to exactly one barcode.
-
-    A cell maps to one barcode if it has a valid gene_symbol_0 (mapped to library)
-    but no gene_symbol_1 (no secondary barcode).
-
-    This metric uses gene symbols rather than raw barcodes to ensure only
-    library-matched barcodes are counted (following eval_mapping.py logic).
-
-    Parameters
-    ----------
-    df_cells : pd.DataFrame
-        DataFrame with cell-level barcode calls from call_cells().
-
-    Returns
-    -------
-    float
-        Fraction of cells with exactly one barcode (0.0 to 1.0).
-    """
-    if df_cells is None or len(df_cells) == 0:
-        return 0.0
-
-    # Check required columns exist
-    if 'gene_symbol_0' not in df_cells.columns:
-        return 0.0
-
-    # Count cells with valid mapped barcode_0 and no barcode_1
-    # Using gene_symbol columns ensures barcodes matched the library
-    has_mapped_0 = df_cells['gene_symbol_0'].notna()
-
-    if 'gene_symbol_1' not in df_cells.columns:
-        return has_mapped_0.sum() / len(df_cells)
-
-    has_mapped_1 = df_cells['gene_symbol_1'].notna()
-
-    # Count cells with exactly one mapped barcode
-    has_one_barcode = has_mapped_0 & ~has_mapped_1
-
-    return has_one_barcode.sum() / len(df_cells)
-
-
-def metric_any_barcode_fraction(df_cells):
-    """Calculate fraction of cells mapping to any barcode(s).
-
-    A cell maps to any barcode if it has at least one valid gene_symbol_0
-    (mapped to library).
-
-    This metric uses gene symbols rather than raw barcodes to ensure only
-    library-matched barcodes are counted (following eval_mapping.py logic).
-
-    Parameters
-    ----------
-    df_cells : pd.DataFrame
-        DataFrame with cell-level barcode calls from call_cells().
-
-    Returns
-    -------
-    float
-        Fraction of cells with any barcode (0.0 to 1.0).
-    """
-    if df_cells is None or len(df_cells) == 0:
-        return 0.0
-
-    if 'gene_symbol_0' not in df_cells.columns:
-        return 0.0
-
-    # Count cells with at least one valid mapped barcode
-    has_any_barcode = df_cells['gene_symbol_0'].notna()
-
-    return has_any_barcode.sum() / len(df_cells)
-
-
-def metric_mapping_rate(df_cells):
-    """Calculate the fraction of reads that mapped to known barcodes.
-
-    This is calculated from cells with successful barcode calls.
-
-    Parameters
-    ----------
-    df_cells : pd.DataFrame
-        DataFrame with cell-level barcode calls from call_cells().
-
-    Returns
-    -------
-    float
-        Fraction of cells with mapped barcodes (0.0 to 1.0).
-    """
-    # For now, this is equivalent to any_barcode_fraction
-    # Could be extended if read-level data is available
-    return metric_any_barcode_fraction(df_cells)
-
-
-def metric_specificity(df_cells):
-    """Calculate specificity as ratio of one-barcode to all-barcode cells.
-
-    Higher values indicate more specific barcode calling with fewer
-    multi-barcode cells (potential doublets).
-
-    Parameters
-    ----------
-    df_cells : pd.DataFrame
-        DataFrame with cell-level barcode calls from call_cells().
-
-    Returns
-    -------
-    float
-        Ratio of one-barcode cells to any-barcode cells (0.0 to 1.0).
-    """
-    any_frac = metric_any_barcode_fraction(df_cells)
-    if any_frac == 0:
-        return 0.0
-
-    one_frac = metric_one_barcode_fraction(df_cells)
-
-    return one_frac / any_frac
-
-
-# ============================================================================
-# Main Parameter Search Function
-# ============================================================================
-
-
 def automated_parameter_search(
     aligned_images,
     mask,
@@ -189,49 +62,30 @@ def automated_parameter_search(
     verbose : bool, default=False
         If True, print progress and debug information.
 
-    Returns
+    Returns:
     -------
     results_df : pd.DataFrame
         DataFrame with one row per parameter combination, including:
         - All parameter values
         - metric_score: the score from metric_fn
+        - metric_name: name of the metric function used
         - status: 'success' or error description
         - total_cells: number of cells in mask
     df_cells_combined : pd.DataFrame or None
         Combined DataFrame of per-cell calls for all successful parameter sets,
         with parameter values annotated in each row.
-
-    Examples
-    --------
-    >>> param_grid = {
-    ...     'peak_width': [5, 10, 15],
-    ...     'threshold_reads': [50, 100, 150, 200]
-    ... }
-    >>> fixed_params = {
-    ...     'max_filter_width': 3,
-    ...     'call_reads_method': 'percentile',
-    ...     'q_min': 0,
-    ...     'error_correct': True,
-    ...     'sort_calls': 'peak'
-    ... }
-    >>> results_df, df_cells = automated_parameter_search(
-    ...     aligned_images=aligned,
-    ...     mask=cells,  # or nuclei, depending on where spots are located
-    ...     barcodes=barcodes,
-    ...     df_barcode_library=df_library,
-    ...     wildcards={'well': 'A1', 'tile': 1},
-    ...     bases=['G', 'T', 'A', 'C'],
-    ...     extra_channel_indices=[0],
-    ...     param_grid=param_grid,
-    ...     fixed_params=fixed_params,
-    ...     metric_fn=metric_one_barcode_fraction
-    ... )
     """
     # Set defaults
     if metric_fn is None:
         metric_fn = metric_one_barcode_fraction
     if fixed_params is None:
         fixed_params = {}
+
+    # Get metric name from function
+    metric_name = metric_fn.__name__
+    # Remove 'metric_' prefix if present for cleaner display
+    if metric_name.startswith('metric_'):
+        metric_name = metric_name[7:]  # Remove 'metric_' prefix
 
     # Import required functions
     try:
@@ -273,6 +127,7 @@ def automated_parameter_search(
     if verbose:
         print(f"Testing {total_combinations} parameter combinations...")
         print(f"Parameters: {param_names}")
+        print(f"Metric: {metric_name}")
 
     # Test each combination
     for combo_idx, combo_values in enumerate(combinations, 1):
@@ -310,6 +165,7 @@ def automated_parameter_search(
                 results.append({
                     **current_params,
                     'metric_score': 0.0,
+                    'metric_name': metric_name,
                     'total_cells': len(np.unique(mask)) - 1,
                     'status': 'no_peaks'
                 })
@@ -329,6 +185,7 @@ def automated_parameter_search(
                 results.append({
                     **current_params,
                     'metric_score': 0.0,
+                    'metric_name': metric_name,
                     'total_cells': len(np.unique(mask)) - 1,
                     'status': 'no_bases'
                 })
@@ -345,6 +202,7 @@ def automated_parameter_search(
                 results.append({
                     **current_params,
                     'metric_score': 0.0,
+                    'metric_name': metric_name,
                     'total_cells': len(np.unique(mask)) - 1,
                     'status': 'no_reads'
                 })
@@ -363,6 +221,7 @@ def automated_parameter_search(
                 results.append({
                     **current_params,
                     'metric_score': 0.0,
+                    'metric_name': metric_name,
                     'total_cells': len(np.unique(mask)) - 1,
                     'status': 'call_cells_failed'
                 })
@@ -380,6 +239,7 @@ def automated_parameter_search(
             results.append({
                 **current_params,
                 'metric_score': metric_score,
+                'metric_name': metric_name,
                 'total_cells': len(np.unique(mask)) - 1,
                 'status': 'success'
             })
@@ -390,6 +250,7 @@ def automated_parameter_search(
             results.append({
                 **current_params,
                 'metric_score': 0.0,
+                'metric_name': metric_name,
                 'total_cells': len(np.unique(mask)) - 1,
                 'status': f'error: {str(e)[:50]}'
             })
@@ -409,9 +270,121 @@ def automated_parameter_search(
     return results_df, df_cells_combined
 
 
-# ============================================================================
-# Visualization Functions
-# ============================================================================
+def metric_one_barcode_fraction(df_cells):
+    """Calculate fraction of cells mapping to exactly one barcode.
+
+    A cell maps to one barcode if it has a valid gene_symbol_0 (mapped to library)
+    but no gene_symbol_1 (no secondary barcode).
+
+    This metric uses gene symbols rather than raw barcodes to ensure only
+    library-matched barcodes are counted (following eval_mapping.py logic).
+
+    Parameters
+    ----------
+    df_cells : pd.DataFrame
+        DataFrame with cell-level barcode calls from call_cells().
+
+    Returns:
+    -------
+    float
+        Fraction of cells with exactly one barcode (0.0 to 1.0).
+    """
+    if df_cells is None or len(df_cells) == 0:
+        return 0.0
+
+    # Check required columns exist
+    if 'gene_symbol_0' not in df_cells.columns:
+        return 0.0
+
+    # Count cells with valid mapped barcode_0 and no barcode_1
+    # Using gene_symbol columns ensures barcodes matched the library
+    has_mapped_0 = df_cells['gene_symbol_0'].notna()
+
+    if 'gene_symbol_1' not in df_cells.columns:
+        return has_mapped_0.sum() / len(df_cells)
+
+    has_mapped_1 = df_cells['gene_symbol_1'].notna()
+
+    # Count cells with exactly one mapped barcode
+    has_one_barcode = has_mapped_0 & ~has_mapped_1
+
+    return has_one_barcode.sum() / len(df_cells)
+
+
+def metric_any_barcode_fraction(df_cells):
+    """Calculate fraction of cells mapping to any barcode(s).
+
+    A cell maps to any barcode if it has at least one valid gene_symbol_0
+    (mapped to library).
+
+    This metric uses gene symbols rather than raw barcodes to ensure only
+    library-matched barcodes are counted (following eval_mapping.py logic).
+
+    Parameters
+    ----------
+    df_cells : pd.DataFrame
+        DataFrame with cell-level barcode calls from call_cells().
+
+    Returns:
+    -------
+    float
+        Fraction of cells with any barcode (0.0 to 1.0).
+    """
+    if df_cells is None or len(df_cells) == 0:
+        return 0.0
+
+    if 'gene_symbol_0' not in df_cells.columns:
+        return 0.0
+
+    # Count cells with at least one valid mapped barcode
+    has_any_barcode = df_cells['gene_symbol_0'].notna()
+
+    return has_any_barcode.sum() / len(df_cells)
+
+
+def metric_mapping_rate(df_cells):
+    """Calculate the fraction of reads that mapped to known barcodes.
+
+    This is calculated from cells with successful barcode calls.
+
+    Parameters
+    ----------
+    df_cells : pd.DataFrame
+        DataFrame with cell-level barcode calls from call_cells().
+
+    Returns:
+    -------
+    float
+        Fraction of cells with mapped barcodes (0.0 to 1.0).
+    """
+    # For now, this is equivalent to any_barcode_fraction
+    # Could be extended if read-level data is available
+    return metric_any_barcode_fraction(df_cells)
+
+
+def metric_specificity(df_cells):
+    """Calculate specificity as ratio of one-barcode to all-barcode cells.
+
+    Higher values indicate more specific barcode calling with fewer
+    multi-barcode cells (potential doublets).
+
+    Parameters
+    ----------
+    df_cells : pd.DataFrame
+        DataFrame with cell-level barcode calls from call_cells().
+
+    Returns:
+    -------
+    float
+        Ratio of one-barcode cells to any-barcode cells (0.0 to 1.0).
+    """
+    any_frac = metric_any_barcode_fraction(df_cells)
+    if any_frac == 0:
+        return 0.0
+
+    one_frac = metric_one_barcode_fraction(df_cells)
+
+    return one_frac / any_frac
 
 
 def visualize_parameter_results(
@@ -449,7 +422,7 @@ def visualize_parameter_results(
     save_plots : bool, default=False
         If True, saves plots as 'parameter_search_results.png'.
 
-    Returns
+    Returns:
     -------
     pd.DataFrame
         Filtered DataFrame containing only successful parameter sets with
@@ -462,11 +435,20 @@ def visualize_parameter_results(
         print("No successful results to visualize!")
         return None
 
+    # Get the actual metric name from the results if available
+    if 'metric_name' in success_results.columns:
+        primary_metric_name = success_results['metric_name'].iloc[0]
+    else:
+        # Fall back to formatting the column name
+        primary_metric_name = metric_name
+        if metric_name == 'metric_score':
+            primary_metric_name = 'metric_score'
+
     # Compute secondary metrics if df_cells is provided
     if df_cells is not None and show_secondary_metrics:
         # Ensure df_cells has the parameter columns
         param_cols_in_cells = [col for col in success_results.columns
-                               if col not in [metric_name, 'status', 'total_cells']
+                               if col not in [metric_name, 'status', 'total_cells', 'metric_name']
                                and col in df_cells.columns]
 
         if len(param_cols_in_cells) > 0:
@@ -484,19 +466,22 @@ def visualize_parameter_results(
                 success_results.loc[idx, 'fraction_any_barcode'] = metric_any_barcode_fraction(df_subset)
                 success_results.loc[idx, 'specificity'] = metric_specificity(df_subset)
 
-    # Identify parameter columns (exclude metric, status, total_cells, and computed metrics)
+    # Identify parameter columns (exclude metric, status, total_cells, metric_name, and computed metrics)
     param_cols = [col for col in success_results.columns
-                  if col not in [metric_name, 'status', 'total_cells',
+                  if col not in [metric_name, 'status', 'total_cells', 'metric_name',
                                 'fraction_one_barcode', 'fraction_any_barcode', 'specificity']]
 
     if len(param_cols) == 0:
         print("No parameter columns found!")
         return success_results
 
+    # Format primary metric name for display
+    display_primary_metric = primary_metric_name.replace('_', ' ').title()
+
     # Print best result with all metrics
     best_idx = success_results[metric_name].idxmax()
     best_result = success_results.loc[best_idx]
-    print(f"\nBest result ({metric_name} = {best_result[metric_name]:.3f}):")
+    print(f"\nBest result ({display_primary_metric} = {best_result[metric_name]:.3f}):")
     for param in param_cols:
         print(f"  {param} = {best_result[param]}")
 
@@ -509,14 +494,14 @@ def visualize_parameter_results(
         print(f"  specificity = {best_result['specificity']:.3f}")
 
     # Determine metrics to plot
-    metrics_to_plot = [metric_name]
+    metrics_to_plot = [(metric_name, display_primary_metric)]
     if show_secondary_metrics and df_cells is not None:
         if 'fraction_one_barcode' in success_results.columns:
-            metrics_to_plot.append('fraction_one_barcode')
+            metrics_to_plot.append(('fraction_one_barcode', 'Fraction One Barcode'))
         if 'fraction_any_barcode' in success_results.columns:
-            metrics_to_plot.append('fraction_any_barcode')
+            metrics_to_plot.append(('fraction_any_barcode', 'Fraction Any Barcode'))
         if 'specificity' in success_results.columns:
-            metrics_to_plot.append('specificity')
+            metrics_to_plot.append(('specificity', 'Specificity'))
 
     n_metrics = len(metrics_to_plot)
 
@@ -530,13 +515,13 @@ def visualize_parameter_results(
         param = param_cols[0]
         success_results_sorted = success_results.sort_values(param)
 
-        for idx, metric in enumerate(metrics_to_plot):
+        for idx, (metric_col, display_name) in enumerate(metrics_to_plot):
             axes[idx].plot(success_results_sorted[param],
-                          success_results_sorted[metric],
+                          success_results_sorted[metric_col],
                           marker='o')
             axes[idx].set_xlabel(param)
-            axes[idx].set_ylabel(metric)
-            axes[idx].set_title(f'{metric} vs {param}')
+            axes[idx].set_ylabel(display_name)
+            axes[idx].set_title(f'{display_name} vs {param}')
             axes[idx].grid(True, alpha=0.3)
 
     elif len(param_cols) == 2:
@@ -545,11 +530,11 @@ def visualize_parameter_results(
         if n_metrics == 1:
             axes = [axes]
 
-        for idx, metric in enumerate(metrics_to_plot):
+        for idx, (metric_col, display_name) in enumerate(metrics_to_plot):
             pivot = success_results.pivot_table(
                 index=param_cols[0],
                 columns=param_cols[1],
-                values=metric,
+                values=metric_col,
                 aggfunc='mean'
             )
             sns.heatmap(
@@ -558,9 +543,9 @@ def visualize_parameter_results(
                 cmap='viridis',
                 annot=True,
                 fmt='.3f',
-                cbar_kws={'label': metric}
+                cbar_kws={'label': display_name}
             )
-            axes[idx].set_title(f'{metric} Heatmap')
+            axes[idx].set_title(f'{display_name} Heatmap')
 
     else:
         # More than 2 parameters: create pairwise heatmaps for primary metric only
@@ -593,7 +578,7 @@ def visualize_parameter_results(
                     cmap='viridis',
                     annot=True,
                     fmt='.3f',
-                    cbar_kws={'label': metric_name}
+                    cbar_kws={'label': display_primary_metric}
                 )
                 axes[plot_idx].set_title(f'{param1} vs {param2}')
                 plot_idx += 1
@@ -631,7 +616,7 @@ def get_best_parameters(results_df, metric_name='metric_score', maximize=True):
         If True, find parameters that maximize the metric.
         If False, find parameters that minimize the metric.
 
-    Returns
+    Returns:
     -------
     pd.Series
         Best parameter set with all column values.
@@ -661,7 +646,7 @@ def get_best_parameters(results_df, metric_name='metric_score', maximize=True):
 
     # Identify parameter columns
     param_cols = [col for col in success_results.columns
-                  if col not in [metric_name, 'status', 'total_cells']]
+                  if col not in [metric_name, 'status', 'total_cells', 'metric_name']]
 
     for param in param_cols:
         print(f"  {param} = {best_params[param]}")

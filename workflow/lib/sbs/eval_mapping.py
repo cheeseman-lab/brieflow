@@ -123,7 +123,11 @@ def plot_mapping_vs_threshold(
         )
 
         # Labels and titles
-        ax.set_ylabel("Fraction of Reads\nMatching Expected Barcodes", fontsize=12, color="dodgerblue")
+        ax.set_ylabel(
+            "Fraction of Reads\nMatching Expected Barcodes",
+            fontsize=12,
+            color="dodgerblue",
+        )
         ax.set_xlabel(
             f"{threshold_var.replace('_', ' ').title()} Threshold Cutoff", fontsize=12
         )
@@ -131,8 +135,8 @@ def plot_mapping_vs_threshold(
         ax_right.set_ylabel("Number of Mapped Features", fontsize=12, color="coral")
 
         # Color the y-axis tick labels to match
-        ax.tick_params(axis='y', labelcolor="dodgerblue")
-        ax_right.tick_params(axis='y', labelcolor="coral")
+        ax.tick_params(axis="y", labelcolor="dodgerblue")
+        ax_right.tick_params(axis="y", labelcolor="coral")
 
     # Create shared legend below plots
     legend_elements = [

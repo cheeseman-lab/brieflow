@@ -763,15 +763,6 @@ def convert_tiff_to_array(
     except ImportError:
         raise ImportError("tifffile package required for TIFF support")
 
-    # Handle deprecated z_stack parameter
-    if "z_stack" in kwargs and kwargs["z_stack"] is True and n_z_planes is None:
-        if verbose:
-            print(
-                "Warning: z_stack=True is deprecated. Use n_z_planes parameter instead."
-            )
-        # Fallback: treat all files as z-planes of single channel (old behavior)
-        n_z_planes = -1  # Special flag for old behavior
-
     # Convert input to list of Path objects
     if isinstance(files, (str, Path)):
         files = [Path(files)]
@@ -813,7 +804,7 @@ def convert_tiff_to_array(
             img_array = np.flip(img_array, axis=0)
 
         if verbose:
-            print(f"  TIFF array shape: {img_array.shape}")
+            print(f"TIFF array shape: {img_array.shape}")
 
         image_arrays.append(img_array)
 

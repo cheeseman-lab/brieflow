@@ -109,6 +109,11 @@ merge:
   sbs_metadata_cycle: 1
   score: 0.1
   threshold: 2
+  sbs_dedup_prior:
+    mapped_single_gene: false
+    fov_distance_1: true
+  pheno_dedup_prior:
+    fov_distance_0: true
 aggregate:
   agg_method: median
   aggregate_combo_fp: config/aggregate_combo.tsv

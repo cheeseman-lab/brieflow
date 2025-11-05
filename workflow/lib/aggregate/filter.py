@@ -200,6 +200,16 @@ def intensity_filter(
     Returns:
         tuple: (filtered_metadata, filtered_features) DataFrames with outliers removed.
     """
+    # Handle contamination parameter validation
+    if contamination < 0 or contamination >= 0.5:
+        raise ValueError(
+            "Contamination must be between 0 (inclusive) and 0.5 (exclusive)"
+        )
+
+    if contamination == 0:
+        print("Contamination is 0, skipping intensity filtering")
+        return metadata, features
+
     # Identify feature cols
     feature_cols = features.columns.tolist()
 

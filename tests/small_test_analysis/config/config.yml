@@ -135,6 +135,11 @@ aggregate:
   perturbation_name_col: gene_symbol_0
   variance_or_ncomp: 0.99
   num_align_batches: 1
+  ps_auc_threshold: 0.6
+  perturbation_score_threshold: 0.5
+  skip_perturbation_score: true
+  ps_probability_threshold: null
+  ps_percentile_threshold: null
   feature_normalization: mad
   num_sims: 100
   exclusion_string: null
@@ -156,3 +161,4 @@ cluster:
     mitotic: 0
   phate_distance_metric: euclidean
   string_pair_benchmark_fp: config/benchmark_clusters/string_pair_benchmark.tsv
+  perturbation_auc_threshold: 0.7

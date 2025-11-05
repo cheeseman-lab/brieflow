@@ -256,38 +256,44 @@ def centerscale_on_controls(
     if method not in ["standard", "mad"]:
         raise ValueError(f"Unknown scaling method: {method}. Use 'standard' or 'mad'.")
 
+    # helper for MAD scaling (robust z-score, consistent with std under normality)
+    def _mad_scale(X: np.ndarray, ref: np.ndarray) -> np.ndarray:
+        med = np.median(ref, axis=0)
+        mad = np.median(np.abs(ref - med), axis=0)
+        mad_safe = np.where(mad == 0, 1.0, mad)  # avoid divide-by-zero
+        return 0.6745 * (X - med) / mad_safe
+
+    # boolean mask for "control" rows uses startswith on stringified column, handles NaNs
+    ctrl_mask_all = metadata[pert_col].astype(str).str.startswith(control_key)
+
     if batch_col is not None:
-        batches = metadata[batch_col].unique()
-        for batch in batches:
-            batch_ind = metadata[batch_col] == batch
-            batch_control_ind = (
-                batch_ind & (metadata[pert_col].str.startswith(control_key)).to_list()
-            )
+        for batch in metadata[batch_col].unique():
+            batch_mask = metadata[batch_col] == batch
+            batch_ctrl_mask = batch_mask & ctrl_mask_all
+
+            # only scale if we have controls in this batch
+            if batch_ctrl_mask.sum() == 0:
+                continue
 
             if method == "standard":
-                embeddings[batch_ind] = (
+                embeddings[batch_mask] = (
                     StandardScaler(copy=False)
-                    .fit(embeddings[batch_control_ind])
-                    .transform(embeddings[batch_ind])
+                    .fit(embeddings[batch_ctrl_mask])
+                    .transform(embeddings[batch_mask])
                 )
-            elif method == "mad":
-                control_data = embeddings[batch_control_ind]
-                median = np.median(control_data, axis=0)
-                mad = median_absolute_deviation(control_data)
-                embeddings[batch_ind] = 0.6745 * (embeddings[batch_ind] - median) / mad
+            else:  # method == "mad"
+                ref = embeddings[batch_ctrl_mask]
+                embeddings[batch_mask] = _mad_scale(embeddings[batch_mask], ref)
 
         return embeddings
 
-    control_ind = metadata[pert_col].str.startswith(control_key).to_list()
-
+    # no batching: use all controls
     if method == "standard":
         return (
             StandardScaler(copy=False)
-            .fit(embeddings[control_ind])
+            .fit(embeddings[ctrl_mask_all])
             .transform(embeddings)
         )
-    elif method == "mad":
-        control_data = embeddings[control_ind]
-        median = np.median(control_data, axis=0)
-        mad = median_absolute_deviation(control_data)
-        return 0.6745 * (embeddings - median) / mad
+    else:  # method == "mad"
+        ref = embeddings[ctrl_mask_all]
+        return _mad_scale(embeddings, ref)

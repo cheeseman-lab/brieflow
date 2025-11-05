@@ -1,10 +1,10 @@
-"""This module provides functions for loading and formatting data during aggregation.
+"""This module provides functions for filtering cell data during aggregation.
 
-Functions include:
-- Loading a subset of data from parquet files for efficient processing.
-
-Functions:
-    - load_parquet_subset: Load a fixed number of random rows from a parquet file.
+Available filters:
+- query_filter: Apply pandas query strings to filter cells
+- perturbation_filter: Remove cells without perturbation assignments
+- missing_values_filter: Handle missing values through dropping or imputation
+- intensity_filter: Remove outliers based on channel intensities using LocalOutlierFactor
 """
 
 import pandas as pd

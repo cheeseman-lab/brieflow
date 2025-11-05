@@ -103,6 +103,7 @@ AGGREGATE_OUTPUTS = {
 AGGREGATE_OUTPUT_MAPPINGS = {
     "split_datasets": None,
     "filter": None,
+    "perturbation_score_filter": None,
     "align": None,
     "aggregate": None,
     "eval_aggregate": None,

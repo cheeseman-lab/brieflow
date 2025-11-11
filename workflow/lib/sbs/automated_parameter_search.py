@@ -56,6 +56,9 @@ def automated_parameter_search(
     metric_fn : callable, optional
         Function that takes df_cells and returns a float score to optimize.
         If None, uses metric_one_barcode_fraction as default.
+        Note: Built-in metrics (specificity, one_barcode_fraction, any_barcode_fraction)
+        should be **maximized** (higher is better). Custom metrics should be designed
+        similarly, or use get_best_parameters(maximize=False) if lower is better.
     fixed_params : dict, optional
         Dictionary of parameters that remain constant across all searches.
         Example: {'max_filter_width': 3, 'call_reads_method': 'percentile'}
@@ -370,8 +373,15 @@ def metric_mapping_rate(df_cells):
 def metric_specificity(df_cells):
     """Calculate specificity as ratio of one-barcode to all-barcode cells.
 
-    Higher values indicate more specific barcode calling with fewer
-    multi-barcode cells (potential doublets).
+    Specificity = (cells with exactly one barcode) / (cells with any barcode)
+
+    Interpretation:
+    - 1.0 = Perfect specificity. All mapped cells have exactly one barcode.
+    - 0.8 = Good specificity. 80% of mapped cells have one barcode, 20% have multiple.
+    - 0.5 = Poor specificity. Half of mapped cells have multiple barcodes (likely doublets).
+
+    **Higher is better.** Low specificity suggests doublet contamination or poor
+    barcode separation. Use this metric when optimizing for single-cell purity.
 
     Parameters
     ----------
@@ -382,6 +392,7 @@ def metric_specificity(df_cells):
     -------
     float
         Ratio of one-barcode cells to any-barcode cells (0.0 to 1.0).
+        Returns 0.0 if no cells have any barcodes.
     """
     any_frac = metric_any_barcode_fraction(df_cells)
     if any_frac == 0:
@@ -524,7 +535,9 @@ def visualize_parameter_results(
         if "fraction_any_barcode" in success_results.columns:
             metrics_to_plot.append(("fraction_any_barcode", "Fraction Any Barcode"))
         if "specificity" in success_results.columns:
-            metrics_to_plot.append(("specificity", "Specificity"))
+            metrics_to_plot.append(
+                ("specificity", "Specificity (Higher=Better: 1.0=One Barcode/Cell)")
+            )
 
     n_metrics = len(metrics_to_plot)
 
@@ -573,46 +586,14 @@ def visualize_parameter_results(
             axes[idx].set_title(f"{display_name} Heatmap")
 
     else:
-        # More than 2 parameters: create pairwise heatmaps for primary metric only
-        # (showing all metrics for all pairs would be too many plots)
-        n_pairs = len(param_cols) * (len(param_cols) - 1) // 2
-        n_cols = min(2, n_pairs)
-        n_rows = (n_pairs + n_cols - 1) // n_cols
-
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(8 * n_cols, 6 * n_rows))
-        if n_pairs == 1:
-            axes = np.array([axes])
-        axes = axes.flatten()
-
-        plot_idx = 0
-        for i, param1 in enumerate(param_cols):
-            for j, param2 in enumerate(param_cols):
-                if j <= i:
-                    continue
-
-                pivot = success_results.pivot_table(
-                    index=param1, columns=param2, values=metric_name, aggfunc="mean"
-                )
-
-                sns.heatmap(
-                    pivot,
-                    ax=axes[plot_idx],
-                    cmap="viridis",
-                    annot=True,
-                    fmt=".3f",
-                    cbar_kws={"label": display_primary_metric},
-                )
-                axes[plot_idx].set_title(f"{param1} vs {param2}")
-                plot_idx += 1
-
-        # Hide unused subplots
-        for idx in range(plot_idx, len(axes)):
-            axes[idx].set_visible(False)
-
-        # Print note about secondary metrics
-        if n_metrics > 1:
-            print("\nNote: For >2 parameters, only primary metric is visualized.")
-            print("Secondary metrics are available in the returned DataFrame.")
+        # More than 2 parameters not supported
+        print(f"\nError: {len(param_cols)} parameters provided.")
+        print("Automated parameter search visualization supports 1-2 parameters only.")
+        print("Consider fixing some parameters or running multiple smaller searches.")
+        print(
+            "\nResults are still available in the returned DataFrame for manual analysis."
+        )
+        return success_results
 
     plt.tight_layout()
 
@@ -628,6 +609,13 @@ def visualize_parameter_results(
 def get_best_parameters(results_df, metric_name="metric_score", maximize=True):
     """Find the best parameter combination based on metric score.
 
+    For built-in metrics (specificity, one_barcode_fraction, any_barcode_fraction),
+    use maximize=True (default) since higher values are better. For custom metrics
+    like error rate or computational cost, use maximize=False if lower is better.
+
+    If multiple parameter sets are tied for the best score, all tied results
+    will be displayed with their secondary metrics to aid in selection.
+
     Parameters
     ----------
     results_df : pd.DataFrame
@@ -635,8 +623,8 @@ def get_best_parameters(results_df, metric_name="metric_score", maximize=True):
     metric_name : str, default='metric_score'
         Name of the metric column to optimize.
     maximize : bool, default=True
-        If True, find parameters that maximize the metric.
-        If False, find parameters that minimize the metric.
+        If True, find parameters that maximize the metric (for metrics where higher is better).
+        If False, find parameters that minimize the metric (for metrics where lower is better).
 
     Returns:
     -------
@@ -662,20 +650,56 @@ def get_best_parameters(results_df, metric_name="metric_score", maximize=True):
         direction = "minimum"
 
     best_params = success_results.loc[best_idx]
+    best_score = best_params[metric_name]
 
-    # Print results
-    print(
-        f"\nBest parameters ({direction} {metric_name} = {best_params[metric_name]:.3f}):"
-    )
+    # Check for ties (using small tolerance for float comparison)
+    tolerance = 1e-9
+    tied_results = success_results[
+        abs(success_results[metric_name] - best_score) < tolerance
+    ]
 
     # Identify parameter columns
     param_cols = [
         col
         for col in success_results.columns
-        if col not in [metric_name, "status", "total_cells", "metric_name"]
+        if col
+        not in [
+            metric_name,
+            "status",
+            "total_cells",
+            "metric_name",
+            "fraction_one_barcode",
+            "fraction_any_barcode",
+            "specificity",
+        ]
     ]
 
-    for param in param_cols:
-        print(f"  {param} = {best_params[param]}")
+    # Print results
+    if len(tied_results) > 1:
+        print(
+            f"\nWarning: {len(tied_results)} parameter sets tied for best {metric_name}!"
+        )
+        print(f"All tied results ({direction} {metric_name} = {best_score:.3f}):\n")
+
+        for idx, (row_idx, row) in enumerate(tied_results.iterrows(), 1):
+            print(f"Option {idx}:")
+            for param in param_cols:
+                print(f"  {param} = {row[param]}")
+            # Show secondary metrics if available to help choose
+            if "specificity" in row.index and pd.notna(row["specificity"]):
+                print(f"  specificity = {row['specificity']:.3f}")
+            if "fraction_one_barcode" in row.index and pd.notna(
+                row["fraction_one_barcode"]
+            ):
+                print(f"  fraction_one_barcode = {row['fraction_one_barcode']:.3f}")
+            print()
+
+        print(
+            "Suggestion: Consider secondary metrics or simpler parameter values to break the tie."
+        )
+    else:
+        print(f"\nBest parameters ({direction} {metric_name} = {best_score:.3f}):")
+        for param in param_cols:
+            print(f"  {param} = {best_params[param]}")
 
     return best_params

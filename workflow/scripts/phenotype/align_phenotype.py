@@ -28,6 +28,10 @@ if align_config["align"]:
                 source=step["source"],
                 riders=step.get("riders", []),
                 remove_channel=step["remove_channel"],
+                upsample_factor=step.get(
+                    "upsample_factor", align_config.get("upsample_factor", 2)
+                ),
+                window=step.get("window", align_config.get("window", 2)),
             )
     else:
         # Handle single-step alignment
@@ -38,22 +42,22 @@ if align_config["align"]:
             source=align_config["source"],
             riders=align_config.get("riders", []),
             remove_channel=align_config["remove_channel"],
+            upsample_factor=align_config.get("upsample_factor", 2),
+            window=align_config.get("window", 2),
         )
 else:
     print("Skipping alignment...")
     aligned_data = image_data
 
 # Custom alignment process (applies after standard alignment)
-if align_config.get("custom_align", False):
+if align_config.get("custom_channel_offsets"):
     print("Applying custom channel offsets...")
-    print(f"Custom channels: {align_config['custom_channels']}")
-    print(f"Custom offset (y,x): {align_config['custom_offset_yx']}")
+    print(f"Custom offsets: {align_config['custom_channel_offsets']}")
 
-    # Apply custom offsets directly using the channel indices from config
+    # Apply custom offsets using the dict from config
     aligned_data = apply_custom_offsets(
         aligned_data,
-        offset_yx=align_config["custom_offset_yx"],
-        channels=align_config["custom_channels"],
+        offsets_dict=align_config["custom_channel_offsets"],
     )
 
 # Save the aligned/unaligned data as a .tiff file

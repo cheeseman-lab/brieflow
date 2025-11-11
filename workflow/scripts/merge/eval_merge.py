@@ -1,3 +1,9 @@
+"""Evaluate Merge Results.
+
+Evaluates merge results by analyzing SBS and phenotype matching rates
+and generating summary statistics and plots.
+"""
+
 import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes
@@ -30,6 +36,7 @@ sbs_cells["mapped_single_gene"] = sbs_cells.apply(
 )
 mapping_counts = sbs_cells.mapped_single_gene.value_counts()
 mapping_percentages = sbs_cells.mapped_single_gene.value_counts(normalize=True)
+
 # Save cell mapping statistics
 mapping_stats = pd.DataFrame(
     {
@@ -38,7 +45,7 @@ mapping_stats = pd.DataFrame(
         "percentage": [mapping_percentages[True], mapping_percentages[False]],
     }
 )
-mapping_stats.to_csv(snakemake.output[0], sep="\t", index=False)
+mapping_stats.to_csv(snakemake.output.cell_mapping_stats, sep="\t", index=False)
 
 # Evaluate minimal merge data
 merge_minimal = merge_formatted[
@@ -53,8 +60,8 @@ sbs_summary, fig = plot_sbs_ph_matching_heatmap(
     shape="6W_sbs",
     return_summary=True,
 )
-sbs_summary.to_csv(snakemake.output[1], sep="\t", index=False)
-fig.savefig(snakemake.output[2])
+sbs_summary.to_csv(snakemake.output.sbs_to_ph_matching_rates_tsv, sep="\t", index=False)
+fig.savefig(snakemake.output.sbs_to_ph_matching_rates_png)
 
 # Eval phenotype matching rates
 ph_summary, fig = plot_sbs_ph_matching_heatmap(
@@ -64,15 +71,15 @@ ph_summary, fig = plot_sbs_ph_matching_heatmap(
     shape="6W_ph",
     return_summary=True,
 )
-ph_summary.to_csv(snakemake.output[3], sep="\t", index=False)
-fig.savefig(snakemake.output[4])
+ph_summary.to_csv(snakemake.output.ph_to_sbs_matching_rates_tsv, sep="\t", index=False)
+fig.savefig(snakemake.output.ph_to_sbs_matching_rates_png)
 
 # Evaluate all formatted merge data
 fig = plot_cell_positions(merge_formatted, title="All Cells by Channel Min")
-fig.savefig(snakemake.output[5])
+fig.savefig(snakemake.output.all_cells_by_channel_min)
 fig = plot_cell_positions(
     merge_formatted.query("channels_min==0"),
     title="Cells with Channel Min = 0",
     color="red",
 )
-fig.savefig(snakemake.output[6])
+fig.savefig(snakemake.output.cells_with_channel_min_0)

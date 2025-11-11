@@ -18,8 +18,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 import skimage.morphology
 from scipy.spatial.distance import cdist
+import matplotlib.colors as mcolors
 
-from lib.merge.merge import build_linear_model
+from lib.merge.fast_merge import build_linear_model
 
 CONFIG_FILE_HEADER = """
 # ~BrieFlow analysis configuration file~
@@ -471,3 +472,166 @@ def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
 
     plt.tight_layout()
     plt.show()
+
+
+def preview_mask_transformations(
+    metadata,
+    root_fp=None,
+    data_type="phenotype",
+    mask_type="nuclei",
+    num_tiles=15,
+    flipud=False,
+    fliplr=False,
+    rot90=0,
+    figsize=(20, 10),
+):
+    """Preview mask transformations (flipud, fliplr, rot90) on the first N tiles.
+
+    Arranged according to coordinate-based stitching estimates.
+    """
+    if root_fp is None:
+        root_fp = Path("/lab/ops_analysis/lourido/nebo-analysis/analysis/analysis_root")
+    else:
+        root_fp = Path(root_fp)
+
+    # Select only the first N tiles to preview
+    first_tiles = metadata.head(num_tiles).copy()
+    well = first_tiles["well"].iloc[0]
+
+    print(
+        f"Testing transformations on first {len(first_tiles)} {data_type} tiles ({mask_type} masks)"
+    )
+    print(f"Transformation: flipud={flipud}, fliplr={fliplr}, rot90={rot90}")
+
+    # --- determine pixel scaling from metadata or fallback ---
+    if data_type == "sbs":
+        tile_size = (1200, 1200)
+        fov_um = 1560.0
+    else:
+        tile_size = (2400, 2400)
+        fov_um = 260.0
+
+    # Use pixel size from metadata if available
+    if "pixel_size_x" in first_tiles.columns and "pixel_size_y" in first_tiles.columns:
+        pixel_size_um = first_tiles["pixel_size_x"].iloc[0]
+        pixels_per_micron = 1.0 / pixel_size_um
+    else:
+        pixels_per_micron = tile_size[0] / fov_um
+
+    # --- compute pixel positions for preview tiles ---
+    coords_um = first_tiles[["x_pos", "y_pos"]].values
+    x_min, y_min = coords_um.min(axis=0)
+    translations = {}
+    for idx, row in first_tiles.iterrows():
+        x_pos, y_pos = row["x_pos"], row["y_pos"]
+        pixel_x = int((x_pos - x_min) * pixels_per_micron)
+        pixel_y = int((y_pos - y_min) * pixels_per_micron)
+        translations[f"{row['well']}/{row['tile']}"] = [pixel_y, pixel_x]
+
+    loaded_tiles, transformed_tiles, coords = [], [], []
+    files_found = 0
+
+    for _, row in first_tiles.iterrows():
+        try:
+            filename = (
+                f"P-{row['plate']}_W-{row['well']}_T-{row['tile']}__{mask_type}.tiff"
+            )
+            tile_path = root_fp / data_type / "images" / filename
+
+            if tile_path.exists():
+                try:
+                    import tifffile
+
+                    tile_data = tifffile.imread(str(tile_path))
+                except ImportError:
+                    from PIL import Image
+
+                    tile_data = np.array(Image.open(str(tile_path)))
+                files_found += 1
+
+                if tile_data.ndim > 2:
+                    if tile_data.shape[0] < 10:  # channels-first
+                        tile_data = np.max(tile_data, axis=0)
+                    else:
+                        tile_data = (
+                            tile_data[..., 0]
+                            if tile_data.shape[-1] < 10
+                            else tile_data[0]
+                        )
+            else:
+                tile_data = np.zeros(tile_size)
+                tile_data[100:150, 100:150] = row["tile"] % 255
+
+            # Apply transformations
+            transformed_tile = tile_data.copy()
+            if rot90 > 0:
+                transformed_tile = np.rot90(transformed_tile, k=rot90)
+            if flipud:
+                transformed_tile = np.flipud(transformed_tile)
+            if fliplr:
+                transformed_tile = np.fliplr(transformed_tile)
+
+            loaded_tiles.append(tile_data)
+            transformed_tiles.append(transformed_tile)
+            coords.append(translations[f"{row['well']}/{row['tile']}"])
+
+        except Exception as e:
+            print(f"Error loading tile {row['tile']}: {e}")
+            placeholder = np.zeros(tile_size)
+            placeholder[100:150, 100:150] = 100
+            loaded_tiles.append(placeholder)
+            transformed_tiles.append(placeholder)
+            coords.append([0, 0])
+
+    print(f"Successfully loaded {files_found}/{len(first_tiles)} mask files")
+
+    # --- compute overall axis limits ---
+    all_x = []
+    all_y = []
+    for tile, (y, x) in zip(loaded_tiles, coords):
+        all_x.extend([x, x + tile.shape[1]])
+        all_y.extend([y, y + tile.shape[0]])
+    x_min_plot, x_max_plot = min(all_x), max(all_x)
+    y_min_plot, y_max_plot = min(all_y), max(all_y)
+
+    # --- plot side by side ---
+    # Suppose tile contains integer labels: 0 = background
+    num_objects = tile.max() + 1  # include 0
+    # Choose a colormap for objects
+    cmap = plt.cm.get_cmap("tab20", num_objects)  # categorical colormap
+
+    # Make background color white
+    colors = cmap(np.arange(num_objects))
+    colors[0] = [1, 1, 1, 1]  # RGBA for background (white)
+    new_cmap = mcolors.ListedColormap(colors)
+
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+    for ax, tiles, title in zip(
+        axes,
+        [loaded_tiles, transformed_tiles],
+        [
+            "Original Tiles",
+            f"Transformed (flipud={flipud}, fliplr={fliplr}, rot90={rot90})",
+        ],
+    ):
+        ax.set_title(title, fontsize=14, weight="bold")
+        ax.set_aspect("equal")
+        ax.axis("off")
+
+        for tile, (y, x) in zip(tiles, coords):
+            ax.imshow(
+                tile,
+                cmap=new_cmap,
+                origin="lower",
+                extent=(x, x + tile.shape[1], y, y + tile.shape[0]),
+            )
+
+        # Set axis limits to encompass all tiles
+        ax.set_xlim(x_min_plot, x_max_plot)
+        ax.set_ylim(y_min_plot, y_max_plot)
+
+    plt.tight_layout()
+    plt.show()
+
+    return {"flipud": flipud, "fliplr": fliplr, "rot90": rot90}

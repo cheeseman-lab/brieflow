@@ -20,6 +20,7 @@ image_array = convert_to_array(
     if data_config["image_data_organization"] == "well"
     else None,
     channel_order_flip=data_config["channel_order_flip"],
+    n_z_planes=data_config.get("n_z_planes"),  # Number of z-planes per channel
     verbose=False,
 )
 

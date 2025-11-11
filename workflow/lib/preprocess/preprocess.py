@@ -37,6 +37,7 @@ def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, Any]:
         - channel_order_flip: Whether to reverse channel order
         - channel_order: List of channels in desired order
         - metadata_samples_df_fp: Path to metadata samples dataframe
+        - n_z_planes: Number of z-planes per channel (None if no z-stacking)
     """
     base_config = config.get("preprocess", {})
 
@@ -54,6 +55,7 @@ def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, Any]:
         "metadata_samples_df_fp": base_config.get(
             f"{image_type}_metadata_samples_df_fp", None
         ),
+        "n_z_planes": base_config.get(f"{image_type}_n_z_planes", None),
     }
 
 
@@ -729,19 +731,32 @@ def convert_nd2_to_array_well(
 def convert_tiff_to_array(
     files: Union[str, List[str], Path, List[Path]],
     channel_order_flip: bool = False,
+    n_z_planes: Optional[int] = None,
     verbose: bool = False,
     **kwargs,
 ) -> np.ndarray:
     """Convert TIFF files to numpy array in CYX format.
 
+    Handles both regular TIFF files and z-split TIFF inputs where multiple
+    files represent different z-planes of the same position.
+
     Args:
         files: Path(s) to TIFF file(s)
         channel_order_flip: Reverse the order of channels
+        n_z_planes: Number of z-planes per channel. If provided, files will be grouped
+                    into chunks of n_z_planes, each chunk stacked along Z and max projected.
+                    For example, n_z_planes=2 with 8 files creates 4 channels (8/2=4).
+                    If None, files are concatenated along channel axis (normal behavior).
         verbose: Print debug information
-        **kwargs: Additional arguments (for compatibility)
+        **kwargs: Additional arguments (for compatibility, including deprecated z_stack)
 
     Returns:
         numpy array in CYX format with dtype uint16
+
+    Notes:
+        - If n_z_planes specified: groups files, stacks each group along Z, max projects to CYX
+        - If n_z_planes is None: files are concatenated along channel axis (normal behavior)
+        - Files should be ordered: [ch0_z0, ch0_z1, ..., ch1_z0, ch1_z1, ..., chN_zM]
     """
     try:
         from tifffile import imread
@@ -754,6 +769,20 @@ def convert_tiff_to_array(
     else:
         files = [Path(f) for f in files]
 
+    # Validate n_z_planes
+    if n_z_planes is not None and n_z_planes > 0:
+        if len(files) % n_z_planes != 0:
+            raise ValueError(
+                f"Number of files ({len(files)}) must be divisible by n_z_planes ({n_z_planes}). "
+                f"Got {len(files) // n_z_planes} complete channels and {len(files) % n_z_planes} remaining files."
+            )
+        n_channels = len(files) // n_z_planes
+        if verbose:
+            print(
+                f"Z-aware stacking: {n_channels} channels × {n_z_planes} z-planes = {len(files)} files"
+            )
+
+    # Read all TIFF files
     image_arrays = []
     for i, file in enumerate(files, 1):
         if verbose:
@@ -762,17 +791,16 @@ def convert_tiff_to_array(
         # Read TIFF file
         img_array = imread(str(file))
 
-        # Ensure we have CYX format
+        # Ensure we have CYX format (even if single channel, should be (1, Y, X))
         if img_array.ndim == 2:
             # Add channel dimension for grayscale
             img_array = np.expand_dims(img_array, axis=0)
         elif img_array.ndim == 3:
             # Assume it's already in CYX format
-            # If your TIFFs are in YXC format, add: img_array = np.transpose(img_array, (2, 0, 1))
             pass
 
-        # Flip channel order if needed
-        if channel_order_flip and img_array.ndim > 2:
+        # Flip channel order if needed (only applies to multi-channel files)
+        if channel_order_flip and img_array.shape[0] > 1:
             img_array = np.flip(img_array, axis=0)
 
         if verbose:
@@ -780,11 +808,68 @@ def convert_tiff_to_array(
 
         image_arrays.append(img_array)
 
-    # Concatenate along channel axis if multiple files
-    if len(image_arrays) == 1:
-        result = image_arrays[0]
+    # Handle z-aware stacking for multi-channel z-stacks
+    if n_z_planes is not None and n_z_planes > 1 and len(image_arrays) > 1:
+        if verbose:
+            print(
+                f"\nZ-aware stacking: Grouping {len(image_arrays)} files into channels of {n_z_planes} z-planes each"
+            )
+
+        channel_results = []
+        for ch_idx in range(n_channels):
+            # Get z-planes for this channel
+            start_idx = ch_idx * n_z_planes
+            end_idx = start_idx + n_z_planes
+            z_planes = image_arrays[start_idx:end_idx]
+
+            if verbose:
+                print(
+                    f"  Channel {ch_idx + 1}/{n_channels}: Stacking z-planes {start_idx} to {end_idx - 1}"
+                )
+
+            # Each z_plane has shape (1, Y, X) for single-channel TIFFs
+            # Stack them along Z axis: (1, Y, X) × n_z_planes → (1, n_z_planes, Y, X)
+            stacked = np.stack(z_planes, axis=1)  # Insert Z after C
+
+            if verbose:
+                print(f"    Stacked shape (CZYX): {stacked.shape}")
+
+            # Max project along Z axis: (1, n_z_planes, Y, X) → (1, Y, X)
+            max_projected = np.max(stacked, axis=1)
+
+            if verbose:
+                print(f"    After max projection (CYX): {max_projected.shape}")
+
+            channel_results.append(max_projected)
+
+        # Concatenate all channels: [(1, Y, X), (1, Y, X), ...] → (n_channels, Y, X)
+        result = np.concatenate(channel_results, axis=0)
+
+        if verbose:
+            print(f"\nFinal concatenated result (CYX): {result.shape}")
+
+    # Handle deprecated z_stack=True behavior (all files as z-planes of one channel)
+    elif n_z_planes == -1 and len(image_arrays) > 1:
+        if verbose:
+            print(
+                f"Deprecated z_stack mode: Stacking {len(image_arrays)} z-planes as single channel"
+            )
+        stacked = np.stack(image_arrays, axis=1)
+        result = np.max(stacked, axis=1)
+        if verbose:
+            print(f"After max projection (CYX): {result.shape}")
+
+    # Normal behavior: concatenate along channel axis
     else:
-        result = np.concatenate(image_arrays, axis=0)
+        if len(image_arrays) == 1:
+            result = image_arrays[0]
+        else:
+            result = np.concatenate(image_arrays, axis=0)
+
+        if verbose and len(image_arrays) > 1:
+            print(
+                f"Concatenated {len(image_arrays)} files along channel axis: {result.shape}"
+            )
 
     return result.astype(np.uint16)
 

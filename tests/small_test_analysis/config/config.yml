@@ -162,4 +162,4 @@ cluster:
     mitotic: 0
   phate_distance_metric: euclidean
   string_pair_benchmark_fp: config/benchmark_clusters/string_pair_benchmark.tsv
-  perturbation_auc_threshold: 0.7
+  perturbation_auc_threshold: null

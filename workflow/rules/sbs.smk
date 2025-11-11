@@ -20,6 +20,7 @@ rule align_sbs:
         upsample_factor=config["sbs"]["upsample_factor"],
         skip_cycles_indices=config["sbs"]["skip_cycles_indices"],
         manual_background_cycle_index=config["sbs"]["manual_background_cycle_index"],
+        manual_channel_mapping=config["sbs"]["manual_channel_mapping"],
     script:
         "../scripts/sbs/align_cycles.py"
 

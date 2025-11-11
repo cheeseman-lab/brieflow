@@ -38,6 +38,7 @@ sbs:
   upsample_factor: 2
   skip_cycles_indices: null
   manual_background_cycle_index: null
+  manual_channel_mapping: null
   extra_channel_indices:
   - 0
   max_filter_width: 3

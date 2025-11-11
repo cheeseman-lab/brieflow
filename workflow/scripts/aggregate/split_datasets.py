@@ -17,8 +17,14 @@ metadata, features = split_cell_data(cell_data, metadata_cols)
 # Classify cells
 import numpy as np
 
-classifier = CellClassifier.load(snakemake.params.classifier_path)
-metadata, features = classifier.classify_cells(metadata, features)
+# Classify cells only if classifier path is provided
+classifier_path = snakemake.params.get("classifier_path")
+if classifier_path is not None:
+    print("Applying cell classification...")
+    classifier = CellClassifier.load(classifier_path)
+    metadata, features = classifier.classify_cells(metadata, features)
+else:
+    print("No classifier specified - skipping cell classification")
 
 # Load all channels
 all_channels = snakemake.params.all_channels

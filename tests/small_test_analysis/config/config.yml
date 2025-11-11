@@ -110,6 +110,11 @@ merge:
   sbs_metadata_cycle: 1
   score: 0.1
   threshold: 2
+  sbs_dedup_prior:
+    mapped_single_gene: false
+    fov_distance_1: true
+  pheno_dedup_prior:
+    fov_distance_0: true
 aggregate:
   agg_method: median
   aggregate_combo_fp: config/aggregate_combo.tsv
@@ -131,6 +136,17 @@ aggregate:
   perturbation_name_col: gene_symbol_0
   variance_or_ncomp: 0.99
   num_align_batches: 1
+  ps_auc_threshold: 0.6
+  perturbation_score_threshold: 0.5
+  skip_perturbation_score: true
+  ps_probability_threshold: null
+  ps_percentile_threshold: null
+  feature_normalization: mad
+  num_sims: 100
+  exclusion_string: null
+  bootstrap_combinations:
+  - cell_class: interphase
+    channel_combo: DAPI_COXIV_CENPA_WGA
 cluster:
   cluster_combo_fp: config/cluster_combo.tsv
   uniprot_data_fp: config/benchmark_clusters/uniprot_data.tsv
@@ -144,5 +160,6 @@ cluster:
     all: 3
     interphase: 3
     mitotic: 0
-  phate_distance_metric: cosine
+  phate_distance_metric: euclidean
   string_pair_benchmark_fp: config/benchmark_clusters/string_pair_benchmark.tsv
+  perturbation_auc_threshold: 0.7

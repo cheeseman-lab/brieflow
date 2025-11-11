@@ -3,8 +3,6 @@ from pathlib import Path
 import pandas as pd
 
 from lib.preprocess.file_utils import get_metadata_wildcard_combos
-from lib.shared.initialize_paramsearch import initialize_segment_sbs_paramsearch
-from lib.shared.initialize_paramsearch import initialize_segment_phenotype_paramsearch
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
@@ -140,10 +138,6 @@ include: "rules/preprocess.smk"
 
 
 if "sbs" in config and len(sbs_wildcard_combos) > 0:
-    # TODO: test and implement segmentation paramsearch for updated brieflow setup
-    # # Initialize parameter search configurations if needed
-    # if config["sbs"]["mode"] == "segment_sbs_paramsearch":
-    #     config = initialize_segment_sbs_paramsearch(config)
 
     # Include target and rule files
     include: "targets/sbs.smk"
@@ -151,10 +145,6 @@ if "sbs" in config and len(sbs_wildcard_combos) > 0:
 
 
 if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
-    # TODO: test and implement segmentation paramsearch for updated brieflow setup
-    # # Initialize parameter search configurations if needed
-    # if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
-    #     config = initialize_segment_phenotype_paramsearch(config)
 
     # Include target and rule files
     include: "targets/phenotype.smk"

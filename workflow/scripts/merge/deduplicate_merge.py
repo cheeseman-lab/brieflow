@@ -20,9 +20,9 @@ sbs_cells = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 phenotype_min_cp = validate_dtypes(pd.read_parquet(snakemake.input[2]))
 
 # Extract configuration parameters
-approach = getattr(snakemake.params, "approach", "fast")
-sbs_dedup_prior = getattr(snakemake.params, "sbs_dedup_prior", None)
-pheno_dedup_prior = getattr(snakemake.params, "pheno_dedup_prior", None)
+approach = snakemake.params.approach
+sbs_dedup_prior = snakemake.params.sbs_dedup_prior
+pheno_dedup_prior = snakemake.params.pheno_dedup_prior
 
 # Perform two-step cell deduplication with statistics tracking
 merge_deduplicated, deduplication_stats = deduplicate_cells(

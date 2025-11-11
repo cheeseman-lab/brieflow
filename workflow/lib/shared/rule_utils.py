@@ -45,19 +45,15 @@ def get_alignment_params(wildcards, config: Dict[str, Any]) -> Dict[str, Any]:
             "source": plate_config["source"],
             "riders": plate_config["riders"],
             "remove_channel": plate_config["remove_channel"],
+            "upsample_factor": plate_config.get("upsample_factor", 2),
+            "window": plate_config.get("window", 2),
         }
 
-        # Add custom alignment parameters if they exist
-        if "custom_align" in plate_config:
-            alignment_params["custom_align"] = True
-            alignment_params["custom_channels"] = plate_config.get(
-                "custom_channels", []
-            )
-            alignment_params["custom_offset_yx"] = plate_config.get(
-                "custom_offset_yx", (0, 0)
-            )
-        else:
-            alignment_params["custom_align"] = False
+        # Add custom channel offsets if they exist
+        if "custom_channel_offsets" in plate_config:
+            alignment_params["custom_channel_offsets"] = plate_config[
+                "custom_channel_offsets"
+            ]
 
         return alignment_params
 
@@ -69,17 +65,15 @@ def get_alignment_params(wildcards, config: Dict[str, Any]) -> Dict[str, Any]:
         "source": config["phenotype"].get("source"),
         "riders": config["phenotype"].get("riders", []),
         "remove_channel": config["phenotype"].get("remove_channel", False),
+        "upsample_factor": config["phenotype"].get("upsample_factor", 2),
+        "window": config["phenotype"].get("window", 2),
     }
 
-    # Add global custom alignment parameters if they exist
-    if "custom_align" in config["phenotype"]:
-        base_params["custom_align"] = config["phenotype"].get("custom_align", False)
-        base_params["custom_channels"] = config["phenotype"].get("custom_channels", [])
-        base_params["custom_offset_yx"] = config["phenotype"].get(
-            "custom_offset_yx", (0, 0)
-        )
-    else:
-        base_params["custom_align"] = False
+    # Add global custom channel offsets if they exist
+    if "custom_channel_offsets" in config["phenotype"]:
+        base_params["custom_channel_offsets"] = config["phenotype"][
+            "custom_channel_offsets"
+        ]
 
     return base_params
 

@@ -159,6 +159,7 @@ def get_segmentation_params(module: str, config: Dict[str, Any]) -> Dict[str, An
         params.update(
             {
                 "cellpose_model": module_config.get("cellpose_model", "cyto3"),
+                "helper_index": module_config.get("helper_index"),
                 "nuclei_diameter": module_config.get("nuclei_diameter"),
                 "cell_diameter": module_config.get("cell_diameter"),
                 "flow_threshold": module_config.get("flow_threshold", 0.4),

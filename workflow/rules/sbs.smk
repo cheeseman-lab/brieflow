@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input
-from lib.shared.rule_utils import get_spot_detection_params, get_segmentation_params
+from lib.shared.rule_utils import get_spot_detection_params, get_segmentation_params, get_call_cells_params
 
 
 # Align images from each sequencing round
@@ -155,26 +155,7 @@ rule call_cells:
     output:
         SBS_OUTPUTS_MAPPED["call_cells"],
     params:
-        df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
-        q_min=config["sbs"]["q_min"],
-        # Single-barcode parameters (backward compatible)
-        barcode_col=config["sbs"].get("barcode_col", "sgRNA"),
-        prefix_col=config["sbs"].get("prefix_col", None),
-        # Multi-barcode cycle parameters (optional)
-        map_start=config["sbs"].get("map_start", None),
-        map_end=config["sbs"].get("map_end", None),
-        map_col=config["sbs"].get("map_col", "prefix_map"),
-        recomb_start=config["sbs"].get("recomb_start", None),
-        recomb_end=config["sbs"].get("recomb_end", None),
-        recomb_col=config["sbs"].get("recomb_col", "prefix_recomb"),
-        recomb_filter_col=config["sbs"].get("recomb_filter_col", None),
-        recomb_q_thresh=config["sbs"].get("recomb_q_thresh", 0.1),
-        # Sorting and error correction
-        error_correct=config["sbs"].get("error_correct", False),
-        sort_calls=config["sbs"].get("sort_calls", "peak"),
-        max_distance=config["sbs"].get("max_distance", 2),
-        # Output customization
-        barcode_info_cols=config["sbs"].get("barcode_info_cols", None),
+        config=lambda wildcards: get_call_cells_params(config),
     script:
         "../scripts/sbs/call_cells.py"
 
@@ -283,58 +264,11 @@ rule eval_mapping:
         SBS_OUTPUTS_MAPPED["eval_mapping"],
     params:
         df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
-        sort_by=config["sbs"]["sort_calls"],      
+        sort_by=config["sbs"]["sort_calls"],
+        barcode_type=config["sbs"].get("barcode_type", "simple"),
+        sequencing_order=config["sbs"].get("sequencing_order", "map_recomb"),      
     script:
         "../scripts/sbs/eval_mapping.py"
-
-
-# TODO: test and implement segmentation paramsearch for updated brieflow setup
-# if config["sbs"]["mode"] == "segment_sbs_paramsearch":
-#     rule segment_sbs_paramsearch:
-#         input:
-#             SBS_OUTPUTS["apply_ic_field_sbs"],
-#         output:
-#             SBS_OUTPUTS_MAPPED["segment_sbs_paramsearch"],
-#         params:
-#             dapi_index=config["sbs"]["dapi_index"],
-#             cyto_index=config["sbs"]["cyto_index"],
-#             nuclei_diameter=lambda wildcards: float(wildcards.nuclei_diameter),
-#             cell_diameter=lambda wildcards: float(wildcards.cell_diameter),
-#             cyto_model=config["sbs"]["cyto_model"],
-#             flow_threshold=lambda wildcards: float(wildcards.flow_threshold),
-#             cellprob_threshold=lambda wildcards: float(wildcards.cellprob_threshold),
-#             return_counts=True,
-#             gpu=config["sbs"]["gpu"],
-#         script:
-#             "../scripts/shared/segment_cellpose.py"
-
-#     rule summarize_segment_sbs_paramsearch:
-#         input:
-#             lambda wildcards: output_to_input(
-#                 SBS_OUTPUTS["segment_sbs_paramsearch"][2::3],
-#                 {
-#                     "well": SBS_WELLS,
-#                     "tile": SBS_TILES,
-#                     "nuclei_diameter": SBS_WILDCARDS["nuclei_diameter"],
-#                     "cell_diameter": SBS_WILDCARDS["cell_diameter"],
-#                     "flow_threshold": SBS_WILDCARDS["flow_threshold"],
-#                     "cellprob_threshold": SBS_WILDCARDS["cellprob_threshold"],
-#                 },
-#                 wildcards,
-#             ),
-#         output:
-#             SBS_OUTPUTS_MAPPED["summarize_segment_sbs_paramsearch"],
-#         params:
-#             segmentation="sbs",
-#             dapi_index=config["sbs"]["dapi_index"],
-#             cyto_index=config["sbs"]["cyto_index"],
-#             cell_diameter=config["sbs"]["cell_diameter"],
-#             nuclei_diameter=config["sbs"]["nuclei_diameter"],
-#             cellprob_threshold=config["sbs"]["cellprob_threshold"],
-#             flow_threshold=config["sbs"]["flow_threshold"],
-#             output_type="tsv",
-#         script:
-#             "../scripts/shared/eval_segmentation_paramsearch.py"
 
 
 # rule for all sbs processing steps

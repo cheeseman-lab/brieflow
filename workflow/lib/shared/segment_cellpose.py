@@ -300,7 +300,7 @@ def estimate_diameters(
     if CELLPOSE_4X:
         raise NotImplementedError(
             "Automatic diameter estimation is not supported with Cellpose 4.x. "
-            "SizeModel does not exist in Cellpose 4.x API. "
+            "SizeModel is not available in Cellpose 4.x. "
             "Please specify nuclei_diameter and cell_diameter explicitly in your config, "
             "or downgrade to Cellpose 3.x: uv pip install cellpose==3.1.0"
         )
@@ -400,7 +400,7 @@ def segment_cellpose_rgb(
             f"Upgrade with: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
         )
 
-    # Instantiate CellposeModel with version-specific API
+    # Create Cellpose models (different parameters for Cellpose 3.x vs 4.x)
     if CELLPOSE_4X:
         # Cellpose 4.x: Use pretrained_model parameter
         model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
@@ -498,7 +498,7 @@ def segment_cellpose_nuclei_rgb(
     Returns:
         numpy.ndarray: Labeled segmentation mask of nuclei.
     """
-    # Instantiate CellposeModel with version-specific API
+    # Create Cellpose model (different parameters for Cellpose 3.x vs 4.x)
     if CELLPOSE_4X:
         # Cellpose 4.x: Use cpsam model
         model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)

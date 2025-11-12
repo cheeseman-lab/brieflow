@@ -1,6 +1,6 @@
 """Unified utility functions for calling cells from sequencing reads.
 
-This module supports both single-barcode and multi-barcode protocols with a unified API.
+This module supports both single-barcode and multi-barcode protocols with consistent function signatures.
 Outputs are standardized across all modes for consistent downstream processing.
 """
 

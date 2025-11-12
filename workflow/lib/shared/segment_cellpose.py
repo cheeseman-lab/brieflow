@@ -21,7 +21,7 @@ Cellpose 4.x (4.0.4+):
 - Supports ONLY cpsam model
 - Standard models (cyto3, nuclei) NOT supported in 4.x
 - Automatic diameter estimation NOT supported (specify diameters in config)
-- Upgrade: pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0
+- Upgrade: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0
 
 The code will automatically detect your Cellpose version and raise clear errors
 for incompatible model/version combinations.
@@ -286,7 +286,7 @@ def estimate_diameters(
             "Automatic diameter estimation is not supported with Cellpose 4.x. "
             "SizeModel does not exist in Cellpose 4.x API. "
             "Please specify nuclei_diameter and cell_diameter explicitly in your config, "
-            "or downgrade to Cellpose 3.x: pip install cellpose==3.1.0"
+            "or downgrade to Cellpose 3.x: uv pip install cellpose==3.1.0"
         )
 
     # Import SizeModel only for Cellpose 3.x (doesn't exist in 4.x)
@@ -375,13 +375,13 @@ def segment_cellpose_rgb(
             f"Model '{cyto_model}' requires Cellpose 3.x. "
             f"Cellpose 4.x only supports the 'cpsam' model. "
             f"Either change your config to use model='cpsam', "
-            f"or downgrade Cellpose: pip install cellpose==3.1.0"
+            f"or downgrade Cellpose: uv pip install cellpose==3.1.0"
         )
     if not CELLPOSE_4X and cyto_model == "cpsam":
         raise ValueError(
             f"CPSAM model requires Cellpose 4.x. "
             f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
-            f"Upgrade with: pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
+            f"Upgrade with: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
         )
 
     # Instantiate CellposeModel with version-specific API

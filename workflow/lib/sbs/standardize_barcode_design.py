@@ -7,16 +7,21 @@ functions for quality control.
 
 import pandas as pd
 import warnings
-from typing import Optional, Union, List, Callable
+from typing import Optional, List, Callable
 
 
 def standardize_barcode_design(
     df_design: pd.DataFrame,
-    barcode_col: str = "sgRNA",
+    prefix_map: str = "iBAR2",
+    prefix_recomb: Optional[str] = None,
     gene_symbol_col: Optional[str] = "gene_symbol",
     gene_id_col: Optional[str] = None,
-    prefix_func: Optional[Callable] = None,
-    prefix_length: Optional[int] = None,
+    prefix_map_func: Optional[Callable] = None,
+    prefix_recomb_func: Optional[Callable] = None,
+    map_prefix_length: Optional[int] = None,
+    recomb_prefix_length: Optional[int] = None,
+    skip_cycles_map: Optional[List[int]] = None,
+    skip_cycles_recomb: Optional[List[int]] = None,
     filter_func: Optional[Callable] = None,
     drop_duplicates: bool = True,
     keep_extra_cols: bool = False,
@@ -24,6 +29,7 @@ def standardize_barcode_design(
     standardize_nontargeting: bool = True,
     nontargeting_patterns: List[str] = ["nontargeting", "sg_nt", "non-targeting"],
     nontargeting_format: str = "nontargeting_{prefix}",
+    nontargeting_pattern_map: Optional[dict] = None,
     uniprot_data_path: str = None,
     verbose: bool = True,
 ) -> pd.DataFrame:
@@ -35,15 +41,22 @@ def standardize_barcode_design(
 
     Args:
         df_design (pd.DataFrame): Input barcode design table
-        barcode_col (str): Name of column containing barcode sequences (default: "sgRNA")
+        prefix_map (str): Name of column containing barcode sequences for mapping (default: "iBAR2")
+        prefix_recomb (str, optional): Name of column containing barcodes used to calculate recombination (optional)
         gene_symbol_col (str, optional): Name of column containing gene symbols.
             If None, will create empty gene_symbol column
         gene_id_col (str, optional): Name of column containing gene IDs.
             Optional - only included if user wants additional gene identifiers
-        prefix_func (callable, optional): Custom function to generate prefixes that match
+        prefix_map_func (callable, optional): Custom function to generate prefixes for mapping that match
             experimental read structure. Function should take a row and return the prefix string.
-        prefix_length (int, optional): Length of barcode prefix for simple truncation.
-            Should match the length of experimental read barcodes. Ignored if prefix_func is provided.
+        prefix_recomb_func (callable, optional): Custom function to generate prefixes for recombination that match
+            experimental read structure. Function should take a row and return the prefix string.
+        map_prefix_length (int, optional): Length of barcode prefix for prefix_map (mapping).
+            Should match the length of experimental read barcodes for mapping. Ignored if prefix_map_func is provided.
+        recomb_prefix_length (int, optional): Length of barcode prefix for prefix_recomb (recombination).
+            Should match the length of experimental read barcodes for recombination. Ignored if prefix_recomb_func is provided.
+        skip_cycles_map (List[int], optional): List of 1-based cycle numbers to skip in prefix_map when generating prefix.
+        skip_cycles_recomb (List[int], optional): List of 1-based cycle numbers to skip in recomb_prefix when generating prefix_recomb.
         filter_func (callable, optional): Custom function to filter rows.
             Function should take dataframe and return filtered dataframe.
             If None, no filtering is applied.
@@ -55,16 +68,23 @@ def standardize_barcode_design(
             Case-insensitive matching against gene symbols (default: ["nontargeting", "sg_nt", "non-targeting"])
         nontargeting_format (str): Format string for standardized non-targeting names
             Use {prefix} placeholder for barcode prefix, {original} for original name
+        nontargeting_pattern_map (dict, optional): Mapping of specific patterns to custom formats
+            Example: {
+                "intergenic": "nontargeting_intergenic_{prefix}",
+                "nontargeting": "nontargeting_noncutting_{prefix}"
+            }
+            If None, uses default nontargeting_format for all patterns
         uniprot_data_path (str): Path to UniProt annotation file (REQUIRED for gene validation)
         verbose (bool): Whether to print processing information (default: True)
 
     Returns:
         pd.DataFrame: Standardized barcode design table with columns:
-            - sgRNA: barcode sequences
+            - prefix_map: barcode sequences
             - gene_symbol: gene symbols
             - gene_id: gene identifiers (optional, only if gene_id_col provided)
             - prefix: barcode prefixes for matching
             - uniprot_entry: UniProt entry ID (REQUIRED)
+            - prefix_recomb: recombined barcode sequences (optional, only if prefix_recomb provided)
             - (additional columns if keep_extra_cols=True)
 
     Raises:
@@ -84,9 +104,9 @@ def standardize_barcode_design(
     df = df_design.copy()
 
     # Validate required barcode column exists
-    if barcode_col not in df.columns:
+    if prefix_map not in df.columns:
         raise ValueError(
-            f"Barcode column '{barcode_col}' not found in design table. "
+            f"Barcode column '{prefix_map}' not found in design table. "
             f"Available columns: {list(df.columns)}"
         )
 
@@ -97,11 +117,23 @@ def standardize_barcode_design(
         if verbose:
             print(f"Applied custom filter: {initial_count} → {len(df)} entries")
 
-    # Rename barcode column to standard name
-    if barcode_col != "sgRNA":
-        df = df.rename(columns={barcode_col: "sgRNA"})
+    # Rename barcode column to standard name "prefix_map"
+    if prefix_map != "prefix_map":
+        df = df.rename(columns={prefix_map: "prefix_map"})
         if verbose:
-            print(f"Renamed '{barcode_col}' column to 'sgRNA'")
+            print(f"Renamed '{prefix_map}' column to 'prefix_map'")
+
+    # Handle prefix_recomb column if provided
+    if prefix_recomb is not None:
+        if prefix_recomb not in df.columns:
+            raise ValueError(
+                f"Recombined barcode column '{prefix_recomb}' not found in design table. "
+                f"Available columns: {list(df.columns)}"
+            )
+        if prefix_recomb != "prefix_recomb":
+            df = df.rename(columns={prefix_recomb: "prefix_recomb"})
+            if verbose:
+                print(f"Renamed '{prefix_recomb}' column to 'prefix_recomb'")
 
     # Handle gene symbol column
     if gene_symbol_col is not None and gene_symbol_col in df.columns:
@@ -127,42 +159,93 @@ def standardize_barcode_design(
         warnings.warn(
             f"Gene ID column '{gene_id_col}' not found. Skipping gene_id column."
         )
-    # Note: gene_id column is optional, so we don't create an empty one if not provided
 
     # Remove any rows with missing barcodes
     initial_count = len(df)
-    df = df.dropna(subset=["sgRNA"])
+    df = df.dropna(subset=["prefix_map"])
     if len(df) < initial_count and verbose:
         print(f"Removed {initial_count - len(df)} entries with missing barcodes")
 
     # Drop duplicates if requested (before prefix generation to avoid issues)
     if drop_duplicates:
         initial_count = len(df)
-        df = df.drop_duplicates(subset=["sgRNA"])
+        df = df.drop_duplicates(subset=["prefix_map"])
         if len(df) < initial_count and verbose:
             print(f"Removed {initial_count - len(df)} duplicate barcodes")
 
-    # Generate prefix column
-    if prefix_func is not None:
+    # [PREFIX GENERATION CODE REMAINS THE SAME...]
+    # Generate prefix_map column for mapping (truncate or modify in place)
+    if prefix_map_func is not None:
         # Use custom prefix function
-        df["prefix"] = df.apply(prefix_func, axis=1)
+        df["prefix_map"] = df.apply(prefix_map_func, axis=1)
         if verbose:
-            print("Generated prefixes using custom function")
+            print("Modified 'prefix_map' using custom function")
+    elif skip_cycles_map is not None:
+        # Use skip_cycles_prefix_function for prefix_map
+        if map_prefix_length is not None and skip_cycles_map is not None:
+            prefix_length = map_prefix_length - len(skip_cycles_map)
+        else:
+            prefix_length = map_prefix_length
+        prefix_func_map = create_skip_cycles_prefix_function(
+            skip_cycles=skip_cycles_map,
+            prefix_length=prefix_length,
+            column_name="prefix_map",
+        )
+        df["prefix_map"] = df.apply(prefix_func_map, axis=1)
+        if verbose:
+            print(
+                f"Modified 'prefix_map' using skip_cycles_prefix_function (skip_cycles={skip_cycles_map}, length={map_prefix_length})"
+            )
     else:
-        # Use simple truncation
-        if prefix_length is None:
+        # Use map_prefix_length for prefix_map
+        if map_prefix_length is None:
             # Use full barcode length as default
-            barcode_lengths = df["sgRNA"].str.len()
-            prefix_length = int(barcode_lengths.mode()[0])  # Most common length
+            barcode_lengths = df["prefix_map"].astype(str).str.len()
+            map_prefix_length = int(barcode_lengths.mode()[0])  # Most common length
             if verbose:
-                print(f"Using full barcode length ({prefix_length}) for prefix")
-
-        df["prefix"] = df["sgRNA"].str[:prefix_length]
+                print(
+                    f"Using full barcode length ({map_prefix_length}) for 'prefix_map'"
+                )
+        df["prefix_map"] = df["prefix_map"].astype(str).str[:map_prefix_length]
         if verbose:
-            print(f"Generated prefixes using truncation (length={prefix_length})")
+            print(
+                f"Modified 'prefix_map' using truncation (length={map_prefix_length})"
+            )
+
+    # Generate prefix_recomb column if present
+    if "prefix_recomb" in df.columns:
+        if prefix_recomb_func is not None:
+            # Use custom prefix function for recomb
+            df["prefix_recomb"] = df.apply(prefix_recomb_func, axis=1)
+            if verbose:
+                print("Modified 'prefix_recomb' using custom function")
+        elif skip_cycles_recomb is not None:
+            # Use skip_cycles_prefix_function for prefix_recomb
+            if recomb_prefix_length is not None and skip_cycles_recomb is not None:
+                prefix_length = recomb_prefix_length - len(skip_cycles_recomb)
+            else:
+                prefix_length = recomb_prefix_length
+            prefix_func_recomb = create_skip_cycles_prefix_function(
+                skip_cycles=skip_cycles_recomb,
+                prefix_length=prefix_length,
+                column_name="prefix_recomb",
+            )
+            df["prefix_recomb"] = df.apply(prefix_func_recomb, axis=1)
+            if verbose:
+                print(
+                    f"Modified 'prefix_recomb' using skip_cycles_prefix_function (skip_cycles={skip_cycles_recomb}, length={recomb_prefix_length})"
+                )
+        elif recomb_prefix_length is not None:
+            df["prefix_recomb"] = (
+                df["prefix_recomb"].astype(str).str[:recomb_prefix_length]
+            )
+            if verbose:
+                print(
+                    f"Modified 'prefix_recomb' using truncation (length={recomb_prefix_length})"
+                )
 
     # Validate prefix generation
-    if df["prefix"].isna().any():
+    if df["prefix_map"].isna().any():
         warnings.warn(
             "Some prefixes could not be generated. Check your prefix function or barcode data."
         )
@@ -173,12 +256,13 @@ def standardize_barcode_design(
             df, gene_symbol_col="gene_symbol", verbose=verbose
         )
 
-    # Standardize non-targeting controls if requested (BEFORE UniProt annotation)
+    # Standardize non-targeting controls with pattern mapping
     if standardize_nontargeting and "gene_symbol" in df.columns:
         df = standardize_nontargeting_controls(
             df,
             nontargeting_patterns=nontargeting_patterns,
             nontargeting_format=nontargeting_format,
+            nontargeting_pattern_map=nontargeting_pattern_map,
             verbose=verbose,
         )
 
@@ -200,11 +284,13 @@ def standardize_barcode_design(
             )
 
     # Organize columns
-    required_cols = ["sgRNA", "gene_symbol", "prefix", "uniprot_entry"]
+    required_cols = ["prefix_map", "gene_symbol", "uniprot_entry"]
     if "gene_id" in df.columns:
         required_cols.insert(
             2, "gene_id"
         )  # Insert gene_id after gene_symbol if present
+    if "prefix_recomb" in df.columns:
+        required_cols.append("prefix_recomb")
 
     if keep_extra_cols:
         # Keep additional columns that might be useful
@@ -370,37 +456,48 @@ def standardize_nontargeting_controls(
         "non-targeting",
     ],
     nontargeting_format: str = "nontargeting_{prefix}",
+    nontargeting_pattern_map: Optional[dict] = None,
     gene_symbol_col: str = "gene_symbol",
-    prefix_col: str = "prefix",
+    prefix_col: str = "prefix_map",
     verbose: bool = True,
 ) -> pd.DataFrame:
-    """Standardize non-targeting control naming and annotation.
+    """Standardize non-targeting control naming and annotation with support for different control types.
 
     Identifies non-targeting controls based on patterns in gene symbols and standardizes
-    their naming to a consistent format. Also handles their UniProt annotation specially.
+    their naming to a consistent format. Supports mapping different patterns to different
+    standardized formats (e.g., intergenic_controls -> nontargeting_intergenic).
 
     Args:
         df (pd.DataFrame): DataFrame with gene symbols and prefixes
-        nontargeting_patterns (List[str]): Patterns to identify non-targeting controls
+        nontargeting_patterns (List[str]): Default patterns to identify non-targeting controls
             Case-insensitive matching against gene symbols
-        nontargeting_format (str): Format string for standardized names
+        nontargeting_format (str): Default format string for standardized names
             Use {prefix} placeholder for barcode prefix, {original} for original name
+        nontargeting_pattern_map (dict, optional): Mapping of specific patterns to custom formats
+            Example: {
+                "intergenic": "nontargeting_intergenic_{prefix}",
+                "nontargeting": "nontargeting_noncutting_{prefix}"
+            }
+            If None, uses default nontargeting_format for all patterns
         gene_symbol_col (str): Column containing gene symbols (default: "gene_symbol")
-        prefix_col (str): Column containing barcode prefixes (default: "prefix")
+        prefix_col (str): Column containing barcode prefixes (default: "prefix_map")
         verbose (bool): Whether to print processing information
 
     Returns:
         pd.DataFrame: DataFrame with standardized non-targeting control names
 
     Examples:
-        # Detect common patterns and rename
+        # Basic usage (backward compatible)
         df = standardize_nontargeting_controls(df)
 
-        # Custom patterns and format
+        # Enhanced usage with pattern mapping
         df = standardize_nontargeting_controls(
             df,
-            nontargeting_patterns=["neg", "scramble", "control"],
-            nontargeting_format="ctrl_{prefix}"
+            nontargeting_patterns=["nontargeting", "intergenic_controls"],
+            nontargeting_pattern_map={
+                "intergenic": "nontargeting_intergenic_{prefix}",
+                "nontargeting": "nontargeting_noncutting_{prefix}"
+            }
         )
     """
     result_df = df.copy()
@@ -417,48 +514,115 @@ def standardize_nontargeting_controls(
         )
         return result_df
 
-    # Create case-insensitive pattern matching - fix the regex construction
-    # Join patterns first, then add the case-insensitive flag
-    pattern_regex = "|".join(nontargeting_patterns)
+    # Store original names for reference
+    if "original_gene_symbol" not in result_df.columns:
+        result_df["original_gene_symbol"] = result_df[gene_symbol_col].copy()
 
-    # Find non-targeting controls using case-insensitive matching
-    nontargeting_mask = (
-        result_df[gene_symbol_col]
-        .astype(str)
-        .str.contains(pattern_regex, na=False, regex=True, case=False)
-    )
+    total_processed = 0
+    pattern_counts = {}
 
-    if nontargeting_mask.any():
-        n_nontargeting = nontargeting_mask.sum()
+    # If pattern_map is provided, process each pattern individually
+    if nontargeting_pattern_map is not None:
+        for pattern, custom_format in nontargeting_pattern_map.items():
+            # Find matches for this specific pattern (case-insensitive)
+            pattern_mask = (
+                result_df[gene_symbol_col]
+                .astype(str)
+                .str.contains(pattern, na=False, regex=True, case=False)
+            )
 
-        # Store original names for reference
-        if "original_gene_symbol" not in result_df.columns:
-            result_df["original_gene_symbol"] = result_df[gene_symbol_col].copy()
+            if pattern_mask.any():
+                n_matches = pattern_mask.sum()
+                pattern_counts[pattern] = n_matches
+                total_processed += n_matches
 
-        # Generate standardized names
-        standardized_names = []
-        for idx, row in result_df[nontargeting_mask].iterrows():
-            prefix = str(row[prefix_col])
-            original = str(row[gene_symbol_col])
+                # Generate standardized names for this pattern
+                standardized_names = []
+                for _, row in result_df[pattern_mask].iterrows():
+                    prefix = str(row[prefix_col])
+                    original = str(row[gene_symbol_col])
+                    # Format the new name using custom format for this pattern
+                    new_name = custom_format.format(prefix=prefix, original=original)
+                    standardized_names.append(new_name)
 
-            # Format the new name
-            new_name = nontargeting_format.format(prefix=prefix, original=original)
-            standardized_names.append(new_name)
+                # Apply standardized names
+                result_df.loc[pattern_mask, gene_symbol_col] = standardized_names
 
-        # Apply standardized names
-        result_df.loc[nontargeting_mask, gene_symbol_col] = standardized_names
+                if verbose:
+                    print(
+                        f"Applied pattern '{pattern}' → '{custom_format}': {n_matches} controls"
+                    )
 
-        if verbose:
-            print(f"Standardized {n_nontargeting} non-targeting controls:")
-            print(f"  - Detected patterns: {nontargeting_patterns}")
-            print(f"  - New format: {nontargeting_format}")
-            print(f"  - Examples:")
-            for i, (old, new) in enumerate(
-                zip(
-                    result_df.loc[nontargeting_mask, "original_gene_symbol"].head(3),
-                    result_df.loc[nontargeting_mask, gene_symbol_col].head(3),
-                )
-            ):
+    # Process any remaining patterns not covered by pattern_map using default format
+    if nontargeting_patterns:
+        # Create a combined pattern for remaining matches, excluding already processed patterns
+        remaining_patterns = nontargeting_patterns.copy()
+
+        # Remove patterns already processed via pattern_map
+        if nontargeting_pattern_map is not None:
+            for processed_pattern in nontargeting_pattern_map.keys():
+                # Remove exact matches and partial matches
+                remaining_patterns = [
+                    p for p in remaining_patterns if processed_pattern not in p.lower()
+                ]
+
+        if remaining_patterns:
+            # Create regex for remaining patterns
+            pattern_regex = "|".join(remaining_patterns)
+
+            # Find matches that haven't been processed yet
+            remaining_mask = (
+                result_df[gene_symbol_col]
+                .astype(str)
+                .str.contains(pattern_regex, na=False, regex=True, case=False)
+            )
+
+            # Exclude already processed entries (those that have been standardized)
+            already_standardized = result_df[gene_symbol_col].str.startswith(
+                "nontargeting_", na=False
+            )
+            remaining_mask = remaining_mask & ~already_standardized
+
+            if remaining_mask.any():
+                n_remaining = remaining_mask.sum()
+                total_processed += n_remaining
+
+                # Generate standardized names using default format
+                standardized_names = []
+                for _, row in result_df[remaining_mask].iterrows():
+                    prefix = str(row[prefix_col])
+                    original = str(row[gene_symbol_col])
+                    # Format the new name using default format
+                    new_name = nontargeting_format.format(
+                        prefix=prefix, original=original
+                    )
+                    standardized_names.append(new_name)
+
+                # Apply standardized names
+                result_df.loc[remaining_mask, gene_symbol_col] = standardized_names
+
+                if verbose:
+                    print(
+                        f"Applied default format to remaining patterns: {n_remaining} controls"
+                    )
+                    print(f"  - Patterns: {remaining_patterns}")
+                    print(f"  - Format: {nontargeting_format}")
+
+    if verbose and total_processed > 0:
+        print(f"\nTotal standardized non-targeting controls: {total_processed}")
+        if pattern_counts:
+            for pattern, count in pattern_counts.items():
+                print(f"  - {pattern}: {count} controls")
+
+        # Show examples
+        nontargeting_examples = result_df[
+            result_df[gene_symbol_col].str.startswith("nontargeting_", na=False)
+        ]
+        if len(nontargeting_examples) > 0:
+            print(f"\nExample transformations:")
+            for i, (_, row) in enumerate(nontargeting_examples.head(3).iterrows()):
+                old = row.get("original_gene_symbol", "N/A")
+                new = row[gene_symbol_col]
                 print(f"    '{old}' → '{new}'")
 
     return result_df
@@ -497,7 +661,7 @@ def add_uniprot_annotation(
     nontargeting_mask = (
         df_with_idx["gene_symbol"].astype(str).str.startswith("nontargeting_", na=False)
     )
-
+    # nontargeting_mask is not used further, but kept for clarity
     # Process all rows together, but handle annotation differently
     df_annotated = df_with_idx.merge(
         uniprot_data[["gene_name", "uniprot_entry"]],
@@ -640,18 +804,22 @@ def validate_gene_symbols(
 
 
 def get_barcode_list(
-    df_barcode_library: pd.DataFrame, use_prefix: bool = True
+    df_barcode_library: pd.DataFrame,
+    use_prefix: bool = True,
+    sequencing_order: str = "map_recomb",
 ) -> List[str]:
     """Extract list of barcodes for mapping validation.
 
     Args:
         df_barcode_library (pd.DataFrame): Standardized barcode design table
         use_prefix (bool): Whether to return prefixes or full barcodes
+        sequencing_order (str): Order of concatenating prefixes. Options:
+                                'map_recomb' or 'recomb_map'.
 
     Returns:
         List[str]: List of barcode sequences
     """
-    required_columns = ["sgRNA", "gene_symbol", "prefix", "uniprot_entry"]
+    required_columns = ["prefix_map", "prefix_recomb", "gene_symbol", "uniprot_entry"]
 
     # Check required columns exist
     missing_cols = [
@@ -661,9 +829,20 @@ def get_barcode_list(
         raise ValueError(f"Missing required columns: {missing_cols}")
 
     if use_prefix:
-        return df_barcode_library["prefix"].tolist()
+        if sequencing_order == "map_recomb":
+            return (
+                df_barcode_library["prefix_map"] + df_barcode_library["prefix_recomb"]
+            ).tolist()
+        elif sequencing_order == "recomb_map":
+            return (
+                df_barcode_library["prefix_recomb"] + df_barcode_library["prefix_map"]
+            ).tolist()
+        else:
+            raise ValueError(
+                f"Invalid sequencing_order: {sequencing_order}. Must be 'map_recomb' or 'recomb_map'."
+            )
     else:
-        return df_barcode_library["sgRNA"].tolist()
+        return df_barcode_library["prefix_map"].tolist()
 
 
 # Helper functions for common manipulations
@@ -676,14 +855,17 @@ def create_dialout_filter(dialout_values: List):
     return filter_func
 
 
-def create_dynamic_prefix_function(prefix_length_col: str = "prefix_length"):
+def create_dynamic_prefix_function(
+    prefix_length_col: str = "prefix_length", column_name: str = "prefix_map"
+):
     """Create a prefix function that uses a column to determine prefix length for each row.
 
     Args:
         prefix_length_col (str): Name of column containing prefix lengths
+        column_name (str): Name of column containing the barcode sequences to process
 
     Returns:
-        callable: Function that can be used as prefix_func in standardize_barcode_design
+        callable: Function that can be used as prefix_map_func or prefix_recomb_func in standardize_barcode_design
     """
 
     def prefix_func(row):
@@ -693,41 +875,54 @@ def create_dynamic_prefix_function(prefix_length_col: str = "prefix_length"):
                 f"Available columns: {list(row.index)}"
             )
 
+        if column_name not in row.index:
+            raise ValueError(
+                f"Column '{column_name}' not found in row. "
+                f"Available columns: {list(row.index)}"
+            )
+
         prefix_length = row[prefix_length_col]
         if pd.isna(prefix_length):
-            # If prefix_length is NaN, use full sgRNA
-            return row["sgRNA"]
+            # If prefix_length is NaN, use full sequence
+            return row[column_name]
 
         # Convert to int if it's not already
         prefix_length = int(prefix_length)
 
-        return row["sgRNA"][:prefix_length]
+        return row[column_name][:prefix_length]
 
     return prefix_func
 
 
 def create_skip_cycles_prefix_function(
-    skip_cycles, prefix_length: Optional[int] = None
+    skip_cycles, prefix_length: Optional[int] = None, column_name: str = "prefix_map"
 ):
     """Create a prefix function that skips specified cycles when building prefixes.
 
     Args:
         skip_cycles (list): List of cycle numbers to skip (1-based, e.g., [1, 5])
         prefix_length (int, optional): Length of prefix to return. If None, returns full prefix.
+        column_name (str): Name of column containing the barcode sequences to process
 
     Returns:
-        callable: Function that can be used as prefix_func in standardize_barcode_design
+        callable: Function that can be used as prefix_map_func or prefix_recomb_func in standardize_barcode_design
     """
 
     def prefix_func(row):
-        sgRNA = row["sgRNA"]
+        if column_name not in row.index:
+            raise ValueError(
+                f"Column '{column_name}' not found in row. "
+                f"Available columns: {list(row.index)}"
+            )
+
+        barcode = row[column_name]
 
         # Convert 1-based cycle numbers to 0-based indices
         skip_indices = [cycle - 1 for cycle in skip_cycles]
 
         # Create list of characters, skipping the specified cycles
         prefix_chars = []
-        for i, char in enumerate(sgRNA):
+        for i, char in enumerate(barcode):
             if i not in skip_indices:
                 prefix_chars.append(char)
 

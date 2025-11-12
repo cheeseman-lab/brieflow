@@ -428,3 +428,63 @@ def get_bootstrap_construct_outputs(
         )
 
     return outputs
+
+
+def get_call_cells_params(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract call_cells parameters based on barcode_type.
+
+    Returns only the parameters needed for the call_cells rule based on
+    whether barcode_type is "simple" or "multi". This avoids manual
+    parameter enumeration in Snakemake rules.
+
+    Args:
+        config: Full Snakemake config dictionary
+
+    Returns:
+        Dictionary with parameters for call_cells rule
+    """
+    sbs_config = config["sbs"]
+    barcode_type = sbs_config.get("barcode_type", "simple")
+
+    # Common parameters for both modes
+    params = {
+        "barcode_type": barcode_type,
+        "df_barcode_library_fp": sbs_config["df_barcode_library_fp"],
+        "q_min": sbs_config.get("q_min", 0),
+        "error_correct": sbs_config.get("error_correct", False),
+        "sort_calls": sbs_config.get("sort_calls", "peak"),
+        "max_distance": sbs_config.get("max_distance", 2),
+        "barcode_info_cols": sbs_config.get("barcode_info_cols", None),
+    }
+
+    if barcode_type == "simple":
+        # Single-barcode parameters
+        params.update({
+            "barcode_col": sbs_config.get("barcode_col", "sgRNA"),
+            "prefix_col": sbs_config.get("prefix_col", None),
+            # Multi-barcode params explicitly None for clarity
+            "map_start": None,
+            "map_end": None,
+            "recomb_start": None,
+            "recomb_end": None,
+        })
+    elif barcode_type == "multi":
+        # Multi-barcode parameters
+        params.update({
+            "barcode_col": None,  # Not used in multi mode
+            "prefix_col": None,   # Not used in multi mode
+            "map_start": sbs_config.get("map_start"),
+            "map_end": sbs_config.get("map_end"),
+            "map_col": sbs_config.get("map_col", "prefix_map"),
+            "recomb_start": sbs_config.get("recomb_start"),
+            "recomb_end": sbs_config.get("recomb_end"),
+            "recomb_col": sbs_config.get("recomb_col", "prefix_recomb"),
+            "recomb_filter_col": sbs_config.get("recomb_filter_col", None),
+            "recomb_q_thresh": sbs_config.get("recomb_q_thresh", 0.1),
+        })
+    else:
+        raise ValueError(
+            f"Invalid barcode_type: '{barcode_type}'. Must be 'simple' or 'multi'"
+        )
+
+    return params

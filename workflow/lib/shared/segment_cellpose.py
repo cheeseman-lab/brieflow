@@ -45,7 +45,23 @@ from lib.shared.segmentation_utils import (
 )
 
 # Detect Cellpose version for compatibility checks
-CELLPOSE_VERSION = tuple(map(int, cellpose.__version__.split(".")[:2]))
+try:
+    # Use importlib.metadata as primary method (most reliable, standard since Python 3.8)
+    from importlib.metadata import version
+
+    cellpose_version_str = version("cellpose")
+    CELLPOSE_VERSION = tuple(map(int, cellpose_version_str.split(".")[:2]))
+except Exception:
+    try:
+        # Fallback to __version__ attribute if metadata fails
+        if hasattr(cellpose, "__version__"):
+            CELLPOSE_VERSION = tuple(map(int, cellpose.__version__.split(".")[:2]))
+        else:
+            raise AttributeError("No version found")
+    except Exception:
+        # Safe default: assume version 3.x for backward compatibility
+        CELLPOSE_VERSION = (3, 0)
+
 CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
 
 
@@ -407,8 +423,18 @@ def segment_cellpose_rgb(
     nuclei, _, _ = model_dapi.eval(rgb[2], diameter=nuclei_diameter, **nuclei_kwargs)
 
     # Segment cells using cell-specific parameters
-    # Pass full RGB for cell segmentation
-    cells, _, _ = model_cyto.eval(rgb, diameter=cell_diameter, **cell_kwargs)
+    # For CPSAM (Cellpose 4.x), use all 3 channels: [red/helper, green/cyto, blue/DAPI]
+    # For standard models (Cellpose 3.x), use [green/cyto, blue/DAPI]
+    if CELLPOSE_4X and cyto_model == "cpsam":
+        # CPSAM can use all 3 channels
+        cells, _, _ = model_cyto.eval(
+            rgb, diameter=cell_diameter, channels=[1, 2, 3], **cell_kwargs
+        )
+    else:
+        # Standard cyto models use cytoplasm (green=index 2) and nuclei (blue=index 3) channels
+        cells, _, _ = model_cyto.eval(
+            rgb, diameter=cell_diameter, channels=[2, 3], **cell_kwargs
+        )
 
     counts["initial_nuclei"] = (
         len(np.unique(nuclei)) - 1

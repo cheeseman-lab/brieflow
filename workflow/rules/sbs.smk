@@ -148,7 +148,7 @@ rule call_reads:
         "../scripts/sbs/call_reads.py"
 
 
-# Call cells
+# Call cells (supports both single and multi-barcode protocols)
 rule call_cells:
     input:
         SBS_OUTPUTS["call_reads"],
@@ -157,10 +157,24 @@ rule call_cells:
     params:
         df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
         q_min=config["sbs"]["q_min"],
-        barcode_col=config["sbs"]["barcode_col"],
-        prefix_col=config["sbs"]["prefix_col"],
-        error_correct=config["sbs"]["error_correct"],
-        sort_calls=config["sbs"]["sort_calls"],      
+        # Single-barcode parameters (backward compatible)
+        barcode_col=config["sbs"].get("barcode_col", "sgRNA"),
+        prefix_col=config["sbs"].get("prefix_col", None),
+        # Multi-barcode cycle parameters (optional)
+        map_start=config["sbs"].get("map_start", None),
+        map_end=config["sbs"].get("map_end", None),
+        map_col=config["sbs"].get("map_col", "prefix_map"),
+        recomb_start=config["sbs"].get("recomb_start", None),
+        recomb_end=config["sbs"].get("recomb_end", None),
+        recomb_col=config["sbs"].get("recomb_col", "prefix_recomb"),
+        recomb_filter_col=config["sbs"].get("recomb_filter_col", None),
+        recomb_q_thresh=config["sbs"].get("recomb_q_thresh", 0.1),
+        # Sorting and error correction
+        error_correct=config["sbs"].get("error_correct", False),
+        sort_calls=config["sbs"].get("sort_calls", "peak"),
+        max_distance=config["sbs"].get("max_distance", 2),
+        # Output customization
+        barcode_info_cols=config["sbs"].get("barcode_info_cols", None),
     script:
         "../scripts/sbs/call_cells.py"
 

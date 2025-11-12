@@ -10,10 +10,21 @@ This module provides functions for segmenting microscopy images using the Cellpo
 5. Utility Functions: Supporting operations for image analysis and segmentation tasks.
 
 COMPATIBILITY NOTE:
-This module supports both Cellpose 3.x and 4.x. The CPSAM model requires Cellpose 4.x:
-    pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0
+This module supports both Cellpose 3.x and 4.x with automatic version detection:
 
-Standard models (cyto3, nuclei, cyto2) work with both Cellpose 3.1.0 and 4.0.4.
+Cellpose 3.x (3.1.0):
+- Supports models: cyto3, nuclei, cyto2
+- Supports automatic diameter estimation
+- CPSAM model NOT supported
+
+Cellpose 4.x (4.0.4+):
+- Supports ONLY cpsam model
+- Standard models (cyto3, nuclei) NOT supported in 4.x
+- Automatic diameter estimation NOT supported (specify diameters in config)
+- Upgrade: pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0
+
+The code will automatically detect your Cellpose version and raise clear errors
+for incompatible model/version combinations.
 
 """
 
@@ -22,7 +33,8 @@ import sys
 import numpy as np
 import pandas as pd
 
-from cellpose.models import CellposeModel, SizeModel
+import cellpose
+from cellpose.models import CellposeModel
 from cellpose import models as cellpose_models
 from skimage.util import img_as_ubyte
 from skimage.segmentation import clear_border
@@ -31,6 +43,10 @@ from lib.shared.segmentation_utils import (
     image_log_scale,
     reconcile_nuclei_cells,
 )
+
+# Detect Cellpose version for compatibility checks
+CELLPOSE_VERSION = tuple(map(int, cellpose.__version__.split(".")[:2]))
+CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
 
 
 def segment_cellpose(
@@ -244,6 +260,9 @@ def estimate_diameters(
 ):
     """Estimate optimal cell diameter using Cellpose's diameter estimation.
 
+    Note: Only supported with Cellpose 3.x. Cellpose 4.x does not have SizeModel.
+          With Cellpose 4.x, you must specify nuclei_diameter and cell_diameter in config.
+
     Args:
         data (numpy.ndarray): Multichannel image data
         dapi_index (int): Index of DAPI channel
@@ -257,7 +276,22 @@ def estimate_diameters(
 
     Returns:
         tuple: Estimated diameters for (nuclei, cells)
+
+    Raises:
+        NotImplementedError: If using Cellpose 4.x (SizeModel not available)
     """
+    # Check version compatibility
+    if CELLPOSE_4X:
+        raise NotImplementedError(
+            "Automatic diameter estimation is not supported with Cellpose 4.x. "
+            "SizeModel does not exist in Cellpose 4.x API. "
+            "Please specify nuclei_diameter and cell_diameter explicitly in your config, "
+            "or downgrade to Cellpose 3.x: pip install cellpose==3.1.0"
+        )
+
+    # Import SizeModel only for Cellpose 3.x (doesn't exist in 4.x)
+    from cellpose.models import SizeModel
+
     # Prepare RGB image
     log_kwargs = cellpose_kwargs.pop(
         "log_kwargs", dict()
@@ -316,6 +350,8 @@ def segment_cellpose_rgb(
         nuclei_diameter (int): Diameter of nuclei for segmentation.
         cell_diameter (int): Diameter of cells for segmentation.
         cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
+            Cellpose 3.x: Use 'cyto3', 'nuclei', 'cyto2'
+            Cellpose 4.x: Use 'cpsam' only
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
         remove_edges (bool, optional): Whether to remove nuclei and cells touching the image edges. Default is True.
         return_counts (bool, optional): Whether to return counts of nuclei and cells before reconciliation. Default is False.
@@ -329,10 +365,34 @@ def segment_cellpose_rgb(
             - nuclei (numpy.ndarray): Labeled segmentation mask of nuclei.
             - cells (numpy.ndarray): Labeled segmentation mask of cell boundaries.
             - (optional) counts (dict): Counts of nuclei and cells at different stages if return_counts is True.
+
+    Raises:
+        ValueError: If model is incompatible with installed Cellpose version
     """
-    # Instantiate CellposeModel for nuclei and cytoplasmic segmentation
-    model_dapi = CellposeModel(model_type="nuclei", gpu=gpu)
-    model_cyto = CellposeModel(model_type=cyto_model, gpu=gpu)
+    # Validate model compatibility with Cellpose version
+    if CELLPOSE_4X and cyto_model != "cpsam":
+        raise ValueError(
+            f"Model '{cyto_model}' requires Cellpose 3.x. "
+            f"Cellpose 4.x only supports the 'cpsam' model. "
+            f"Either change your config to use model='cpsam', "
+            f"or downgrade Cellpose: pip install cellpose==3.1.0"
+        )
+    if not CELLPOSE_4X and cyto_model == "cpsam":
+        raise ValueError(
+            f"CPSAM model requires Cellpose 4.x. "
+            f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
+            f"Upgrade with: pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
+        )
+
+    # Instantiate CellposeModel with version-specific API
+    if CELLPOSE_4X:
+        # Cellpose 4.x: Use pretrained_model parameter
+        model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
+        model_cyto = CellposeModel(pretrained_model=cyto_model, gpu=gpu)
+    else:
+        # Cellpose 3.x: Use model_type parameter
+        model_dapi = CellposeModel(model_type="nuclei", gpu=gpu)
+        model_cyto = CellposeModel(model_type=cyto_model, gpu=gpu)
 
     # Set default kwargs if not provided
     if nuclei_kwargs is None:
@@ -412,8 +472,13 @@ def segment_cellpose_nuclei_rgb(
     Returns:
         numpy.ndarray: Labeled segmentation mask of nuclei.
     """
-    # Instantiate CellposeModel for nuclei segmentation
-    model_dapi = CellposeModel(model_type="nuclei", gpu=gpu)
+    # Instantiate CellposeModel with version-specific API
+    if CELLPOSE_4X:
+        # Cellpose 4.x: Use cpsam model
+        model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
+    else:
+        # Cellpose 3.x: Use nuclei model
+        model_dapi = CellposeModel(model_type="nuclei", gpu=gpu)
 
     # Segment nuclei using CellposeModel from the RGB image
     # Pass only blue channel (DAPI) for nuclei segmentation

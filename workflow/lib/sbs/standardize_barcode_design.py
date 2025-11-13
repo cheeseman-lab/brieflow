@@ -244,6 +244,16 @@ def standardize_barcode_design(
                     f"Modified 'prefix_recomb' using truncation (length={recomb_prefix_length})"
                 )
 
+    # Generate prefix column for simple mode (backward compatibility)
+    # If prefix_recomb is not present, we're in simple mode and need a 'prefix' column
+    if "prefix_recomb" not in df.columns:
+        # For simple mode, prefix is a copy of prefix_map
+        df["prefix"] = df["prefix_map"]
+        if verbose:
+            print(
+                "Created 'prefix' column for simple barcode mode (copy of 'prefix_map')"
+            )
+
     # Validate prefix generation
     if df["prefix_map"].isna().any():
         warnings.warn(
@@ -806,19 +816,49 @@ def validate_gene_symbols(
 def get_barcode_list(
     df_barcode_library: pd.DataFrame,
     use_prefix: bool = True,
-    sequencing_order: str = "map_recomb",
+    sequencing_order: str = None,
 ) -> List[str]:
     """Extract list of barcodes for mapping validation.
 
+    Supports both simple and multi-barcode modes:
+    - Simple mode: If sequencing_order is None, returns prefix or sgRNA column based on use_prefix
+    - Multi mode: If sequencing_order is provided, concatenates prefix_map and prefix_recomb
+
     Args:
         df_barcode_library (pd.DataFrame): Standardized barcode design table
-        use_prefix (bool): Whether to return prefixes or full barcodes
-        sequencing_order (str): Order of concatenating prefixes. Options:
-                                'map_recomb' or 'recomb_map'.
+        use_prefix (bool): Whether to return prefixes or full barcodes. Default is True.
+                          For simple mode: True returns 'prefix', False returns 'sgRNA'
+                          For multi mode: controls prefix_map/recomb concatenation vs just prefix_map
+        sequencing_order (str, optional): Order of concatenating prefixes for multi-barcode mode.
+                                         Options: 'map_recomb' or 'recomb_map'.
+                                         If None, uses simple barcode mode.
 
     Returns:
         List[str]: List of barcode sequences
     """
+    # Simple barcode mode (backward compatible with main branch)
+    if sequencing_order is None:
+        if use_prefix:
+            # Default behavior from main: return prefix column (truncated barcodes)
+            if "prefix" in df_barcode_library.columns:
+                return df_barcode_library["prefix"].tolist()
+            else:
+                raise ValueError(
+                    "For simple barcode mode with use_prefix=True, library must have 'prefix' column. "
+                    "This column should be created by standardize_barcode_design()."
+                )
+        else:
+            # Return full-length barcodes
+            if "sgRNA" in df_barcode_library.columns:
+                return df_barcode_library["sgRNA"].tolist()
+            elif "barcode" in df_barcode_library.columns:
+                return df_barcode_library["barcode"].tolist()
+            else:
+                raise ValueError(
+                    "For simple barcode mode with use_prefix=False, library must have 'sgRNA' or 'barcode' column"
+                )
+
+    # Multi-barcode mode
     required_columns = ["prefix_map", "prefix_recomb", "gene_symbol", "uniprot_entry"]
 
     # Check required columns exist
@@ -826,7 +866,9 @@ def get_barcode_list(
         col for col in required_columns if col not in df_barcode_library.columns
     ]
     if missing_cols:
-        raise ValueError(f"Missing required columns: {missing_cols}")
+        raise ValueError(
+            f"Missing required columns for multi-barcode mode: {missing_cols}"
+        )
 
     if use_prefix:
         if sequencing_order == "map_recomb":

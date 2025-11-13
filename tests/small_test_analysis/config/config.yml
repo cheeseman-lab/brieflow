@@ -60,6 +60,7 @@ sbs:
   - T
   - A
   - C
+  barcode_type: simple
   q_min: 0
   barcode_col: sgRNA
   prefix_col: null

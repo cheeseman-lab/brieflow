@@ -24,6 +24,7 @@ if method == "cellpose":
             nuclei_diameter=params["nuclei_diameter"],
             cell_diameter=params["cell_diameter"],
             cyto_model=params["cellpose_model"],
+            helper_index=params.get("helper_index"),
             cellpose_kwargs=dict(
                 flow_threshold=params.get("flow_threshold", 0.4),
                 cellprob_threshold=params.get("cellprob_threshold", 0),
@@ -45,6 +46,7 @@ if method == "cellpose":
             nuclei_diameter=params["nuclei_diameter"],
             cell_diameter=params["cell_diameter"],
             cyto_model=params["cellpose_model"],
+            helper_index=params.get("helper_index"),
             cellpose_kwargs=dict(
                 flow_threshold=params.get("flow_threshold", 0.4),
                 cellprob_threshold=params.get("cellprob_threshold", 0),

@@ -60,7 +60,8 @@ conda activate brieflow_SCREEN_NAME
 uv pip install -r pyproject.toml
 # install editable version of brieflow
 uv pip install -e .
-# install conda-only packages
+# install optional packages
+uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0 # skip if not using CPSAM model (requires Cellpose 4.x)
 conda install -c conda-forge micro_sam -y # skip if not using micro-sam for segmentation
 ```
 
@@ -68,6 +69,7 @@ conda install -c conda-forge micro_sam -y # skip if not using micro-sam for segm
 - We recommend a screen-specific installation because changes to this particular `./brieflow/workflow/lib` code will live within this specific installation of brieflow, and an explicit name helps keep track of different brieflow installations.
 One could also install one version of brieflow that is used across brieflow-analysis repositories.
 - For a rule-specific package consider creating a separate conda environment file and using it for the particular rule as described in the [Snakemake integrated package management notes](https://snakemake.readthedocs.io/en/stable/snakefiles/deployment.html#integrated-package-management).
+- **Cellpose versions**: Default installation (via `pyproject.toml`) uses Cellpose 3.x with standard models (`cyto3`, `nuclei`, etc.). For CPSAM model support, install Cellpose 4.x instead (see optional installation line above). Note: Cellpose 4.x only supports the `cpsam` model and requires manual `nuclei_diameter`/`cell_diameter` in config.
 
 ### Tests
 

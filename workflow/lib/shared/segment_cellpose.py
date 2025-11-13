@@ -46,21 +46,10 @@ from lib.shared.segmentation_utils import (
 
 # Detect Cellpose version for compatibility checks
 try:
-    # Use importlib.metadata as primary method (most reliable, standard since Python 3.8)
-    from importlib.metadata import version
-
-    cellpose_version_str = version("cellpose")
-    CELLPOSE_VERSION = tuple(map(int, cellpose_version_str.split(".")[:2]))
-except Exception:
-    try:
-        # Fallback to __version__ attribute if metadata fails
-        if hasattr(cellpose, "__version__"):
-            CELLPOSE_VERSION = tuple(map(int, cellpose.__version__.split(".")[:2]))
-        else:
-            raise AttributeError("No version found")
-    except Exception:
-        # Safe default: assume version 3.x for backward compatibility
-        CELLPOSE_VERSION = (3, 0)
+    CELLPOSE_VERSION = tuple(map(int, cellpose.version.split(".")[:2]))
+except (AttributeError, ValueError):
+    # Fallback to safe default for backward compatibility
+    CELLPOSE_VERSION = (3, 0)
 
 CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
 

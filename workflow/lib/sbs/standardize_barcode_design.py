@@ -12,7 +12,7 @@ from typing import Optional, List, Callable
 
 def standardize_barcode_design(
     df_design: pd.DataFrame,
-    prefix_map: str = "iBAR2",
+    prefix_map: str = "sgRNA",
     prefix_recomb: Optional[str] = None,
     gene_symbol_col: Optional[str] = "gene_symbol",
     gene_id_col: Optional[str] = None,
@@ -41,7 +41,7 @@ def standardize_barcode_design(
 
     Args:
         df_design (pd.DataFrame): Input barcode design table
-        prefix_map (str): Name of column containing barcode sequences for mapping (default: "iBAR2")
+        prefix_map (str): Name of column containing barcode sequences for mapping (default: "sgRNA")
         prefix_recomb (str, optional): Name of column containing barcodes used to calculate recombination (optional)
         gene_symbol_col (str, optional): Name of column containing gene symbols.
             If None, will create empty gene_symbol column
@@ -51,12 +51,16 @@ def standardize_barcode_design(
             experimental read structure. Function should take a row and return the prefix string.
         prefix_recomb_func (callable, optional): Custom function to generate prefixes for recombination that match
             experimental read structure. Function should take a row and return the prefix string.
-        map_prefix_length (int, optional): Length of barcode prefix for prefix_map (mapping).
-            Should match the length of experimental read barcodes for mapping. Ignored if prefix_map_func is provided.
-        recomb_prefix_length (int, optional): Length of barcode prefix for prefix_recomb (recombination).
-            Should match the length of experimental read barcodes for recombination. Ignored if prefix_recomb_func is provided.
-        skip_cycles_map (List[int], optional): List of 1-based cycle numbers to skip in prefix_map when generating prefix.
-        skip_cycles_recomb (List[int], optional): List of 1-based cycle numbers to skip in recomb_prefix when generating prefix_recomb.
+        map_prefix_length (int, optional): Total bases to extract BEFORE skipping cycles for prefix_map.
+            Final length = map_prefix_length - len(skip_cycles_map).
+            Example: For 10 final bases skipping [2,3,4], set map_prefix_length=13.
+            Ignored if prefix_map_func is provided.
+        recomb_prefix_length (int, optional): Total bases to extract BEFORE skipping cycles for prefix_recomb.
+            Final length = recomb_prefix_length - len(skip_cycles_recomb).
+            Ignored if prefix_recomb_func is provided.
+        skip_cycles_map (List[int], optional): 1-based cycle positions to skip in prefix_map.
+            Must match SKIP_CYCLES from imaging alignment.
+        skip_cycles_recomb (List[int], optional): 1-based cycle positions to skip in prefix_recomb.
         filter_func (callable, optional): Custom function to filter rows.
             Function should take dataframe and return filtered dataframe.
             If None, no filtering is applied.
@@ -79,13 +83,14 @@ def standardize_barcode_design(
 
     Returns:
         pd.DataFrame: Standardized barcode design table with columns:
-            - prefix_map: barcode sequences
-            - gene_symbol: gene symbols
-            - gene_id: gene identifiers (optional, only if gene_id_col provided)
-            - prefix: barcode prefixes for matching
-            - uniprot_entry: UniProt entry ID (REQUIRED)
-            - prefix_recomb: recombined barcode sequences (optional, only if prefix_recomb provided)
-            - (additional columns if keep_extra_cols=True)
+            Simple mode:
+                - prefix: barcode prefixes for matching
+                - gene_symbol, gene_id (optional), uniprot_entry
+            Multi mode:
+                - prefix_map: MAP region barcode sequences
+                - prefix_recomb: RECOMB region barcode sequences
+                - gene_symbol, gene_id (optional), uniprot_entry
+            (Additional columns included if keep_extra_cols=True)
 
     Raises:
         ValueError: If required columns are missing, UniProt data not provided, or validation fails
@@ -244,15 +249,11 @@ def standardize_barcode_design(
                     f"Modified 'prefix_recomb' using truncation (length={recomb_prefix_length})"
                 )
 
-    # Generate prefix column for simple mode (backward compatibility)
-    # If prefix_recomb is not present, we're in simple mode and need a 'prefix' column
+    # Generate prefix column for simple mode
     if "prefix_recomb" not in df.columns:
-        # For simple mode, prefix is a copy of prefix_map
         df["prefix"] = df["prefix_map"]
         if verbose:
-            print(
-                "Created 'prefix' column for simple barcode mode (copy of 'prefix_map')"
-            )
+            print("Created 'prefix' column for simple barcode mode")
 
     # Validate prefix generation
     if df["prefix_map"].isna().any():
@@ -293,14 +294,16 @@ def standardize_barcode_design(
                 f"Consider reviewing gene symbols or removing these entries."
             )
 
-    # Organize columns
-    required_cols = ["prefix_map", "gene_symbol", "uniprot_entry"]
-    if "gene_id" in df.columns:
-        required_cols.insert(
-            2, "gene_id"
-        )  # Insert gene_id after gene_symbol if present
+    # Organize columns based on mode
     if "prefix_recomb" in df.columns:
-        required_cols.append("prefix_recomb")
+        # Multi mode: keep prefix_map and prefix_recomb
+        required_cols = ["prefix_map", "gene_symbol", "uniprot_entry", "prefix_recomb"]
+    else:
+        # Simple mode: keep prefix only
+        required_cols = ["prefix", "gene_symbol", "uniprot_entry"]
+
+    if "gene_id" in df.columns:
+        required_cols.insert(2, "gene_id")
 
     if keep_extra_cols:
         # Keep additional columns that might be useful

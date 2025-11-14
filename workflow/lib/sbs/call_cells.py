@@ -123,7 +123,7 @@ def call_cells(
             - well, tile, cell
             - Q_min, Q_0, Q_1, ... (quality scores)
             - cell_barcode_0, cell_barcode_1 (ALWAYS named cell_barcode, never sgRNA)
-            - peak_0, peak_1 (always present)
+            - barcode_peak_0, barcode_peak_1 (always present)
             - barcode_count_0, barcode_count_1, barcode_count (if sort_calls="count")
             - no_recomb_0, no_recomb_1 (if recombination enabled, else NaN)
             - pre_correction_cell_barcode_0, pre_correction_cell_barcode_1
@@ -151,15 +151,24 @@ def call_cells(
         ...           map_start=1, map_end=15,
         ...           sort_calls="count")
     """
-    # Handle empty input
+    # Handle empty input: Return standardized empty DataFrame when no reads are available
+    # This occurs when: (1) reads_data is None, or (2) reads_data is an empty DataFrame
+    # Returning an empty DataFrame with all expected columns prevents crashes in downstream
+    # processing and allows pipelines to continue even when tiles/wells have no reads
     if reads_data is None or reads_data.empty:
         return _get_empty_output()
 
     cols = [WELL, TILE, CELL]
 
-    # Step 1: Determine barcode extraction mode and prepare reads
+    # STEP 1: Determine barcode extraction mode and prepare reads
+    # Three mutually exclusive modes determine how barcodes are extracted:
+    # 1. Cycle-based: Extract specific cycle ranges (for multi-barcode protocols)
+    # 2. Pre-computed prefix: Use pre-existing prefix column from library
+    # 3. Auto-truncation: Automatically truncate full barcodes to match read length
+
     if map_start is not None and map_end is not None:
-        # Cycle-based mode (multi-barcode or explicit cycle specification)
+        # CYCLE-BASED MODE: Extract barcodes from specific cycle ranges
+        # Used for multi-barcode protocols or when explicit cycle specification is needed
         print(f"Using cycle-based extraction: map cycles {map_start}-{map_end}")
         df_reads = prep_multi_reads(
             reads_data,
@@ -175,7 +184,8 @@ def call_cells(
         library_key = map_col
 
     elif prefix_col is not None:
-        # Pre-computed prefix mode
+        # PRE-COMPUTED PREFIX MODE: Use pre-existing prefixes from library
+        # Useful when prefixes have already been computed (e.g., with cycle skipping)
         if (
             df_barcode_library is not None
             and prefix_col not in df_barcode_library.columns
@@ -190,7 +200,8 @@ def call_cells(
             df_barcode_library[PREFIX] = df_barcode_library[prefix_col]
 
     else:
-        # Auto-truncation mode (original behavior)
+        # AUTO-TRUNCATION MODE: Automatically match barcode length to read length
+        # Default mode - truncates full library barcodes to match experimental read length
         df_reads = reads_data
         barcode_column = BARCODE
         enable_recomb = False
@@ -205,17 +216,24 @@ def call_cells(
                 f"Created prefixes by truncating '{barcode_col}' to length {prefix_length}"
             )
 
-    # Step 2: Quality filter
+    # STEP 2: Apply quality filtering
+    # Filter reads to only include those meeting minimum quality threshold
     df_reads = df_reads.query("Q_min >= @q_min")
 
-    # Step 3: Call cells
+    # STEP 3: Call cells using appropriate strategy
+    # Two strategies available:
+    # 1. Without reference library: Call barcodes directly from reads
+    # 2. With reference library: Map reads to known barcodes with optional error correction
+
     if df_barcode_library is None:
-        # No reference library
+        # NO REFERENCE LIBRARY: Call barcodes directly without mapping to known library
         df_cells = _call_cells_no_ref(df_reads, barcode_column, sort_calls=sort_calls)
 
     else:
-        # With reference library
-        # Set default barcode_info_cols if not specified
+        # WITH REFERENCE LIBRARY: Map reads to known barcodes with optional annotations
+
+        # Determine which columns to include from the barcode library
+        # Default: include gene_symbol and gene_id if available
         if barcode_info_cols is None:
             # Default to gene_symbol and gene_id if available
             barcode_info_cols = []
@@ -244,7 +262,8 @@ def call_cells(
             **kwargs,
         )
 
-    # Step 4: Add UMI information if provided
+    # STEP 4: Add UMI (Unique Molecular Identifier) information if available
+    # UMIs can be added to track individual RNA molecules
     if df_UMI is not None:
         df_cells = call_cells_add_UMIs(df_cells, df_UMI, cols=cols)
 
@@ -252,7 +271,7 @@ def call_cells(
 
 
 def _get_empty_output():
-    """Return empty DataFrame with standardized column names."""
+    """Return empty DataFrame with standardized column names for empty input handling."""
     columns = [
         "cell",
         "tile",
@@ -260,9 +279,9 @@ def _get_empty_output():
         "Q_min",
         "peak",
         "cell_barcode_0",
-        "peak_0",
+        "barcode_peak_0",
         "cell_barcode_1",
-        "peak_1",
+        "barcode_peak_1",
         "barcode_count_0",
         "barcode_count_1",
         "barcode_count",
@@ -279,7 +298,8 @@ def _get_empty_output():
 def _call_cells_no_ref(df_reads, barcode_column, sort_calls="peak"):
     """Call cells without reference library.
 
-    Supports both count-based and peak-based sorting.
+    Identifies the most abundant barcodes in each cell without mapping to a known
+    library. Supports both count-based and peak-based sorting strategies.
 
     Args:
         df_reads (DataFrame): Filtered read data
@@ -292,85 +312,108 @@ def _call_cells_no_ref(df_reads, barcode_column, sort_calls="peak"):
     cols = [WELL, TILE, CELL]
 
     if sort_calls == "count":
-        # Count-based sorting (original behavior)
+        # COUNT-BASED SORTING: Prioritize barcodes by number of reads
+        # Best for mRNA barcodes where multiple spots per cell are expected
+
+        # Create grouped ranking: count barcodes per cell and sort by frequency
+        # s.nth(0) = most frequent barcode per cell, s.nth(1) = second most frequent
         s = (
-            df_reads.drop_duplicates([WELL, TILE, READ])
-            .groupby(cols)[barcode_column]
-            .value_counts()
+            df_reads.drop_duplicates([WELL, TILE, READ])  # Remove duplicate reads
+            .groupby(cols)[barcode_column]  # Group by (well, tile, cell)
+            .value_counts()  # Count each barcode's frequency per cell
             .rename("count")
-            .sort_values(ascending=False)
+            .sort_values(ascending=False)  # Sort so top barcodes come first
             .reset_index()
-            .groupby(cols)
+            .groupby(cols)  # Re-group by cell for .nth() access
         )
 
+        # Build output dataframe by joining top 2 barcodes and their counts to df_reads
+        # Multiple joins are used because each adds different columns (barcode vs count)
+        # set_index(cols) enables joining on (well, tile, cell) identifiers
         df_cells = (
-            df_reads.join(
+            df_reads.join(  # Join #1: Add top-ranked barcode as cell_barcode_0
                 s.nth(0)[["well", "tile", "cell", barcode_column]]
                 .rename(columns={barcode_column: BARCODE_0})
-                .set_index(cols),
+                .set_index(cols),  # Index by (well, tile, cell) for join
                 on=cols,
             )
-            .join(
+            .join(  # Join #2: Add count for top barcode as barcode_count_0
                 s.nth(0)[["well", "tile", "cell", "count"]]
                 .rename(columns={"count": BARCODE_COUNT_0})
                 .set_index(cols),
                 on=cols,
             )
-            .join(
+            .join(  # Join #3: Add second-ranked barcode as cell_barcode_1
                 s.nth(1)[["well", "tile", "cell", barcode_column]]
                 .rename(columns={barcode_column: BARCODE_1})
                 .set_index(cols),
                 on=cols,
             )
-            .join(
+            .join(  # Join #4: Add count for second barcode as barcode_count_1
                 s.nth(1)[["well", "tile", "cell", "count"]]
                 .rename(columns={"count": BARCODE_COUNT_1})
                 .set_index(cols),
                 on=cols,
             )
-            .join(s["count"].sum().rename(BARCODE_COUNT), on=cols)
-            .assign(
+            .join(  # Join #5: Add total count summed across all barcodes
+                s["count"].sum().rename(BARCODE_COUNT), on=cols
+            )
+            .assign(  # Fill NaN counts with 0 (cells with no/one barcode)
                 **{
                     BARCODE_COUNT_0: lambda x: x[BARCODE_COUNT_0].fillna(0),
                     BARCODE_COUNT_1: lambda x: x[BARCODE_COUNT_1].fillna(0),
                 }
             )
-            .drop_duplicates(cols)
-            .drop([READ, BARCODE, barcode_column], axis=1, errors="ignore")
-            .drop([POSITION_I, POSITION_J], axis=1, errors="ignore")
-            .filter(regex="^(?!Q_)")
-            .query("cell > 0")
+            .drop_duplicates(cols)  # Keep one row per cell
+            .drop(
+                [READ, BARCODE, barcode_column], axis=1, errors="ignore"
+            )  # Remove read-level columns
+            .drop(
+                [POSITION_I, POSITION_J], axis=1, errors="ignore"
+            )  # Remove position columns
+            .filter(regex="^(?!Q_)")  # Remove per-cycle quality columns
+            .query("cell > 0")  # Filter to valid cells only
         )
 
-        # Add peak columns as NaN (not available in count mode)
-        df_cells["peak_0"] = np.nan
-        df_cells["peak_1"] = np.nan
+        # Peak intensity not calculated in count mode - set to NaN
+        df_cells["barcode_peak_0"] = np.nan
+        df_cells["barcode_peak_1"] = np.nan
 
     else:
-        # Peak-based sorting (multi behavior)
+        # PEAK-BASED SORTING: Prioritize barcodes by peak intensity
+        # Best for DNA barcodes with single bright spots per cell
+
+        # Create grouped ranking: sort reads by peak intensity within each cell
+        # s.nth(0) = brightest spot per cell, s.nth(1) = second brightest
         s = df_reads.sort_values("peak", ascending=False).groupby(cols)
 
+        # Build output dataframe by joining top 2 barcodes and their peak intensities
+        # Simpler than count mode since both barcode and peak come from same row
         df_cells = (
-            df_reads.join(
+            df_reads.join(  # Join #1: Add brightest barcode and its peak intensity
                 s.nth(0)[cols + [barcode_column, "peak"]]
-                .rename(columns={barcode_column: BARCODE_0, "peak": "peak_0"})
-                .set_index(cols),
+                .rename(columns={barcode_column: BARCODE_0, "peak": "barcode_peak_0"})
+                .set_index(cols),  # Index by (well, tile, cell) for join
                 on=cols,
             )
-            .join(
+            .join(  # Join #2: Add second brightest barcode and its peak intensity
                 s.nth(1)[cols + [barcode_column, "peak"]]
-                .rename(columns={barcode_column: BARCODE_1, "peak": "peak_1"})
+                .rename(columns={barcode_column: BARCODE_1, "peak": "barcode_peak_1"})
                 .set_index(cols),
                 on=cols,
             )
-            .drop_duplicates(cols)
-            .drop([READ, BARCODE, barcode_column, "peak"], axis=1, errors="ignore")
-            .drop([POSITION_I, POSITION_J], axis=1, errors="ignore")
-            .filter(regex="^(?!Q_)")
-            .query("cell > 0")
+            .drop_duplicates(cols)  # Keep one row per cell
+            .drop(
+                [READ, BARCODE, barcode_column, "peak"], axis=1, errors="ignore"
+            )  # Remove read-level columns
+            .drop(
+                [POSITION_I, POSITION_J], axis=1, errors="ignore"
+            )  # Remove position columns
+            .filter(regex="^(?!Q_)")  # Remove per-cycle quality columns
+            .query("cell > 0")  # Filter to valid cells only
         )
 
-        # Add count columns as NaN (not calculated in peak mode)
+        # Read counts not calculated in peak mode - set to NaN
         df_cells[BARCODE_COUNT_0] = np.nan
         df_cells[BARCODE_COUNT_1] = np.nan
         df_cells[BARCODE_COUNT] = np.nan
@@ -400,11 +443,15 @@ def _call_cells_mapping(
 ):
     """Call cells with reference library mapping.
 
-    Supports:
-    - Error correction with pre-correction tracking
-    - Recombination detection
-    - Both count and peak sorting
-    - Configurable barcode info columns
+    Maps sequencing reads to a known barcode library, enabling gene annotation and
+    quality control. Provides comprehensive support for error correction, recombination
+    detection, and flexible sorting strategies.
+
+    Features:
+    - Error correction with pre-correction tracking for QC
+    - Recombination detection for multi-barcode protocols
+    - Both count and peak-based sorting strategies
+    - Configurable barcode info columns from library
 
     Args:
         df_reads (DataFrame): Filtered read data
@@ -428,7 +475,9 @@ def _call_cells_mapping(
     cols = [WELL, TILE, CELL]
     pre_correct_col = None
 
-    # Optional error correction
+    # OPTIONAL: Error correction
+    # Correct sequencing errors by mapping reads to closest library barcode
+    # Preserves original values for QC tracking
     if error_correct:
         print("performing error correction")
         pre_correct_col = f"pre_correction_{barcode_column}"
@@ -443,7 +492,8 @@ def _call_cells_mapping(
             **kwargs,
         )
 
-    # Map reads to library
+    # Map reads to reference library
+    # Left join reads to library - unmapped reads will have NaN for library columns
     df_barcode_library["_temp_key"] = df_barcode_library[library_key]
     df_mapped = (
         pd.merge(
@@ -457,7 +507,8 @@ def _call_cells_mapping(
         .drop("_temp_key", axis=1)
     )
 
-    # Optional recombination detection
+    # OPTIONAL: Recombination detection (multi-barcode protocols only)
+    # Detect and flag recombination events between MAP and RECOMB barcode regions
     if enable_recomb and recomb_col is not None:
         # Create mapping of expected recombination values
         recomb_map = df_barcode_library.set_index(library_key)[recomb_col].to_dict()
@@ -476,79 +527,98 @@ def _call_cells_mapping(
                 df_mapped[recomb_filter_col] < recomb_q_thresh, "no_recomb"
             ] = np.nan
     else:
-        # No recombination detection
+        # No recombination detection - set to NaN
         df_mapped["no_recomb"] = np.nan
 
-    # Sort by count or peak
+    # Sort and prioritize barcodes per cell
+    # Two strategies: count (for mRNA) or peak (for DNA)
+
     if sort_calls == "count":
-        # Count-based sorting
+        # COUNT-BASED SORTING: Prioritize by number of reads per barcode
+        # Prioritizes mapped barcodes over unmapped ones
+
+        # Create grouped ranking: count barcodes per cell and sort by (mapped, count)
+        # This ensures mapped barcodes are always ranked higher than unmapped ones
+        # s.nth(0) = top-ranked barcode per cell, s.nth(1) = second-ranked
         s = (
-            df_mapped.drop_duplicates([WELL, TILE, READ])
-            .groupby(cols + ["mapped"])[barcode_column]
-            .value_counts()
+            df_mapped.drop_duplicates([WELL, TILE, READ])  # Remove duplicate reads
+            .groupby(cols + ["mapped"])[
+                barcode_column
+            ]  # Group by (well, tile, cell, mapped)
+            .value_counts()  # Count each barcode's frequency per cell
             .rename("count")
             .reset_index()
-            .sort_values(["mapped", "count"], ascending=False)
-            .groupby(cols)
+            .sort_values(
+                ["mapped", "count"], ascending=False
+            )  # Mapped=True first, then by count
+            .groupby(cols)  # Re-group by cell for .nth() access
         )
 
-        # Build output with counts
+        # Build output by joining top 2 barcodes and their counts to df_reads
+        # Multiple joins needed because each adds different columns
+        # Note: Joins are to df_reads (not df_mapped) to preserve original read data
         if error_correct and pre_correct_col:
-            # Include pre-correction values
+            # Error correction is enabled - include pre-correction column
+            # Pre-correction columns are handled separately in peak mode below
             df_cells = (
-                df_reads.join(
+                df_reads.join(  # Join #1: Add top-ranked barcode as cell_barcode_0
                     s.nth(0)[["well", "tile", "cell", barcode_column]]
                     .rename(columns={barcode_column: BARCODE_0})
-                    .set_index(cols),
+                    .set_index(cols),  # Index by (well, tile, cell) for join
                     on=cols,
                 )
-                .join(
+                .join(  # Join #2: Add count for top barcode as barcode_count_0
                     s.nth(0)[["well", "tile", "cell", "count"]]
                     .rename(columns={"count": BARCODE_COUNT_0})
                     .set_index(cols),
                     on=cols,
                 )
-                .join(
+                .join(  # Join #3: Add second-ranked barcode as cell_barcode_1
                     s.nth(1)[["well", "tile", "cell", barcode_column]]
                     .rename(columns={barcode_column: BARCODE_1})
                     .set_index(cols),
                     on=cols,
                 )
-                .join(
+                .join(  # Join #4: Add count for second barcode as barcode_count_1
                     s.nth(1)[["well", "tile", "cell", "count"]]
                     .rename(columns={"count": BARCODE_COUNT_1})
                     .set_index(cols),
                     on=cols,
                 )
-                .join(s["count"].sum().rename(BARCODE_COUNT), on=cols)
+                .join(  # Join #5: Add total count summed across all barcodes
+                    s["count"].sum().rename(BARCODE_COUNT), on=cols
+                )
             )
         else:
+            # Standard mode without error correction
             df_cells = (
-                df_reads.join(
+                df_reads.join(  # Join #1: Add top-ranked barcode as cell_barcode_0
                     s.nth(0)[["well", "tile", "cell", barcode_column]]
                     .rename(columns={barcode_column: BARCODE_0})
-                    .set_index(cols),
+                    .set_index(cols),  # Index by (well, tile, cell) for join
                     on=cols,
                 )
-                .join(
+                .join(  # Join #2: Add count for top barcode as barcode_count_0
                     s.nth(0)[["well", "tile", "cell", "count"]]
                     .rename(columns={"count": BARCODE_COUNT_0})
                     .set_index(cols),
                     on=cols,
                 )
-                .join(
+                .join(  # Join #3: Add second-ranked barcode as cell_barcode_1
                     s.nth(1)[["well", "tile", "cell", barcode_column]]
                     .rename(columns={barcode_column: BARCODE_1})
                     .set_index(cols),
                     on=cols,
                 )
-                .join(
+                .join(  # Join #4: Add count for second barcode as barcode_count_1
                     s.nth(1)[["well", "tile", "cell", "count"]]
                     .rename(columns={"count": BARCODE_COUNT_1})
                     .set_index(cols),
                     on=cols,
                 )
-                .join(s["count"].sum().rename(BARCODE_COUNT), on=cols)
+                .join(  # Join #5: Add total count summed across all barcodes
+                    s["count"].sum().rename(BARCODE_COUNT), on=cols
+                )
             )
 
         df_cells = df_cells.assign(
@@ -558,115 +628,136 @@ def _call_cells_mapping(
             }
         )
 
-        # Add peak as NaN (not calculated in count mode)
-        df_cells["peak_0"] = np.nan
-        df_cells["peak_1"] = np.nan
+        # Peak intensity not calculated in count mode - set to NaN
+        df_cells["barcode_peak_0"] = np.nan
+        df_cells["barcode_peak_1"] = np.nan
 
     else:
-        # Peak-based sorting
+        # PEAK-BASED SORTING: Prioritize by peak intensity
+        # Prioritizes mapped barcodes first, then by peak intensity within each group
+
+        # Create grouped ranking: sort by (mapped, peak) within each cell
+        # This ensures mapped barcodes are always ranked higher than unmapped ones
+        # s.nth(0) = brightest (mapped) spot per cell, s.nth(1) = second brightest
         s = (
-            df_mapped.drop_duplicates([WELL, TILE, READ])
-            .sort_values(["mapped", "peak"], ascending=[False, False])
-            .groupby(cols)
+            df_mapped.drop_duplicates([WELL, TILE, READ])  # Remove duplicate reads
+            .sort_values(
+                ["mapped", "peak"], ascending=[False, False]
+            )  # Mapped=True first, then by peak
+            .groupby(cols)  # Group by (well, tile, cell) for .nth() access
         )
 
-        # Build output with peaks and recombination info
+        # Build output by joining top 2 barcodes with their peaks and recombination status
+        # Unlike count mode, all columns come from same row, so fewer joins needed
+        # Note: Joins are to df_reads (not df_mapped) to preserve original read data
         if error_correct and pre_correct_col:
-            # Include pre-correction values
-            df_cells = df_reads.join(
+            # Error correction is enabled - include pre-correction barcode values
+            df_cells = df_reads.join(  # Join #1: Add top-ranked barcode with peak, recomb status, and pre-correction barcode
                 s.nth(0)[cols + [barcode_column, pre_correct_col, "no_recomb", "peak"]]
                 .rename(
                     columns={
                         barcode_column: BARCODE_0,
                         pre_correct_col: f"pre_correction_{BARCODE_0}",
                         "no_recomb": "no_recomb_0",
-                        "peak": "peak_0",
+                        "peak": "barcode_peak_0",
                     }
                 )
-                .set_index(cols),
+                .set_index(cols),  # Index by (well, tile, cell) for join
                 on=cols,
-            ).join(
+            ).join(  # Join #2: Add second-ranked barcode with peak and recomb status
                 s.nth(1)[cols + [barcode_column, "no_recomb", "peak"]]
                 .rename(
                     columns={
                         barcode_column: BARCODE_1,
                         "no_recomb": "no_recomb_1",
-                        "peak": "peak_1",
+                        "peak": "barcode_peak_1",
                     }
                 )
                 .set_index(cols),
                 on=cols,
             )
         else:
-            df_cells = df_reads.join(
+            # Standard mode without error correction
+            df_cells = df_reads.join(  # Join #1: Add top-ranked barcode with peak and recomb status
                 s.nth(0)[cols + [barcode_column, "no_recomb", "peak"]]
                 .rename(
                     columns={
                         barcode_column: BARCODE_0,
                         "no_recomb": "no_recomb_0",
-                        "peak": "peak_0",
+                        "peak": "barcode_peak_0",
                     }
                 )
-                .set_index(cols),
+                .set_index(cols),  # Index by (well, tile, cell) for join
                 on=cols,
-            ).join(
+            ).join(  # Join #2: Add second-ranked barcode with peak and recomb status
                 s.nth(1)[cols + [barcode_column, "no_recomb", "peak"]]
                 .rename(
                     columns={
                         barcode_column: BARCODE_1,
                         "no_recomb": "no_recomb_1",
-                        "peak": "peak_1",
+                        "peak": "barcode_peak_1",
                     }
                 )
                 .set_index(cols),
                 on=cols,
             )
 
-        # Add count columns as NaN (not calculated in peak mode)
+        # Read counts not calculated in peak mode - set to NaN
         df_cells[BARCODE_COUNT_0] = np.nan
         df_cells[BARCODE_COUNT_1] = np.nan
         df_cells[BARCODE_COUNT] = np.nan
 
-    # Clean up temporary columns
+    # Clean up temporary columns and filter to cells only
     df_cells = (
-        df_cells.drop_duplicates(cols)
-        .drop([READ, BARCODE, barcode_column], axis=1, errors="ignore")
-        .drop([POSITION_I, POSITION_J], axis=1, errors="ignore")
-        .drop(["no_recomb"], axis=1, errors="ignore")  # Already split into _0 and _1
+        df_cells.drop_duplicates(cols)  # Keep one row per cell
+        .drop(
+            [READ, BARCODE, barcode_column], axis=1, errors="ignore"
+        )  # Remove read-level columns
+        .drop(
+            [POSITION_I, POSITION_J], axis=1, errors="ignore"
+        )  # Remove position columns
+        .drop(
+            ["no_recomb"], axis=1, errors="ignore"
+        )  # Already split into no_recomb_0 and no_recomb_1
     )
 
-    # Remove pre-correction temp column if it exists
+    # Remove pre-correction temp column if it exists (already renamed to pre_correction_cell_barcode_0)
     if pre_correct_col and pre_correct_col in df_cells.columns:
         df_cells = df_cells.drop([pre_correct_col], axis=1, errors="ignore")
 
-    # Filter to cells only
+    # Filter to valid cell IDs (cell > 0)
     df_cells = df_cells.query("cell > 0")
 
-    # Merge barcode info from library
-    # Merge for barcode 0
+    # Merge gene annotations from barcode library
+    # Add gene_symbol, gene_id, and other annotations for both barcode_0 and barcode_1
+    # Uses left merge so cells with unmapped barcodes still appear in output
+
+    # First merge: Add annotations for primary barcode (cell_barcode_0)
+    # Rename columns with _0 suffix to distinguish from secondary barcode
     df_cells = (
         pd.merge(
             df_cells,
             df_barcode_library[[library_key] + barcode_info_cols],
-            how="left",
-            left_on=BARCODE_0,
-            right_on=library_key,
+            how="left",  # Keep all cells, even those without matching barcode
+            left_on=BARCODE_0,  # Join on cell_barcode_0
+            right_on=library_key,  # Match to library key (prefix or map_prefix)
         )
-        .rename({col: col + "_0" for col in barcode_info_cols}, axis=1)
-        .drop(library_key, axis=1, errors="ignore")
+        .rename({col: col + "_0" for col in barcode_info_cols}, axis=1)  # Add _0 suffix
+        .drop(library_key, axis=1, errors="ignore")  # Drop redundant library key column
     )
 
-    # Merge for barcode 1
+    # Second merge: Add annotations for secondary barcode (cell_barcode_1)
+    # Rename columns with _1 suffix
     df_cells = (
         pd.merge(
             df_cells,
             df_barcode_library[[library_key] + barcode_info_cols],
-            how="left",
-            left_on=BARCODE_1,
-            right_on=library_key,
+            how="left",  # Keep all cells, even those without matching barcode
+            left_on=BARCODE_1,  # Join on cell_barcode_1
+            right_on=library_key,  # Match to library key (prefix or map_prefix)
         )
-        .rename({col: col + "_1" for col in barcode_info_cols}, axis=1)
-        .drop(library_key, axis=1, errors="ignore")
+        .rename({col: col + "_1" for col in barcode_info_cols}, axis=1)  # Add _1 suffix
+        .drop(library_key, axis=1, errors="ignore")  # Drop redundant library key column
     )
 
     return df_cells
@@ -683,9 +774,13 @@ def prep_multi_reads(
 ):
     """Prepare reads for multi-barcode calling by extracting cycle-specific barcodes.
 
+    Multi-barcode protocols sequence two distinct barcode regions:
+    - MAP region: Primary barcode for identifying perturbations
+    - RECOMB region: Secondary barcode for detecting recombination events
+
     This function extracts specific cycle ranges from the full barcode sequence
     to create separate mapping and recombination barcodes. It also computes
-    quality scores for the recombination region.
+    quality scores for the recombination region for filtering low-quality calls.
 
     Args:
         df_reads (DataFrame): DataFrame containing raw sequencing reads with columns:
@@ -702,16 +797,11 @@ def prep_multi_reads(
             - map_col: Extracted mapping barcode
             - recomb_col: Extracted recombination barcode
             - Q_recomb: Minimum quality score across recombination cycles
-
-    Example:
-        >>> df = prep_multi_reads(reads, map_start=1, map_end=15,
-        ...                       recomb_start=16, recomb_end=30)
-        >>> # Now df has columns: prefix_map, prefix_recomb, Q_recomb
     """
-    # Make a copy to avoid modifying the original
+    # Make a copy to avoid modifying the original DataFrame
     df = df_reads.copy()
 
-    # Handle empty DataFrame
+    # Handle empty DataFrame gracefully
     if df.empty:
         print(
             "Warning: DataFrame is empty, returning empty DataFrame with required columns"
@@ -734,13 +824,17 @@ def prep_multi_reads(
     print(f"Requested mapping range: cycles {map_start}-{map_end}")
     print(f"Requested recombination range: cycles {recomb_start}-{recomb_end}")
 
-    # Extract mapping barcode from specified cycles (adjust for 0-indexing)
+    # Extract barcode subsequences from specified cycle ranges
+    # Cycles are specified as 1-indexed, but string slicing is 0-indexed
+
+    # Extract mapping barcode from specified cycles (convert to 0-indexing)
     df[map_col] = df["barcode"].str.slice(map_start - 1, map_end)
 
-    # Extract recombination barcode from specified cycles (adjust for 0-indexing)
+    # Extract recombination barcode from specified cycles (convert to 0-indexing)
     df[recomb_col] = df["barcode"].str.slice(recomb_start - 1, recomb_end)
 
     # Compute quality score for recombination region
+    # Use minimum quality across recombination cycles for filtering
     recomb_cycles = list(range(recomb_start, recomb_end + 1))
     recomb_q_cols = [f"Q_{c - 1}" for c in recomb_cycles]
 
@@ -832,8 +926,12 @@ def call_cells_add_UMIs(df_cells, df_UMI, cols=[WELL, TILE, CELL]):
 def error_correct_reads(reads, reference, max_distance=2, distance_metric="hamming"):
     """Error correct reads against a reference set of barcodes.
 
-    Compares each read to the reference set and corrects it to the closest unique
-    reference if within the specified distance threshold.
+    Corrects sequencing errors by mapping each read to the closest reference barcode.
+    Only corrects reads when:
+    1. There is a unique closest match (no ties)
+    2. The distance to that match is within max_distance threshold
+
+    This conservative approach ensures we don't introduce incorrect corrections.
 
     Args:
         reads (pd.Series): Series with reads for error correction
@@ -847,17 +945,18 @@ def error_correct_reads(reads, reference, max_distance=2, distance_metric="hammi
     Returns:
         pd.Series: Corrected reads (unchanged reads returned as-is)
     """
-    # Calculate distance from each read to each reference barcode
+    # Calculate distance matrix: each read vs. each reference barcode
     dist_to_ref = barcode_distance_matrix(
         reads.to_list(),
         reference.to_list(),
         distance_metric=distance_metric,
     )
 
-    # Find minimum distance to reference for each read
+    # Find the minimum distance to any reference for each read
     min_dist_to_ref = dist_to_ref.min(axis=1)
 
-    # Determine which reads have a unique closest match
+    # Identify reads with a unique closest match (no ties)
+    # True if exactly one reference barcode is at the minimum distance
     unique_dist = np.array(
         [
             np.sum(dist_to_ref[x] == min_dist_to_ref[x]) == 1
@@ -865,7 +964,9 @@ def error_correct_reads(reads, reference, max_distance=2, distance_metric="hammi
         ]
     )
 
-    # Filter for reads that have a unique closest match within max_distance
+    # Only correct reads that meet both criteria:
+    # 1. Have a unique closest match
+    # 2. Are within the maximum allowed distance
     corrected_subset = (unique_dist) & (min_dist_to_ref <= max_distance)
 
     # Get the corrected barcodes for eligible reads
@@ -873,7 +974,7 @@ def error_correct_reads(reads, reference, max_distance=2, distance_metric="hammi
         dist_to_ref[corrected_subset].argmin(axis=1)
     ].values
 
-    # Create copy of reads and update only the ones that can be corrected
+    # Create a copy and update only the correctable reads
     corrected_reads = reads.copy()
     corrected_reads.loc[corrected_subset] = corrected_barcodes
 

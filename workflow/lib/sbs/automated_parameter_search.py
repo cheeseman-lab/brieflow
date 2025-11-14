@@ -26,6 +26,7 @@ def automated_parameter_search(
     param_grid,
     metric_fn=None,
     fixed_params=None,
+    barcode_type="simple",
     verbose=False,
 ):
     """Perform automated parameter search for SBS processing.
@@ -62,6 +63,10 @@ def automated_parameter_search(
     fixed_params : dict, optional
         Dictionary of parameters that remain constant across all searches.
         Example: {'max_filter_width': 3, 'call_reads_method': 'percentile'}
+        For multi-barcode mode, should include: map_start, map_end, recomb_start,
+        recomb_end, map_col, recomb_col, recomb_filter_col, recomb_q_thresh
+    barcode_type : str, default='simple'
+        Type of barcode protocol: 'simple' or 'multi'
     verbose : bool, default=False
         If True, print progress and debug information.
 
@@ -98,7 +103,7 @@ def automated_parameter_search(
         from lib.sbs.find_peaks import find_peaks
         from lib.sbs.extract_bases import extract_bases
         from lib.sbs.call_reads import call_reads
-        from lib.sbs.call_cells import call_cells
+        from lib.sbs.call_cells import call_cells, prep_multi_reads
     except ImportError as e:
         print(f"Error importing required functions: {e}")
         return pd.DataFrame(), None
@@ -211,13 +216,47 @@ def automated_parameter_search(
                 continue
 
             # Call cells using the barcode library
-            df_cells = call_cells(
-                df_reads,
-                df_barcode_library=df_barcode_library,
-                q_min=q_min,
-                error_correct=error_correct,
-                sort_calls=sort_calls,
-            )
+            if barcode_type == "multi":
+                # Multi-barcode mode: prep reads first, then call cells
+                df_reads_prepped = prep_multi_reads(
+                    df_reads,
+                    map_start=fixed_params.get("map_start"),
+                    map_end=fixed_params.get("map_end"),
+                    recomb_start=fixed_params.get("recomb_start"),
+                    recomb_end=fixed_params.get("recomb_end"),
+                    map_col=fixed_params.get("map_col", "prefix_map"),
+                    recomb_col=fixed_params.get("recomb_col", "prefix_recomb"),
+                )
+
+                df_cells = call_cells(
+                    df_reads_prepped,
+                    df_barcode_library=df_barcode_library,
+                    q_min=q_min,
+                    map_start=fixed_params.get("map_start"),
+                    map_end=fixed_params.get("map_end"),
+                    map_col=fixed_params.get("map_col", "prefix_map"),
+                    recomb_start=fixed_params.get("recomb_start"),
+                    recomb_end=fixed_params.get("recomb_end"),
+                    recomb_col=fixed_params.get("recomb_col", "prefix_recomb"),
+                    recomb_filter_col=fixed_params.get("recomb_filter_col", None),
+                    recomb_q_thresh=fixed_params.get("recomb_q_thresh", 0.1),
+                    error_correct=error_correct,
+                    sort_calls=sort_calls,
+                    max_distance=fixed_params.get("max_distance", 2),
+                    barcode_info_cols=fixed_params.get("barcode_info_cols", None),
+                )
+            else:
+                # Simple barcode mode
+                df_cells = call_cells(
+                    df_reads,
+                    df_barcode_library=df_barcode_library,
+                    q_min=q_min,
+                    barcode_col=fixed_params.get("barcode_col", "sgRNA"),
+                    prefix_col=fixed_params.get("prefix_col", None),
+                    error_correct=error_correct,
+                    sort_calls=sort_calls,
+                    max_distance=fixed_params.get("max_distance", 2),
+                )
 
             if df_cells is None or len(df_cells) == 0:
                 results.append(

@@ -367,10 +367,10 @@ def plot_cell_metric_histogram(df, sort_by="count", x_cutoff=None):
         xlabel = "Number of ISS reads per cell"
     elif sort_by == "peak":
         # Create combined peak intensity metric
-        peak_0 = df.get("peak_0", 0).fillna(0)
-        peak_1 = df.get("peak_1", 0).fillna(0)
+        barcode_peak_0 = df.get("barcode_peak_0", 0).fillna(0)
+        barcode_peak_1 = df.get("barcode_peak_1", 0).fillna(0)
         df_temp = df.copy()
-        df_temp["peak_intensity_total"] = peak_0 + peak_1
+        df_temp["peak_intensity_total"] = barcode_peak_0 + barcode_peak_1
         metric_col = "peak_intensity_total"
         title = "Histogram of Peak Intensity"
         xlabel = "Total peak intensity per cell"

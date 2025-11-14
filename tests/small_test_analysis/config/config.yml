@@ -60,6 +60,7 @@ sbs:
   - T
   - A
   - C
+  barcode_type: simple
   q_min: 0
   barcode_col: sgRNA
   prefix_col: null
@@ -123,7 +124,7 @@ aggregate:
   - well
   classifier_path: config/binary_xgb_robust_model.dill
   collapse_cols:
-  - sgRNA_0
+  - cell_barcode_0
   - gene_symbol_0
   contamination: 0.01
   control_key: nontargeting
@@ -132,7 +133,7 @@ aggregate:
   filter_queries: null
   impute: true
   metadata_cols_fp: config/cell_data_metadata_cols.tsv
-  perturbation_id_col: sgRNA_0
+  perturbation_id_col: cell_barcode_0
   perturbation_name_col: gene_symbol_0
   variance_or_ncomp: 0.99
   num_align_batches: 1

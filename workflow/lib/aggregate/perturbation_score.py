@@ -127,7 +127,7 @@ def perturbation_score(
             ["plate", "well"],
             "gene_symbol_0",
             "nontargeting",
-            "sgRNA_0",
+            "cell_barcode_0",
         )
 
         features = features.astype(np.float32)

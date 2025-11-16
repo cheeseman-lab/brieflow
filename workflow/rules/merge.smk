@@ -106,7 +106,6 @@ if merge_approach == "stitch":
             flipud=config.get("merge", {}).get("flipud", False),
             fliplr=config.get("merge", {}).get("fliplr", False),
             rot90=config.get("merge", {}).get("rot90", 0),
-            overlap_fraction=config.get("merge", {}).get("overlap_fraction"),
             stitched_image=config.get("merge", {}).get("stitched_image", True),     
         script:
             "../scripts/merge/stitch.py"

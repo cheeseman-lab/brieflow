@@ -23,6 +23,7 @@ rule phate_leiden_clustering:
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         control_key=config["aggregate"]["control_key"],
         uniprot_data_fp=config["cluster"]["uniprot_data_fp"],
+        perturbation_auc_threshold=config["cluster"]["perturbation_auc_threshold"],
     script:
         "../scripts/cluster/phate_leiden_clustering.py"
 

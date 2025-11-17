@@ -13,6 +13,7 @@ aligned_data = align_cycles(
     upsample_factor=snakemake.params.upsample_factor,
     skip_cycles=snakemake.params.skip_cycles_indices,
     manual_background_cycle=snakemake.params.manual_background_cycle_index,
+    manual_channel_mapping=snakemake.params.manual_channel_mapping,
 )
 
 # Save the aligned data as a .tiff file

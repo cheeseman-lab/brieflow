@@ -9,18 +9,49 @@ This module provides functions for segmenting microscopy images using the Cellpo
 4. Mask Processing: Manipulating and refining segmentation masks.
 5. Utility Functions: Supporting operations for image analysis and segmentation tasks.
 
+COMPATIBILITY NOTE:
+This module supports both Cellpose 3.x and 4.x with automatic version detection:
+
+Cellpose 3.x (3.1.0):
+- Supports models: cyto3, nuclei, cyto2
+- Supports automatic diameter estimation
+- CPSAM model NOT supported
+
+Cellpose 4.x (4.0.4+):
+- Supports ONLY cpsam model
+- Standard models (cyto3, nuclei) NOT supported in 4.x
+- Automatic diameter estimation NOT supported (specify diameters in config)
+- Upgrade: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0
+
+The code will automatically detect your Cellpose version and raise clear errors
+for incompatible model/version combinations.
+
 """
 
 import sys
 
 import numpy as np
 import pandas as pd
-from collections import defaultdict
 
-from cellpose.models import Cellpose
+import cellpose
+from cellpose.models import CellposeModel
+from cellpose import models as cellpose_models
 from skimage.util import img_as_ubyte
-from skimage.measure import regionprops
 from skimage.segmentation import clear_border
+
+from lib.shared.segmentation_utils import (
+    image_log_scale,
+    reconcile_nuclei_cells,
+)
+
+# Detect Cellpose version for compatibility checks
+try:
+    CELLPOSE_VERSION = tuple(map(int, cellpose.version.split(".")[:2]))
+except (AttributeError, ValueError):
+    # Fallback to safe default for backward compatibility
+    CELLPOSE_VERSION = (3, 0)
+
+CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
 
 
 def segment_cellpose(
@@ -30,6 +61,7 @@ def segment_cellpose(
     nuclei_diameter,
     cell_diameter,
     cyto_model="cyto3",
+    helper_index=None,
     cellpose_kwargs=dict(
         flow_threshold=0.4,
         cellprob_threshold=0,
@@ -53,6 +85,9 @@ def segment_cellpose(
         nuclei_diameter (int): Estimated diameter of nuclei.
         cell_diameter (int): Estimated diameter of cells.
         cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
+            Use 'cpsam' for Cellpose-SAM (requires Cellpose 4.x).
+        helper_index (int, optional): Index of helper channel for improved segmentation (CPSAM feature).
+            Only used with multi-channel models. Default is None (blank channel).
         cellpose_kwargs (dict, optional): Additional keyword arguments for Cellpose, including:
             - flow_threshold (float): Default flow threshold for both nuclei and cells if specific ones not provided
             - cellprob_threshold (float): Default cell probability threshold for both nuclei and cells if specific ones not provided
@@ -100,7 +135,12 @@ def segment_cellpose(
 
     # Prepare data for Cellpose by creating a merged RGB image
     rgb = prepare_cellpose(
-        data, dapi_index, cyto_index, logscale, log_kwargs=log_kwargs
+        data,
+        dapi_index,
+        cyto_index,
+        helper_index=helper_index,
+        logscale=logscale,
+        log_kwargs=log_kwargs,
     )
 
     counts = {}
@@ -157,41 +197,58 @@ def segment_cellpose(
             return nuclei
 
 
-def prepare_cellpose(data, dapi_index, cyto_index, logscale=True, log_kwargs=dict()):
-    """Prepare a three-channel RGB image for use with the Cellpose GUI.
+def prepare_cellpose(
+    data, dapi_index, cyto_index, helper_index=None, logscale=True, log_kwargs=dict()
+):
+    """Prepare a three-channel RGB image for use with Cellpose.
 
     Args:
         data (list or numpy.ndarray): List or array containing DAPI and cytoplasmic channel images.
         dapi_index (int): Index of the DAPI channel in the data.
         cyto_index (int): Index of the cytoplasmic channel in the data.
-        logscale (bool, optional): Whether to apply log scaling to the cytoplasmic channel. Default is True.
+        helper_index (int, optional): Index of helper channel for improved segmentation.
+            If None, uses blank (zeros) channel. Default is None.
+        logscale (bool, optional): Whether to apply log scaling to the cytoplasmic and helper channels.
+            Default is True.
         log_kwargs (dict, optional): Additional keyword arguments for log scaling.
 
     Returns:
-        numpy.ndarray: Three-channel RGB image prepared for use with Cellpose GUI.
+        numpy.ndarray: Three-channel RGB image. Red is the helper channel (or blank if helper_index=None),
+            green is the cytoplasmic channel, and blue is the DAPI channel.
     """
     # Extract DAPI and cytoplasmic channel images from the data
     dapi = data[dapi_index]
     cyto = data[cyto_index]
 
-    # Create a blank array with the same shape as the DAPI channel
-    blank = np.zeros_like(dapi)
+    # Extract helper channel if provided, otherwise use blank channel
+    if helper_index is not None:
+        helper = data[helper_index]
+    else:
+        helper = np.zeros_like(cyto)
 
-    # Apply log scaling to the cytoplasmic channel if specified
+    # Apply log scaling to the cytoplasmic and helper channels if specified
     if logscale:
         cyto = image_log_scale(cyto, **log_kwargs)
-        cyto /= cyto.max()  # Normalize the image for uint8 conversion
+        # Safe normalization: check for zero max before division
+        if cyto.max() > 0:
+            cyto = cyto / cyto.max()
+
+        # Apply log scaling to helper channel too
+        helper = image_log_scale(helper, **log_kwargs)
+        if helper.max() > 0:
+            helper = helper / helper.max()
 
     # Normalize the intensity of the DAPI channel and scale it to the range [0, 1]
     dapi_upper = np.percentile(dapi, 99.5)
-    dapi = dapi / dapi_upper
-    dapi[dapi > 1] = 1
+    # Safe normalization: check for zero before division
+    if dapi_upper > 0:
+        dapi = dapi / dapi_upper
+    dapi = np.clip(dapi, 0, 1)
 
     # Convert the channels to uint8 format for RGB image creation
-    red, green, blue = img_as_ubyte(blank), img_as_ubyte(cyto), img_as_ubyte(dapi)
+    red, green, blue = img_as_ubyte(helper), img_as_ubyte(cyto), img_as_ubyte(dapi)
 
-    # Stack the channels to create the RGB image and transpose the dimensions
-    # return np.array([red, green, blue]).transpose([1, 2, 0])
+    # Stack the channels to create the RGB image: [helper/red, cyto/green, dapi/blue]
     return np.array([red, green, blue])
 
 
@@ -199,6 +256,7 @@ def estimate_diameters(
     data,
     dapi_index,
     cyto_index,
+    helper_index=None,
     channels=[2, 3],  # Default channels for cell estimation
     cyto_model="cyto3",
     cellpose_kwargs=dict(flow_threshold=0.4, cellprob_threshold=0),
@@ -207,39 +265,69 @@ def estimate_diameters(
 ):
     """Estimate optimal cell diameter using Cellpose's diameter estimation.
 
+    Note: Only supported with Cellpose 3.x. Cellpose 4.x does not have SizeModel.
+          With Cellpose 4.x, you must specify nuclei_diameter and cell_diameter in config.
+
     Args:
         data (numpy.ndarray): Multichannel image data
         dapi_index (int): Index of DAPI channel
         cyto_index (int): Index of cytoplasmic channel
+        helper_index (int, optional): Index of helper channel. Default is None.
         channels (list): Channel indices for diameter estimation [cytoplasm, nuclei]
-        cyto_model (str): Cellpose model type to use
+        cyto_model (str): Cellpose model type to use (e.g., 'cyto3', 'cpsam')
         cellpose_kwargs (dict): Additional keyword arguments for Cellpose
         gpu (bool): Whether to use GPU
         logscale (bool): Whether to apply log scaling to image
 
     Returns:
         tuple: Estimated diameters for (nuclei, cells)
+
+    Raises:
+        NotImplementedError: If using Cellpose 4.x (SizeModel not available)
     """
+    # Check version compatibility
+    if CELLPOSE_4X:
+        raise NotImplementedError(
+            "Automatic diameter estimation is not supported with Cellpose 4.x. "
+            "SizeModel is not available in Cellpose 4.x. "
+            "Please specify nuclei_diameter and cell_diameter explicitly in your config, "
+            "or downgrade to Cellpose 3.x: uv pip install cellpose==3.1.0"
+        )
+
+    # Import SizeModel only for Cellpose 3.x (doesn't exist in 4.x)
+    from cellpose.models import SizeModel
+
     # Prepare RGB image
     log_kwargs = cellpose_kwargs.pop(
         "log_kwargs", dict()
     )  # Extract log_kwargs from cellpose_kwargs
     rgb = prepare_cellpose(
-        data, dapi_index, cyto_index, logscale, log_kwargs=log_kwargs
+        data,
+        dapi_index,
+        cyto_index,
+        helper_index=helper_index,
+        logscale=logscale,
+        log_kwargs=log_kwargs,
     )
 
-    # Find optimal nuclei diameter
+    # Find optimal nuclei diameter using explicit SizeModel
     print("Estimating nuclei diameters...")
-    model_nuclei = Cellpose(model_type="nuclei", gpu=gpu)
-    diam_nuclear, _ = model_nuclei.sz.eval(rgb, channels=[3, 0])
+    model_nuclei = CellposeModel(model_type="nuclei", gpu=gpu)
+    size_model_nuclei = SizeModel(
+        cp_model=model_nuclei, pretrained_size=cellpose_models.size_model_path("nuclei")
+    )
+    diam_nuclear, _ = size_model_nuclei.eval(rgb, channels=[3, 0])
     diam_nuclear = np.maximum(5.0, diam_nuclear)
     diam_nuclear = float(diam_nuclear)
     print(f"Estimated nuclear diameter: {diam_nuclear:.1f} pixels")
 
-    # Find optimal cell diameter
+    # Find optimal cell diameter using explicit SizeModel
     print("Estimating cell diameters...")
-    model_cyto = Cellpose(model_type=cyto_model, gpu=gpu)
-    diam_cell, _ = model_cyto.sz.eval(rgb, channels=channels)
+    model_cyto = CellposeModel(model_type=cyto_model, gpu=gpu)
+    size_model_cyto = SizeModel(
+        cp_model=model_cyto, pretrained_size=cellpose_models.size_model_path(cyto_model)
+    )
+    diam_cell, _ = size_model_cyto.eval(rgb, channels=channels)
     diam_cell = np.maximum(5.0, diam_cell)
     diam_cell = float(diam_cell)
     print(f"Estimated cell diameter: {diam_cell:.1f} pixels")
@@ -267,6 +355,8 @@ def segment_cellpose_rgb(
         nuclei_diameter (int): Diameter of nuclei for segmentation.
         cell_diameter (int): Diameter of cells for segmentation.
         cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
+            Cellpose 3.x: Use 'cyto3', 'nuclei', 'cyto2'
+            Cellpose 4.x: Use 'cpsam' only
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
         remove_edges (bool, optional): Whether to remove nuclei and cells touching the image edges. Default is True.
         return_counts (bool, optional): Whether to return counts of nuclei and cells before reconciliation. Default is False.
@@ -280,10 +370,34 @@ def segment_cellpose_rgb(
             - nuclei (numpy.ndarray): Labeled segmentation mask of nuclei.
             - cells (numpy.ndarray): Labeled segmentation mask of cell boundaries.
             - (optional) counts (dict): Counts of nuclei and cells at different stages if return_counts is True.
+
+    Raises:
+        ValueError: If model is incompatible with installed Cellpose version
     """
-    # Instantiate Cellpose models for nuclei and cytoplasmic segmentation
-    model_dapi = Cellpose(model_type="nuclei", gpu=gpu)
-    model_cyto = Cellpose(model_type=cyto_model, gpu=gpu)
+    # Validate model compatibility with Cellpose version
+    if CELLPOSE_4X and cyto_model != "cpsam":
+        raise ValueError(
+            f"Model '{cyto_model}' requires Cellpose 3.x. "
+            f"Cellpose 4.x only supports the 'cpsam' model. "
+            f"Either change your config to use model='cpsam', "
+            f"or downgrade Cellpose: uv pip install cellpose==3.1.0"
+        )
+    if not CELLPOSE_4X and cyto_model == "cpsam":
+        raise ValueError(
+            f"CPSAM model requires Cellpose 4.x. "
+            f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
+            f"Upgrade with: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
+        )
+
+    # Create Cellpose models (different parameters for Cellpose 3.x vs 4.x)
+    if CELLPOSE_4X:
+        # Cellpose 4.x: Use pretrained_model parameter
+        model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
+        model_cyto = CellposeModel(pretrained_model=cyto_model, gpu=gpu)
+    else:
+        # Cellpose 3.x: Use model_type parameter
+        model_dapi = CellposeModel(model_type="nuclei", gpu=gpu)
+        model_cyto = CellposeModel(model_type=cyto_model, gpu=gpu)
 
     # Set default kwargs if not provided
     if nuclei_kwargs is None:
@@ -294,14 +408,22 @@ def segment_cellpose_rgb(
     counts = {}
 
     # Segment nuclei using nuclei-specific parameters
-    nuclei, _, _, _ = model_dapi.eval(
-        rgb, channels=[3, 0], diameter=nuclei_diameter, **nuclei_kwargs
-    )
+    # Pass only blue channel (DAPI) for nuclei segmentation
+    nuclei, _, _ = model_dapi.eval(rgb[2], diameter=nuclei_diameter, **nuclei_kwargs)
 
     # Segment cells using cell-specific parameters
-    cells, _, _, _ = model_cyto.eval(
-        rgb, channels=[2, 3], diameter=cell_diameter, **cell_kwargs
-    )
+    # For CPSAM (Cellpose 4.x), use all 3 channels: [red/helper, green/cyto, blue/DAPI]
+    # For standard models (Cellpose 3.x), use [green/cyto, blue/DAPI]
+    if CELLPOSE_4X and cyto_model == "cpsam":
+        # CPSAM can use all 3 channels
+        cells, _, _ = model_cyto.eval(
+            rgb, diameter=cell_diameter, channels=[1, 2, 3], **cell_kwargs
+        )
+    else:
+        # Standard cyto models use cytoplasm (green=index 2) and nuclei (blue=index 3) channels
+        cells, _, _ = model_cyto.eval(
+            rgb, diameter=cell_diameter, channels=[2, 3], **cell_kwargs
+        )
 
     counts["initial_nuclei"] = (
         len(np.unique(nuclei)) - 1
@@ -365,13 +487,17 @@ def segment_cellpose_nuclei_rgb(
     Returns:
         numpy.ndarray: Labeled segmentation mask of nuclei.
     """
-    # Instantiate Cellpose model for nuclei segmentation
-    model_dapi = Cellpose(model_type="nuclei", gpu=gpu)
+    # Create Cellpose model (different parameters for Cellpose 3.x vs 4.x)
+    if CELLPOSE_4X:
+        # Cellpose 4.x: Use cpsam model
+        model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
+    else:
+        # Cellpose 3.x: Use nuclei model
+        model_dapi = CellposeModel(model_type="nuclei", gpu=gpu)
 
-    # Segment nuclei using Cellpose from the RGB image
-    nuclei, _, _, _ = model_dapi.eval(
-        rgb, channels=[3, 0], diameter=nuclei_diameter, **kwargs
-    )
+    # Segment nuclei using CellposeModel from the RGB image
+    # Pass only blue channel (DAPI) for nuclei segmentation
+    nuclei, _, _ = model_dapi.eval(rgb[2], diameter=nuclei_diameter, **kwargs)
 
     # Print the number of nuclei found before and after removing edges
     print(
@@ -388,197 +514,3 @@ def segment_cellpose_nuclei_rgb(
 
     # Return the segmented nuclei
     return nuclei
-
-
-def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
-    """Reconcile nuclei and cells labels based on their overlap.
-
-    Args:
-        nuclei (numpy.ndarray): Nuclei mask.
-        cells (numpy.ndarray): Cell mask.
-        how (str, optional): Method to reconcile labels.
-            - 'consensus': Only keep nucleus-cell pairs where label matches are unique.
-            - 'contained_in_cells': Keep multiple nuclei for a single cell but merge them.
-
-    Returns:
-        tuple: Tuple containing the reconciled nuclei and cells masks.
-    """
-    from skimage.morphology import erosion
-
-    def get_unique_label_map(regions, keep_multiple=False):
-        """Get unique label map from regions.
-
-        Args:
-            regions (list): List of regions.
-            keep_multiple (bool, optional): Whether to keep multiple labels for each region.
-
-        Returns:
-            dict: Dictionary containing the label map.
-        """
-        label_map = {}
-        for region in regions:
-            intensity_image = region.intensity_image[region.intensity_image > 0]
-            labels = np.unique(intensity_image)
-            if keep_multiple:
-                label_map[region.label] = labels
-            elif len(labels) == 1:
-                label_map[region.label] = labels[0]
-        return label_map
-
-    # Erode nuclei to prevent overlapping with cells
-    nuclei_eroded = center_pixels(nuclei)
-
-    # Get unique label maps for nuclei and cells
-    nucleus_map = get_unique_label_map(
-        regionprops(nuclei_eroded, intensity_image=cells)
-    )
-
-    # Always get the multiple nuclei mapping for analysis
-    cell_map_multiple = get_unique_label_map(
-        regionprops(cells, intensity_image=nuclei_eroded), keep_multiple=True
-    )
-
-    # Count cells with multiple nuclei
-    nuclei_per_cell = defaultdict(int)
-    for cell_label, nuclei_labels in cell_map_multiple.items():
-        nuclei_per_cell[len(nuclei_labels)] += 1
-
-    # Print statistics
-    print("\nNuclei per cell statistics:")
-    print("--------------------------")
-    for num_nuclei, count in sorted(nuclei_per_cell.items()):
-        print(f"Cells with {num_nuclei} nuclei: {count}")
-    print("--------------------------\n")
-
-    if how == "contained_in_cells":
-        cell_map = get_unique_label_map(
-            regionprops(cells, intensity_image=nuclei_eroded), keep_multiple=True
-        )
-    else:
-        cell_map = get_unique_label_map(
-            regionprops(cells, intensity_image=nuclei_eroded)
-        )
-
-    # Keep only nucleus-cell pairs with matching labels
-    keep = []
-    for nucleus in nucleus_map:
-        try:
-            if how == "contained_in_cells":
-                if nucleus in cell_map[nucleus_map[nucleus]]:
-                    keep.append([nucleus, nucleus_map[nucleus]])
-            else:
-                if cell_map[nucleus_map[nucleus]] == nucleus:
-                    keep.append([nucleus, nucleus_map[nucleus]])
-        except KeyError:
-            pass
-
-    # If no matches found, return zero arrays
-    if len(keep) == 0:
-        return np.zeros_like(nuclei), np.zeros_like(cells)
-
-    # Extract nuclei and cells to keep
-    keep_nuclei, keep_cells = zip(*keep)
-
-    # Reassign labels based on the reconciliation method
-    if how == "contained_in_cells":
-        nuclei = relabel_array(
-            nuclei, {nuclei_label: cell_label for nuclei_label, cell_label in keep}
-        )
-        cells[~np.isin(cells, keep_cells)] = 0
-        labels, cell_indices = np.unique(cells, return_inverse=True)
-        _, nuclei_indices = np.unique(nuclei, return_inverse=True)
-        cells = np.arange(0, labels.shape[0])[cell_indices.reshape(*cells.shape)]
-        nuclei = np.arange(0, labels.shape[0])[nuclei_indices.reshape(*nuclei.shape)]
-    else:
-        nuclei = relabel_array(
-            nuclei, {label: i + 1 for i, label in enumerate(keep_nuclei)}
-        )
-        cells = relabel_array(
-            cells, {label: i + 1 for i, label in enumerate(keep_cells)}
-        )
-
-    # Convert arrays to integers
-    nuclei, cells = nuclei.astype(int), cells.astype(int)
-    return nuclei, cells
-
-
-def center_pixels(label_image):
-    """Assign labels to center pixels of regions in a labeled image.
-
-    Args:
-        label_image (numpy.ndarray): Labeled image.
-
-    Returns:
-        numpy.ndarray: Image with labels assigned to center pixels of regions.
-    """
-    ultimate = np.zeros_like(label_image)  # Initialize an array to store the result
-    for r in regionprops(label_image):  # Iterate over regions in the labeled image
-        # Calculate the mean coordinates of the bounding box of the region
-        i, j = np.array(r.bbox).reshape(2, 2).mean(axis=0).astype(int)
-        # Assign the label of the region to the center pixel
-        ultimate[i, j] = r.label
-    return ultimate  # Return the image with labels assigned to center pixels
-
-
-def image_log_scale(data, bottom_percentile=10, floor_threshold=50, ignore_zero=True):
-    """Apply log scaling to an image.
-
-    Args:
-        data (numpy.ndarray): Input image data.
-        bottom_percentile (int, optional): Percentile value for determining the bottom threshold. Default is 10.
-        floor_threshold (int, optional): Floor threshold for cutting out noisy bits. Default is 50.
-        ignore_zero (bool, optional): Whether to ignore zero values in the data. Default is True.
-
-    Returns:
-        numpy.ndarray: Scaled image data after log scaling.
-    """
-    import numpy as np
-
-    # Convert input data to float
-    data = data.astype(float)
-
-    # Select data based on whether to ignore zero values or not
-    if ignore_zero:
-        data_perc = data[data > 0]
-    else:
-        data_perc = data
-
-    # Determine the bottom percentile value
-    bottom = np.percentile(data_perc, bottom_percentile)
-
-    # Set values below the bottom percentile to the bottom value
-    data[data < bottom] = bottom
-
-    # Apply log scaling with floor threshold
-    scaled = np.log10(data - bottom + 1)
-
-    # Cut out noisy bits based on the floor threshold
-    floor = np.log10(floor_threshold)
-    scaled[scaled < floor] = floor
-
-    # Subtract the floor value
-    return scaled - floor
-
-
-def relabel_array(arr, new_label_dict):
-    """Map values in an integer array based on `new_label_dict`, a dictionary from old to new values.
-
-    Args:
-        arr (numpy.ndarray): The input integer array to be relabeled.
-        new_label_dict (dict): A dictionary mapping old values to new values.
-
-    Returns:
-        numpy.ndarray: The relabeled integer array.
-
-    Notes:
-    - The function iterates through the items in `new_label_dict` and maps old values to new values in the array.
-    - Values in the array that do not have a corresponding mapping in `new_label_dict` remain unchanged.
-    """
-    n = arr.max()  # Find the maximum value in the array
-    arr_ = np.zeros(n + 1)  # Initialize an array to store the relabeled values
-    for old_val, new_val in new_label_dict.items():
-        if old_val <= n:  # Check if the old value is within the range of the array
-            arr_[old_val] = (
-                new_val  # Map the old value to the new value in the relabeling array
-            )
-    return arr_[arr]  # Return the relabeled array

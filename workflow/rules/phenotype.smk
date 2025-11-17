@@ -230,54 +230,6 @@ rule eval_features:
         "../scripts/phenotype/eval_features.py"
 
 
-# TODO: test and implement segmentation paramsearch for updated brieflow setup
-# if config["phenotype"]["mode"] == "segment_phenotype_paramsearch":
-#     rule segment_phenotype_paramsearch:
-#         input:
-#             PHENOTYPE_OUTPUTS["align_phenotype"],
-#         output:
-#             PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype_paramsearch"],
-#         params:
-#             dapi_index=config["phenotype"]["dapi_index"],
-#             cyto_index=config["phenotype"]["cyto_index"],
-#             nuclei_diameter=lambda wildcards: float(wildcards.nuclei_diameter),
-#             cell_diameter=lambda wildcards: float(wildcards.cell_diameter),
-#             cyto_model=config["phenotype"]["cyto_model"],
-#             flow_threshold=lambda wildcards: float(wildcards.flow_threshold),
-#             cellprob_threshold=lambda wildcards: float(wildcards.cellprob_threshold),
-#             return_counts=True,
-#             gpu=config["phenotype"]["gpu"],
-#         script:
-#             "../scripts/shared/segment_cellpose.py"
-
-#     rule summarize_segment_phenotype_paramsearch:
-#         input:
-#             lambda wildcards: output_to_input(
-#                 PHENOTYPE_OUTPUTS["segment_phenotype_paramsearch"][2::3],
-#                 {
-#                     "well": PHENOTYPE_WELLS,
-#                     "tile": PHENOTYPE_TILES,
-#                     "nuclei_diameter": PHENOTYPE_WILDCARDS["nuclei_diameter"],
-#                     "cell_diameter": PHENOTYPE_WILDCARDS["cell_diameter"],
-#                     "flow_threshold": PHENOTYPE_WILDCARDS["flow_threshold"],
-#                     "cellprob_threshold": PHENOTYPE_WILDCARDS["cellprob_threshold"],
-#                 },
-#                 wildcards,
-#             ),
-#         output:
-#             PHENOTYPE_OUTPUTS_MAPPED["summarize_segment_phenotype_paramsearch"],
-#         params:
-#             segmentation="phenotype",
-#             channel_cmaps=config["phenotype"]["channel_cmaps"],
-#             cell_diameter=config["phenotype"]["cell_diameter"],
-#             nuclei_diameter=config["phenotype"]["nuclei_diameter"],
-#             cellprob_threshold=config["phenotype"]["cellprob_threshold"],
-#             flow_threshold=config["phenotype"]["flow_threshold"],
-#             output_type="tsv",
-#         script:
-#             "../scripts/shared/eval_segmentation_paramsearch.py"
-
-
 # Rule for all phenotype processing steps
 rule all_phenotype:
     input:

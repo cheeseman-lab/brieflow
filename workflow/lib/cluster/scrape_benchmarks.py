@@ -27,7 +27,7 @@ import pandas as pd
 
 
 def generate_string_pair_benchmark(
-    aggregated_data, uniprot_data, gene_col="gene_symbol_0"
+    aggregated_data, uniprot_data, gene_col="gene_symbol_0", species_id="9606"
 ):
     """Generate a STRING pair benchmark DataFrame.
 
@@ -40,11 +40,12 @@ def generate_string_pair_benchmark(
         uniprot_data (pd.DataFrame): The UniProt data containing STRING IDs and gene names.
         gene_col (str, optional): The column name in the aggregated data representing gene symbols.
             Defaults to "gene_symbol_0".
+        species_id (str, optional): NCBI taxonomy ID for the organism. Defaults to "9606" (human).
 
     Returns:
         pd.DataFrame: A DataFrame containing the STRING pair benchmark.
     """
-    string_data = get_string_data()
+    string_data = get_string_data(species_id)
 
     # Create mapping from STRING IDs to gene names
     string_to_genes = {}
@@ -166,11 +167,21 @@ def generate_msigdb_group_benchmark(
     return group_benchmark_df.reset_index(drop=True)
 
 
-def get_uniprot_data():
-    """Fetch all human-reviewed UniProt data using the REST API.
+def get_uniprot_data(species_id: str = "9606"):
+    """Fetch reviewed UniProt data for a specified species using the REST API.
 
-    This function retrieves UniProt data for human-reviewed entries, including gene names,
-    functions, and cross-references to STRING, KEGG, and ComplexPortal.
+    This function retrieves UniProt data for reviewed entries of the specified organism,
+    including gene names, functions, and cross-references to STRING, KEGG, and ComplexPortal.
+
+    Args:
+        species_id (str): NCBI taxonomy ID for the organism. Defaults to "9606" (human).
+                         Common species IDs:
+                         - "9606": Homo sapiens (human)
+                         - "10090": Mus musculus (mouse)
+                         - "10116": Rattus norvegicus (rat)
+                         - "7227": Drosophila melanogaster (fruit fly)
+                         - "6239": Caenorhabditis elegans (worm)
+                         - "5811": Toxoplasma gondii
 
     Returns:
         pd.DataFrame: A DataFrame containing UniProt data with UniProt entry links.
@@ -190,9 +201,9 @@ def get_uniprot_data():
 
     # Fetch UniProt data
     url = "https://rest.uniprot.org/uniprotkb/search"
-    # Query for human reviewed entries with specific fields
+    # Query for reviewed entries of specified organism with specific fields
     params = {
-        "query": "organism_id:507601",
+        "query": f"organism_id:{species_id}",
         "fields": "accession,gene_names,cc_function,xref_kegg,xref_complexportal,xref_string",
         "format": "tsv",
         "size": 500,
@@ -268,17 +279,27 @@ def get_corum_data():
     return df
 
 
-def get_string_data():
-    """Fetch STRING interaction data for human proteins.
+def get_string_data(species_id: str = "9606"):
+    """Fetch STRING interaction data for proteins of a specified species.
 
-    This function retrieves STRING interaction data for human proteins and filters
-    interactions with a combined score of 950 or higher.
+    This function retrieves STRING interaction data for proteins of the specified organism
+    and filters interactions with a combined score of 950 or higher.
+
+    Args:
+        species_id (str): NCBI taxonomy ID for the organism. Defaults to "9606" (human).
+                         Common species IDs:
+                         - "9606": Homo sapiens (human)
+                         - "10090": Mus musculus (mouse)
+                         - "10116": Rattus norvegicus (rat)
+                         - "7227": Drosophila melanogaster (fruit fly)
+                         - "6239": Caenorhabditis elegans (worm)
+                         - "5811": Toxoplasma gondii
 
     Returns:
         pd.DataFrame: A DataFrame containing STRING interaction data.
     """
     print("Fetching STRING data...")
-    url = "https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz"
+    url = f"https://stringdb-downloads.org/download/protein.links.v12.0/{species_id}.protein.links.v12.0.txt.gz"
 
     response = requests.get(url)
     response.raise_for_status()

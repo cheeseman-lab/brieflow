@@ -42,7 +42,7 @@ if available_vacuole_cols:
     print(f"Added vacuole columns: {available_vacuole_cols}")
 else:
     print("Warning: No vacuole columns found in the dataset")
-    
+
 print(
     f"Number of metadata columns: {len(metadata_cols)} | Number of feature columns: {len(feature_cols)}"
 )

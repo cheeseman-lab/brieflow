@@ -89,7 +89,7 @@ rule extract_phenotype_cp:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_cp"],
     params:
-        foci_channel=config["phenotype"]["foci_channel"],
+        foci_channel_index=config["phenotype"]["foci_channel_index"],
         channel_names=config["phenotype"]["channel_names"],
         cp_method=config["phenotype"]["cp_method"],
     script:

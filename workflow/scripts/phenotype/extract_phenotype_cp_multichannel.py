@@ -41,7 +41,7 @@ else:
         nuclei=nuclei,
         cells=cells,
         cytoplasms=cytoplasms,
-        foci_channel=snakemake.params.foci_channel,
+        foci_channel=snakemake.params.foci_channel_index,
         channel_names=snakemake.params.channel_names,
         wildcards=snakemake.wildcards,
     )

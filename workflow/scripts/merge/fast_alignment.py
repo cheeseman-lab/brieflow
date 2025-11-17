@@ -1,12 +1,31 @@
 import pandas as pd
-
 from lib.shared.file_utils import validate_dtypes
 from lib.merge.hash import hash_cell_locations, multistep_alignment, extract_rotation
-
+from lib.merge.merge_utils import align_metadata
 
 # Load dfs with metadata on well level
 phenotype_metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input[1]))
+
+# Apply coordinate alignment if transformation parameters are provided
+alignment_params = {
+    'flip_x': getattr(snakemake.params, 'alignment_flip_x', False),
+    'flip_y': getattr(snakemake.params, 'alignment_flip_y', False), 
+    'rotate_90': getattr(snakemake.params, 'alignment_rotate_90', False),
+    'reference_df': getattr(snakemake.params, 'alignment_reference_df', 2)
+}
+
+# Only apply alignment if at least one transformation is requested
+if any([alignment_params['flip_x'], alignment_params['flip_y'], alignment_params['rotate_90']]):
+    print("Applying coordinate alignment transformations...")
+    phenotype_metadata, sbs_metadata, transformation_info = align_metadata(
+        phenotype_metadata, 
+        sbs_metadata,
+        x_col='x_pos',
+        y_col='y_pos',
+        **alignment_params
+    )
+    print("Coordinate alignment completed.")
 
 # Build and apply SBS filters
 sbs_filters = {}

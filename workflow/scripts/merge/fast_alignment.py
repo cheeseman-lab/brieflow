@@ -9,20 +9,26 @@ sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 
 # Apply coordinate alignment if transformation parameters are provided
 alignment_params = {
-    'flip_x': getattr(snakemake.params, 'alignment_flip_x', False),
-    'flip_y': getattr(snakemake.params, 'alignment_flip_y', False), 
-    'rotate_90': getattr(snakemake.params, 'alignment_rotate_90', False),
+    "flip_x": getattr(snakemake.params, "alignment_flip_x", False),
+    "flip_y": getattr(snakemake.params, "alignment_flip_y", False),
+    "rotate_90": getattr(snakemake.params, "alignment_rotate_90", False),
 }
 
 # Only apply alignment if at least one transformation is requested
-if any([alignment_params['flip_x'], alignment_params['flip_y'], alignment_params['rotate_90']]):
+if any(
+    [
+        alignment_params["flip_x"],
+        alignment_params["flip_y"],
+        alignment_params["rotate_90"],
+    ]
+):
     print("Applying coordinate alignment transformations...")
     phenotype_metadata, sbs_metadata, transformation_info = align_metadata(
-        phenotype_metadata, 
+        phenotype_metadata,
         sbs_metadata,
-        x_col='x_pos',
-        y_col='y_pos',
-        **alignment_params
+        x_col="x_pos",
+        y_col="y_pos",
+        **alignment_params,
     )
     print("Coordinate alignment completed.")
 

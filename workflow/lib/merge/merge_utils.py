@@ -105,6 +105,7 @@ def plot_combined_tile_grid(ph_test_metadata, sbs_test_metadata):
 
     return fig
 
+
 def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
     """Visualizes the merge process for a single tile-site pair.
 
@@ -344,9 +345,11 @@ def preview_mask_transformations(
             if tile_path.exists():
                 try:
                     import tifffile
+
                     tile_data = tifffile.imread(str(tile_path))
                 except ImportError:
                     from PIL import Image
+
                     tile_data = np.array(Image.open(str(tile_path)))
                 files_found += 1
 
@@ -369,10 +372,14 @@ def preview_mask_transformations(
             # Extract centroids from original tile
             props = regionprops(tile_data.astype(int))
             if len(props) > 0:
-                centroids = np.array([[p.centroid[0] + y_offset, p.centroid[1] + x_offset] 
-                                     for p in props])
+                centroids = np.array(
+                    [
+                        [p.centroid[0] + y_offset, p.centroid[1] + x_offset]
+                        for p in props
+                    ]
+                )
                 original_centroids.append(centroids)
-            
+
             # Apply transformations
             transformed_tile = tile_data.copy()
             if rot90 > 0:
@@ -385,8 +392,12 @@ def preview_mask_transformations(
             # Extract centroids from transformed tile
             props_trans = regionprops(transformed_tile.astype(int))
             if len(props_trans) > 0:
-                centroids_trans = np.array([[p.centroid[0] + y_offset, p.centroid[1] + x_offset] 
-                                           for p in props_trans])
+                centroids_trans = np.array(
+                    [
+                        [p.centroid[0] + y_offset, p.centroid[1] + x_offset]
+                        for p in props_trans
+                    ]
+                )
                 transformed_centroids.append(centroids_trans)
 
         except Exception as e:
@@ -395,8 +406,16 @@ def preview_mask_transformations(
     print(f"Successfully loaded {files_found}/{len(first_tiles)} mask files")
 
     # Combine all centroids
-    all_original = np.vstack(original_centroids) if original_centroids else np.array([]).reshape(0, 2)
-    all_transformed = np.vstack(transformed_centroids) if transformed_centroids else np.array([]).reshape(0, 2)
+    all_original = (
+        np.vstack(original_centroids)
+        if original_centroids
+        else np.array([]).reshape(0, 2)
+    )
+    all_transformed = (
+        np.vstack(transformed_centroids)
+        if transformed_centroids
+        else np.array([]).reshape(0, 2)
+    )
 
     # --- compute overall axis limits ---
     if len(all_original) > 0:
@@ -421,34 +440,53 @@ def preview_mask_transformations(
     ):
         ax.set_title(title, fontsize=14, weight="bold")
         ax.set_aspect("equal")
-        
+
         if len(centroids) > 0:
-            ax.scatter(centroids[:, 1], centroids[:, 0], 
-                      s=10, alpha=0.6, c='red', edgecolors='none')
-        
+            ax.scatter(
+                centroids[:, 1],
+                centroids[:, 0],
+                s=10,
+                alpha=0.6,
+                c="red",
+                edgecolors="none",
+            )
+
         # Set axis limits
         ax.set_xlim(x_min_plot, x_max_plot)
         ax.set_ylim(y_min_plot, y_max_plot)
         ax.invert_yaxis()  # Match image coordinate convention
-        ax.set_xlabel('X (pixels)', fontsize=12)
-        ax.set_ylabel('Y (pixels)', fontsize=12)
+        ax.set_xlabel("X (pixels)", fontsize=12)
+        ax.set_ylabel("Y (pixels)", fontsize=12)
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.show()
 
-    print(f"Total objects: {len(all_original)} (original), {len(all_transformed)} (transformed)")
+    print(
+        f"Total objects: {len(all_original)} (original), {len(all_transformed)} (transformed)"
+    )
 
     return {"flipud": flipud, "fliplr": fliplr, "rot90": rot90}
+
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-def align_metadata(df1, df2, x_col='x_pos', y_col='y_pos', reference_df=2,
-                                 flip_x=False, flip_y=False, rotate_90=False, align_centers=True):
+
+def align_metadata(
+    df1,
+    df2,
+    x_col="x_pos",
+    y_col="y_pos",
+    reference_df=2,
+    flip_x=False,
+    flip_y=False,
+    rotate_90=False,
+    align_centers=True,
+):
     """Align coordinates with flipping and rotation, then translation.
-    
+
     Parameters:
     -----------
     df1, df2 : pandas.DataFrame
@@ -465,7 +503,7 @@ def align_metadata(df1, df2, x_col='x_pos', y_col='y_pos', reference_df=2,
         Whether to rotate 90 degrees counterclockwise
     align_centers : bool
         Whether to translate to align centers with reference dataset
-    
+
     Returns:
     --------
     df1_aligned, df2_aligned : pandas.DataFrame
@@ -475,11 +513,11 @@ def align_metadata(df1, df2, x_col='x_pos', y_col='y_pos', reference_df=2,
     """
     df1_aligned = df1.copy()
     df2_aligned = df2.copy()
-    
+
     # Calculate initial centers
     center1_orig = (df1[x_col].mean(), df1[y_col].mean())
     center2_orig = (df2[x_col].mean(), df2[y_col].mean())
-    
+
     if reference_df == 1:
         # Transform df2 to match df1
         target_df = df2_aligned
@@ -492,13 +530,13 @@ def align_metadata(df1, df2, x_col='x_pos', y_col='y_pos', reference_df=2,
         target_coords = df1[[x_col, y_col]].values
         reference_center = center2_orig
         transform_center_orig = center1_orig
-    
+
     # Get the center of the dataset being transformed
     transform_center = np.mean(target_coords, axis=0)
-    
+
     # Center the coordinates around origin
     centered_coords = target_coords - transform_center
-    
+
     # Step 1: Flip coordinates if requested
     if flip_x and flip_y:
         centered_coords[:, 0] = -centered_coords[:, 0]
@@ -512,19 +550,19 @@ def align_metadata(df1, df2, x_col='x_pos', y_col='y_pos', reference_df=2,
         print(f"Step 1: Flipped Y coordinates")
     else:
         print(f"Step 1: No flip applied")
-    
+
     # Step 2: Rotate 90 degrees counterclockwise if requested
     if rotate_90:
         # 90-degree counterclockwise rotation matrix: [[0, -1], [1, 0]]
         # New x = -old y, New y = old x
         new_coords = np.zeros_like(centered_coords)
         new_coords[:, 0] = -centered_coords[:, 1]  # new x = -old y
-        new_coords[:, 1] = centered_coords[:, 0]   # new y = old x
+        new_coords[:, 1] = centered_coords[:, 0]  # new y = old x
         centered_coords = new_coords
         print(f"Step 2: Rotated 90 degrees counterclockwise")
     else:
         print(f"Step 2: No rotation applied")
-    
+
     # Step 3: Calculate translation
     if align_centers:
         transformed_center = np.mean(centered_coords, axis=0)
@@ -537,90 +575,95 @@ def align_metadata(df1, df2, x_col='x_pos', y_col='y_pos', reference_df=2,
         # Apply translation back to original center
         centered_coords = centered_coords + translation
         print(f"Step 3: No alignment applied")
-    
+
     # Update the target dataframe
     target_df[x_col] = centered_coords[:, 0]
     target_df[y_col] = centered_coords[:, 1]
-    
+
     # Verify final centers
     final_center1 = (df1_aligned[x_col].mean(), df1_aligned[y_col].mean())
     final_center2 = (df2_aligned[x_col].mean(), df2_aligned[y_col].mean())
-    
+
     if reference_df == 1:
         final_center = final_center2
     else:
         final_center = final_center1
-    
+
     transformation_info = {
-        'flip_x': flip_x,
-        'flip_y': flip_y,
-        'rotate_90': rotate_90,
-        'align_centers': align_centers,
-        'translation': translation if align_centers else transform_center,
-        'reference_df': reference_df,
-        'original_centers': (center1_orig, center2_orig),
-        'final_centers': (final_center1, final_center2)
+        "flip_x": flip_x,
+        "flip_y": flip_y,
+        "rotate_90": rotate_90,
+        "align_centers": align_centers,
+        "translation": translation if align_centers else transform_center,
+        "reference_df": reference_df,
+        "original_centers": (center1_orig, center2_orig),
+        "final_centers": (final_center1, final_center2),
     }
-    
+
     return df1_aligned, df2_aligned, transformation_info
+
 
 def find_closest_tiles(sbs_metadata, ph_metadata, sbs_tile_id, verbose=True):
     """Find closest tiles in ph_metadata to a specific tile in sbs_metadata.
-    
+
     Args:
         sbs_metadata: DataFrame with x_pos, y_pos columns
-        ph_metadata: DataFrame with x_pos, y_pos columns  
+        ph_metadata: DataFrame with x_pos, y_pos columns
         sbs_tile_id: ID of sbs tile to find neighbors for
         verbose: If True, print top 3 matches
-    
+
     Returns:
         DataFrame of ph tiles sorted by distance to sbs_tile_id
     """
     # Get sbs tile coordinates
     sbs_tile = sbs_metadata[sbs_metadata.tile == sbs_tile_id]
-    sbs_x, sbs_y = sbs_tile['x_pos'].iloc[0], sbs_tile['y_pos'].iloc[0]
-    
+    sbs_x, sbs_y = sbs_tile["x_pos"].iloc[0], sbs_tile["y_pos"].iloc[0]
+
     # Calculate distances to all ph tiles
-    distances = np.sqrt((ph_metadata['x_pos'] - sbs_x)**2 + (ph_metadata['y_pos'] - sbs_y)**2)
-    
+    distances = np.sqrt(
+        (ph_metadata["x_pos"] - sbs_x) ** 2 + (ph_metadata["y_pos"] - sbs_y) ** 2
+    )
+
     # Return sorted results
     result = ph_metadata.copy()
-    result['distance'] = distances
+    result["distance"] = distances
 
     if verbose:
         # Print the top 3 closest tiles
-        closest_tiles = result.nsmallest(3, 'distance')
+        closest_tiles = result.nsmallest(3, "distance")
         print(f"\nTop 3 closest tiles to SBS tile {sbs_tile_id}:")
         for idx, row in closest_tiles.iterrows():
             print(f"  Tile {row['tile']}: Distance = {row['distance']:.2f}")
 
-    return result.sort_values('distance')
+    return result.sort_values("distance")
 
 
-def fast_merge_example(ph_tile, sbs_site, alignment_df, phenotype_info, sbs_info, threshold):
+def fast_merge_example(
+    ph_tile, sbs_site, alignment_df, phenotype_info, sbs_info, threshold
+):
     """Process and plot PH tile and SBS site pairs."""
     print(f"\nProcessing PH tile {ph_tile} and SBS site {sbs_site}...")
-    
+
     # Get alignment vector
     alignment_vec = alignment_df[
-        (alignment_df["tile"] == ph_tile) & 
-        (alignment_df["site"] == sbs_site)
+        (alignment_df["tile"] == ph_tile) & (alignment_df["site"] == sbs_site)
     ]
-    
+
     # Validation checks
     if alignment_vec.empty:
         print(f"  No valid alignment found")
         return False
-    
+
     alignment_vec = alignment_vec.iloc[0]
-    
-    if not hasattr(alignment_vec.get('rotation'), 'ndim') or \
-       not hasattr(alignment_vec.get('translation'), 'ndim'):
+
+    if not hasattr(alignment_vec.get("rotation"), "ndim") or not hasattr(
+        alignment_vec.get("translation"), "ndim"
+    ):
         print(f"  Invalid alignment data")
         print(f"  Rotation: {alignment_vec.get('rotation')}")
         print(f"  Translation: {alignment_vec.get('translation')}")
         return False
-    
+
     # Try plotting
     try:
         plot_merge_example(phenotype_info, sbs_info, alignment_vec, threshold=threshold)

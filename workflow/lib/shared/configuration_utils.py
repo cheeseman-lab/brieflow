@@ -230,4 +230,3 @@ def convert_tuples_to_lists(obj):
         return {k: convert_tuples_to_lists(v) for k, v in obj.items()}
     else:
         return obj
-

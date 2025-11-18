@@ -554,7 +554,9 @@ def visualize_parameter_results(
                 success_results.loc[idx, "fraction_any_barcode"] = (
                     metric_any_barcode_fraction(df_subset, total_cells_for_params)
                 )
-                success_results.loc[idx, "specificity"] = metric_specificity(df_subset, total_cells_for_params)
+                success_results.loc[idx, "specificity"] = metric_specificity(
+                    df_subset, total_cells_for_params
+                )
 
     # Identify parameter columns (exclude metric, status, total_cells, metric_name, and computed metrics)
     param_cols = [

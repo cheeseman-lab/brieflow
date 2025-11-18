@@ -298,9 +298,13 @@ def align_cycles(
             if channel in extra_indices and extra_channel_source_cycle is not None:
                 # Extra channels: use ONLY the offset from the cycle they were acquired in
                 # This prevents misalignment when the same image is propagated across cycles
-                source_offset = np.array([offsets[extra_channel_source_cycle]] * aligned.shape[0])
+                source_offset = np.array(
+                    [offsets[extra_channel_source_cycle]] * aligned.shape[0]
+                )
                 aligned[:, channel] = apply_offsets(aligned[:, channel], source_offset)
-                if channel == extra_indices[0]:  # Print once for the first extra channel
+                if (
+                    channel == extra_indices[0]
+                ):  # Print once for the first extra channel
                     print(
                         f"Applying source cycle {extra_channel_source_cycle} offset to {len(extra_indices)} extra channel(s)"
                     )
@@ -447,7 +451,9 @@ def manual_fill_channels(
     return aligned_data
 
 
-def visualize_sbs_alignment(aligned_data, channel_names, dapi_cycle, viz_channels, crop_size=300):
+def visualize_sbs_alignment(
+    aligned_data, channel_names, dapi_cycle, viz_channels, crop_size=300
+):
     """Visualize SBS cycle alignment with DAPI reference and RGB base channel overlay.
 
     Shows 3 locations (corner, center, random) with:
@@ -480,14 +486,16 @@ def visualize_sbs_alignment(aligned_data, channel_names, dapi_cycle, viz_channel
     import matplotlib.pyplot as plt
 
     if len(viz_channels) != 3:
-        print(f"Error: Need exactly 3 channels for RGB overlay, got {len(viz_channels)}")
+        print(
+            f"Error: Need exactly 3 channels for RGB overlay, got {len(viz_channels)}"
+        )
         return None
 
     n_cycles, n_channels, height, width = aligned_data.shape
 
     # Get DAPI reference
     if dapi_cycle >= n_cycles:
-        print(f"Error: DAPI cycle {dapi_cycle} out of range (max {n_cycles-1})")
+        print(f"Error: DAPI cycle {dapi_cycle} out of range (max {n_cycles - 1})")
         return None
     if "DAPI" not in channel_names:
         print(f"Error: DAPI channel not found in {channel_names}")
@@ -501,23 +509,25 @@ def visualize_sbs_alignment(aligned_data, channel_names, dapi_cycle, viz_channel
     rgb_labels = []
     for cycle_idx, ch_name in viz_channels:
         if cycle_idx >= n_cycles:
-            print(f"Error: Cycle {cycle_idx} out of range (max {n_cycles-1})")
+            print(f"Error: Cycle {cycle_idx} out of range (max {n_cycles - 1})")
             return None
         if ch_name not in channel_names:
             print(f"Error: Channel '{ch_name}' not found in {channel_names}")
             return None
         ch_idx = channel_names.index(ch_name)
         rgb_data.append(aligned_data[cycle_idx, ch_idx])
-        rgb_labels.append(f"C{cycle_idx+1}-{ch_name}")
+        rgb_labels.append(f"C{cycle_idx + 1}-{ch_name}")
 
     # Define 3 crop locations
     np.random.seed(42)
     locations = [
         ("Top-Left Corner", 50, 50),
         ("Center", (height - crop_size) // 2, (width - crop_size) // 2),
-        ("Random Location",
-         np.random.randint(50, height - crop_size - 50),
-         np.random.randint(50, width - crop_size - 50))
+        (
+            "Random Location",
+            np.random.randint(50, height - crop_size - 50),
+            np.random.randint(50, width - crop_size - 50),
+        ),
     ]
 
     # Create figure with 1 row x 3 columns
@@ -549,10 +559,10 @@ def visualize_sbs_alignment(aligned_data, channel_names, dapi_cycle, viz_channel
 
         axes[col_idx].imshow(composite)
         axes[col_idx].set_title(
-            f"{location_name}\n" +
-            f"DAPI: C{dapi_cycle+1} (gray) | " +
-            f"R={rgb_labels[0]}, G={rgb_labels[1]}, B={rgb_labels[2]}",
-            fontsize=10
+            f"{location_name}\n"
+            + f"DAPI: C{dapi_cycle + 1} (gray) | "
+            + f"R={rgb_labels[0]}, G={rgb_labels[1]}, B={rgb_labels[2]}",
+            fontsize=10,
         )
         axes[col_idx].axis("off")
 

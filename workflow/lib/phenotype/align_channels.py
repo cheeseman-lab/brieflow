@@ -66,7 +66,9 @@ def align_phenotype_channels(
         print(f"  Source channel (index {source}): shift = {offsets[1]} pixels (y, x)")
         if riders:
             for rider_idx in riders:
-                print(f"  Rider channel (index {rider_idx}): shift = {offsets[1]} pixels (y, x)")
+                print(
+                    f"  Rider channel (index {rider_idx}): shift = {offsets[1]} pixels (y, x)"
+                )
 
     # Apply alignment
     if stack:
@@ -89,7 +91,9 @@ def align_phenotype_channels(
     return aligned
 
 
-def visualize_phenotype_alignment(aligned_data, channel_names, viz_channels, crop_size=300):
+def visualize_phenotype_alignment(
+    aligned_data, channel_names, viz_channels, crop_size=300
+):
     """Visualize phenotype channel alignment with grayscale and RGB overlays.
 
     Shows 16 locations (4x4 grid). First channel shown in grayscale with
@@ -119,7 +123,9 @@ def visualize_phenotype_alignment(aligned_data, channel_names, viz_channels, cro
     from matplotlib.gridspec import GridSpec
 
     if len(viz_channels) != 4:
-        print(f"Error: Need exactly 4 channels (1 grayscale + 3 RGB), got {len(viz_channels)}")
+        print(
+            f"Error: Need exactly 4 channels (1 grayscale + 3 RGB), got {len(viz_channels)}"
+        )
         return None
 
     _, height, width = aligned_data.shape
@@ -142,31 +148,38 @@ def visualize_phenotype_alignment(aligned_data, channel_names, viz_channels, cro
         ("Top-Left Corner", margin, margin),
         ("Top Edge", margin, mid_x),
         ("Top-Right Corner", margin, width - crop_size - margin),
-        ("Random 1",
-         np.random.randint(margin, height - crop_size - margin),
-         np.random.randint(margin, width - crop_size - margin)),
-
+        (
+            "Random 1",
+            np.random.randint(margin, height - crop_size - margin),
+            np.random.randint(margin, width - crop_size - margin),
+        ),
         # Row 2: Left edge, quadrant centers
         ("Left Edge", mid_y, margin),
         ("Top-Left Quadrant", mid_y // 2, mid_x // 2),
         ("Top-Right Quadrant", mid_y // 2, mid_x + mid_x // 2),
-        ("Random 2",
-         np.random.randint(margin, height - crop_size - margin),
-         np.random.randint(margin, width - crop_size - margin)),
-
+        (
+            "Random 2",
+            np.random.randint(margin, height - crop_size - margin),
+            np.random.randint(margin, width - crop_size - margin),
+        ),
         # Row 3: More quadrant centers and right edge
         ("Bottom-Left Quadrant", mid_y + mid_y // 2, mid_x // 2),
         ("Center", mid_y, mid_x),
         ("Bottom-Right Quadrant", mid_y + mid_y // 2, mid_x + mid_x // 2),
         ("Right Edge", mid_y, width - crop_size - margin),
-
         # Row 4: Bottom edge, corner, and random
-        ("Random 3",
-         np.random.randint(margin, height - crop_size - margin),
-         np.random.randint(margin, width - crop_size - margin)),
+        (
+            "Random 3",
+            np.random.randint(margin, height - crop_size - margin),
+            np.random.randint(margin, width - crop_size - margin),
+        ),
         ("Bottom-Left Corner", height - crop_size - margin, margin),
         ("Bottom Edge", height - crop_size - margin, mid_x),
-        ("Bottom-Right Corner", height - crop_size - margin, width - crop_size - margin),
+        (
+            "Bottom-Right Corner",
+            height - crop_size - margin,
+            width - crop_size - margin,
+        ),
     ]
 
     # Create figure with 4 rows x 4 columns
@@ -200,9 +213,9 @@ def visualize_phenotype_alignment(aligned_data, channel_names, viz_channels, cro
         ax = fig.add_subplot(gs[idx // 4, idx % 4])
         ax.imshow(rgba)
         ax.set_title(
-            f"{location_name}\n" +
-            f"Gray: {viz_channels[0]} | RGB: R={viz_channels[1]}, G={viz_channels[2]}, B={viz_channels[3]}",
-            fontsize=8
+            f"{location_name}\n"
+            + f"Gray: {viz_channels[0]} | RGB: R={viz_channels[1]}, G={viz_channels[2]}, B={viz_channels[3]}",
+            fontsize=8,
         )
         ax.axis("off")
 

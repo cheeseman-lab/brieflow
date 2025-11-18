@@ -12,7 +12,6 @@ alignment_params = {
     'flip_x': getattr(snakemake.params, 'alignment_flip_x', False),
     'flip_y': getattr(snakemake.params, 'alignment_flip_y', False), 
     'rotate_90': getattr(snakemake.params, 'alignment_rotate_90', False),
-    'reference_df': getattr(snakemake.params, 'alignment_reference_df', 2)
 }
 
 # Only apply alignment if at least one transformation is requested

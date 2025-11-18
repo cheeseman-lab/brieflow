@@ -21,6 +21,9 @@ if merge_approach == "fast":
             initial_sites=config["merge"]["initial_sites"],
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
+            alignment_flip_x=config["merge"].get("alignment_flip_x"),
+            alignment_flip_y=config["merge"].get("alignment_flip_y"),
+            alignment_rotate_90=config["merge"].get("alignment_rotate_90"),
         script:
             "../scripts/merge/fast_alignment.py"
 
@@ -60,6 +63,7 @@ if merge_approach == "stitch":
     rule estimate_stitch_sbs:
         input:
             sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
+            phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
         output:
             sbs_stitch_config=MERGE_OUTPUTS_MAPPED["estimate_stitch_sbs"][0],
         params:
@@ -72,6 +76,9 @@ if merge_approach == "stitch":
             sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
             sbs_metadata_channel=config["merge"].get("sbs_metadata_channel"),
             sbs_pixel_size=config.get("merge", {}).get("sbs_pixel_size"),
+            alignment_flip_x=config["merge"].get("alignment_flip_x"),
+            alignment_flip_y=config["merge"].get("alignment_flip_y"),
+            alignment_rotate_90=config["merge"].get("alignment_rotate_90"),
         script:
             "../scripts/merge/estimate_stitch.py"
 
@@ -106,7 +113,6 @@ if merge_approach == "stitch":
             flipud=config.get("merge", {}).get("flipud", False),
             fliplr=config.get("merge", {}).get("fliplr", False),
             rot90=config.get("merge", {}).get("rot90", 0),
-            overlap_fraction=config.get("merge", {}).get("overlap_fraction"),
             stitched_image=config.get("merge", {}).get("stitched_image", True),     
         script:
             "../scripts/merge/stitch.py"

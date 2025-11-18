@@ -33,6 +33,45 @@ elif data_type == "phenotype":
 # Load metadata
 metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 
+# Apply coordinate alignment for SBS data if transformation parameters are provided
+if data_type == "sbs":
+    alignment_params = {
+        "flip_x": getattr(snakemake.params, "alignment_flip_x", False),
+        "flip_y": getattr(snakemake.params, "alignment_flip_y", False),
+        "rotate_90": getattr(snakemake.params, "alignment_rotate_90", False),
+    }
+
+    # Only apply alignment if at least one transformation is requested
+    if any(
+        [
+            alignment_params["flip_x"],
+            alignment_params["flip_y"],
+            alignment_params["rotate_90"],
+        ]
+    ):
+        from lib.merge.merge_utils import align_metadata
+
+        print("Loading phenotype metadata for alignment reference...")
+        # Load phenotype metadata from second input
+        phenotype_metadata = validate_dtypes(pd.read_parquet(snakemake.input[1]))
+
+        print("Applying coordinate alignment transformations...")
+        phenotype_aligned, metadata, transformation_info = align_metadata(
+            phenotype_metadata,
+            metadata,
+            x_col="x_pos",
+            y_col="y_pos",
+            reference_df=1,  # Use phenotype as reference
+            **alignment_params,
+        )
+        print("Coordinate alignment completed.")
+        print(
+            f"Original centers: PH={transformation_info['original_centers'][0]}, SBS={transformation_info['original_centers'][1]}"
+        )
+        print(
+            f"Final centers: PH={transformation_info['final_centers'][0]}, SBS={transformation_info['final_centers'][1]}"
+        )
+
 if data_type == "sbs":
     # Apply SBS metadata filters
     sbs_filters = {}

@@ -19,7 +19,9 @@ jobs:
           sudo rm -rf /usr/share/dotnet \
                       /opt/ghc \
                       /usr/local/lib/android \
-                      /opt/hostedtoolcache || true
+                      /opt/hostedtoolcache \
+                      /usr/share/miniconda \
+                      ~/.cache || true
           df -h
 
       # Set up Conda

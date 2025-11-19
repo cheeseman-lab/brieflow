@@ -14,33 +14,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet \
+                      /opt/ghc \
+                      /usr/local/lib/android \
+                      /opt/hostedtoolcache || true
+          df -h
+
       # Set up Conda
       - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v2
         with:
           auto-update-conda: true
           python-version: 3.11
-          channels: conda-forge
 
-      # Cache conda environment
-      - name: Cache conda environment
-        uses: actions/cache@v3
-        id: conda-cache
-        with:
-          path: |
-            /usr/share/miniconda/envs/brieflow_ci
-            ~/.cache/pip
-          key: conda-env-${{ hashFiles('pyproject.toml') }}-${{ runner.os }}-python3.11
-          restore-keys: |
-            conda-env-${{ runner.os }}-python3.11-
-
-      # Set up environment (only if cache miss)
+      # Set up environment
       - name: Set up brieflow environment
-        if: steps.conda-cache.outputs.cache-hit != 'true'
         shell: bash -l {0}
         run: |
           # Create conda environment
-          conda create -n brieflow_ci -c conda-forge python=3.11 uv pip -y
+          conda create -n brieflow_ci python=3.11 -y
           conda activate brieflow_ci
           
           # Install Python dependencies with uv
@@ -54,17 +48,8 @@ jobs:
           conda activate brieflow_ci
           echo "CONDA_DEFAULT_ENV=brieflow_ci" >> $GITHUB_ENV
 
-      # Cache the test data setup
-      - name: Cache test data
-        uses: actions/cache@v3
-        id: test-data-cache
-        with:
-          path: tests/small_test_analysis/small_test_data
-          key: small-test-data-${{ hashFiles('tests/small_test_analysis/small_test_analysis_setup.py') }}
-
-      # Only run setup if cache miss
+      # Run setup for small test analysis
       - name: Run small test setup
-        if: steps.test-data-cache.outputs.cache-hit != 'true'
         shell: bash -l {0}
         working-directory: tests/small_test_analysis
         run: |
@@ -77,6 +62,8 @@ jobs:
         working-directory: tests/small_test_analysis
         run: |
           conda activate brieflow_ci
+          mkdir -p "$PWD/tmp"
+          export TMPDIR="$PWD/tmp"
           sh run_brieflow.sh
 
       # Run Pytest

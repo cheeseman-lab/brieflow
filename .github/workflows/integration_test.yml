@@ -46,9 +46,6 @@ jobs:
           # Install Python dependencies with uv
           uv pip install -r pyproject.toml
           uv pip install -e .
-          
-          # Install conda-only packages
-          conda install -c conda-forge micro_sam -y
 
       # Activate environment for subsequent steps
       - name: Initialize conda environment

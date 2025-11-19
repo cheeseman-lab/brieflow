@@ -16,11 +16,11 @@ aligned_data = image_data
 # STEP 1: Apply custom offsets FIRST (if they exist)
 if align_config.get("custom_channel_offsets"):
     print("STEP 1: Applying custom channel offsets...")
-    print(f"Custom offsets: {align_config['custom_channel_offsets']}")
+    print(f"Custom offsets: {align_config.get('custom_channel_offsets')}")
 
     aligned_data = apply_custom_offsets(
         aligned_data,
-        offsets_dict=align_config["custom_channel_offsets"],
+        offsets_dict=align_config.get("custom_channel_offsets"),
     )
 else:
     print("STEP 1: No custom offsets to apply")

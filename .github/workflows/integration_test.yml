@@ -36,7 +36,7 @@ jobs:
         shell: bash -l {0}
         run: |
           # Create conda environment
-          conda create -n brieflow_ci python=3.11 -y
+          conda create -n brieflow_ci python=3.11 uv pip -y
           conda activate brieflow_ci
           
           # Install Python dependencies with uv

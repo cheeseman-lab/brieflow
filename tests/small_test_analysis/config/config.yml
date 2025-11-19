@@ -90,7 +90,7 @@ phenotype:
   cyto_model: cyto3
   dapi_index: 0
   flow_threshold: 0.4
-  foci_channel: 2
+  foci_channel_index: 2
   gpu: false
   segmentation_method: cellpose
   mode: null

@@ -35,16 +35,48 @@ def get_alignment_params(wildcards, config: Dict[str, Any]) -> Dict[str, Any]:
 
         # Return appropriate config based on whether it's multi-step or not
         if "steps" in plate_config:
-            return {"align": True, "multi_step": True, "steps": plate_config["steps"]}
+            # Multi-step alignment - include all parameters
+            multi_step_params = {
+                "align": True,
+                "multi_step": True,
+                "steps": plate_config["steps"],
+                "window": plate_config.get("window", 2),
+                "upsample_factor": plate_config.get("upsample_factor", 2),
+            }
 
-        # Create base alignment params
+            # Add custom channel offsets if they exist
+            if "custom_channel_offsets" in plate_config:
+                multi_step_params["custom_channel_offsets"] = plate_config[
+                    "custom_channel_offsets"
+                ]
+
+            return multi_step_params
+
+        # Check if this is custom-offsets-only (no automatic alignment)
+        has_automatic = "target" in plate_config and "source" in plate_config
+
+        if not has_automatic:
+            # Custom offsets only, no automatic alignment
+            custom_only_params = {
+                "align": False,
+                "multi_step": False,
+            }
+
+            if "custom_channel_offsets" in plate_config:
+                custom_only_params["custom_channel_offsets"] = plate_config[
+                    "custom_channel_offsets"
+                ]
+
+            return custom_only_params
+
+        # Create base alignment params (single-step with automatic alignment)
         alignment_params = {
             "align": True,
             "multi_step": False,
             "target": plate_config["target"],
             "source": plate_config["source"],
-            "riders": plate_config["riders"],
-            "remove_channel": plate_config["remove_channel"],
+            "riders": plate_config.get("riders", []),
+            "remove_channel": plate_config.get("remove_channel", False),
             "upsample_factor": plate_config.get("upsample_factor", 2),
             "window": plate_config.get("window", 2),
         }

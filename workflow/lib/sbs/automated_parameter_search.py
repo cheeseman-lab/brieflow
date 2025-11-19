@@ -270,8 +270,9 @@ def automated_parameter_search(
                 )
                 continue
 
-            # Compute metric score
-            metric_score = metric_fn(df_cells)
+            # Compute metric score with total_cells as denominator
+            total_cells = len(np.unique(mask)) - 1
+            metric_score = metric_fn(df_cells, total_cells)
 
             # Annotate df_cells with parameters for tracking
             for param_name, param_value in current_params.items():
@@ -317,7 +318,7 @@ def automated_parameter_search(
     return results_df, df_cells_combined
 
 
-def metric_one_barcode_fraction(df_cells):
+def metric_one_barcode_fraction(df_cells, total_cells=None):
     """Calculate fraction of cells mapping to exactly one barcode.
 
     A cell maps to one barcode if it has a valid gene_symbol_0 (mapped to library)
@@ -326,10 +327,17 @@ def metric_one_barcode_fraction(df_cells):
     This metric uses gene symbols rather than raw barcodes to ensure only
     library-matched barcodes are counted (following eval_mapping.py logic).
 
+    **Denominator**: Uses total_cells (all segmented cells) when provided, matching
+    the heatmap evaluation logic. This ensures metrics are comparable and optimization
+    accounts for overall mapping success, not just purity among mapped cells.
+
     Parameters
     ----------
     df_cells : pd.DataFrame
         DataFrame with cell-level barcode calls from call_cells().
+    total_cells : int, optional
+        Total number of segmented cells (includes unmapped cells).
+        If None, uses len(df_cells) as denominator (legacy behavior).
 
     Returns:
     -------
@@ -348,17 +356,19 @@ def metric_one_barcode_fraction(df_cells):
     has_mapped_0 = df_cells["gene_symbol_0"].notna()
 
     if "gene_symbol_1" not in df_cells.columns:
-        return has_mapped_0.sum() / len(df_cells)
+        num_one_barcode = has_mapped_0.sum()
+    else:
+        has_mapped_1 = df_cells["gene_symbol_1"].notna()
+        # Count cells with exactly one mapped barcode
+        has_one_barcode = has_mapped_0 & ~has_mapped_1
+        num_one_barcode = has_one_barcode.sum()
 
-    has_mapped_1 = df_cells["gene_symbol_1"].notna()
-
-    # Count cells with exactly one mapped barcode
-    has_one_barcode = has_mapped_0 & ~has_mapped_1
-
-    return has_one_barcode.sum() / len(df_cells)
+    # Use total_cells as denominator if provided, otherwise len(df_cells)
+    denominator = total_cells if total_cells is not None else len(df_cells)
+    return num_one_barcode / denominator if denominator > 0 else 0.0
 
 
-def metric_any_barcode_fraction(df_cells):
+def metric_any_barcode_fraction(df_cells, total_cells=None):
     """Calculate fraction of cells mapping to any barcode(s).
 
     A cell maps to any barcode if it has at least one valid gene_symbol_0
@@ -367,10 +377,17 @@ def metric_any_barcode_fraction(df_cells):
     This metric uses gene symbols rather than raw barcodes to ensure only
     library-matched barcodes are counted (following eval_mapping.py logic).
 
+    **Denominator**: Uses total_cells (all segmented cells) when provided, matching
+    the heatmap evaluation logic. This ensures metrics are comparable and optimization
+    accounts for overall mapping success, not just purity among mapped cells.
+
     Parameters
     ----------
     df_cells : pd.DataFrame
         DataFrame with cell-level barcode calls from call_cells().
+    total_cells : int, optional
+        Total number of segmented cells (includes unmapped cells).
+        If None, uses len(df_cells) as denominator (legacy behavior).
 
     Returns:
     -------
@@ -385,8 +402,11 @@ def metric_any_barcode_fraction(df_cells):
 
     # Count cells with at least one valid mapped barcode
     has_any_barcode = df_cells["gene_symbol_0"].notna()
+    num_any_barcode = has_any_barcode.sum()
 
-    return has_any_barcode.sum() / len(df_cells)
+    # Use total_cells as denominator if provided, otherwise len(df_cells)
+    denominator = total_cells if total_cells is not None else len(df_cells)
+    return num_any_barcode / denominator if denominator > 0 else 0.0
 
 
 def metric_mapping_rate(df_cells):
@@ -409,7 +429,7 @@ def metric_mapping_rate(df_cells):
     return metric_any_barcode_fraction(df_cells)
 
 
-def metric_specificity(df_cells):
+def metric_specificity(df_cells, total_cells=None):
     """Calculate specificity as ratio of one-barcode to all-barcode cells.
 
     Specificity = (cells with exactly one barcode) / (cells with any barcode)
@@ -422,10 +442,15 @@ def metric_specificity(df_cells):
     **Higher is better.** Low specificity suggests doublet contamination or poor
     barcode separation. Use this metric when optimizing for single-cell purity.
 
+    **Note**: Specificity is a ratio metric. The total_cells denominator cancels out,
+    so this metric is less affected by the denominator choice than the fraction metrics.
+
     Parameters
     ----------
     df_cells : pd.DataFrame
         DataFrame with cell-level barcode calls from call_cells().
+    total_cells : int, optional
+        Total number of segmented cells (passed to fraction metrics for consistency).
 
     Returns:
     -------
@@ -433,11 +458,11 @@ def metric_specificity(df_cells):
         Ratio of one-barcode cells to any-barcode cells (0.0 to 1.0).
         Returns 0.0 if no cells have any barcodes.
     """
-    any_frac = metric_any_barcode_fraction(df_cells)
+    any_frac = metric_any_barcode_fraction(df_cells, total_cells)
     if any_frac == 0:
         return 0.0
 
-    one_frac = metric_one_barcode_fraction(df_cells)
+    one_frac = metric_one_barcode_fraction(df_cells, total_cells)
 
     return one_frac / any_frac
 
@@ -519,14 +544,19 @@ def visualize_parameter_results(
 
                 df_subset = df_cells[mask]
 
-                # Compute secondary metrics
+                # Get total_cells from results_df for this parameter combination
+                total_cells_for_params = row.get("total_cells", len(df_subset))
+
+                # Compute secondary metrics with total_cells denominator
                 success_results.loc[idx, "fraction_one_barcode"] = (
-                    metric_one_barcode_fraction(df_subset)
+                    metric_one_barcode_fraction(df_subset, total_cells_for_params)
                 )
                 success_results.loc[idx, "fraction_any_barcode"] = (
-                    metric_any_barcode_fraction(df_subset)
+                    metric_any_barcode_fraction(df_subset, total_cells_for_params)
                 )
-                success_results.loc[idx, "specificity"] = metric_specificity(df_subset)
+                success_results.loc[idx, "specificity"] = metric_specificity(
+                    df_subset, total_cells_for_params
+                )
 
     # Identify parameter columns (exclude metric, status, total_cells, metric_name, and computed metrics)
     param_cols = [

@@ -19,17 +19,27 @@ jobs:
           echo "=== BEFORE CLEANUP ==="
           df -h
 
-          # safe removals
+          # big toolchains + languages
           sudo rm -rf /usr/share/dotnet \
+                      /usr/local/share/dotnet \
                       /opt/ghc \
                       /usr/local/lib/android \
-                      /opt/hostedtoolcache \
-                      /usr/lib/playwright \
+                      /opt/hostedtoolcache
+
+          # browsers + automation frameworks
+          sudo rm -rf /usr/lib/playwright \
                       /usr/lib/chromium \
                       /usr/bin/google-chrome \
-                      /usr/bin/chromedriver \
-                      ~/.cache || true
+                      /usr/bin/chromedriver
 
+          # azure cli
+          sudo rm -rf /usr/lib/azure-cli \
+                      /opt/az
+
+          # caches
+          sudo rm -rf ~/.cache
+
+          # docker cleanup
           sudo docker system prune -af || true
 
           echo "=== AFTER CLEANUP ==="

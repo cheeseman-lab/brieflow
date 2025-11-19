@@ -14,13 +14,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Free disk space
+      - name: Free disk space (max safe)
         run: |
+          echo "=== BEFORE CLEANUP ==="
+          df -h
+
+          # safe removals
           sudo rm -rf /usr/share/dotnet \
                       /opt/ghc \
                       /usr/local/lib/android \
                       /opt/hostedtoolcache \
+                      /usr/lib/playwright \
+                      /usr/lib/chromium \
+                      /usr/bin/google-chrome \
+                      /usr/bin/chromedriver \
                       ~/.cache || true
+
+          sudo docker system prune -af || true
+
+          echo "=== AFTER CLEANUP ==="
           df -h
 
       # Set up Conda

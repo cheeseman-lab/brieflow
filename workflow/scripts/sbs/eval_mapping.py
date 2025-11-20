@@ -12,7 +12,12 @@ from lib.sbs.eval_mapping import (
 
 # Read barcodes
 df_barcode_library = pd.read_csv(snakemake.params.df_barcode_library_fp, sep="\t")
-barcodes = get_barcode_list(df_barcode_library)
+if snakemake.params.barcode_type == "multi":
+    barcodes = get_barcode_list(
+        df_barcode_library, sequencing_order=snakemake.params.sequencing_order
+    )
+else:
+    barcodes = get_barcode_list(df_barcode_library)
 
 # Load SBS processing files
 reads = pd.concat(

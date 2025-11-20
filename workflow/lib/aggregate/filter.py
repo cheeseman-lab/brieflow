@@ -1,10 +1,10 @@
-"""This module provides functions for loading and formatting data during aggregation.
+"""This module provides functions for filtering cell data during aggregation.
 
-Functions include:
-- Loading a subset of data from parquet files for efficient processing.
-
-Functions:
-    - load_parquet_subset: Load a fixed number of random rows from a parquet file.
+Available filters:
+- query_filter: Apply pandas query strings to filter cells
+- perturbation_filter: Remove cells without perturbation assignments
+- missing_values_filter: Handle missing values through dropping or imputation
+- intensity_filter: Remove outliers based on channel intensities using LocalOutlierFactor
 """
 
 import pandas as pd
@@ -200,6 +200,16 @@ def intensity_filter(
     Returns:
         tuple: (filtered_metadata, filtered_features) DataFrames with outliers removed.
     """
+    # Handle contamination parameter validation
+    if contamination < 0 or contamination >= 0.5:
+        raise ValueError(
+            "Contamination must be between 0 (inclusive) and 0.5 (exclusive)"
+        )
+
+    if contamination == 0:
+        print("Contamination is 0, skipping intensity filtering")
+        return metadata, features
+
     # Identify feature cols
     feature_cols = features.columns.tolist()
 

@@ -14,7 +14,7 @@ DEFAULT_METADATA_COLS = [
     "distance",
     "fov_distance_0",
     "fov_distance_1",
-    "sgRNA_0",
+    "cell_barcode_0",
     "gene_symbol_0",
     "mapped_single_gene",
     "channels_min",

@@ -28,6 +28,7 @@ def align_cycles(
     skip_cycles=None,
     manual_background_cycle=None,
     manual_channel_mapping=None,
+    verbose=False,
 ):
     """Rigid alignment of sequencing cycles and channels.
 
@@ -62,6 +63,9 @@ def align_cycles(
             Example: [["DAPI", "G", "T", "A", "C"], ["DAPI", "G", "T", "A", "C"], ["DAPI", "GFP", "G", "T", "A", "C", "AF750"]]
             for a 3-cycle dataset where the third cycle has additional GFP and AF750 channels.
             Defaults to None.
+        verbose (bool, optional): If True, print detailed alignment information including
+            calculated offsets for each cycle. Useful for debugging alignment issues.
+            Defaults to False.
 
     Returns:
         np.ndarray: SBS image aligned across cycles.
@@ -87,6 +91,9 @@ def align_cycles(
             f"Processing {len(processed_data)} cycles after skipping {len(skip_cycles)}"
         )
 
+    # Track the source cycle for extra channels (for proper offset application)
+    extra_channel_source_cycle = None
+
     # Handle manual channel mapping if provided
     if manual_channel_mapping is not None:
         # Use user-specified channel mapping
@@ -106,6 +113,10 @@ def align_cycles(
         extra_indices = [
             i for i, ch in enumerate(channel_order) if ch not in base_channels
         ]
+
+        # Track source cycle for extra channels
+        if manual_background_cycle is not None:
+            extra_channel_source_cycle = manual_background_cycle
 
         # Set method if not provided
         if method is None:
@@ -190,6 +201,9 @@ def align_cycles(
                     stacked = np.concatenate(
                         (np.array([propagate] * stacked.shape[0]), stacked), axis=1
                     )
+
+                    # Track the source cycle for proper offset application later
+                    extra_channel_source_cycle = source_cycle_idx
         else:
             # All cycles have the same number of channels
             stacked = (
@@ -241,12 +255,18 @@ def align_cycles(
         ):
             dapi_index = 0
             # Align cycles using the DAPI channel
-            aligned = align_between_cycles(
+            aligned, offsets = align_between_cycles(
                 aligned,
                 channel_index=dapi_index,
                 window=window,
                 upsample_factor=upsample_factor,
+                return_offsets=True,
             )
+
+            if verbose:
+                print("\n=== Cycle Alignment Offsets (DAPI method) ===")
+                for cycle_idx, offset in enumerate(offsets):
+                    print(f"  Cycle {cycle_idx}: shift = {offset} pixels (y, x)")
         else:
             print(
                 "Warning: 'DAPI' method selected but DAPI channel not available. Switching to 'sbs_mean'."
@@ -268,9 +288,29 @@ def align_cycles(
         normed[normed > cutoff] = cutoff
         offsets = calculate_offsets(normed, upsample_factor=upsample_factor)
 
-        # Apply cycle offsets to ALL channels (both base and extra)
+        if verbose:
+            print("\n=== Cycle Alignment Offsets (sbs_mean method) ===")
+            for cycle_idx, offset in enumerate(offsets):
+                print(f"  Cycle {cycle_idx}: shift = {offset} pixels (y, x)")
+
+        # Apply cycle offsets conditionally based on channel type
         for channel in range(aligned.shape[1]):
-            aligned[:, channel] = apply_offsets(aligned[:, channel], offsets)
+            if channel in extra_indices and extra_channel_source_cycle is not None:
+                # Extra channels: use ONLY the offset from the cycle they were acquired in
+                # This prevents misalignment when the same image is propagated across cycles
+                source_offset = np.array(
+                    [offsets[extra_channel_source_cycle]] * aligned.shape[0]
+                )
+                aligned[:, channel] = apply_offsets(aligned[:, channel], source_offset)
+                if (
+                    channel == extra_indices[0]
+                ):  # Print once for the first extra channel
+                    print(
+                        f"Applying source cycle {extra_channel_source_cycle} offset to {len(extra_indices)} extra channel(s)"
+                    )
+            else:
+                # Base channels: apply cycle-specific offsets
+                aligned[:, channel] = apply_offsets(aligned[:, channel], offsets)
     else:
         raise ValueError(f'Method "{method}" not implemented')
 
@@ -409,3 +449,122 @@ def manual_fill_channels(
                 print(f"  {channel_name}: filled with {fill_val}")
 
     return aligned_data
+
+
+def visualize_sbs_alignment(
+    aligned_data, channel_names, dapi_cycle, viz_channels, crop_size=300
+):
+    """Visualize SBS cycle alignment with DAPI reference and RGB base channel overlay.
+
+    Shows 3 locations (corner, center, random) with:
+    - Grayscale DAPI background (anatomical reference)
+    - RGB overlay of base channels from different cycles
+    Color fringing in bases indicates misalignment across cycles.
+
+    Args:
+        aligned_data (np.ndarray): Aligned image array (CYCLE, CHANNEL, Y, X).
+        channel_names (list): List of channel names.
+        dapi_cycle (int): Cycle index for DAPI reference.
+        viz_channels (list): List of (cycle_idx, channel_name) tuples for RGB overlay.
+            Must have exactly 3 elements for R, G, B channels.
+        crop_size (int, optional): Size of zoomed crops in pixels. Defaults to 300.
+
+    Returns:
+        matplotlib.figure.Figure: Figure with 3 panels showing alignment at different locations,
+            or None if there's an error.
+
+    Example:
+        >>> fig = visualize_sbs_alignment(
+        ...     aligned,
+        ...     ["DAPI", "G", "T", "A", "C"],
+        ...     dapi_cycle=0,
+        ...     viz_channels=[(0, "G"), (5, "T"), (10, "A")],
+        ...     crop_size=300
+        ... )
+        >>> plt.show()
+    """
+    import matplotlib.pyplot as plt
+
+    if len(viz_channels) != 3:
+        print(
+            f"Error: Need exactly 3 channels for RGB overlay, got {len(viz_channels)}"
+        )
+        return None
+
+    n_cycles, n_channels, height, width = aligned_data.shape
+
+    # Get DAPI reference
+    if dapi_cycle >= n_cycles:
+        print(f"Error: DAPI cycle {dapi_cycle} out of range (max {n_cycles - 1})")
+        return None
+    if "DAPI" not in channel_names:
+        print(f"Error: DAPI channel not found in {channel_names}")
+        return None
+
+    dapi_idx = channel_names.index("DAPI")
+    dapi_data = aligned_data[dapi_cycle, dapi_idx]
+
+    # Parse base channels for RGB overlay
+    rgb_data = []
+    rgb_labels = []
+    for cycle_idx, ch_name in viz_channels:
+        if cycle_idx >= n_cycles:
+            print(f"Error: Cycle {cycle_idx} out of range (max {n_cycles - 1})")
+            return None
+        if ch_name not in channel_names:
+            print(f"Error: Channel '{ch_name}' not found in {channel_names}")
+            return None
+        ch_idx = channel_names.index(ch_name)
+        rgb_data.append(aligned_data[cycle_idx, ch_idx])
+        rgb_labels.append(f"C{cycle_idx + 1}-{ch_name}")
+
+    # Define 3 crop locations
+    np.random.seed(42)
+    locations = [
+        ("Top-Left Corner", 50, 50),
+        ("Center", (height - crop_size) // 2, (width - crop_size) // 2),
+        (
+            "Random Location",
+            np.random.randint(50, height - crop_size - 50),
+            np.random.randint(50, width - crop_size - 50),
+        ),
+    ]
+
+    # Create figure with 1 row x 3 columns
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+    for col_idx, (location_name, y_start, x_start) in enumerate(locations):
+        y_end = y_start + crop_size
+        x_end = x_start + crop_size
+
+        # Create composite: DAPI (grayscale) + RGB overlay (bases)
+        composite = np.zeros((crop_size, crop_size, 3))
+
+        # Add DAPI as grayscale background
+        dapi_crop = dapi_data[y_start:y_end, x_start:x_end]
+        p2, p98 = np.percentile(dapi_crop, [2, 98])
+        dapi_norm = np.clip((dapi_crop - p2) / (p98 - p2 + 1e-8), 0, 1)
+        # Set DAPI in all RGB channels for grayscale
+        composite[:, :, 0] = dapi_norm
+        composite[:, :, 1] = dapi_norm
+        composite[:, :, 2] = dapi_norm
+
+        # Overlay base channels as RGB
+        for i, img_data in enumerate(rgb_data):
+            crop = img_data[y_start:y_end, x_start:x_end]
+            p2, p98 = np.percentile(crop, [2, 98])
+            crop_norm = np.clip((crop - p2) / (p98 - p2 + 1e-8), 0, 1)
+            # Add to composite (additive blending)
+            composite[:, :, i] = np.clip(composite[:, :, i] + crop_norm * 0.7, 0, 1)
+
+        axes[col_idx].imshow(composite)
+        axes[col_idx].set_title(
+            f"{location_name}\n"
+            + f"DAPI: C{dapi_cycle + 1} (gray) | "
+            + f"R={rgb_labels[0]}, G={rgb_labels[1]}, B={rgb_labels[2]}",
+            fontsize=10,
+        )
+        axes[col_idx].axis("off")
+
+    plt.tight_layout()
+    return fig

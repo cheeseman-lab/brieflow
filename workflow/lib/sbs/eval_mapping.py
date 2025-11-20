@@ -96,6 +96,7 @@ def plot_mapping_vs_threshold(
             x=f"{threshold_var}_threshold",
             y="mapping_rate",
             ax=ax,
+            color="dodgerblue",
             **kwargs,
         )
 
@@ -122,19 +123,27 @@ def plot_mapping_vs_threshold(
         )
 
         # Labels and titles
-        ax.set_ylabel("Fraction of Reads\nMatching Expected Barcodes", fontsize=12)
+        ax.set_ylabel(
+            "Fraction of Reads\nMatching Expected Barcodes",
+            fontsize=12,
+            color="dodgerblue",
+        )
         ax.set_xlabel(
             f"{threshold_var.replace('_', ' ').title()} Threshold Cutoff", fontsize=12
         )
         ax.set_title(f"Read Mapping Quality vs Threshold\n({title})", fontsize=14)
-        ax_right.set_ylabel("Number of Mapped Features", fontsize=12)
+        ax_right.set_ylabel("Number of Mapped Features", fontsize=12, color="coral")
+
+        # Color the y-axis tick labels to match
+        ax.tick_params(axis="y", labelcolor="dodgerblue")
+        ax_right.tick_params(axis="y", labelcolor="coral")
 
     # Create shared legend below plots
     legend_elements = [
         Line2D(
             [0],
             [0],
-            color="C0",
+            color="dodgerblue",
             label="Mapping Rate:\nFraction of reads with valid barcodes",
         ),
         Line2D(
@@ -358,10 +367,10 @@ def plot_cell_metric_histogram(df, sort_by="count", x_cutoff=None):
         xlabel = "Number of ISS reads per cell"
     elif sort_by == "peak":
         # Create combined peak intensity metric
-        peak_0 = df.get("peak_0", 0).fillna(0)
-        peak_1 = df.get("peak_1", 0).fillna(0)
+        barcode_peak_0 = df.get("barcode_peak_0", 0).fillna(0)
+        barcode_peak_1 = df.get("barcode_peak_1", 0).fillna(0)
         df_temp = df.copy()
-        df_temp["peak_intensity_total"] = peak_0 + peak_1
+        df_temp["peak_intensity_total"] = barcode_peak_0 + barcode_peak_1
         metric_col = "peak_intensity_total"
         title = "Histogram of Peak Intensity"
         xlabel = "Total peak intensity per cell"

@@ -10,6 +10,22 @@ from lib.cluster.phate_leiden_clustering import (
 # load aggregated data
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
 
+if snakemake.params.perturbation_auc_threshold is not None:
+    print(
+        f"Filtering aggregated data for perturbation AUC > {snakemake.params.perturbation_auc_threshold}"
+    )
+    aggregated_data = aggregated_data[
+        (
+            aggregated_data[snakemake.params.perturbation_name_col].str.startswith(
+                snakemake.params.control_key
+            )
+        )
+        | (
+            aggregated_data["perturbation_auc"]
+            > snakemake.params.perturbation_auc_threshold
+        )
+    ]
+
 # cluster aggregated data
 phate_leiden_clustering, potential_df = phate_leiden_pipeline(
     aggregated_data,

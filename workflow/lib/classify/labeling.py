@@ -20,7 +20,7 @@ from PIL import Image
 from skimage import measure, segmentation
 
 # Project imports (move all imports to the top)
-from lib.aggregate.classifier_shared import (
+from lib.classify.shared import (
     robust_norm as _shared_robust_norm,
     colorize as _shared_colorize,
     to_png_bytes as _shared_to_png_bytes,

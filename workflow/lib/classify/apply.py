@@ -14,7 +14,7 @@ from matplotlib import colors as mcolors
 import matplotlib.pyplot as plt
 
 # Local imports
-from lib.aggregate.classifier_shared import (
+from lib.classify.shared import (
     to_png_bytes as _shared_to_png_bytes,
     load_aligned_stack as _shared_load_aligned_stack,
     load_mask_labels as _shared_load_mask_labels,

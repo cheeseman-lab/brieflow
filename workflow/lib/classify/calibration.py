@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
 
-from lib.aggregate.cell_classification import CellClassifier  # your classifier wrapper
+from lib.aggregate.cell_classification import CellClassifier
 
 
 def resolve_join_keys(classify_by: str) -> Tuple[List[str], str]:

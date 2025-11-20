@@ -11,13 +11,14 @@
 
 Brieflow is an extensible computational pipeline for high-throughput analysis of optical pooled screening data.
 
-## Example Analyses (using brieflow-analysis template)
+## Example Analyses
 
 | Screen      | Repository                                             | Description                                      |
 |-------------|--------------------------------------------------------|--------------------------------------------------|
 | Denali      | [cheeseman-lab/denali-analysis](https://github.com/cheeseman-lab/denali-analysis)     | Original screen that drove Brieflow development |
 | Aconcagua   | [cheeseman-lab/aconcagua-analysis](https://github.com/cheeseman-lab/aconcagua-analysis) | Re-analysis of Funk et al. 2022                 |
 
+Examples using [Brieflow Analysis Template](https://github.com/cheeseman-lab/brieflow-analysis).
 More examples coming soon!
 
 ## Documentation
@@ -27,18 +28,21 @@ Full installation, usage, module details, and contribution guides:
 
 ## Citing Brieflow
 
-Manuscript in preparation (Nature Methods).  
-Please cite the preprint/repo until publication.
+Brieflow was created by [Matteo Di Bernardo](https://github.com/mat10d), [Roshan Kern](https://github.com/roshankern), and others in the [Cheeseman Lab](https://cheesemanlab.wi.mit.edu/).
+Development was started in 2024 and is actively being developed.
+If you are interested in contributing please reach out!
+
+If you use our code please cite this manuscript:
+
+Di Bernardo, M., Kern, R.S., Mallar, A., Nutter-Upham, A., Blainey, P.C., & Cheeseman, I. (2025). Brieflow: An Integrated Computational Pipeline for High-Throughput Analysis of Optical Pooled Screening Data. *bioRxiv*. https://doi.org/10.1101/2025.05.26.656231
 
 ## Contributing
 
-We welcome new modules, bug fixes, and screen-specific improvements that can be generalized.
+We welcome community contributions to Brieflow!
+Feel free to:
+- Join our [Discord](https://discord.gg/yrEh6GP8JJ) to chat with the developers.
+- File a [GitHub issue](https://github.com/cheeseman-lab/brieflow/issues) to share comments and issues.
+- Clone the repository, create a new branch, and submit a [pull request](https://github.com/cheeseman-lab/brieflow/compare) as detailed in the [pull request template](.github/pull_request_template.md).
 
-- Fork → branch → PR to `main`  
-- Full guidelines: https://brieflow.readthedocs.io/en/latest/development.html
+Make sure to review the Brieflow [development guide](https://brieflow.readthedocs.io/en/latest/4.development.html) to understand how to best contribute!
 
-Questions? Join our **[Discord](https://discord.gg/yrEh6GP8JJ)**!
-
----
-
-Apache-2.0 © 2025 Cheeseman Lab

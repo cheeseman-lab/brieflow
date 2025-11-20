@@ -8,39 +8,44 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![bioRxiv](https://img.shields.io/badge/bioRxiv-10.1101%2F2025.05.26.656231-b31b1b)](https://doi.org/10.1101/2025.05.26.656231)
 
-![Brieflow pipeline](images/brieflow_fig_1.png)
+![Brieflow pipeline](images/brieflow_info.png)
 
 Brieflow is an extensible computational pipeline for high-throughput analysis of optical pooled screening data.
 
-## Example Analyses
+This repo contains the source code for running an OPS screen analysis.
+[Brieflow Analysis](https://github.com/cheeseman-lab/brieflow-analysis) contains configuration notebooks/files and execution scripts for running an OPS screen analysis.
 
-| Screen      | Repository                                             | Description                                      | Brieflow Version |
-|-------------|--------------------------------------------------------|--------------------------------------------------|------------------|
-| Denali      | [cheeseman-lab/denali-analysis](https://github.com/cheeseman-lab/denali-analysis)     | Original screen that drove Brieflow development | 1.0 |
-| Aconcagua   | [cheeseman-lab/aconcagua-analysis](https://github.com/cheeseman-lab/aconcagua-analysis) | Re-analysis of Funk et al. 2022                 | 1.0 |
+## Getting Started
 
-Examples using [Brieflow Analysis Template](https://github.com/cheeseman-lab/brieflow-analysis).
-More examples coming soon!
+We strongly suggest that Brieflow is set up with the companion [Brieflow Analysis](https://github.com/cheeseman-lab/brieflow-analysis) repository.
 
-## Documentation
 
-Full installation, usage, module details, and contribution guides:  
+Full details on setup, installation, test data, usage, module details, and contribution guides:  
 **https://brieflow.readthedocs.io**
 
 ## Citing Brieflow
 
 Brieflow was created by [Matteo Di Bernardo](https://github.com/mat10d), [Roshan Kern](https://github.com/roshankern), and others in the [Cheeseman Lab](https://cheesemanlab.wi.mit.edu/).
-Development was started in 2024 and is actively being developed.
+Brieflow was started in 2024 and is actively being developed.
 If you are interested in contributing please reach out!
 
 If you use our code please cite this manuscript:
 
-Di Bernardo, M., Kern, R.S., Mallar, A., Nutter-Upham, A., Blainey, P.C., & Cheeseman, I. (2025). Brieflow: An Integrated Computational Pipeline for High-Throughput Analysis of Optical Pooled Screening Data. *bioRxiv*. https://doi.org/10.1101/2025.05.26.656231
+```
+@ARTICLE
+author={Di Bernardo, Matteo and Kern, Roshan S. and Mallar, Apratim and Nutter-Upham, Adrienne and Blainey, Paul C. and Cheeseman, Iain},
+title={Brieflow: An Integrated Computational Pipeline for High-Throughput Analysis of Optical Pooled Screening Data},
+year={2025},
+DOI={10.1101/2025.05.26.656231}
+```
 
 ## Contributing
 
-We welcome community contributions to Brieflow!
+We welcome community contributions to Brieflow. Optical pooled screens vary between labs and we would love to add and share approaches that you have taken to your data such that the community can make use of this!
+
+
 Feel free to:
+- Giving the repo star to boost Brieflow's visibility!
 - Join our [Discord](https://discord.gg/yrEh6GP8JJ) to chat with the developers.
 - File a [GitHub issue](https://github.com/cheeseman-lab/brieflow/issues) to share comments and issues.
 - Clone the repository, create a new branch, and submit a [pull request](https://github.com/cheeseman-lab/brieflow/compare) as detailed in the [pull request template](.github/pull_request_template.md).

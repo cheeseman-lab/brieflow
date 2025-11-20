@@ -43,7 +43,6 @@ DOI={10.1101/2025.05.26.656231}
 
 We welcome community contributions to Brieflow. Optical pooled screens vary between labs and we would love to add and share approaches that you have taken to your data such that the community can make use of this!
 
-
 Feel free to:
 - Giving the repo star to boost Brieflow's visibility!
 - Join our [Discord](https://discord.gg/yrEh6GP8JJ) to chat with the developers.

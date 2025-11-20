@@ -6,6 +6,7 @@
 [![Tests](https://github.com/cheeseman-lab/brieflow/actions/workflows/test_analysis.yml/badge.svg)](https://github.com/cheeseman-lab/brieflow/actions/workflows/test_analysis.yml)
 [![Discord](https://img.shields.io/badge/forum-discord-7289da)](https://discord.gg/yrEh6GP8JJ)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![bioRxiv](https://img.shields.io/badge/bioRxiv-10.1101%2F2025.05.26.656231-b31b1b)](https://doi.org/10.1101/2025.05.26.656231)
 
 ![Brieflow pipeline](https://brieflow.readthedocs.io/en/latest/_images/brieflow_brieflow_analysis.png)
 

@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![bioRxiv](https://img.shields.io/badge/bioRxiv-10.1101%2F2025.05.26.656231-b31b1b)](https://doi.org/10.1101/2025.05.26.656231)
 
-![Brieflow pipeline](https://brieflow.readthedocs.io/en/latest/_images/brieflow_brieflow_analysis.png)
+![Brieflow pipeline](images/brieflow_fig_1.png)
 
 Brieflow is an extensible computational pipeline for high-throughput analysis of optical pooled screening data.
 

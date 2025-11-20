@@ -19,7 +19,6 @@ This repo contains the source code for running an OPS screen analysis.
 
 We strongly suggest that Brieflow is set up with the companion [Brieflow Analysis](https://github.com/cheeseman-lab/brieflow-analysis) repository.
 
-
 Full details on setup, installation, test data, usage, module details, and contribution guides:  
 **https://brieflow.readthedocs.io**
 
@@ -45,7 +44,7 @@ We welcome community contributions to Brieflow. Optical pooled screens vary betw
 
 Feel free to:
 - Giving the repo star to boost Brieflow's visibility!
-- Join our [Discord](https://discord.gg/yrEh6GP8JJ) to chat with the developers.
+- Join Brieflow's [Discord](https://discord.gg/yrEh6GP8JJ) to chat with the developers.
 - File a [GitHub issue](https://github.com/cheeseman-lab/brieflow/issues) to share comments and issues.
 - Clone the repository, create a new branch, and submit a [pull request](https://github.com/cheeseman-lab/brieflow/compare) as detailed in the [pull request template](.github/pull_request_template.md).
 

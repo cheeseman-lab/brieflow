@@ -3,7 +3,7 @@
 [![Release](https://img.shields.io/github/v/release/cheeseman-lab/brieflow)](https://github.com/cheeseman-lab/brieflow/releases)
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org/downloads/)
 [![Documentation](https://img.shields.io/badge/docs-brieflow.readthedocs.io-brightgreen)](https://brieflow.readthedocs.io)
-[![Tests](https://github.com/cheeseman-lab/brieflow/actions/workflows/integration_test.yml/badge.svg)](https://github.com/cheeseman-lab/brieflow/actions/workflows/integration_test.yml)
+[![Tests](https://github.com/cheeseman-lab/brieflow/actions/workflows/test_analysis.yml/badge.svg)](https://github.com/cheeseman-lab/brieflow/actions/workflows/test_analysis.yml)
 [![Discord](https://img.shields.io/badge/forum-discord-7289da)](https://discord.gg/yrEh6GP8JJ)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -23,7 +23,7 @@ More examples coming soon!
 ## Documentation
 
 Full installation, usage, module details, and contribution guides:  
-→ **https://brieflow.readthedocs.io**
+**https://brieflow.readthedocs.io**
 
 ## Citing Brieflow
 

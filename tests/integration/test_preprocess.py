@@ -1,5 +1,5 @@
 """
-Integration tests for the preprocess module.
+Test analysis for the preprocess module.
 """
 
 from pathlib import Path

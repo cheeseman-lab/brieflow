@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org/downloads/)
 [![Documentation](https://img.shields.io/badge/docs-brieflow.readthedocs.io-brightgreen)](https://brieflow.readthedocs.io)
 [![Tests](https://github.com/cheeseman-lab/brieflow/actions/workflows/integration_test.yml/badge.svg)](https://github.com/cheeseman-lab/brieflow/actions/workflows/integration_test.yml)
-[![Discord](https://img.shields.io/discord/1383223520691093604?label=discord)](https://discord.gg/yrEh6GP8JJ)
+[![Discord](https://img.shields.io/badge/forum-discord-7289da)](https://discord.gg/yrEh6GP8JJ)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ![Brieflow pipeline](https://brieflow.readthedocs.io/en/latest/_images/brieflow_brieflow_analysis.png)

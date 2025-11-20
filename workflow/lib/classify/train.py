@@ -1,68 +1,44 @@
 """This module provides functions for training cell classifiers using various ML algorithms.
 
-It includes utilities for data loading, preprocessing, feature selection,
-model training, evaluation, and visualization.
+Includes utilities for data loading, feature selection, model training with grid search,
+evaluation metrics, and visualization of results. The main entry point is train_classifier_pipeline
+which trains multiple model configurations and saves the best performers.
 """
 
-import os
 import json
+import os
 import time
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import dill
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib.colors import LinearSegmentedColormap
 import seaborn as sns
-
-# Standard library imports
-import os
-import json
-
-# Data manipulation and analysis
-import numpy as np
-import pandas as pd
-
-# Visualization
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Machine learning
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.preprocessing import (
-    StandardScaler,
-    RobustScaler,
-    MinMaxScaler,
-    label_binarize,
-    LabelEncoder,
-)
-from sklearn.base import clone, BaseEstimator, TransformerMixin
-from sklearn.metrics import classification_report as sklearn_classification_report
-from sklearn.metrics import confusion_matrix, roc_curve, auc
-from sklearn.pipeline import Pipeline
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier
-
-# Optional ML libraries (with try/except handling in your code)
 from lightgbm import LGBMClassifier
+from matplotlib.colors import LinearSegmentedColormap
+from scipy.stats import linregress
+from sklearn.base import clone
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import auc, confusion_matrix, roc_curve
+from sklearn.metrics import classification_report as sklearn_classification_report
+from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.feature_selection import SelectKBest, VarianceThreshold, f_classif
+from sklearn.preprocessing import (
+    LabelEncoder,
+    MinMaxScaler,
+    RobustScaler,
+    StandardScaler,
+)
+from sklearn.svm import SVC
+from sklearn.utils.class_weight import compute_class_weight
 from xgboost import XGBClassifier
 
-# Serialization
-import dill
-
-# Orchestrated training pipeline wrapped as a reusable function
-import os, json, numpy as np, pandas as pd, seaborn as sns, matplotlib.pyplot as plt
-from typing import List, Dict, Any, Tuple, Optional
-from scipy.stats import linregress
-
-# Import
-import sys
-from pathlib import Path
 from lib.aggregate.cell_classification import CellClassifier
-from lib.aggregate.cell_data_utils import split_cell_data, DEFAULT_METADATA_COLS
-
-# Abstract base classes
-from abc import ABC, abstractmethod
+from lib.aggregate.cell_data_utils import split_cell_data
 
 
 def setup_publication_plot_style():
@@ -684,12 +660,6 @@ def enhance_feature_selection(
     Returns:
         list List of final selected feature column names after enhancement.
     """
-    from sklearn.feature_selection import VarianceThreshold, SelectKBest, f_classif
-    import numpy as np
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    import os
-
     # Use provided features or all features
     if selected_features is None:
         selected_features = features_df.columns.tolist()
@@ -924,32 +894,6 @@ def filter_classes(class_labels, class_mapping, REMOVE_MASK_LABELS):
     return new_class_labels, {"label_to_class": new_label_to_class}, preserved_class_ids
 
 
-class CellClassifier(ABC):
-    """Base class for cell classifiers."""
-
-    @abstractmethod
-    def classify_cells(self, metadata, features):
-        """Classify cells based on feature data.
-
-        Takes DataFrames with metadata and features for cells.
-        Uses features to determine the class of each cell and the confidence of that classification.
-        The class and confidence are added to the metadata DataFrame.
-        Return the modified metadata and features DataFrames.
-        """
-        print("No classification method defined! Returning orginal cell data...")
-
-    def save(self, filename):
-        """Save the classifier to a file."""
-        with open(filename, "wb") as f:
-            dill.dump(self, f)
-
-    @staticmethod
-    def load(filename):
-        """Load a classifier from a file."""
-        with open(filename, "rb") as f:
-            return dill.load(f)
-
-
 class SciKitCellClassifier(CellClassifier):
     """Cell classifier using a SciKit-Learn compatible model.
 
@@ -1118,8 +1062,6 @@ class SciKitCellClassifier(CellClassifier):
         label_encoder = None
         encoded_classes = None
         if needs_label_encoder:
-            from sklearn.preprocessing import LabelEncoder
-
             label_encoder = LabelEncoder()
             y_original = metadata_df[target_column]
             y = label_encoder.fit_transform(y_original)
@@ -1170,8 +1112,6 @@ class SciKitCellClassifier(CellClassifier):
                 "xgb__max_depth": [3, 5, 7, 10],
                 "xgb__learning_rate": [0.01, 0.1, 0.2],
             }
-            from sklearn.utils.class_weight import compute_class_weight
-
             class_weights = compute_class_weight(
                 "balanced", classes=np.unique(y_original), y=y_original
             )

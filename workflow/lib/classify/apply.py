@@ -1,38 +1,37 @@
-"""This notebook contains function used to test classifiers and determine confidence threshold."""
+"""This module provides functions for testing classifiers and determining confidence thresholds.
 
-# Standard library
+It includes utilities for displaying model evaluation plots, loading phenotype data,
+creating class montages, and an interactive UI for selecting confidence thresholds
+based on ranked predictions.
+"""
+
+import os
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
-import os
 
-# Third-party
+import ipywidgets as widgets
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import ipywidgets as widgets
-from IPython.display import display, clear_output, Image as DisplayImage
+from IPython.display import clear_output, display, Image as DisplayImage
 from matplotlib import colors as mcolors
-import matplotlib.pyplot as plt
 
-# Local imports
-from lib.classify.shared import (
-    to_png_bytes as _shared_to_png_bytes,
-    load_aligned_stack as _shared_load_aligned_stack,
-    load_mask_labels as _shared_load_mask_labels,
-    load_parquet as _shared_load_parquet,
-    get_coords_for_mask as _shared_get_coords_for_mask,
-    compute_crop_bounds as _shared_compute_crop_bounds,
-    overlay_scale_bar as _shared_overlay_scale_bar,
-    well_for_filename as _shared_well_for_filename,
-    compose_rgb_crops as _shared_compose_rgb_crops,
-    overlay_mask_boundary_inplace as _shared_overlay_mask_boundary_inplace,
-)
-from lib.shared.file_utils import get_filename, parse_filename
+from lib.aggregate.eval_aggregate import summarize_cell_data
 from lib.aggregate.montage_utils import (
-    create_cell_montage,
     add_filenames,
     create_class_confidence_montages,
 )
-from lib.aggregate.eval_aggregate import summarize_cell_data
+from lib.classify.shared import (
+    compose_rgb_crops,
+    compute_crop_bounds,
+    load_aligned_stack,
+    load_mask_labels,
+    overlay_mask_boundary_inplace,
+    overlay_scale_bar,
+    to_png_bytes,
+    well_for_filename,
+)
+from lib.shared.file_utils import get_filename, parse_filename
 
 
 def display_pngs_in_plots_and_list_models(
@@ -385,7 +384,7 @@ def build_master_phenotype_df(
 
     for p in plates:
         for w in wells:
-            wnorm = _shared_well_for_filename(w)
+            wnorm = well_for_filename(w)
             fname = get_filename({"plate": p, "well": wnorm}, info_type, file_type)
             fpath = parquet_dir / fname
             candidates = [fpath]
@@ -745,7 +744,7 @@ def launch_rankline_ui(
         bar_px = _get_scale_bar_px()
         if bar_px <= 0:
             return
-        _shared_overlay_scale_bar(
+        overlay_scale_bar(
             img_rgb01,
             bar_px,
             position="bottom-right",
@@ -927,7 +926,7 @@ def launch_rankline_ui(
         rank = int(row["__rank"])
         n_in_class = int(row["__total_in_class"])
 
-        stack = _shared_load_aligned_stack(
+        stack = load_aligned_stack(
             phenotype_output_fp,
             channel_names,
             int(plate),
@@ -936,7 +935,7 @@ def launch_rankline_ui(
             cache=STATE.get("aligned_cache"),
         )
         H, W = stack.shape[1], stack.shape[2]
-        labels_full = _shared_load_mask_labels(
+        labels_full = load_mask_labels(
             phenotype_output_fp,
             mode,
             int(plate),
@@ -945,7 +944,7 @@ def launch_rankline_ui(
             cache=STATE.get("mask_cache"),
         )
 
-        y0, y1, x0, x1 = _shared_compute_crop_bounds(
+        y0, y1, x0, x1 = compute_crop_bounds(
             phenotype_output_fp,
             mode,
             int(plate),
@@ -960,20 +959,20 @@ def launch_rankline_ui(
         mask_crop = labels_crop == mask_label
 
         single_widgets: List[widgets.Image] = []
-        imgs, merged = _shared_compose_rgb_crops(
+        imgs, merged = compose_rgb_crops(
             stack, y0, y1, x0, x1, channel_indices, resolved_colors
         )
         for ch_rgb in imgs:
-            iw = widgets.Image(value=_shared_to_png_bytes(ch_rgb), format="png")
+            iw = widgets.Image(value=to_png_bytes(ch_rgb), format="png")
             iw.layout = widgets.Layout(width=f"{thumb_px}px", height=f"{thumb_px}px")
             single_widgets.append(iw)
 
         if np.any(mask_crop):
-            _shared_overlay_mask_boundary_inplace(merged, mask_crop, step=2, value=1.0)
+            overlay_mask_boundary_inplace(merged, mask_crop, step=2, value=1.0)
 
         _overlay_scale_bar_inplace(merged)
 
-        merged_w = widgets.Image(value=_shared_to_png_bytes(merged), format="png")
+        merged_w = widgets.Image(value=to_png_bytes(merged), format="png")
         merged_w.layout = widgets.Layout(width=f"{thumb_px}px", height=f"{thumb_px}px")
 
         meta_line = f"P-{plate} W-{well} T-{tile} | mask {mask_label}"

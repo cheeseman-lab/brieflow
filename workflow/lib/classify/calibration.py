@@ -1,5 +1,9 @@
-"""this code based contains code for model confidence calibration using manually labeled data."""
-# lib/aggregate/confidence_calibration.py
+"""This module provides functions for model confidence calibration using manually labeled data.
+
+It includes utilities for post-hoc confidence calibration using isotonic or sigmoid
+methods, joining classified data with manual labels, and replacing confidence values
+while preserving predicted class labels.
+"""
 
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union

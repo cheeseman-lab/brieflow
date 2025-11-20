@@ -1,33 +1,25 @@
-"""Shared classifier imaging and IO utilities used across apply_classifier and classifier_labeling.
+"""This module provides shared imaging and IO utilities for classifier modules.
 
-This module centralizes common helpers for:
-- image normalization/colorization and PNG conversion
-- aligned image stack and mask loading (with optional caches)
-- phenotype parquet loading (with optional caches)
-- mask coordinate lookup and crop bounds computation
-- scale bar overlay
-
-All functions are explicit about inputs; no hidden globals. Callers can pass
-cache dictionaries to avoid repeated IO in notebook workflows.
+Includes utilities for:
+- Image normalization, colorization, and PNG conversion
+- Aligned image stack and mask loading with optional caches
+- Phenotype parquet loading with optional caches
+- Mask coordinate lookup and crop bounds computation
+- Scale bar and mask boundary overlays
 """
-
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import io
 import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import tifffile
 from PIL import Image as PILImage
 from skimage import measure, segmentation
+
 from lib.shared.file_utils import get_filename
-
-
-# -----------------------------
-# Rendering helpers
-# -----------------------------
 
 
 def robust_norm(
@@ -76,11 +68,6 @@ def to_png_bytes(rgb01: np.ndarray) -> bytes:
     buf = io.BytesIO()
     im.save(buf, format="PNG")
     return buf.getvalue()
-
-
-# -----------------------------
-# Multi-channel composition & overlays
-# -----------------------------
 
 
 def compose_rgb_crops(
@@ -132,11 +119,6 @@ def overlay_mask_boundary_inplace(
     img_rgb01[coords_sel[:, 0], coords_sel[:, 1], :] = value
 
 
-# -----------------------------
-# File/path conventions
-# -----------------------------
-
-
 def well_for_filename(well: Union[str, int]) -> str:
     """Normalize well id for filenames using unpadded columns.
 
@@ -154,11 +136,6 @@ def well_for_filename(well: Union[str, int]) -> str:
     row, col = m.group(1), m.group(2)
     # int() removes any leading zeros
     return f"{row}{int(col)}"
-
-
-# -----------------------------
-# IO helpers
-# -----------------------------
 
 
 def load_aligned_stack(
@@ -357,11 +334,6 @@ def load_parquet(
     return df
 
 
-# -----------------------------
-# Geometry helpers
-# -----------------------------
-
-
 def get_coords_for_mask(
     phenotype_output_fp: Union[str, Path],
     mode: str,
@@ -451,11 +423,6 @@ def compute_crop_bounds(
     x0 = max(0, cj - half)
     x1 = min(W, cj + half)
     return y0, y1, x0, x1
-
-
-# -----------------------------
-# Scale bar overlay
-# -----------------------------
 
 
 def overlay_scale_bar(

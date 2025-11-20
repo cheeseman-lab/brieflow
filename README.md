@@ -14,10 +14,10 @@ Brieflow is an extensible computational pipeline for high-throughput analysis of
 
 ## Example Analyses
 
-| Screen      | Repository                                             | Description                                      |
-|-------------|--------------------------------------------------------|--------------------------------------------------|
-| Denali      | [cheeseman-lab/denali-analysis](https://github.com/cheeseman-lab/denali-analysis)     | Original screen that drove Brieflow development |
-| Aconcagua   | [cheeseman-lab/aconcagua-analysis](https://github.com/cheeseman-lab/aconcagua-analysis) | Re-analysis of Funk et al. 2022                 |
+| Screen      | Repository                                             | Description                                      | Brieflow Version |
+|-------------|--------------------------------------------------------|--------------------------------------------------|------------------|
+| Denali      | [cheeseman-lab/denali-analysis](https://github.com/cheeseman-lab/denali-analysis)     | Original screen that drove Brieflow development | 1.0 |
+| Aconcagua   | [cheeseman-lab/aconcagua-analysis](https://github.com/cheeseman-lab/aconcagua-analysis) | Re-analysis of Funk et al. 2022                 | 1.0 |
 
 Examples using [Brieflow Analysis Template](https://github.com/cheeseman-lab/brieflow-analysis).
 More examples coming soon!

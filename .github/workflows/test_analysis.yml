@@ -1,4 +1,4 @@
-name: Brieflow Integration Test
+name: Test Analysis
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  integration-test:
+  test-analysis:
     runs-on: ubuntu-latest
 
     steps:

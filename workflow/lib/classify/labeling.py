@@ -35,7 +35,7 @@ def select_next_batch_from_pools(
     batch_size: int,
     *,
     keys: List[str],
-    mask_summary_df: pd.DataFrame | None = None,
+    summary_df: pd.DataFrame | None = None,
     out_randomizer: int = 0,
     prioritized_in_keys: Set[Tuple[int, str, int, int]] | None = None,
     prioritized_out_keys: Set[Tuple[int, str, int, int]] | None = None,
@@ -43,12 +43,12 @@ def select_next_batch_from_pools(
     """Select the next batch of masks from in-/out-of-threshold pools with optional prioritization.
 
     Args:
-        in_pool_df: In-threshold masks.
-        out_pool_df: Out-of-threshold masks.
+        in_pool_df: In-gate masks.
+        out_pool_df: Out-of-gate masks.
         selection_mode: 'random' or 'top_n'.
         batch_size: Total number of rows to select.
         keys: Key columns (e.g., ['plate','well','tile','mask_label']).
-        mask_summary_df: Tile counts (required for 'top_n').
+        summary_df: Tile counts (required for 'top_n').
         out_randomizer: Maximum number of out-of-threshold rows to include in a batch.
         prioritized_in_keys: Set of key tuples to prioritize from the in-pool.
         prioritized_out_keys: Set of key tuples to prioritize from the out-pool.
@@ -58,7 +58,7 @@ def select_next_batch_from_pools(
     """
     if out_randomizer > batch_size:
         raise ValueError(
-            f"OUT_OF_THRESHOLD_RANDOMIZER ({out_randomizer}) cannot exceed BATCH_SIZE ({batch_size})."
+            f"OUT_OF_GATE_COUNT ({out_randomizer}) cannot exceed BATCH_SIZE ({batch_size})."
         )
 
     prioritized_in_keys = prioritized_in_keys or set()
@@ -91,7 +91,7 @@ def select_next_batch_from_pools(
             return df.iloc[0:0]
         if selection_mode == "random":
             return df.sample(n=min(n, len(df)), replace=False, random_state=None)
-        return _rank_by_tile(df, mask_summary_df).head(n)
+        return _rank_by_tile(df, summary_df).head(n)
 
     in_sel_pr = _pick(in_pr, min(n_in, len(in_pr)))
     in_rem = n_in - len(in_sel_pr)
@@ -141,8 +141,8 @@ def remove_seen_from_pools(
     """Remove already-seen rows from both in-/out-of-threshold pools.
 
     Args:
-        in_pool_df: In-threshold masks pool.
-        out_pool_df: Out-of-threshold masks pool.
+        in_pool_df: In-gate masks pool.
+        out_pool_df: Out-of-gate masks pool.
         seen_df: DataFrame containing rows that were displayed (with key columns).
         keys: Key columns (e.g., ['plate','well','tile','mask_label']).
 
@@ -175,7 +175,7 @@ def remove_seen_from_pools(
 def consolidate_manual_classifications(
     manual_classified_df: pd.DataFrame,
     class_title: str,
-    classify_mode: str,
+    mode: str,
     phenotype_output_fp: Path,
     classifier_output_dir: Path,
     timestamp: str | None = None,
@@ -187,7 +187,7 @@ def consolidate_manual_classifications(
     Args:
         manual_classified_df: Table with at least ['plate','well','tile','mask_label', class_title].
         class_title: Name of the classification column to write.
-        classify_mode: 'vacuole' or 'cell'.
+        mode: 'cell' or 'vacuole'.
         phenotype_output_fp: Root path containing 'parquets'.
         classifier_output_dir: Root path where 'training_dataset' is created.
         timestamp: Optional timestamp string used in output filename.
@@ -201,8 +201,6 @@ def consolidate_manual_classifications(
         raise ValueError(
             "No manual classifications provided (manual_classified_df is empty)."
         )
-
-    mode = _mode_norm(classify_mode)
 
     req_cols = ["plate", "well", "tile", "mask_label", class_title]
     missing_cols = [c for c in req_cols if c not in manual_classified_df.columns]
@@ -231,7 +229,7 @@ def consolidate_manual_classifications(
     if man_df.empty:
         raise ValueError("No valid manual classifications remain after cleaning/dedup.")
 
-    parquet_dir = Path(phenotype_output_fp) / "parquets"
+    parquet_dir = _get_parquet_dir(phenotype_output_fp)
     if not parquet_dir.exists():
         raise FileNotFoundError(f"Parquet directory not found: {parquet_dir}")
 
@@ -349,37 +347,36 @@ def consolidate_manual_classifications(
 def prepare_mask_dataframes(
     *,
     mode: str,
-    pq_root: Union[str, Path],
+    phenotype_fp: Union[str, Path],
     plates: Sequence[Union[str, int]],
     wells: Sequence[Union[str, int, str]],
     keys: Sequence[str] = ("plate", "well", "tile", "mask_label"),
-    threshold_feature: Optional[Union[str, Sequence[Optional[str]]]] = None,
-    threshold_min: Optional[Union[float, Sequence[Optional[float]]]] = None,
-    threshold_max: Optional[Union[float, Sequence[Optional[float]]]] = None,
-    threshold_min_percentile: Optional[Union[float, Sequence[Optional[float]]]] = None,
-    threshold_max_percentile: Optional[Union[float, Sequence[Optional[float]]]] = None,
+    gate_feature: Optional[Union[str, Sequence[Optional[str]]]] = None,
+    gate_min: Optional[Union[float, Sequence[Optional[float]]]] = None,
+    gate_max: Optional[Union[float, Sequence[Optional[float]]]] = None,
+    gate_min_percentile: Optional[Union[float, Sequence[Optional[float]]]] = None,
+    gate_max_percentile: Optional[Union[float, Sequence[Optional[float]]]] = None,
     verbose: bool = True,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, List[Dict]]:
     """Build mask summary and key tables from per-well parquets and (optionally) apply thresholds.
 
     Args:
         mode: 'vacuole' or 'cell'.
-        pq_root: Root path containing a 'parquets' directory.
+        phenotype_fp: Root phenotype output path (contains 'parquets' subdirectory).
         plates: Iterable of plate identifiers to include.
         wells: Iterable of well identifiers to include.
         keys: Key column names (default ['plate','well','tile','mask_label']).
-        threshold_feature: Feature name or list of names to filter by (None for no filtering).
-        threshold_min: Numeric lower bound(s) (exclusive) or None.
-        threshold_max: Numeric upper bound(s) (exclusive) or None.
-        threshold_min_percentile: Lower quantile(s) in [0,1] (exclusive) or None.
-        threshold_max_percentile: Upper quantile(s) in [0,1] (exclusive) or None.
+        gate_feature: Feature name or list of names to filter by (None for no filtering).
+        gate_min: Numeric lower bound(s) (exclusive) or None.
+        gate_max: Numeric upper bound(s) (exclusive) or None.
+        gate_min_percentile: Lower quantile(s) in [0,1] (exclusive) or None.
+        gate_max_percentile: Upper quantile(s) in [0,1] (exclusive) or None.
         verbose: If True, print progress messages.
 
     Returns:
-        (mask_summary_df, mask_instances_df_in, mask_instances_df_out, thr_debug)
+        (summary_df, in_gate_df_in, in_gate_df_out, gate_debug)
     """
-    mode = _mode_norm(mode)
-    pq_dir = Path(pq_root) / "parquets"
+    pq_dir = _get_parquet_dir(phenotype_fp)
     if not pq_dir.exists():
         raise FileNotFoundError(f"Parquet directory not found: {pq_dir}")
 
@@ -391,7 +388,7 @@ def prepare_mask_dataframes(
 
     for plate in sorted(plate_set):
         for well in sorted(well_set):
-            pq_path = _pq_path_for(plate, well, pq_dir, mode)
+            pq_path = _pq_path_for(plate, well, phenotype_fp, mode)
             if not pq_path.exists():
                 if verbose:
                     print(f"[warn] Skipping missing parquet: {pq_path}")
@@ -429,32 +426,32 @@ def prepare_mask_dataframes(
                 instance_rows.append(inst)
 
     if tile_rows:
-        mask_summary_df = (
+        summary_df = (
             pd.concat(tile_rows, ignore_index=True)
             .sort_values("number_of_masks", ascending=False, kind="mergesort")
             .reset_index(drop=True)
         )
     else:
-        mask_summary_df = pd.DataFrame(
+        summary_df = pd.DataFrame(
             columns=["plate", "well", "tile", "number_of_masks"]
         )
 
     if instance_rows:
-        mask_instances_df_all = (
+        in_gate_df_all = (
             pd.concat(instance_rows, ignore_index=True)
             .sort_values(list(keys))
             .reset_index(drop=True)
         )
     else:
-        mask_instances_df_all = pd.DataFrame(columns=list(keys))
+        in_gate_df_all = pd.DataFrame(columns=list(keys))
 
     if verbose:
         print(
-            f"[parquet] Tiles: {len(mask_summary_df)} | Masks: {len(mask_instances_df_all)} (mode={mode})"
+            f"[parquet] Tiles: {len(summary_df)} | Masks: {len(in_gate_df_all)} (mode={mode})"
         )
 
     # Early guard: if no masks were loaded at all, provide a clearer error message
-    if mask_instances_df_all.empty:
+    if in_gate_df_all.empty:
         raise ValueError(
             "No masks were found for the selected plates/wells and mode.\n"
             f"- mode: {mode}\n"
@@ -464,15 +461,15 @@ def prepare_mask_dataframes(
 
     # normalize threshold specs
     def _normalize_threshold_specs() -> List[Dict]:
-        feats = threshold_feature
+        feats = gate_feature
         if feats is None:
             return []
         feats = feats if isinstance(feats, (list, tuple, np.ndarray)) else [feats]
         L = len(feats)
-        mins = _as_list(threshold_min, L, "threshold_min")
-        maxs = _as_list(threshold_max, L, "threshold_max")
-        minpct = _as_list(threshold_min_percentile, L, "threshold_min_percentile")
-        maxpct = _as_list(threshold_max_percentile, L, "threshold_max_percentile")
+        mins = _as_list(gate_min, L, "gate_min")
+        maxs = _as_list(gate_max, L, "gate_max")
+        minpct = _as_list(gate_min_percentile, L, "gate_min_percentile")
+        maxpct = _as_list(gate_max_percentile, L, "gate_max_percentile")
 
         specs: List[Dict] = []
         for i in range(L):
@@ -499,15 +496,15 @@ def prepare_mask_dataframes(
 
     specs = _normalize_threshold_specs()
     if not specs:
-        mask_instances_df = mask_instances_df_all.copy()
-        mask_instances_out_of_threshold_df = mask_instances_df_all.iloc[0:0].copy()
-        thr_debug: List[Dict] = []
+        in_gate_df = in_gate_df_all.copy()
+        out_of_gate_df = in_gate_df_all.iloc[0:0].copy()
+        gate_debug: List[Dict] = []
         if verbose:
             print("No thresholding (no usable bounds provided).")
     else:
-        mask_instances_df, mask_instances_out_of_threshold_df, thr_debug = (
+        in_gate_df, out_of_gate_df, gate_debug = (
             _apply_multi_thresholds(
-                mask_instances_df_all=mask_instances_df_all,
+                in_gate_df_all=in_gate_df_all,
                 mode=mode,
                 pq_dir=pq_dir,
                 specs=specs,
@@ -516,35 +513,35 @@ def prepare_mask_dataframes(
         )
         if verbose:
             print("Thresholding applied (multi-filter intersection):")
-            for d in thr_debug:
+            for d in gate_debug:
                 print(
                     f"  [#{d['filter_index']}] {d['feature']}: "
                     f"min(>): {d['min_open']}, max(<): {d['max_open']} | "
                     f"global[{d['global_min']}, {d['global_max']}] | "
                     f"kept: {d['kept_after_this_filter']}"
                 )
-            print(f"\nmask_instances_df (IN): {len(mask_instances_df)} rows")
+            print(f"\nin_gate_df (IN): {len(in_gate_df)} rows")
             print(
-                f"mask_instances_out_of_threshold_df (OUT): {len(mask_instances_out_of_threshold_df)} rows"
+                f"out_of_gate_df (OUT): {len(out_of_gate_df)} rows"
             )
 
-    mask_summary_df = _update_mask_summary(
-        mask_summary_df, mask_instances_df, mask_instances_out_of_threshold_df
+    summary_df = _update_mask_summary(
+        summary_df, in_gate_df, out_of_gate_df
     )
 
     if verbose:
         print("\nFinal tables ready for the UI:")
-        print(f"  mask_summary_df: {len(mask_summary_df)} tiles")
-        print(f"  mask_instances_df (IN): {len(mask_instances_df)} rows")
+        print(f"  summary_df: {len(summary_df)} tiles")
+        print(f"  in_gate_df (IN): {len(in_gate_df)} rows")
         print(
-            f"  mask_instances_out_of_threshold_df (OUT): {len(mask_instances_out_of_threshold_df)} rows"
+            f"  out_of_gate_df (OUT): {len(out_of_gate_df)} rows"
         )
 
     return (
-        mask_summary_df,
-        mask_instances_df,
-        mask_instances_out_of_threshold_df,
-        thr_debug,
+        summary_df,
+        in_gate_df,
+        out_of_gate_df,
+        gate_debug,
     )
 
 
@@ -553,19 +550,194 @@ def prepare_mask_dataframes(
 # ----------------------------------------------------------------------------- #
 
 
-def _mode_norm(x: str) -> str:
-    """Normalize and validate a classification mode string.
+def build_class_mapping(classification: List[str]) -> Dict:
+    """Build a class mapping dictionary from a list of class names.
 
     Args:
-        x: Mode input (case-insensitive). Expected values are 'vacuole' or 'cell'.
+        classification: List of class names in order (e.g., ["1 parasite", "2-3 parasite"]).
 
     Returns:
-        The normalized mode string ('vacuole' or 'cell').
+        Dict with 'label_to_class' mapping 1-based indices to class names.
     """
-    s = str(x).strip().lower()
-    if s not in {"vacuole", "cell"}:
-        raise ValueError(f"Invalid mode {x!r}. Must be 'vacuole' or 'cell'.")
-    return s
+    return {'label_to_class': {i + 1: label for i, label in enumerate(classification)}}
+
+
+def to_list_of_str(value, fallback=None) -> List[str]:
+    """Normalize a value to a list of strings.
+
+    Args:
+        value: Value to normalize (Path, str, list, tuple, set, or None).
+        fallback: Fallback value if value is None.
+
+    Returns:
+        List of strings.
+    """
+    base = fallback if value is None else value
+    if base is None:
+        return []
+    if isinstance(base, (list, tuple, set)):
+        return [str(x) for x in base]
+    return [str(base)]
+
+
+def resolve_channel_colors(
+    display_channels: List[str],
+    channel_colors: List[str],
+) -> List[Tuple[str, Tuple[float, float, float]]]:
+    """Resolve channel color names to RGB tuples.
+
+    Args:
+        display_channels: List of channel names to display.
+        channel_colors: List of matplotlib color names or hex codes.
+
+    Returns:
+        List of (type, rgb) tuples where type is 'gray' or 'rgb'.
+    """
+    import matplotlib.colors as mcolors
+
+    resolved = []
+    for idx, ch in enumerate(display_channels):
+        color_name = channel_colors[idx] if idx < len(channel_colors) else None
+        if color_name is None:
+            resolved.append(("gray", (1.0, 1.0, 1.0)))
+        else:
+            try:
+                rgb = mcolors.to_rgb(color_name)
+                resolved.append(("rgb", rgb))
+            except ValueError:
+                raise ValueError(
+                    f"Invalid color '{color_name}' for channel '{ch}'. "
+                    "Use a valid matplotlib color name or hex."
+                )
+    return resolved
+
+
+def load_existing_training_data(
+    existing_training_path: Union[str, Path],
+    mode: str,
+    class_title: str,
+) -> Tuple[pd.DataFrame, set]:
+    """Load existing training data and extract keys.
+
+    Args:
+        existing_training_path: Path to existing training parquet.
+        mode: Classification mode ('cell' or 'vacuole').
+        class_title: Name of the classification column.
+
+    Returns:
+        (normalized_df, existing_keys_set)
+    """
+    df_existing = pd.read_parquet(existing_training_path)
+    seeded = _normalize_keys(df_existing, mode, class_title)
+    seeded["_existing"] = True
+
+    existing_keys = set(
+        (int(r.plate), str(r.well), int(r.tile), int(r.mask_label))
+        for r in seeded.itertuples(index=False)
+    )
+    return seeded, existing_keys
+
+
+def filter_existing_from_pools(
+    in_gate_df: pd.DataFrame,
+    out_of_gate_df: pd.DataFrame,
+    existing_keys: set,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Remove existing training keys from gate pools.
+
+    Args:
+        in_gate_df: In-gate pool DataFrame.
+        out_of_gate_df: Out-of-gate pool DataFrame.
+        existing_keys: Set of (plate, well, tile, mask_label) tuples.
+
+    Returns:
+        (filtered_in_gate_df, filtered_out_of_gate_df)
+    """
+    if not existing_keys:
+        return in_gate_df, out_of_gate_df
+
+    keys_df = pd.DataFrame(
+        list(existing_keys),
+        columns=["plate", "well", "tile", "mask_label"]
+    ).assign(_ex=1)
+
+    if not in_gate_df.empty:
+        in_gate_df = in_gate_df.merge(keys_df, on=["plate", "well", "tile", "mask_label"], how="left")
+        in_gate_df = in_gate_df[in_gate_df["_ex"].isna()].drop(columns="_ex").reset_index(drop=True)
+
+    if not out_of_gate_df.empty:
+        out_of_gate_df = out_of_gate_df.merge(keys_df, on=["plate", "well", "tile", "mask_label"], how="left")
+        out_of_gate_df = out_of_gate_df[out_of_gate_df["_ex"].isna()].drop(columns="_ex").reset_index(drop=True)
+
+    return in_gate_df, out_of_gate_df
+
+
+def initialize_labeling_state(
+    random_seed: int,
+    mode: str,
+    class_title: str,
+    keys: List[str],
+    existing_classified_df: pd.DataFrame = None,
+    existing_unclassified_df: pd.DataFrame = None,
+) -> dict:
+    """Initialize the state dictionary for the labeling UI.
+
+    Args:
+        random_seed: Random seed for reproducibility.
+        mode: Classification mode ('cell' or 'vacuole').
+        class_title: Name of the classification column.
+        keys: Key column names (e.g., ['plate','well','tile','mask_label']).
+        existing_classified_df: Optional existing classified dataframe.
+        existing_unclassified_df: Optional existing unclassified dataframe.
+
+    Returns:
+        Initialized state dictionary.
+    """
+    state = {
+        "rng": np.random.default_rng(random_seed),
+        "aligned_cache": {},
+        "mask_cache": {},
+        "parquet_cache": {},
+        "mode": mode,
+        "container": None,
+        "rows_state": [],
+        "button": None,
+        "status": None,
+        "channel_header": None,
+        "tile_order_df": None,
+        "tile_idx": 0,
+    }
+
+    if existing_classified_df is not None and not existing_classified_df.empty:
+        state["manual_classified_df"] = existing_classified_df.copy()
+    else:
+        state["manual_classified_df"] = None
+
+    if existing_unclassified_df is not None and not existing_unclassified_df.empty:
+        state["manual_unclassified_df"] = existing_unclassified_df.copy()
+    else:
+        state["manual_unclassified_df"] = pd.DataFrame(columns=keys)
+
+    state["manual_classified_df"] = _ensure_mc_schema(
+        state["manual_classified_df"], class_title, keys
+    )
+
+    return state
+
+
+def _get_parquet_dir(base_path: Union[str, Path]) -> Path:
+    """Get the parquet directory, avoiding double 'parquets' in path.
+
+    Args:
+        base_path: Base phenotype output path.
+
+    Returns:
+        Path to the parquets directory.
+    """
+    p = Path(base_path)
+    if p.name == "parquets":
+        return p
+    return p / "parquets"
 
 
 def _id_col_for_mode(columns, mode: str) -> str:
@@ -589,19 +761,20 @@ def _id_col_for_mode(columns, mode: str) -> str:
     raise ValueError("Parquet is missing 'label'/'labels' for cell mode.")
 
 
-def _pq_path_for(plate, well, pq_dir: Path, mode: str) -> Path:
+def _pq_path_for(plate, well, phenotype_fp: Path, mode: str) -> Path:
     """Construct the phenotype parquet path for a given plate, well, and mode.
 
     Args:
         plate: Plate identifier.
         well: Well identifier.
-        pq_dir: Directory containing phenotype parquets.
-        mode: Normalized mode ('vacuole' or 'cell').
+        phenotype_fp: Phenotype output directory (parquets subdirectory is appended).
+        mode: 'cell' or 'vacuole'.
 
     Returns:
         The resolved parquet file path. For cell mode, if 'phenotype_cp.parquet' is
         missing, falls back to 'phenotype_cp_min.parquet' when present.
     """
+    pq_dir = _get_parquet_dir(phenotype_fp)
     wnorm = well_for_filename(well)
     if mode == "vacuole":
         return pq_dir / get_filename(
@@ -702,20 +875,20 @@ def _as_list(x, L, name):
 
 
 def _rank_by_tile(
-    df: pd.DataFrame, mask_summary_df: pd.DataFrame | None
+    df: pd.DataFrame, summary_df: pd.DataFrame | None
 ) -> pd.DataFrame:
     """Rank masks by tile density (tiles with more masks first) and then by key order.
 
     Args:
         df: DataFrame with columns ['plate','well','tile','mask_label'].
-        mask_summary_df: DataFrame with columns ['plate','well','tile','number_of_masks'].
+        summary_df: DataFrame with columns ['plate','well','tile','number_of_masks'].
 
     Returns:
         A DataFrame sorted by tile rank and then ['plate','well','tile','mask_label'].
     """
-    if mask_summary_df is None or mask_summary_df.empty or df.empty:
+    if summary_df is None or summary_df.empty or df.empty:
         return df
-    ranked = mask_summary_df.sort_values(
+    ranked = summary_df.sort_values(
         "number_of_masks", ascending=False, kind="mergesort"
     )
     rank_map = {
@@ -741,12 +914,12 @@ def _rank_by_tile(
 
 
 def _load_feature_index(
-    mask_instances_df_all: pd.DataFrame, mode: str, pq_dir: Path, feature: str
+    in_gate_df_all: pd.DataFrame, mode: str, pq_dir: Path, feature: str
 ) -> pd.DataFrame:
     """Load feature values from per-well parquets for rows present in a mask pool.
 
     Args:
-        mask_instances_df_all: Pool with key columns ['plate','well','tile','mask_label'].
+        in_gate_df_all: Pool with key columns ['plate','well','tile','mask_label'].
         mode: Normalized mode ('vacuole' or 'cell').
         pq_dir: Directory containing phenotype parquets.
         feature: Column to load as the feature.
@@ -758,11 +931,23 @@ def _load_feature_index(
     frames = []
 
     for plate, well in (
-        mask_instances_df_all[["plate", "well"]]
+        in_gate_df_all[["plate", "well"]]
         .drop_duplicates()
         .itertuples(index=False)
     ):
-        pq_path = _pq_path_for(plate, well, pq_dir, mode)
+        wnorm = well_for_filename(well)
+        if mode == "vacuole":
+            pq_path = pq_dir / get_filename(
+                {"plate": plate, "well": wnorm}, "phenotype_vacuoles", "parquet"
+            )
+        else:
+            main = pq_dir / get_filename(
+                {"plate": plate, "well": wnorm}, "phenotype_cp", "parquet"
+            )
+            alt = pq_dir / get_filename(
+                {"plate": plate, "well": wnorm}, "phenotype_cp_min", "parquet"
+            )
+            pq_path = main if main.exists() else alt
         if not pq_path.exists():
             raise FileNotFoundError(f"Missing parquet: {pq_path}")
 
@@ -777,7 +962,7 @@ def _load_feature_index(
             missing_feature.append(str(pq_path))
             continue
 
-        keep_tiles = mask_instances_df_all.query("plate == @plate and well == @well")[
+        keep_tiles = in_gate_df_all.query("plate == @plate and well == @well")[
             "tile"
         ].unique()
         sub = pq_df.loc[
@@ -807,16 +992,16 @@ def _load_feature_index(
 
     # Normalize dtypes for merge keys
     for c in ("plate", "well", "tile", "mask_label"):
-        if c in feat.columns and c in mask_instances_df_all.columns:
+        if c in feat.columns and c in in_gate_df_all.columns:
             try:
-                feat[c] = feat[c].astype(mask_instances_df_all[c].dtype)
+                feat[c] = feat[c].astype(in_gate_df_all[c].dtype)
             except Exception:
                 pass
     return feat
 
 
 def _apply_multi_thresholds(
-    mask_instances_df_all: pd.DataFrame,
+    in_gate_df_all: pd.DataFrame,
     mode: str,
     pq_dir: Path,
     specs: list[dict],
@@ -825,7 +1010,7 @@ def _apply_multi_thresholds(
     """Apply one or more threshold filters (intersection) to a mask pool.
 
     Args:
-        mask_instances_df_all: Full pool of mask keys.
+        in_gate_df_all: Full pool of mask keys.
         mode: Normalized mode ('vacuole' or 'cell').
         pq_dir: Directory containing phenotype parquets.
         specs: List of filter dicts with keys: feature, min_num, max_num, min_pct, max_pct.
@@ -835,9 +1020,9 @@ def _apply_multi_thresholds(
         (in_df, out_df, debug_list) where in_df is the filtered pool, out_df is the complement.
     """
     if not specs:
-        return mask_instances_df_all.copy(), mask_instances_df_all.iloc[0:0].copy(), []
+        return in_gate_df_all.copy(), in_gate_df_all.iloc[0:0].copy(), []
 
-    pool = mask_instances_df_all.copy()
+    pool = in_gate_df_all.copy()
     debug = []
 
     for idx, sp in enumerate(specs, start=1):
@@ -880,7 +1065,7 @@ def _apply_multi_thresholds(
 
     marker = pool.assign(__in__=1)
     out_df = (
-        mask_instances_df_all.merge(marker, on=_KEYS, how="left")
+        in_gate_df_all.merge(marker, on=_KEYS, how="left")
         .loc[lambda d: d["__in__"].isna(), _KEYS]
         .reset_index(drop=True)
     )
@@ -888,27 +1073,27 @@ def _apply_multi_thresholds(
 
 
 def _update_mask_summary(
-    mask_summary_df: pd.DataFrame, in_df: pd.DataFrame, out_df: pd.DataFrame
+    summary_df: pd.DataFrame, in_df: pd.DataFrame, out_df: pd.DataFrame
 ) -> pd.DataFrame:
     """Add per-tile in/out counts to a mask summary table.
 
     Args:
-        mask_summary_df: Base summary with ['plate','well','tile','number_of_masks'].
-        in_df: In-threshold mask keys.
-        out_df: Out-of-threshold mask keys.
+        summary_df: Base summary with ['plate','well','tile','number_of_masks'].
+        in_df: In-gate mask keys.
+        out_df: Out-of-gate mask keys.
 
     Returns:
         A summary DataFrame with added columns:
-        ['in_range','out_of_range','number_of_masks_in_threshold','number_of_masks_out_of_threshold'].
+        ['in_range','out_of_range','number_of_masks_in_gate','number_of_masks_out_of_gate'].
     """
-    _ms = mask_summary_df.copy()
+    _ms = summary_df.copy()
     drop_cols = [
         c
         for c in (
             "in_range",
             "out_of_range",
-            "number_of_masks_in_threshold",
-            "number_of_masks_out_of_threshold",
+            "number_of_masks_in_gate",
+            "number_of_masks_out_of_gate",
         )
         if c in _ms.columns
     ]
@@ -940,8 +1125,8 @@ def _update_mask_summary(
     _ms = _ms.merge(counts_out, on=["plate", "well", "tile"], how="left")
     _ms["in_range"] = _ms.get("in_range", 0).fillna(0).astype(int)
     _ms["out_of_range"] = _ms.get("out_of_range", 0).fillna(0).astype(int)
-    _ms["number_of_masks_in_threshold"] = _ms["in_range"]
-    _ms["number_of_masks_out_of_threshold"] = _ms["out_of_range"]
+    _ms["number_of_masks_in_gate"] = _ms["in_range"]
+    _ms["number_of_masks_out_of_gate"] = _ms["out_of_range"]
     return _ms
 
 
@@ -1056,6 +1241,7 @@ def _render_row(
         meta["tile"],
         meta["mask_label"],
     )
+
     stack = load_aligned_stack(
         PHENOTYPE_OUTPUT_FP,
         CHANNEL_NAMES,
@@ -1064,6 +1250,7 @@ def _render_row(
         int(tile),
         cache=state.get("aligned_cache"),
     )
+
     H, W = stack.shape[1], stack.shape[2]
     y0, y1, x0, x1 = compute_crop_bounds(
         PHENOTYPE_OUTPUT_FP,
@@ -1240,10 +1427,10 @@ def _render_next_batch(
     RELABEL_CLASSIFICATIONS: bool,
     TRAINING_DATASET_SELECTION: str,
     BATCH_SIZE: int,
-    mask_summary_df: pd.DataFrame,
-    mask_instances_df: pd.DataFrame,
-    mask_instances_out_of_threshold_df: pd.DataFrame,
-    OUT_OF_THRESHOLD_RANDOMIZER: int,
+    summary_df: pd.DataFrame,
+    in_gate_df: pd.DataFrame,
+    out_of_gate_df: pd.DataFrame,
+    OUT_OF_GATE_COUNT: int,
     CHANNEL_INDICES: list,
     *,
     PHENOTYPE_OUTPUT_FP: Path,
@@ -1252,7 +1439,7 @@ def _render_next_batch(
     RESOLVED_COLORS: list,
     SCALE_BAR: int = 0,
     EXISTING_KEYS: Optional[set] = None,
-    THRESHOLD_FEATURE_PRESENT: bool = False,
+    GATE_FEATURE_PRESENT: bool = False,
 ) -> None:
     """Render a page of mask rows and wire the "show next" button to advance batches.
 
@@ -1266,10 +1453,10 @@ def _render_next_batch(
         RELABEL_CLASSIFICATIONS: If True, prioritize keys already present in training data.
         TRAINING_DATASET_SELECTION: 'random' or 'top_n'.
         BATCH_SIZE: Count of rows per page.
-        mask_summary_df: Tile summary table.
-        mask_instances_df: In-threshold pool for selection.
-        mask_instances_out_of_threshold_df: Out-of-threshold pool for selection.
-        OUT_OF_THRESHOLD_RANDOMIZER: Max number of out-of-threshold rows per page.
+        summary_df: Tile summary table.
+        in_gate_df: In-gate pool for selection.
+        out_of_gate_df: Out-of-gate pool for selection.
+        OUT_OF_GATE_COUNT: Max number of out-of-threshold rows per page.
         CHANNEL_INDICES: Indices of channels to display.
         PHENOTYPE_OUTPUT_FP: Root output path.
         CHANNEL_NAMES: Channel names (for aligned stack validation).
@@ -1277,7 +1464,7 @@ def _render_next_batch(
         RESOLVED_COLORS: List of ('gray' or label, (r,g,b)) tuples per channel.
         SCALE_BAR: Scale bar size in pixels (0 disables).
         EXISTING_KEYS: Keys present in existing training dataset (for relabeling priority).
-        THRESHOLD_FEATURE_PRESENT: Whether thresholding is active (affects status text).
+        GATE_FEATURE_PRESENT: Whether thresholding is active (affects status text).
 
     Returns:
         None. Displays and updates widgets in-place.
@@ -1309,7 +1496,7 @@ def _render_next_batch(
     # reset rows for this page
     state["rows_state"] = []
 
-    total_remaining = len(mask_instances_df) + len(mask_instances_out_of_threshold_df)
+    total_remaining = len(in_gate_df) + len(out_of_gate_df)
     if total_remaining == 0:
         state["status"].value = "<b>All wells completed.</b>"
         close_btn = widgets.Button(
@@ -1329,38 +1516,37 @@ def _render_next_batch(
     if ADD_TRAINING_DATA and RELABEL_CLASSIFICATIONS and len(EXISTING_KEYS) > 0:
         _in_keys = set(
             (int(r.plate), str(r.well), int(r.tile), int(r.mask_label))
-            for r in mask_instances_df.itertuples(index=False)
+            for r in in_gate_df.itertuples(index=False)
         )
         _out_keys = set(
             (int(r.plate), str(r.well), int(r.tile), int(r.mask_label))
-            for r in mask_instances_out_of_threshold_df.itertuples(index=False)
+            for r in out_of_gate_df.itertuples(index=False)
         )
         pri_in = EXISTING_KEYS.intersection(_in_keys)
         pri_out = EXISTING_KEYS.intersection(_out_keys)
     else:
         pri_in, pri_out = set(), set()
 
-    next_batch_df, debug_info = select_next_batch_from_pools(
-        in_pool_df=mask_instances_df,
-        out_pool_df=mask_instances_out_of_threshold_df,
+    next_batch_df, _ = select_next_batch_from_pools(
+        in_pool_df=in_gate_df,
+        out_pool_df=out_of_gate_df,
         selection_mode=TRAINING_DATASET_SELECTION,
         batch_size=BATCH_SIZE,
         keys=keys,
-        mask_summary_df=mask_summary_df,
-        out_randomizer=OUT_OF_THRESHOLD_RANDOMIZER,
+        summary_df=summary_df,
+        out_randomizer=OUT_OF_GATE_COUNT,
         prioritized_in_keys=pri_in,
         prioritized_out_keys=pri_out,
     )
-    print("Batch selector:", debug_info)
 
     state["last_batch_df"] = next_batch_df[keys].copy()
 
     _out_set = (
         set(
             (int(r.plate), str(r.well), int(r.tile), int(r.mask_label))
-            for r in mask_instances_out_of_threshold_df.itertuples(index=False)
+            for r in out_of_gate_df.itertuples(index=False)
         )
-        if not mask_instances_out_of_threshold_df.empty
+        if not out_of_gate_df.empty
         else set()
     )
 
@@ -1406,8 +1592,8 @@ def _render_next_batch(
 
     def on_relaunch():
         in_left, out_left = remove_seen_from_pools(
-            mask_instances_df,
-            mask_instances_out_of_threshold_df,
+            in_gate_df,
+            out_of_gate_df,
             state.get("last_batch_df", pd.DataFrame(columns=keys)),
             keys=keys,
         )
@@ -1421,10 +1607,10 @@ def _render_next_batch(
             RELABEL_CLASSIFICATIONS=RELABEL_CLASSIFICATIONS,
             TRAINING_DATASET_SELECTION=TRAINING_DATASET_SELECTION,
             BATCH_SIZE=BATCH_SIZE,
-            mask_summary_df=mask_summary_df,
-            mask_instances_df=in_left,
-            mask_instances_out_of_threshold_df=out_left,
-            OUT_OF_THRESHOLD_RANDOMIZER=OUT_OF_THRESHOLD_RANDOMIZER,
+            summary_df=summary_df,
+            in_gate_df=in_left,
+            out_of_gate_df=out_left,
+            OUT_OF_GATE_COUNT=OUT_OF_GATE_COUNT,
             CHANNEL_INDICES=CHANNEL_INDICES,
             PHENOTYPE_OUTPUT_FP=PHENOTYPE_OUTPUT_FP,
             CHANNEL_NAMES=CHANNEL_NAMES,
@@ -1432,7 +1618,7 @@ def _render_next_batch(
             RESOLVED_COLORS=RESOLVED_COLORS,
             SCALE_BAR=SCALE_BAR,
             EXISTING_KEYS=EXISTING_KEYS,
-            THRESHOLD_FEATURE_PRESENT=THRESHOLD_FEATURE_PRESENT,
+            GATE_FEATURE_PRESENT=GATE_FEATURE_PRESENT,
         )
 
     state["button"].description = "show_10_new_images"
@@ -1461,10 +1647,10 @@ def _render_next_batch(
         )
         lines.append(f"Existing training rows loaded: {existing_count}")
     lines.append(f"Remaining total: {total_remaining}")
-    lines.append(f"In-range remaining: {len(mask_instances_df)}")
-    if THRESHOLD_FEATURE_PRESENT:
+    lines.append(f"In-range remaining: {len(in_gate_df)}")
+    if GATE_FEATURE_PRESENT:
         lines.append(
-            f"Out-of-range remaining: {len(mask_instances_out_of_threshold_df)} (showing {OUT_OF_THRESHOLD_RANDOMIZER}/page)"
+            f"Out-of-range remaining: {len(out_of_gate_df)} (showing {OUT_OF_GATE_COUNT}/page)"
         )
     lines.append(f"Uncategorized (omitted): {len(df_unc)}")
     for i, cname in enumerate(CLASSIFICATION, start=1):

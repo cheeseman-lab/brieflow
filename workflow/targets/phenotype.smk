@@ -69,12 +69,60 @@ PHENOTYPE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "phenotype_info", "parquet"
         ),
     ],
+    "identify_second_objs": [
+        PHENOTYPE_FP
+        / "images"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "identified_second_objs",
+            "tiff",
+        ),
+        PHENOTYPE_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "cell_second_obj_table",
+            "tsv",
+        ),
+        PHENOTYPE_FP
+        / "images"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "updated_cytoplasms",
+            "tiff",
+        ),
+    ],
     "extract_phenotype_cp": [
         PHENOTYPE_FP
         / "tsvs"
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "phenotype_cp",
+            "tsv",
+        ),
+    ],
+    "extract_phenotype_second_objs": [
+        PHENOTYPE_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "phenotype_second_objs",
+            "tsv",
+        ),
+    ],
+    "merge_phenotype_second_objs": [
+        PHENOTYPE_FP
+        / "parquets"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "phenotype_second_objs", "parquet"
+        ),
+    ],
+    "merge_second_objs_phenotype_cp": [
+        PHENOTYPE_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "phenotype_with_second_objs",
             "tsv",
         ),
     ],
@@ -128,7 +176,11 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "identify_cytoplasm": temp,
     "extract_phenotype_info": temp,
     "combine_phenotype_info": None,
-    "extract_phenotype_cp": temp,
+    "identify_second_objs": None,
+    "extract_phenotype_cp": None,
+    "extract_phenotype_second_objs": None,
+    "merge_phenotype_second_objs": None,
+    "merge_second_objs_phenotype_cp": None,
     "merge_phenotype_cp": None,
     "eval_segmentation_phenotype": None,
     "eval_features": None,

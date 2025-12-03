@@ -1,0 +1,3 @@
+[submodule "brieflow"]
+	path = brieflow
+	url = https://github.com/cheeseman-lab/brieflow.git

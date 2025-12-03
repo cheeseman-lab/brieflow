@@ -29,7 +29,7 @@ def extract_phenotype_second_objs(
     data_phenotype,
     second_objs,
     wildcards,
-    second_obj_cell_mapping_df = None,
+    second_obj_cell_mapping_df=None,
     second_obj_channels="all",
     foci_channel=None,
     channel_names=["dapi", "tubulin", "gh2ax", "phalloidin"],
@@ -120,7 +120,9 @@ def extract_phenotype_second_objs(
     # Extract foci features within secondary objects if foci channel is provided
     if foci_channel is not None:
         foci = find_foci_in_second_objs(
-            data_phenotype[..., foci_channel, :, :], second_objs, remove_border_foci=True
+            data_phenotype[..., foci_channel, :, :],
+            second_objs,
+            remove_border_foci=True,
         )
 
         if foci is not None:
@@ -147,16 +149,20 @@ def extract_phenotype_second_objs(
             second_obj_features.rename(columns={"label": "second_obj_id"}),
             on="second_obj_id",
             how="left",
-            suffixes=("_map", "_feat")  # left, right
+            suffixes=("_map", "_feat"),  # left, right
         )
 
         # If both exist, make a single second_obj_area column (prefer features)
         # If other features are present in both dataframes, modify the next next four lines to reflect the column names and add _map and _feat suffixes
-        if {"second_obj_area_map", "second_obj_area_feat"} <= set(second_obj_df.columns):
-            second_obj_df["second_obj_area"] = (
-                second_obj_df["second_obj_area_feat"].combine_first(second_obj_df["second_obj_area_map"])
+        if {"second_obj_area_map", "second_obj_area_feat"} <= set(
+            second_obj_df.columns
+        ):
+            second_obj_df["second_obj_area"] = second_obj_df[
+                "second_obj_area_feat"
+            ].combine_first(second_obj_df["second_obj_area_map"])
+            second_obj_df = second_obj_df.drop(
+                columns=["second_obj_area_map", "second_obj_area_feat"]
             )
-            second_obj_df = second_obj_df.drop(columns=["second_obj_area_map", "second_obj_area_feat"])
     else:
         second_obj_df = second_obj_features.rename(columns={"label": "second_obj_id"})
 
@@ -201,10 +207,14 @@ def order_dataframe_columns_second_objs(
     remaining_cols = [col for col in df.columns if col not in ordered_cols]
 
     # Group features by type
-    second_obj_features = [col for col in remaining_cols if col.startswith("second_obj_")]
+    second_obj_features = [
+        col for col in remaining_cols if col.startswith("second_obj_")
+    ]
 
     # Add any other columns that don't fit the above patterns
-    other_features = [col for col in remaining_cols if not col.startswith("second_obj_")]
+    other_features = [
+        col for col in remaining_cols if not col.startswith("second_obj_")
+    ]
 
     # Combine in desired order
     ordered_cols.extend(other_features)  # Any additional metadata/wildcards

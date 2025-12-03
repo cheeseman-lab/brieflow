@@ -21,6 +21,60 @@ from lib.shared.configuration_utils import create_micropanel
 import cv2
 
 
+def apply_threshold_method(image, method="otsu_two_peak"):
+    """Apply specified thresholding method to an image.
+
+    Parameters
+    ----------
+    image : ndarray
+        Input image (should be preprocessed with log transform and smoothing)
+    method : str
+        Thresholding method to use.
+        Options:
+        - 'otsu_two_peak': Standard Otsu thresholding (2-class)
+        - 'otsu_three_peak_mid_bg': 3-class Otsu, middle class as background
+        - 'otsu_three_peak_mid_fg': 3-class Otsu, middle class as foreground
+        - 'min_cross_entropy': Minimum cross entropy (Li) thresholding
+
+    Returns
+    -------
+    threshold : float
+        Computed threshold value
+    binary_mask : ndarray
+        Binary mask after thresholding
+    """
+    if method == "otsu_two_peak":
+        # Standard two-class Otsu
+        threshold = filters.threshold_otsu(image)
+        binary_mask = image > threshold
+
+    elif method == "otsu_three_peak_mid_bg":
+        # Three-class Otsu, treat middle intensity class as background
+        threshold = filters.threshold_multiotsu(image, classes=3)
+        # Keep only the highest intensity class (threshold[1] separates mid from high)
+        binary_mask = image > threshold[1]
+
+    elif method == "otsu_three_peak_mid_fg":
+        # Three-class Otsu, treat middle intensity class as foreground
+        threshold = filters.threshold_multiotsu(image, classes=3)
+        # Keep both middle and high intensity classes (threshold[0] separates low from mid)
+        binary_mask = image > threshold[0]
+
+    elif method == "min_cross_entropy":
+        # Minimum cross entropy (Li) method
+        threshold = filters.threshold_li(image)
+        binary_mask = image > threshold
+
+    else:
+        raise ValueError(
+            f"Unknown threshold method: {method}. "
+            f"Valid options: 'otsu_two_peak', 'otsu_three_peak_mid_bg', "
+            f"'otsu_three_peak_mid_fg', 'min_cross_entropy'"
+        )
+
+    return threshold, binary_mask
+
+
 def segment_second_objs(
     image,
     second_obj_channel_index,
@@ -32,9 +86,10 @@ def segment_second_objs(
     size_filter_method="feret",
     # Pre-processing
     threshold_smoothing_scale=1.3488,
+    threshold_method="otsu_two_peak",
     use_morphological_opening=True,
     opening_disk_radius=1,
-    fill_holes=True,
+    fill_holes="both",
     # Declumping method (CellProfiler standard)
     declump_method="shape",
     declump_mode="watershed",
@@ -68,9 +123,20 @@ def segment_second_objs(
             - "area": Use pixel area (CellProfiler standard)
 
         threshold_smoothing_scale (float, optional): Sigma for Gaussian smoothing before thresholding. Default is 1.3488.
+        threshold_method (str, optional): Thresholding method to use (default: "otsu_two_peak").
+            Options:
+            - "otsu_two_peak": Standard 2-class Otsu thresholding
+            - "otsu_three_peak_mid_bg": 3-class Otsu, keeps only highest intensity class
+            - "otsu_three_peak_mid_fg": 3-class Otsu, keeps middle and high intensity classes
+            - "min_cross_entropy": Minimum cross entropy (Li) thresholding
         use_morphological_opening (bool, optional): Apply opening to separate weakly connected objects (default: True).
         opening_disk_radius (int, optional): Radius of disk structuring element for opening (default: 1).
-        fill_holes (bool, optional): Fill holes in segmented objects (default: True).
+        fill_holes (str, optional): When to fill holes in segmented objects (default: "both").
+            Options:
+            - "threshold": Fill holes only after thresholding (before declumping)
+            - "declump": Fill holes only after declumping (per-label filling)
+            - "both": Fill holes after both thresholding and declumping
+            - "none": Do not fill holes at any stage
 
         declump_method (str, optional): Method for separating clumped objects (default: "shape").
             CellProfiler standard methods:
@@ -126,10 +192,12 @@ def segment_second_objs(
     second_obj_log = exposure.adjust_log(second_obj_img + 1)
     second_obj_smooth = filters.gaussian(second_obj_log, sigma=threshold_smoothing_scale)
 
-    # Apply Otsu thresholding
-    thresh = filters.threshold_otsu(second_obj_smooth)
-    binary_mask = second_obj_smooth > thresh
-    binary_mask = ndimage.binary_fill_holes(binary_mask)
+    # Apply selected threshold method
+    thresh, binary_mask = apply_threshold_method(second_obj_smooth, method=threshold_method)
+
+    # Fill holes after thresholding (if enabled)
+    if fill_holes in ["threshold", "both"]:
+        binary_mask = ndimage.binary_fill_holes(binary_mask)
 
     # Early exit if no objects found
     if not np.any(binary_mask):
@@ -181,7 +249,7 @@ def segment_second_objs(
         print(f"After shape refinement: {len(np.unique(declumped)) - 1} objects")
 
     # Fill holes after declumping (if enabled)
-    if fill_holes:
+    if fill_holes in ["declump", "both"]:
         unique_labels = np.unique(declumped[declumped > 0])
         for label in unique_labels:
             mask = declumped == label

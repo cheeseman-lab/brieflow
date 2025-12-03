@@ -52,7 +52,9 @@ elif len(phenotype_data) > 0:
 else:
     # Both datasets are empty - create an empty DataFrame
     merged_data = pd.DataFrame()
-    print("Both phenotype and secondary object datasets are empty - creating empty output")
+    print(
+        "Both phenotype and secondary object datasets are empty - creating empty output"
+    )
 
 # Save the merged dataset
 merged_data.to_csv(snakemake.output[0], sep="\t", index=False)

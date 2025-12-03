@@ -941,7 +941,7 @@ def apply_declumping(
         return declumped
 
     # Method 2: Shape-based (distance transform)
-    if declump_method in ["shape"]:
+    if declump_method in ["shape", "distance"]:
         peak_map = ndimage.distance_transform_edt(binary_mask)
 
     # Method 3: Intensity-based

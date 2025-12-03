@@ -46,10 +46,14 @@ second_obj_mapping_cols = {
 }
 
 cell_summary_df = cell_summary_df.rename(columns=cell_summary_cols)
-second_obj_cell_mapping_df = second_obj_cell_mapping_df.rename(columns=second_obj_mapping_cols)
+second_obj_cell_mapping_df = second_obj_cell_mapping_df.rename(
+    columns=second_obj_mapping_cols
+)
 
 # Combine and save
-combined_df = pd.concat([cell_summary_df, second_obj_cell_mapping_df], ignore_index=True)
+combined_df = pd.concat(
+    [cell_summary_df, second_obj_cell_mapping_df], ignore_index=True
+)
 combined_df.to_csv(snakemake.output[1], sep="\t", index=False)
 
 # Save updated cytoplasm masks as TIFF

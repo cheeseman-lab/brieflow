@@ -166,9 +166,9 @@ rule extract_phenotype_cp:
 if config["phenotype"].get("second_obj_detection", True):
     rule merge_second_objs_phenotype_cp:
         input:
-            # main phenotype data 
+            # main phenotype data
             PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
-            # secondary object data 
+            # secondary object data
             PHENOTYPE_OUTPUTS["identify_second_objs"][1],
         output:
             PHENOTYPE_OUTPUTS_MAPPED["merge_second_objs_phenotype_cp"],

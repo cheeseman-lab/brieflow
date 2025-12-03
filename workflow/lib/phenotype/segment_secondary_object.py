@@ -43,7 +43,7 @@ def apply_threshold_method(image, method="otsu_two_peak"):
         - 'otsu_three_peak_mid_fg': 3-class Otsu, middle class as foreground
         - 'min_cross_entropy': Minimum cross entropy (Li) thresholding
 
-    Returns
+    Returns:
     -------
     threshold : float
         Computed threshold value
@@ -229,10 +229,14 @@ def segment_second_objs(
 
     # Apply log transform and smoothing
     second_obj_log = exposure.adjust_log(second_obj_img + 1)
-    second_obj_smooth = filters.gaussian(second_obj_log, sigma=threshold_smoothing_scale)
+    second_obj_smooth = filters.gaussian(
+        second_obj_log, sigma=threshold_smoothing_scale
+    )
 
     # Apply selected threshold method
-    thresh, binary_mask = apply_threshold_method(second_obj_smooth, method=threshold_method)
+    thresh, binary_mask = apply_threshold_method(
+        second_obj_smooth, method=threshold_method
+    )
 
     # Fill holes after thresholding (if enabled)
     if fill_holes in ["threshold", "both"]:
@@ -248,9 +252,9 @@ def segment_second_objs(
         # Handle return_threshold_output for empty case
         if return_threshold_output:
             threshold_output = {
-                'binary_mask': binary_mask,
-                'threshold_value': thresh,
-                'preprocessed_channel': second_obj_smooth,
+                "binary_mask": binary_mask,
+                "threshold_value": thresh,
+                "preprocessed_channel": second_obj_smooth,
             }
             # Add threshold_output to the tuple
             if cytoplasm_masks is not None:
@@ -275,9 +279,9 @@ def segment_second_objs(
             # Handle return_threshold_output for failsafe case
             if return_threshold_output:
                 threshold_output = {
-                    'binary_mask': binary_mask,
-                    'threshold_value': thresh,
-                    'preprocessed_channel': second_obj_smooth,
+                    "binary_mask": binary_mask,
+                    "threshold_value": thresh,
+                    "preprocessed_channel": second_obj_smooth,
                 }
                 if cytoplasm_masks is not None:
                     return (*empty_results, threshold_output)
@@ -310,7 +314,9 @@ def segment_second_objs(
         maxima_reduction_factor=maxima_reduction_factor,
     )
 
-    print(f"After declumping ({declump_method}): {len(np.unique(declumped)) - 1} objects")
+    print(
+        f"After declumping ({declump_method}): {len(np.unique(declumped)) - 1} objects"
+    )
 
     # Optionally apply shape-based refinement (independent from declump_method)
     if use_shape_refinement:
@@ -358,11 +364,11 @@ def segment_second_objs(
 
     if not valid_labels:
         print(f"No valid secondary objects found after {size_filter_method} filtering")
-        return create_empty_results(
-            cell_masks, cytoplasm_masks, nuclei_centroids
-        )
+        return create_empty_results(cell_masks, cytoplasm_masks, nuclei_centroids)
 
-    print(f"After {size_filter_method} filtering: {len(valid_labels)} valid secondary objects")
+    print(
+        f"After {size_filter_method} filtering: {len(valid_labels)} valid secondary objects"
+    )
 
     # Create valid secondary objects mask with renumbered labels
     labeled_second_objs = np.zeros_like(declumped)
@@ -440,10 +446,10 @@ def segment_second_objs(
         # Find best overlapping cell - ONLY CHECK SPATIAL CANDIDATES
         best_cell_id = None
         best_overlap = 0
-        
+
         # Only check cells that could spatially overlap with this secondary object
         candidate_cells = overlap_candidates.get(second_obj_id, [])
-        
+
         for cell_id in candidate_cells:
             if second_objs_per_cell[cell_id] >= max_objects_per_cell:
                 continue
@@ -596,19 +602,28 @@ def segment_second_objs(
     if return_threshold_output:
         # Create threshold output dictionary
         threshold_output = {
-            'binary_mask': threshold_binary_mask,
-            'threshold_value': threshold_value_stored,
-            'preprocessed_channel': threshold_preprocessed_channel,
+            "binary_mask": threshold_binary_mask,
+            "threshold_value": threshold_value_stored,
+            "preprocessed_channel": threshold_preprocessed_channel,
         }
 
         if updated_cytoplasm_masks is not None:
-            return associated_second_objs, cell_second_obj_table, updated_cytoplasm_masks, threshold_output
+            return (
+                associated_second_objs,
+                cell_second_obj_table,
+                updated_cytoplasm_masks,
+                threshold_output,
+            )
         else:
             return associated_second_objs, cell_second_obj_table, threshold_output
     else:
         # Original return logic (backward compatible)
         if updated_cytoplasm_masks is not None:
-            return associated_second_objs, cell_second_obj_table, updated_cytoplasm_masks
+            return (
+                associated_second_objs,
+                cell_second_obj_table,
+                updated_cytoplasm_masks,
+            )
         else:
             return associated_second_objs, cell_second_obj_table
 
@@ -716,7 +731,8 @@ def create_second_obj_boundary_visualization(
 
             # Update red and blue channels with secondary object boundaries
             enhanced_img[0] = np.maximum(
-                enhanced_img[0], second_obj_boundary_img[:, :, 0] * enhanced_img[0].max()
+                enhanced_img[0],
+                second_obj_boundary_img[:, :, 0] * enhanced_img[0].max(),
             )
             if num_channels > 2:  # Make sure we have a blue channel
                 enhanced_img[2] = np.maximum(
@@ -754,345 +770,6 @@ def create_second_obj_boundary_visualization(
     # Create the micropanel
     microimages = [merged_microimage, boundaries_microimage]
     panel = create_micropanel(microimages, add_channel_label=True)
-
-    return panel
-
-
-def visualize_threshold_output(
-    image,
-    second_obj_channel_index,
-    threshold_output,
-    cell_masks=None,
-    channel_names=None,
-    channel_cmaps=None,
-):
-    """Visualize thresholding output before declumping for debugging segmentation.
-
-    Creates a multi-panel visualization showing the intermediate thresholding state
-    captured by segment_second_objs() with return_threshold_output=True. This helps
-    users understand if segmentation problems originate from thresholding or declumping.
-
-    Args:
-        image (numpy.ndarray): Multichannel image data with shape [channels, height, width].
-        second_obj_channel_index (int): Index of the channel used for secondary object detection.
-        threshold_output (dict): Threshold output from segment_second_objs() containing:
-            - 'binary_mask': Binary mask before declumping
-            - 'threshold_value': Threshold value used
-            - 'preprocessed_channel': Preprocessed (log + smoothed) channel
-        cell_masks (numpy.ndarray, optional): Cell segmentation masks for context overlay.
-        channel_names (list of str, optional): Names for each channel in the image.
-        channel_cmaps (list of str, optional): Color maps for each channel in the image.
-
-    Returns:
-        matplotlib.figure.Figure: The created micropanel figure with 6 panels:
-            1. Original channel (grayscale)
-            2. Preprocessed channel (log + smoothed, grayscale)
-            3. Binary threshold mask (magenta)
-            4. Threshold mask with cell boundaries (magenta + green)
-            5. Original channel with threshold boundaries (overlay)
-            6. Statistics panel (text display)
-
-    Examples:
-        >>> # Run segmentation with threshold output
-        >>> masks, table, cytoplasms, threshold_output = segment_second_objs(
-        ...     image=aligned_image,
-        ...     second_obj_channel_index=2,
-        ...     cell_masks=cells,
-        ...     cytoplasm_masks=cytoplasms,
-        ...     return_threshold_output=True
-        ... )
-        >>>
-        >>> # Visualize thresholding step
-        >>> fig = visualize_threshold_output(
-        ...     image=aligned_image,
-        ...     second_obj_channel_index=2,
-        ...     threshold_output=threshold_output,
-        ...     cell_masks=cells,
-        ...     channel_names=CHANNEL_NAMES
-        ... )
-        >>> plt.show()
-    """
-    # Extract threshold output components
-    binary_mask = threshold_output['binary_mask']
-    threshold_value = threshold_output['threshold_value']
-    preprocessed = threshold_output['preprocessed_channel']
-
-    # Get channel name
-    if channel_names is None or len(channel_names) <= second_obj_channel_index:
-        channel_name = f"Channel {second_obj_channel_index}"
-    else:
-        channel_name = channel_names[second_obj_channel_index]
-
-    # Get original channel
-    original_channel = image[second_obj_channel_index].copy()
-
-    # Create microimages for each panel
-    microimages = []
-
-    # Panel 1: Original channel
-    microimages.append(
-        Microimage(
-            original_channel,
-            channel_names=f"{channel_name} (Original)",
-            cmaps="gray"
-        )
-    )
-
-    # Panel 2: Preprocessed channel
-    microimages.append(
-        Microimage(
-            preprocessed,
-            channel_names=f"{channel_name} (Preprocessed)\nThreshold={threshold_value:.3f}",
-            cmaps="gray"
-        )
-    )
-
-    # Panel 3: Binary threshold mask
-    # Convert binary to float for better visualization
-    binary_display = binary_mask.astype(np.float32)
-    microimages.append(
-        Microimage(
-            binary_display,
-            channel_names="Binary Mask\n(Before Declumping)",
-            cmaps="magenta"
-        )
-    )
-
-    # Panel 4: Binary mask with cell boundaries (if provided)
-    if cell_masks is not None:
-        # Create RGB image with binary mask and cell boundaries
-        height, width = binary_mask.shape
-        overlay_img = np.zeros((3, height, width), dtype=np.float32)
-
-        # Magenta for binary mask
-        binary_float = binary_mask.astype(np.float32)
-        overlay_img[0] = binary_float  # Red channel
-        overlay_img[2] = binary_float  # Blue channel
-
-        # Add green cell boundaries
-        cell_boundary_img = mark_boundaries(
-            np.zeros((height, width, 3)),
-            cell_masks,
-            color=(0, 1, 0),
-            mode="thick"
-        )
-        overlay_img[1] = np.maximum(overlay_img[1], cell_boundary_img[:, :, 1])
-
-        microimages.append(
-            Microimage(
-                overlay_img,
-                channel_names="Threshold + Cells",
-                cmaps=["pure_red", "pure_green", "pure_blue"]
-            )
-        )
-    else:
-        # Just show binary mask again if no cells
-        microimages.append(
-            Microimage(
-                binary_display,
-                channel_names="Binary Mask",
-                cmaps="magenta"
-            )
-        )
-
-    # Panel 5: Original with threshold boundaries overlay
-    # Create 3-channel version of original
-    height, width = original_channel.shape
-    boundary_overlay = np.zeros((3, height, width), dtype=np.float32)
-
-    # Normalize original to [0, 1]
-    orig_norm = original_channel / (original_channel.max() if original_channel.max() > 0 else 1.0)
-    for c in range(3):
-        boundary_overlay[c] = orig_norm
-
-    # Add magenta boundaries for threshold mask
-    threshold_boundary_img = mark_boundaries(
-        np.zeros((height, width, 3)),
-        binary_mask.astype(int),
-        color=(1, 0, 1),
-        mode="thick"
-    )
-    boundary_overlay[0] = np.maximum(boundary_overlay[0], threshold_boundary_img[:, :, 0])
-    boundary_overlay[2] = np.maximum(boundary_overlay[2], threshold_boundary_img[:, :, 2])
-
-    # Add green cell boundaries if provided
-    if cell_masks is not None:
-        cell_boundary_img = mark_boundaries(
-            np.zeros((height, width, 3)),
-            cell_masks,
-            color=(0, 1, 0),
-            mode="thick"
-        )
-        boundary_overlay[1] = np.maximum(boundary_overlay[1], cell_boundary_img[:, :, 1])
-
-    microimages.append(
-        Microimage(
-            boundary_overlay,
-            channel_names="Original + Boundaries\n(Magenta=Threshold, Green=Cells)",
-            cmaps=["pure_red", "pure_green", "pure_blue"]
-        )
-    )
-
-    # Panel 6: Statistics text
-    # Calculate statistics
-    total_pixels = binary_mask.size
-    threshold_pixels = np.sum(binary_mask)
-    coverage_percent = (threshold_pixels / total_pixels) * 100
-
-    # Count connected components
-    labeled_threshold, num_regions = ndimage.label(binary_mask)
-
-    # Create text panel (use a blank image with text overlay)
-    stats_text = (
-        f"Threshold Statistics:\n\n"
-        f"Threshold Value: {threshold_value:.4f}\n"
-        f"Pixels Above Threshold: {threshold_pixels:,}\n"
-        f"Coverage: {coverage_percent:.2f}%\n"
-        f"Connected Regions: {num_regions}\n"
-        f"\nThis is the state BEFORE:\n"
-        f"- Declumping\n"
-        f"- Size filtering\n"
-        f"- Cell association"
-    )
-
-    # Create blank image for text
-    text_img = np.ones((height, width), dtype=np.float32)
-    microimages.append(
-        Microimage(
-            text_img,
-            channel_names=stats_text,
-            cmaps="gray"
-        )
-    )
-
-    # Create micropanel with 3 rows, 2 columns
-    panel = create_micropanel(microimages, num_cols=2, figscaling=6, add_channel_label=True)
-
-    return panel
-
-
-def compare_threshold_vs_final(
-    image,
-    second_obj_channel_index,
-    threshold_output,
-    final_second_obj_masks,
-    cell_masks,
-    channel_names=None,
-    channel_cmaps=None,
-):
-    """Create side-by-side comparison of threshold output vs final segmentation.
-
-    Shows what changed between the thresholding step and the final segmentation
-    (after declumping, size filtering, and cell association).
-
-    Args:
-        image (numpy.ndarray): Multichannel image data with shape [channels, height, width].
-        second_obj_channel_index (int): Index of the channel used for secondary object detection.
-        threshold_output (dict): Threshold output from segment_second_objs() with return_threshold_output=True.
-        final_second_obj_masks (numpy.ndarray): Final secondary object masks (output from segment_second_objs).
-        cell_masks (numpy.ndarray): Cell segmentation masks with unique integers for each cell.
-        channel_names (list of str, optional): Names for each channel in the image.
-        channel_cmaps (list of str, optional): Color maps for each channel in the image.
-
-    Returns:
-        matplotlib.figure.Figure: Two-panel comparison showing before and after declumping.
-
-    Examples:
-        >>> # Run segmentation with threshold output
-        >>> masks, table, cytoplasms, threshold_output = segment_second_objs(
-        ...     image=aligned_image,
-        ...     second_obj_channel_index=2,
-        ...     cell_masks=cells,
-        ...     cytoplasm_masks=cytoplasms,
-        ...     return_threshold_output=True
-        ... )
-        >>>
-        >>> # Compare threshold vs final
-        >>> fig = compare_threshold_vs_final(
-        ...     image=aligned_image,
-        ...     second_obj_channel_index=2,
-        ...     threshold_output=threshold_output,
-        ...     final_second_obj_masks=masks,
-        ...     cell_masks=cells,
-        ...     channel_names=CHANNEL_NAMES
-        ... )
-        >>> plt.show()
-    """
-    # Extract components
-    binary_mask = threshold_output['binary_mask']
-    original_channel = image[second_obj_channel_index].copy()
-
-    # Get channel name
-    if channel_names is None or len(channel_names) <= second_obj_channel_index:
-        channel_name = f"Channel {second_obj_channel_index}"
-    else:
-        channel_name = channel_names[second_obj_channel_index]
-
-    # Count regions
-    labeled_threshold, num_threshold_regions = ndimage.label(binary_mask)
-    num_final_objects = len(np.unique(final_second_obj_masks)) - 1  # Exclude background
-
-    # Create Panel 1: Before declumping (binary mask with boundaries)
-    height, width = binary_mask.shape
-    before_img = np.zeros((3, height, width), dtype=np.float32)
-
-    # Normalize original channel
-    orig_norm = original_channel / (original_channel.max() if original_channel.max() > 0 else 1.0)
-    for c in range(3):
-        before_img[c] = orig_norm
-
-    # Add magenta boundaries for threshold regions
-    threshold_boundary = mark_boundaries(
-        np.zeros((height, width, 3)),
-        binary_mask.astype(int),
-        color=(1, 0, 1),
-        mode="thick"
-    )
-    before_img[0] = np.maximum(before_img[0], threshold_boundary[:, :, 0])
-    before_img[2] = np.maximum(before_img[2], threshold_boundary[:, :, 2])
-
-    # Add green cell boundaries
-    cell_boundary = mark_boundaries(
-        np.zeros((height, width, 3)),
-        cell_masks,
-        color=(0, 1, 0),
-        mode="thick"
-    )
-    before_img[1] = np.maximum(before_img[1], cell_boundary[:, :, 1])
-
-    before_microimage = Microimage(
-        before_img,
-        channel_names=f"Before Declumping\n{num_threshold_regions} regions",
-        cmaps=["pure_red", "pure_green", "pure_blue"]
-    )
-
-    # Create Panel 2: After declumping (final masks with boundaries)
-    after_img = np.zeros((3, height, width), dtype=np.float32)
-    for c in range(3):
-        after_img[c] = orig_norm
-
-    # Add magenta boundaries for final objects
-    final_boundary = mark_boundaries(
-        np.zeros((height, width, 3)),
-        final_second_obj_masks > 0,
-        color=(1, 0, 1),
-        mode="thick"
-    )
-    after_img[0] = np.maximum(after_img[0], final_boundary[:, :, 0])
-    after_img[2] = np.maximum(after_img[2], final_boundary[:, :, 2])
-
-    # Add green cell boundaries
-    after_img[1] = np.maximum(after_img[1], cell_boundary[:, :, 1])
-
-    after_microimage = Microimage(
-        after_img,
-        channel_names=f"After Declumping\n{num_final_objects} objects",
-        cmaps=["pure_red", "pure_green", "pure_blue"]
-    )
-
-    # Create 1x2 panel
-    microimages = [before_microimage, after_microimage]
-    panel = create_micropanel(microimages, num_cols=2, figscaling=8, add_channel_label=True)
 
     return panel
 
@@ -1141,7 +818,7 @@ def get_feret_diameters(coords):
     coords : ndarray of shape (N, 2)
         An array of (x, y) coordinates representing the pixels or contour of a region.
 
-    Returns
+    Returns:
     -------
     feret_min : float
         The shortest distance between two parallel lines tangent to the object
@@ -1151,7 +828,7 @@ def get_feret_diameters(coords):
         The longest distance between two parallel lines tangent to the object
         (i.e., the maximum Feret diameter).
 
-    Notes
+    Notes:
     -----
     - This method assumes the input coordinates define a planar shape (e.g., from a binary mask or regionprops).
     - The returned values are in the same units as the input coordinates (typically pixels).
@@ -1173,7 +850,7 @@ def apply_morphological_opening(binary_mask, opening_disk_radius=1):
     opening_disk_radius : int
         Radius of disk structuring element (larger = more aggressive)
 
-    Returns
+    Returns:
     -------
     opened_mask : ndarray
         Morphologically opened mask
@@ -1210,12 +887,12 @@ def apply_h_minima_suppression(peak_map, h_factor):
         h = h_factor * (peak_map.max() - peak_map.min())
         Higher values = more aggressive suppression
 
-    Returns
+    Returns:
     -------
     filtered_map : ndarray
         Map with weak maxima suppressed
 
-    Examples
+    Examples:
     --------
     >>> distance_map = ndimage.distance_transform_edt(binary_mask)
     >>> # Suppress peaks with prominence < 20% of range
@@ -1259,17 +936,16 @@ def apply_declumping(
     maxima_reduction_factor : float or None
         H-minima threshold (0.0-1.0), None=disabled
 
-    Returns
+    Returns:
     -------
     declumped : ndarray
         Labeled mask after declumping
 
-    Notes
+    Notes:
     -----
     Shape refinement is NOT handled here - it's applied as optional refinement
     after this function in the main pipeline.
     """
-
     # Method 1: No declumping
     if declump_method == "none":
         declumped, _ = ndimage.label(binary_mask)
@@ -1309,7 +985,7 @@ def apply_declumping(
         peak_map,
         min_distance=suppress_local_maxima,
         labels=binary_mask,
-        exclude_border=False
+        exclude_border=False,
     )
 
     # Create markers
@@ -1374,7 +1050,7 @@ def shape_based_declumping(
         If boundary_length / perimeter < proportion_threshold, accept the split
         Example: 0.12 means cut must be < 12% of perimeter to split
 
-    Returns
+    Returns:
     -------
     labeled : ndarray
         Labeled mask after shape-based declumping
@@ -1409,18 +1085,22 @@ def shape_based_declumping(
 
         # VECTORIZED boundary detection - much faster!
         lab = local_watershed
-        
+
         # Detect boundaries by comparing with neighbors
         # Vertical boundaries (compare rows)
-        vertical_boundary = (lab[:-1, :] != lab[1:, :]) & (lab[:-1, :] > 0) & (lab[1:, :] > 0)
-        
+        vertical_boundary = (
+            (lab[:-1, :] != lab[1:, :]) & (lab[:-1, :] > 0) & (lab[1:, :] > 0)
+        )
+
         # Horizontal boundaries (compare columns)
-        horizontal_boundary = (lab[:, :-1] != lab[:, 1:]) & (lab[:, :-1] > 0) & (lab[:, 1:] > 0)
-        
+        horizontal_boundary = (
+            (lab[:, :-1] != lab[:, 1:]) & (lab[:, :-1] > 0) & (lab[:, 1:] > 0)
+        )
+
         # Count total boundary pixels
         # We need to count them separately since they have different shapes
         boundary_length = np.sum(vertical_boundary) + np.sum(horizontal_boundary)
-        
+
         prop = measure.regionprops(region_mask.astype(np.uint8))[0]
         perimeter = prop.perimeter if prop.perimeter > 0 else 1.0
 
@@ -1438,9 +1118,7 @@ def shape_based_declumping(
     return labeled_out
 
 
-def create_empty_results(
-    cell_masks, cytoplasm_masks, nuclei_centroids=None
-):
+def create_empty_results(cell_masks, cytoplasm_masks, nuclei_centroids=None):
     """Helper function to create empty results when no secondary objects are found.
 
     Parameters
@@ -1451,8 +1129,8 @@ def create_empty_results(
         Cytoplasm segmentation masks
     nuclei_centroids : dict or DataFrame, optional
         Nuclei centroids information
-        
-    Returns
+
+    Returns:
     -------
     tuple
         Empty secondary object masks, cell_second_obj_table dict, and optionally cytoplasm_masks
@@ -1489,41 +1167,46 @@ def create_empty_results(
         return empty_second_obj_masks, cell_second_obj_table, cytoplasm_masks
     else:
         return empty_second_obj_masks, cell_second_obj_table
-    
+
+
 def get_spatial_overlap_candidates(second_obj_regions, cell_masks):
     """Use bounding boxes to pre-filter which cells could overlap with each secondary object.
-    
+
     Parameters
     ----------
     second_obj_regions : dict
         Dictionary mapping second_obj_id to regionprops
     cell_masks : ndarray
         Cell segmentation masks
-        
-    Returns
+
+    Returns:
     -------
     candidates : dict
         Dictionary mapping second_obj_id to list of candidate cell_ids
     """
     # Get all cell regions with their bounding boxes
     cell_regions = measure.regionprops(cell_masks)
-    cell_bboxes = {r.label: r.bbox for r in cell_regions}  # (min_row, min_col, max_row, max_col)
-    
+    cell_bboxes = {
+        r.label: r.bbox for r in cell_regions
+    }  # (min_row, min_col, max_row, max_col)
+
     candidates = {}
-    
+
     for second_obj_id, vac_region in second_obj_regions.items():
         vac_bbox = vac_region.bbox  # (min_row, min_col, max_row, max_col)
-        
+
         # Find cells whose bounding boxes intersect with this secondary object's bbox
         overlapping_cells = []
         for cell_id, cell_bbox in cell_bboxes.items():
             # Check if bounding boxes overlap
-            if not (vac_bbox[2] < cell_bbox[0] or  # second_obj above cell
-                    vac_bbox[0] > cell_bbox[2] or  # second_obj below cell
-                    vac_bbox[3] < cell_bbox[1] or  # second_obj left of cell
-                    vac_bbox[1] > cell_bbox[3]):   # second_obj right of cell
+            if not (
+                vac_bbox[2] < cell_bbox[0]  # second_obj above cell
+                or vac_bbox[0] > cell_bbox[2]  # second_obj below cell
+                or vac_bbox[3] < cell_bbox[1]  # second_obj left of cell
+                or vac_bbox[1] > cell_bbox[3]
+            ):  # second_obj right of cell
                 overlapping_cells.append(cell_id)
-        
+
         candidates[second_obj_id] = overlapping_cells
-    
+
     return candidates

@@ -1,10 +1,63 @@
 """Functions for preprocessing ND2 files in preparation for downstream BrieFlow steps."""
 
-import pandas as pd
-import numpy as np
-import nd2
-from typing import Union, List
+import json
+import math
+import shutil
 from pathlib import Path
+from typing import List, Sequence, Tuple, Union
+
+import numpy as np
+import pandas as pd
+try:
+    from skimage.transform import downscale_local_mean as _skimage_downscale_local_mean
+except ModuleNotFoundError:
+    _skimage_downscale_local_mean = None
+
+try:
+    import nd2  # type: ignore
+except ModuleNotFoundError:
+    nd2 = None
+
+
+def _require_nd2() -> None:
+    """Ensure the nd2 package is available before accessing reader functionality."""
+    if nd2 is None:
+        raise ModuleNotFoundError(
+            "The 'nd2' package is required for ND2 file operations. "
+            "Install it in the active environment to proceed."
+        )
+
+
+def _downscale_local_mean(image: np.ndarray, factors: Sequence[int]) -> np.ndarray:
+    """Downscale an image by averaging local neighborhoods."""
+    if _skimage_downscale_local_mean is not None:
+        return _skimage_downscale_local_mean(image, factors)
+
+    c_factor, y_factor, x_factor = factors
+    if c_factor != 1:
+        raise ValueError(
+            "Fallback downscale supports channel factors of 1 only. "
+            f"Got {c_factor}."
+        )
+
+    pad_y = (y_factor - (image.shape[1] % y_factor)) % y_factor
+    pad_x = (x_factor - (image.shape[2] % x_factor)) % x_factor
+    if pad_y or pad_x:
+        image = np.pad(
+            image,
+            ((0, 0), (0, pad_y), (0, pad_x)),
+            mode="edge",
+        )
+
+    c, y, x = image.shape
+    reshaped = image.reshape(
+        c,
+        y // y_factor,
+        y_factor,
+        x // x_factor,
+        x_factor,
+    )
+    return reshaped.mean(axis=(2, 4), dtype=np.float32)
 
 
 def extract_tile_metadata(
@@ -29,6 +82,8 @@ def extract_tile_metadata(
     Returns:
         pd.DataFrame: Extracted metadata for the given tile.
     """
+    _require_nd2()
+
     if verbose:
         print(f"Processing tile {tile} from file {tile_fp}")
 
@@ -119,6 +174,8 @@ def nd2_to_tiff(
     Raises:
         ValueError: If files have incompatible dimensions.
     """
+    _require_nd2()
+
     # Convert input to list of Path objects
     if isinstance(files, (str, Path)):
         files = [Path(files)]
@@ -171,3 +228,273 @@ def nd2_to_tiff(
         print(f"Final dimensions (CYX): {result.shape}")
 
     return result.astype(np.uint16)
+
+
+def _resolve_pixel_size(first_file: Path) -> Tuple[float, float]:
+    """Fetch XY pixel size (micrometers) from an ND2 file, defaulting to 1.0 when missing."""
+    _require_nd2()
+
+    try:
+        with nd2.ND2File(str(first_file)) as handle:
+            frame_meta = handle.frame_metadata(0)
+            if (
+                frame_meta.channels
+                and hasattr(frame_meta.channels[0], "volume")
+                and frame_meta.channels[0].volume.axesCalibration
+            ):
+                x_cal, y_cal, _ = frame_meta.channels[0].volume.axesCalibration
+                return float(x_cal) if x_cal else 1.0, float(y_cal) if y_cal else 1.0
+    except Exception as exc:
+        print(f"Warning: unable to read pixel size from {first_file}: {exc}")
+
+    return 1.0, 1.0
+
+
+def _build_pyramid(
+    image: np.ndarray,
+    coarsening_factor: int,
+    chunk_shape: Sequence[int],
+    max_levels: int | None,
+) -> List[np.ndarray]:
+    """Create a multiscale pyramid with downscale_local_mean."""
+    if coarsening_factor < 1:
+        raise ValueError("coarsening_factor must be greater than or equal to 1.")
+
+    pyramid = [np.ascontiguousarray(image)]
+
+    while True:
+        if max_levels is not None and len(pyramid) >= max_levels:
+            break
+
+        current = pyramid[-1]
+        if coarsening_factor == 1:
+            break
+
+        next_y = current.shape[-2] // coarsening_factor
+        next_x = current.shape[-1] // coarsening_factor
+        if next_y < 1 or next_x < 1:
+            break
+
+        reduced = _downscale_local_mean(
+            current.astype(np.float32),
+            (1, coarsening_factor, coarsening_factor),
+        )
+
+        if np.issubdtype(image.dtype, np.integer):
+            reduced = np.clip(np.round(reduced), 0, np.iinfo(image.dtype).max).astype(
+                image.dtype
+            )
+        else:
+            reduced = reduced.astype(image.dtype)
+
+        pyramid.append(np.ascontiguousarray(reduced))
+
+    return pyramid
+
+
+def _write_zarr_array(
+    level_data: np.ndarray,
+    level_path: Path,
+    chunk_shape: Sequence[int],
+) -> None:
+    """Write a single pyramid level to a Zarr array on disk."""
+    level_path.mkdir(parents=True, exist_ok=True)
+
+    dtype = level_data.dtype
+
+    # zarr array metadata
+    zarray_meta = {
+        "chunks": list(chunk_shape),
+        "compressor": None,
+        "dtype": np.dtype(dtype).str,
+        "fill_value": 0,
+        "filters": None,
+        "order": "C",
+        "shape": list(level_data.shape),
+        "zarr_format": 2,
+    }
+    (level_path / ".zarray").write_text(json.dumps(zarray_meta), encoding="utf-8")
+    (level_path / ".zattrs").write_text(
+        json.dumps({"_ARRAY_DIMENSIONS": ["c", "y", "x"]}), encoding="utf-8"
+    )
+
+    chunk_ranges = [
+        range(math.ceil(dim / chunk)) for dim, chunk in zip(level_data.shape, chunk_shape)
+    ]
+
+    for c_idx in chunk_ranges[0]:
+        c_start = c_idx * chunk_shape[0]
+        c_end = min((c_idx + 1) * chunk_shape[0], level_data.shape[0])
+
+        for y_idx in chunk_ranges[1]:
+            y_start = y_idx * chunk_shape[1]
+            y_end = min((y_idx + 1) * chunk_shape[1], level_data.shape[1])
+
+            for x_idx in chunk_ranges[2]:
+                x_start = x_idx * chunk_shape[2]
+                x_end = min((x_idx + 1) * chunk_shape[2], level_data.shape[2])
+
+                chunk = np.ascontiguousarray(
+                    level_data[c_start:c_end, y_start:y_end, x_start:x_end]
+                )
+                chunk_fp = level_path / f"{c_idx}.{y_idx}.{x_idx}"
+                chunk_fp.write_bytes(chunk.tobytes(order="C"))
+
+
+def _write_group_metadata(
+    output_dir: Path,
+    datasets: List[dict],
+    pixel_size: Tuple[float, float],
+    dtype: np.dtype,
+) -> None:
+    """Write root-level Zarr metadata."""
+    (output_dir / ".zgroup").write_text(
+        json.dumps({"zarr_format": 2}), encoding="utf-8"
+    )
+
+    pixel_x, pixel_y = pixel_size
+
+    multiscales = [
+        {
+            "version": "0.4",
+            "type": "image",
+            "metadata": {"method": "mean"},
+            "axes": [
+                {"name": "c", "type": "channel"},
+                {"name": "y", "type": "space", "unit": "micrometer"},
+                {"name": "x", "type": "space", "unit": "micrometer"},
+            ],
+            "datasets": datasets,
+        }
+    ]
+
+    dtype_info = np.iinfo(dtype) if np.issubdtype(dtype, np.integer) else None
+
+    omero = {
+        "channels": [
+            {
+                "label": f"Channel {idx}",
+                "color": None,
+                "window": {
+                    "min": 0,
+                    "max": int(dtype_info.max) if dtype_info else None,
+                },
+            }
+            for idx in range(datasets[0]["shape"][0])
+        ],
+        "pixel_size": {
+            "x": pixel_x,
+            "y": pixel_y,
+            "unit": "micrometer",
+        },
+    }
+
+    root_attrs = {
+        "multiscales": multiscales,
+        "omero": omero,
+    }
+
+    (output_dir / ".zattrs").write_text(json.dumps(root_attrs), encoding="utf-8")
+
+
+def write_multiscale_omezarr(
+    image: np.ndarray,
+    output_dir: Union[str, Path],
+    pixel_size: Tuple[float, float] = (1.0, 1.0),
+    chunk_shape: Sequence[int] = (1, 512, 512),
+    coarsening_factor: int = 2,
+    max_levels: int | None = None,
+) -> Path:
+    """Persist a CYX image array as a multiscale OME-Zarr pyramid."""
+    if image.ndim != 3:
+        raise ValueError("Expected image in CYX format.")
+    if len(chunk_shape) != 3:
+        raise ValueError("chunk_shape must define three dimensions (C, Y, X).")
+    if any(dim <= 0 for dim in chunk_shape):
+        raise ValueError("chunk_shape values must be positive.")
+
+    output_path = Path(output_dir)
+    if output_path.exists():
+        if output_path.is_dir():
+            shutil.rmtree(output_path)
+        else:
+            raise ValueError(f"Output path {output_path} exists and is not a directory.")
+
+    output_path.mkdir(parents=True, exist_ok=False)
+
+    pyramid = _build_pyramid(
+        image,
+        coarsening_factor=coarsening_factor,
+        chunk_shape=chunk_shape,
+        max_levels=max_levels,
+    )
+
+    datasets_meta: List[dict] = []
+    base_pixel_size = pixel_size
+
+    for idx, level in enumerate(pyramid):
+        level_path = output_path / f"scale{idx}"
+        _write_zarr_array(level, level_path, chunk_shape)
+
+        datasets_meta.append(
+            {
+                "path": f"scale{idx}",
+                "shape": list(level.shape),
+                "coordinateTransformations": [
+                    {
+                        "type": "scale",
+                        "scale": [
+                            1,
+                            base_pixel_size[1] * (coarsening_factor**idx),
+                            base_pixel_size[0] * (coarsening_factor**idx),
+                        ],
+                    }
+                ],
+            }
+        )
+
+    _write_group_metadata(
+        output_path, datasets_meta, base_pixel_size, dtype=image.dtype
+    )
+
+    return output_path
+
+
+def nd2_to_omezarr(
+    files: Union[str, List[str], Path, List[Path]],
+    output_dir: Union[str, Path],
+    channel_order_flip: bool = False,
+    chunk_shape: Sequence[int] = (1, 512, 512),
+    coarsening_factor: int = 2,
+    max_levels: int | None = None,
+    verbose: bool = False,
+) -> Path:
+    """Convert ND2 file(s) to a multiscale OME-Zarr pyramid."""
+    _require_nd2()
+
+    if isinstance(files, (str, Path)):
+        normalized_files = [Path(files)]
+    else:
+        normalized_files = [Path(file) for file in files]
+
+    if not normalized_files:
+        raise ValueError("No ND2 files supplied for OME-Zarr conversion.")
+
+    if verbose:
+        print(
+            f"Converting {len(normalized_files)} ND2 file(s) to OME-Zarr at {output_dir}."
+        )
+
+    image = nd2_to_tiff(
+        normalized_files, channel_order_flip=channel_order_flip, verbose=verbose
+    )
+    pixel_size = _resolve_pixel_size(normalized_files[0])
+
+    return write_multiscale_omezarr(
+        image=image,
+        output_dir=output_dir,
+        pixel_size=pixel_size,
+        chunk_shape=chunk_shape,
+        coarsening_factor=coarsening_factor,
+        max_levels=max_levels,
+    )

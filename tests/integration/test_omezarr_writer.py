@@ -1,0 +1,43 @@
+"""Tests for the OME-Zarr writer utilities."""
+
+import json
+from pathlib import Path
+
+import numpy as np
+
+from lib.preprocess.preprocess import write_multiscale_omezarr
+
+
+def test_write_multiscale_omezarr(tmp_path):
+    image = np.arange(2 * 128 * 128, dtype=np.uint16).reshape(2, 128, 128)
+    output = tmp_path / "test_image.ome.zarr"
+
+    result_path = write_multiscale_omezarr(
+        image=image,
+        output_dir=output,
+        pixel_size=(0.25, 0.25),
+        chunk_shape=(1, 64, 64),
+        coarsening_factor=2,
+        max_levels=3,
+    )
+
+    assert result_path == Path(output)
+    assert (output / ".zattrs").exists()
+    assert (output / ".zgroup").exists()
+
+    with open(output / ".zattrs", "r") as handle:
+        attrs = json.load(handle)
+
+    datasets = attrs["multiscales"][0]["datasets"]
+    assert len(datasets) == 3
+    assert datasets[0]["path"] == "scale0"
+    assert datasets[0]["coordinateTransformations"][0]["scale"][1:] == [0.25, 0.25]
+
+    scale0_meta = json.loads((output / "scale0" / ".zarray").read_text())
+    assert scale0_meta["shape"] == [2, 128, 128]
+    assert scale0_meta["chunks"] == [1, 64, 64]
+
+    # Verify pyramid downscaling
+    scale2_meta = json.loads((output / "scale2" / ".zarray").read_text())
+    assert scale2_meta["shape"][1] < scale0_meta["shape"][1]
+    assert (output / "scale2" / "0.0.0").exists()

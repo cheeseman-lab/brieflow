@@ -1,5 +1,6 @@
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
+from snakemake.io import directory
 
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
@@ -89,6 +90,35 @@ PREPROCESS_OUTPUTS = {
             "tiff",
         ),
     ],
+    "convert_sbs_omezarr": [
+        PREPROCESS_FP
+        / "omezarr"
+        / "sbs"
+        / get_filename(
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "tile": "{tile}",
+                "cycle": "{cycle}",
+            },
+            "image",
+            "zarr",
+        ),
+    ],
+    "convert_phenotype_omezarr": [
+        PREPROCESS_FP
+        / "omezarr"
+        / "phenotype"
+        / get_filename(
+            {
+                "plate": "{plate}",
+                "well": "{well}",
+                "tile": "{tile}",
+            },
+            "image",
+            "zarr",
+        ),
+    ],
     "calculate_ic_sbs": [
         PREPROCESS_FP
         / "ic_fields"
@@ -125,6 +155,8 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "combine_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,
+    "convert_sbs_omezarr": directory,
+    "convert_phenotype_omezarr": directory,
     "calculate_ic_sbs": None,
     "calculate_ic_phenotype": None,
 }

@@ -779,7 +779,7 @@ def create_second_obj_standard_visualization(
     second_obj_channel_name,
     second_obj_masks,
     threshold_output=None,
-    label_color='magenta'
+    label_color="magenta",
 ):
     """Create standard visualization panel for secondary object segmentation.
 
@@ -801,12 +801,12 @@ def create_second_obj_standard_visualization(
     label_color : str, optional
         Color for channel labels (default: 'magenta')
 
-    Returns
+    Returns:
     -------
     panel : Micropanel
         Micropanel object with visualizations
 
-    Examples
+    Examples:
     --------
     >>> # Simple visualization without threshold output
     >>> panel = create_second_obj_standard_visualization(

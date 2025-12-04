@@ -10,6 +10,17 @@ cells = imread(snakemake.input[1])
 cytoplasms = imread(snakemake.input[2])
 phenotype_info = pd.read_csv(snakemake.input[3], sep="\t")
 
+# Prepare nuclei centroids dictionary from phenotype info
+nuclei_centroids_dict = None
+if "i" in phenotype_info.columns and "j" in phenotype_info.columns:
+    nuclei_id_col = (
+        "nuclei_id" if "nuclei_id" in phenotype_info.columns else phenotype_info.index
+    )
+    nuclei_centroids_dict = {
+        row.get("nuclei_id", idx): (row["i"], row["j"])
+        for idx, row in phenotype_info.iterrows()
+    }
+
 # Segment secondary objects
 second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks = segment_second_objs(
     image=data_phenotype,
@@ -18,8 +29,22 @@ second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks = segment_secon
     cytoplasm_masks=cytoplasms,
     second_obj_min_size=snakemake.params.second_obj_min_size,
     second_obj_max_size=snakemake.params.second_obj_max_size,
-    nuclei_centroids=phenotype_info,
+    size_filter_method=snakemake.params.size_filter_method,
+    threshold_smoothing_scale=snakemake.params.threshold_smoothing_scale,
+    threshold_method=snakemake.params.threshold_method,
+    use_morphological_opening=snakemake.params.use_morphological_opening,
+    opening_disk_radius=snakemake.params.opening_disk_radius,
+    fill_holes=snakemake.params.fill_holes,
+    declump_method=snakemake.params.declump_method,
+    declump_mode=snakemake.params.declump_mode,
     suppress_local_maxima=snakemake.params.suppress_local_maxima,
+    maxima_reduction_factor=snakemake.params.maxima_reduction_factor,
+    use_shape_refinement=snakemake.params.use_shape_refinement,
+    proportion_threshold=snakemake.params.proportion_threshold,
+    max_objects_per_cell=snakemake.params.max_objects_per_cell,
+    overlap_threshold=snakemake.params.overlap_threshold,
+    nuclei_centroids=nuclei_centroids_dict,
+    max_total_objects=snakemake.params.max_total_objects,
 )
 
 # Save outputs

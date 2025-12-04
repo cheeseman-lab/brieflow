@@ -212,12 +212,6 @@ def get_segmentation_params(module: str, config: Dict[str, Any]) -> Dict[str, An
                 ),
             }
         )
-    elif segmentation_method == "microsam":
-        params.update(
-            {
-                "microsam_model": module_config.get("microsam_model", "vit_b_lm"),
-            }
-        )
     elif segmentation_method == "stardist":
         params.update(
             {
@@ -245,7 +239,7 @@ def get_segmentation_params(module: str, config: Dict[str, Any]) -> Dict[str, An
         )
     else:
         raise ValueError(
-            f"Unknown segmentation method: {segmentation_method}. Choose one of: cellpose, microsam, stardist, watershed"
+            f"Unknown segmentation method: {segmentation_method}. Choose one of: cellpose, stardist, watershed"
         )
 
     return params

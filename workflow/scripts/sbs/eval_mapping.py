@@ -7,6 +7,7 @@ from lib.sbs.eval_mapping import (
     plot_cell_mapping_heatmap,
     plot_cell_metric_histogram,
     plot_gene_symbol_histogram,
+    plot_barcode_prefix_matching,
     mapping_overview,
 )
 
@@ -73,3 +74,6 @@ mapping_overview_df = mapping_overview(
     sbs_info, cells, sort_by=snakemake.params.sort_by
 )
 mapping_overview_df.to_csv(snakemake.output[9], sep="\t", index=False)
+
+_, fig = plot_barcode_prefix_matching(reads, df_barcode_library)
+fig.savefig(snakemake.output[10])

@@ -153,7 +153,6 @@ def segment_second_objs(
             - "shape": Distance transform peaks (radial distance)
             - "intensity": Local intensity maxima
             - "shape_intensity": Combined distance + intensity peaks
-            - "distance": Alias for "shape"
 
         declump_mode (str, optional): Watershed segmentation mode (default: "watershed").
             - "watershed": Standard watershed from markers
@@ -774,6 +773,118 @@ def create_second_obj_boundary_visualization(
     return panel
 
 
+def create_second_obj_standard_visualization(
+    aligned_image,
+    second_obj_channel_index,
+    second_obj_channel_name,
+    second_obj_masks,
+    threshold_output=None,
+    label_color='magenta'
+):
+    """Create standard visualization panel for secondary object segmentation.
+
+    Parameters
+    ----------
+    aligned_image : ndarray
+        Multichannel aligned image [channels, height, width]
+    second_obj_channel_index : int
+        Index of the channel used for secondary object detection
+    second_obj_channel_name : str
+        Name of the secondary object channel (e.g., "CDPK1")
+    second_obj_masks : ndarray
+        Labeled mask of segmented secondary objects
+    threshold_output : dict, optional
+        Dictionary containing threshold debugging output with keys:
+        - 'preprocessed_channel': Log-transformed and Gaussian-smoothed channel
+        - 'binary_mask': Binary mask after thresholding
+        If None, creates simple 1x2 panel. If provided, creates 2x2 panel.
+    label_color : str, optional
+        Color for channel labels (default: 'magenta')
+
+    Returns
+    -------
+    panel : Micropanel
+        Micropanel object with visualizations
+
+    Examples
+    --------
+    >>> # Simple visualization without threshold output
+    >>> panel = create_second_obj_standard_visualization(
+    ...     aligned_image,
+    ...     channel_index=2,
+    ...     channel_name="CDPK1",
+    ...     second_obj_masks=masks
+    ... )
+
+    >>> # Full visualization with threshold output
+    >>> panel = create_second_obj_standard_visualization(
+    ...     aligned_image,
+    ...     channel_index=2,
+    ...     channel_name="CDPK1",
+    ...     second_obj_masks=masks,
+    ...     threshold_output=threshold_dict
+    ... )
+    """
+    from lib.shared.configuration_utils import random_cmap
+
+    # Build secondary object colormap
+    second_obj_cmap = random_cmap(num_colors=len(np.unique(second_obj_masks)))
+
+    if threshold_output:
+        # 2x2 grid when threshold_output is provided
+        micro_images = [
+            Microimage(
+                threshold_output["preprocessed_channel"],
+                channel_names="Preprocessed",
+                cmaps="gray",
+            ),
+            Microimage(
+                threshold_output["binary_mask"],
+                channel_names="Threshold Binary",
+                cmaps="gray",
+            ),
+            Microimage(
+                aligned_image[second_obj_channel_index],
+                channel_names=f"{second_obj_channel_name} (Raw)",
+                cmaps="gray",
+            ),
+            Microimage(
+                second_obj_masks,
+                cmaps=second_obj_cmap,
+                channel_names="Secondary Objects",
+            ),
+        ]
+        num_cols = 2
+    else:
+        # 1x2 grid when threshold_output is None
+        micro_images = [
+            Microimage(
+                aligned_image[second_obj_channel_index],
+                channel_names=f"{second_obj_channel_name} (Raw)",
+                cmaps="gray",
+            ),
+            Microimage(
+                second_obj_masks,
+                cmaps=second_obj_cmap,
+                channel_names="Secondary Objects",
+            ),
+        ]
+        num_cols = 2
+
+    panel = create_micropanel(
+        micro_images,
+        add_channel_label=True,
+        num_cols=num_cols,
+    )
+
+    # Set all channel labels to specified color
+    for ax in panel.fig.axes:
+        for text in ax.texts:
+            text.set_color(label_color)
+
+    return panel
+
+
 def get_feret_diameters(coords):
     """Compute the minimum and maximum Feret diameters of a 2D shape.
 
@@ -952,7 +1063,7 @@ def apply_declumping(
         return declumped
 
     # Method 2: Shape-based (distance transform)
-    if declump_method in ["shape", "distance"]:
+    if declump_method in ["shape"]:
         peak_map = ndimage.distance_transform_edt(binary_mask)
 
     # Method 3: Intensity-based
@@ -1004,7 +1115,7 @@ def apply_declumping(
 
     elif declump_mode == "watershed":
         # Standard watershed with negative distance
-        if declump_method in ["shape", "distance", "shape_intensity"]:
+        if declump_method in ["shape", "shape_intensity"]:
             # Use distance transform for watershed
             distance = ndimage.distance_transform_edt(binary_mask)
             declumped = segmentation.watershed(-distance, markers, mask=binary_mask)

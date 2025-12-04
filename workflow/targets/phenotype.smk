@@ -186,8 +186,36 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "eval_features": None,
 }
 
-PHENOTYPE_OUTPUTS_MAPPED = map_outputs(PHENOTYPE_OUTPUTS, PHENOTYPE_OUTPUT_MAPPINGS)
+# Determine which outputs to include based on config
+PHENOTYPE_SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", True)
+
+if not PHENOTYPE_SECOND_OBJ_DETECTION:
+    # Filter out secondary object rules when disabled
+    PHENOTYPE_OUTPUTS_FILTERED = {
+        k: v for k, v in PHENOTYPE_OUTPUTS.items()
+        if k not in [
+            "identify_second_objs",
+            "extract_phenotype_second_objs",
+            "merge_phenotype_second_objs",
+            "merge_second_objs_phenotype_cp",
+        ]
+    }
+
+    PHENOTYPE_OUTPUT_MAPPINGS_FILTERED = {
+        k: v for k, v in PHENOTYPE_OUTPUT_MAPPINGS.items()
+        if k not in [
+            "identify_second_objs",
+            "extract_phenotype_second_objs",
+            "merge_phenotype_second_objs",
+            "merge_second_objs_phenotype_cp",
+        ]
+    }
+else:
+    PHENOTYPE_OUTPUTS_FILTERED = PHENOTYPE_OUTPUTS
+    PHENOTYPE_OUTPUT_MAPPINGS_FILTERED = PHENOTYPE_OUTPUT_MAPPINGS
+
+PHENOTYPE_OUTPUTS_MAPPED = map_outputs(PHENOTYPE_OUTPUTS_FILTERED, PHENOTYPE_OUTPUT_MAPPINGS_FILTERED)
 
 PHENOTYPE_TARGETS_ALL = outputs_to_targets(
-    PHENOTYPE_OUTPUTS, phenotype_wildcard_combos, PHENOTYPE_OUTPUT_MAPPINGS
+    PHENOTYPE_OUTPUTS_FILTERED, phenotype_wildcard_combos, PHENOTYPE_OUTPUT_MAPPINGS_FILTERED
 )

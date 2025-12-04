@@ -477,6 +477,120 @@ def plot_gene_symbol_histogram(df, x_cutoff=None):
     return outliers, fig
 
 
+def plot_barcode_prefix_matching(
+    df_reads, df_library, barcode_col="barcode", library_col=None
+):
+    """Plot barcode prefix matching rate vs random expectation.
+
+    Compares how well read barcodes match the library at each prefix length.
+    A meaningful signal shows the actual match rate staying well above the
+    random expectation (1/4^n), indicating true barcode detection rather than noise.
+
+    Args:
+        df_reads (pandas.DataFrame):
+            DataFrame of reads containing barcode sequences.
+        df_library (pandas.DataFrame):
+            DataFrame of library barcodes to match against.
+        barcode_col (str, optional):
+            Column name in df_reads containing barcode sequences. Defaults to "barcode".
+        library_col (str, optional):
+            Column name in df_library containing barcode sequences.
+            If None, tries common column names: 'barcode', 'sgRNA', 'iBAR_2'.
+            Defaults to None.
+
+    Returns:
+        pandas.DataFrame: Summary table with columns 'prefix_length', 'match_rate', 'random_rate'.
+        matplotlib.figure.Figure: The figure object containing the plot.
+    """
+    # Determine library column
+    if library_col is None:
+        for col in ["barcode", "sgRNA", "iBAR_2"]:
+            if col in df_library.columns:
+                library_col = col
+                break
+        if library_col is None:
+            raise ValueError(
+                "Could not find barcode column in library. "
+                "Please specify library_col parameter."
+            )
+
+    # Get barcode length from reads
+    barcode_length = len(df_reads[barcode_col].iloc[0])
+
+    # Calculate match rates for each prefix length
+    match_rates = []
+    random_rates = []
+    for i in range(1, barcode_length + 1):
+        # Get prefix matches
+        read_prefixes = df_reads[barcode_col].str[:i]
+        library_prefixes = set(df_library[library_col].str[:i])
+        match_rate = read_prefixes.isin(library_prefixes).mean()
+        match_rates.append(round(match_rate, 4))
+        random_rates.append(1 / (4**i))
+
+    # Create summary DataFrame
+    df_summary = pd.DataFrame(
+        {
+            "prefix_length": range(1, barcode_length + 1),
+            "match_rate": match_rates,
+            "random_rate": random_rates,
+        }
+    )
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.set_style("white")
+
+    # Plot actual match rate
+    sns.scatterplot(
+        data=df_summary,
+        x="prefix_length",
+        y="match_rate",
+        color="dodgerblue",
+        s=60,
+        label="Actual match rate",
+        ax=ax,
+    )
+    sns.lineplot(
+        data=df_summary,
+        x="prefix_length",
+        y="match_rate",
+        color="dodgerblue",
+        ax=ax,
+    )
+
+    # Plot random expectation
+    sns.scatterplot(
+        data=df_summary,
+        x="prefix_length",
+        y="random_rate",
+        color="gray",
+        s=60,
+        label="Random expectation (1/4ⁿ)",
+        ax=ax,
+    )
+    sns.lineplot(
+        data=df_summary,
+        x="prefix_length",
+        y="random_rate",
+        color="gray",
+        linestyle="--",
+        ax=ax,
+    )
+
+    # Formatting
+    ax.set_xlabel("Barcode Prefix Length (bases)", fontsize=12)
+    ax.set_ylabel("Fraction of Reads Matching Library", fontsize=12)
+    ax.set_title("Barcode Prefix Matching: Actual vs Random", fontsize=14)
+    ax.set_xticks(range(1, barcode_length + 1))
+    ax.set_ylim(0, 1.05)
+    ax.legend(loc="upper right")
+    sns.despine()
+    fig.tight_layout()
+
+    return df_summary, fig
+
+
 def mapping_overview(sbs_info, cells, sort_by="count"):
     """Generate an overview of cell counts and mapping statistics per well.
 

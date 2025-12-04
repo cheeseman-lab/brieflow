@@ -1,4 +1,4 @@
-name: Brieflow Integration Test
+name: Test Analysis
 
 on:
   pull_request:
@@ -7,12 +7,43 @@ on:
     branches: [main]
 
 jobs:
-  integration-test:
+  test-analysis:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Free disk space (max safe)
+        run: |
+          echo "=== BEFORE CLEANUP ==="
+          df -h
+
+          # big toolchains + languages
+          sudo rm -rf /usr/share/dotnet \
+                      /usr/local/share/dotnet \
+                      /opt/ghc \
+                      /usr/local/lib/android \
+                      /opt/hostedtoolcache
+
+          # browsers + automation frameworks
+          sudo rm -rf /usr/lib/playwright \
+                      /usr/lib/chromium \
+                      /usr/bin/google-chrome \
+                      /usr/bin/chromedriver
+
+          # azure cli
+          sudo rm -rf /usr/lib/azure-cli \
+                      /opt/az
+
+          # caches
+          sudo rm -rf ~/.cache
+
+          # docker cleanup
+          sudo docker system prune -af || true
+
+          echo "=== AFTER CLEANUP ==="
+          df -h
 
       # Set up Conda
       - name: Set up Conda
@@ -22,21 +53,8 @@ jobs:
           python-version: 3.11
           channels: conda-forge
 
-      # Cache conda environment
-      - name: Cache conda environment
-        uses: actions/cache@v3
-        id: conda-cache
-        with:
-          path: |
-            /usr/share/miniconda/envs/brieflow_ci
-            ~/.cache/pip
-          key: conda-env-${{ hashFiles('pyproject.toml') }}-${{ runner.os }}-python3.11
-          restore-keys: |
-            conda-env-${{ runner.os }}-python3.11-
-
-      # Set up environment (only if cache miss)
+      # Set up environment
       - name: Set up brieflow environment
-        if: steps.conda-cache.outputs.cache-hit != 'true'
         shell: bash -l {0}
         run: |
           # Create conda environment
@@ -46,9 +64,6 @@ jobs:
           # Install Python dependencies with uv
           uv pip install -r pyproject.toml
           uv pip install -e .
-          
-          # Install conda-only packages
-          conda install -c conda-forge micro_sam -y
 
       # Activate environment for subsequent steps
       - name: Initialize conda environment
@@ -57,17 +72,8 @@ jobs:
           conda activate brieflow_ci
           echo "CONDA_DEFAULT_ENV=brieflow_ci" >> $GITHUB_ENV
 
-      # Cache the test data setup
-      - name: Cache test data
-        uses: actions/cache@v3
-        id: test-data-cache
-        with:
-          path: tests/small_test_analysis/small_test_data
-          key: small-test-data-${{ hashFiles('tests/small_test_analysis/small_test_analysis_setup.py') }}
-
-      # Only run setup if cache miss
+      # Run setup for small test analysis
       - name: Run small test setup
-        if: steps.test-data-cache.outputs.cache-hit != 'true'
         shell: bash -l {0}
         working-directory: tests/small_test_analysis
         run: |
@@ -80,6 +86,8 @@ jobs:
         working-directory: tests/small_test_analysis
         run: |
           conda activate brieflow_ci
+          mkdir -p "$PWD/tmp"
+          export TMPDIR="$PWD/tmp"
           sh run_brieflow.sh
 
       # Run Pytest

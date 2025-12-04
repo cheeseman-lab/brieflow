@@ -32,13 +32,8 @@ dependencies = [
   "phate==1.0.11",
   "statsmodels==0.14.4",
   "dill==0.4.0",
-<<<<<<< Updated upstream
-  "xgboost==3.0.0",
-  "ruff==0.11.9",
-=======
   "xgboost==3.0.4",
   "ruff==0.12.1",
->>>>>>> Stashed changes
   "streamlit==1.45.1",
   "plotly==6.1.2",
   "pytest==8.4.0",

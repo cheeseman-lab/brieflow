@@ -172,6 +172,10 @@ SBS_OUTPUTS = {
         / "eval"
         / "mapping"
         / get_filename({"plate": "{plate}"}, "mapping_overview", "tsv"),
+        SBS_FP
+        / "eval"
+        / "mapping"
+        / get_filename({"plate": "{plate}"}, "barcode_prefix_matching", "png"),
     ],
 }
 

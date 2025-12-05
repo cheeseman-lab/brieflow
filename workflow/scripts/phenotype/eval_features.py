@@ -13,7 +13,11 @@ min_feature_names = [col for col in phenotype_cp_min.columns if col.endswith("_m
 for feature_name in min_feature_names:
     # Generate feature heatmap evaluation
     df_summary_one, fig = plot_feature_heatmap(
-        phenotype_cp_min, feature=feature_name, shape="6W_ph", return_summary=True
+        phenotype_cp_min,
+        feature=feature_name,
+        shape=snakemake.params.heatmap_shape,
+        plate=snakemake.params.heatmap_plate,
+        return_summary=True,
     )
 
     # Determine the save paths from snakemake.output

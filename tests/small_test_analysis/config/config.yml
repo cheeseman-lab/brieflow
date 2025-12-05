@@ -76,6 +76,8 @@ sbs:
   cell_flow_threshold: 1
   cell_cellprob_threshold: 0
   cyto_model: cyto3
+  heatmap_plate: "6W"
+  heatmap_shape: "6W_sbs"
 phenotype:
   align: false
   cell_diameter: 53.075815293046055
@@ -96,6 +98,8 @@ phenotype:
   mode: null
   nuclei_diameter: 41.97813156768016
   reconcile: contained_in_cells
+  heatmap_plate: "6W"
+  heatmap_shape: "6W_ph"
 merge:
   det_range:
   - 0.06

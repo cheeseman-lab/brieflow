@@ -336,9 +336,15 @@ def _write_zarr_array(
                 x_start = x_idx * chunk_shape[2]
                 x_end = min((x_idx + 1) * chunk_shape[2], level_data.shape[2])
 
-                chunk = np.ascontiguousarray(
-                    level_data[c_start:c_end, y_start:y_end, x_start:x_end]
-                )
+                chunk = np.zeros(chunk_shape, dtype=level_data.dtype)
+                chunk_c = c_end - c_start
+                chunk_y = y_end - y_start
+                chunk_x = x_end - x_start
+                chunk[:chunk_c, :chunk_y, :chunk_x] = level_data[
+                    c_start:c_end,
+                    y_start:y_end,
+                    x_start:x_end,
+                ]
                 chunk_fp = level_path / f"{c_idx}.{y_idx}.{x_idx}"
                 chunk_fp.write_bytes(chunk.tobytes(order="C"))
 

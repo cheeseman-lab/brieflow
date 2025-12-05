@@ -1,22 +1,15 @@
 import pandas as pd
 from joblib import Parallel, delayed
 
-
-# Define function to read df tsv files
-def get_file(f):
-    try:
-        return pd.read_csv(f, sep="\t")
-    except pd.errors.EmptyDataError:
-        pass
-
+from lib.shared.file_utils import read_tsv_safe
 
 # Load, concatenate, and save the secondary object phenotype data
 arr_reads = Parallel(n_jobs=snakemake.threads)(
-    delayed(get_file)(file) for file in snakemake.input
+    delayed(read_tsv_safe)(file) for file in snakemake.input
 )
 
-# Combine all dataframes, filtering out None values
-valid_dfs = [df for df in arr_reads if df is not None]
+# Combine all dataframes, filtering out empty dataframes
+valid_dfs = [df for df in arr_reads if not df.empty]
 if valid_dfs:
     second_obj_phenotype = pd.concat(valid_dfs)
     print(

@@ -1,11 +1,11 @@
-"""Segment secondary objects using CV or ML methods and visualize results.
+"""Segment secondary objects using thresholding or ML methods and visualize results.
 
 This module provides functions for segmenting and visualizing secondary objects in microscopy images.
-Both traditional computer vision (CV) and machine learning (ML) segmentation methods are supported,
+Both traditional threshold-based and machine learning (ML) segmentation methods are supported,
 with a shared post-processing pipeline that ensures consistent output formats.
 
 Architecture:
-    - segment_second_objs(): Traditional CV-based segmentation (thresholding + declumping)
+    - segment_second_objs(): Basic segmentation (thresholding + declumping)
     - segment_second_objs_ml(): ML-based segmentation template (Cellpose, StarDist, etc.)
     - _postprocess_secondary_objects(): Shared post-processing for both methods
         * Size filtering (Feret diameter or area)
@@ -20,7 +20,7 @@ Implementing Custom ML Segmentation:
     3. Return the labeled mask to the shared post-processing pipeline
 
 Key Functions:
-    - segment_second_objs(): Traditional CV-based segmentation
+    - segment_second_objs(): Basic segmentation
     - segment_second_objs_ml(): ML-based segmentation template (user implements)
     - _postprocess_secondary_objects(): Shared post-processing pipeline
     - create_second_obj_boundary_visualization(): Visualize segmentation results
@@ -51,7 +51,7 @@ def segment_second_objs_ml(
     second_obj_channel_index,
     cell_masks=None,
     cytoplasm_masks=None,
-    # Post-processing parameters (shared with CV method)
+    # Post-processing parameters (shared)
     second_obj_min_size=10,
     second_obj_max_size=200,
     size_filter_method="feret",
@@ -1218,7 +1218,7 @@ def _postprocess_secondary_objects(
     """Apply post-processing pipeline to secondary object masks.
 
     This function performs the shared post-processing steps for both
-    traditional CV-based and ML-based secondary object segmentation:
+    basic thresholding and ML-based secondary object segmentation:
     1. Size filtering (Feret diameter or area)
     2. Cell association (spatial overlap)
     3. Cell summary statistics

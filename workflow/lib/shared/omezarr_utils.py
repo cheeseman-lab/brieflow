@@ -16,7 +16,11 @@ from typing import Iterable, List, Optional, Sequence, Union, Any
 import json
 
 import numpy as np
-import zarr
+
+try:  # pragma: no cover - optional dependency for metadata patching
+    import zarr
+except ModuleNotFoundError:  # pragma: no cover - handled at runtime
+    zarr = None
 
 
 PathLike = Union[str, Path]
@@ -117,6 +121,14 @@ def _default_hex_palette(n: int) -> List[str]:
     return (base_palette * reps)[:n]
 
 
+def default_omero_color_ints(n_channels: int) -> List[int]:
+    """Return default OMERO ARGB color integers for `n_channels`."""
+    palette = _default_hex_palette(n_channels)
+    return [
+        int(_normalize_color_to_omero_int(hex_color)) for hex_color in palette
+    ]
+
+
 def ensure_omero_channel_colors(
     zarr_path: PathLike,
     channel_labels: Optional[Sequence[str]] = None,
@@ -145,6 +157,11 @@ def ensure_omero_channel_colors(
             - (R, G, B[, A]) tuples/lists in [0, 255] or [0, 1].
     """
     zarr_path = Path(zarr_path)
+
+    if zarr is None:  # pragma: no cover - optional dependency guard
+        raise ModuleNotFoundError(
+            "The 'zarr' package is required to modify channel metadata."
+        )
 
     store = zarr_path
     group = zarr.open(store=str(store), mode="r")
@@ -218,5 +235,4 @@ def ensure_omero_channel_colors(
     attrs["omero"] = omero
 
     attrs_path.write_text(json.dumps(attrs, indent=2))
-
 

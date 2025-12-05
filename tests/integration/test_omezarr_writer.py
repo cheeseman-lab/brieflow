@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from lib.preprocess.preprocess import write_multiscale_omezarr
+from lib.shared.omezarr_utils import default_omero_color_ints
 
 
 def test_write_multiscale_omezarr(tmp_path):
@@ -41,3 +42,8 @@ def test_write_multiscale_omezarr(tmp_path):
     scale2_meta = json.loads((output / "scale2" / ".zarray").read_text())
     assert scale2_meta["shape"][1] < scale0_meta["shape"][1]
     assert (output / "scale2" / "0.0.0").exists()
+
+    channels = attrs["omero"]["channels"]
+    assert len(channels) == 2
+    expected_colors = default_omero_color_ints(2)
+    assert [channel["color"] for channel in channels] == expected_colors

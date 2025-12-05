@@ -18,6 +18,8 @@ try:
 except ModuleNotFoundError:
     nd2 = None
 
+from lib.shared.omezarr_utils import default_omero_color_ints
+
 
 def _require_nd2() -> None:
     """Ensure the nd2 package is available before accessing reader functionality."""
@@ -369,18 +371,20 @@ def _write_group_metadata(
     ]
 
     dtype_info = np.iinfo(dtype) if np.issubdtype(dtype, np.integer) else None
+    n_channels = int(datasets[0]["shape"][0]) if datasets else 0
+    channel_colors = default_omero_color_ints(n_channels) if n_channels else []
 
     omero = {
         "channels": [
             {
                 "label": f"Channel {idx}",
-                "color": None,
+                "color": channel_colors[idx] if idx < len(channel_colors) else None,
                 "window": {
                     "min": 0,
                     "max": int(dtype_info.max) if dtype_info else None,
                 },
             }
-            for idx in range(datasets[0]["shape"][0])
+            for idx in range(n_channels)
         ],
         "pixel_size": {
             "x": pixel_x,

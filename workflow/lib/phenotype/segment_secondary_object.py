@@ -1,19 +1,37 @@
-"""Segment secondary objects using skimage thresholding and visualize secondary objects using microfilm.
+"""Segment secondary objects using CV or ML methods and visualize results.
 
 This module provides functions for segmenting and visualizing secondary objects in microscopy images.
-It includes functions for:
+Both traditional computer vision (CV) and machine learning (ML) segmentation methods are supported,
+with a shared post-processing pipeline that ensures consistent output formats.
 
-1. Secondary Object Segmentation: Segmenting secondary objects within cells based on thresholding.
-2. Cell-Secondary Object Association: Mapping secondary objects to their containing cells.
-3. Cytoplasm Adjustment: Updating cytoplasm masks by removing secondary object regions.
-4. Visualization: Creating enhanced visualizations of cells and secondary objects.
-5. Threshold Debugging: Visualizing intermediate thresholding output to diagnose segmentation issues.
+Architecture:
+    - segment_second_objs(): Traditional CV-based segmentation (thresholding + declumping)
+    - segment_second_objs_ml(): ML-based segmentation template (Cellpose, StarDist, etc.)
+    - _postprocess_secondary_objects(): Shared post-processing for both methods
+        * Size filtering (Feret diameter or area)
+        * Cell association (spatial overlap)
+        * Cell summary statistics
+        * Cytoplasm mask updates
+
+Implementing Custom ML Segmentation:
+    Users implementing segment_second_objs_ml() only need to:
+    1. Extract the target channel from the image
+    2. Run their ML model to get a labeled mask (e.g., Cellpose, StarDist)
+    3. Return the labeled mask to the shared post-processing pipeline
 
 Key Functions:
-    - segment_second_objs(): Main segmentation function with optional threshold output
-    - visualize_threshold_output(): Visualize thresholding before declumping
-    - compare_threshold_vs_final(): Compare threshold output with final segmentation
-    - create_second_obj_boundary_visualization(): Visualize final segmentation results
+    - segment_second_objs(): Traditional CV-based segmentation
+    - segment_second_objs_ml(): ML-based segmentation template (user implements)
+    - _postprocess_secondary_objects(): Shared post-processing pipeline
+    - create_second_obj_boundary_visualization(): Visualize segmentation results
+    - create_second_obj_standard_visualization(): Standard visualization panel
+
+Helper Functions:
+    - apply_threshold_method(): Thresholding methods (Otsu, Li)
+    - apply_declumping(): CellProfiler-compatible declumping
+    - get_feret_diameters(): Compute Feret diameters
+    - create_empty_results(): Generate empty result structures
+    - get_spatial_overlap_candidates(): Spatial indexing for cell-object association
 
 """
 
@@ -26,6 +44,167 @@ import matplotlib.pyplot as plt
 from microfilm.microplot import Microimage
 from lib.shared.configuration_utils import create_micropanel
 import cv2
+
+
+def segment_second_objs_ml(
+    image,
+    second_obj_channel_index,
+    cell_masks=None,
+    cytoplasm_masks=None,
+    # Post-processing parameters (shared with CV method)
+    second_obj_min_size=10,
+    second_obj_max_size=200,
+    size_filter_method="feret",
+    max_objects_per_cell=120,
+    overlap_threshold=0.1,
+    nuclei_centroids=None,
+    max_total_objects=1000,
+    # ML-specific parameters - users add more as needed
+    **ml_params
+):
+    """Segment secondary objects using ML models (Cellpose, StarDist, etc.).
+
+    This function provides a template for users to implement their own ML-based
+    segmentation. Users only need to:
+    1. Extract the target channel
+    2. Run their ML model to get a labeled mask
+    3. Return the labeled mask - post-processing is handled automatically
+
+    The shared post-processing pipeline (_postprocess_secondary_objects) will handle:
+    - Size filtering (Feret diameter or area)
+    - Cell association (spatial overlap)
+    - Cell summary statistics
+    - Cytoplasm mask updates
+
+    Example implementation with Cellpose:
+
+    .. code-block:: python
+
+        from cellpose import models
+
+        # 1. Extract target channel
+        target_channel = image[second_obj_channel_index]
+
+        # 2. Run Cellpose model
+        model = models.Cellpose(gpu=True, model_type='cyto2')
+        labeled_mask, flows, styles, diams = model.eval(
+            target_channel,
+            diameter=ml_params.get('diameter', 30),
+            flow_threshold=ml_params.get('flow_threshold', 0.4),
+            cellprob_threshold=ml_params.get('cellprob_threshold', 0.0),
+            channels=[0, 0]  # grayscale
+        )
+
+        # 3. Post-processing happens automatically below
+        # (size filtering, cell association, statistics, cytoplasm updates)
+
+    Example implementation with StarDist:
+
+    .. code-block:: python
+
+        from stardist.models import StarDist2D
+
+        # 1. Extract target channel
+        target_channel = image[second_obj_channel_index]
+
+        # 2. Run StarDist model
+        model = StarDist2D.from_pretrained('2D_versatile_fluo')
+        labeled_mask, details = model.predict_instances(
+            target_channel,
+            prob_thresh=ml_params.get('prob_thresh', 0.5),
+            nms_thresh=ml_params.get('nms_thresh', 0.4)
+        )
+
+        # 3. Post-processing happens automatically below
+
+    Parameters
+    ----------
+    image : ndarray
+        Multichannel image data with shape [channels, height, width]
+    second_obj_channel_index : int
+        Index of the channel used for secondary object detection
+    cell_masks : ndarray
+        Cell segmentation masks with unique integers for each cell
+    cytoplasm_masks : ndarray, optional
+        Cytoplasm segmentation masks. If provided, secondary object
+        regions will be removed from cytoplasm masks
+
+    second_obj_min_size : float
+        Minimum size for valid secondary objects
+    second_obj_max_size : float
+        Maximum size for valid secondary objects
+    size_filter_method : str
+        Size filtering method ("feret" or "area")
+    max_objects_per_cell : int
+        Maximum secondary objects allowed per cell
+    overlap_threshold : float
+        Minimum overlap ratio to associate object with cell (0.0-1.0)
+    nuclei_centroids : dict, DataFrame, or None
+        Cell nuclei centroids for distance calculations
+    max_total_objects : int or None
+        Failsafe limit on detected objects
+
+    **ml_params : dict
+        Additional ML model parameters. Users can pass any model-specific
+        parameters here (e.g., diameter, flow_threshold, etc.)
+
+    Returns
+    -------
+    tuple
+        - second_obj_masks: Labeled mask of secondary objects [height, width]
+        - cell_second_obj_table: Dict with 'cell_summary' and 'second_obj_cell_mapping' DataFrames
+        - updated_cytoplasm_masks: Cytoplasm masks with secondary objects removed (if provided)
+
+    Raises
+    ------
+    NotImplementedError
+        This is a template function that users must implement with their ML model
+
+    Notes
+    -----
+    - Users only implement the ML segmentation (steps 1-2 above)
+    - All post-processing is handled by _postprocess_secondary_objects()
+    - Output format is guaranteed to match segment_second_objs()
+    - To add ML-specific parameters, pass them via **ml_params
+    """
+    # Extract target channel
+    target_channel = image[second_obj_channel_index]
+
+    # Placeholder: Replace with ML model implementation
+    # Example for Cellpose:
+    #   from cellpose import models
+    #   model = models.Cellpose(gpu=True, model_type='cyto2')
+    #   labeled_mask, flows, styles, diams = model.eval(
+    #       target_channel,
+    #       diameter=ml_params.get('diameter', 30),
+    #       flow_threshold=ml_params.get('flow_threshold', 0.4),
+    #       channels=[0, 0]
+    #   )
+
+    raise NotImplementedError(
+        "ML-based segmentation not yet implemented. "
+        "Replace this section with your ML model code. "
+        "The model should return a labeled mask (ndarray with integer labels). "
+        "Post-processing is handled automatically by _postprocess_secondary_objects()."
+    )
+
+    # labeled_mask = your_ml_model(target_channel, **ml_params)
+
+    # Shared post-processing pipeline
+    return _postprocess_secondary_objects(
+        second_obj_masks=labeled_mask,  # User's ML output
+        cell_masks=cell_masks,
+        cytoplasm_masks=cytoplasm_masks,
+        second_obj_min_size=second_obj_min_size,
+        second_obj_max_size=second_obj_max_size,
+        size_filter_method=size_filter_method,
+        max_objects_per_cell=max_objects_per_cell,
+        overlap_threshold=overlap_threshold,
+        nuclei_centroids=nuclei_centroids,
+        max_total_objects=max_total_objects,
+        image=image,
+        second_obj_channel_index=second_obj_channel_index,
+    )
 
 
 def apply_threshold_method(image, method="otsu_two_peak"):
@@ -208,19 +387,6 @@ def segment_second_objs(
                 - 'binary_mask': Binary mask before declumping
                 - 'threshold_value': Threshold value used
                 - 'preprocessed_channel': Preprocessed channel image
-
-    Examples:
-        >>> # Standard usage (backward compatible)
-        >>> masks, table = segment_second_objs(image, channel_index, cell_masks=cells)
-
-        >>> # With intermediate threshold output for debugging
-        >>> masks, table, cytoplasms, threshold_output = segment_second_objs(
-        ...     image, channel_index,
-        ...     cell_masks=cells,
-        ...     cytoplasm_masks=cytoplasms,
-        ...     return_threshold_output=True
-        ... )
-        >>> print(f"Threshold value: {threshold_output['threshold_value']}")
     """
     # Extract the secondary object channel
     second_obj_img = image[second_obj_channel_index]
@@ -263,12 +429,12 @@ def segment_second_objs(
         else:
             return empty_results
 
-    # --- FAILSAFE: Check for excessive objects early ---
+    # Failsafe: Check for excessive objects early
     if max_total_objects is not None:
         temp_labeled, num_components = ndimage.label(binary_mask)
         if num_components > max_total_objects:
             print(
-                f"FAILSAFE TRIGGERED: Detected {num_components} objects (limit: {max_total_objects})"
+                f"Failsafe triggered: Detected {num_components} objects (limit: {max_total_objects})"
             )
             print("Returning empty results to avoid processing over-segmented image")
             empty_results = create_empty_results(
@@ -289,21 +455,19 @@ def segment_second_objs(
             else:
                 return empty_results
 
-    # --- Morphological opening (NEW) ---
+    # Morphological opening
     if use_morphological_opening:
         binary_mask = apply_morphological_opening(
             binary_mask, opening_disk_radius=opening_disk_radius
         )
 
-    # --- CAPTURE INTERMEDIATE STATE FOR VISUALIZATION ---
+    # Capture intermediate state for visualization
     if return_threshold_output:
-        # Store the binary mask state before declumping
         threshold_binary_mask = binary_mask.copy()
         threshold_value_stored = thresh
         threshold_preprocessed_channel = second_obj_smooth.copy()
 
-    # --- Declumping ---
-    # Apply standard CellProfiler declumping
+    # Declumping
     declumped = apply_declumping(
         binary_mask,
         second_obj_smooth,
@@ -336,268 +500,23 @@ def segment_second_objs(
             filled = ndimage.binary_fill_holes(mask)
             declumped[filled] = label
 
-    # Filter by size
-    print(f"Filtering by {size_filter_method}...")
-    regions = measure.regionprops(declumped)
-    valid_labels = []
-
-    if size_filter_method == "feret":
-        # Feret diameter filtering (current approach)
-        for region in regions:
-            coords = region.coords[:, [1, 0]]  # (x, y) format
-            if len(coords) < 3:
-                continue
-
-            feret_min, feret_max = get_feret_diameters(coords)
-            if second_obj_min_size <= feret_min and feret_max <= second_obj_max_size:
-                valid_labels.append(region.label)
-
-    elif size_filter_method == "area":
-        # Area-based filtering (CellProfiler standard)
-        for region in regions:
-            if second_obj_min_size <= region.area <= second_obj_max_size:
-                valid_labels.append(region.label)
-
-    else:
-        raise ValueError(f"Unknown size_filter_method: {size_filter_method}")
-
-    if not valid_labels:
-        print(f"No valid secondary objects found after {size_filter_method} filtering")
-        return create_empty_results(cell_masks, cytoplasm_masks, nuclei_centroids)
-
-    print(
-        f"After {size_filter_method} filtering: {len(valid_labels)} valid secondary objects"
+    # Apply shared post-processing pipeline: size filtering, cell association, statistics, cytoplasm updates
+    post_results = _postprocess_secondary_objects(
+        second_obj_masks=declumped,
+        cell_masks=cell_masks,
+        cytoplasm_masks=cytoplasm_masks,
+        second_obj_min_size=second_obj_min_size,
+        second_obj_max_size=second_obj_max_size,
+        size_filter_method=size_filter_method,
+        max_objects_per_cell=max_objects_per_cell,
+        overlap_threshold=overlap_threshold,
+        nuclei_centroids=nuclei_centroids,
+        max_total_objects=max_total_objects,
+        image=image,
+        second_obj_channel_index=second_obj_channel_index,
     )
 
-    # Create valid secondary objects mask with renumbered labels
-    labeled_second_objs = np.zeros_like(declumped)
-    for i, lbl in enumerate(valid_labels, start=1):
-        labeled_second_objs[declumped == lbl] = i
-
-    num_second_objs = len(valid_labels)
-
-    # Get cell IDs
-    cell_ids = np.unique(cell_masks[cell_masks > 0])
-
-    # Prepare nuclei centroids - this is for cell nuclei distance calculations
-    nuclei_centroids_dict = None
-    if nuclei_centroids is not None:
-        if isinstance(nuclei_centroids, pd.DataFrame):
-            nuclei_centroids_dict = {
-                row.get("nuclei_id", idx): (row["i"], row["j"])
-                for idx, row in nuclei_centroids.iterrows()
-            }
-        else:
-            nuclei_centroids_dict = nuclei_centroids
-
-    # Pre-compute region properties for all secondary objects
-    second_obj_regions = {
-        region.label: region for region in measure.regionprops(labeled_second_objs)
-    }
-
-    # SPATIAL INDEXING: Pre-compute which cells could overlap with each secondary object
-    print("Computing spatial overlap candidates...")
-    overlap_candidates = get_spatial_overlap_candidates(second_obj_regions, cell_masks)
-
-    # Initialize tracking variables
-    second_obj_cell_mapping = []
-    second_objs_per_cell = {cell_id: 0 for cell_id in cell_ids}
-
-    # Process each secondary object
-    print("Processing secondary object-cell associations...")
-    for second_obj_id in range(1, num_second_objs + 1):
-        if second_obj_id not in second_obj_regions:
-            continue
-
-        region = second_obj_regions[second_obj_id]
-        second_obj_mask = labeled_second_objs == second_obj_id
-        second_obj_area = region.area
-        second_obj_centroid = region.centroid
-
-        # Calculate equivalent diameter for this secondary object
-        second_obj_diameter = 2 * np.sqrt(second_obj_area / np.pi)
-
-        # Initialize mapping entry with basic info
-        mapping_entry = {
-            "second_obj_id": second_obj_id,
-            "second_obj_area": second_obj_area,
-            "second_obj_diameter": second_obj_diameter,
-        }
-
-        # Calculate distance to nearest cell nucleus
-        if nuclei_centroids_dict is not None:
-            min_dist = np.inf
-            nearest_nucleus_id = None
-            for nuc_id, nuc_centroid in nuclei_centroids_dict.items():
-                dist = np.sqrt(
-                    (second_obj_centroid[0] - nuc_centroid[0]) ** 2
-                    + (second_obj_centroid[1] - nuc_centroid[1]) ** 2
-                )
-                if dist < min_dist:
-                    min_dist = dist
-                    nearest_nucleus_id = nuc_id
-
-            mapping_entry["distance_to_nucleus"] = (
-                min_dist if min_dist != np.inf else None
-            )
-            mapping_entry["nearest_nucleus_id"] = nearest_nucleus_id
-
-        # Find best overlapping cell - ONLY CHECK SPATIAL CANDIDATES
-        best_cell_id = None
-        best_overlap = 0
-
-        # Only check cells that could spatially overlap with this secondary object
-        candidate_cells = overlap_candidates.get(second_obj_id, [])
-
-        for cell_id in candidate_cells:
-            if second_objs_per_cell[cell_id] >= max_objects_per_cell:
-                continue
-
-            # Calculate overlap efficiently
-            cell_mask = cell_masks == cell_id
-            overlap = np.sum(second_obj_mask & cell_mask)
-
-            if overlap > 0:
-                overlap_ratio = overlap / second_obj_area
-                if overlap_ratio >= overlap_threshold and overlap_ratio > best_overlap:
-                    best_overlap = overlap_ratio
-                    best_cell_id = cell_id
-
-        # Add successful associations
-        if best_cell_id is not None:
-            mapping_entry["cell_id"] = best_cell_id
-            mapping_entry["overlap_ratio"] = best_overlap
-
-            second_obj_cell_mapping.append(mapping_entry)
-            second_objs_per_cell[best_cell_id] += 1
-
-    # Create secondary object-cell mapping DataFrame
-    second_obj_cell_df = pd.DataFrame(second_obj_cell_mapping)
-
-    # Create cell summary
-    if second_obj_cell_mapping:
-        # Group by cell_id once for efficiency
-        grouped = second_obj_cell_df.groupby("cell_id")
-        cell_summary = []
-
-        for cell_id in cell_ids:
-            cell_area = np.sum(cell_masks == cell_id)
-
-            # Initialize basic cell summary
-            summary_entry = {
-                "cell_id": cell_id,
-                "cell_area": cell_area,
-            }
-
-            # Check if cell_id has associated secondary objects
-            if cell_id in grouped.groups:
-                cell_second_objs = grouped.get_group(cell_id)
-
-                # Calculate cell-level statistics
-                total_second_obj_area = cell_second_objs["second_obj_area"].sum()
-                mean_diameter = cell_second_objs["second_obj_diameter"].mean()
-
-                summary_entry.update(
-                    {
-                        "has_second_obj": True,
-                        "num_second_objs": len(cell_second_objs),
-                        "second_obj_ids": list(cell_second_objs["second_obj_id"]),
-                        "total_second_obj_area": total_second_obj_area,
-                        "second_obj_area_ratio": total_second_obj_area / cell_area
-                        if cell_area > 0
-                        else 0,
-                        "mean_second_obj_diameter": mean_diameter,
-                    }
-                )
-
-                # Add cell nucleus distance fields if nuclei_centroids was provided
-                if nuclei_centroids_dict is not None:
-                    mean_distance = (
-                        cell_second_objs["distance_to_nucleus"].dropna().mean()
-                        if not cell_second_objs["distance_to_nucleus"].dropna().empty
-                        else None
-                    )
-                    summary_entry["mean_distance_to_nucleus"] = mean_distance
-
-            else:  # Cell without secondary objects
-                summary_entry.update(
-                    {
-                        "has_second_obj": False,
-                        "num_second_objs": 0,
-                        "second_obj_ids": [],
-                        "total_second_obj_area": 0,
-                        "second_obj_area_ratio": 0,
-                        "mean_second_obj_diameter": None,
-                    }
-                )
-
-                # Add cell nucleus distance fields if nuclei_centroids was provided
-                if nuclei_centroids_dict is not None:
-                    summary_entry["mean_distance_to_nucleus"] = None
-
-            cell_summary.append(summary_entry)
-
-    else:
-        # Handle case with no secondary objects
-        cell_summary = []
-        for cell_id in cell_ids:
-            cell_area = np.sum(cell_masks == cell_id)
-            summary_entry = {
-                "cell_id": cell_id,
-                "has_second_obj": False,
-                "num_second_objs": 0,
-                "second_obj_ids": [],
-                "cell_area": cell_area,
-                "total_second_obj_area": 0,
-                "second_obj_area_ratio": 0,
-                "mean_second_obj_diameter": None,
-            }
-
-            # Add cell nucleus distance fields if nuclei_centroids was provided
-            if nuclei_centroids_dict is not None:
-                summary_entry["mean_distance_to_nucleus"] = None
-
-            cell_summary.append(summary_entry)
-
-    # Create final results
-    cell_summary_df = pd.DataFrame(cell_summary)
-    cell_second_obj_table = {
-        "cell_summary": cell_summary_df,
-        "second_obj_cell_mapping": second_obj_cell_df,
-    }
-
-    # Create associated secondary object masks
-    associated_second_objs = np.zeros_like(labeled_second_objs)
-    for mapping in second_obj_cell_mapping:
-        second_obj_id = mapping["second_obj_id"]
-        second_obj_mask = labeled_second_objs == second_obj_id
-        associated_second_objs[second_obj_mask] = second_obj_id
-
-    # Print statistics
-    total_kept = len(second_obj_cell_mapping)
-    print(
-        f"Kept {total_kept} out of {num_second_objs} detected secondary objects "
-        f"({total_kept / num_second_objs * 100:.1f}%)"
-    )
-    print(
-        f"Discarded {num_second_objs - total_kept} secondary objects that didn't meet diameter criteria or cell overlap"
-    )
-
-    # Process cytoplasm masks if provided
-    updated_cytoplasm_masks = None
-    if cytoplasm_masks is not None:
-        updated_cytoplasm_masks = cytoplasm_masks.copy()
-        for mapping in second_obj_cell_mapping:
-            second_obj_id = mapping["second_obj_id"]
-            cell_id = mapping["cell_id"]
-            second_obj_mask = associated_second_objs == second_obj_id
-            cytoplasm_mask = updated_cytoplasm_masks == cell_id
-            updated_cytoplasm_masks[cytoplasm_mask & second_obj_mask] = 0
-        print(
-            f"Updated cytoplasm masks by removing {len(second_obj_cell_mapping)} secondary object regions"
-        )
-
-    # Return results
+    # Handle return_threshold_output flag for debugging
     if return_threshold_output:
         # Create threshold output dictionary
         threshold_output = {
@@ -605,26 +524,11 @@ def segment_second_objs(
             "threshold_value": threshold_value_stored,
             "preprocessed_channel": threshold_preprocessed_channel,
         }
-
-        if updated_cytoplasm_masks is not None:
-            return (
-                associated_second_objs,
-                cell_second_obj_table,
-                updated_cytoplasm_masks,
-                threshold_output,
-            )
-        else:
-            return associated_second_objs, cell_second_obj_table, threshold_output
+        # Append threshold_output to results tuple
+        return (*post_results, threshold_output)
     else:
-        # Original return logic (backward compatible)
-        if updated_cytoplasm_masks is not None:
-            return (
-                associated_second_objs,
-                cell_second_obj_table,
-                updated_cytoplasm_masks,
-            )
-        else:
-            return associated_second_objs, cell_second_obj_table
+        # Standard return (backward compatible)
+        return post_results
 
 
 def create_second_obj_boundary_visualization(
@@ -805,25 +709,6 @@ def create_second_obj_standard_visualization(
     -------
     panel : Micropanel
         Micropanel object with visualizations
-
-    Examples:
-    --------
-    >>> # Simple visualization without threshold output
-    >>> panel = create_second_obj_standard_visualization(
-    ...     aligned_image,
-    ...     channel_index=2,
-    ...     channel_name="CDPK1",
-    ...     second_obj_masks=masks
-    ... )
-
-    >>> # Full visualization with threshold output
-    >>> panel = create_second_obj_standard_visualization(
-    ...     aligned_image,
-    ...     channel_index=2,
-    ...     channel_name="CDPK1",
-    ...     second_obj_masks=masks,
-    ...     threshold_output=threshold_dict
-    ... )
     """
     from lib.shared.configuration_utils import random_cmap
 
@@ -1002,13 +887,6 @@ def apply_h_minima_suppression(peak_map, h_factor):
     -------
     filtered_map : ndarray
         Map with weak maxima suppressed
-
-    Examples:
-    --------
-    >>> distance_map = ndimage.distance_transform_edt(binary_mask)
-    >>> # Suppress peaks with prominence < 20% of range
-    >>> filtered = apply_h_minima_suppression(distance_map, h_factor=0.2)
-    >>> peaks = peak_local_max(filtered, min_distance=10)
     """
     if h_factor <= 0 or h_factor > 1:
         raise ValueError(f"h_factor must be in (0, 1], got {h_factor}")
@@ -1194,7 +1072,7 @@ def shape_based_declumping(
         markers[tuple(peaks.T)] = np.arange(1, len(peaks) + 1)
         local_watershed = segmentation.watershed(-dist, markers, mask=region_mask)
 
-        # VECTORIZED boundary detection - much faster!
+        # Vectorized boundary detection
         lab = local_watershed
 
         # Detect boundaries by comparing with neighbors
@@ -1321,3 +1199,356 @@ def get_spatial_overlap_candidates(second_obj_regions, cell_masks):
         candidates[second_obj_id] = overlapping_cells
 
     return candidates
+
+
+def _postprocess_secondary_objects(
+    second_obj_masks,
+    cell_masks,
+    cytoplasm_masks,
+    second_obj_min_size,
+    second_obj_max_size,
+    size_filter_method,
+    max_objects_per_cell,
+    overlap_threshold,
+    nuclei_centroids,
+    max_total_objects,
+    image=None,
+    second_obj_channel_index=None,
+):
+    """Apply post-processing pipeline to secondary object masks.
+
+    This function performs the shared post-processing steps for both
+    traditional CV-based and ML-based secondary object segmentation:
+    1. Size filtering (Feret diameter or area)
+    2. Cell association (spatial overlap)
+    3. Cell summary statistics
+    4. Cytoplasm mask updates
+
+    Parameters
+    ----------
+    second_obj_masks : ndarray
+        Labeled mask of secondary objects (integer labels, background=0)
+    cell_masks : ndarray
+        Cell segmentation masks with unique integers for each cell
+    cytoplasm_masks : ndarray or None
+        Cytoplasm segmentation masks. If provided, secondary object
+        regions will be removed from cytoplasm masks
+    second_obj_min_size : float
+        Minimum size for valid secondary objects
+    second_obj_max_size : float
+        Maximum size for valid secondary objects
+    size_filter_method : str
+        Size filtering method ("feret" or "area")
+    max_objects_per_cell : int
+        Maximum secondary objects allowed per cell
+    overlap_threshold : float
+        Minimum overlap ratio to associate object with cell (0.0-1.0)
+    nuclei_centroids : dict, DataFrame, or None
+        Cell nuclei centroids for distance calculations.
+        Format: {nuclei_id: (i, j)} or DataFrame with 'i', 'j' columns
+    max_total_objects : int or None
+        Failsafe limit on detected objects. Returns empty results if exceeded
+    image : ndarray, optional
+        Multichannel image [channels, height, width].
+        Only needed if nuclei_centroids provided (for distance calculations)
+    second_obj_channel_index : int, optional
+        Index of secondary object channel.
+        Only needed if nuclei_centroids provided (for distance calculations)
+
+    Returns
+    -------
+    tuple
+        - second_obj_masks: Filtered and renumbered secondary object masks
+        - cell_second_obj_table: Dict with 'cell_summary' and 'second_obj_cell_mapping' DataFrames
+        - updated_cytoplasm_masks: Cytoplasm masks with secondary objects removed (or None)
+
+    Notes
+    -----
+    - This function is shared by both segment_second_objs() and segment_second_objs_ml()
+    - Input masks should already be labeled (not binary)
+    - Empty input masks are handled gracefully
+    """
+    # Handle empty input
+    if not np.any(second_obj_masks):
+        print("No objects detected in input masks")
+        return create_empty_results(cell_masks, cytoplasm_masks, nuclei_centroids)
+
+    # Failsafe: Check for excessive objects early
+    num_input_objects = len(np.unique(second_obj_masks)) - 1  # Exclude background
+    if max_total_objects is not None and num_input_objects > max_total_objects:
+        print(
+            f"Failsafe triggered: Detected {num_input_objects} objects (limit: {max_total_objects})"
+        )
+        print("Returning empty results to avoid processing over-segmented image")
+        return create_empty_results(cell_masks, cytoplasm_masks, nuclei_centroids)
+
+    # Filter by size
+    print(f"Filtering by {size_filter_method}...")
+    regions = measure.regionprops(second_obj_masks)
+    valid_labels = []
+
+    if size_filter_method == "feret":
+        # Feret diameter filtering
+        for region in regions:
+            coords = region.coords[:, [1, 0]]  # (x, y) format
+            if len(coords) < 3:
+                continue
+
+            feret_min, feret_max = get_feret_diameters(coords)
+            if second_obj_min_size <= feret_min and feret_max <= second_obj_max_size:
+                valid_labels.append(region.label)
+
+    elif size_filter_method == "area":
+        # Area-based filtering (CellProfiler standard)
+        for region in regions:
+            if second_obj_min_size <= region.area <= second_obj_max_size:
+                valid_labels.append(region.label)
+
+    else:
+        raise ValueError(f"Unknown size_filter_method: {size_filter_method}")
+
+    if not valid_labels:
+        print(f"No valid secondary objects found after {size_filter_method} filtering")
+        return create_empty_results(cell_masks, cytoplasm_masks, nuclei_centroids)
+
+    print(
+        f"After {size_filter_method} filtering: {len(valid_labels)} valid secondary objects"
+    )
+
+    # Create valid secondary objects mask with renumbered labels
+    labeled_second_objs = np.zeros_like(second_obj_masks)
+    for i, lbl in enumerate(valid_labels, start=1):
+        labeled_second_objs[second_obj_masks == lbl] = i
+
+    num_second_objs = len(valid_labels)
+
+    # Get cell IDs
+    cell_ids = np.unique(cell_masks[cell_masks > 0])
+
+    # Prepare nuclei centroids - this is for cell nuclei distance calculations
+    nuclei_centroids_dict = None
+    if nuclei_centroids is not None:
+        if isinstance(nuclei_centroids, pd.DataFrame):
+            nuclei_centroids_dict = {
+                row.get("nuclei_id", idx): (row["i"], row["j"])
+                for idx, row in nuclei_centroids.iterrows()
+            }
+        else:
+            nuclei_centroids_dict = nuclei_centroids
+
+    # Pre-compute region properties for all secondary objects
+    second_obj_regions = {
+        region.label: region for region in measure.regionprops(labeled_second_objs)
+    }
+
+    # Pre-compute which cells could overlap with each secondary object
+    print("Computing spatial overlap candidates...")
+    overlap_candidates = get_spatial_overlap_candidates(second_obj_regions, cell_masks)
+
+    # Initialize tracking variables
+    second_obj_cell_mapping = []
+    second_objs_per_cell = {cell_id: 0 for cell_id in cell_ids}
+
+    # Process each secondary object
+    print("Processing secondary object-cell associations...")
+    for second_obj_id in range(1, num_second_objs + 1):
+        if second_obj_id not in second_obj_regions:
+            continue
+
+        region = second_obj_regions[second_obj_id]
+        second_obj_mask = labeled_second_objs == second_obj_id
+        second_obj_area = region.area
+        second_obj_centroid = region.centroid
+
+        # Calculate equivalent diameter for this secondary object
+        second_obj_diameter = 2 * np.sqrt(second_obj_area / np.pi)
+
+        # Initialize mapping entry with basic info
+        mapping_entry = {
+            "second_obj_id": second_obj_id,
+            "second_obj_area": second_obj_area,
+            "second_obj_diameter": second_obj_diameter,
+        }
+
+        # Calculate distance to nearest cell nucleus
+        if nuclei_centroids_dict is not None:
+            min_dist = np.inf
+            nearest_nucleus_id = None
+            for nuc_id, nuc_centroid in nuclei_centroids_dict.items():
+                dist = np.sqrt(
+                    (second_obj_centroid[0] - nuc_centroid[0]) ** 2
+                    + (second_obj_centroid[1] - nuc_centroid[1]) ** 2
+                )
+                if dist < min_dist:
+                    min_dist = dist
+                    nearest_nucleus_id = nuc_id
+
+            mapping_entry["distance_to_nucleus"] = (
+                min_dist if min_dist != np.inf else None
+            )
+            mapping_entry["nearest_nucleus_id"] = nearest_nucleus_id
+
+        # Find best overlapping cell
+        best_cell_id = None
+        best_overlap = 0
+
+        # Check spatial overlap candidates
+        candidate_cells = overlap_candidates.get(second_obj_id, [])
+
+        for cell_id in candidate_cells:
+            if second_objs_per_cell[cell_id] >= max_objects_per_cell:
+                continue
+
+            # Calculate overlap efficiently
+            cell_mask = cell_masks == cell_id
+            overlap = np.sum(second_obj_mask & cell_mask)
+
+            if overlap > 0:
+                overlap_ratio = overlap / second_obj_area
+                if overlap_ratio >= overlap_threshold and overlap_ratio > best_overlap:
+                    best_overlap = overlap_ratio
+                    best_cell_id = cell_id
+
+        # Add successful associations
+        if best_cell_id is not None:
+            mapping_entry["cell_id"] = best_cell_id
+            mapping_entry["overlap_ratio"] = best_overlap
+
+            second_obj_cell_mapping.append(mapping_entry)
+            second_objs_per_cell[best_cell_id] += 1
+
+    # Create secondary object-cell mapping DataFrame
+    second_obj_cell_df = pd.DataFrame(second_obj_cell_mapping)
+
+    # Create cell summary
+    if second_obj_cell_mapping:
+        # Group by cell_id once for efficiency
+        grouped = second_obj_cell_df.groupby("cell_id")
+        cell_summary = []
+
+        for cell_id in cell_ids:
+            cell_area = np.sum(cell_masks == cell_id)
+
+            # Initialize basic cell summary
+            summary_entry = {
+                "cell_id": cell_id,
+                "cell_area": cell_area,
+            }
+
+            # Check if cell_id has associated secondary objects
+            if cell_id in grouped.groups:
+                cell_second_objs = grouped.get_group(cell_id)
+
+                # Calculate cell-level statistics
+                total_second_obj_area = cell_second_objs["second_obj_area"].sum()
+                mean_diameter = cell_second_objs["second_obj_diameter"].mean()
+
+                summary_entry.update(
+                    {
+                        "has_second_obj": True,
+                        "num_second_objs": len(cell_second_objs),
+                        "second_obj_ids": list(cell_second_objs["second_obj_id"]),
+                        "total_second_obj_area": total_second_obj_area,
+                        "second_obj_area_ratio": total_second_obj_area / cell_area
+                        if cell_area > 0
+                        else 0,
+                        "mean_second_obj_diameter": mean_diameter,
+                    }
+                )
+
+                # Add cell nucleus distance fields if nuclei_centroids was provided
+                if nuclei_centroids_dict is not None:
+                    mean_distance = (
+                        cell_second_objs["distance_to_nucleus"].dropna().mean()
+                        if not cell_second_objs["distance_to_nucleus"].dropna().empty
+                        else None
+                    )
+                    summary_entry["mean_distance_to_nucleus"] = mean_distance
+
+            else:  # Cell without secondary objects
+                summary_entry.update(
+                    {
+                        "has_second_obj": False,
+                        "num_second_objs": 0,
+                        "second_obj_ids": [],
+                        "total_second_obj_area": 0,
+                        "second_obj_area_ratio": 0,
+                        "mean_second_obj_diameter": None,
+                    }
+                )
+
+                # Add cell nucleus distance fields if nuclei_centroids was provided
+                if nuclei_centroids_dict is not None:
+                    summary_entry["mean_distance_to_nucleus"] = None
+
+            cell_summary.append(summary_entry)
+
+    else:
+        # Handle case with no secondary objects
+        cell_summary = []
+        for cell_id in cell_ids:
+            cell_area = np.sum(cell_masks == cell_id)
+            summary_entry = {
+                "cell_id": cell_id,
+                "has_second_obj": False,
+                "num_second_objs": 0,
+                "second_obj_ids": [],
+                "cell_area": cell_area,
+                "total_second_obj_area": 0,
+                "second_obj_area_ratio": 0,
+                "mean_second_obj_diameter": None,
+            }
+
+            # Add cell nucleus distance fields if nuclei_centroids was provided
+            if nuclei_centroids_dict is not None:
+                summary_entry["mean_distance_to_nucleus"] = None
+
+            cell_summary.append(summary_entry)
+
+    # Create final results
+    cell_summary_df = pd.DataFrame(cell_summary)
+    cell_second_obj_table = {
+        "cell_summary": cell_summary_df,
+        "second_obj_cell_mapping": second_obj_cell_df,
+    }
+
+    # Create associated secondary object masks
+    associated_second_objs = np.zeros_like(labeled_second_objs)
+    for mapping in second_obj_cell_mapping:
+        second_obj_id = mapping["second_obj_id"]
+        second_obj_mask = labeled_second_objs == second_obj_id
+        associated_second_objs[second_obj_mask] = second_obj_id
+
+    # Print statistics
+    total_kept = len(second_obj_cell_mapping)
+    print(
+        f"Kept {total_kept} out of {num_second_objs} detected secondary objects "
+        f"({total_kept / num_second_objs * 100:.1f}%)"
+    )
+    print(
+        f"Discarded {num_second_objs - total_kept} secondary objects that didn't meet diameter criteria or cell overlap"
+    )
+
+    # Process cytoplasm masks if provided
+    updated_cytoplasm_masks = None
+    if cytoplasm_masks is not None:
+        updated_cytoplasm_masks = cytoplasm_masks.copy()
+        for mapping in second_obj_cell_mapping:
+            second_obj_id = mapping["second_obj_id"]
+            cell_id = mapping["cell_id"]
+            second_obj_mask = associated_second_objs == second_obj_id
+            cytoplasm_mask = updated_cytoplasm_masks == cell_id
+            updated_cytoplasm_masks[cytoplasm_mask & second_obj_mask] = 0
+        print(
+            f"Updated cytoplasm masks by removing {len(second_obj_cell_mapping)} secondary object regions"
+        )
+
+    # Return results
+    if updated_cytoplasm_masks is not None:
+        return (
+            associated_second_objs,
+            cell_second_obj_table,
+            updated_cytoplasm_masks,
+        )
+    else:
+        return associated_second_objs, cell_second_obj_table

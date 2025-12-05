@@ -8,7 +8,9 @@ all_dfs = Parallel(n_jobs=snakemake.threads)(
     delayed(read_tsv_safe)(file) for file in snakemake.input
 )
 valid_dfs = [df for df in all_dfs if not df.empty]
-combined_df = pd.concat(valid_dfs).reset_index(drop=True) if valid_dfs else pd.DataFrame()
+combined_df = (
+    pd.concat(valid_dfs).reset_index(drop=True) if valid_dfs else pd.DataFrame()
+)
 
 # Validate col types
 # Empty dfs can cause issues with dtype

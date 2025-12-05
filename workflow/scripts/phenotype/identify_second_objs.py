@@ -44,21 +44,30 @@ if use_ml:
 
     # Collect ML-specific parameters (any param not in common_params or standard CV params)
     cv_only_params = {
-        "threshold_smoothing_scale", "threshold_method", "use_morphological_opening",
-        "opening_disk_radius", "fill_holes", "declump_method", "declump_mode",
-        "suppress_local_maxima", "maxima_reduction_factor", "use_shape_refinement",
-        "proportion_threshold", "use_ml_segmentation", "second_obj_channel_index"
+        "threshold_smoothing_scale",
+        "threshold_method",
+        "use_morphological_opening",
+        "opening_disk_radius",
+        "fill_holes",
+        "declump_method",
+        "declump_mode",
+        "suppress_local_maxima",
+        "maxima_reduction_factor",
+        "use_shape_refinement",
+        "proportion_threshold",
+        "use_ml_segmentation",
+        "second_obj_channel_index",
     }
 
     ml_params = {
-        k: v for k, v in params.items()
+        k: v
+        for k, v in params.items()
         if k not in common_params and k not in cv_only_params
     }
 
     # Call ML segmentation with common params and ML-specific params
-    second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks = segment_second_objs_ml(
-        **common_params,
-        **ml_params
+    second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks = (
+        segment_second_objs_ml(**common_params, **ml_params)
     )
 else:
     from lib.phenotype.segment_secondary_object import segment_second_objs
@@ -79,9 +88,8 @@ else:
     }
 
     # Call traditional segmentation
-    second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks = segment_second_objs(
-        **common_params,
-        **cv_params
+    second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks = (
+        segment_second_objs(**common_params, **cv_params)
     )
 
 # Save outputs

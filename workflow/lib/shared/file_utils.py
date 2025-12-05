@@ -218,13 +218,13 @@ def read_tsv_safe(filepath, return_empty_on_error=True):
         If False, return None on EmptyDataError.
         Default: True
 
-    Returns
+    Returns:
     -------
     pd.DataFrame or None
         DataFrame if file read successfully or is empty (when return_empty_on_error=True).
         None if file is empty and return_empty_on_error=False.
 
-    Examples
+    Examples:
     --------
     >>> df = read_tsv_safe('data.tsv')
     >>> df = read_tsv_safe('data.tsv', return_empty_on_error=False)

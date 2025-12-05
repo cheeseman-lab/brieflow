@@ -2,20 +2,11 @@
 
 import pandas as pd
 from joblib import Parallel, delayed
-from lib.shared.file_utils import validate_dtypes
-
-
-def get_file(f):
-    """Read a TSV file safely."""
-    try:
-        return pd.read_csv(f, sep="\t")
-    except pd.errors.EmptyDataError:
-        return pd.DataFrame()
-
+from lib.shared.file_utils import validate_dtypes, read_tsv_safe
 
 # Load all metadata files
 all_dfs = Parallel(n_jobs=snakemake.threads)(
-    delayed(get_file)(file) for file in snakemake.input
+    delayed(read_tsv_safe)(file) for file in snakemake.input
 )
 
 # Combine all dataframes

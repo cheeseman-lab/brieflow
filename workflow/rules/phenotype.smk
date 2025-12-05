@@ -96,10 +96,8 @@ if config["phenotype"].get("second_obj_detection", True):
             # updated cytoplasm masks
             PHENOTYPE_OUTPUTS_MAPPED["identify_second_objs"][2],
         params:
-            second_obj_channel_index=config["phenotype"]["second_obj_channel_index"],
-            second_obj_min_size=config["phenotype"]["second_obj_min_size"],
-            second_obj_max_size=config["phenotype"]["second_obj_max_size"],
-            suppress_local_maxima=config["phenotype"]["suppress_local_maxima"],
+            # Pass all secondary object parameters from config
+            second_obj_params=config["phenotype"],
         script:
             "../scripts/phenotype/identify_second_objs.py"
 

@@ -60,7 +60,7 @@ def segment_second_objs_ml(
     nuclei_centroids=None,
     max_total_objects=1000,
     # ML-specific parameters - users add more as needed
-    **ml_params
+    **ml_params,
 ):
     """Segment secondary objects using ML models (Cellpose, StarDist, etc.).
 
@@ -148,19 +148,19 @@ def segment_second_objs_ml(
         Additional ML model parameters. Users can pass any model-specific
         parameters here (e.g., diameter, flow_threshold, etc.)
 
-    Returns
+    Returns:
     -------
     tuple
         - second_obj_masks: Labeled mask of secondary objects [height, width]
         - cell_second_obj_table: Dict with 'cell_summary' and 'second_obj_cell_mapping' DataFrames
         - updated_cytoplasm_masks: Cytoplasm masks with secondary objects removed (if provided)
 
-    Raises
+    Raises:
     ------
     NotImplementedError
         This is a template function that users must implement with their ML model
 
-    Notes
+    Notes:
     -----
     - Users only implement the ML segmentation (steps 1-2 above)
     - All post-processing is handled by _postprocess_secondary_objects()
@@ -1255,14 +1255,14 @@ def _postprocess_secondary_objects(
         Index of secondary object channel.
         Only needed if nuclei_centroids provided (for distance calculations)
 
-    Returns
+    Returns:
     -------
     tuple
         - second_obj_masks: Filtered and renumbered secondary object masks
         - cell_second_obj_table: Dict with 'cell_summary' and 'second_obj_cell_mapping' DataFrames
         - updated_cytoplasm_masks: Cytoplasm masks with secondary objects removed (or None)
 
-    Notes
+    Notes:
     -----
     - This function is shared by both segment_second_objs() and segment_second_objs_ml()
     - Input masks should already be labeled (not binary)

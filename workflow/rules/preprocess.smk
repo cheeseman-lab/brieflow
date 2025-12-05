@@ -111,6 +111,7 @@ rule convert_sbs_omezarr:
         chunk_shape=config["preprocess"].get("omezarr_chunk_shape", [1, 512, 512]),
         coarsening_factor=config["preprocess"].get("omezarr_coarsening_factor", 2),
         max_levels=config["preprocess"].get("omezarr_max_levels"),
+        channel_labels=config["sbs"]["channel_names"],
     script:
         "../scripts/preprocess/nd2_to_omezarr.py"
 
@@ -151,6 +152,7 @@ rule convert_phenotype_omezarr:
         chunk_shape=config["preprocess"].get("omezarr_chunk_shape", [1, 512, 512]),
         coarsening_factor=config["preprocess"].get("omezarr_coarsening_factor", 2),
         max_levels=config["preprocess"].get("omezarr_max_levels"),
+        channel_labels=config["phenotype"]["channel_names"],
     script:
         "../scripts/preprocess/nd2_to_omezarr.py"
 

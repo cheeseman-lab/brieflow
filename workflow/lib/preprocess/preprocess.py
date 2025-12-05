@@ -443,12 +443,13 @@ def write_multiscale_omezarr(
     base_pixel_size = pixel_size
 
     for idx, level in enumerate(pyramid):
-        level_path = output_path / f"scale{idx}"
+        level_name = str(idx)
+        level_path = output_path / level_name
         _write_zarr_array(level, level_path, chunk_shape)
 
         datasets_meta.append(
             {
-                "path": f"scale{idx}",
+                "path": level_name,
                 "shape": list(level.shape),
                 "coordinateTransformations": [
                     {

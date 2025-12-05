@@ -141,7 +141,8 @@ def ensure_omero_channel_colors(
     - On existing stores that are missing channel color metadata.
 
     It will:
-    - Inspect `scale0` to determine the number of channels.
+    - Inspect the first dataset listed in `multiscales[0]['datasets']`
+      to determine the number of channels.
     - Create or update `attrs['omero']['channels']` so that:
         - Its length matches the number of channels.
         - Each entry has a `label` and `color` field.
@@ -163,25 +164,41 @@ def ensure_omero_channel_colors(
             "The 'zarr' package is required to modify channel metadata."
         )
 
-    store = zarr_path
-    group = zarr.open(store=str(store), mode="r")
-
-    if "scale0" not in group:
-        raise ValueError(f"No 'scale0' dataset found in {zarr_path}")
-
-    scale0 = group["scale0"]
-    if scale0.ndim < 3:
-        raise ValueError(
-            f"Expected at least 3D data in scale0 (C, Y, X), got shape {scale0.shape}"
-        )
-
-    n_channels = int(scale0.shape[0])
-
     attrs_path = zarr_path / ".zattrs"
     if not attrs_path.exists():
         raise FileNotFoundError(f"Missing .zattrs in {zarr_path}")
 
     attrs = json.loads(attrs_path.read_text())
+
+    multiscales = attrs.get("multiscales") or []
+    dataset_path = None
+    if multiscales:
+        first_level = multiscales[0]
+        datasets = first_level.get("datasets") or []
+        if datasets and datasets[0].get("path"):
+            dataset_path = datasets[0]["path"]
+
+    if not dataset_path:
+        raise ValueError(
+            "Could not determine the highest resolution dataset path from multiscales"
+        )
+
+    store = zarr_path
+    group = zarr.open(store=str(store), mode="r")
+
+    if dataset_path not in group:
+        raise ValueError(
+            f"Dataset path '{dataset_path}' from metadata not found in {zarr_path}"
+        )
+
+    level0 = group[dataset_path]
+    if level0.ndim < 3:
+        raise ValueError(
+            f"Expected at least 3D data in dataset '{dataset_path}' (C, Y, X),"
+            f" got shape {level0.shape}"
+        )
+
+    n_channels = int(level0.shape[0])
 
     # Ensure top-level omero key
     omero = attrs.get("omero") or {}
@@ -235,4 +252,3 @@ def ensure_omero_channel_colors(
     attrs["omero"] = omero
 
     attrs_path.write_text(json.dumps(attrs, indent=2))
-

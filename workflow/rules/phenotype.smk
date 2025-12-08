@@ -114,7 +114,7 @@ if config["phenotype"].get("second_obj_detection", True):
         output:
             PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_second_objs"],
         params:
-            foci_channel=config["phenotype"]["foci_channel_index"],
+            foci_channel_index=config["phenotype"]["foci_channel_index"],
             channel_names=config["phenotype"]["channel_names"],
         script:
             "../scripts/phenotype/extract_phenotype_second_objs.py"

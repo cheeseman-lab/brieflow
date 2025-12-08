@@ -40,6 +40,7 @@ second_obj_phenotype = extract_phenotype_second_objs(
     second_objs=second_obj_masks,
     wildcards=snakemake.wildcards,
     second_obj_cell_mapping_df=second_obj_cell_mapping_df,
+    foci_channel=snakemake.params.foci_channel_index,
     channel_names=snakemake.params.channel_names,
 )
 

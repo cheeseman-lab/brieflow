@@ -166,9 +166,9 @@ rule extract_phenotype_cp:
 if config["phenotype"].get("second_obj_detection", True):
     rule merge_second_objs_phenotype_cp:
         input:
-            # main phenotype data (tile-level)
+            # main phenotype data 
             PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
-            # secondary object data (tile-level)
+            # secondary object data 
             PHENOTYPE_OUTPUTS["identify_second_objs"][1],
         output:
             PHENOTYPE_OUTPUTS_MAPPED["merge_second_objs_phenotype_cp"],
@@ -180,7 +180,7 @@ if config["phenotype"].get("second_obj_detection", True):
 rule merge_phenotype:
     input:
         lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["extract_phenotype"],
+            PHENOTYPE_OUTPUTS["merge_second_objs_phenotype_cp"],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=phenotype_wildcard_combos,

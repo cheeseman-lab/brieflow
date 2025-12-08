@@ -62,34 +62,6 @@ if method == "cellpose":
         )
         cells_data = np.zeros_like(nuclei_data)
 
-elif method == "microsam":
-    # Segment cells using MicroSAM
-    from lib.shared.segment_microsam import segment_microsam
-
-    if segment_cells:
-        nuclei_data, cells_data, counts_df = segment_microsam(
-            data=aligned_data,
-            dapi_index=params["dapi_index"],
-            cyto_index=params["cyto_index"],
-            model_type=params["microsam_model"],
-            reconcile=params.get("reconcile"),
-            return_counts=params.get("return_counts", True),
-            gpu=params.get("gpu", False),
-            cells=segment_cells,
-        )
-    else:
-        nuclei_data, counts_df = segment_microsam(
-            data=aligned_data,
-            dapi_index=params["dapi_index"],
-            cyto_index=params["cyto_index"],
-            model_type=params["microsam_model"],
-            reconcile=params.get("reconcile"),
-            return_counts=params.get("return_counts", True),
-            gpu=params.get("gpu", False),
-            cells=segment_cells,
-        )
-        cells_data = np.zeros_like(nuclei_data)
-
 elif method == "stardist":
     # Segment cells using StarDist
     from lib.shared.segment_stardist import segment_stardist
@@ -162,7 +134,7 @@ elif method == "watershed":
         cells_data = np.zeros_like(nuclei_data)
 else:
     raise ValueError(
-        f"Unknown segmentation method: {method}. Choose one of: cellpose, microsam, stardist, watershed"
+        f"Unknown segmentation method: {method}. Choose one of: cellpose, stardist, watershed"
     )
 
 # Save segmented nuclei data

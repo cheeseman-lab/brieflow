@@ -383,6 +383,10 @@ def _write_group_metadata(
     ]
 
     dtype_info = np.iinfo(dtype) if np.issubdtype(dtype, np.integer) else None
+    window_max = int(dtype_info.max) if dtype_info else 1.0
+    window_min = 0
+    window_start = window_min
+    window_end = window_max
     n_channels = int(datasets[0]["shape"][0]) if datasets else 0
     channel_colors = default_omero_color_ints(n_channels) if n_channels else []
 
@@ -392,8 +396,10 @@ def _write_group_metadata(
                 "label": f"Channel {idx}",
                 "color": channel_colors[idx] if idx < len(channel_colors) else None,
                 "window": {
-                    "min": 0,
-                    "max": int(dtype_info.max) if dtype_info else None,
+                    "min": window_min,
+                    "max": window_max,
+                    "start": window_start,
+                    "end": window_end,
                 },
             }
             for idx in range(n_channels)

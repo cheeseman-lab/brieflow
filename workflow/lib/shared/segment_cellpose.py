@@ -84,8 +84,8 @@ def segment_cellpose(
         cyto_index (int): Index of cytoplasmic channel.
         nuclei_diameter (int): Estimated diameter of nuclei.
         cell_diameter (int): Estimated diameter of cells.
-        cellpose_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
-            Use 'cpsam' for Cellpose-SAM (requires Cellpose 4.x).
+        cellpose_model (str, optional): Cellpose model type to use (e.g., 'cyto3', 'cpsam').
+            Default is 'cyto3'. Use 'cpsam' for Cellpose-SAM (requires Cellpose 4.x).
         helper_index (int, optional): Index of helper channel for improved segmentation (CPSAM feature).
             Only used with multi-channel models. Default is None (blank channel).
         cellpose_kwargs (dict, optional): Additional keyword arguments for Cellpose, including:
@@ -355,9 +355,9 @@ def segment_cellpose_rgb(
         rgb (numpy.ndarray): RGB image.
         nuclei_diameter (int): Diameter of nuclei for segmentation.
         cell_diameter (int): Diameter of cells for segmentation.
-        cellpose_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
-            Cellpose 3.x: Use 'cyto3', 'nuclei', 'cyto2'
-            Cellpose 4.x: Use 'cpsam' only
+        cellpose_model (str, optional): Cellpose model type to use (e.g., 'cyto3', 'cpsam').
+            Default is 'cyto3'. Cellpose 3.x: Use 'cyto3', 'nuclei', 'cyto2'.
+            Cellpose 4.x: Use 'cpsam' only.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
         remove_edges (bool, optional): Whether to remove nuclei and cells touching the image edges. Default is True.
         return_counts (bool, optional): Whether to return counts of nuclei and cells before reconciliation. Default is False.

@@ -345,8 +345,23 @@ def _write_zarr_array(
                     y_start:y_end,
                     x_start:x_end,
                 ]
-                chunk_fp = level_path / f"{c_idx}.{y_idx}.{x_idx}"
-                chunk_fp.write_bytes(chunk.tobytes(order="C"))
+
+                chunk_dir = level_path / str(c_idx) / str(y_idx) / str(x_idx)
+                chunk_dir.mkdir(parents=True, exist_ok=True)
+
+                chunk_meta = {
+                    "chunk_indices": [c_idx, y_idx, x_idx],
+                    "chunk_shape": [chunk_c, chunk_y, chunk_x],
+                    "dtype": np.dtype(level_data.dtype).str,
+                }
+                (chunk_dir / "chunk.json").write_text(
+                    json.dumps(chunk_meta), encoding="utf-8"
+                )
+
+                for local_c in range(chunk_c):
+                    channel_slice = chunk[local_c, :chunk_y, :chunk_x]
+                    slice_fp = chunk_dir / f"{local_c}.bin"
+                    slice_fp.write_bytes(channel_slice.tobytes(order="C"))
 
 
 def _write_group_metadata(

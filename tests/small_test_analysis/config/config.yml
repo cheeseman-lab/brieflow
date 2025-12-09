@@ -75,7 +75,6 @@ sbs:
   nuclei_cellprob_threshold: 0.0
   cell_flow_threshold: 1
   cell_cellprob_threshold: 0
-  cyto_model: cyto3
 phenotype:
   align: false
   cell_diameter: 53.075815293046055
@@ -87,7 +86,7 @@ phenotype:
   - WGA
   cp_method: 
   cyto_index: 1
-  cyto_model: cyto3
+  cellpose_model: cyto3
   dapi_index: 0
   flow_threshold: 0.4
   foci_channel_index: 2

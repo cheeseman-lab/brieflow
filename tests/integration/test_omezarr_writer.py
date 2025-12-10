@@ -20,6 +20,7 @@ def test_write_multiscale_omezarr(tmp_path):
         chunk_shape=(1, 64, 64),
         coarsening_factor=2,
         max_levels=3,
+        image_name="test_image",
     )
 
     assert result_path == Path(output)
@@ -29,7 +30,9 @@ def test_write_multiscale_omezarr(tmp_path):
     with open(output / ".zattrs", "r") as handle:
         attrs = json.load(handle)
 
-    datasets = attrs["multiscales"][0]["datasets"]
+    multiscale_entry = attrs["multiscales"][0]
+    assert multiscale_entry["name"] == "test_image"
+    datasets = multiscale_entry["datasets"]
     assert len(datasets) == 3
     assert datasets[0]["path"] == "0"
     assert datasets[0]["coordinateTransformations"][0]["scale"][1:] == [0.25, 0.25]
@@ -41,7 +44,7 @@ def test_write_multiscale_omezarr(tmp_path):
     # Verify pyramid downscaling
     scale2_meta = json.loads((output / "2" / ".zarray").read_text())
     assert scale2_meta["shape"][1] < scale0_meta["shape"][1]
-    assert (output / "2" / "0.0.0").exists()
+    assert (output / "2" / "0" / "0" / "0").exists()
 
     channels = attrs["omero"]["channels"]
     assert len(channels) == 2
@@ -49,7 +52,7 @@ def test_write_multiscale_omezarr(tmp_path):
     assert [channel["color"] for channel in channels] == expected_colors
 
     # Edge chunks (dim < chunk) should still have full chunk byte-size
-    edge_chunk = output / "0" / "0.2.2"
+    edge_chunk = output / "0" / "0" / "2" / "2"
     assert edge_chunk.exists()
     expected_chunk_bytes = np.prod((1, 64, 64)) * image.dtype.itemsize
     assert edge_chunk.stat().st_size == expected_chunk_bytes

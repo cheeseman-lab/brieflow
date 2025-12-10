@@ -396,6 +396,7 @@ def _write_group_metadata(
     pixel_size: Tuple[float, float, float],
     dtype: np.dtype,
     has_z: bool,
+    image_name: str | None = None,
 ) -> None:
     """Write root-level Zarr metadata."""
     (output_dir / ".zgroup").write_text(
@@ -404,12 +405,11 @@ def _write_group_metadata(
 
     pixel_z, pixel_y, pixel_x = pixel_size
 
-    multiscales = [
-        {
-            "version": "0.4",
-            "type": "image",
-            "metadata": {"method": "mean"},
-            "axes": (
+    multiscale_entry: dict = {
+        "version": "0.4",
+        "type": "image",
+        "metadata": {"method": "mean"},
+        "axes": (
                 [
                     {"name": "c", "type": "channel"},
                     *(
@@ -425,9 +425,12 @@ def _write_group_metadata(
                     {"name": "x", "type": "space", "unit": "micrometer"},
                 ]
             ),
-            "datasets": datasets,
-        }
-    ]
+        "datasets": datasets,
+    }
+    if image_name:
+        multiscale_entry["name"] = image_name
+
+    multiscales = [multiscale_entry]
 
     dtype_info = np.iinfo(dtype) if np.issubdtype(dtype, np.integer) else None
     window_max = int(dtype_info.max) if dtype_info else 1.0
@@ -501,6 +504,7 @@ def write_multiscale_omezarr(
     chunk_shape: Sequence[int] = (1, 512, 512),
     coarsening_factor: int = 2,
     max_levels: int | None = None,
+    image_name: str | None = None,
 ) -> Path:
     """Persist a CYX or CZYX image array as a multiscale OME-Zarr pyramid."""
     if image.ndim not in (3, 4):
@@ -570,6 +574,7 @@ def write_multiscale_omezarr(
         base_pixel_size,
         dtype=image.dtype,
         has_z=has_z,
+        image_name=image_name,
     )
 
     return output_path
@@ -608,6 +613,12 @@ def nd2_to_omezarr(
     )
     pixel_size = _resolve_pixel_sizes(normalized_files[0])
 
+    primary_names = [path.stem for path in normalized_files]
+    if len(primary_names) == 1:
+        image_name = primary_names[0]
+    else:
+        image_name = ", ".join(primary_names)
+
     return write_multiscale_omezarr(
         image=image,
         output_dir=output_dir,
@@ -615,4 +626,5 @@ def nd2_to_omezarr(
         chunk_shape=chunk_shape,
         coarsening_factor=coarsening_factor,
         max_levels=max_levels,
+        image_name=image_name,
     )

@@ -390,11 +390,35 @@ def _write_group_metadata(
     n_channels = int(datasets[0]["shape"][0]) if datasets else 0
     channel_colors = default_omero_color_ints(n_channels) if n_channels else []
 
+    def _format_color(color_value: int | str | None) -> str:
+        """Ensure channel colors are NGFF-compliant hex strings."""
+        if isinstance(color_value, str):
+            cleaned = color_value.strip().lstrip("#").upper()
+            if len(cleaned) == 6 and all(c in "0123456789ABCDEF" for c in cleaned):
+                return cleaned
+            # Fall through to integer conversion if string is not valid hex
+            try:
+                color_value = int(color_value, 16)
+            except ValueError:
+                return "FFFFFF"
+
+        if color_value is None:
+            return "FFFFFF"
+
+        try:
+            color_int = int(color_value)
+        except (TypeError, ValueError):
+            return "FFFFFF"
+
+        return f"{color_int & 0xFFFFFF:06X}"
+
     omero = {
         "channels": [
             {
                 "label": f"Channel {idx}",
-                "color": channel_colors[idx] if idx < len(channel_colors) else None,
+                "color": _format_color(
+                    channel_colors[idx] if idx < len(channel_colors) else None
+                ),
                 "window": {
                     "min": window_min,
                     "max": window_max,

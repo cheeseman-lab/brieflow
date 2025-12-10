@@ -3,6 +3,7 @@
 import json
 import math
 import shutil
+from itertools import product
 from pathlib import Path
 from typing import List, Sequence, Tuple, Union
 
@@ -323,6 +324,7 @@ def _write_zarr_array(
     level_data: np.ndarray,
     level_path: Path,
     chunk_shape: Sequence[int],
+    compressor: dict | None = None,
 ) -> None:
     """Write a single pyramid level (CYX or CZYX) to a Zarr array on disk."""
     level_path.mkdir(parents=True, exist_ok=True)
@@ -349,9 +351,12 @@ def _write_zarr_array(
 
     dimensions = ["c", "z", "y", "x"] if level_data.ndim == 4 else ["c", "y", "x"]
 
+    compressor_meta = compressor
+    compressor_id = compressor_meta.get("id") if compressor_meta else None
+
     zarray_meta = {
         "chunks": list(normalized_chunk),
-        "compressor": None,
+        "compressor": compressor_meta,
         "dtype": np.dtype(level_data.dtype).str,
         "fill_value": 0,
         "filters": None,
@@ -386,7 +391,19 @@ def _write_zarr_array(
         for idx in indices:
             chunk_fp /= str(idx)
         chunk_fp.parent.mkdir(parents=True, exist_ok=True)
-        chunk_bytes = np.ascontiguousarray(chunk).tobytes(order="C")
+        raw_bytes = np.ascontiguousarray(chunk).tobytes(order="C")
+        if compressor_id == "blosc":
+            import blosc
+
+            chunk_bytes = blosc.compress(
+                raw_bytes,
+                typesize=chunk.dtype.itemsize,
+                cname=compressor_meta.get("cname", "zstd"),
+                clevel=int(compressor_meta.get("clevel", 3)),
+                shuffle=int(compressor_meta.get("shuffle", 2)),
+            )
+        else:
+            chunk_bytes = raw_bytes
         chunk_fp.write_bytes(chunk_bytes)
 
 
@@ -501,10 +518,11 @@ def write_multiscale_omezarr(
     image: np.ndarray,
     output_dir: Union[str, Path],
     pixel_size: Sequence[float] = (1.0, 1.0, 1.0),
-    chunk_shape: Sequence[int] = (1, 512, 512),
+    chunk_shape: Sequence[int] = (1, 1024, 1024),
     coarsening_factor: int = 2,
     max_levels: int | None = None,
     image_name: str | None = None,
+    compressor: dict | None = None,
 ) -> Path:
     """Persist a CYX or CZYX image array as a multiscale OME-Zarr pyramid."""
     if image.ndim not in (3, 4):
@@ -543,7 +561,7 @@ def write_multiscale_omezarr(
     for idx, level in enumerate(pyramid):
         level_name = str(idx)
         level_path = output_path / level_name
-        _write_zarr_array(level, level_path, chunk_shape)
+        _write_zarr_array(level, level_path, chunk_shape, compressor=compressor)
 
         scale = [1]
         if has_z:
@@ -584,10 +602,11 @@ def nd2_to_omezarr(
     files: Union[str, List[str], Path, List[Path]],
     output_dir: Union[str, Path],
     channel_order_flip: bool = False,
-    chunk_shape: Sequence[int] = (1, 512, 512),
+    chunk_shape: Sequence[int] = (1, 1024, 1024),
     coarsening_factor: int = 2,
     max_levels: int | None = None,
     verbose: bool = False,
+    compressor: dict | None = None,
 ) -> Path:
     """Convert ND2 file(s) to a multiscale OME-Zarr pyramid."""
     _require_nd2()
@@ -627,4 +646,5 @@ def nd2_to_omezarr(
         coarsening_factor=coarsening_factor,
         max_levels=max_levels,
         image_name=image_name,
+        compressor=compressor,
     )

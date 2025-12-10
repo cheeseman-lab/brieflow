@@ -26,6 +26,7 @@ dependencies = [
   "seaborn==0.13.2",
   "tifffile==2025.6.11",
   "mahotas==1.4.18",
+  "python-blosc==1.11.1",
   "python-igraph==0.11.9",
   "leidenalg==0.10.2",
   "phate==1.0.11",

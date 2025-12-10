@@ -2,6 +2,12 @@ from lib.preprocess.file_utils import get_sample_fps
 
 from lib.shared.target_utils import output_to_input
 
+OME_ZARR_CFG = config.get("preprocess", {}).get("ome_zarr", {})
+OME_ZARR_COMPRESSOR = OME_ZARR_CFG.get("compression")
+OME_ZARR_CHUNK = OME_ZARR_CFG.get("chunk_xy", 1024)
+OME_ZARR_CHUNK_SHAPE = config.get("preprocess", {}).get(
+    "omezarr_chunk_shape", [1, OME_ZARR_CHUNK, OME_ZARR_CHUNK]
+)
 
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
@@ -108,9 +114,10 @@ rule convert_sbs_omezarr:
         PREPROCESS_OUTPUTS_MAPPED["convert_sbs_omezarr"],
     params:
         channel_order_flip=config["preprocess"]["sbs_channel_order_flip"],
-        chunk_shape=config["preprocess"].get("omezarr_chunk_shape", [1, 512, 512]),
+        chunk_shape=OME_ZARR_CHUNK_SHAPE,
         coarsening_factor=config["preprocess"].get("omezarr_coarsening_factor", 2),
         max_levels=config["preprocess"].get("omezarr_max_levels"),
+        compressor=OME_ZARR_COMPRESSOR,
         channel_labels=config["sbs"]["channel_names"],
     script:
         "../scripts/preprocess/nd2_to_omezarr.py"
@@ -149,9 +156,10 @@ rule convert_phenotype_omezarr:
         PREPROCESS_OUTPUTS_MAPPED["convert_phenotype_omezarr"],
     params:
         channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
-        chunk_shape=config["preprocess"].get("omezarr_chunk_shape", [1, 512, 512]),
+        chunk_shape=OME_ZARR_CHUNK_SHAPE,
         coarsening_factor=config["preprocess"].get("omezarr_coarsening_factor", 2),
         max_levels=config["preprocess"].get("omezarr_max_levels"),
+        compressor=OME_ZARR_COMPRESSOR,
         channel_labels=config["phenotype"]["channel_names"],
     script:
         "../scripts/preprocess/nd2_to_omezarr.py"
@@ -197,3 +205,8 @@ rule calculate_ic_phenotype:
 rule all_preprocess:
     input:
         PREPROCESS_TARGETS_ALL,
+OME_ZARR_CFG = config["preprocess"].get("ome_zarr", {}) if "preprocess" in config else {}
+OME_ZARR_COMPRESSOR = OME_ZARR_CFG.get(
+    "compression",
+    {"id": "blosc", "cname": "zstd", "clevel": 3, "shuffle": 2},
+)

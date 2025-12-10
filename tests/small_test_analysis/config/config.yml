@@ -23,6 +23,19 @@ preprocess:
   sbs_channel_order_flip: true
   sbs_combo_fp: config/sbs_combo.tsv
   sbs_samples_fp: config/sbs_samples.tsv
+  omezarr_chunk_shape:
+  - 1
+  - 1024
+  - 1024
+  ome_zarr:
+    enabled: true
+    output_root: brieflow_output/preprocess/ome_zarr
+    chunk_xy: 1024
+    scale_factors:
+    - 2
+    - 4
+    version: "0.5"
+    validate: true
 sbs:
   alignment_method: null
   channel_names:

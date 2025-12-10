@@ -6,9 +6,11 @@ from lib.shared.omezarr_utils import ensure_omero_channel_colors
 
 params = getattr(snakemake, "params", {})  # noqa: F821 - defined by Snakemake
 
-chunk_shape = tuple(int(value) for value in params.get("chunk_shape", (1, 512, 512)))
-if len(chunk_shape) != 3:
-    raise ValueError("chunk_shape must have three elements (C, Y, X).")
+chunk_shape = tuple(int(value) for value in params.get("chunk_shape", (1, 1024, 1024)))
+if len(chunk_shape) not in (3, 4):
+    raise ValueError(
+        "chunk_shape must have three (C, Y, X) or four (C, Z, Y, X) elements."
+    )
 
 output_dir = Path(snakemake.output[0])  # noqa: F821
 
@@ -20,6 +22,7 @@ result_path = nd2_to_omezarr(
     coarsening_factor=params.get("coarsening_factor", 2),
     max_levels=params.get("max_levels"),
     verbose=params.get("verbose", False),
+    compressor=params.get("compressor"),
 )
 
 # Post-process OMERO metadata to ensure meaningful channel labels and colors.

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import blosc
 
 from lib.preprocess.preprocess import write_multiscale_omezarr
 from lib.shared.omezarr_utils import default_omero_color_ints
@@ -13,6 +14,8 @@ def test_write_multiscale_omezarr(tmp_path):
     image = np.arange(2 * 130 * 130, dtype=np.uint16).reshape(2, 130, 130)
     output = tmp_path / "test_image.ome.zarr"
 
+    compressor = {"id": "blosc", "cname": "zstd", "clevel": 3, "shuffle": 2}
+
     result_path = write_multiscale_omezarr(
         image=image,
         output_dir=output,
@@ -21,6 +24,7 @@ def test_write_multiscale_omezarr(tmp_path):
         coarsening_factor=2,
         max_levels=3,
         image_name="test_image",
+        compressor=compressor,
     )
 
     assert result_path == Path(output)
@@ -55,4 +59,5 @@ def test_write_multiscale_omezarr(tmp_path):
     edge_chunk = output / "0" / "0" / "2" / "2"
     assert edge_chunk.exists()
     expected_chunk_bytes = np.prod((1, 64, 64)) * image.dtype.itemsize
-    assert edge_chunk.stat().st_size == expected_chunk_bytes
+    decompressed = blosc.decompress(edge_chunk.read_bytes())
+    assert len(decompressed) == expected_chunk_bytes

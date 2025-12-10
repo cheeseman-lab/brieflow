@@ -162,6 +162,7 @@ def nd2_to_tiff(
     files: Union[str, List[str], Path, List[Path]],
     channel_order_flip: bool = False,
     verbose: bool = False,
+    preserve_z: bool = False,
 ) -> np.ndarray:
     """Converts one or multiple ND2 files to a multidimensional numpy array, ensuring CYX structure.
 
@@ -197,20 +198,33 @@ def nd2_to_tiff(
 
         # Handle Z-stack if present
         if "Z" in image.dims:
-            image = image.max(dim="Z")
+            if preserve_z:
+                pass
+            else:
+                image = image.max(dim="Z")
+        elif preserve_z:
+            image = image.expand_dims("Z")
 
         # Convert to numpy array based on dimensions present
         if "C" in image.dims:
-            # If C dimension exists, ensure CYX order
-            img_array = image.transpose("C", "Y", "X").values
+            if preserve_z:
+                if "Z" not in image.dims:
+                    image = image.expand_dims("Z")
+                img_array = image.transpose("C", "Z", "Y", "X").values
+            else:
+                img_array = image.transpose("C", "Y", "X").values
 
             # Flip channel order if needed
             if channel_order_flip:
                 img_array = np.flip(img_array, axis=0)
         else:
             # If no C dimension, assume YX and add channel dimension
-            img_array = image.transpose("Y", "X").values
-            img_array = np.expand_dims(img_array, axis=0)  # Add channel dimension
+            if preserve_z:
+                img_array = image.transpose("Z", "Y", "X").values
+                img_array = np.expand_dims(img_array, axis=0)
+            else:
+                img_array = image.transpose("Y", "X").values
+                img_array = np.expand_dims(img_array, axis=0)  # Add channel dimension
 
         if verbose:
             print(f"Array shape after processing: {img_array.shape}")
@@ -227,14 +241,19 @@ def nd2_to_tiff(
     result = np.concatenate(image_arrays, axis=0)
 
     if verbose:
-        print(f"Final dimensions (CYX): {result.shape}")
+        suffix = "CZYX" if preserve_z else "CYX"
+        print(f"Final dimensions ({suffix}): {result.shape}")
 
     return result.astype(np.uint16)
 
 
-def _resolve_pixel_size(first_file: Path) -> Tuple[float, float]:
-    """Fetch XY pixel size (micrometers) from an ND2 file, defaulting to 1.0 when missing."""
+def _resolve_pixel_sizes(first_file: Path) -> Tuple[float, float, float]:
+    """Fetch ZYX pixel sizes (micrometers) from an ND2 file, defaulting to 1.0."""
     _require_nd2()
+
+    pixel_x = 1.0
+    pixel_y = 1.0
+    pixel_z = 1.0
 
     try:
         with nd2.ND2File(str(first_file)) as handle:
@@ -244,21 +263,28 @@ def _resolve_pixel_size(first_file: Path) -> Tuple[float, float]:
                 and hasattr(frame_meta.channels[0], "volume")
                 and frame_meta.channels[0].volume.axesCalibration
             ):
-                x_cal, y_cal, _ = frame_meta.channels[0].volume.axesCalibration
-                return float(x_cal) if x_cal else 1.0, float(y_cal) if y_cal else 1.0
+                axes_calibration = frame_meta.channels[0].volume.axesCalibration
+                if len(axes_calibration) >= 3:
+                    x_cal, y_cal, z_cal = axes_calibration[:3]
+                else:
+                    x_cal = axes_calibration[0]
+                    y_cal = axes_calibration[1]
+                    z_cal = None
+                pixel_x = float(x_cal) if x_cal else 1.0
+                pixel_y = float(y_cal) if y_cal else 1.0
+                pixel_z = float(z_cal) if z_cal else 1.0
     except Exception as exc:
         print(f"Warning: unable to read pixel size from {first_file}: {exc}")
 
-    return 1.0, 1.0
+    return pixel_z, pixel_y, pixel_x
 
 
 def _build_pyramid(
     image: np.ndarray,
     coarsening_factor: int,
-    chunk_shape: Sequence[int],
     max_levels: int | None,
 ) -> List[np.ndarray]:
-    """Create a multiscale pyramid with downscale_local_mean."""
+    """Create a multiscale pyramid by reducing only spatial (Y/X) axes."""
     if coarsening_factor < 1:
         raise ValueError("coarsening_factor must be greater than or equal to 1.")
 
@@ -277,9 +303,8 @@ def _build_pyramid(
         if next_y < 1 or next_x < 1:
             break
 
-        reduced = _downscale_local_mean(
-            current.astype(np.float32),
-            (1, coarsening_factor, coarsening_factor),
+        reduced = _downscale_spatial_dims(
+            current.astype(np.float32), coarsening_factor
         )
 
         if np.issubdtype(image.dtype, np.integer):
@@ -299,16 +324,35 @@ def _write_zarr_array(
     level_path: Path,
     chunk_shape: Sequence[int],
 ) -> None:
-    """Write a single pyramid level to a Zarr array on disk."""
+    """Write a single pyramid level (CYX or CZYX) to a Zarr array on disk."""
     level_path.mkdir(parents=True, exist_ok=True)
 
-    dtype = level_data.dtype
+    if level_data.ndim not in (3, 4):
+        raise ValueError("Expected data in CYX or CZYX format.")
 
-    # zarr array metadata
+    normalized_chunk = tuple(int(x) for x in chunk_shape)
+    if level_data.ndim == 4:
+        if len(normalized_chunk) == 3:
+            normalized_chunk = (
+                normalized_chunk[0],
+                1,
+                normalized_chunk[1],
+                normalized_chunk[2],
+            )
+        elif len(normalized_chunk) != 4:
+            raise ValueError(
+                "chunk_shape must have 3 (C, Y, X) or 4 (C, Z, Y, X) entries when data has a Z axis."
+            )
+    else:
+        if len(normalized_chunk) != 3:
+            raise ValueError("chunk_shape must define (C, Y, X) for 3D data.")
+
+    dimensions = ["c", "z", "y", "x"] if level_data.ndim == 4 else ["c", "y", "x"]
+
     zarray_meta = {
-        "chunks": list(chunk_shape),
+        "chunks": list(normalized_chunk),
         "compressor": None,
-        "dtype": np.dtype(dtype).str,
+        "dtype": np.dtype(level_data.dtype).str,
         "fill_value": 0,
         "filters": None,
         "order": "C",
@@ -318,66 +362,69 @@ def _write_zarr_array(
     }
     (level_path / ".zarray").write_text(json.dumps(zarray_meta), encoding="utf-8")
     (level_path / ".zattrs").write_text(
-        json.dumps({"_ARRAY_DIMENSIONS": ["c", "y", "x"]}), encoding="utf-8"
+        json.dumps({"_ARRAY_DIMENSIONS": dimensions}), encoding="utf-8"
     )
 
     chunk_ranges = [
-        range(math.ceil(dim / chunk)) for dim, chunk in zip(level_data.shape, chunk_shape)
+        range(math.ceil(dim / chunk))
+        for dim, chunk in zip(level_data.shape, normalized_chunk)
     ]
 
-    for c_idx in chunk_ranges[0]:
-        c_start = c_idx * chunk_shape[0]
-        c_end = min((c_idx + 1) * chunk_shape[0], level_data.shape[0])
+    for indices in product(*chunk_ranges):
+        slices = []
+        bounds = []
+        for axis, (idx, chunk_len) in enumerate(zip(indices, normalized_chunk)):
+            start = idx * chunk_len
+            end = min((idx + 1) * chunk_len, level_data.shape[axis])
+            slices.append(slice(start, end))
+            bounds.append(slice(0, end - start))
 
-        for y_idx in chunk_ranges[1]:
-            y_start = y_idx * chunk_shape[1]
-            y_end = min((y_idx + 1) * chunk_shape[1], level_data.shape[1])
+        chunk = np.zeros(normalized_chunk, dtype=level_data.dtype)
+        chunk[tuple(bounds)] = level_data[tuple(slices)]
 
-            for x_idx in chunk_ranges[2]:
-                x_start = x_idx * chunk_shape[2]
-                x_end = min((x_idx + 1) * chunk_shape[2], level_data.shape[2])
-
-                chunk = np.zeros(chunk_shape, dtype=level_data.dtype)
-                chunk_c = c_end - c_start
-                chunk_y = y_end - y_start
-                chunk_x = x_end - x_start
-                chunk[:chunk_c, :chunk_y, :chunk_x] = level_data[
-                    c_start:c_end,
-                    y_start:y_end,
-                    x_start:x_end,
-                ]
-
-                chunk_fp = level_path / str(c_idx) / str(y_idx) / str(x_idx)
-                chunk_fp.parent.mkdir(parents=True, exist_ok=True)
-
-                chunk_view = chunk[:chunk_c, :chunk_y, :chunk_x]
-                chunk_bytes = np.ascontiguousarray(chunk_view).tobytes(order="C")
-                chunk_fp.write_bytes(chunk_bytes)
+        chunk_fp = level_path
+        for idx in indices:
+            chunk_fp /= str(idx)
+        chunk_fp.parent.mkdir(parents=True, exist_ok=True)
+        chunk_bytes = np.ascontiguousarray(chunk).tobytes(order="C")
+        chunk_fp.write_bytes(chunk_bytes)
 
 
 def _write_group_metadata(
     output_dir: Path,
     datasets: List[dict],
-    pixel_size: Tuple[float, float],
+    pixel_size: Tuple[float, float, float],
     dtype: np.dtype,
+    has_z: bool,
 ) -> None:
     """Write root-level Zarr metadata."""
     (output_dir / ".zgroup").write_text(
         json.dumps({"zarr_format": 2}), encoding="utf-8"
     )
 
-    pixel_x, pixel_y = pixel_size
+    pixel_z, pixel_y, pixel_x = pixel_size
 
     multiscales = [
         {
             "version": "0.4",
             "type": "image",
             "metadata": {"method": "mean"},
-            "axes": [
-                {"name": "c", "type": "channel"},
-                {"name": "y", "type": "space", "unit": "micrometer"},
-                {"name": "x", "type": "space", "unit": "micrometer"},
-            ],
+            "axes": (
+                [
+                    {"name": "c", "type": "channel"},
+                    *(
+                        [{
+                            "name": "z",
+                            "type": "space",
+                            "unit": "micrometer",
+                        }]
+                        if has_z
+                        else []
+                    ),
+                    {"name": "y", "type": "space", "unit": "micrometer"},
+                    {"name": "x", "type": "space", "unit": "micrometer"},
+                ]
+            ),
             "datasets": datasets,
         }
     ]
@@ -412,6 +459,14 @@ def _write_group_metadata(
 
         return f"{color_int & 0xFFFFFF:06X}"
 
+    pixel_dict = {
+        "x": pixel_x,
+        "y": pixel_y,
+        "unit": "micrometer",
+    }
+    if has_z:
+        pixel_dict["z"] = pixel_z
+
     omero = {
         "channels": [
             {
@@ -428,11 +483,7 @@ def _write_group_metadata(
             }
             for idx in range(n_channels)
         ],
-        "pixel_size": {
-            "x": pixel_x,
-            "y": pixel_y,
-            "unit": "micrometer",
-        },
+        "pixel_size": pixel_dict,
     }
 
     root_attrs = {
@@ -446,18 +497,26 @@ def _write_group_metadata(
 def write_multiscale_omezarr(
     image: np.ndarray,
     output_dir: Union[str, Path],
-    pixel_size: Tuple[float, float] = (1.0, 1.0),
+    pixel_size: Sequence[float] = (1.0, 1.0, 1.0),
     chunk_shape: Sequence[int] = (1, 512, 512),
     coarsening_factor: int = 2,
     max_levels: int | None = None,
 ) -> Path:
-    """Persist a CYX image array as a multiscale OME-Zarr pyramid."""
-    if image.ndim != 3:
-        raise ValueError("Expected image in CYX format.")
-    if len(chunk_shape) != 3:
-        raise ValueError("chunk_shape must define three dimensions (C, Y, X).")
+    """Persist a CYX or CZYX image array as a multiscale OME-Zarr pyramid."""
+    if image.ndim not in (3, 4):
+        raise ValueError("Expected image in CYX or CZYX format.")
     if any(dim <= 0 for dim in chunk_shape):
         raise ValueError("chunk_shape values must be positive.")
+
+    has_z = image.ndim == 4
+
+    if len(pixel_size) == 3:
+        pixel_z, pixel_y, pixel_x = pixel_size
+    elif len(pixel_size) == 2:
+        pixel_y, pixel_x = pixel_size
+        pixel_z = 1.0
+    else:
+        raise ValueError("pixel_size must contain 2 (Y, X) or 3 (Z, Y, X) values.")
 
     output_path = Path(output_dir)
     if output_path.exists():
@@ -471,17 +530,26 @@ def write_multiscale_omezarr(
     pyramid = _build_pyramid(
         image,
         coarsening_factor=coarsening_factor,
-        chunk_shape=chunk_shape,
         max_levels=max_levels,
     )
 
     datasets_meta: List[dict] = []
-    base_pixel_size = pixel_size
+    base_pixel_size = (pixel_z, pixel_y, pixel_x)
 
     for idx, level in enumerate(pyramid):
         level_name = str(idx)
         level_path = output_path / level_name
         _write_zarr_array(level, level_path, chunk_shape)
+
+        scale = [1]
+        if has_z:
+            scale.append(pixel_z)
+        scale.extend(
+            [
+                pixel_y * (coarsening_factor**idx),
+                pixel_x * (coarsening_factor**idx),
+            ]
+        )
 
         datasets_meta.append(
             {
@@ -490,18 +558,18 @@ def write_multiscale_omezarr(
                 "coordinateTransformations": [
                     {
                         "type": "scale",
-                        "scale": [
-                            1,
-                            base_pixel_size[1] * (coarsening_factor**idx),
-                            base_pixel_size[0] * (coarsening_factor**idx),
-                        ],
+                        "scale": scale,
                     }
                 ],
             }
         )
 
     _write_group_metadata(
-        output_path, datasets_meta, base_pixel_size, dtype=image.dtype
+        output_path,
+        datasets_meta,
+        base_pixel_size,
+        dtype=image.dtype,
+        has_z=has_z,
     )
 
     return output_path
@@ -533,9 +601,12 @@ def nd2_to_omezarr(
         )
 
     image = nd2_to_tiff(
-        normalized_files, channel_order_flip=channel_order_flip, verbose=verbose
+        normalized_files,
+        channel_order_flip=channel_order_flip,
+        verbose=verbose,
+        preserve_z=True,
     )
-    pixel_size = _resolve_pixel_size(normalized_files[0])
+    pixel_size = _resolve_pixel_sizes(normalized_files[0])
 
     return write_multiscale_omezarr(
         image=image,

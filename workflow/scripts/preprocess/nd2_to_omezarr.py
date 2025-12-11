@@ -1,3 +1,4 @@
+import inspect
 from pathlib import Path
 
 from lib.preprocess.preprocess import nd2_to_omezarr
@@ -14,6 +15,11 @@ if len(chunk_shape) not in (3, 4):
 
 output_dir = Path(snakemake.output[0])  # noqa: F821
 
+supports_compressor = "compressor" in inspect.signature(nd2_to_omezarr).parameters
+additional_kwargs = {}
+if supports_compressor and params.get("compressor") is not None:
+    additional_kwargs["compressor"] = params.get("compressor")
+
 result_path = nd2_to_omezarr(
     snakemake.input,  # noqa: F821
     output_dir=output_dir,
@@ -22,7 +28,7 @@ result_path = nd2_to_omezarr(
     coarsening_factor=params.get("coarsening_factor", 2),
     max_levels=params.get("max_levels"),
     verbose=params.get("verbose", False),
-    compressor=params.get("compressor"),
+    **additional_kwargs,
 )
 
 # Post-process OMERO metadata to ensure meaningful channel labels and colors.

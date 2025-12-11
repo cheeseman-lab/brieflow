@@ -102,7 +102,7 @@ PREPROCESS_OUTPUTS = {
                 "cycle": "{cycle}",
             },
             "image",
-            "ome.zarr",
+            "zarr",
         ),
     ],
     "convert_phenotype_omezarr": [
@@ -116,7 +116,7 @@ PREPROCESS_OUTPUTS = {
                 "tile": "{tile}",
             },
             "image",
-            "ome.zarr",
+            "zarr",
         ),
     ],
     "calculate_ic_sbs": [

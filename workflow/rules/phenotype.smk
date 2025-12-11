@@ -133,7 +133,8 @@ rule eval_segmentation_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
     params:
-        heatmap_shape="6W_ph",
+        heatmap_shape=config["phenotype"].get("heatmap_shape", "6W_ph"),
+        heatmap_plate=config["phenotype"].get("heatmap_plate", "6W"),
     script:
         "../scripts/shared/eval_segmentation.py"
 
@@ -149,6 +150,9 @@ rule eval_features:
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],
+    params:
+        heatmap_shape=config["phenotype"].get("heatmap_shape", "6W_ph"),
+        heatmap_plate=config["phenotype"].get("heatmap_plate", "6W"),
     script:
         "../scripts/phenotype/eval_features.py"
 

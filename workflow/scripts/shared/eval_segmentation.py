@@ -22,7 +22,7 @@ cells = pd.concat(
 
 # plot cell density heatmap
 cell_density_summary, fig = plot_cell_density_heatmap(
-    cells, shape=snakemake.params.heatmap_shape, plate="6W"
+    cells, shape=snakemake.params.heatmap_shape, plate=snakemake.params.heatmap_plate
 )
 cell_density_summary.to_csv(snakemake.output[1], index=False, sep="\t")
 fig.savefig(snakemake.output[2])

@@ -64,58 +64,17 @@ def segment_second_objs_ml(
 ):
     """Segment secondary objects using ML models (Cellpose, StarDist, etc.).
 
-    This function provides a template for users to implement their own ML-based
-    segmentation. Users only need to:
-    1. Extract the target channel
-    2. Run their ML model to get a labeled mask
-    3. Return the labeled mask - post-processing is handled automatically
+    This function implements ML-based segmentation for secondary objects with support
+    for both Cellpose and StarDist models. Users can choose the appropriate model
+    based on their object morphology:
+    - Cellpose: Better for irregular shapes (vacuoles, organelles with varying morphology)
+    - StarDist: Better for round/star-convex objects (nuclei-like structures)
 
     The shared post-processing pipeline (_postprocess_secondary_objects) will handle:
     - Size filtering (Feret diameter or area)
     - Cell association (spatial overlap)
     - Cell summary statistics
     - Cytoplasm mask updates
-
-    Example implementation with Cellpose:
-
-    .. code-block:: python
-
-        from cellpose import models
-
-        # 1. Extract target channel
-        target_channel = image[second_obj_channel_index]
-
-        # 2. Run Cellpose model
-        model = models.Cellpose(gpu=True, model_type='cyto2')
-        labeled_mask, flows, styles, diams = model.eval(
-            target_channel,
-            diameter=ml_params.get('diameter', 30),
-            flow_threshold=ml_params.get('flow_threshold', 0.4),
-            cellprob_threshold=ml_params.get('cellprob_threshold', 0.0),
-            channels=[0, 0]  # grayscale
-        )
-
-        # 3. Post-processing happens automatically below
-        # (size filtering, cell association, statistics, cytoplasm updates)
-
-    Example implementation with StarDist:
-
-    .. code-block:: python
-
-        from stardist.models import StarDist2D
-
-        # 1. Extract target channel
-        target_channel = image[second_obj_channel_index]
-
-        # 2. Run StarDist model
-        model = StarDist2D.from_pretrained('2D_versatile_fluo')
-        labeled_mask, details = model.predict_instances(
-            target_channel,
-            prob_thresh=ml_params.get('prob_thresh', 0.5),
-            nms_thresh=ml_params.get('nms_thresh', 0.4)
-        )
-
-        # 3. Post-processing happens automatically below
 
     Parameters
     ----------
@@ -145,8 +104,31 @@ def segment_second_objs_ml(
         Failsafe limit on detected objects
 
     **ml_params : dict
-        Additional ML model parameters. Users can pass any model-specific
-        parameters here (e.g., diameter, flow_threshold, etc.)
+        Additional ML model parameters. Required and optional parameters depend on ml_method:
+
+        Common parameters:
+        - ml_method : str (required)
+            ML model to use: "cellpose" or "stardist"
+        - gpu : bool (default: False)
+            Whether to use GPU acceleration
+
+        For ml_method="cellpose":
+        - model_type : str (default: 'cyto3')
+            Cellpose model type ('cyto3', 'cyto2', 'cyto', 'nuclei', etc.)
+        - diameter : float or None (default: None)
+            Expected diameter of objects in pixels. If None, estimated automatically
+        - flow_threshold : float (default: 0.4)
+            Flow error threshold for Cellpose segmentation
+        - cellprob_threshold : float (default: 0.0)
+            Cell probability threshold for Cellpose
+
+        For ml_method="stardist":
+        - model_type : str (default: '2D_versatile_fluo')
+            StarDist pretrained model name
+        - prob_thresh : float (default: 0.5)
+            Probability threshold for object detection
+        - nms_thresh : float (default: 0.4)
+            Non-maximum suppression threshold
 
     Returns:
     -------
@@ -157,42 +139,111 @@ def segment_second_objs_ml(
 
     Raises:
     ------
-    NotImplementedError
-        This is a template function that users must implement with their ML model
+    ValueError
+        If ml_method is not 'cellpose' or 'stardist', or if required packages are not installed
 
     Notes:
     -----
-    - Users only implement the ML segmentation (steps 1-2 above)
     - All post-processing is handled by _postprocess_secondary_objects()
     - Output format is guaranteed to match segment_second_objs()
-    - To add ML-specific parameters, pass them via **ml_params
+    - Requires cellpose or stardist packages to be installed
     """
     # Extract target channel
     target_channel = image[second_obj_channel_index]
 
-    # Placeholder: Replace with ML model implementation
-    # Example for Cellpose:
-    #   from cellpose import models
-    #   model = models.Cellpose(gpu=True, model_type='cyto2')
-    #   labeled_mask, flows, styles, diams = model.eval(
-    #       target_channel,
-    #       diameter=ml_params.get('diameter', 30),
-    #       flow_threshold=ml_params.get('flow_threshold', 0.4),
-    #       channels=[0, 0]
-    #   )
+    # Get ML method
+    ml_method = ml_params.get('ml_method', None)
+    if ml_method is None:
+        raise ValueError(
+            "ml_method must be specified in ml_params. "
+            "Valid options: 'cellpose' or 'stardist'"
+        )
 
-    raise NotImplementedError(
-        "ML-based segmentation not yet implemented. "
-        "Replace this section with your ML model code. "
-        "The model should return a labeled mask (ndarray with integer labels). "
-        "Post-processing is handled automatically by _postprocess_secondary_objects()."
-    )
+    gpu = ml_params.get('gpu', False)
 
-    # labeled_mask = your_ml_model(target_channel, **ml_params)
+    # Route to appropriate ML model
+    if ml_method == "cellpose":
+        # Cellpose parameters
+        model_type = ml_params.get('model_type', 'cyto3')
+        diameter = ml_params.get('diameter', None)
+        flow_threshold = ml_params.get('flow_threshold', 0.4)
+        cellprob_threshold = ml_params.get('cellprob_threshold', 0.0)
+
+        print(f"Running Cellpose {model_type} model for secondary object segmentation...")
+        if diameter is not None:
+            print(f"  Using diameter: {diameter:.1f} pixels")
+        else:
+            print(f"  Diameter will be estimated automatically")
+        print(f"  Flow threshold: {flow_threshold}")
+        print(f"  Cell probability threshold: {cellprob_threshold}")
+        print(f"  GPU: {gpu}")
+
+        # Import Cellpose
+        try:
+            from cellpose import models
+        except ImportError:
+            raise ImportError(
+                "Cellpose is required for ML-based secondary object segmentation. "
+                "Install it with: pip install cellpose"
+            )
+
+        # Initialize Cellpose model
+        model = models.Cellpose(gpu=gpu, model_type=model_type)
+
+        # Run Cellpose segmentation
+        labeled_mask, flows, styles, diams = model.eval(
+            target_channel,
+            diameter=diameter,
+            flow_threshold=flow_threshold,
+            cellprob_threshold=cellprob_threshold,
+            channels=[0, 0]  # grayscale
+        )
+
+        print(f"Cellpose detected {len(np.unique(labeled_mask)) - 1} secondary objects")
+        if diameter is None:
+            print(f"Estimated diameter: {diams:.1f} pixels")
+
+    elif ml_method == "stardist":
+        # StarDist parameters
+        model_type = ml_params.get('model_type', '2D_versatile_fluo')
+        prob_thresh = ml_params.get('prob_thresh', 0.5)
+        nms_thresh = ml_params.get('nms_thresh', 0.4)
+
+        print(f"Running StarDist {model_type} model for secondary object segmentation...")
+        print(f"  Probability threshold: {prob_thresh}")
+        print(f"  NMS threshold: {nms_thresh}")
+        print(f"  GPU: {gpu}")
+
+        # Import StarDist
+        try:
+            from stardist.models import StarDist2D
+        except ImportError:
+            raise ImportError(
+                "StarDist is required for ML-based secondary object segmentation. "
+                "Install it with: pip install stardist"
+            )
+
+        # Initialize StarDist model
+        model = StarDist2D.from_pretrained(model_type)
+
+        # Run StarDist segmentation
+        labeled_mask, details = model.predict_instances(
+            target_channel,
+            prob_thresh=prob_thresh,
+            nms_thresh=nms_thresh
+        )
+
+        print(f"StarDist detected {len(np.unique(labeled_mask)) - 1} secondary objects")
+
+    else:
+        raise ValueError(
+            f"Unknown ml_method: {ml_method}. "
+            f"Valid options: 'cellpose' or 'stardist'"
+        )
 
     # Shared post-processing pipeline
     return _postprocess_secondary_objects(
-        second_obj_masks=labeled_mask,  # User's ML output
+        second_obj_masks=labeled_mask,  # ML model output
         cell_masks=cell_masks,
         cytoplasm_masks=cytoplasm_masks,
         second_obj_min_size=second_obj_min_size,
@@ -205,6 +256,99 @@ def segment_second_objs_ml(
         image=image,
         second_obj_channel_index=second_obj_channel_index,
     )
+
+
+def estimate_second_obj_diameter(image, second_obj_channel_index, method="cellpose", **kwargs):
+    """Estimate the diameter of secondary objects in an image channel.
+
+    This is a convenience function to help users estimate appropriate diameter
+    parameters for ML-based secondary object segmentation.
+
+    Parameters
+    ----------
+    image : ndarray
+        Multichannel image data with shape [channels, height, width]
+    second_obj_channel_index : int
+        Index of the channel containing secondary objects
+    method : str
+        Method to use for diameter estimation:
+        - "cellpose": Use Cellpose's built-in diameter estimation (default)
+        - "manual": Manually measure from image statistics
+    **kwargs : dict
+        Additional parameters for the estimation method:
+        - For method="cellpose":
+            - model_type : str (default: 'cyto3')
+            - gpu : bool (default: False)
+
+    Returns:
+    -------
+    diameter : float
+        Estimated diameter in pixels
+
+    Examples:
+    --------
+    >>> diameter = estimate_second_obj_diameter(
+    ...     aligned_image,
+    ...     second_obj_channel_index=7,
+    ...     method="cellpose",
+    ...     model_type="cyto3"
+    ... )
+    >>> print(f"Estimated diameter: {diameter:.1f} pixels")
+    """
+    target_channel = image[second_obj_channel_index]
+
+    if method == "cellpose":
+        try:
+            from cellpose import models
+        except ImportError:
+            raise ImportError(
+                "Cellpose is required for diameter estimation. "
+                "Install it with: pip install cellpose"
+            )
+
+        model_type = kwargs.get('model_type', 'cyto3')
+        gpu = kwargs.get('gpu', False)
+
+        print(f"Estimating secondary object diameter using Cellpose {model_type}...")
+        model = models.Cellpose(gpu=gpu, model_type=model_type)
+
+        # Run segmentation with automatic diameter estimation
+        _, _, _, diameter = model.eval(
+            target_channel,
+            diameter=None,  # Auto-estimate
+            channels=[0, 0]
+        )
+
+        print(f"Estimated diameter: {diameter:.1f} pixels")
+        return float(diameter)
+
+    elif method == "manual":
+        # Simple estimation based on image statistics
+        # Threshold the image and measure typical object sizes
+        from skimage import filters, measure
+        from scipy import ndimage
+
+        # Apply Otsu threshold
+        thresh = filters.threshold_otsu(target_channel)
+        binary = target_channel > thresh
+
+        # Label objects
+        labeled, _ = ndimage.label(binary)
+        regions = measure.regionprops(labeled)
+
+        if len(regions) == 0:
+            print("No objects detected for diameter estimation")
+            return None
+
+        # Calculate median equivalent diameter
+        diameters = [r.equivalent_diameter for r in regions]
+        diameter = np.median(diameters)
+
+        print(f"Estimated diameter (median of {len(regions)} objects): {diameter:.1f} pixels")
+        return float(diameter)
+
+    else:
+        raise ValueError(f"Unknown method: {method}. Use 'cellpose' or 'manual'")
 
 
 def apply_threshold_method(image, method="otsu_two_peak"):

@@ -84,7 +84,7 @@ phenotype:
   - COXIV
   - CENPA
   - WGA
-  cp_method: 
+  cp_method:
   cyto_index: 1
   cellpose_model: cyto3
   dapi_index: 0
@@ -95,6 +95,7 @@ phenotype:
   mode: null
   nuclei_diameter: 41.97813156768016
   reconcile: contained_in_cells
+  second_obj_detection: false
 merge:
   det_range:
   - 0.06

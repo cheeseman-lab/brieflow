@@ -515,11 +515,43 @@ def build_montages_and_summary(
     # 2) Merge coordinates into classified metadata (work on a copy)
     coords_and_keys = list(required_master_cols)
     cm = classified_metadata.copy(deep=True)
-    cm = cm.merge(
-        master_phenotype_df[coords_and_keys].drop_duplicates(),
-        on=[c for c in join_keys if c in cm.columns],
-        how="left",
-    )
+
+    # Determine which join keys are available in classified_metadata
+    available_join_keys = [c for c in join_keys if c in cm.columns]
+
+    if verbose:
+        print(f"Join keys needed: {join_keys}")
+        print(f"Join keys available in classified_metadata: {available_join_keys}")
+        print(f"Coordinate columns to add: {coord_cols_present}")
+
+    # Check if coordinate columns are already present
+    coords_already_present = all(c in cm.columns for c in coord_cols_present)
+
+    if coords_already_present:
+        if verbose:
+            print("Coordinate columns already present in classified_metadata")
+    elif not available_join_keys:
+        raise ValueError(
+            f"Cannot merge coordinates: no join keys found in classified_metadata. "
+            f"Required keys: {join_keys}, available columns: {list(cm.columns)}"
+        )
+    else:
+        # Perform the merge
+        cm = cm.merge(
+            master_phenotype_df[coords_and_keys].drop_duplicates(),
+            on=available_join_keys,
+            how="left",
+        )
+
+        # Check if merge was successful
+        if not all(c in cm.columns for c in coord_cols_present):
+            missing_coords = [c for c in coord_cols_present if c not in cm.columns]
+            raise ValueError(
+                f"Merge failed to add coordinate columns {missing_coords}. "
+                f"This may be due to mismatched join keys. "
+                f"Used join keys: {available_join_keys}. "
+                f"Check that classified_metadata has proper {available_join_keys} values."
+            )
 
     # 3) Normalize dtypes for filename construction
     if "plate" in cm.columns:
@@ -596,6 +628,14 @@ def build_montages_and_summary(
 
     # 9) Montage generation (delegate to montage_utils)
     conf_col = f"{class_title}_confidence"
+
+    if verbose:
+        print(f"\nPreparing montages...")
+        print(f"cm columns: {list(cm.columns)}")
+        print(f"Coordinate columns needed: {coord_cols_present}")
+        coord_check = [c in cm.columns for c in coord_cols_present]
+        print(f"Coordinate columns present: {coord_check}")
+
     montages, titles = create_class_confidence_montages(
         cell_class_dfs,
         channels,

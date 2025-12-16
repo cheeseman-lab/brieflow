@@ -6,6 +6,7 @@ Includes utilities for:
 - Phenotype parquet loading with optional caches
 - Mask coordinate lookup and crop bounds computation
 - Scale bar and mask boundary overlays
+- Helper function for finding classifier run directories
 """
 
 import io
@@ -496,3 +497,31 @@ def overlay_scale_bar(
             img_rgb01[y_start : y_end + 1, xs : xe + 1, 1] = col[1]
             img_rgb01[y_start : y_end + 1, xs : xe + 1, 2] = col[2]
     return img_rgb01
+
+def get_latest_run_dir(classifier_output_dir, last_run_dir=None):
+    """Get the most recent classifier run directory.
+
+    Args:
+        classifier_output_dir: Base classifier output directory
+        last_run_dir: Optional path to a specific run directory
+
+    Returns:
+        Name of the run directory (e.g., 'run_20251216_121317')
+    """
+    if last_run_dir:
+        return Path(last_run_dir).name
+
+    classifier_base = Path(classifier_output_dir) / "classifier"
+    if not classifier_base.exists():
+        raise ValueError("Classifier output directory does not exist. Please train a model first.")
+
+    run_dirs = sorted(
+        [d for d in classifier_base.iterdir() if d.is_dir() and d.name.startswith("run_")],
+        key=lambda x: x.name,
+        reverse=True
+    )
+
+    if not run_dirs:
+        raise ValueError("No training run found. Please train a model first or manually set MODEL_RUN_DIR.")
+
+    return run_dirs[0].name

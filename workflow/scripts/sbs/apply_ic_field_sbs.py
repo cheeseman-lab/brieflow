@@ -8,9 +8,11 @@ aligned_image_data = imread(snakemake.input[0])
 if snakemake.params.dapi_cycle != snakemake.params.cyto_cycle:
     # Different cycles - combine image data from both cycles
     aligned_image_data_segmentation_cycle = combine_ic_images(
-        [aligned_image_data[snakemake.params.dapi_cycle_index],
-         aligned_image_data[snakemake.params.cyto_cycle_index]],
-        [snakemake.params.extra_channel_indices, None]
+        [
+            aligned_image_data[snakemake.params.dapi_cycle_index],
+            aligned_image_data[snakemake.params.cyto_cycle_index],
+        ],
+        [snakemake.params.extra_channel_indices, None],
     )
 else:
     # Same cycle - use single cycle

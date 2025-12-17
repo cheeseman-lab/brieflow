@@ -211,8 +211,8 @@ def calculate_rotation_offset(target, source, upsample_factor=10):
     radius = min(target.shape) // 2
 
     # Convert to polar coordinates (rotation becomes horizontal translation)
-    target_polar = warp_polar(target, radius=radius, scaling='linear')
-    source_polar = warp_polar(source, radius=radius, scaling='linear')
+    target_polar = warp_polar(target, radius=radius, scaling="linear")
+    source_polar = warp_polar(source, radius=radius, scaling="linear")
 
     # Phase correlation in polar space finds rotation as shift in angle axis
     shift, _, _ = skimage.registration.phase_cross_correlation(
@@ -225,7 +225,9 @@ def calculate_rotation_offset(target, source, upsample_factor=10):
     return angle
 
 
-def calculate_rotation_and_translation_offsets(data_full, data_windowed=None, upsample_factor=4, max_rotation=5.0, log_sigma=3.0):
+def calculate_rotation_and_translation_offsets(
+    data_full, data_windowed=None, upsample_factor=4, max_rotation=5.0, log_sigma=3.0
+):
     """Calculate rotation and translation offsets for a stack of images.
 
     Uses a multi-step approach for correct coordinate handling:
@@ -277,7 +279,9 @@ def calculate_rotation_and_translation_offsets(data_full, data_windowed=None, up
     angles = [0.0]
     offsets = [(0, 0)]
 
-    for i, (src_full, src_windowed) in enumerate(zip(data_full[1:], data_windowed[1:]), start=1):
+    for i, (src_full, src_windowed) in enumerate(
+        zip(data_full[1:], data_windowed[1:]), start=1
+    ):
         # Step 1: Rough translation on ORIGINAL windowed images
         rough_offset, _, _ = skimage.registration.phase_cross_correlation(
             src_windowed, target_windowed, upsample_factor=upsample_factor
@@ -291,7 +295,9 @@ def calculate_rotation_and_translation_offsets(data_full, data_windowed=None, up
         src_full_log = apply_log_filter(src_full_aligned, log_sigma)
 
         # Step 4: Find rotation on LoG-filtered, roughly-aligned image
-        angle = calculate_rotation_offset(target_full_log, src_full_log, upsample_factor=upsample_factor)
+        angle = calculate_rotation_offset(
+            target_full_log, src_full_log, upsample_factor=upsample_factor
+        )
 
         # Negate angle: we found how much src is rotated relative to target,
         # so we need to rotate by -angle to bring src back to match target
@@ -299,7 +305,9 @@ def calculate_rotation_and_translation_offsets(data_full, data_windowed=None, up
 
         # Clamp implausible rotations (likely spurious)
         if abs(angle) > max_rotation:
-            print(f"  Warning: Cycle {i} rotation {angle:.2f}° exceeds max_rotation={max_rotation}°, setting to 0°")
+            print(
+                f"  Warning: Cycle {i} rotation {angle:.2f}° exceeds max_rotation={max_rotation}°, setting to 0°"
+            )
             angle = 0.0
 
         angles.append(angle)
@@ -370,7 +378,9 @@ def apply_rotation_and_translation(data_, angles, offsets):
     return np.array(warped)
 
 
-def calculate_dapi_edge_offsets(data, upsample_factor=4, max_rotation=5.0, edge_sigma=2.0):
+def calculate_dapi_edge_offsets(
+    data, upsample_factor=4, max_rotation=5.0, edge_sigma=2.0
+):
     """Calculate rotation and translation offsets using edge detection on DAPI.
 
     Uses Canny edge detection which is robust to intensity changes and saturation,
@@ -425,11 +435,15 @@ def calculate_dapi_edge_offsets(data, upsample_factor=4, max_rotation=5.0, edge_
         src_edges_aligned = skimage.transform.warp(src_edges, st, preserve_range=True)
 
         # Step 3: Detect rotation using log-polar on edge images
-        angle = calculate_rotation_offset(target_edges, src_edges_aligned, upsample_factor=upsample_factor)
+        angle = calculate_rotation_offset(
+            target_edges, src_edges_aligned, upsample_factor=upsample_factor
+        )
         angle = -angle  # Negate for correct direction
 
         if abs(angle) > max_rotation:
-            print(f"  Warning: Cycle {i} rotation {angle:.2f}° exceeds max, setting to 0°")
+            print(
+                f"  Warning: Cycle {i} rotation {angle:.2f}° exceeds max, setting to 0°"
+            )
             angle = 0.0
 
         angles.append(angle)

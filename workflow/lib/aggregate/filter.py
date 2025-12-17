@@ -145,7 +145,9 @@ def missing_values_filter(
             )
 
             # Save original dtypes to restore after imputation
-            original_dtypes = {col: features[col].dtype for col in remaining_cols_with_na}
+            original_dtypes = {
+                col: features[col].dtype for col in remaining_cols_with_na
+            }
 
             # Convert to float64 before imputation (KNN returns float64, can't assign to Int64)
             for col in remaining_cols_with_na:

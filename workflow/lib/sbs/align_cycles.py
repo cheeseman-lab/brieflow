@@ -76,6 +76,8 @@ def align_cycles(
         verbose (bool, optional): If True, print detailed alignment information including
             calculated offsets for each cycle. Useful for debugging alignment issues.
             Defaults to False.
+        tile_id (str or None, optional): Optional identifier for the tile being processed.
+            Used in verbose output to distinguish between multiple tiles. Defaults to None.
 
     Returns:
         np.ndarray: SBS image aligned across cycles.
@@ -306,7 +308,9 @@ def align_cycles(
                 tile_str = f" [{tile_id}]" if tile_id else ""
                 print(f"\n=== Cycle Alignment Offsets (DAPI method){tile_str} ===")
                 for cycle_idx, offset in enumerate(offsets):
-                    print(f"  {tile_id} Cycle {cycle_idx}: shift = {offset} pixels (y, x)")
+                    print(
+                        f"  {tile_id} Cycle {cycle_idx}: shift = {offset} pixels (y, x)"
+                    )
         else:
             print(
                 "Warning: 'DAPI' method selected but DAPI channel not available. Switching to 'sbs_mean'."
@@ -382,21 +386,29 @@ def align_cycles(
             data_full=full_normed,
             data_windowed=windowed_normed,
             upsample_factor=upsample_factor,
-            max_rotation=5.0
+            max_rotation=5.0,
         )
 
         if verbose:
             tile_str = f" [{tile_id}]" if tile_id else ""
-            print(f"\n=== Cycle Alignment Offsets (sbs_mean_rotation method){tile_str} ===")
+            print(
+                f"\n=== Cycle Alignment Offsets (sbs_mean_rotation method){tile_str} ==="
+            )
             for cycle_idx, (angle, offset) in enumerate(zip(angles, offsets)):
-                print(f"  {tile_id} Cycle {cycle_idx}: rotation = {angle:.3f}°, shift = {offset} pixels (y, x)")
+                print(
+                    f"  {tile_id} Cycle {cycle_idx}: rotation = {angle:.3f}°, shift = {offset} pixels (y, x)"
+                )
 
         # Apply rotation + translation to all channels
         for channel in range(aligned.shape[1]):
             if channel in extra_indices and extra_channel_source_cycle is not None:
                 # Extra channels: use ONLY the transform from the cycle they were acquired in
-                source_angles = np.array([angles[extra_channel_source_cycle]] * aligned.shape[0])
-                source_offsets = np.array([offsets[extra_channel_source_cycle]] * aligned.shape[0])
+                source_angles = np.array(
+                    [angles[extra_channel_source_cycle]] * aligned.shape[0]
+                )
+                source_offsets = np.array(
+                    [offsets[extra_channel_source_cycle]] * aligned.shape[0]
+                )
                 aligned[:, channel] = apply_rotation_and_translation(
                     aligned[:, channel], source_angles, source_offsets
                 )
@@ -416,7 +428,9 @@ def align_cycles(
         if extra_indices:
             dapi_channel = extra_indices[0]  # Assume first extra channel is DAPI
         else:
-            print("Warning: No extra channels found for 'dapi_rotation'. Using channel 0.")
+            print(
+                "Warning: No extra channels found for 'dapi_rotation'. Using channel 0."
+            )
             dapi_channel = 0
 
         # Extract DAPI channel across all cycles
@@ -424,17 +438,16 @@ def align_cycles(
 
         # Calculate rotation + translation using edge detection
         angles, offsets = calculate_dapi_edge_offsets(
-            dapi_data,
-            upsample_factor=upsample_factor,
-            max_rotation=5.0,
-            edge_sigma=2.0
+            dapi_data, upsample_factor=upsample_factor, max_rotation=5.0, edge_sigma=2.0
         )
 
         if verbose:
             tile_str = f" [{tile_id}]" if tile_id else ""
             print(f"\n=== Cycle Alignment Offsets (dapi_rotation method){tile_str} ===")
             for cycle_idx, (angle, offset) in enumerate(zip(angles, offsets)):
-                print(f"  {tile_id} Cycle {cycle_idx}: rotation = {angle:.3f}°, shift = {offset} pixels (y, x)")
+                print(
+                    f"  {tile_id} Cycle {cycle_idx}: rotation = {angle:.3f}°, shift = {offset} pixels (y, x)"
+                )
 
         # Apply rotation + translation to all channels
         for channel in range(aligned.shape[1]):

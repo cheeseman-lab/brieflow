@@ -484,7 +484,9 @@ def get_sbs_alignment_params(wildcards, config: Dict[str, Any]) -> Dict[str, Any
     # Get plate-specific offsets
     plate_id = wildcards.plate
     # Try both string and int keys for robustness
-    plate_offsets = manual_offsets_config.get(plate_id) or manual_offsets_config.get(int(plate_id))
+    plate_offsets = manual_offsets_config.get(plate_id) or manual_offsets_config.get(
+        int(plate_id)
+    )
 
     if plate_offsets is None:
         return {"manual_cycle_offsets": None}

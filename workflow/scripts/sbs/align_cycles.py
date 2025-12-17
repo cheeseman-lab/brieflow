@@ -9,7 +9,7 @@ tile_id = f"P-{snakemake.wildcards.plate}_W-{snakemake.wildcards.well}_T-{snakem
 image_data = [imread(file_path) for file_path in snakemake.input]
 
 # Get manual cycle offsets if provided (passed as params from rule)
-manual_cycle_offsets = getattr(snakemake.params, 'manual_cycle_offsets', None)
+manual_cycle_offsets = getattr(snakemake.params, "manual_cycle_offsets", None)
 
 # align cycles
 aligned_data = align_cycles(

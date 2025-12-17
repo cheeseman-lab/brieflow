@@ -17,7 +17,9 @@ if method == "standard":
     peak_width = params.get("peak_width", 5)
 
     # Find peaks using standard method
-    peaks = find_peaks(standard_deviation_data=standard_deviation_data, width=peak_width)
+    peaks = find_peaks(
+        standard_deviation_data=standard_deviation_data, width=peak_width
+    )
 
 elif method == "spotiflow":
     from lib.sbs.find_peaks import find_peaks_spotiflow

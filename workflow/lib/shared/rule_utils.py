@@ -135,8 +135,11 @@ def get_spot_detection_params(config: Dict[str, Any]) -> Dict[str, Any]:
 
     # Method-specific parameters
     if method == "standard":
-        # No additional parameters needed for standard method
-        pass
+        params.update(
+            {
+                "peak_width": module_config.get("peak_width", 5),
+            }
+        )
     elif method == "spotiflow":
         params.update(
             {
@@ -455,6 +458,57 @@ def get_bootstrap_construct_outputs(
         )
 
     return outputs
+
+
+def get_sbs_alignment_params(wildcards, config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get SBS cycle alignment parameters for a specific plate and well.
+
+    Supports per-plate, per-well manual cycle offsets for coarse alignment
+    before automatic fine-tuning.
+
+    Args:
+        wildcards (snakemake.Wildcards): Snakemake wildcards object with plate and well.
+        config (Dict[str, Any]): Configuration dictionary.
+
+    Returns:
+        Dict[str, Any]: SBS alignment parameters including manual_cycle_offsets if configured.
+    """
+    sbs_config = config.get("sbs", {})
+
+    # Check if manual cycle offsets are configured
+    manual_offsets_config = sbs_config.get("manual_cycle_offsets", None)
+
+    if manual_offsets_config is None:
+        return {"manual_cycle_offsets": None}
+
+    # Get plate-specific offsets
+    plate_id = wildcards.plate
+    # Try both string and int keys for robustness
+    plate_offsets = manual_offsets_config.get(plate_id) or manual_offsets_config.get(int(plate_id))
+
+    if plate_offsets is None:
+        return {"manual_cycle_offsets": None}
+
+    # Get well-specific offsets
+    well_id = wildcards.well
+    well_offsets = plate_offsets.get(well_id)
+
+    if well_offsets is None:
+        return {"manual_cycle_offsets": None}
+
+    # Convert offsets to the expected format: {cycle_idx: (dy, dx)}
+    # Config stores as {cycle_idx: [dy, dx]} which needs to be converted to tuples
+    manual_cycle_offsets = {}
+    for cycle_idx, offset in well_offsets.items():
+        # Handle both string and int cycle indices
+        cycle_key = int(cycle_idx)
+        if isinstance(offset, (list, tuple)):
+            manual_cycle_offsets[cycle_key] = tuple(offset)
+        else:
+            # Skip invalid entries
+            continue
+
+    return {"manual_cycle_offsets": manual_cycle_offsets}
 
 
 def get_call_cells_params(config: Dict[str, Any]) -> Dict[str, Any]:

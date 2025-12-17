@@ -144,6 +144,13 @@ def missing_values_filter(
                 f"Imputing {len(remaining_cols_with_na)} columns with remaining missing values using batched KNN"
             )
 
+            # Save original dtypes to restore after imputation
+            original_dtypes = {col: features[col].dtype for col in remaining_cols_with_na}
+
+            # Convert to float64 before imputation (KNN returns float64, can't assign to Int64)
+            for col in remaining_cols_with_na:
+                features[col] = features[col].astype("float64")
+
             # Identify rows with any NAs in the remaining columns
             has_na_mask = features[remaining_cols_with_na].isna().any(axis=1)
             na_rows_idx = features.index[has_na_mask]
@@ -180,6 +187,13 @@ def missing_values_filter(
                     index=batch_na_idx,
                     columns=remaining_cols_with_na,
                 )
+
+            # Restore original dtypes (KNN returns float64, convert back to original)
+            for col, dtype in original_dtypes.items():
+                if "int" in str(dtype).lower() or "Int" in str(dtype):
+                    features[col] = features[col].round().astype(dtype)
+                else:
+                    features[col] = features[col].astype(dtype)
 
     return metadata, features
 

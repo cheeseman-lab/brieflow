@@ -13,8 +13,11 @@ if method == "standard":
     # Load standard deviation data for standard method
     standard_deviation_data = imread(snakemake.input[0])
 
+    # Get peak width from params
+    peak_width = params.get("peak_width", 5)
+
     # Find peaks using standard method
-    peaks = find_peaks(standard_deviation_data=standard_deviation_data)
+    peaks = find_peaks(standard_deviation_data=standard_deviation_data, width=peak_width)
 
 elif method == "spotiflow":
     from lib.sbs.find_peaks import find_peaks_spotiflow

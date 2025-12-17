@@ -19,6 +19,8 @@ rule split_datasets:
         classifier_path=config["aggregate"]["classifier_path"],
         cell_classes=aggregate_wildcard_combos["cell_class"].unique(),
         channel_combos=aggregate_wildcard_combos["channel_combo"].unique(),
+    threads: 24
+    priority: 100
     script:
         "../scripts/aggregate/split_datasets.py"
 
@@ -37,6 +39,8 @@ rule filter:
         impute=config["aggregate"]["impute"],
         channel_names=config["phenotype"]["channel_names"],
         contamination=config["aggregate"]["contamination"],
+    threads: 24
+    priority: 100
     script:
         "../scripts/aggregate/filter.py"
 
@@ -62,7 +66,9 @@ rule generate_feature_table:
         batch_cols=config["aggregate"]["batch_cols"],
         batches=10,
         feature_normalization=config["aggregate"].get("feature_normalization", "standard"),
-        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None), 
+        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None),
+    threads: 24
+    priority: 100
     script:
         "../scripts/aggregate/generate_feature_table.py"
 
@@ -89,6 +95,8 @@ rule align:
         control_key=config["aggregate"]["control_key"],
         num_align_batches=config["aggregate"]["num_align_batches"],
         skip_perturbation_score=config["aggregate"]["skip_perturbation_score"],
+    threads: 24
+    priority: 100
     script:
         "../scripts/aggregate/align.py"
 
@@ -104,6 +112,8 @@ rule aggregate:
         agg_method=config["aggregate"]["agg_method"],
         ps_probability_threshold=config["aggregate"]["ps_probability_threshold"],
         ps_percentile_threshold=config["aggregate"]["ps_percentile_threshold"],
+    threads: 24
+    priority: 100
     script:
         "../scripts/aggregate/aggregate.py"
 
@@ -322,5 +332,5 @@ rule combine_bootstrap:
 rule all_aggregate:
     input:
         AGGREGATE_TARGETS_ALL,
-        MONTAGE_TARGETS_ALL,
+        # MONTAGE_TARGETS_ALL,
         BOOTSTRAP_TARGETS_ALL,

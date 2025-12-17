@@ -57,7 +57,7 @@ sbs_summary, fig = plot_sbs_ph_matching_heatmap(
     merge_minimal,
     sbs_cells,
     target="sbs",
-    shape="6W_sbs",
+    shape="squid_sbs",
     return_summary=True,
 )
 sbs_summary.to_csv(snakemake.output.sbs_to_ph_matching_rates_tsv, sep="\t", index=False)
@@ -68,7 +68,7 @@ ph_summary, fig = plot_sbs_ph_matching_heatmap(
     merge_minimal,
     phenotype_min_cp.rename(columns={"label": "cell_0"}),
     target="phenotype",
-    shape="6W_ph",
+    shape="squid_ph",
     return_summary=True,
 )
 ph_summary.to_csv(snakemake.output.ph_to_sbs_matching_rates_tsv, sep="\t", index=False)

@@ -12,13 +12,14 @@ if merge_approach == "fast":
             ancient(SBS_OUTPUTS["combine_sbs_info"]),
         output:
             MERGE_OUTPUTS_MAPPED["fast_alignment"][0],
+        threads: 16
         params:
             sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
             sbs_metadata_channel=config["merge"].get("sbs_metadata_channel"),
             ph_metadata_channel=config["merge"].get("ph_metadata_channel"),
             det_range=config["merge"]["det_range"],
             score=config["merge"]["score"],
-            initial_sites=config["merge"]["initial_sites"],
+            initial_sites=lambda wildcards: config["merge"]["initial_sites"][int(wildcards.plate)][wildcards.well],
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
             alignment_flip_x=config["merge"].get("alignment_flip_x"),
@@ -34,6 +35,7 @@ if merge_approach == "fast":
             MERGE_OUTPUTS["fast_alignment"][0],
         output:
             MERGE_OUTPUTS_MAPPED["fast_merge"][0],
+        threads: 16
         params:
             det_range=config["merge"]["det_range"],
             score=config["merge"]["score"],
@@ -48,6 +50,7 @@ if merge_approach == "stitch":
             phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
         output:
             phenotype_stitch_config=MERGE_OUTPUTS_MAPPED["estimate_stitch_phenotype"][0],
+        threads: 16
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -66,6 +69,7 @@ if merge_approach == "stitch":
             phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
         output:
             sbs_stitch_config=MERGE_OUTPUTS_MAPPED["estimate_stitch_sbs"][0],
+        threads: 16
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -103,9 +107,10 @@ if merge_approach == "stitch":
             ),
         output:
             phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][0],
-            phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][1],  
-            phenotype_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][2], 
-            phenotype_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][3], 
+            phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][1],
+            phenotype_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][2],
+            phenotype_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][3],
+        threads: 16
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -140,7 +145,8 @@ if merge_approach == "stitch":
             sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs"][0],
             sbs_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_sbs"][1],
             sbs_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_sbs"][2],
-            sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs"][3], 
+            sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs"][3],
+        threads: 16
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -165,6 +171,7 @@ if merge_approach == "stitch":
             alignment_params=MERGE_OUTPUTS_MAPPED["stitch_alignment"][3],                
             alignment_summary=MERGE_OUTPUTS_MAPPED["stitch_alignment"][4],
             transformed_phenotype_positions=MERGE_OUTPUTS_MAPPED["stitch_alignment"][5],
+        threads: 16
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -180,9 +187,10 @@ if merge_approach == "stitch":
             alignment_params=MERGE_OUTPUTS["stitch_alignment"][3],
             transformed_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][5],               
         output:
-            raw_matches=MERGE_OUTPUTS_MAPPED["stitch_merge"][0],                    
-            merged_cells=MERGE_OUTPUTS_MAPPED["stitch_merge"][1],                   
-            merge_summary=MERGE_OUTPUTS_MAPPED["stitch_merge"][2],                  
+            raw_matches=MERGE_OUTPUTS_MAPPED["stitch_merge"][0],
+            merged_cells=MERGE_OUTPUTS_MAPPED["stitch_merge"][1],
+            merge_summary=MERGE_OUTPUTS_MAPPED["stitch_merge"][2],
+        threads: 16
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -196,15 +204,18 @@ rule format_merge:
     input:
         lambda wildcards: (
             MERGE_OUTPUTS["stitch_merge"][1]
-            if config.get("merge", {}).get("approach", "fast") == "stitch" 
+            if config.get("merge", {}).get("approach", "fast") == "stitch"
             else MERGE_OUTPUTS["fast_merge"][0]
         ),
         ancient(SBS_OUTPUTS["combine_cells"]),
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1]),
     output:
         MERGE_OUTPUTS_MAPPED["format_merge"][0],
+    threads: 16
     params:
         approach=config.get("merge", {}).get("approach", "fast"),
+        phenotype_dimensions=config.get("merge", {}).get("phenotype_dimensions"),
+        sbs_dimensions=config.get("merge", {}).get("sbs_dimensions"),
     script:
         "../scripts/merge/format_merge.py"
 
@@ -219,6 +230,7 @@ rule deduplicate_merge:
         deduplicated_data=MERGE_OUTPUTS_MAPPED["deduplicate_merge"][1],
         final_sbs_matching_rates=MERGE_OUTPUTS_MAPPED["deduplicate_merge"][2],
         final_phenotype_matching_rates=MERGE_OUTPUTS_MAPPED["deduplicate_merge"][3],
+    threads: 16
     params:
         approach=config.get("merge", {}).get("approach", "fast"),
         sbs_dedup_prior=config.get("merge", {}).get("sbs_dedup_prior"),
@@ -233,6 +245,7 @@ rule final_merge:
         ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0]),
     output:
         MERGE_OUTPUTS_MAPPED["final_merge"][0],
+    threads: 16
     params:
         approach=config.get("merge", {}).get("approach", "fast"),
     script:
@@ -269,6 +282,7 @@ rule eval_merge:
         ph_to_sbs_matching_rates_png=MERGE_OUTPUTS_MAPPED["eval_merge"][4],
         all_cells_by_channel_min=MERGE_OUTPUTS_MAPPED["eval_merge"][5],
         cells_with_channel_min_0=MERGE_OUTPUTS_MAPPED["eval_merge"][6],
+    threads: 16
     script:
         "../scripts/merge/eval_merge.py"
 
@@ -311,6 +325,7 @@ rule summarize_merge:
         dedup_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][2],
         sbs_matching_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][3],
         phenotype_matching_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][4],
+    threads: 16
     params:
         plate=lambda wildcards: wildcards.plate,
         wells=lambda wildcards: [

@@ -32,7 +32,7 @@ control_cells = all_features_cells[control_mask]
 print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 
 # Load metadata columns and split control cell data
-metadata_cols = load_metadata_cols(metadata_cols_fp, include_classification_cols=True)
+metadata_cols = load_metadata_cols(metadata_cols_fp, include_classification_cols=False)
 controls_metadata, controls_features = split_cell_data(control_cells, metadata_cols)
 
 # Get available features from construct table
@@ -41,6 +41,36 @@ available_features = [
     for col in construct_table.columns
     if col not in [perturbation_id_col, perturbation_col, "cell_count"]
 ]
+
+# Filter to intensity features (mean, median, int) and area for all compartments
+# This focuses bootstrap analysis on core intensity and size measurements,
+# excluding edge, radial fraction, and other derived features that may have NAs
+filtered_features = []
+compartments = ["cell_", "nucleus_", "cytoplasm_"]
+suffixes = ["_mean", "_median", "_int"]
+
+for feature in available_features:
+    # Check for intensity features
+    for compartment in compartments:
+        for suffix in suffixes:
+            if (
+                feature.startswith(compartment)
+                and feature.endswith(suffix)
+                and "edge" not in feature
+                and "frac" not in feature
+            ):
+                filtered_features.append(feature)
+                break
+        else:
+            continue
+        break
+    # Check for area features
+    if feature in ["cell_area", "nucleus_area", "cytoplasm_area"]:
+        filtered_features.append(feature)
+
+available_features = filtered_features
+print(f"Using {len(available_features)} filtered features for bootstrap analysis")
+print(f"Features: {available_features}")
 
 # Filter control features to match available features
 controls_features_selected = controls_features[available_features]

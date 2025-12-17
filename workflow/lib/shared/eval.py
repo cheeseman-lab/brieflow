@@ -115,6 +115,16 @@ def plot_plate_heatmap(
                 9,
                 5,
             ]
+        elif shape == "squid_ph":
+            # Spatially accurate layout for Squid microscope phenotype tiles (1732 tiles)
+            rows = [
+                4, 14, 18, 22, 26, 28, 32, 34, 36, 36, 38, 40, 40, 42, 42, 44, 44, 46, 46, 46,
+                46, 46, 48, 48, 48, 48, 46, 46, 46, 46, 46, 44, 44, 42, 42, 40, 40, 38, 36, 36,
+                34, 32, 28, 26, 22, 18, 14, 4,
+            ]
+        elif shape == "squid_sbs":
+            # Spatially accurate layout for Squid microscope SBS tiles (94 tiles)
+            rows = [2, 6, 8, 10, 10, 11, 11, 10, 10, 8, 6, 2]
         elif isinstance(shape, list):
             rows = shape
         else:

@@ -13,12 +13,16 @@ merge_data = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 sbs_cells = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 phenotype_min_cp = validate_dtypes(pd.read_parquet(snakemake.input[2]))
 
+# Get image dimensions from params
+phenotype_dimensions = tuple(snakemake.params.phenotype_dimensions)
+sbs_dimensions = tuple(snakemake.params.sbs_dimensions)
+
 # Add FOV distances for both imaging modalities
 merge_formatted = merge_data.pipe(
-    fov_distance, i="i_0", j="j_0", dimensions=(2960, 2960), suffix="_0"
+    fov_distance, i="i_0", j="j_0", dimensions=phenotype_dimensions, suffix="_0"
 )
 merge_formatted = merge_formatted.pipe(
-    fov_distance, i="i_1", j="j_1", dimensions=(1480, 1480), suffix="_1"
+    fov_distance, i="i_1", j="j_1", dimensions=sbs_dimensions, suffix="_1"
 )
 
 # Identify single gene mappings in SBS

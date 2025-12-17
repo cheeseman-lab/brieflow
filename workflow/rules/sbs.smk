@@ -1,5 +1,5 @@
 from lib.shared.target_utils import output_to_input
-from lib.shared.rule_utils import get_spot_detection_params, get_segmentation_params, get_call_cells_params
+from lib.shared.rule_utils import get_spot_detection_params, get_segmentation_params, get_call_cells_params, get_sbs_alignment_params
 
 
 # Align images from each sequencing round
@@ -18,9 +18,13 @@ rule align_sbs:
         method=config["sbs"]["alignment_method"],
         channel_names=config["sbs"]["channel_names"],
         upsample_factor=config["sbs"]["upsample_factor"],
+        window=config["sbs"]["window"],
         skip_cycles_indices=config["sbs"]["skip_cycles_indices"],
         manual_background_cycle_index=config["sbs"]["manual_background_cycle_index"],
         manual_channel_mapping=config["sbs"]["manual_channel_mapping"],
+        manual_cycle_offsets=lambda wildcards: get_sbs_alignment_params(wildcards, config).get("manual_cycle_offsets"),
+    resources:
+        sbs_heavy_jobs=1,
     script:
         "../scripts/sbs/align_cycles.py"
 
@@ -100,6 +104,7 @@ rule apply_ic_field_sbs:
         SBS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
         dapi_cycle=config["sbs"]["dapi_cycle"],
+        dapi_cycle_index=config["sbs"]["dapi_cycle_index"],
         cyto_cycle=config["sbs"]["cyto_cycle"],
         cyto_cycle_index=config["sbs"]["cyto_cycle_index"],
         extra_channel_indices=config["sbs"]["extra_channel_indices"],
@@ -115,6 +120,8 @@ rule segment_sbs:
         SBS_OUTPUTS_MAPPED["segment_sbs"],
     params:
         config=lambda wildcards: get_segmentation_params("sbs", config),
+    resources:
+        sbs_heavy_jobs=1,
     script:
         "../scripts/shared/segment.py"
 

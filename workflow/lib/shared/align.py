@@ -187,3 +187,263 @@ def apply_custom_offsets(data, offsets_dict):
     adjusted = apply_offsets(data, offsets)
 
     return adjusted
+
+
+def calculate_rotation_offset(target, source, upsample_factor=10):
+    """Calculate rotation angle between two images using log-polar transform.
+
+    Uses the property that rotation in Cartesian space becomes translation
+    in polar space. Phase cross-correlation in polar space finds the rotation.
+
+    Args:
+        target (np.ndarray): Reference image (2D).
+        source (np.ndarray): Image to align to target (2D).
+        upsample_factor (int, optional): Subpixel precision for angle detection.
+            Higher values give finer angle resolution. Defaults to 10.
+
+    Returns:
+        float: Rotation angle in degrees. Positive = counter-clockwise rotation
+            needed to align source to target.
+    """
+    from skimage.transform import warp_polar
+
+    # Use smaller of image dimensions for radius
+    radius = min(target.shape) // 2
+
+    # Convert to polar coordinates (rotation becomes horizontal translation)
+    target_polar = warp_polar(target, radius=radius, scaling='linear')
+    source_polar = warp_polar(source, radius=radius, scaling='linear')
+
+    # Phase correlation in polar space finds rotation as shift in angle axis
+    shift, _, _ = skimage.registration.phase_cross_correlation(
+        target_polar, source_polar, upsample_factor=upsample_factor
+    )
+
+    # Convert pixel shift to angle (full image height = 360 degrees)
+    angle = (shift[0] / target_polar.shape[0]) * 360
+
+    return angle
+
+
+def calculate_rotation_and_translation_offsets(data_full, data_windowed=None, upsample_factor=4, max_rotation=5.0, log_sigma=3.0):
+    """Calculate rotation and translation offsets for a stack of images.
+
+    Uses a multi-step approach for correct coordinate handling:
+    1. Compute rough translation on windowed data (center region)
+    2. Detect rotation on roughly-aligned, LoG-filtered full image
+    3. Apply rotation to ORIGINAL source, then compute final translation
+
+    This ensures translation is computed in the rotated coordinate frame,
+    matching the order of operations in apply_rotation_and_translation().
+
+    Args:
+        data_full (np.ndarray): Full images with shape (N, H, W) - used for rotation detection.
+        data_windowed (np.ndarray, optional): Windowed (cropped) images for translation detection.
+            If None, uses data_full for both. Defaults to None.
+        upsample_factor (int, optional): Subpixel precision. Defaults to 4.
+        max_rotation (float, optional): Maximum allowed rotation in degrees.
+            Rotations exceeding this are clamped to 0 (likely spurious).
+            Defaults to 5.0 degrees.
+        log_sigma (float, optional): Sigma for Laplacian of Gaussian filter applied before
+            rotation detection. Larger values (2-4) enhance larger features for more robust
+            rotation signal. Defaults to 3.0.
+
+    Returns:
+        tuple: (angles, offsets) where:
+            - angles: np.ndarray of rotation angles in degrees (N,)
+            - offsets: np.ndarray of (dy, dx) translation offsets (N, 2)
+    """
+    from skimage.transform import rotate
+    from scipy import ndimage
+
+    def apply_log_filter(img, sigma):
+        """Apply Laplacian of Gaussian to enhance spots/edges."""
+        # LoG filter: negative to make spots bright (same as SBS pipeline)
+        filtered = -1 * ndimage.gaussian_laplace(img.astype(float), sigma)
+        # Clip negative values
+        filtered = np.clip(filtered, 0, None)
+        return filtered
+
+    # Use windowed data for translation if provided, otherwise use full
+    if data_windowed is None:
+        data_windowed = data_full
+
+    target_full = data_full[0]
+    target_windowed = data_windowed[0]
+
+    # Apply LoG filter to target for rotation detection
+    target_full_log = apply_log_filter(target_full, log_sigma)
+
+    angles = [0.0]
+    offsets = [(0, 0)]
+
+    for i, (src_full, src_windowed) in enumerate(zip(data_full[1:], data_windowed[1:]), start=1):
+        # Step 1: Rough translation on ORIGINAL windowed images
+        rough_offset, _, _ = skimage.registration.phase_cross_correlation(
+            src_windowed, target_windowed, upsample_factor=upsample_factor
+        )
+
+        # Step 2: Apply rough translation to FULL image for rotation detection
+        st = skimage.transform.SimilarityTransform(translation=rough_offset[::-1])
+        src_full_aligned = skimage.transform.warp(src_full, st, preserve_range=True)
+
+        # Step 3: Apply LoG filter to enhance spots/edges for rotation detection
+        src_full_log = apply_log_filter(src_full_aligned, log_sigma)
+
+        # Step 4: Find rotation on LoG-filtered, roughly-aligned image
+        angle = calculate_rotation_offset(target_full_log, src_full_log, upsample_factor=upsample_factor)
+
+        # Negate angle: we found how much src is rotated relative to target,
+        # so we need to rotate by -angle to bring src back to match target
+        angle = -angle
+
+        # Clamp implausible rotations (likely spurious)
+        if abs(angle) > max_rotation:
+            print(f"  Warning: Cycle {i} rotation {angle:.2f}° exceeds max_rotation={max_rotation}°, setting to 0°")
+            angle = 0.0
+
+        angles.append(angle)
+
+        # Step 5: Apply rotation to ORIGINAL source, then compute FINAL translation
+        # This ensures translation is computed in the correct (rotated) coordinate frame
+        if angle != 0:
+            src_windowed_rotated = rotate(src_windowed, angle, preserve_range=True)
+        else:
+            src_windowed_rotated = src_windowed
+
+        # Compute final translation on ROTATED source (fresh computation, not additive!)
+        final_offset, _, _ = skimage.registration.phase_cross_correlation(
+            src_windowed_rotated, target_windowed, upsample_factor=upsample_factor
+        )
+
+        offsets.append(tuple(final_offset))
+
+    return np.array(angles), np.array(offsets)
+
+
+def apply_rotation_and_translation(data_, angles, offsets):
+    """Apply rotation and translation transforms to image stack.
+
+    Args:
+        data_ (np.ndarray): Image stack with shape (N, H, W) or (N, C, H, W).
+        angles (np.ndarray): Rotation angles in degrees for each image.
+        offsets (np.ndarray): Translation offsets (dy, dx) for each image.
+
+    Returns:
+        np.ndarray: Transformed image stack with same shape as input.
+    """
+    from skimage.transform import rotate
+
+    warped = []
+    for i, frame in enumerate(data_):
+        angle = angles[i]
+        offset = offsets[i]
+
+        # Skip transform if no rotation or translation needed
+        if angle == 0 and offset[0] == 0 and offset[1] == 0:
+            warped.append(frame)
+            continue
+
+        # Handle multi-channel frames (C, H, W)
+        if frame.ndim == 3:
+            frame_transformed = []
+            for channel in frame:
+                # Apply rotation first
+                if angle != 0:
+                    channel = rotate(channel, angle, preserve_range=True)
+                # Apply translation
+                if offset[0] != 0 or offset[1] != 0:
+                    st = skimage.transform.SimilarityTransform(translation=offset[::-1])
+                    channel = skimage.transform.warp(channel, st, preserve_range=True)
+                frame_transformed.append(channel.astype(data_.dtype))
+            warped.append(np.array(frame_transformed))
+        else:
+            # Single channel (H, W)
+            frame_out = frame.copy()
+            if angle != 0:
+                frame_out = rotate(frame_out, angle, preserve_range=True)
+            if offset[0] != 0 or offset[1] != 0:
+                st = skimage.transform.SimilarityTransform(translation=offset[::-1])
+                frame_out = skimage.transform.warp(frame_out, st, preserve_range=True)
+            warped.append(frame_out.astype(data_.dtype))
+
+    return np.array(warped)
+
+
+def calculate_dapi_edge_offsets(data, upsample_factor=4, max_rotation=5.0, edge_sigma=2.0):
+    """Calculate rotation and translation offsets using edge detection on DAPI.
+
+    Uses Canny edge detection which is robust to intensity changes and saturation,
+    making it suitable for DAPI signals that degrade over cycles.
+
+    Args:
+        data (np.ndarray): DAPI images with shape (N, H, W).
+        upsample_factor (int, optional): Subpixel precision. Defaults to 4.
+        max_rotation (float, optional): Maximum allowed rotation in degrees.
+            Defaults to 5.0.
+        edge_sigma (float, optional): Gaussian sigma for Canny edge detection.
+            Larger values detect coarser edges. Defaults to 2.0.
+
+    Returns:
+        tuple: (angles, offsets) where:
+            - angles: np.ndarray of rotation angles in degrees (N,)
+            - offsets: np.ndarray of (dy, dx) translation offsets (N, 2)
+    """
+    from skimage.feature import canny
+    from skimage.transform import rotate
+
+    def get_edges(img, sigma):
+        """Get edges using Canny, robust to intensity variations."""
+        # Normalize to 0-1 range using percentiles (robust to outliers/saturation)
+        img_norm = img.astype(float)
+        vmin, vmax = np.percentile(img_norm, [1, 99])
+        if vmax > vmin:
+            img_norm = np.clip((img_norm - vmin) / (vmax - vmin), 0, 1)
+        else:
+            img_norm = img_norm - img_norm.min()
+
+        # Canny edge detection
+        edges = canny(img_norm, sigma=sigma).astype(float)
+        return edges
+
+    target = data[0]
+    target_edges = get_edges(target, edge_sigma)
+
+    angles = [0.0]
+    offsets = [(0, 0)]
+
+    for i, src in enumerate(data[1:], start=1):
+        src_edges = get_edges(src, edge_sigma)
+
+        # Step 1: Rough translation on edge images
+        rough_offset, _, _ = skimage.registration.phase_cross_correlation(
+            src_edges, target_edges, upsample_factor=upsample_factor
+        )
+
+        # Step 2: Apply rough translation for rotation detection
+        st = skimage.transform.SimilarityTransform(translation=rough_offset[::-1])
+        src_edges_aligned = skimage.transform.warp(src_edges, st, preserve_range=True)
+
+        # Step 3: Detect rotation using log-polar on edge images
+        angle = calculate_rotation_offset(target_edges, src_edges_aligned, upsample_factor=upsample_factor)
+        angle = -angle  # Negate for correct direction
+
+        if abs(angle) > max_rotation:
+            print(f"  Warning: Cycle {i} rotation {angle:.2f}° exceeds max, setting to 0°")
+            angle = 0.0
+
+        angles.append(angle)
+
+        # Step 4: Apply rotation to original edges, recompute translation
+        if angle != 0:
+            src_edges_rotated = rotate(src_edges, angle, preserve_range=True)
+        else:
+            src_edges_rotated = src_edges
+
+        final_offset, _, _ = skimage.registration.phase_cross_correlation(
+            src_edges_rotated, target_edges, upsample_factor=upsample_factor
+        )
+
+        offsets.append(tuple(final_offset))
+
+    return np.array(angles), np.array(offsets)

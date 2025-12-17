@@ -13,6 +13,9 @@ from lib.shared.align import (
     calculate_offsets,
     apply_offsets,
     filter_percentiles,
+    calculate_rotation_and_translation_offsets,
+    apply_rotation_and_translation,
+    calculate_dapi_edge_offsets,
 )
 
 
@@ -28,7 +31,9 @@ def align_cycles(
     skip_cycles=None,
     manual_background_cycle=None,
     manual_channel_mapping=None,
+    manual_cycle_offsets=None,
     verbose=False,
+    tile_id=None,
 ):
     """Rigid alignment of sequencing cycles and channels.
 
@@ -63,6 +68,11 @@ def align_cycles(
             Example: [["DAPI", "G", "T", "A", "C"], ["DAPI", "G", "T", "A", "C"], ["DAPI", "GFP", "G", "T", "A", "C", "AF750"]]
             for a 3-cycle dataset where the third cycle has additional GFP and AF750 channels.
             Defaults to None.
+        manual_cycle_offsets (dict or None, optional): Dictionary mapping cycle indices to (dy, dx)
+            offset tuples for coarse pre-alignment. Applied BEFORE automatic fine alignment.
+            Example: {0: (0, 0), 1: (94, 38), 2: (-32, -27)} for 3 cycles with specified shifts.
+            Useful when automatic alignment fails due to large inter-cycle drift.
+            Defaults to None.
         verbose (bool, optional): If True, print detailed alignment information including
             calculated offsets for each cycle. Useful for debugging alignment issues.
             Defaults to False.
@@ -90,6 +100,35 @@ def align_cycles(
         print(
             f"Processing {len(processed_data)} cycles after skipping {len(skip_cycles)}"
         )
+
+    # Stage 1: Apply manual coarse offsets if provided (BEFORE automatic fine alignment)
+    if manual_cycle_offsets is not None:
+        if verbose:
+            print("Stage 1: Applying manual coarse cycle offsets...")
+        pre_aligned_data = []
+        for cycle_idx, img in enumerate(image_data):
+            # Map processed cycle index back to original if cycles were skipped
+            original_cycle_idx = cycle_idx
+            if skip_cycles:
+                # Count how many skipped cycles are before this processed index
+                for skip_idx in sorted(skip_cycles):
+                    if skip_idx <= original_cycle_idx:
+                        original_cycle_idx += 1
+
+            if original_cycle_idx in manual_cycle_offsets:
+                offset = manual_cycle_offsets[original_cycle_idx]
+                if verbose:
+                    print(f"  Cycle {original_cycle_idx}: applying offset {offset}")
+                # Apply the same offset to all channels in the cycle
+                n_channels = img.shape[0]
+                offsets_array = np.array([offset] * n_channels)
+                shifted_img = apply_offsets(img, offsets_array)
+                pre_aligned_data.append(shifted_img)
+            else:
+                pre_aligned_data.append(img)
+        image_data = pre_aligned_data
+        if verbose:
+            print("Stage 1 complete.")
 
     # Track the source cycle for extra channels (for proper offset application)
     extra_channel_source_cycle = None
@@ -264,9 +303,10 @@ def align_cycles(
             )
 
             if verbose:
-                print("\n=== Cycle Alignment Offsets (DAPI method) ===")
+                tile_str = f" [{tile_id}]" if tile_id else ""
+                print(f"\n=== Cycle Alignment Offsets (DAPI method){tile_str} ===")
                 for cycle_idx, offset in enumerate(offsets):
-                    print(f"  Cycle {cycle_idx}: shift = {offset} pixels (y, x)")
+                    print(f"  {tile_id} Cycle {cycle_idx}: shift = {offset} pixels (y, x)")
         else:
             print(
                 "Warning: 'DAPI' method selected but DAPI channel not available. Switching to 'sbs_mean'."
@@ -289,9 +329,10 @@ def align_cycles(
         offsets = calculate_offsets(normed, upsample_factor=upsample_factor)
 
         if verbose:
-            print("\n=== Cycle Alignment Offsets (sbs_mean method) ===")
+            tile_str = f" [{tile_id}]" if tile_id else ""
+            print(f"\n=== Cycle Alignment Offsets (sbs_mean method){tile_str} ===")
             for cycle_idx, offset in enumerate(offsets):
-                print(f"  Cycle {cycle_idx}: shift = {offset} pixels (y, x)")
+                print(f"  {tile_id} Cycle {cycle_idx}: shift = {offset} pixels (y, x)")
 
         # Apply cycle offsets conditionally based on channel type
         for channel in range(aligned.shape[1]):
@@ -311,6 +352,96 @@ def align_cycles(
             else:
                 # Base channels: apply cycle-specific offsets
                 aligned[:, channel] = apply_offsets(aligned[:, channel], offsets)
+
+    elif method == "sbs_mean_rotation":
+        # Calculate cycle offsets WITH ROTATION using log-polar transform
+        # Same as sbs_mean but also detects and corrects small rotations
+        if base_indices:
+            sbs_channels = base_indices
+        else:
+            print(
+                "Warning: No base channels found for 'sbs_mean_rotation' method. Using all channels."
+            )
+            sbs_channels = list(range(aligned.shape[1]))
+
+        # Create max projection - FULL image for rotation, WINDOWED for translation
+        full_projection = aligned[:, sbs_channels].max(axis=1)
+        windowed_projection = apply_window(full_projection, window=window)
+
+        # Normalize both
+        full_normed = normalize_by_percentile(full_projection, q_norm=q_norm)
+        full_normed[full_normed > cutoff] = cutoff
+
+        windowed_normed = normalize_by_percentile(windowed_projection, q_norm=q_norm)
+        windowed_normed[windowed_normed > cutoff] = cutoff
+
+        # Calculate rotation AND translation offsets
+        # - Translation uses WINDOWED data (center region, avoids edge artifacts)
+        # - Rotation uses FULL image (edges have most rotation signal)
+        angles, offsets = calculate_rotation_and_translation_offsets(
+            data_full=full_normed,
+            data_windowed=windowed_normed,
+            upsample_factor=upsample_factor,
+            max_rotation=5.0
+        )
+
+        if verbose:
+            tile_str = f" [{tile_id}]" if tile_id else ""
+            print(f"\n=== Cycle Alignment Offsets (sbs_mean_rotation method){tile_str} ===")
+            for cycle_idx, (angle, offset) in enumerate(zip(angles, offsets)):
+                print(f"  {tile_id} Cycle {cycle_idx}: rotation = {angle:.3f}°, shift = {offset} pixels (y, x)")
+
+        # Apply rotation + translation to all channels
+        for channel in range(aligned.shape[1]):
+            if channel in extra_indices and extra_channel_source_cycle is not None:
+                # Extra channels: use ONLY the transform from the cycle they were acquired in
+                source_angles = np.array([angles[extra_channel_source_cycle]] * aligned.shape[0])
+                source_offsets = np.array([offsets[extra_channel_source_cycle]] * aligned.shape[0])
+                aligned[:, channel] = apply_rotation_and_translation(
+                    aligned[:, channel], source_angles, source_offsets
+                )
+                if channel == extra_indices[0]:
+                    print(
+                        f"Applying source cycle {extra_channel_source_cycle} transform to {len(extra_indices)} extra channel(s)"
+                    )
+            else:
+                # Base channels: apply cycle-specific transforms
+                aligned[:, channel] = apply_rotation_and_translation(
+                    aligned[:, channel], angles, offsets
+                )
+
+    elif method == "dapi_rotation":
+        # DAPI edge-based rotation alignment
+        # Uses Canny edges which are robust to intensity changes/saturation
+        if extra_indices:
+            dapi_channel = extra_indices[0]  # Assume first extra channel is DAPI
+        else:
+            print("Warning: No extra channels found for 'dapi_rotation'. Using channel 0.")
+            dapi_channel = 0
+
+        # Extract DAPI channel across all cycles
+        dapi_data = aligned[:, dapi_channel]
+
+        # Calculate rotation + translation using edge detection
+        angles, offsets = calculate_dapi_edge_offsets(
+            dapi_data,
+            upsample_factor=upsample_factor,
+            max_rotation=5.0,
+            edge_sigma=2.0
+        )
+
+        if verbose:
+            tile_str = f" [{tile_id}]" if tile_id else ""
+            print(f"\n=== Cycle Alignment Offsets (dapi_rotation method){tile_str} ===")
+            for cycle_idx, (angle, offset) in enumerate(zip(angles, offsets)):
+                print(f"  {tile_id} Cycle {cycle_idx}: rotation = {angle:.3f}°, shift = {offset} pixels (y, x)")
+
+        # Apply rotation + translation to all channels
+        for channel in range(aligned.shape[1]):
+            aligned[:, channel] = apply_rotation_and_translation(
+                aligned[:, channel], angles, offsets
+            )
+
     else:
         raise ValueError(f'Method "{method}" not implemented')
 

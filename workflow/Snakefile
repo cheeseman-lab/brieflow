@@ -166,7 +166,7 @@ if "aggregate" in config:
 
     # Include target and rule files
     include: "targets/aggregate.smk"
-    include: "rules/aggregate.smk"
+    # include: "rules/aggregate.smk"
 
 
 if "cluster" in config:

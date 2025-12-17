@@ -168,3 +168,28 @@ cluster:
   phate_distance_metric: euclidean
   string_pair_benchmark_fp: config/benchmark_clusters/string_pair_benchmark.tsv
   perturbation_auc_threshold: null
+  # Filtered clustering configuration
+  # Filters genes based on bootstrap statistics before clustering
+  filtered_clustering:
+    enabled: true
+    zscore_threshold: 2.0        # -log10(pval) threshold for significance
+    zscore_direction: both       # "positive", "negative", or "both"
+    fdr_threshold: 0.05          # FDR cutoff for significance
+    filter_mode: both            # "zscore", "fdr", or "both" (requires both conditions)
+  # Mozzarellm LLM-based cluster analysis
+  # Requires mozzarellm package and API keys set in environment
+  mozzarellm:
+    enabled: true
+    model_name: claude-3-7-sonnet-20250219
+    batch_size: 1
+    # Prompts for LLM analysis (can be customized in notebook 9)
+    screen_context: null          # If null, uses mozzarellm default ROBUST_SCREEN_CONTEXT
+    cluster_analysis_prompt: null  # If null, uses mozzarellm default ROBUST_CLUSTER_PROMPT
+    # Specific combinations to run mozzarellm on (if empty, mozzarellm won't run)
+    mozzarellm_combinations: []
+    # Example:
+    # mozzarellm_combinations:
+    # - cell_class: interphase
+    #   channel_combo: DAPI_COXIV_CENPA_WGA
+    #   leiden_resolution: 10
+    #   use_filtered: false  # true to run on filtered clustering

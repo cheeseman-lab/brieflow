@@ -331,7 +331,7 @@ def build_master_phenotype_df(
     wells: Union[str, int, Iterable[Union[str, int]]],
     name_suffix: str,
     parquet_dir: Union[str, Path],
-    read_kwargs: Optional[Dict[str, Any]] = None,
+    read_kwargs: Optional[Dict[str, Any]] = {"engine": "pyarrow"},
     verbose: bool = True,
     preview_cols: int = 10,
     preview_rows: int = 5,
@@ -516,6 +516,7 @@ def build_montages_and_summary(
     coords_and_keys = list(required_master_cols)
     cm = classified_metadata.copy(deep=True)
 
+<<<<<<< Updated upstream
     # Determine which join keys are available in classified_metadata
     available_join_keys = [c for c in join_keys if c in cm.columns]
 
@@ -552,6 +553,36 @@ def build_montages_and_summary(
                 f"Used join keys: {available_join_keys}. "
                 f"Check that classified_metadata has proper {available_join_keys} values."
             )
+=======
+    # Check which coordinate columns are already present
+    coords_already_present = all(c in cm.columns for c in coord_cols_present)
+
+    if not coords_already_present:
+        # Only merge if coordinates are missing
+        cm = cm.merge(
+            master_phenotype_df[coords_and_keys].drop_duplicates(),
+            on=[c for c in join_keys if c in cm.columns],
+            how="left",
+        )
+    else:
+        # Coordinates already present, but validate join keys exist for later steps
+        missing_join_keys = [k for k in join_keys if k not in cm.columns]
+        if missing_join_keys:
+            # Need to add missing join keys from master_phenotype_df
+            cols_to_merge = missing_join_keys + list(coord_cols_present)
+            available_join_keys = [k for k in join_keys if k in cm.columns]
+            if available_join_keys:
+                cm = cm.merge(
+                    master_phenotype_df[cols_to_merge].drop_duplicates(),
+                    on=available_join_keys,
+                    how="left",
+                    suffixes=('', '_master')
+                )
+                # Drop any duplicate coordinate columns created by merge
+                for coord_col in coord_cols_present:
+                    if f"{coord_col}_master" in cm.columns:
+                        cm = cm.drop(columns=[f"{coord_col}_master"])
+>>>>>>> Stashed changes
 
     # 3) Normalize dtypes for filename construction
     if "plate" in cm.columns:

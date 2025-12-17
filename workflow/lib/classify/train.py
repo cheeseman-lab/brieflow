@@ -139,14 +139,20 @@ def create_run_directories(
     }
 
 
-def load_cellprofiler_data(file_paths):
+def load_cellprofiler_data(file_paths, class_title=None, metadata_cols=None):
     """Load and combine multiple CellProfiler parquet files.
 
     Args:
         file_paths: List of parquet file paths to load.
+        class_title: Optional str. Name of the classification column to validate exists in data.
+        metadata_cols: Optional list. Metadata columns that class_title should be present in.
 
     Returns:
         Combined DataFrame with all data from the provided parquet files.
+
+    Raises:
+        ValueError: If class_title is specified but not found in loaded data.
+        ValueError: If class_title is provided but not in metadata_cols.
     """
     all_data = []
 
@@ -161,6 +167,27 @@ def load_cellprofiler_data(file_paths):
     combined_data.reset_index(drop=True, inplace=True)
 
     print(f"Loaded {len(combined_data)} cells from {len(file_paths)} files")
+
+    # Validate class_title exists in data if provided
+    if class_title is not None:
+        if class_title not in combined_data.columns:
+            available_class_cols = [
+                c for c in combined_data.columns
+                if c not in ['plate', 'well', 'tile', 'label']
+                and not c.startswith(('nucleus_', 'cell_', 'cytoplasm_', 'vacuole_'))
+            ]
+            raise ValueError(
+                f"CLASS_TITLE '{class_title}' not found in training data.\n"
+                f"Available classification columns: {available_class_cols}"
+            )
+
+        # Validate class_title is in metadata_cols if provided
+        if metadata_cols is not None and class_title not in metadata_cols:
+            raise ValueError(
+                f"CLASS_TITLE '{class_title}' must be included in METADATA_COLS.\n"
+                f"Current METADATA_COLS: {metadata_cols}"
+            )
+
     return combined_data
 
 

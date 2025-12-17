@@ -107,27 +107,27 @@ def segment_second_objs_ml(
         Additional ML model parameters. Required and optional parameters depend on ml_method:
 
         Common parameters:
-        - ml_method : str (required)
+        - second_obj_method : str (required)
             ML model to use: "cellpose" or "stardist"
         - gpu : bool (default: False)
             Whether to use GPU acceleration
 
-        For ml_method="cellpose":
-        - model_type : str (default: 'cyto3')
+        For second_obj_method="cellpose":
+        - second_obj_cellpose_model : str (default: 'cyto3')
             Cellpose model type ('cyto3', 'cyto2', 'cyto', 'nuclei', etc.)
-        - diameter : float or None (default: None)
+        - second_obj_diameter : float or None (default: None)
             Expected diameter of objects in pixels. If None, estimated automatically
-        - flow_threshold : float (default: 0.4)
+        - second_obj_flow_threshold : float (default: 0.4)
             Flow error threshold for Cellpose segmentation
-        - cellprob_threshold : float (default: 0.0)
+        - second_obj_cellprob_threshold : float (default: 0.0)
             Cell probability threshold for Cellpose
 
-        For ml_method="stardist":
-        - model_type : str (default: '2D_versatile_fluo')
+        For second_obj_method="stardist":
+        - second_obj_stardist_model : str (default: '2D_versatile_fluo')
             StarDist pretrained model name
-        - prob_thresh : float (default: 0.5)
+        - second_obj_prob_threshold : float (default: 0.5)
             Probability threshold for object detection
-        - nms_thresh : float (default: 0.4)
+        - second_obj_nms_threshold : float (default: 0.4)
             Non-maximum suppression threshold
 
     Returns:
@@ -152,10 +152,10 @@ def segment_second_objs_ml(
     target_channel = image[second_obj_channel_index]
 
     # Get ML method
-    ml_method = ml_params.get("ml_method", None)
+    ml_method = ml_params.get("second_obj_method", None)
     if ml_method is None:
         raise ValueError(
-            "ml_method must be specified in ml_params. "
+            "second_obj_method must be specified in ml_params. "
             "Valid options: 'cellpose' or 'stardist'"
         )
 
@@ -164,10 +164,10 @@ def segment_second_objs_ml(
     # Route to appropriate ML model
     if ml_method == "cellpose":
         # Cellpose parameters
-        model_type = ml_params.get("model_type", "cyto3")
-        diameter = ml_params.get("diameter", None)
-        flow_threshold = ml_params.get("flow_threshold", 0.4)
-        cellprob_threshold = ml_params.get("cellprob_threshold", 0.0)
+        model_type = ml_params.get("second_obj_cellpose_model", "cyto3")
+        diameter = ml_params.get("second_obj_diameter", None)
+        flow_threshold = ml_params.get("second_obj_flow_threshold", 0.4)
+        cellprob_threshold = ml_params.get("second_obj_cellprob_threshold", 0.0)
 
         print(
             f"Running Cellpose {model_type} model for secondary object segmentation..."
@@ -207,9 +207,9 @@ def segment_second_objs_ml(
 
     elif ml_method == "stardist":
         # StarDist parameters
-        model_type = ml_params.get("model_type", "2D_versatile_fluo")
-        prob_thresh = ml_params.get("prob_thresh", 0.5)
-        nms_thresh = ml_params.get("nms_thresh", 0.4)
+        model_type = ml_params.get("second_obj_stardist_model", "2D_versatile_fluo")
+        prob_thresh = ml_params.get("second_obj_prob_threshold", 0.5)
+        nms_thresh = ml_params.get("second_obj_nms_threshold", 0.4)
 
         print(
             f"Running StarDist {model_type} model for secondary object segmentation..."

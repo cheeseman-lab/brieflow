@@ -351,11 +351,16 @@ def _get_single_aggregate_stats(
     old_control_data = filtered[
         filtered["gene_symbol_0"].str.startswith("nontargeting")
     ]
-    metadata_cols = DEFAULT_METADATA_COLS + ["class", "confidence"]
+    # Build metadata columns list, only including columns that exist
+    metadata_cols = [col for col in DEFAULT_METADATA_COLS if col in old_control_data.columns]
+    # Add optional columns if they exist
+    for optional_col in ["class", "confidence"]:
+        if optional_col in old_control_data.columns:
+            metadata_cols.append(optional_col)
     old_control_data["batch"] = (
         old_control_data["plate"].astype(str) + "_" + old_control_data["well"]
     )
-    old_control_data = old_control_data.drop(columns=metadata_cols)
+    old_control_data = old_control_data.drop(columns=metadata_cols, errors="ignore")
 
     # Drop features with zero variance
     old_feature_data = old_control_data.drop(columns=["batch"])

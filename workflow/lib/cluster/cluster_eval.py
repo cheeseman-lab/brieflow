@@ -23,6 +23,9 @@ def merge_bootstrap_with_genes(
 ):
     """Merge bootstrap results with gene-level feature table.
 
+    Only includes feature columns from genes_df that were actually bootstrapped
+    (determined by matching _pval columns in bootstrap_df).
+
     Args:
         bootstrap_df (pandas.DataFrame): Bootstrap results with significance stats.
             Expected columns: gene (or bootstrap_gene_col), *_pval, *_log10, *_fdr columns.
@@ -42,8 +45,23 @@ def merge_bootstrap_with_genes(
     if bootstrap_gene_col in bootstrap_copy.columns and perturbation_name_col not in bootstrap_copy.columns:
         bootstrap_copy = bootstrap_copy.rename(columns={bootstrap_gene_col: perturbation_name_col})
 
+    # Identify which features were bootstrapped by looking at _pval columns
+    bootstrapped_features = [
+        col.replace("_pval", "")
+        for col in bootstrap_copy.columns
+        if col.endswith("_pval")
+    ]
+
+    # Subset genes_df to only include bootstrapped features + metadata
+    metadata_cols = [perturbation_name_col, "cell_count"]
+    genes_cols_to_keep = [
+        col for col in genes_df.columns
+        if col in metadata_cols or col in bootstrapped_features
+    ]
+    genes_subset = genes_df[genes_cols_to_keep]
+
     # Merge on gene column
-    merged = genes_df.merge(
+    merged = genes_subset.merge(
         bootstrap_copy,
         on=perturbation_name_col,
         how="left",
@@ -73,7 +91,7 @@ def filter_genes_by_bootstrap(
         perturbation_name_col (str): Column name for gene/perturbation identifiers.
         control_patterns (list): List of regex patterns to identify control genes
             (e.g., ["^nontargeting_intergenic_", "^nontargeting_or_"]).
-        zscore_threshold (float): -log10(pval) threshold for significance.
+        zscore_threshold (float): Z-score threshold for raw feature values.
         zscore_direction (str): Filter direction - "positive", "negative", or "both".
         fdr_threshold (float): FDR cutoff for multiple testing correction.
         filter_mode (str): How to combine filters - "zscore", "fdr", or "both".
@@ -83,21 +101,35 @@ def filter_genes_by_bootstrap(
             - filtered_df: DataFrame with only genes passing filters + controls
             - filter_stats: dict with filtering statistics
     """
-    # Find log10 and fdr columns
-    log10_cols = [c for c in merged_data.columns if c.endswith("_log10")]
+    # Find fdr columns
     fdr_cols = [c for c in merged_data.columns if c.endswith("_fdr")]
 
-    if not log10_cols or not fdr_cols:
-        raise ValueError("No _log10 or _fdr columns found in merged_data")
+    if not fdr_cols:
+        raise ValueError("No _fdr columns found in merged_data")
+
+    # Find raw feature columns (exclude metadata and bootstrap result columns)
+    metadata_cols = [
+        perturbation_name_col,
+        "cell_count",
+        "num_constructs",
+        "total_cells",
+        "num_sims",
+    ]
+    bootstrap_suffixes = ("_pval", "_log10", "_fdr")
+    feature_cols = [
+        c
+        for c in merged_data.columns
+        if c not in metadata_cols and not c.endswith(bootstrap_suffixes)
+    ]
 
     # Identify controls using patterns
     is_control = pd.Series(False, index=merged_data.index)
     for pattern in control_patterns:
         is_control |= merged_data[perturbation_name_col].str.match(pattern, na=False)
 
-    # Apply zscore filtering (gene passes if ANY feature passes threshold)
+    # Apply zscore filtering on raw feature values (gene passes if ANY feature passes threshold)
     zscore_mask = pd.Series(False, index=merged_data.index)
-    for col in log10_cols:
+    for col in feature_cols:
         if zscore_direction == "both":
             zscore_mask |= merged_data[col].abs() >= zscore_threshold
         elif zscore_direction == "positive":
@@ -110,13 +142,30 @@ def filter_genes_by_bootstrap(
     for col in fdr_cols:
         fdr_mask |= merged_data[col] < fdr_threshold
 
+    # Apply combined filtering (gene passes if ANY feature passes BOTH thresholds)
+    combined_mask = pd.Series(False, index=merged_data.index)
+    for col in feature_cols:
+        fdr_col = f"{col}_fdr"
+        if fdr_col in merged_data.columns:
+            # Check if this feature passes zscore threshold
+            if zscore_direction == "both":
+                feat_zscore_pass = merged_data[col].abs() >= zscore_threshold
+            elif zscore_direction == "positive":
+                feat_zscore_pass = merged_data[col] >= zscore_threshold
+            else:
+                feat_zscore_pass = merged_data[col] <= -zscore_threshold
+            # Check if this feature passes FDR threshold
+            feat_fdr_pass = merged_data[fdr_col] < fdr_threshold
+            # Gene passes if this feature passes BOTH
+            combined_mask |= feat_zscore_pass & feat_fdr_pass
+
     # Combine filters based on mode
     if filter_mode == "zscore":
         passes_filter = zscore_mask
     elif filter_mode == "fdr":
         passes_filter = fdr_mask
     else:  # "both"
-        passes_filter = zscore_mask & fdr_mask
+        passes_filter = combined_mask
 
     # Final mask includes passing genes + controls
     final_mask = passes_filter | is_control
@@ -129,7 +178,7 @@ def filter_genes_by_bootstrap(
         "pass_combined": int(passes_filter.sum()),
         "num_controls": int(is_control.sum()),
         "final_filtered": int(final_mask.sum()),
-        "num_features_tested": len(log10_cols),
+        "num_features_tested": len(feature_cols),
     }
 
     return merged_data[final_mask].copy(), filter_stats
@@ -153,7 +202,7 @@ def get_filtered_gene_list(
             gene features. Must contain columns ending in '_log10' and '_fdr'.
         perturbation_name_col (str): Column name for gene/perturbation identifiers.
         control_patterns (list): List of regex patterns to identify control genes.
-        zscore_threshold (float): -log10(pval) threshold for significance.
+        zscore_threshold (float): Z-score threshold for raw feature values.
         zscore_direction (str): Filter direction - "positive", "negative", or "both".
         fdr_threshold (float): FDR cutoff for multiple testing correction.
         filter_mode (str): How to combine filters - "zscore", "fdr", or "both".

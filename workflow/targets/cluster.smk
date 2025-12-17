@@ -1,5 +1,4 @@
 import pandas as pd
-from itertools import product
 
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
@@ -36,12 +35,6 @@ CLUSTER_OUTPUTS = {
         / get_filename({}, "clusters", "png"),
     ],
     # Filtered clustering outputs
-    "merge_bootstrap_genes": [
-        CLUSTER_FP
-        / "{channel_combo}"
-        / "{cell_class}"
-        / get_filename({}, "merged_bootstrap_genes", "tsv"),
-    ],
     "filter_genes": [
         CLUSTER_FP
         / "{channel_combo}"
@@ -138,24 +131,6 @@ CLUSTER_OUTPUTS = {
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Shuffled"}, "enrichment_bar_chart", "png"),
     ],
-    # Mozzarellm outputs
-    "run_mozzarellm": [
-        CLUSTER_FP
-        / "{channel_combo}"
-        / "{cell_class}"
-        / "{leiden_resolution}"
-        / "mozzarellm"
-        / get_filename({}, "mozzarellm_clusters", "json"),
-    ],
-    "run_mozzarellm_filtered": [
-        CLUSTER_FP
-        / "{channel_combo}"
-        / "{cell_class}"
-        / "filtered"
-        / "{leiden_resolution}"
-        / "mozzarellm"
-        / get_filename({}, "mozzarellm_clusters", "json"),
-    ],
     "benchmark_clusters": [
         CLUSTER_FP
         / "{channel_combo}"
@@ -219,14 +194,10 @@ CLUSTER_OUTPUT_MAPPINGS = {
     "phate_leiden_clustering": None,
     "benchmark_clusters": None,
     # Filtered clustering mappings
-    "merge_bootstrap_genes": None,
     "filter_genes": None,
     "clean_aggregate_filtered": None,
     "phate_leiden_clustering_filtered": None,
     "benchmark_clusters_filtered": None,
-    # Mozzarellm mappings
-    "run_mozzarellm": None,
-    "run_mozzarellm_filtered": None,
 }
 
 
@@ -272,14 +243,12 @@ if standard_clustering_config.get("enabled", True):  # Default True for backward
 filtered_clustering_config = config.get("cluster", {}).get("filtered_clustering", {})
 if filtered_clustering_config.get("enabled", False):
     FILTERED_CLUSTER_OUTPUTS = {
-        "merge_bootstrap_genes": CLUSTER_OUTPUTS["merge_bootstrap_genes"],
         "filter_genes": CLUSTER_OUTPUTS["filter_genes"],
         "clean_aggregate_filtered": CLUSTER_OUTPUTS["clean_aggregate_filtered"],
         "phate_leiden_clustering_filtered": CLUSTER_OUTPUTS["phate_leiden_clustering_filtered"],
         "benchmark_clusters_filtered": CLUSTER_OUTPUTS["benchmark_clusters_filtered"],
     }
     FILTERED_CLUSTER_MAPPINGS = {
-        "merge_bootstrap_genes": None,
         "filter_genes": None,
         "clean_aggregate_filtered": None,
         "phate_leiden_clustering_filtered": None,
@@ -297,31 +266,3 @@ if filtered_clustering_config.get("enabled", False):
     CLUSTER_TARGETS_ALL += outputs_to_targets(
         FILTERED_CLUSTER_OUTPUTS, filtered_combos, FILTERED_CLUSTER_MAPPINGS
     )
-
-# Add mozzarellm targets based on specific combinations from config
-mozzarellm_config = config.get("cluster", {}).get("mozzarellm", {})
-if mozzarellm_config.get("enabled", False):
-    mozzarellm_combinations = mozzarellm_config.get("mozzarellm_combinations", [])
-
-    for combo in mozzarellm_combinations:
-        cell_class = combo.get("cell_class")
-        channel_combo = combo.get("channel_combo")
-        leiden_resolution = combo.get("leiden_resolution")
-        use_filtered = combo.get("use_filtered", False)
-
-        if use_filtered and filtered_clustering_config.get("enabled", False):
-            # Use filtered clustering output path
-            target_path = str(CLUSTER_OUTPUTS["run_mozzarellm_filtered"][0]).format(
-                channel_combo=channel_combo,
-                cell_class=cell_class,
-                leiden_resolution=leiden_resolution,
-            )
-        else:
-            # Use unfiltered clustering output path
-            target_path = str(CLUSTER_OUTPUTS["run_mozzarellm"][0]).format(
-                channel_combo=channel_combo,
-                cell_class=cell_class,
-                leiden_resolution=leiden_resolution,
-            )
-
-        CLUSTER_TARGETS_ALL.append(target_path)

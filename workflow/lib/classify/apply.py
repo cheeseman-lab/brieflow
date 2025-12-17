@@ -530,6 +530,13 @@ def build_montages_and_summary(
     if coords_already_present:
         if verbose:
             print("Coordinate columns already present in classified_metadata")
+        # Verify join keys are also present
+        missing_join_keys = [k for k in join_keys if k not in cm.columns]
+        if missing_join_keys:
+            raise ValueError(
+                f"Coordinates present but missing required join keys: {missing_join_keys}. "
+                f"This indicates malformed input data."
+            )
     elif not available_join_keys:
         raise ValueError(
             f"Cannot merge coordinates: no join keys found in classified_metadata. "

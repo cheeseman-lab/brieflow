@@ -47,11 +47,38 @@ if len(gene_row) == 0:
     print(f"Available genes: {sorted(gene_table['gene_symbol_0'].unique())}")
     raise ValueError(f"Gene {gene_id} not found in gene table")
 
-# Get available features from gene table (same as prepare_bootstrap_data.py)
-available_features = [
+# Get available features from gene table, then filter to match prepare_bootstrap_data.py
+all_features = [
     col for col in gene_table.columns if col not in ["gene_symbol_0", "cell_count"]
 ]
-print(f"Using {len(available_features)} features for bootstrap analysis")
+
+# Filter to intensity features (mean, median, int) and area for all compartments
+# This must match the filtering in prepare_bootstrap_data.py
+filtered_features = []
+compartments = ["cell_", "nucleus_", "cytoplasm_"]
+suffixes = ["_mean", "_median", "_int"]
+
+for feature in all_features:
+    # Check for intensity features
+    for compartment in compartments:
+        for suffix in suffixes:
+            if (
+                feature.startswith(compartment)
+                and feature.endswith(suffix)
+                and "edge" not in feature
+                and "frac" not in feature
+            ):
+                filtered_features.append(feature)
+                break
+        else:
+            continue
+        break
+    # Check for area features
+    if feature in ["cell_area", "nucleus_area", "cytoplasm_area"]:
+        filtered_features.append(feature)
+
+available_features = filtered_features
+print(f"Using {len(available_features)} filtered features for bootstrap analysis")
 
 # Get observed gene medians (now with filtered features)
 observed_gene_medians = gene_row[available_features].values[0].astype(float)

@@ -329,7 +329,7 @@ def prepare_class_table(
 def build_master_phenotype_df(
     plates: Union[str, int, Iterable[Union[str, int]]],
     wells: Union[str, int, Iterable[Union[str, int]]],
-    name_suffix: str,
+    mode: str,
     parquet_dir: Union[str, Path],
     read_kwargs: Optional[Dict[str, Any]] = {"engine": "pyarrow"},
     verbose: bool = True,
@@ -342,7 +342,7 @@ def build_master_phenotype_df(
     Args:
         plates: Plate ID or iterable of IDs (str/int).
         wells: Well ID or iterable of IDs (str/int).
-        name_suffix: Filename suffix to use (e.g., 'phenotype_cp.parquet' or 'phenotype_vacuoles.parquet').
+        mode: Object type to load ("cell" or "vacuole"). Determines the filename suffix automatically.
         parquet_dir: Directory containing the parquet files.
         read_kwargs: Optional kwargs forwarded to pd.read_parquet (e.g., {"engine": "pyarrow"}).
         verbose: If True, print status messages.
@@ -361,6 +361,14 @@ def build_master_phenotype_df(
                 "parquet_dir": str,
               }
     """
+
+    # Determine name_suffix from mode
+    if mode == "cell":
+        name_suffix = "phenotype_cp.parquet"
+    elif mode == "vacuole":
+        name_suffix = "phenotype_vacuoles.parquet"
+    else:
+        raise ValueError(f"Invalid mode: {mode}. Must be 'cell' or 'vacuole'.")
 
     # Normalize inputs to lists of strings
     def _to_list(x):
@@ -453,7 +461,7 @@ def build_montages_and_summary(
     channels: Sequence[str],
     montage_channel: str,
     collapse_cols: Sequence[str],
-    verbose: bool = True,
+    verbose: bool = False,
     show_figure: bool = True,
     display_fn: Optional[Callable[[pd.DataFrame], None]] = None,
 ) -> Tuple[

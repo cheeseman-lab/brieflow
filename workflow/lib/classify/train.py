@@ -1689,6 +1689,38 @@ def train_classifier_pipeline(
     if verbose:
         print(f"[pipeline] Selected {len(selected_features)} features")
 
+    # Validate feature dtypes before training
+    invalid_feature_cols = []
+    for col in selected_features:
+        if col in features_df.columns:
+            dtype = features_df[col].dtype
+            if dtype == 'object' or dtype.name == 'object':
+                sample_vals = features_df[col].dropna().head(3).tolist()
+                invalid_feature_cols.append({
+                    'column': col,
+                    'dtype': str(dtype),
+                    'sample_values': sample_vals
+                })
+
+    if invalid_feature_cols:
+        error_msg = f"[pipeline][ERROR] Found {len(invalid_feature_cols)} feature columns with invalid (non-numeric) dtypes.\n"
+        error_msg += "These columns contain string/object data and cannot be used for training.\n"
+        error_msg += "Add these columns to METADATA_COLS to exclude them from features:\n\n"
+        for info in invalid_feature_cols:
+            error_msg += f"  - {info['column']}\n"
+            error_msg += f"      dtype: {info['dtype']}\n"
+            error_msg += f"      sample values: {info['sample_values']}\n"
+        if verbose:
+            print(error_msg)
+        raise ValueError(
+            f"Invalid feature dtypes detected. "
+            f"The following {len(invalid_feature_cols)} columns must be added to METADATA_COLS: "
+            f"{[info['column'] for info in invalid_feature_cols]}"
+        )
+
+    if verbose:
+        print(f"[pipeline] ✓ All {len(selected_features)} features have valid numeric dtypes")
+
     # 5. Distribution stats
     stats = plot_distribution_statistics(
         metadata_df,

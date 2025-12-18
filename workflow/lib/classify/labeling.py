@@ -176,7 +176,7 @@ def consolidate_manual_classifications(
     manual_classified_df: pd.DataFrame,
     class_title: str,
     mode: str,
-    phenotype_output_fp: Path,
+    data_source: Path,
     classifier_output_dir: Path,
     timestamp: str | None = None,
     write: bool = True,
@@ -188,7 +188,7 @@ def consolidate_manual_classifications(
         manual_classified_df: Table with at least ['plate','well','tile','mask_label', class_title].
         class_title: Name of the classification column to write.
         mode: 'cell' or 'vacuole'.
-        phenotype_output_fp: Root path containing 'parquets'.
+        data_source: Root data source path containing 'parquets'.
         classifier_output_dir: Root path where 'training_dataset' is created.
         timestamp: Optional timestamp string used in output filename.
         write: If True, write the parquet to disk.
@@ -229,7 +229,7 @@ def consolidate_manual_classifications(
     if man_df.empty:
         raise ValueError("No valid manual classifications remain after cleaning/dedup.")
 
-    parquet_dir = _get_parquet_dir(phenotype_output_fp)
+    parquet_dir = _get_parquet_dir(data_source)
     if not parquet_dir.exists():
         raise FileNotFoundError(f"Parquet directory not found: {parquet_dir}")
 
@@ -1430,7 +1430,8 @@ def _render_next_batch(
     out_of_gate_count: int,
     channel_indices: list,
     *,
-    phenotype_output_fp: Path,
+    data_source: Path,
+    images_source: Optional[Path] = None,
     channel_names: list,
     mode: str,
     resolved_colors: list,
@@ -1455,7 +1456,8 @@ def _render_next_batch(
         out_of_gate_df: Out-of-gate pool for selection.
         out_of_gate_count: Max number of out-of-threshold rows per page.
         channel_indices: Indices of channels to display.
-        phenotype_output_fp: Root output path.
+        data_source: Root data source path (for parquets).
+        images_source: Path to directory containing images/ subdirectory. If None, defaults to data_source.
         channel_names: Channel names (for aligned stack validation).
         mode: Normalized mode ('vacuole' or 'cell').
         resolved_colors: List of ('gray' or label, (r,g,b)) tuples per channel.
@@ -1571,12 +1573,16 @@ def _render_next_batch(
         )
         rows_to_show.append(meta)
 
+    # Default images_source to data_source if not provided
+    if images_source is None:
+        images_source = data_source
+
     row_widgets = [
         _render_row(
             meta,
             state=state,
             mode=mode,
-            phenotype_output_fp=phenotype_output_fp,
+            phenotype_output_fp=images_source,
             channel_names=channel_names,
             channel_indices=channel_indices,
             resolved_colors=resolved_colors,
@@ -1609,7 +1615,8 @@ def _render_next_batch(
             out_of_gate_df=out_left,
             out_of_gate_count=out_of_gate_count,
             channel_indices=channel_indices,
-            phenotype_output_fp=phenotype_output_fp,
+            data_source=data_source,
+            images_source=images_source,
             channel_names=channel_names,
             mode=mode,
             resolved_colors=resolved_colors,

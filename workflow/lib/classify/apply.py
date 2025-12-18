@@ -699,7 +699,8 @@ def launch_rankline_ui(
     class_title: str,
     classify_by: str,  # 'cell'/'cells'/'cp' or 'vacuole'/'vacuoles'/'vac'
     class_mapping: Dict,  # expects {"label_to_class": {id: name, ...}} or {id: name}
-    phenotype_output_fp: Union[str, Path],
+    data_source: Union[str, Path],
+    images_source: Optional[Union[str, Path]] = None,  # where images/masks live; defaults to data_source
     channel_names: Sequence[str],  # e.g. config["phenotype"]["channel_names"]
     display_channels: Sequence[str],  # e.g. DISPLAY_CHANNEL
     channel_colors: Optional[Sequence[str]] = None,  # e.g. CHANNEL_COLORS; can be None
@@ -718,15 +719,29 @@ def launch_rankline_ui(
 ) -> widgets.VBox:
     """Launches an interactive, rank-based number line UI for browsing per-class examples.
 
+    Args:
+        data_source: Path to data source directory (for parquets).
+        images_source: Path to directory containing images/ subdirectory. If None, defaults to data_source.
+
     Returns:
         container (widgets.VBox): the root widget; also displayed if auto_display=True.
     """
     # ---------- basic validations ----------
-    phenotype_output_fp = Path(phenotype_output_fp)
-    if not phenotype_output_fp.exists():
+    data_source = Path(data_source)
+    if not data_source.exists():
         raise FileNotFoundError(
-            f"PHENOTYPE_OUTPUT_FP does not exist: {phenotype_output_fp}"
+            f"data_source does not exist: {data_source}"
         )
+
+    # Default images_source to data_source if not provided
+    if images_source is None:
+        images_source = data_source
+    else:
+        images_source = Path(images_source)
+        if not images_source.exists():
+            raise FileNotFoundError(
+                f"images_source does not exist: {images_source}"
+            )
 
     if len(set(display_channels)) != len(display_channels):
         raise ValueError("display_channels contains duplicates.")
@@ -982,7 +997,7 @@ def launch_rankline_ui(
         n_in_class = int(row["__total_in_class"])
 
         stack = load_aligned_stack(
-            phenotype_output_fp,
+            images_source,
             channel_names,
             int(plate),
             str(well),
@@ -991,7 +1006,7 @@ def launch_rankline_ui(
         )
         H, W = stack.shape[1], stack.shape[2]
         labels_full = load_mask_labels(
-            phenotype_output_fp,
+            images_source,
             mode,
             int(plate),
             str(well),
@@ -1000,7 +1015,7 @@ def launch_rankline_ui(
         )
 
         y0, y1, x0, x1 = compute_crop_bounds(
-            phenotype_output_fp,
+            images_source,
             mode,
             int(plate),
             str(well),

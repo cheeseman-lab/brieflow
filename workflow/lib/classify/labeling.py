@@ -1207,7 +1207,7 @@ def _render_row(
     *,
     state: dict,
     mode: str,
-    phenotype_output_fp: Path,
+    images_source: Path,
     channel_names: List[str],
     channel_indices: List[int],
     resolved_colors: List[Tuple[str, Tuple[float, float, float]]],
@@ -1221,7 +1221,7 @@ def _render_row(
         meta: Row metadata containing keys and optional flags.
         state: Mutable cache/state dict.
         mode: Normalized mode ('vacuole' or 'cell').
-        phenotype_output_fp: Root output path.
+        images_source: Path to directory containing images/ subdirectory.
         channel_names: Channel names (for shape validation).
         channel_indices: Indices of channels to display.
         resolved_colors: List of ('gray'|tag, (r,g,b)) tuples per channel.
@@ -1240,7 +1240,7 @@ def _render_row(
     )
 
     stack = load_aligned_stack(
-        phenotype_output_fp,
+        images_source,
         channel_names,
         int(plate),
         str(well),
@@ -1250,7 +1250,7 @@ def _render_row(
 
     H, W = stack.shape[1], stack.shape[2]
     y0, y1, x0, x1 = compute_crop_bounds(
-        phenotype_output_fp,
+        images_source,
         mode,
         int(plate),
         str(well),
@@ -1266,7 +1266,7 @@ def _render_row(
     )
 
     labels_full = load_mask_labels(
-        phenotype_output_fp,
+        images_source,
         mode,
         int(plate),
         str(well),
@@ -1582,7 +1582,7 @@ def _render_next_batch(
             meta,
             state=state,
             mode=mode,
-            phenotype_output_fp=images_source,
+            images_source=images_source,
             channel_names=channel_names,
             channel_indices=channel_indices,
             resolved_colors=resolved_colors,

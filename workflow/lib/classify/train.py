@@ -298,6 +298,7 @@ def select_features_from_split(
     feature_markers=None,
     exclude_markers=None,
     exclude_cols=None,
+    training_object_types=None,
     remove_nan=True,
     verbose=True,
 ):
@@ -310,6 +311,10 @@ def select_features_from_split(
     exclude_markers : list List of marker strings to exclude from features
     exclude_cols : list
         List of specific columns to exclude from features
+    training_object_types : list or None
+        List of object types to include in training (e.g., ['nucleus', 'cell']).
+        Options: 'nucleus', 'cell', 'cytoplasm', 'second_obj'
+        If None, all object types are included.
     remove_nan : bool
         Whether to remove columns with NaN values
     verbose : bool
@@ -341,6 +346,29 @@ def select_features_from_split(
         if col not in exclude_cols
         and not any(col.startswith(ex) for ex in exclude_cols)
     ]
+
+    # Filter by object type if specified
+    if training_object_types is not None:
+        # Create prefixes to EXCLUDE (opposite of what user wants to include)
+        object_prefixes_to_exclude = [
+            f"{obj}_" for obj in ["nucleus", "cell", "cytoplasm", "second_obj"]
+            if obj not in training_object_types
+        ]
+
+        # Filter out columns that start with excluded object prefixes
+        feature_cols = [
+            col for col in feature_cols
+            if not any(col.startswith(prefix) for prefix in object_prefixes_to_exclude)
+        ]
+
+        if verbose:
+            excluded_types = [
+                obj for obj in ["nucleus", "cell", "cytoplasm", "second_obj"]
+                if obj not in training_object_types
+            ]
+            if excluded_types:
+                print(f"Excluded object types: {excluded_types}")
+            print(f"Included object types: {training_object_types}")
 
     # Initialize feature lists by marker
     feature_sets = {marker: [] for marker in feature_markers}
@@ -1608,6 +1636,7 @@ def train_classifier_pipeline(
     model_configs: List[Tuple],
     classifier_output_dir: Path,
     training_channels: List[str],
+    training_object_types: Optional[List[str]] = None,
     remove_nan: bool = True,
     variance_threshold: float = 0.01,
     correlation_threshold: float = 0.95,
@@ -1641,6 +1670,9 @@ def train_classifier_pipeline(
                 - select_k_best: int or None
         classifier_output_dir: Path Directory path to save outputs (models, plots, stats).
         training_channels: list List of channel names (strings) used in training (for logging).
+        training_object_types: Optional[List[str]] Object types to include in training.
+            Options: ["nucleus", "cell", "cytoplasm", "second_obj"]
+            Default is None (include all object types).
         remove_nan: bool Whether to remove features with NaN values. Default is True.
         variance_threshold: float Threshold for variance-based feature removal. Default is 0.01.
         correlation_threshold: float Threshold for correlation-based feature removal. Default is 0.95.
@@ -1683,6 +1715,7 @@ def train_classifier_pipeline(
         feature_markers=feature_markers,
         exclude_markers=exclude_markers,
         exclude_cols=None,
+        training_object_types=training_object_types,
         remove_nan=remove_nan,
         verbose=verbose,
     )

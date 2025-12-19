@@ -361,7 +361,6 @@ def build_master_phenotype_df(
                 "parquet_dir": str,
               }
     """
-
     # Determine name_suffix from mode
     if mode == "cell":
         name_suffix = "phenotype_cp.parquet"
@@ -700,7 +699,9 @@ def launch_rankline_ui(
     classify_by: str,  # 'cell'/'cells'/'cp' or 'vacuole'/'vacuoles'/'vac'
     class_mapping: Dict,  # expects {"label_to_class": {id: name, ...}} or {id: name}
     data_source: Union[str, Path],
-    images_source: Optional[Union[str, Path]] = None,  # where images/masks live; defaults to data_source
+    images_source: Optional[
+        Union[str, Path]
+    ] = None,  # where images/masks live; defaults to data_source
     channel_names: Sequence[str],  # e.g. config["phenotype"]["channel_names"]
     display_channels: Sequence[str],  # e.g. DISPLAY_CHANNEL
     channel_colors: Optional[Sequence[str]] = None,  # e.g. CHANNEL_COLORS; can be None
@@ -720,8 +721,24 @@ def launch_rankline_ui(
     """Launches an interactive, rank-based number line UI for browsing per-class examples.
 
     Args:
+        classified_metadata: DataFrame containing classified objects with predictions.
+        class_title: Title/name of the classification task (e.g., "Cell Class").
+        classify_by: Type of object being classified ('cell'/'cells'/'cp' or 'vacuole'/'vacuoles'/'vac').
+        class_mapping: Dictionary mapping class IDs to names. Either {"label_to_class": {id: name, ...}} or {id: name}.
         data_source: Path to data source directory (for parquets).
         images_source: Path to directory containing images/ subdirectory. If None, defaults to data_source.
+        channel_names: List of all channel names in the images (e.g., from config["phenotype"]["channel_names"]).
+        display_channels: List of channel names to display in the UI.
+        channel_colors: Optional list of color strings for each channel (e.g., CHANNEL_COLORS). Can be None.
+        test_plate: Optional iterable of plate identifiers to filter for testing.
+        test_well: Optional iterable of well identifiers to filter for testing.
+        filename_well_pad_2: If True, pad well numbers to 2 digits in filenames.
+        scale_bar_px: Explicit scale bar length in pixels. If >0, overrides scale_bar_um calculation.
+        scale_bar_um: Desired scale bar length in micrometers. Used if pixel_size_um>0 and scale_bar_px==0.
+        pixel_size_um: Micrometers per pixel for converting scale_bar_um to pixels.
+        minimum_difference: Minimum probability difference for ranking examples (default: 0.01).
+        thumbnail_px: Size of thumbnail images in pixels (default: 150).
+        auto_display: If True, automatically display the widget container (default: True).
 
     Returns:
         container (widgets.VBox): the root widget; also displayed if auto_display=True.
@@ -729,9 +746,7 @@ def launch_rankline_ui(
     # ---------- basic validations ----------
     data_source = Path(data_source)
     if not data_source.exists():
-        raise FileNotFoundError(
-            f"data_source does not exist: {data_source}"
-        )
+        raise FileNotFoundError(f"data_source does not exist: {data_source}")
 
     # Default images_source to data_source if not provided
     if images_source is None:
@@ -739,9 +754,7 @@ def launch_rankline_ui(
     else:
         images_source = Path(images_source)
         if not images_source.exists():
-            raise FileNotFoundError(
-                f"images_source does not exist: {images_source}"
-            )
+            raise FileNotFoundError(f"images_source does not exist: {images_source}")
 
     if len(set(display_channels)) != len(display_channels):
         raise ValueError("display_channels contains duplicates.")

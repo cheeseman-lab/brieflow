@@ -32,7 +32,9 @@ def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     return metadata_cols
 
 
-def split_cell_data(cell_data, metadata_cols, validate_dtypes=True, raise_on_invalid=True):
+def split_cell_data(
+    cell_data, metadata_cols, validate_dtypes=True, raise_on_invalid=True
+):
     """Splits the cell data into metadata and features.
 
     Args:
@@ -67,22 +69,26 @@ def split_cell_data(cell_data, metadata_cols, validate_dtypes=True, raise_on_inv
         invalid_cols = []
         for col in features.columns:
             dtype = features[col].dtype
-            if dtype == 'object' or dtype.name == 'object':
+            if dtype == "object" or dtype.name == "object":
                 invalid_cols.append(col)
 
         if invalid_cols:
             error_msg = f"\nWARNING: Found {len(invalid_cols)} non-numeric columns in features!\n"
             error_msg += "These columns should be added to METADATA_COLS:\n\n"
             for col in invalid_cols:
-                sample_val = features[col].iloc[0] if len(features) > 0 else 'N/A'
-                error_msg += f"  - {col}: dtype={features[col].dtype}, sample='{sample_val}'\n"
+                sample_val = features[col].iloc[0] if len(features) > 0 else "N/A"
+                error_msg += (
+                    f"  - {col}: dtype={features[col].dtype}, sample='{sample_val}'\n"
+                )
             error_msg += f"\nAdd these to CANDIDATE_METADATA_COLS (or the metadata_cols parameter) to fix."
 
             if raise_on_invalid:
-                raise ValueError(f"Invalid feature dtypes detected: {invalid_cols}\n{error_msg}")
+                raise ValueError(
+                    f"Invalid feature dtypes detected: {invalid_cols}\n{error_msg}"
+                )
             else:
                 print(error_msg)
-        else: 
+        else:
             print("All feature columns have valid numeric dtypes")
 
     return metadata, features

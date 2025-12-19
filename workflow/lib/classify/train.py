@@ -172,9 +172,10 @@ def load_cellprofiler_data(file_paths, class_title=None, metadata_cols=None):
     if class_title is not None:
         if class_title not in combined_data.columns:
             available_class_cols = [
-                c for c in combined_data.columns
-                if c not in ['plate', 'well', 'tile', 'label']
-                and not c.startswith(('nucleus_', 'cell_', 'cytoplasm_', 'vacuole_'))
+                c
+                for c in combined_data.columns
+                if c not in ["plate", "well", "tile", "label"]
+                and not c.startswith(("nucleus_", "cell_", "cytoplasm_", "vacuole_"))
             ]
             raise ValueError(
                 f"CLASS_TITLE '{class_title}' not found in training data.\n"
@@ -351,19 +352,22 @@ def select_features_from_split(
     if training_object_types is not None:
         # Create prefixes to EXCLUDE (opposite of what user wants to include)
         object_prefixes_to_exclude = [
-            f"{obj}_" for obj in ["nucleus", "cell", "cytoplasm", "second_obj"]
+            f"{obj}_"
+            for obj in ["nucleus", "cell", "cytoplasm", "second_obj"]
             if obj not in training_object_types
         ]
 
         # Filter out columns that start with excluded object prefixes
         feature_cols = [
-            col for col in feature_cols
+            col
+            for col in feature_cols
             if not any(col.startswith(prefix) for prefix in object_prefixes_to_exclude)
         ]
 
         if verbose:
             excluded_types = [
-                obj for obj in ["nucleus", "cell", "cytoplasm", "second_obj"]
+                obj
+                for obj in ["nucleus", "cell", "cytoplasm", "second_obj"]
                 if obj not in training_object_types
             ]
             if excluded_types:
@@ -1727,18 +1731,18 @@ def train_classifier_pipeline(
     for col in selected_features:
         if col in features_df.columns:
             dtype = features_df[col].dtype
-            if dtype == 'object' or dtype.name == 'object':
+            if dtype == "object" or dtype.name == "object":
                 sample_vals = features_df[col].dropna().head(3).tolist()
-                invalid_feature_cols.append({
-                    'column': col,
-                    'dtype': str(dtype),
-                    'sample_values': sample_vals
-                })
+                invalid_feature_cols.append(
+                    {"column": col, "dtype": str(dtype), "sample_values": sample_vals}
+                )
 
     if invalid_feature_cols:
         error_msg = f"[pipeline][ERROR] Found {len(invalid_feature_cols)} feature columns with invalid (non-numeric) dtypes.\n"
         error_msg += "These columns contain string/object data and cannot be used for training.\n"
-        error_msg += "Add these columns to METADATA_COLS to exclude them from features:\n\n"
+        error_msg += (
+            "Add these columns to METADATA_COLS to exclude them from features:\n\n"
+        )
         for info in invalid_feature_cols:
             error_msg += f"  - {info['column']}\n"
             error_msg += f"      dtype: {info['dtype']}\n"
@@ -1752,7 +1756,9 @@ def train_classifier_pipeline(
         )
 
     if verbose:
-        print(f"[pipeline] ✓ All {len(selected_features)} features have valid numeric dtypes")
+        print(
+            f"[pipeline] ✓ All {len(selected_features)} features have valid numeric dtypes"
+        )
 
     # 5. Distribution stats
     stats = plot_distribution_statistics(

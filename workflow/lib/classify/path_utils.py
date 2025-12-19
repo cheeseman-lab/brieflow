@@ -6,11 +6,7 @@ from typing import Tuple, List, Optional
 from lib.shared.file_utils import get_filename
 
 
-def get_parquet_config(
-    mode: str,
-    source: str,
-    root_fp: Path
-) -> Tuple[Path, str]:
+def get_parquet_config(mode: str, source: str, root_fp: Path) -> Tuple[Path, str]:
     """Get parquet directory and name suffix based on mode and source.
 
     Args:
@@ -47,10 +43,7 @@ def get_parquet_config(
 
 
 def find_sample_parquet(
-    plates: List[str],
-    wells: List[str],
-    parquet_dir: Path,
-    name_suffix: str
+    plates: List[str], wells: List[str], parquet_dir: Path, name_suffix: str
 ) -> Optional[Path]:
     """Find first available parquet file from plate/well combinations.
 
@@ -66,9 +59,7 @@ def find_sample_parquet(
     for plate in sorted(plates):
         for well in sorted(wells):
             file_path = parquet_dir / get_filename(
-                {"plate": int(plate), "well": well},
-                name_suffix,
-                "parquet"
+                {"plate": int(plate), "well": well}, name_suffix, "parquet"
             )
             if file_path.exists():
                 return file_path

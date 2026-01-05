@@ -297,6 +297,11 @@ rule eval_merge:
             expansion_values=["well"],
             metadata_combos=merge_wildcard_combos,
         ),
+    params: 
+        heatmap_plate_sbs=config["sbs"].get("heatmap_plate", "6W"),  
+        heatmap_shape_sbs=config["sbs"].get("heatmap_shape", "6W_sbs"),
+        heatmap_plate_ph=config["phenotype"].get("heatmap_plate", "6W"), 
+        heatmap_shape_ph=config["phenotype"].get("heatmap_shape", "6W_ph"),
     output:
         merge_summary=MERGE_OUTPUTS_MAPPED["eval_merge"][0],
         sbs_to_ph_matching_rates_tsv=MERGE_OUTPUTS_MAPPED["eval_merge"][1],

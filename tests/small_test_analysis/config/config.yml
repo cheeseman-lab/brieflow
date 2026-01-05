@@ -77,6 +77,8 @@ sbs:
   cell_flow_threshold: 1
   cell_cellprob_threshold: 0
   cyto_model: cyto3
+  heatmap_plate: "6W"
+  heatmap_shape: "square"
 phenotype:
   heatmap_shape: square
   align: false
@@ -89,7 +91,7 @@ phenotype:
   - WGA
   cp_method: 
   cyto_index: 1
-  cyto_model: cyto3
+  cellpose_model: cyto3
   dapi_index: 0
   flow_threshold: 0.4
   foci_channel_index: 2
@@ -98,6 +100,8 @@ phenotype:
   mode: null
   nuclei_diameter: 41.97813156768016
   reconcile: contained_in_cells
+  heatmap_plate: "6W"
+  heatmap_shape: "square"
 merge:
   approach: fast
   merge_combo_fp: config/merge_combo.tsv

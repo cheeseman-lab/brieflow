@@ -88,6 +88,14 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "merge_summary", "tsv"
         ),  # [2] - merge_summary
     ],
+    "summarize_stitch": [
+        MERGE_FP / "eval" / get_filename(
+            {"plate": "{plate}"}, "alignment_summaries", "tsv"
+        ),  # [0] - aggregated alignment summaries (stitch only)
+        MERGE_FP / "eval" / get_filename(
+            {"plate": "{plate}"}, "cell_merge_summaries", "tsv"
+        ),  # [1] - aggregated cell merge summaries (stitch only)
+    ],
     "format_merge": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merge_formatted", "parquet"
@@ -134,23 +142,9 @@ MERGE_OUTPUTS = {
         MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}"}, "cells_with_channel_min_0", "png"
         ),  # [6]
-    ],
-    "summarize_merge": [
-        MERGE_FP / "tsvs" / "aggregated" / get_filename(
-            {"plate": "{plate}"}, "alignment_summaries", "tsv"
-        ),  # [0] - alignment_summaries
-        MERGE_FP / "tsvs" / "aggregated" / get_filename(
-            {"plate": "{plate}"}, "cell_merge_summaries", "tsv"
-        ),  # [1] - cell_merge_summaries
-        MERGE_FP / "tsvs" / "aggregated" / get_filename(
+        MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}"}, "dedup_summaries", "tsv"
-        ),  # [2] - dedup_summaries
-        MERGE_FP / "tsvs" / "aggregated" / get_filename(
-            {"plate": "{plate}"}, "sbs_matching_summaries", "tsv"
-        ),  # [3] - sbs_matching_summaries
-        MERGE_FP / "tsvs" / "aggregated" / get_filename(
-            {"plate": "{plate}"}, "phenotype_matching_summaries", "tsv"
-        ),  # [4] - phenotype_matching_summaries
+        ),  # [7]
     ],
 }
 
@@ -158,26 +152,25 @@ MERGE_OUTPUTS = {
 def get_merge_targets_by_approach():
     """Get targets based on the configured approach"""
     approach = config.get("merge", {}).get("approach", "fast")
-    
+
     # Core targets that are always needed
     core_targets = ["format_merge", "deduplicate_merge", "final_merge", "eval_merge"]
-    
+
     if approach == "stitch":
         approach_targets = [
             "estimate_stitch_phenotype", "estimate_stitch_sbs",
             "stitch_phenotype", "stitch_sbs",
-            "stitch_alignment", "stitch_merge"
+            "stitch_alignment", "stitch_merge",
+            "summarize_stitch",
         ]
-        # Add aggregate summaries target for stitch approach
-        core_targets.append("summarize_merge")
     else:
         # Fast approach targets (default)
         approach_targets = [
             "fast_alignment", "fast_merge"
         ]
-    
+
     all_targets = approach_targets + core_targets
-    
+
     return all_targets
 
 
@@ -190,11 +183,11 @@ MERGE_OUTPUT_MAPPINGS = {
     "stitch_sbs": [None, None, temp, temp],
     "stitch_alignment": [temp, temp, temp, temp, temp, None],
     "stitch_merge": [temp, None, temp],
+    "summarize_stitch": None,
     "format_merge": None,
     "deduplicate_merge": [None, temp, temp, temp],
     "final_merge": None,
     "eval_merge": None,
-    "summarize_merge": None,
 }
 
 MERGE_OUTPUTS_MAPPED = map_outputs(MERGE_OUTPUTS, MERGE_OUTPUT_MAPPINGS)

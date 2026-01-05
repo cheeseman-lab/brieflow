@@ -176,14 +176,14 @@ if merge_approach == "stitch":
 
     rule stitch_merge:
         input:
-            scaled_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][0],      
+            scaled_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][0],
             sbs_positions=MERGE_OUTPUTS["stitch_sbs"][0],  # sbs_cell_positions
             alignment_params=MERGE_OUTPUTS["stitch_alignment"][3],
-            transformed_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][5],               
+            transformed_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][5],
         output:
-            raw_matches=MERGE_OUTPUTS_MAPPED["stitch_merge"][0],                    
-            merged_cells=MERGE_OUTPUTS_MAPPED["stitch_merge"][1],                   
-            merge_summary=MERGE_OUTPUTS_MAPPED["stitch_merge"][2],                  
+            raw_matches=MERGE_OUTPUTS_MAPPED["stitch_merge"][0],
+            merged_cells=MERGE_OUTPUTS_MAPPED["stitch_merge"][1],
+            merge_summary=MERGE_OUTPUTS_MAPPED["stitch_merge"][2],
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -191,6 +191,33 @@ if merge_approach == "stitch":
             score=config["merge"]["score"],
         script:
             "../scripts/merge/stitch_merge.py"
+
+    rule summarize_stitch:
+        input:
+            alignment_summary_paths=lambda wildcards: output_to_input(
+                MERGE_OUTPUTS["stitch_alignment"][4],
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=merge_wildcard_combos,
+            ),
+            merge_summary_paths=lambda wildcards: output_to_input(
+                MERGE_OUTPUTS["stitch_merge"][2],
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=merge_wildcard_combos,
+            ),
+        output:
+            alignment_summaries=MERGE_OUTPUTS_MAPPED["summarize_stitch"][0],
+            cell_merge_summaries=MERGE_OUTPUTS_MAPPED["summarize_stitch"][1],
+        params:
+            plate=lambda wildcards: wildcards.plate,
+            wells=lambda wildcards: [
+                str(combo["well"])
+                for combo in merge_wildcard_combos.to_dict('records')
+                if str(combo["plate"]) == str(wildcards.plate)
+            ],
+        script:
+            "../scripts/merge/summarize_stitch.py"
 
 
 rule format_merge:
@@ -278,60 +305,12 @@ rule eval_merge:
         ph_to_sbs_matching_rates_png=MERGE_OUTPUTS_MAPPED["eval_merge"][4],
         all_cells_by_channel_min=MERGE_OUTPUTS_MAPPED["eval_merge"][5],
         cells_with_channel_min_0=MERGE_OUTPUTS_MAPPED["eval_merge"][6],
+        dedup_summaries=MERGE_OUTPUTS_MAPPED["eval_merge"][7],
     params:
         sbs_heatmap_shape=config["sbs"].get("heatmap_shape", "6W_sbs"),
         phenotype_heatmap_shape=config["phenotype"].get("heatmap_shape", "6W_ph"),
     script:
         "../scripts/merge/eval_merge.py"
-
-
-rule summarize_merge:
-    input:
-        alignment_summary_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["stitch_alignment"][4],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-        merge_summary_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["stitch_merge"][2],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-        dedup_summary_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["deduplicate_merge"][0],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-        sbs_matching_rates_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["deduplicate_merge"][2],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-        phenotype_matching_rates_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["deduplicate_merge"][3],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-    output:
-        alignment_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][0],
-        cell_merge_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][1],
-        dedup_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][2],
-        sbs_matching_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][3],
-        phenotype_matching_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][4],
-    params:
-        plate=lambda wildcards: wildcards.plate,
-        wells=lambda wildcards: [
-            str(combo["well"]) 
-            for combo in merge_wildcard_combos.to_dict('records') 
-            if str(combo["plate"]) == str(wildcards.plate)
-        ],
-    script:
-        "../scripts/merge/summarize_merge.py"
 
 
 # Rule for all merge processing steps

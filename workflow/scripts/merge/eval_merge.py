@@ -145,3 +145,20 @@ fig = plot_cell_positions(
     color="red",
 )
 fig.savefig(snakemake.output.cells_with_channel_min_0)
+
+# Aggregate dedup stats across all wells (already loaded above)
+dedup_dfs = []
+for well, df in dedup_stats.items():
+    df = df.copy()
+    df["well"] = well
+    dedup_dfs.append(df)
+
+if dedup_dfs:
+    dedup_summaries = pd.concat(dedup_dfs, ignore_index=True)
+    dedup_summaries = dedup_summaries.sort_values(["well", "stage"]).reset_index(
+        drop=True
+    )
+else:
+    dedup_summaries = pd.DataFrame(columns=["well", "stage", "total_cells"])
+
+dedup_summaries.to_csv(snakemake.output.dedup_summaries, sep="\t", index=False)

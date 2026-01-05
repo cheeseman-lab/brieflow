@@ -13,9 +13,9 @@ merge_data = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 sbs_cells = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 phenotype_min_cp = validate_dtypes(pd.read_parquet(snakemake.input[2]))
 
-# Get image dimensions from params
-phenotype_dimensions = tuple(snakemake.params.phenotype_dimensions)
-sbs_dimensions = tuple(snakemake.params.sbs_dimensions)
+# Get image dimensions from params (with defaults)
+phenotype_dimensions = tuple(snakemake.params.phenotype_dimensions or (2960, 2960))
+sbs_dimensions = tuple(snakemake.params.sbs_dimensions or (1480, 1480))
 
 # Add FOV distances for both imaging modalities
 merge_formatted = merge_data.pipe(

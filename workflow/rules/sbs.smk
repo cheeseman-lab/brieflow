@@ -235,7 +235,7 @@ rule eval_segmentation_sbs:
     output:
         SBS_OUTPUTS_MAPPED["eval_segmentation_sbs"],
     params:
-        heatmap_shape="6W_sbs"
+        heatmap_shape=config["sbs"].get("heatmap_shape", "6W_sbs"),
     script:
         "../scripts/shared/eval_segmentation.py"
 

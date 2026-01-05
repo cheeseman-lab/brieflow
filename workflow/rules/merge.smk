@@ -278,6 +278,9 @@ rule eval_merge:
         ph_to_sbs_matching_rates_png=MERGE_OUTPUTS_MAPPED["eval_merge"][4],
         all_cells_by_channel_min=MERGE_OUTPUTS_MAPPED["eval_merge"][5],
         cells_with_channel_min_0=MERGE_OUTPUTS_MAPPED["eval_merge"][6],
+    params:
+        sbs_heatmap_shape=config["sbs"].get("heatmap_shape", "6W_sbs"),
+        phenotype_heatmap_shape=config["phenotype"].get("heatmap_shape", "6W_ph"),
     script:
         "../scripts/merge/eval_merge.py"
 

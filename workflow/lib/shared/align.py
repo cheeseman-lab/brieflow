@@ -126,7 +126,8 @@ def apply_offsets(data_, offsets):
             warped += [frame]
         else:
             # Otherwise, apply a similarity transform to warp the frame based on the offset
-            st = skimage.transform.SimilarityTransform(translation=offset[::-1])
+            # Note: We inverse the offset because warp takes the inverse map (output -> input)
+            st = skimage.transform.SimilarityTransform(translation=-offset[::-1])
             frame_ = skimage.transform.warp(frame, st, preserve_range=True)
             # Add the warped frame to the list
             warped += [frame_.astype(data_.dtype)]

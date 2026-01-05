@@ -1,7 +1,12 @@
 import pandas as pd
 from lib.shared.file_utils import validate_dtypes
-from lib.merge.hash import hash_cell_locations, multistep_alignment, extract_rotation
-from lib.merge.merge_utils import align_metadata
+from lib.merge.hash import (
+    hash_cell_locations,
+    multistep_alignment,
+    extract_rotation,
+    initial_alignment,
+)
+from lib.merge.merge_utils import align_metadata, find_closest_tiles
 
 # Load dfs with metadata on well level
 phenotype_metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
@@ -81,6 +86,59 @@ sbs_info_hash = validate_dtypes(
     hash_cell_locations(sbs_info).rename(columns={"tile": "site"})
 )
 
+# Get initial site configuration - exactly one must be provided
+initial_sbs_tiles = getattr(snakemake.params, "initial_sbs_tiles", None)
+initial_sites_param = getattr(snakemake.params, "initial_sites", None)
+
+# Validate exactly one is provided
+if (initial_sbs_tiles is None) == (initial_sites_param is None):
+    raise ValueError(
+        "Exactly one of 'initial_sbs_tiles' or 'initial_sites' must be provided in merge config"
+    )
+
+# Get threshold params for validation
+d0, d1 = snakemake.params.det_range
+score_thresh = snakemake.params.score
+
+if initial_sbs_tiles is not None:
+    # Auto-discover initial sites from SBS tiles
+    candidate_pairs = []
+    for sbs_tile in initial_sbs_tiles:
+        closest = find_closest_tiles(
+            sbs_metadata, phenotype_metadata, sbs_tile, verbose=False
+        )
+        best_ph_tile = int(closest.iloc[0]["tile"])
+        candidate_pairs.append([best_ph_tile, sbs_tile])
+    print(
+        f"Discovered {len(candidate_pairs)} candidate pairs from {len(initial_sbs_tiles)} SBS tiles"
+    )
+else:
+    # Use user-provided pairs
+    candidate_pairs = initial_sites_param
+    print(f"Using {len(candidate_pairs)} user-specified initial sites")
+
+# Run initial alignment on candidates (validates both paths)
+initial_alignment_df = initial_alignment(
+    phenotype_info_hash, sbs_info_hash, initial_sites=candidate_pairs
+)
+
+# Filter by thresholds
+valid_pairs_df = initial_alignment_df.query(
+    "@d0 <= determinant <= @d1 & score > @score_thresh"
+)
+
+# Require minimum 5 valid pairs
+if len(valid_pairs_df) < 5:
+    raise ValueError(
+        f"Only {len(valid_pairs_df)} initial sites passed thresholds (need >= 5). "
+        f"Candidates tested: {candidate_pairs}. "
+        f"Check det_range={snakemake.params.det_range} and score={score_thresh}."
+    )
+
+# Convert to list of [tile, site] pairs for multistep_alignment
+initial_sites = valid_pairs_df[["tile", "site"]].astype(int).values.tolist()
+print(f"{len(initial_sites)} initial sites passed thresholds")
+
 # Perform multistep alignment for well
 well_alignment = multistep_alignment(
     phenotype_info_hash,
@@ -89,7 +147,7 @@ well_alignment = multistep_alignment(
     sbs_xy,
     det_range=snakemake.params.det_range,
     score=snakemake.params.score,
-    initial_sites=snakemake.params.initial_sites,
+    initial_sites=initial_sites,
     n_jobs=snakemake.threads,
 )
 

@@ -18,7 +18,8 @@ if merge_approach == "fast":
             ph_metadata_channel=config["merge"].get("ph_metadata_channel"),
             det_range=config["merge"]["det_range"],
             score=config["merge"]["score"],
-            initial_sites=config["merge"]["initial_sites"],
+            initial_sbs_tiles=config["merge"].get("initial_sbs_tiles"),
+            initial_sites=config["merge"].get("initial_sites"),
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
             alignment_flip_x=config["merge"].get("alignment_flip_x"),
@@ -205,6 +206,8 @@ rule format_merge:
         MERGE_OUTPUTS_MAPPED["format_merge"][0],
     params:
         approach=config.get("merge", {}).get("approach", "fast"),
+        phenotype_dimensions=config.get("merge", {}).get("phenotype_dimensions"),
+        sbs_dimensions=config.get("merge", {}).get("sbs_dimensions"),
     script:
         "../scripts/merge/format_merge.py"
 

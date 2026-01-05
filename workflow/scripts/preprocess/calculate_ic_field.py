@@ -1,9 +1,12 @@
 import sys
 import traceback
-from lib.shared.io import save_image
+from lib.shared.io import save_image, read_pixel_size
 from lib.shared.illumination_correction import calculate_ic_field
 
 try:
+    # Read pixel size from the first input image
+    pixel_size_z, pixel_size_y, pixel_size_x = read_pixel_size(snakemake.input[0])
+
     # convert the ND2 file to a TIF image array
     ic_field = calculate_ic_field(
         snakemake.input,
@@ -16,9 +19,9 @@ try:
     save_image(
         ic_field,
         snakemake.output[0],
-        pixel_size_z=snakemake.params.pixel_size_z,
-        pixel_size_y=snakemake.params.pixel_size_y,
-        pixel_size_x=snakemake.params.pixel_size_x,
+        pixel_size_z=pixel_size_z,
+        pixel_size_y=pixel_size_y,
+        pixel_size_x=pixel_size_x,
         channel_names=snakemake.params.channel_names,
     )
 except Exception as e:

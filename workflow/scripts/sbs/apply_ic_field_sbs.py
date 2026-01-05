@@ -1,4 +1,4 @@
-from lib.shared.io import read_image, save_image
+from lib.shared.io import read_image, save_image, read_pixel_size
 from lib.shared.illumination_correction import apply_ic_field
 import numpy as np
 import os
@@ -7,6 +7,9 @@ import re
 # Load aligned image data (Cycles, C, Z, Y, X)
 # Assuming align_sbs output is (Cycle, C, Z, Y, X) or (Cycle, C, Y, X)
 aligned_image_data = read_image(snakemake.input[0])
+
+# Read pixel size from input image metadata
+pixel_size_z, pixel_size_y, pixel_size_x = read_pixel_size(snakemake.input[0])
 
 # Prepare a list to hold corrected cycles
 corrected_cycles_list = []
@@ -54,8 +57,8 @@ corrected_image_data = np.stack(corrected_cycles_list, axis=0)
 save_image(
     corrected_image_data,
     snakemake.output[0],
-    pixel_size_z=snakemake.params.pixel_size_z,
-    pixel_size_y=snakemake.params.pixel_size_y,
-    pixel_size_x=snakemake.params.pixel_size_x,
+    pixel_size_z=pixel_size_z,
+    pixel_size_y=pixel_size_y,
+    pixel_size_x=pixel_size_x,
     channel_names=snakemake.params.channel_names,
 )

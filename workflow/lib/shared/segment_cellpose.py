@@ -184,15 +184,17 @@ def prepare_cellpose(data, dapi_index, cyto_index, logscale=True, log_kwargs=dic
 
     # Normalize the intensity of the DAPI channel and scale it to the range [0, 1]
     dapi_upper = np.percentile(dapi, 99.5)
-    dapi = dapi / dapi_upper
-    dapi[dapi > 1] = 1
+    
+    if dapi_upper > 0:
+        dapi = dapi / dapi_upper
+        dapi[dapi > 1] = 1
 
     # Convert the channels to uint8 format for RGB image creation
     red, green, blue = img_as_ubyte(blank), img_as_ubyte(cyto), img_as_ubyte(dapi)
 
     # Stack the channels to create the RGB image and transpose the dimensions
     # return np.array([red, green, blue]).transpose([1, 2, 0])
-    return np.array([red, green, blue])
+    return np.array([red, green, blue]).transpose([1, 2, 0])
 
 
 def estimate_diameters(

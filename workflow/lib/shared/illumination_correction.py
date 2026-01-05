@@ -5,6 +5,7 @@ Used in preprocessing to calculate the ic field and downstream steps to apply th
 
 import warnings
 from typing import List
+import sys
 
 from joblib import Parallel, delayed
 import numpy as np
@@ -13,9 +14,29 @@ from skimage import morphology
 import skimage.restoration
 import skimage.transform
 import skimage.filters
-from tifffile import imread
+from lib.shared.io import read_image
+
+# from tifffile import imread
 
 from lib.shared.image_utils import applyIJ
+
+
+@applyIJ
+def rescale_channels(data: np.ndarray) -> np.ndarray:
+    """Rescales the image data by dividing by a robust minimum and setting values below 1 to 1.
+
+    Args:
+        data (np.ndarray): The input image data to be rescaled.
+
+    Returns:
+        np.ndarray: The rescaled image data.
+    """
+    # Use 2nd percentile for robust minimum
+    robust_min = np.quantile(data.reshape(-1), q=0.02)
+    robust_min = 1 if robust_min == 0 else robust_min
+    data = data / robust_min
+    data[data < 1] = 1
+    return data
 
 
 def calculate_ic_field(
@@ -26,34 +47,16 @@ def calculate_ic_field(
     slicer: slice = slice(None),
     sample_fraction: float = 1.0,
 ) -> np.ndarray:
-    """Calculate illumination correction field for use with the apply_ic_field.
-
-    Based CellProfiler's CorrectIlluminationCalculate module with
-    options "Regular", "All", "Median Filter".
-    https://github.com/CellProfiler/CellProfiler/blob/fa81fb0f2850c7c6d9cefdf4e71806188f1dc546/src/frontend/cellprofiler/modules/correctilluminationcalculate.py#L96
-
-    NOTE: Algorithm originally benchmarked using ~250 images per plate to calculate plate-wise
-    illumination correction functions (Singh et al. J Microscopy, 256(3):231-236, 2014).
-    Illumination correction calculation will not work with a small set of images.
-
-    Args:
-        files (List[str]): List of file paths to images for which to calculate the illumination correction.
-        smooth (int, optional): Smoothing factor for the correction. Default is calculated as 1/20th of the image area.
-        rescale (bool, optional): Whether to rescale the correction field. Defaults to True.
-        threading (bool, optional): Whether to use threading for parallel processing. Defaults to False.
-        slicer (slice, optional): Slice object to select specific parts of the images.
-        sample_fraction (float, optional): Fraction of images to sample for calculation. Defaults to 1.0 (100% of images).
-
-    Returns:
-        np.ndarray: The calculated illumination correction field.
-    """
+    print(f"DEBUG: calculate_ic_field started with {len(files)} files.", file=sys.stderr)
     # Randomly sample a subset of files if sample_fraction is less than 1.0
     if sample_fraction < 1.0:
         sample_size = int(len(files) * sample_fraction)
         files = random.sample(files, sample_size)
+    print(f"DEBUG: Processing {len(files)} files after sampling.", file=sys.stderr)
 
     # Initialize data variable
-    data = imread(files[0])[slicer] / len(files)
+    data = read_image(files[0])[slicer] / len(files)
+    print(f"DEBUG: Initialized data with shape {data.shape} from {files[0]}.", file=sys.stderr)
 
     # Accumulate images using threading or sequential processing, averaging them
     if threading:
@@ -65,15 +68,19 @@ def calculate_ic_field(
         for result in results:
             data += result  # Aggregate results from parallel processing
     else:
-        for file in files[1:]:
+        for i, file in enumerate(files[1:]):
+            print(f"DEBUG: Accumulating file {i+1}/{len(files)-1}: {file}", file=sys.stderr)
             data = accumulate_image(file, slicer, data, len(files))
 
+    print(f"DEBUG: All images accumulated. Final data shape: {data.shape}.", file=sys.stderr)
     # Squeeze and convert data to uint16 (remove any dimensions of size 1)
     data = np.squeeze(data.astype(np.uint16))
+    print(f"DEBUG: Data squeezed and cast to uint16. New shape: {data.shape}.", file=sys.stderr)
 
     # Calculate default smoothing factor if not provided
     if not smooth:
         smooth = int(np.sqrt((data.shape[-1] * data.shape[-2]) / (np.pi * 20)))
+    print(f"DEBUG: Smoothing factor: {smooth}.", file=sys.stderr)
 
     selem = morphology.disk(smooth)
     median_filter = applyIJ(skimage.filters.median)
@@ -81,13 +88,25 @@ def calculate_ic_field(
     # Apply median filter with warning suppression
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        print(f"DEBUG: Applying median filter to data of shape {data.shape}.", file=sys.stderr)
         smoothed = median_filter(data, selem, behavior="rank")
+        print(f"DEBUG: Median filter applied. Smoothed data shape: {smoothed.shape}.", file=sys.stderr)
 
     # Rescale channels if requested
     if rescale:
+        print("DEBUG: Rescaling channels.", file=sys.stderr)
         smoothed = rescale_channels(smoothed)
+        print(f"DEBUG: Channels rescaled. Smoothed data shape: {smoothed.shape}.", file=sys.stderr)
 
+    print("DEBUG: calculate_ic_field finished.", file=sys.stderr)
     return smoothed
+
+
+def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.ndarray:
+    print(f"DEBUG: accumulate_image: Reading {file}", file=sys.stderr)
+    data += read_image(file)[slicer] / N
+    print(f"DEBUG: accumulate_image: Finished reading and accumulating {file}", file=sys.stderr)
+    return data
 
 
 def apply_ic_field(
@@ -174,38 +193,7 @@ def applyIJ_parallel(f, arr, n_jobs=-2, backend="threading", *args, **kwargs):
     return np.array(arr_).reshape(output_shape)
 
 
-def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.ndarray:
-    """Accumulates an image's contribution by adding a sliced version of it to the provided data array.
 
-    Args:
-        file (str): Path to the image file to be accumulated.
-        slicer (slice): Slice object to select specific parts of the image.
-        data (np.ndarray): The numpy array where the accumulated image data is stored.
-        N (int): The number of files, used to average the data by dividing each image.
-
-    Returns:
-        np.ndarray: Updated image data with the new image accumulated.
-    """
-    data += imread(file)[slicer] / N
-    return data
-
-
-@applyIJ
-def rescale_channels(data: np.ndarray) -> np.ndarray:
-    """Rescales the image data by dividing by a robust minimum and setting values below 1 to 1.
-
-    Args:
-        data (np.ndarray): The input image data to be rescaled.
-
-    Returns:
-        np.ndarray: The rescaled image data.
-    """
-    # Use 2nd percentile for robust minimum
-    robust_min = np.quantile(data.reshape(-1), q=0.02)
-    robust_min = 1 if robust_min == 0 else robust_min
-    data = data / robust_min
-    data[data < 1] = 1
-    return data
 
 
 @applyIJ

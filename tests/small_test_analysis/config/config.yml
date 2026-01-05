@@ -39,6 +39,7 @@ preprocess:
     - 4
     version: "0.5"
     validate: true
+  ic_smooth_factor: 5
 sbs:
   alignment_method: null
   channel_names:

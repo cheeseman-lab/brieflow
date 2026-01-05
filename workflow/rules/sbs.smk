@@ -6,7 +6,7 @@ from lib.shared.rule_utils import get_spot_detection_params, get_segmentation_pa
 rule align_sbs:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_sbs"],
+            PREPROCESS_OUTPUTS["convert_sbs_omezarr"],
             wildcards=wildcards,
             expansion_values=["cycle"],
             metadata_combos=sbs_wildcard_combos,
@@ -20,6 +20,9 @@ rule align_sbs:
         upsample_factor=config["sbs"]["upsample_factor"],
         skip_cycles_indices=config["sbs"]["skip_cycles_indices"],
         manual_background_cycle_index=config["sbs"]["manual_background_cycle_index"],
+        pixel_size_z=config["pixel_size_z"],
+        pixel_size_y=config["pixel_size_y"],
+        pixel_size_x=config["pixel_size_x"],
     script:
         "../scripts/sbs/align_cycles.py"
 
@@ -32,6 +35,10 @@ rule log_filter:
         SBS_OUTPUTS_MAPPED["log_filter"],
     params:
         skip_index=config["sbs"]["extra_channel_indices"],
+        channel_names=config["sbs"]["channel_names"],
+        pixel_size_z=config["pixel_size_z"],
+        pixel_size_y=config["pixel_size_y"],
+        pixel_size_x=config["pixel_size_x"],
     script:
         "../scripts/sbs/log_filter.py"
 
@@ -44,6 +51,10 @@ rule compute_standard_deviation:
         SBS_OUTPUTS_MAPPED["compute_standard_deviation"],
     params:
         remove_index=config["sbs"]["extra_channel_indices"],
+        channel_names=config["sbs"]["channel_names"],
+        pixel_size_z=config["pixel_size_z"],
+        pixel_size_y=config["pixel_size_y"],
+        pixel_size_x=config["pixel_size_x"],
     script:
         "../scripts/sbs/compute_standard_deviation.py"
 
@@ -51,11 +62,15 @@ rule compute_standard_deviation:
 # Find local maxima of SBS reads across cycles
 rule find_peaks:
     input:
-        SBS_OUTPUTS["compute_standard_deviation"] if config["sbs"]["spot_detection_method"] == "standard" else SBS_OUTPUTS["align_sbs"],
+        lambda wildcards: SBS_OUTPUTS["compute_standard_deviation"] if config["sbs"]["spot_detection_method"] == "standard" else SBS_OUTPUTS["align_sbs"],
     output:
         SBS_OUTPUTS_MAPPED["find_peaks"],
     params:
-        config=lambda wildcards: get_spot_detection_params(config)
+        config=lambda wildcards: get_spot_detection_params(config),
+        channel_names=config["sbs"]["channel_names"],
+        pixel_size_z=config["pixel_size_z"],
+        pixel_size_y=config["pixel_size_y"],
+        pixel_size_x=config["pixel_size_x"],
     script:
         "../scripts/sbs/find_peaks.py"
 
@@ -69,6 +84,10 @@ rule max_filter:
     params:
         width=config["sbs"]["max_filter_width"],
         remove_index=config["sbs"]["extra_channel_indices"],
+        channel_names=config["sbs"]["channel_names"],
+        pixel_size_z=config["pixel_size_z"],
+        pixel_size_y=config["pixel_size_y"],
+        pixel_size_x=config["pixel_size_x"],
     script:
         "../scripts/sbs/max_filter.py"
 
@@ -77,31 +96,22 @@ rule max_filter:
 rule apply_ic_field_sbs:
     input:
         SBS_OUTPUTS["align_sbs"],
-        # extra channel illumination correction field
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
             wildcards=wildcards,
-            subset_values={
-                "cycle": str(config["sbs"]["dapi_cycle"])
-            },
-            ancient_output=True,
-        ),
-        # illumination correction field from cycle of interest
-        lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["calculate_ic_sbs"],
-            wildcards=wildcards,
-            subset_values={
-                "cycle": str(config["sbs"]["cyto_cycle"]),
-            },
+            expansion_values=["cycle"],
+            metadata_combos=sbs_wildcard_combos,
             ancient_output=True,
         ),
     output:
         SBS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
-        dapi_cycle=config["sbs"]["dapi_cycle"],
-        cyto_cycle=config["sbs"]["cyto_cycle"],
-        cyto_cycle_index=config["sbs"]["cyto_cycle_index"],
+        all_cycles=list(sbs_wildcard_combos["cycle"].unique()),
         extra_channel_indices=config["sbs"]["extra_channel_indices"],
+        channel_names=config["sbs"]["channel_names"],
+        pixel_size_z=config["pixel_size_z"],
+        pixel_size_y=config["pixel_size_y"],
+        pixel_size_x=config["pixel_size_x"],
     script:
         "../scripts/sbs/apply_ic_field_sbs.py"
 

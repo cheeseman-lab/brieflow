@@ -106,7 +106,7 @@ def plot_combined_tile_grid(
     if figsize is None:
         figsize = (min(24, 14 * aspect), 14)
 
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, ax = plt.subplots(figsize=figsize, dpi=300)
 
     # Draw PH tiles as rectangles with labels
     for _, row in ph_metadata.iterrows():

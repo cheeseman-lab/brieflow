@@ -5,6 +5,7 @@ and generating summary statistics and plots.
 """
 
 import pandas as pd
+from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
 from lib.merge.format_merge import identify_single_gene_mappings
@@ -30,22 +31,83 @@ phenotype_min_cp = validate_dtypes(
     )
 )
 
-# Identify single gene mappings in SBS
-sbs_cells["mapped_single_gene"] = sbs_cells.apply(
+# Load dedup stats by well
+dedup_stats = {}
+for p in snakemake.input.dedup_stats_paths:
+    df = pd.read_csv(p, sep="\t")
+    # Extract well from filename: P-1_W-A1__deduplication_stats.tsv
+    well = Path(p).stem.split("__")[0].split("_W-")[1]
+    dedup_stats[well] = df
+
+# Identify single gene mappings in merge_formatted
+merge_formatted["mapped_single_gene"] = merge_formatted.apply(
     lambda x: identify_single_gene_mappings(x), axis=1
 )
-mapping_counts = sbs_cells.mapped_single_gene.value_counts()
-mapping_percentages = sbs_cells.mapped_single_gene.value_counts(normalize=True)
 
-# Save cell mapping statistics
-mapping_stats = pd.DataFrame(
-    {
-        "category": ["mapped_cells", "unmapped_cells"],
-        "count": [mapping_counts[True], mapping_counts[False]],
-        "percentage": [mapping_percentages[True], mapping_percentages[False]],
-    }
-)
-mapping_stats.to_csv(snakemake.output.cell_mapping_stats, sep="\t", index=False)
+# Build per-well summary rows
+rows = []
+for well in sorted(merge_formatted["well"].unique()):
+    well_merge = merge_formatted[merge_formatted["well"] == well]
+    well_ph = phenotype_min_cp[phenotype_min_cp["well"] == well]
+    well_sbs = sbs_cells[sbs_cells["well"] == well]
+    well_dedup = dedup_stats.get(well)
+
+    # Get matched_raw from dedup stats (Initial stage)
+    if well_dedup is not None and "Initial" in well_dedup["stage"].values:
+        matched_raw = int(
+            well_dedup[well_dedup["stage"] == "Initial"]["total_cells"].iloc[0]
+        )
+    else:
+        matched_raw = len(well_merge)
+
+    matched_final = len(well_merge)
+    ph_cells = len(well_ph)
+    sbs_cells_count = len(well_sbs)
+
+    rows.append(
+        {
+            "well": well,
+            "ph_cells": ph_cells,
+            "sbs_cells": sbs_cells_count,
+            "matched_raw": matched_raw,
+            "matched_final": matched_final,
+            "ph_match_rate": round(matched_final / ph_cells, 3) if ph_cells > 0 else 0,
+            "sbs_match_rate": (
+                round(matched_final / sbs_cells_count, 3) if sbs_cells_count > 0 else 0
+            ),
+            "dist_mean": round(well_merge["distance"].mean(), 2),
+            "dist_median": round(well_merge["distance"].median(), 2),
+            "cells_with_barcode": int(well_merge["gene_symbol_0"].notna().sum()),
+            "single_gene_count": int(well_merge["mapped_single_gene"].sum()),
+            "single_gene_rate": round(well_merge["mapped_single_gene"].mean(), 3),
+        }
+    )
+
+# Add TOTAL row
+total_ph = len(phenotype_min_cp)
+total_sbs = len(sbs_cells)
+total_matched_final = len(merge_formatted)
+total_matched_raw = sum(r["matched_raw"] for r in rows)
+
+total_row = {
+    "well": "TOTAL",
+    "ph_cells": total_ph,
+    "sbs_cells": total_sbs,
+    "matched_raw": total_matched_raw,
+    "matched_final": total_matched_final,
+    "ph_match_rate": round(total_matched_final / total_ph, 3) if total_ph > 0 else 0,
+    "sbs_match_rate": round(total_matched_final / total_sbs, 3) if total_sbs > 0 else 0,
+    "dist_mean": round(merge_formatted["distance"].mean(), 2),
+    "dist_median": round(merge_formatted["distance"].median(), 2),
+    "cells_with_barcode": int(merge_formatted["gene_symbol_0"].notna().sum()),
+    "single_gene_count": int(merge_formatted["mapped_single_gene"].sum()),
+    "single_gene_rate": round(merge_formatted["mapped_single_gene"].mean(), 3),
+}
+rows.append(total_row)
+
+# Save comprehensive merge summary
+summary_df = pd.DataFrame(rows)
+summary_df.to_csv(snakemake.output.merge_summary, sep="\t", index=False)
 
 # Evaluate minimal merge data
 merge_minimal = merge_formatted[

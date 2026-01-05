@@ -114,7 +114,7 @@ MERGE_OUTPUTS = {
     ],
     "eval_merge": [
         MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}"}, "cell_mapping_stats", "tsv"
+            {"plate": "{plate}"}, "merge_summary", "tsv"
         ),  # [0]
         MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}"}, "sbs_to_ph_matching_rates", "tsv"

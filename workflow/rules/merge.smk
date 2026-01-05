@@ -264,8 +264,14 @@ rule eval_merge:
             metadata_combos=phenotype_wildcard_combos,
             ancient_output=True,
         ),
+        dedup_stats_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["deduplicate_merge"][0],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
+        ),
     output:
-        cell_mapping_stats=MERGE_OUTPUTS_MAPPED["eval_merge"][0],
+        merge_summary=MERGE_OUTPUTS_MAPPED["eval_merge"][0],
         sbs_to_ph_matching_rates_tsv=MERGE_OUTPUTS_MAPPED["eval_merge"][1],
         sbs_to_ph_matching_rates_png=MERGE_OUTPUTS_MAPPED["eval_merge"][2],
         ph_to_sbs_matching_rates_tsv=MERGE_OUTPUTS_MAPPED["eval_merge"][3],

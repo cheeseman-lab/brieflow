@@ -171,8 +171,14 @@ def prepare_cellpose(data, dapi_index, cyto_index, logscale=True, log_kwargs=dic
         numpy.ndarray: Three-channel RGB image prepared for use with Cellpose GUI.
     """
     # Extract DAPI and cytoplasmic channel images from the data
-    dapi = data[dapi_index][0] # Assuming first Z-slice
-    cyto = data[cyto_index][0] # Assuming first Z-slice
+    dapi = data[dapi_index]
+    cyto = data[cyto_index]
+
+    # Handle Z-stacks by max projection if necessary
+    if dapi.ndim == 3:
+        dapi = dapi.max(axis=0)
+    if cyto.ndim == 3:
+        cyto = cyto.max(axis=0)
 
     # Create a blank array with the same shape as the DAPI channel
     blank = np.zeros_like(dapi)

@@ -139,14 +139,20 @@ def create_run_directories(
     }
 
 
-def load_cellprofiler_data(file_paths):
+def load_cellprofiler_data(file_paths, class_title=None, metadata_cols=None):
     """Load and combine multiple CellProfiler parquet files.
 
     Args:
         file_paths: List of parquet file paths to load.
+        class_title: Optional str. Name of the classification column to validate exists in data.
+        metadata_cols: Optional list. Metadata columns that class_title should be present in.
 
     Returns:
         Combined DataFrame with all data from the provided parquet files.
+
+    Raises:
+        ValueError: If class_title is specified but not found in loaded data.
+        ValueError: If class_title is provided but not in metadata_cols.
     """
     all_data = []
 
@@ -161,6 +167,28 @@ def load_cellprofiler_data(file_paths):
     combined_data.reset_index(drop=True, inplace=True)
 
     print(f"Loaded {len(combined_data)} cells from {len(file_paths)} files")
+
+    # Validate class_title exists in data if provided
+    if class_title is not None:
+        if class_title not in combined_data.columns:
+            available_class_cols = [
+                c
+                for c in combined_data.columns
+                if c not in ["plate", "well", "tile", "label"]
+                and not c.startswith(("nucleus_", "cell_", "cytoplasm_", "vacuole_"))
+            ]
+            raise ValueError(
+                f"CLASS_TITLE '{class_title}' not found in training data.\n"
+                f"Available classification columns: {available_class_cols}"
+            )
+
+        # Validate class_title is in metadata_cols if provided
+        if metadata_cols is not None and class_title not in metadata_cols:
+            raise ValueError(
+                f"CLASS_TITLE '{class_title}' must be included in METADATA_COLS.\n"
+                f"Current METADATA_COLS: {metadata_cols}"
+            )
+
     return combined_data
 
 
@@ -271,6 +299,7 @@ def select_features_from_split(
     feature_markers=None,
     exclude_markers=None,
     exclude_cols=None,
+    training_object_types=None,
     remove_nan=True,
     verbose=True,
 ):
@@ -283,6 +312,10 @@ def select_features_from_split(
     exclude_markers : list List of marker strings to exclude from features
     exclude_cols : list
         List of specific columns to exclude from features
+    training_object_types : list or None
+        List of object types to include in training (e.g., ['nucleus', 'cell']).
+        Options: 'nucleus', 'cell', 'cytoplasm', 'second_obj'
+        If None, all object types are included.
     remove_nan : bool
         Whether to remove columns with NaN values
     verbose : bool
@@ -314,6 +347,32 @@ def select_features_from_split(
         if col not in exclude_cols
         and not any(col.startswith(ex) for ex in exclude_cols)
     ]
+
+    # Filter by object type if specified
+    if training_object_types is not None:
+        # Create prefixes to EXCLUDE (opposite of what user wants to include)
+        object_prefixes_to_exclude = [
+            f"{obj}_"
+            for obj in ["nucleus", "cell", "cytoplasm", "second_obj"]
+            if obj not in training_object_types
+        ]
+
+        # Filter out columns that start with excluded object prefixes
+        feature_cols = [
+            col
+            for col in feature_cols
+            if not any(col.startswith(prefix) for prefix in object_prefixes_to_exclude)
+        ]
+
+        if verbose:
+            excluded_types = [
+                obj
+                for obj in ["nucleus", "cell", "cytoplasm", "second_obj"]
+                if obj not in training_object_types
+            ]
+            if excluded_types:
+                print(f"Excluded object types: {excluded_types}")
+            print(f"Included object types: {training_object_types}")
 
     # Initialize feature lists by marker
     feature_sets = {marker: [] for marker in feature_markers}
@@ -1581,6 +1640,7 @@ def train_classifier_pipeline(
     model_configs: List[Tuple],
     classifier_output_dir: Path,
     training_channels: List[str],
+    training_object_types: Optional[List[str]] = None,
     remove_nan: bool = True,
     variance_threshold: float = 0.01,
     correlation_threshold: float = 0.95,
@@ -1614,6 +1674,9 @@ def train_classifier_pipeline(
                 - select_k_best: int or None
         classifier_output_dir: Path Directory path to save outputs (models, plots, stats).
         training_channels: list List of channel names (strings) used in training (for logging).
+        training_object_types: Optional[List[str]] Object types to include in training.
+            Options: ["nucleus", "cell", "cytoplasm", "second_obj"]
+            Default is None (include all object types).
         remove_nan: bool Whether to remove features with NaN values. Default is True.
         variance_threshold: float Threshold for variance-based feature removal. Default is 0.01.
         correlation_threshold: float Threshold for correlation-based feature removal. Default is 0.95.
@@ -1656,11 +1719,46 @@ def train_classifier_pipeline(
         feature_markers=feature_markers,
         exclude_markers=exclude_markers,
         exclude_cols=None,
+        training_object_types=training_object_types,
         remove_nan=remove_nan,
         verbose=verbose,
     )
     if verbose:
         print(f"[pipeline] Selected {len(selected_features)} features")
+
+    # Validate feature dtypes before training
+    invalid_feature_cols = []
+    for col in selected_features:
+        if col in features_df.columns:
+            dtype = features_df[col].dtype
+            if dtype == "object" or dtype.name == "object":
+                sample_vals = features_df[col].dropna().head(3).tolist()
+                invalid_feature_cols.append(
+                    {"column": col, "dtype": str(dtype), "sample_values": sample_vals}
+                )
+
+    if invalid_feature_cols:
+        error_msg = f"[pipeline][ERROR] Found {len(invalid_feature_cols)} feature columns with invalid (non-numeric) dtypes.\n"
+        error_msg += "These columns contain string/object data and cannot be used for training.\n"
+        error_msg += (
+            "Add these columns to METADATA_COLS to exclude them from features:\n\n"
+        )
+        for info in invalid_feature_cols:
+            error_msg += f"  - {info['column']}\n"
+            error_msg += f"      dtype: {info['dtype']}\n"
+            error_msg += f"      sample values: {info['sample_values']}\n"
+        if verbose:
+            print(error_msg)
+        raise ValueError(
+            f"Invalid feature dtypes detected. "
+            f"The following {len(invalid_feature_cols)} columns must be added to METADATA_COLS: "
+            f"{[info['column'] for info in invalid_feature_cols]}"
+        )
+
+    if verbose:
+        print(
+            f"[pipeline] ✓ All {len(selected_features)} features have valid numeric dtypes"
+        )
 
     # 5. Distribution stats
     stats = plot_distribution_statistics(

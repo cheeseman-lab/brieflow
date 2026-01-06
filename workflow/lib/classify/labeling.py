@@ -176,7 +176,7 @@ def consolidate_manual_classifications(
     manual_classified_df: pd.DataFrame,
     class_title: str,
     mode: str,
-    phenotype_output_fp: Path,
+    data_source: Path,
     classifier_output_dir: Path,
     timestamp: str | None = None,
     write: bool = True,
@@ -188,7 +188,7 @@ def consolidate_manual_classifications(
         manual_classified_df: Table with at least ['plate','well','tile','mask_label', class_title].
         class_title: Name of the classification column to write.
         mode: 'cell' or 'vacuole'.
-        phenotype_output_fp: Root path containing 'parquets'.
+        data_source: Root data source path containing 'parquets'.
         classifier_output_dir: Root path where 'training_dataset' is created.
         timestamp: Optional timestamp string used in output filename.
         write: If True, write the parquet to disk.
@@ -229,7 +229,7 @@ def consolidate_manual_classifications(
     if man_df.empty:
         raise ValueError("No valid manual classifications remain after cleaning/dedup.")
 
-    parquet_dir = _get_parquet_dir(phenotype_output_fp)
+    parquet_dir = _get_parquet_dir(data_source)
     if not parquet_dir.exists():
         raise FileNotFoundError(f"Parquet directory not found: {parquet_dir}")
 
@@ -347,7 +347,7 @@ def consolidate_manual_classifications(
 def prepare_mask_dataframes(
     *,
     mode: str,
-    phenotype_fp: Union[str, Path],
+    data_source: Union[str, Path],
     plates: Sequence[Union[str, int]],
     wells: Sequence[Union[str, int, str]],
     keys: Sequence[str] = ("plate", "well", "tile", "mask_label"),
@@ -356,13 +356,13 @@ def prepare_mask_dataframes(
     gate_max: Optional[Union[float, Sequence[Optional[float]]]] = None,
     gate_min_percentile: Optional[Union[float, Sequence[Optional[float]]]] = None,
     gate_max_percentile: Optional[Union[float, Sequence[Optional[float]]]] = None,
-    verbose: bool = True,
+    verbose: bool = False,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, List[Dict]]:
     """Build mask summary and key tables from per-well parquets and (optionally) apply thresholds.
 
     Args:
         mode: 'vacuole' or 'cell'.
-        phenotype_fp: Root phenotype output path (contains 'parquets' subdirectory).
+        data_source: Root output path (contains 'parquets' subdirectory).
         plates: Iterable of plate identifiers to include.
         wells: Iterable of well identifiers to include.
         keys: Key column names (default ['plate','well','tile','mask_label']).
@@ -376,7 +376,7 @@ def prepare_mask_dataframes(
     Returns:
         (summary_df, in_gate_df_in, in_gate_df_out, gate_debug)
     """
-    pq_dir = _get_parquet_dir(phenotype_fp)
+    pq_dir = _get_parquet_dir(data_source)
     if not pq_dir.exists():
         raise FileNotFoundError(f"Parquet directory not found: {pq_dir}")
 
@@ -388,7 +388,7 @@ def prepare_mask_dataframes(
 
     for plate in sorted(plate_set):
         for well in sorted(well_set):
-            pq_path = _pq_path_for(plate, well, phenotype_fp, mode)
+            pq_path = _pq_path_for(plate, well, data_source, mode)
             if not pq_path.exists():
                 if verbose:
                     print(f"[warn] Skipping missing parquet: {pq_path}")
@@ -505,7 +505,7 @@ def prepare_mask_dataframes(
             mode=mode,
             pq_dir=pq_dir,
             specs=specs,
-            _KEYS=list(keys),
+            keys=list(keys),
         )
         if verbose:
             print("Thresholding applied (multi-filter intersection):")
@@ -762,20 +762,20 @@ def _id_col_for_mode(columns, mode: str) -> str:
     raise ValueError("Parquet is missing 'label'/'labels' for cell mode.")
 
 
-def _pq_path_for(plate, well, phenotype_fp: Path, mode: str) -> Path:
+def _pq_path_for(plate, well, data_source: Path, mode: str) -> Path:
     """Construct the phenotype parquet path for a given plate, well, and mode.
 
     Args:
         plate: Plate identifier.
         well: Well identifier.
-        phenotype_fp: Phenotype output directory (parquets subdirectory is appended).
+        data_source: Phenotype output directory (parquets subdirectory is appended).
         mode: 'cell' or 'vacuole'.
 
     Returns:
         The resolved parquet file path. For cell mode, if 'phenotype_cp.parquet' is
         missing, falls back to 'phenotype_cp_min.parquet' when present.
     """
-    pq_dir = _get_parquet_dir(phenotype_fp)
+    pq_dir = _get_parquet_dir(data_source)
     wnorm = well_for_filename(well)
     if mode == "vacuole":
         return pq_dir / get_filename(
@@ -1002,7 +1002,7 @@ def _apply_multi_thresholds(
     mode: str,
     pq_dir: Path,
     specs: list[dict],
-    _KEYS: list,
+    keys: list,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list]:
     """Apply one or more threshold filters (intersection) to a mask pool.
 
@@ -1011,7 +1011,7 @@ def _apply_multi_thresholds(
         mode: Normalized mode ('vacuole' or 'cell').
         pq_dir: Directory containing phenotype parquets.
         specs: List of filter dicts with keys: feature, min_num, max_num, min_pct, max_pct.
-        _KEYS: Key column names (e.g., ['plate','well','tile','mask_label']).
+        keys: Key column names (e.g., ['plate','well','tile','mask_label']).
 
     Returns:
         (in_df, out_df, debug_list) where in_df is the filtered pool, out_df is the complement.
@@ -1032,16 +1032,16 @@ def _apply_multi_thresholds(
             max_pct=sp["max_pct"],
         )
 
-        keyed = pool.merge(feat_idx, on=_KEYS, how="left", validate="one_to_one")
+        keyed = pool.merge(feat_idx, on=keys, how="left", validate="one_to_one")
         if keyed["_feature_value"].isna().any():
-            miss = keyed[keyed["_feature_value"].isna()][_KEYS]
+            miss = keyed[keyed["_feature_value"].isna()][keys]
             raise ValueError(
                 f"[filter {idx}] Missing feature values (feature='{sp['feature']}').\n"
                 + miss.head(15).to_string(index=False)
             )
 
         keep = (keyed["_feature_value"] > min_val) & (keyed["_feature_value"] < max_val)
-        kept = keyed.loc[keep, _KEYS].reset_index(drop=True)
+        kept = keyed.loc[keep, keys].reset_index(drop=True)
         if kept.empty:
             raise ValueError(
                 f"[filter {idx}] Feature '{sp['feature']}' thresholds yielded 0 in-range masks."
@@ -1062,8 +1062,8 @@ def _apply_multi_thresholds(
 
     marker = pool.assign(__in__=1)
     out_df = (
-        in_gate_df_all.merge(marker, on=_KEYS, how="left")
-        .loc[lambda d: d["__in__"].isna(), _KEYS]
+        in_gate_df_all.merge(marker, on=keys, how="left")
+        .loc[lambda d: d["__in__"].isna(), keys]
         .reset_index(drop=True)
     )
     return pool, out_df, debug
@@ -1164,31 +1164,31 @@ def _normalize_keys(df: pd.DataFrame, mode: str, class_col: str) -> pd.DataFrame
 
 
 def _ensure_mc_schema(
-    df: pd.DataFrame | None, CLASS_TITLE: str, _KEYS: list
+    df: pd.DataFrame | None, class_title: str, keys: list
 ) -> pd.DataFrame:
     """Ensure manual_classified_df has expected columns and helper flags.
 
     Args:
         df: Existing manual_classified_df or None.
-        CLASS_TITLE: Name of the classification column.
-        _KEYS: Key column names (e.g., ['plate','well','tile','mask_label']).
+        class_title: Name of the classification column.
+        keys: Key column names (e.g., ['plate','well','tile','mask_label']).
 
     Returns:
-        A DataFrame with _KEYS + [CLASS_TITLE, '_existing', '_sprinkle'].
+        A DataFrame with keys + [class_title, '_existing', '_sprinkle'].
     """
     if df is None or df.empty:
-        return pd.DataFrame(columns=_KEYS + [CLASS_TITLE, "_existing", "_sprinkle"])
+        return pd.DataFrame(columns=keys + [class_title, "_existing", "_sprinkle"])
     out = df.copy()
-    if CLASS_TITLE not in out.columns:
+    if class_title not in out.columns:
         raise ValueError(
-            f"manual_classified_df exists but is missing '{CLASS_TITLE}'. "
-            "Ensure CLASS_TITLE matches the seeded training column name."
+            f"manual_classified_df exists but is missing '{class_title}'. "
+            "Ensure class_title matches the seeded training column name."
         )
     if "_existing" not in out.columns:
         out["_existing"] = False
     if "_sprinkle" not in out.columns:
         out["_sprinkle"] = False
-    for c in _KEYS:
+    for c in keys:
         if c not in out.columns:
             out[c] = pd.Series(dtype="Int64" if c != "well" else "object")
     return out
@@ -1206,28 +1206,28 @@ def _render_row(
     meta: Dict,
     *,
     state: dict,
-    MODE: str,
-    PHENOTYPE_OUTPUT_FP: Path,
-    CHANNEL_NAMES: List[str],
-    CHANNEL_INDICES: List[int],
-    RESOLVED_COLORS: List[Tuple[str, Tuple[float, float, float]]],
-    SCALE_BAR: int,
-    DISPLAY_CHANNEL: List[str],
-    CLASSIFICATION: List[str],
+    mode: str,
+    images_source: Path,
+    channel_names: List[str],
+    channel_indices: List[int],
+    resolved_colors: List[Tuple[str, Tuple[float, float, float]]],
+    scale_bar: int,
+    display_channel: List[str],
+    classification: List[str],
 ) -> widgets.Widget:
     """Render a single UI row showing channel crops and a merged image with a boundary overlay.
 
     Args:
         meta: Row metadata containing keys and optional flags.
         state: Mutable cache/state dict.
-        MODE: Normalized mode ('vacuole' or 'cell').
-        PHENOTYPE_OUTPUT_FP: Root output path.
-        CHANNEL_NAMES: Channel names (for shape validation).
-        CHANNEL_INDICES: Indices of channels to display.
-        RESOLVED_COLORS: List of ('gray'|tag, (r,g,b)) tuples per channel.
-        SCALE_BAR: Scale bar length in pixels (0 to disable).
-        DISPLAY_CHANNEL: Labels shown above channel images.
-        CLASSIFICATION: List of class names for the dropdown.
+        mode: Normalized mode ('vacuole' or 'cell').
+        images_source: Path to directory containing images/ subdirectory.
+        channel_names: Channel names (for shape validation).
+        channel_indices: Indices of channels to display.
+        resolved_colors: List of ('gray'|tag, (r,g,b)) tuples per channel.
+        scale_bar: Scale bar length in pixels (0 to disable).
+        display_channel: Labels shown above channel images.
+        classification: List of class names for the dropdown.
 
     Returns:
         A widgets.Widget representing the row.
@@ -1240,8 +1240,8 @@ def _render_row(
     )
 
     stack = load_aligned_stack(
-        PHENOTYPE_OUTPUT_FP,
-        CHANNEL_NAMES,
+        images_source,
+        channel_names,
         int(plate),
         str(well),
         int(tile),
@@ -1250,8 +1250,8 @@ def _render_row(
 
     H, W = stack.shape[1], stack.shape[2]
     y0, y1, x0, x1 = compute_crop_bounds(
-        PHENOTYPE_OUTPUT_FP,
-        MODE,
+        images_source,
+        mode,
         int(plate),
         str(well),
         int(tile),
@@ -1262,12 +1262,12 @@ def _render_row(
     )
 
     imgs, merged = compose_rgb_crops(
-        stack, y0, y1, x0, x1, CHANNEL_INDICES, RESOLVED_COLORS
+        stack, y0, y1, x0, x1, channel_indices, resolved_colors
     )
 
     labels_full = load_mask_labels(
-        PHENOTYPE_OUTPUT_FP,
-        MODE,
+        images_source,
+        mode,
         int(plate),
         str(well),
         int(tile),
@@ -1279,8 +1279,8 @@ def _render_row(
         overlay_mask_boundary_inplace(merged, mask_crop, step=2, value=1.0)
 
     # scale bar (use shared overlay)
-    if SCALE_BAR and SCALE_BAR > 0:
-        overlay_scale_bar(merged, int(SCALE_BAR))
+    if scale_bar and scale_bar > 0:
+        overlay_scale_bar(merged, int(scale_bar))
 
     # images -> widgets
     img_widgets = []
@@ -1293,12 +1293,12 @@ def _render_row(
     header = widgets.HTML(f"<b>P-{plate} W-{well} T-{tile} | mask {mask_label}</b>")
     pre_idx = meta.get("_prefill_class_idx", None)
     pre_value = (
-        CLASSIFICATION[int(pre_idx) - 1]
-        if (pre_idx is not None and 1 <= int(pre_idx) <= len(CLASSIFICATION))
+        classification[int(pre_idx) - 1]
+        if (pre_idx is not None and 1 <= int(pre_idx) <= len(classification))
         else "--select class--"
     )
     dd = widgets.Dropdown(
-        options=["--select class--"] + CLASSIFICATION,
+        options=["--select class--"] + classification,
         value=pre_value,
         layout=widgets.Layout(width="220px"),
     )
@@ -1313,7 +1313,7 @@ def _render_row(
         if pre_idx is None or pre_value == "--select class--":
             left_children.append(
                 widgets.HTML(
-                    "<div style='color:#e65100; font-weight:600; margin-top:4px;'>Class not present in current CLASSIFICATION — please reselect</div>"
+                    "<div style='color:#e65100; font-weight:600; margin-top:4px;'>Class not present in current classification — please reselect</div>"
                 )
             )
     if meta.get("_sprinkle", False):
@@ -1333,14 +1333,14 @@ def _render_row(
 
 
 def _collect_and_advance_random(
-    state: dict, CLASSIFICATION: List[str], CLASS_TITLE: str, keys: List[str]
+    state: dict, classification: List[str], class_title: str, keys: List[str]
 ) -> None:
     """Collect selected labels from the current UI page and update state tables.
 
     Args:
         state: Mutable cache/state dict (expects 'rows_state', 'manual_*_df').
-        CLASSIFICATION: Ordered list of class names (1-based indices).
-        CLASS_TITLE: Name of the classification column.
+        classification: Ordered list of class names (1-based indices).
+        class_title: Name of the classification column.
         keys: Key columns (e.g., ['plate','well','tile','mask_label']).
 
     Returns:
@@ -1351,8 +1351,8 @@ def _collect_and_advance_random(
         meta = r["meta"]
         choice = r["dropdown"].value
         if choice and choice != "--select class--":
-            cls_idx = CLASSIFICATION.index(choice) + 1  # 1-based
-            rec = {**meta, CLASS_TITLE: cls_idx}
+            cls_idx = classification.index(choice) + 1  # 1-based
+            rec = {**meta, class_title: cls_idx}
             if "_existing" in meta:
                 rec["_existing"] = bool(meta["_existing"])
             if "_sprinkle" in meta:
@@ -1361,7 +1361,7 @@ def _collect_and_advance_random(
         else:
             unselected_rows.append(meta)
 
-    base = _ensure_mc_schema(state.get("manual_classified_df"), CLASS_TITLE, keys)
+    base = _ensure_mc_schema(state.get("manual_classified_df"), class_title, keys)
 
     if selected_rows:
         to_add = pd.DataFrame(selected_rows)
@@ -1396,72 +1396,74 @@ def _collect_and_advance_random(
 
 
 def _handle_click(
-    state: dict, CLASSIFICATION: list, CLASS_TITLE: str, keys: list, on_relaunch
+    state: dict, classification: list, class_title: str, keys: list, on_relaunch
 ) -> None:
     """Handle the batch button press: collect labels and relaunch the UI.
 
     Args:
         state: Mutable cache/state dict.
-        CLASSIFICATION: Ordered list of class names.
-        CLASS_TITLE: Name of the classification column.
+        classification: Ordered list of class names.
+        class_title: Name of the classification column.
         keys: Key columns for identification.
         on_relaunch: Zero-arg callable to refresh the UI with next batch.
 
     Returns:
         None.
     """
-    _collect_and_advance_random(state, CLASSIFICATION, CLASS_TITLE, keys)
+    _collect_and_advance_random(state, classification, class_title, keys)
     on_relaunch()
 
 
 def _render_next_batch(
     state: dict,
-    DISPLAY_CHANNEL: list,
-    ADD_TRAINING_DATA: bool,
+    display_channel: list,
+    add_training_data: bool,
     keys: list,
-    CLASS_TITLE: str,
-    CLASSIFICATION: list,
-    RELABEL_CLASSIFICATIONS: bool,
-    TRAINING_DATASET_SELECTION: str,
-    BATCH_SIZE: int,
+    class_title: str,
+    classification: list,
+    relabel_classifications: bool,
+    training_dataset_selection: str,
+    batch_size: int,
     summary_df: pd.DataFrame,
     in_gate_df: pd.DataFrame,
     out_of_gate_df: pd.DataFrame,
-    OUT_OF_GATE_COUNT: int,
-    CHANNEL_INDICES: list,
+    out_of_gate_count: int,
+    channel_indices: list,
     *,
-    PHENOTYPE_OUTPUT_FP: Path,
-    CHANNEL_NAMES: list,
-    MODE: str,
-    RESOLVED_COLORS: list,
-    SCALE_BAR: int = 0,
-    EXISTING_KEYS: Optional[set] = None,
-    GATE_FEATURE_PRESENT: bool = False,
+    data_source: Path,
+    images_source: Optional[Path] = None,
+    channel_names: list,
+    mode: str,
+    resolved_colors: list,
+    scale_bar: int = 0,
+    existing_keys: Optional[set] = None,
+    gate_feature_present: bool = False,
 ) -> None:
     """Render a page of mask rows and wire the "show next" button to advance batches.
 
     Args:
         state: Mutable cache/state dict.
-        DISPLAY_CHANNEL: Labels above each channel panel.
-        ADD_TRAINING_DATA: Whether the UI is collecting labels for training.
+        display_channel: Labels above each channel panel.
+        add_training_data: Whether the UI is collecting labels for training.
         keys: Key columns (e.g., ['plate','well','tile','mask_label']).
-        CLASS_TITLE: Name of the classification column.
-        CLASSIFICATION: Ordered list of class names.
-        RELABEL_CLASSIFICATIONS: If True, prioritize keys already present in training data.
-        TRAINING_DATASET_SELECTION: 'random' or 'top_n'.
-        BATCH_SIZE: Count of rows per page.
+        class_title: Name of the classification column.
+        classification: Ordered list of class names.
+        relabel_classifications: If True, prioritize keys already present in training data.
+        training_dataset_selection: 'random' or 'top_n'.
+        batch_size: Count of rows per page.
         summary_df: Tile summary table.
         in_gate_df: In-gate pool for selection.
         out_of_gate_df: Out-of-gate pool for selection.
-        OUT_OF_GATE_COUNT: Max number of out-of-threshold rows per page.
-        CHANNEL_INDICES: Indices of channels to display.
-        PHENOTYPE_OUTPUT_FP: Root output path.
-        CHANNEL_NAMES: Channel names (for aligned stack validation).
-        MODE: Normalized mode ('vacuole' or 'cell').
-        RESOLVED_COLORS: List of ('gray' or label, (r,g,b)) tuples per channel.
-        SCALE_BAR: Scale bar size in pixels (0 disables).
-        EXISTING_KEYS: Keys present in existing training dataset (for relabeling priority).
-        GATE_FEATURE_PRESENT: Whether thresholding is active (affects status text).
+        out_of_gate_count: Max number of out-of-threshold rows per page.
+        channel_indices: Indices of channels to display.
+        data_source: Root data source path (for parquets).
+        images_source: Path to directory containing images/ subdirectory. If None, defaults to data_source.
+        channel_names: Channel names (for aligned stack validation).
+        mode: Normalized mode ('vacuole' or 'cell').
+        resolved_colors: List of ('gray' or label, (r,g,b)) tuples per channel.
+        scale_bar: Scale bar size in pixels (0 disables).
+        existing_keys: Keys present in existing training dataset (for relabeling priority).
+        gate_feature_present: Whether thresholding is active (affects status text).
 
     Returns:
         None. Displays and updates widgets in-place.
@@ -1480,7 +1482,7 @@ def _render_next_batch(
             widgets.HTML(
                 f"<b>{ch}</b>", layout=widgets.Layout(width="200px", height="24px")
             )
-            for ch in DISPLAY_CHANNEL
+            for ch in display_channel
         ]
         label_widgets.append(
             widgets.HTML("", layout=widgets.Layout(width="200px", height="24px"))
@@ -1507,10 +1509,10 @@ def _render_next_batch(
         display(widgets.VBox([state["status"], close_btn]))
         return
 
-    EXISTING_KEYS = EXISTING_KEYS or set()
+    existing_keys = existing_keys or set()
 
     # compute prioritized sets if relabeling active
-    if ADD_TRAINING_DATA and RELABEL_CLASSIFICATIONS and len(EXISTING_KEYS) > 0:
+    if add_training_data and relabel_classifications and len(existing_keys) > 0:
         _in_keys = set(
             (int(r.plate), str(r.well), int(r.tile), int(r.mask_label))
             for r in in_gate_df.itertuples(index=False)
@@ -1519,19 +1521,19 @@ def _render_next_batch(
             (int(r.plate), str(r.well), int(r.tile), int(r.mask_label))
             for r in out_of_gate_df.itertuples(index=False)
         )
-        pri_in = EXISTING_KEYS.intersection(_in_keys)
-        pri_out = EXISTING_KEYS.intersection(_out_keys)
+        pri_in = existing_keys.intersection(_in_keys)
+        pri_out = existing_keys.intersection(_out_keys)
     else:
         pri_in, pri_out = set(), set()
 
     next_batch_df, _ = select_next_batch_from_pools(
         in_pool_df=in_gate_df,
         out_pool_df=out_of_gate_df,
-        selection_mode=TRAINING_DATASET_SELECTION,
-        batch_size=BATCH_SIZE,
+        selection_mode=training_dataset_selection,
+        batch_size=batch_size,
         keys=keys,
         summary_df=summary_df,
-        out_randomizer=OUT_OF_GATE_COUNT,
+        out_randomizer=out_of_gate_count,
         prioritized_in_keys=pri_in,
         prioritized_out_keys=pri_out,
     )
@@ -1551,7 +1553,7 @@ def _render_next_batch(
     mcd = state.get("manual_classified_df")
     if mcd is not None and not mcd.empty:
         for p, w, t, m, cidx in mcd[
-            ["plate", "well", "tile", "mask_label", CLASS_TITLE]
+            ["plate", "well", "tile", "mask_label", class_title]
         ].itertuples(index=False, name=None):
             key_to_class[(int(p), str(w), int(t), int(m))] = int(cidx)
 
@@ -1564,25 +1566,29 @@ def _render_next_batch(
             int(meta["mask_label"]),
         )
         meta["_sprinkle"] = key in _out_set
-        meta["_existing"] = key in EXISTING_KEYS
+        meta["_existing"] = key in existing_keys
         pre = key_to_class.get(key)
         meta["_prefill_class_idx"] = (
-            pre if (pre is not None and 1 <= pre <= len(CLASSIFICATION)) else None
+            pre if (pre is not None and 1 <= pre <= len(classification)) else None
         )
         rows_to_show.append(meta)
+
+    # Default images_source to data_source if not provided
+    if images_source is None:
+        images_source = data_source
 
     row_widgets = [
         _render_row(
             meta,
             state=state,
-            MODE=MODE,
-            PHENOTYPE_OUTPUT_FP=PHENOTYPE_OUTPUT_FP,
-            CHANNEL_NAMES=CHANNEL_NAMES,
-            CHANNEL_INDICES=CHANNEL_INDICES,
-            RESOLVED_COLORS=RESOLVED_COLORS,
-            SCALE_BAR=SCALE_BAR,
-            DISPLAY_CHANNEL=DISPLAY_CHANNEL,
-            CLASSIFICATION=CLASSIFICATION,
+            mode=mode,
+            images_source=images_source,
+            channel_names=channel_names,
+            channel_indices=channel_indices,
+            resolved_colors=resolved_colors,
+            scale_bar=scale_bar,
+            display_channel=display_channel,
+            classification=classification,
         )
         for meta in rows_to_show
     ]
@@ -1596,47 +1602,48 @@ def _render_next_batch(
         )
         _render_next_batch(
             state=state,
-            DISPLAY_CHANNEL=DISPLAY_CHANNEL,
-            ADD_TRAINING_DATA=ADD_TRAINING_DATA,
+            display_channel=display_channel,
+            add_training_data=add_training_data,
             keys=keys,
-            CLASS_TITLE=CLASS_TITLE,
-            CLASSIFICATION=CLASSIFICATION,
-            RELABEL_CLASSIFICATIONS=RELABEL_CLASSIFICATIONS,
-            TRAINING_DATASET_SELECTION=TRAINING_DATASET_SELECTION,
-            BATCH_SIZE=BATCH_SIZE,
+            class_title=class_title,
+            classification=classification,
+            relabel_classifications=relabel_classifications,
+            training_dataset_selection=training_dataset_selection,
+            batch_size=batch_size,
             summary_df=summary_df,
             in_gate_df=in_left,
             out_of_gate_df=out_left,
-            OUT_OF_GATE_COUNT=OUT_OF_GATE_COUNT,
-            CHANNEL_INDICES=CHANNEL_INDICES,
-            PHENOTYPE_OUTPUT_FP=PHENOTYPE_OUTPUT_FP,
-            CHANNEL_NAMES=CHANNEL_NAMES,
-            MODE=MODE,
-            RESOLVED_COLORS=RESOLVED_COLORS,
-            SCALE_BAR=SCALE_BAR,
-            EXISTING_KEYS=EXISTING_KEYS,
-            GATE_FEATURE_PRESENT=GATE_FEATURE_PRESENT,
+            out_of_gate_count=out_of_gate_count,
+            channel_indices=channel_indices,
+            data_source=data_source,
+            images_source=images_source,
+            channel_names=channel_names,
+            mode=mode,
+            resolved_colors=resolved_colors,
+            scale_bar=scale_bar,
+            existing_keys=existing_keys,
+            gate_feature_present=gate_feature_present,
         )
 
     state["button"].description = "show_10_new_images"
     for cb in list(state["button"]._click_handlers.callbacks):
         state["button"].on_click(cb, remove=True)
     state["button"].on_click(
-        lambda _: _handle_click(state, CLASSIFICATION, CLASS_TITLE, keys, on_relaunch)
+        lambda _: _handle_click(state, classification, class_title, keys, on_relaunch)
     )
 
     df_cls = state.get("manual_classified_df")
     if df_cls is None:
-        df_cls = pd.DataFrame(columns=[CLASS_TITLE])
+        df_cls = pd.DataFrame(columns=[class_title])
     df_unc = state.get("manual_unclassified_df")
     if df_unc is None:
         df_unc = pd.DataFrame()
 
     total_classified = len(df_cls)
-    unit = "cells" if MODE == "cell" else "vacuoles"
+    unit = "cells" if mode == "cell" else "vacuoles"
 
     lines = [f"Displaying: {len(row_widgets)}"]
-    if ADD_TRAINING_DATA:
+    if add_training_data:
         existing_count = (
             int((df_cls["_existing"] == True).sum())
             if (not df_cls.empty and "_existing" in df_cls.columns)
@@ -1645,13 +1652,13 @@ def _render_next_batch(
         lines.append(f"Existing training rows loaded: {existing_count}")
     lines.append(f"Remaining total: {total_remaining}")
     lines.append(f"In-range remaining: {len(in_gate_df)}")
-    if GATE_FEATURE_PRESENT:
+    if gate_feature_present:
         lines.append(
-            f"Out-of-range remaining: {len(out_of_gate_df)} (showing {OUT_OF_GATE_COUNT}/page)"
+            f"Out-of-range remaining: {len(out_of_gate_df)} (showing {out_of_gate_count}/page)"
         )
     lines.append(f"Uncategorized (omitted): {len(df_unc)}")
-    for i, cname in enumerate(CLASSIFICATION, start=1):
-        count_i = int((df_cls[CLASS_TITLE] == i).sum()) if total_classified > 0 else 0
+    for i, cname in enumerate(classification, start=1):
+        count_i = int((df_cls[class_title] == i).sum()) if total_classified > 0 else 0
         pct_i = (
             int(round((count_i / total_classified) * 100))
             if total_classified > 0

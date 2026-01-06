@@ -329,9 +329,9 @@ def prepare_class_table(
 def build_master_phenotype_df(
     plates: Union[str, int, Iterable[Union[str, int]]],
     wells: Union[str, int, Iterable[Union[str, int]]],
-    name_suffix: str,
+    mode: str,
     parquet_dir: Union[str, Path],
-    read_kwargs: Optional[Dict[str, Any]] = None,
+    read_kwargs: Optional[Dict[str, Any]] = {"engine": "pyarrow"},
     verbose: bool = True,
     preview_cols: int = 10,
     preview_rows: int = 5,
@@ -342,7 +342,7 @@ def build_master_phenotype_df(
     Args:
         plates: Plate ID or iterable of IDs (str/int).
         wells: Well ID or iterable of IDs (str/int).
-        name_suffix: Filename suffix to use (e.g., 'phenotype_cp.parquet' or 'phenotype_vacuoles.parquet').
+        mode: Object type to load ("cell" or "vacuole"). Determines the filename suffix automatically.
         parquet_dir: Directory containing the parquet files.
         read_kwargs: Optional kwargs forwarded to pd.read_parquet (e.g., {"engine": "pyarrow"}).
         verbose: If True, print status messages.
@@ -361,6 +361,13 @@ def build_master_phenotype_df(
                 "parquet_dir": str,
               }
     """
+    # Determine name_suffix from mode
+    if mode == "cell":
+        name_suffix = "phenotype_cp.parquet"
+    elif mode == "vacuole":
+        name_suffix = "phenotype_vacuoles.parquet"
+    else:
+        raise ValueError(f"Invalid mode: {mode}. Must be 'cell' or 'vacuole'.")
 
     # Normalize inputs to lists of strings
     def _to_list(x):
@@ -453,7 +460,7 @@ def build_montages_and_summary(
     channels: Sequence[str],
     montage_channel: str,
     collapse_cols: Sequence[str],
-    verbose: bool = True,
+    verbose: bool = False,
     show_figure: bool = True,
     display_fn: Optional[Callable[[pd.DataFrame], None]] = None,
 ) -> Tuple[
@@ -515,11 +522,50 @@ def build_montages_and_summary(
     # 2) Merge coordinates into classified metadata (work on a copy)
     coords_and_keys = list(required_master_cols)
     cm = classified_metadata.copy(deep=True)
-    cm = cm.merge(
-        master_phenotype_df[coords_and_keys].drop_duplicates(),
-        on=[c for c in join_keys if c in cm.columns],
-        how="left",
-    )
+
+    # Determine which join keys are available in classified_metadata
+    available_join_keys = [c for c in join_keys if c in cm.columns]
+
+    if verbose:
+        print(f"Join keys needed: {join_keys}")
+        print(f"Join keys available in classified_metadata: {available_join_keys}")
+        print(f"Coordinate columns to add: {coord_cols_present}")
+
+    # Check if coordinate columns are already present
+    coords_already_present = all(c in cm.columns for c in coord_cols_present)
+
+    if coords_already_present:
+        if verbose:
+            print("Coordinate columns already present in classified_metadata")
+        # Verify join keys are also present
+        missing_join_keys = [k for k in join_keys if k not in cm.columns]
+        if missing_join_keys:
+            raise ValueError(
+                f"Coordinates present but missing required join keys: {missing_join_keys}. "
+                f"This indicates malformed input data."
+            )
+    elif not available_join_keys:
+        raise ValueError(
+            f"Cannot merge coordinates: no join keys found in classified_metadata. "
+            f"Required keys: {join_keys}, available columns: {list(cm.columns)}"
+        )
+    else:
+        # Perform the merge
+        cm = cm.merge(
+            master_phenotype_df[coords_and_keys].drop_duplicates(),
+            on=available_join_keys,
+            how="left",
+        )
+
+        # Check if merge was successful
+        if not all(c in cm.columns for c in coord_cols_present):
+            missing_coords = [c for c in coord_cols_present if c not in cm.columns]
+            raise ValueError(
+                f"Merge failed to add coordinate columns {missing_coords}. "
+                f"This may be due to mismatched join keys. "
+                f"Used join keys: {available_join_keys}. "
+                f"Check that classified_metadata has proper {available_join_keys} values."
+            )
 
     # 3) Normalize dtypes for filename construction
     if "plate" in cm.columns:
@@ -596,6 +642,14 @@ def build_montages_and_summary(
 
     # 9) Montage generation (delegate to montage_utils)
     conf_col = f"{class_title}_confidence"
+
+    if verbose:
+        print(f"\nPreparing montages...")
+        print(f"cm columns: {list(cm.columns)}")
+        print(f"Coordinate columns needed: {coord_cols_present}")
+        coord_check = [c in cm.columns for c in coord_cols_present]
+        print(f"Coordinate columns present: {coord_check}")
+
     montages, titles = create_class_confidence_montages(
         cell_class_dfs,
         channels,
@@ -644,7 +698,10 @@ def launch_rankline_ui(
     class_title: str,
     classify_by: str,  # 'cell'/'cells'/'cp' or 'vacuole'/'vacuoles'/'vac'
     class_mapping: Dict,  # expects {"label_to_class": {id: name, ...}} or {id: name}
-    phenotype_output_fp: Union[str, Path],
+    data_source: Union[str, Path],
+    images_source: Optional[
+        Union[str, Path]
+    ] = None,  # where images/masks live; defaults to data_source
     channel_names: Sequence[str],  # e.g. config["phenotype"]["channel_names"]
     display_channels: Sequence[str],  # e.g. DISPLAY_CHANNEL
     channel_colors: Optional[Sequence[str]] = None,  # e.g. CHANNEL_COLORS; can be None
@@ -663,15 +720,41 @@ def launch_rankline_ui(
 ) -> widgets.VBox:
     """Launches an interactive, rank-based number line UI for browsing per-class examples.
 
+    Args:
+        classified_metadata: DataFrame containing classified objects with predictions.
+        class_title: Title/name of the classification task (e.g., "Cell Class").
+        classify_by: Type of object being classified ('cell'/'cells'/'cp' or 'vacuole'/'vacuoles'/'vac').
+        class_mapping: Dictionary mapping class IDs to names. Either {"label_to_class": {id: name, ...}} or {id: name}.
+        data_source: Path to data source directory (for parquets).
+        images_source: Path to directory containing images/ subdirectory. If None, defaults to data_source.
+        channel_names: List of all channel names in the images (e.g., from config["phenotype"]["channel_names"]).
+        display_channels: List of channel names to display in the UI.
+        channel_colors: Optional list of color strings for each channel (e.g., CHANNEL_COLORS). Can be None.
+        test_plate: Optional iterable of plate identifiers to filter for testing.
+        test_well: Optional iterable of well identifiers to filter for testing.
+        filename_well_pad_2: If True, pad well numbers to 2 digits in filenames.
+        scale_bar_px: Explicit scale bar length in pixels. If >0, overrides scale_bar_um calculation.
+        scale_bar_um: Desired scale bar length in micrometers. Used if pixel_size_um>0 and scale_bar_px==0.
+        pixel_size_um: Micrometers per pixel for converting scale_bar_um to pixels.
+        minimum_difference: Minimum probability difference for ranking examples (default: 0.01).
+        thumbnail_px: Size of thumbnail images in pixels (default: 150).
+        auto_display: If True, automatically display the widget container (default: True).
+
     Returns:
         container (widgets.VBox): the root widget; also displayed if auto_display=True.
     """
     # ---------- basic validations ----------
-    phenotype_output_fp = Path(phenotype_output_fp)
-    if not phenotype_output_fp.exists():
-        raise FileNotFoundError(
-            f"PHENOTYPE_OUTPUT_FP does not exist: {phenotype_output_fp}"
-        )
+    data_source = Path(data_source)
+    if not data_source.exists():
+        raise FileNotFoundError(f"data_source does not exist: {data_source}")
+
+    # Default images_source to data_source if not provided
+    if images_source is None:
+        images_source = data_source
+    else:
+        images_source = Path(images_source)
+        if not images_source.exists():
+            raise FileNotFoundError(f"images_source does not exist: {images_source}")
 
     if len(set(display_channels)) != len(display_channels):
         raise ValueError("display_channels contains duplicates.")
@@ -927,7 +1010,7 @@ def launch_rankline_ui(
         n_in_class = int(row["__total_in_class"])
 
         stack = load_aligned_stack(
-            phenotype_output_fp,
+            images_source,
             channel_names,
             int(plate),
             str(well),
@@ -936,7 +1019,7 @@ def launch_rankline_ui(
         )
         H, W = stack.shape[1], stack.shape[2]
         labels_full = load_mask_labels(
-            phenotype_output_fp,
+            images_source,
             mode,
             int(plate),
             str(well),
@@ -945,7 +1028,7 @@ def launch_rankline_ui(
         )
 
         y0, y1, x0, x1 = compute_crop_bounds(
-            phenotype_output_fp,
+            images_source,
             mode,
             int(plate),
             str(well),

@@ -493,26 +493,16 @@ def plot_barcode_prefix_matching(
             DataFrame of library barcodes to match against.
         barcode_col (str, optional):
             Column name in df_reads containing barcode sequences. Defaults to "barcode".
-        library_col (str, optional):
-            Column name in df_library containing barcode sequences.
-            If None, tries common column names: 'barcode', 'sgRNA', 'iBAR_2'.
-            Defaults to None.
+        library_col (str):
+            Column name in df_library containing barcode sequences to match against.
 
     Returns:
         pandas.DataFrame: Summary table with columns 'prefix_length', 'match_rate', 'random_rate'.
         matplotlib.figure.Figure: The figure object containing the plot.
     """
-    # Determine library column
+    # Validate library column is specified
     if library_col is None:
-        for col in ["barcode", "sgRNA", "iBAR_2"]:
-            if col in df_library.columns:
-                library_col = col
-                break
-        if library_col is None:
-            raise ValueError(
-                "Could not find barcode column in library. "
-                "Please specify library_col parameter."
-            )
+        raise ValueError("library_col parameter is required.")
 
     # Get barcode length from reads
     barcode_length = len(df_reads[barcode_col].iloc[0])

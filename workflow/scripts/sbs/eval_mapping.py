@@ -82,5 +82,9 @@ mapping_overview_df = mapping_overview(
 )
 mapping_overview_df.to_csv(snakemake.output[9], sep="\t", index=False)
 
-_, fig = plot_barcode_prefix_matching(reads, df_barcode_library)
+_, fig = plot_barcode_prefix_matching(
+    reads,
+    df_barcode_library,
+    library_col=snakemake.params.library_barcode_col,
+)
 fig.savefig(snakemake.output[10])

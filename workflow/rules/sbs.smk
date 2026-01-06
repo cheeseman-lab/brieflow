@@ -264,12 +264,13 @@ rule eval_mapping:
     output:
         SBS_OUTPUTS_MAPPED["eval_mapping"],
     params:
-        df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"], 
-        heatmap_plate=config["sbs"].get("heatmap_plate", "6W"),   
+        df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
+        heatmap_plate=config["sbs"].get("heatmap_plate", "6W"),
         heatmap_shape=config["sbs"].get("heatmap_shape", "6W_sbs"),
         sort_by=config["sbs"]["sort_calls"],
         barcode_type=config["sbs"].get("barcode_type", "simple"),
-        sequencing_order=config["sbs"].get("sequencing_order", "map_recomb"),       
+        sequencing_order=config["sbs"].get("sequencing_order", "map_recomb"),
+        library_barcode_col=config["sbs"].get("prefix_col", "prefix"),
     script:
         "../scripts/sbs/eval_mapping.py"
 

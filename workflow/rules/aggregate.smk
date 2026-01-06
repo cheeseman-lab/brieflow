@@ -17,6 +17,7 @@ rule split_datasets:
         all_channels=config["phenotype"]["channel_names"],
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         classifier_path=config["aggregate"]["classifier_path"],
+        confidence_threshold=config["aggregate"].get("confidence_threshold"),
         cell_classes=aggregate_wildcard_combos["cell_class"].unique(),
         channel_combos=aggregate_wildcard_combos["channel_combo"].unique(),
     script:
@@ -30,6 +31,7 @@ rule filter:
         AGGREGATE_OUTPUTS_MAPPED["filter"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config["aggregate"]["classifier_path"] is not None,
         filter_queries=config["aggregate"]["filter_queries"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         drop_cols_threshold=config["aggregate"]["drop_cols_threshold"],
@@ -56,13 +58,14 @@ rule generate_feature_table:
         AGGREGATE_OUTPUTS_MAPPED["generate_feature_table"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config["aggregate"]["classifier_path"] is not None,
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
         batch_cols=config["aggregate"]["batch_cols"],
         batches=10,
         feature_normalization=config["aggregate"].get("feature_normalization", "standard"),
-        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None), 
+        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None),
     script:
         "../scripts/aggregate/generate_feature_table.py"
 
@@ -82,6 +85,7 @@ rule align:
         AGGREGATE_OUTPUTS_MAPPED["align"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config["aggregate"]["classifier_path"] is not None,
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         batch_cols=config["aggregate"]["batch_cols"],
@@ -100,6 +104,7 @@ rule aggregate:
         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config["aggregate"]["classifier_path"] is not None,
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         agg_method=config["aggregate"]["agg_method"],
         ps_probability_threshold=config["aggregate"]["ps_probability_threshold"],
@@ -222,6 +227,7 @@ checkpoint prepare_bootstrap_data:
         sample_sizes=BOOTSTRAP_OUTPUTS["sample_sizes"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config["aggregate"]["classifier_path"] is not None,
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],

@@ -19,10 +19,22 @@ import numpy as np
 
 # Classify cells only if classifier path is provided
 classifier_path = snakemake.params.get("classifier_path")
+confidence_threshold = snakemake.params.get("confidence_threshold")
+
 if classifier_path is not None:
     print("Applying cell classification...")
     classifier = CellClassifier.load(classifier_path)
     metadata, features = classifier.classify_cells(metadata, features)
+
+    # Filter by confidence threshold
+    if confidence_threshold is not None:
+        before_count = len(metadata)
+        mask = metadata["confidence"] >= confidence_threshold
+        metadata = metadata[mask]
+        features = features[mask]
+        print(
+            f"Filtered by confidence >= {confidence_threshold}: {before_count} -> {len(metadata)} cells"
+        )
 else:
     print("No classifier specified - skipping cell classification")
 

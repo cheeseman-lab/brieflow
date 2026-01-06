@@ -32,7 +32,10 @@ control_cells = all_features_cells[control_mask]
 print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 
 # Load metadata columns and split control cell data
-metadata_cols = load_metadata_cols(metadata_cols_fp, include_classification_cols=True)
+use_classifier = snakemake.params.get("use_classifier", False)
+metadata_cols = load_metadata_cols(
+    metadata_cols_fp, include_classification_cols=use_classifier
+)
 controls_metadata, controls_features = split_cell_data(control_cells, metadata_cols)
 
 # Get available features from construct table

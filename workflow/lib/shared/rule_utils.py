@@ -135,8 +135,11 @@ def get_spot_detection_params(config: Dict[str, Any]) -> Dict[str, Any]:
 
     # Method-specific parameters
     if method == "standard":
-        # No additional parameters needed for standard method
-        pass
+        params.update(
+            {
+                "peak_width": module_config.get("peak_width", 5),
+            }
+        )
     elif method == "spotiflow":
         params.update(
             {

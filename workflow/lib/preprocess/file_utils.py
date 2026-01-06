@@ -214,8 +214,8 @@ def get_metadata_wildcard_combos(
         # Use image file structure for metadata extraction
         return samples_df.drop(columns=["sample_fp"]).drop_duplicates().astype(str)
     else:
-        # Both DataFrames are empty - this is likely a configuration error
-        raise ValueError("No samples or metadata files found for metadata extraction.")
+        # Both DataFrames are empty - return empty DataFrame (no samples to process)
+        return pd.DataFrame()
 
 
 def get_output_pattern(wildcard_combos: pd.DataFrame) -> Dict[str, str]:

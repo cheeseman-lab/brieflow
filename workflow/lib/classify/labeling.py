@@ -432,9 +432,7 @@ def prepare_mask_dataframes(
             .reset_index(drop=True)
         )
     else:
-        summary_df = pd.DataFrame(
-            columns=["plate", "well", "tile", "number_of_masks"]
-        )
+        summary_df = pd.DataFrame(columns=["plate", "well", "tile", "number_of_masks"])
 
     if instance_rows:
         in_gate_df_all = (
@@ -502,14 +500,12 @@ def prepare_mask_dataframes(
         if verbose:
             print("No thresholding (no usable bounds provided).")
     else:
-        in_gate_df, out_of_gate_df, gate_debug = (
-            _apply_multi_thresholds(
-                in_gate_df_all=in_gate_df_all,
-                mode=mode,
-                pq_dir=pq_dir,
-                specs=specs,
-                _KEYS=list(keys),
-            )
+        in_gate_df, out_of_gate_df, gate_debug = _apply_multi_thresholds(
+            in_gate_df_all=in_gate_df_all,
+            mode=mode,
+            pq_dir=pq_dir,
+            specs=specs,
+            _KEYS=list(keys),
         )
         if verbose:
             print("Thresholding applied (multi-filter intersection):")
@@ -521,21 +517,15 @@ def prepare_mask_dataframes(
                     f"kept: {d['kept_after_this_filter']}"
                 )
             print(f"\nin_gate_df (IN): {len(in_gate_df)} rows")
-            print(
-                f"out_of_gate_df (OUT): {len(out_of_gate_df)} rows"
-            )
+            print(f"out_of_gate_df (OUT): {len(out_of_gate_df)} rows")
 
-    summary_df = _update_mask_summary(
-        summary_df, in_gate_df, out_of_gate_df
-    )
+    summary_df = _update_mask_summary(summary_df, in_gate_df, out_of_gate_df)
 
     if verbose:
         print("\nFinal tables ready for the UI:")
         print(f"  summary_df: {len(summary_df)} tiles")
         print(f"  in_gate_df (IN): {len(in_gate_df)} rows")
-        print(
-            f"  out_of_gate_df (OUT): {len(out_of_gate_df)} rows"
-        )
+        print(f"  out_of_gate_df (OUT): {len(out_of_gate_df)} rows")
 
     return (
         summary_df,
@@ -559,7 +549,7 @@ def build_class_mapping(classification: List[str]) -> Dict:
     Returns:
         Dict with 'label_to_class' mapping 1-based indices to class names.
     """
-    return {'label_to_class': {i + 1: label for i, label in enumerate(classification)}}
+    return {"label_to_class": {i + 1: label for i, label in enumerate(classification)}}
 
 
 def to_list_of_str(value, fallback=None) -> List[str]:
@@ -657,17 +647,28 @@ def filter_existing_from_pools(
         return in_gate_df, out_of_gate_df
 
     keys_df = pd.DataFrame(
-        list(existing_keys),
-        columns=["plate", "well", "tile", "mask_label"]
+        list(existing_keys), columns=["plate", "well", "tile", "mask_label"]
     ).assign(_ex=1)
 
     if not in_gate_df.empty:
-        in_gate_df = in_gate_df.merge(keys_df, on=["plate", "well", "tile", "mask_label"], how="left")
-        in_gate_df = in_gate_df[in_gate_df["_ex"].isna()].drop(columns="_ex").reset_index(drop=True)
+        in_gate_df = in_gate_df.merge(
+            keys_df, on=["plate", "well", "tile", "mask_label"], how="left"
+        )
+        in_gate_df = (
+            in_gate_df[in_gate_df["_ex"].isna()]
+            .drop(columns="_ex")
+            .reset_index(drop=True)
+        )
 
     if not out_of_gate_df.empty:
-        out_of_gate_df = out_of_gate_df.merge(keys_df, on=["plate", "well", "tile", "mask_label"], how="left")
-        out_of_gate_df = out_of_gate_df[out_of_gate_df["_ex"].isna()].drop(columns="_ex").reset_index(drop=True)
+        out_of_gate_df = out_of_gate_df.merge(
+            keys_df, on=["plate", "well", "tile", "mask_label"], how="left"
+        )
+        out_of_gate_df = (
+            out_of_gate_df[out_of_gate_df["_ex"].isna()]
+            .drop(columns="_ex")
+            .reset_index(drop=True)
+        )
 
     return in_gate_df, out_of_gate_df
 
@@ -874,9 +875,7 @@ def _as_list(x, L, name):
     return [x] * L
 
 
-def _rank_by_tile(
-    df: pd.DataFrame, summary_df: pd.DataFrame | None
-) -> pd.DataFrame:
+def _rank_by_tile(df: pd.DataFrame, summary_df: pd.DataFrame | None) -> pd.DataFrame:
     """Rank masks by tile density (tiles with more masks first) and then by key order.
 
     Args:
@@ -931,9 +930,7 @@ def _load_feature_index(
     frames = []
 
     for plate, well in (
-        in_gate_df_all[["plate", "well"]]
-        .drop_duplicates()
-        .itertuples(index=False)
+        in_gate_df_all[["plate", "well"]].drop_duplicates().itertuples(index=False)
     ):
         wnorm = well_for_filename(well)
         if mode == "vacuole":

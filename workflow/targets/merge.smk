@@ -185,7 +185,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "stitch_merge": [temp, None, temp],
     "summarize_stitch": None,
     "format_merge": None,
-    "deduplicate_merge": [None, temp, temp, temp],
+    "deduplicate_merge": [temp, temp, temp, temp],
     "final_merge": None,
     "eval_merge": None,
 }

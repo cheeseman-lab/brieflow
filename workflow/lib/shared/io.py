@@ -1,7 +1,7 @@
 """Unified I/O interface for image reading and writing."""
 
 from pathlib import Path
-from typing import Optional, Union, List, Any
+from typing import Optional, Union, List, Any, Tuple
 
 import numpy as np
 from tifffile import imread as _tiff_imread

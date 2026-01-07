@@ -1,5 +1,16 @@
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
+from snakemake.io import directory, temp
+
+def zarr_directory(path):
+    if str(path).endswith(".zarr"):
+        return directory(path)
+    return path
+
+def temp_zarr_directory(path):
+    if str(path).endswith(".zarr"):
+        return temp(directory(path))
+    return temp(path)
 
 
 PHENOTYPE_FP = ROOT_FP / "phenotype"
@@ -15,26 +26,26 @@ PHENOTYPE_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "illumination_corrected",
-            "tiff",
+            "zarr",
         ),
     ],
     "align_phenotype": [
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "zarr"
         ),
     ],
     "segment_phenotype": [
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "zarr"
         ),
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "zarr"
         ),
         PHENOTYPE_FP
         / "tsvs"
@@ -50,7 +61,7 @@ PHENOTYPE_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "identified_cytoplasms",
-            "tiff",
+            "zarr",
         ),
     ],
     "extract_phenotype_info": [
@@ -121,11 +132,15 @@ PHENOTYPE_OUTPUTS = {
     ],
 }
 
+# Convert all Paths to strings
+for key in PHENOTYPE_OUTPUTS:
+    PHENOTYPE_OUTPUTS[key] = [str(p) for p in PHENOTYPE_OUTPUTS[key]]
+
 PHENOTYPE_OUTPUT_MAPPINGS = {
-    "apply_ic_field_phenotype": temp,
-    "align_phenotype": None,
-    "segment_phenotype": None,
-    "identify_cytoplasm": temp,
+    "apply_ic_field_phenotype": temp_zarr_directory,
+    "align_phenotype": zarr_directory, # Original was None
+    "segment_phenotype": zarr_directory, # Original was None
+    "identify_cytoplasm": temp_zarr_directory,
     "extract_phenotype_info": temp,
     "combine_phenotype_info": None,
     "extract_phenotype_cp": temp,

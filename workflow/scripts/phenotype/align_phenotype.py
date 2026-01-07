@@ -1,10 +1,13 @@
-from tifffile import imread, imwrite
-
+from lib.shared.io import read_image, save_image
 from lib.phenotype.align_channels import align_phenotype_channels
 from lib.shared.align import apply_custom_offsets
 
 # Load image data
-image_data = imread(snakemake.input[0])
+image_data = read_image(snakemake.input[0])
+
+# Transpose from (C, Z, Y, X) to (Z, C, Y, X) for alignment function
+if image_data.ndim == 4:
+    image_data = image_data.transpose(1, 0, 2, 3)
 
 # Get the alignment config
 align_config = snakemake.params.config
@@ -56,5 +59,15 @@ if align_config.get("custom_align", False):
         channels=align_config["custom_channels"],
     )
 
-# Save the aligned/unaligned data as a .tiff file
-imwrite(snakemake.output[0], aligned_data)
+# Save the aligned/unaligned data
+if aligned_data.ndim == 4:
+    aligned_data = aligned_data.transpose(1, 0, 2, 3)
+
+save_image(
+    aligned_data,
+    snakemake.output[0],
+    pixel_size_z=align_config["pixel_size_z"],
+    pixel_size_y=align_config["pixel_size_y"],
+    pixel_size_x=align_config["pixel_size_x"],
+    channel_names=align_config["channel_names"],
+)

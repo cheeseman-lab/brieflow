@@ -1,5 +1,16 @@
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
+from snakemake.io import directory, temp
+
+def zarr_directory(path):
+    if str(path).endswith(".zarr"):
+        return directory(path)
+    return path
+
+def temp_zarr_directory(path):
+    if str(path).endswith(".zarr"):
+        return temp(directory(path))
+    return temp(path)
 
 
 SBS_FP = ROOT_FP / "sbs"
@@ -9,7 +20,7 @@ SBS_OUTPUTS = {
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "zarr"
         ),
     ],
     "log_filter": [
@@ -18,7 +29,7 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "log_filtered",
-            "tiff",
+            "zarr",
         ),
     ],
     "compute_standard_deviation": [
@@ -27,14 +38,14 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "standard_deviation",
-            "tiff",
+            "zarr",
         ),
     ],
     "find_peaks": [
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "peaks", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "peaks", "zarr"
         ),
     ],
     "max_filter": [
@@ -43,7 +54,7 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "max_filtered",
-            "tiff",
+            "zarr",
         ),
     ],
     "apply_ic_field_sbs": [
@@ -52,19 +63,19 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "illumination_corrected",
-            "tiff",
+            "zarr",
         ),
     ],
     "segment_sbs": [
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "zarr"
         ),
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "zarr"
         ),
         SBS_FP
         / "tsvs"
@@ -175,14 +186,18 @@ SBS_OUTPUTS = {
     ],
 }
 
+# Convert all Paths to strings
+for key in SBS_OUTPUTS:
+    SBS_OUTPUTS[key] = [str(p) for p in SBS_OUTPUTS[key]]
+
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": temp,
-    "log_filter": temp,
-    "compute_standard_deviation": temp,
-    "find_peaks": temp,
-    "max_filter": temp,
-    "apply_ic_field_sbs": temp,
-    "segment_sbs": None,
+    "align_sbs": temp_zarr_directory,
+    "log_filter": temp_zarr_directory,
+    "compute_standard_deviation": temp_zarr_directory,
+    "find_peaks": temp_zarr_directory,
+    "max_filter": temp_zarr_directory,
+    "apply_ic_field_sbs": temp_zarr_directory,
+    "segment_sbs": zarr_directory,
     "extract_bases": temp,
     "call_reads": temp,
     "call_cells": temp,

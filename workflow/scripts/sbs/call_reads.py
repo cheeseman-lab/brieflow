@@ -1,5 +1,5 @@
 import pandas as pd
-from tifffile import imread
+from lib.shared.io import read_image
 
 from lib.sbs.call_reads import call_reads
 
@@ -7,7 +7,7 @@ from lib.sbs.call_reads import call_reads
 bases_data = pd.read_csv(snakemake.input[0], sep="\t")
 
 # load peaks data
-peaks_data = imread(snakemake.input[1])
+peaks_data = read_image(snakemake.input[1]).squeeze()
 
 # call reads
 reads_data = call_reads(

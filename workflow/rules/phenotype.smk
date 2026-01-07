@@ -5,10 +5,15 @@ from lib.shared.rule_utils import get_alignment_params, get_segmentation_params
 # Apply illumination correction field
 rule apply_ic_field_phenotype:
     input:
-        ancient(PREPROCESS_OUTPUTS["convert_phenotype"]),
+        ancient(PREPROCESS_OUTPUTS["convert_phenotype_omezarr"]),
         ancient(PREPROCESS_OUTPUTS["calculate_ic_phenotype"]),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["apply_ic_field_phenotype"],
+    params:
+        pixel_size_z=config["pixel_size_z"],
+        pixel_size_y=config["pixel_size_y"],
+        pixel_size_x=config["pixel_size_x"],
+        channel_names=config["phenotype"]["channel_names"],
     script:
         "../scripts/phenotype/apply_ic_field_phenotype.py"
 
@@ -46,6 +51,11 @@ rule identify_cytoplasm:
         PHENOTYPE_OUTPUTS["segment_phenotype"][1],
     output:
         PHENOTYPE_OUTPUTS_MAPPED["identify_cytoplasm"],
+    params:
+        pixel_size_z=config["pixel_size_z"],
+        pixel_size_y=config["pixel_size_y"],
+        pixel_size_x=config["pixel_size_x"],
+        channel_names=config["phenotype"]["channel_names"],
     script:
         "../scripts/phenotype/identify_cytoplasm_cellpose.py"
 

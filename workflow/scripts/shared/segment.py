@@ -1,9 +1,9 @@
-from tifffile import imread, imwrite
+from lib.shared.io import read_image, save_image
 import numpy as np
 import pandas as pd
 
 # Load illumination corrected data
-aligned_data = imread(snakemake.input[0])
+aligned_data = read_image(snakemake.input[0])
 
 # Get configuration from params
 params = snakemake.params.config
@@ -164,8 +164,24 @@ else:
     )
 
 # Save segmented nuclei data
-imwrite(snakemake.output[0], nuclei_data)
+save_image(
+    nuclei_data,
+    snakemake.output[0],
+    pixel_size_z=params["pixel_size_z"],
+    pixel_size_y=params["pixel_size_y"],
+    pixel_size_x=params["pixel_size_x"],
+    channel_names=["nuclei"], # Specific channel name for nuclei
+    is_label=True,
+)
 # Save segmented cells data
-imwrite(snakemake.output[1], cells_data)
+save_image(
+    cells_data,
+    snakemake.output[1],
+    pixel_size_z=params["pixel_size_z"],
+    pixel_size_y=params["pixel_size_y"],
+    pixel_size_x=params["pixel_size_x"],
+    channel_names=["cells"], # Specific channel name for cells
+    is_label=True,
+)
 # Save counts data
 counts_df.to_csv(snakemake.output[2], index=False, sep="\t")

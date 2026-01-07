@@ -130,7 +130,7 @@ PREPROCESS_OUTPUTS = {
                 "cycle": "{cycle}",
             },
             "ic_field",
-            "tiff",
+            "zarr",
         ),
     ],
     "calculate_ic_phenotype": [
@@ -143,10 +143,14 @@ PREPROCESS_OUTPUTS = {
                 "well": "{well}",
             },
             "ic_field",
-            "tiff",
+            "zarr",
         ),
     ],
 }
+
+# Convert all Paths to strings
+for key in PREPROCESS_OUTPUTS:
+    PREPROCESS_OUTPUTS[key] = [str(p) for p in PREPROCESS_OUTPUTS[key]]
 
 PREPROCESS_OUTPUT_MAPPINGS = {
     "extract_metadata_sbs": temp,
@@ -157,8 +161,8 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "convert_phenotype": None,
     "convert_sbs_omezarr": directory,
     "convert_phenotype_omezarr": directory,
-    "calculate_ic_sbs": None,
-    "calculate_ic_phenotype": None,
+    "calculate_ic_sbs": directory,
+    "calculate_ic_phenotype": directory,
 }
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 

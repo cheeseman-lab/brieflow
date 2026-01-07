@@ -39,6 +39,10 @@ def get_alignment_params(wildcards, config):
             "source": plate_config["source"],
             "riders": plate_config["riders"],
             "remove_channel": plate_config["remove_channel"],
+            "pixel_size_z": config["pixel_size_z"],
+            "pixel_size_y": config["pixel_size_y"],
+            "pixel_size_x": config["pixel_size_x"],
+            "channel_names": config["phenotype"]["channel_names"],
         }
 
         # Add custom alignment parameters if they exist
@@ -63,6 +67,10 @@ def get_alignment_params(wildcards, config):
         "source": config["phenotype"].get("source"),
         "riders": config["phenotype"].get("riders", []),
         "remove_channel": config["phenotype"].get("remove_channel", False),
+        "pixel_size_z": config["pixel_size_z"],
+        "pixel_size_y": config["pixel_size_y"],
+        "pixel_size_x": config["pixel_size_x"],
+        "channel_names": config["phenotype"]["channel_names"],
     }
 
     # Add global custom alignment parameters if they exist
@@ -146,6 +154,11 @@ def get_segmentation_params(module, config):
         "return_counts": module_config.get("return_counts", True),
         "gpu": module_config.get("gpu", False),
         "segment_cells": module_config.get("segment_cells", True),
+        # Add pixel size and channel names
+        "pixel_size_z": config["pixel_size_z"],
+        "pixel_size_y": config["pixel_size_y"],
+        "pixel_size_x": config["pixel_size_x"],
+        "channel_names": config[module]["channel_names"], # Modified
     }
 
     # Method-specific parameters

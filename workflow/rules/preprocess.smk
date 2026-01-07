@@ -169,7 +169,7 @@ rule convert_phenotype_omezarr:
 rule calculate_ic_sbs:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_sbs"],
+            PREPROCESS_OUTPUTS["convert_sbs_omezarr"],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=sbs_wildcard_combos,
@@ -177,8 +177,13 @@ rule calculate_ic_sbs:
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_sbs"],
     params:
-        threading=True,
+        threading=False,
         sample_fraction=config["preprocess"]["sample_fraction"],
+        pixel_size_z=config["pixel_size_z"],
+        pixel_size_y=config["pixel_size_y"],
+        pixel_size_x=config["pixel_size_x"],
+        channel_names=config["sbs"]["channel_names"],
+        smooth=config["preprocess"].get("ic_smooth_factor"),
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 
@@ -187,7 +192,7 @@ rule calculate_ic_sbs:
 rule calculate_ic_phenotype:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_phenotype"],
+            PREPROCESS_OUTPUTS["convert_phenotype_omezarr"],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=phenotype_wildcard_combos,
@@ -195,8 +200,13 @@ rule calculate_ic_phenotype:
     output:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],
     params:
-        threading=True,
+        threading=False,
         sample_fraction=config["preprocess"]["sample_fraction"],
+        pixel_size_z=config["pixel_size_z"],
+        pixel_size_y=config["pixel_size_y"],
+        pixel_size_x=config["pixel_size_x"],
+        channel_names=config["phenotype"]["channel_names"],
+        smooth=config["preprocess"].get("ic_smooth_factor"),
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 

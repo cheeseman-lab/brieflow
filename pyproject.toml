@@ -20,7 +20,7 @@ dependencies = [
   "scikit-image==0.25.2",
   "joblib==1.5.1",
   "cellpose==3.1.0",
-  "tensorflow==2.19.0",
+  "tensorflow==2.16.1",
   "csbdeep==0.8.1",
   "microfilm==0.3.0",
   "seaborn==0.13.2",
@@ -42,7 +42,8 @@ dependencies = [
   "torch==2.7.1",
   "spotiflow==0.5.7",
   "stardist==0.9.1",
-  "levenshtein==0.27.1"
+  "levenshtein==0.27.1",
+  "zarr==2.18.2"
 ]
 
 

@@ -17,7 +17,7 @@ st.set_page_config(
 def find_eval_files(root_dir):
     pattern = os.path.join(root_dir, "*", "eval", "**", "*")
     all_files = glob.glob(pattern, recursive=True)
-    return [f for f in all_files if f.endswith(".png") or f.endswith(".tsv")]
+    return [f for f in all_files if f.endswith(".png") or f.endswith(".tsv") or f.endswith(".zarr")]
 
 
 @st.cache_data

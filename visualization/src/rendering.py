@@ -7,7 +7,7 @@ import uuid
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from workflow.lib.shared.file_utils import parse_filename
 from src.config import STATIC_ASSET_URL_ROOT, STATIC_ASSET_PATH
-
+from lib.shared.io import read_image # Added
 
 class VisualizationRenderer:
     @staticmethod
@@ -51,19 +51,46 @@ class VisualizationRenderer:
                         has_png = any(r["ext"] == "png" for _, r in group_df.iterrows())
                         has_tsv = any(r["ext"] == "tsv" for _, r in group_df.iterrows())
 
-                        if row["ext"] == "png":
-                            # Always show PNG if it exists
+                        # Determine if the file is an image and how to display it
+                        is_image = row["ext"] in ["png", "zarr"] # Modified
+
+                        if is_image: # Modified
                             try:
-                                st.image(
-                                    os.path.join(root_dir, row["file_path"]),
-                                    caption=f"{row['metric_name']} - {row['well_id']}",
-                                )
+                                full_file_path = os.path.join(root_dir, row["file_path"])
+                                image_display_data = None
+
+                                if row["ext"] == "png":
+                                    # For PNGs, st.image can directly take the path
+                                    image_display_data = full_file_path
+                                elif row["ext"] == "zarr":
+                                    # For Zarrs, read with lib.shared.io and convert to displayable format
+                                    raw_image_data = read_image(full_file_path)
+                                    # Assuming 2D display, take first slice of first channel
+                                    if raw_image_data.ndim >= 3:
+                                        # If CZYX or CYX, take first channel.
+                                        # If CZYX, then take first Z slice too.
+                                        if raw_image_data.ndim == 4: # CZYX
+                                            image_display_data = raw_image_data[0,0,:,:]
+                                        elif raw_image_data.ndim == 3: # CYX
+                                            image_display_data = raw_image_data[0,:,:]
+                                    else: # Already 2D
+                                        image_display_data = raw_image_data
+
+                                if image_display_data is not None:
+                                    st.image(
+                                        image_display_data, # Modified
+                                        caption=f"{row['metric_name']} - {row['well_id']}",
+                                    )
+                                else:
+                                    st.error(f"Could not prepare image for display: {row['file_path']}")
                             except Exception as e:
                                 st.error(f"Could not load image: {row['file_path']}")
                                 st.error(str(e))
 
-                            # If there's a corresponding TSV, add download link
-                            if has_tsv:
+                            # If there's a corresponding TSV, add download link (only if the image is PNG, as zarr image won't have a tsv counterpart in this context)
+                            # This part of the logic needs careful consideration. If the data is an OME-Zarr image,
+                            # a TSV might not be associated in the same way. For now, assume TSV is only for PNGs.
+                            if has_tsv and row["ext"] == "png": # Modified
                                 tsv_row = group_df[group_df["ext"] == "tsv"].iloc[0]
                                 tsv_path = os.path.join(root_dir, tsv_row["file_path"])
                                 if STATIC_ASSET_URL_ROOT and STATIC_ASSET_PATH:

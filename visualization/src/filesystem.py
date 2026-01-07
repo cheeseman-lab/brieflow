@@ -27,7 +27,7 @@ class FileSystem:
         """
         # Use default extensions if none provided
         if extensions is None:
-            extensions = ["png", "tsv"]
+            extensions = ["png", "tsv", "zarr"]
 
         # Find all files with specified extensions
         all_files = []

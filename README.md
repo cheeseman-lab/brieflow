@@ -13,9 +13,7 @@ Terms mentioned throughout the code and documentation include:
 Used with Snakemake to run Brieflow steps.
 - **Module**: Used synonymously to refer to larger steps of the Brieflow pipeline.
 Example modules: `preprocessing`, `sbs`, `phenotype`.
-- **Process**: Refers to a smaller step within a module.
-Processes use scripts and Brieflow library code to complete tasks.
-Example processes in the preprocessing module: `extract_metadata_sbs`, `convert_sbs`, `calculate_ic_sbs`.
+- **OME-Zarr**: A cloud-optimized, chunked, and compressed image data format used for storing large multidimensional images. All major image checkpoints are now converted to OME-Zarr v0.4 with the `.zarr` file extension.
 
 
 ## Project Structure

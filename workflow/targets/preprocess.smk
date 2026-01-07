@@ -190,8 +190,8 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "convert_phenotype": None,
     "convert_sbs_omezarr": directory,
     "convert_phenotype_omezarr": directory,
-    "calculate_ic_sbs": directory if ENABLE_ZARR else None,
-    "calculate_ic_phenotype": directory if ENABLE_ZARR else None,
+    "calculate_ic_sbs": directory if IC_EXT == "zarr" else None,
+    "calculate_ic_phenotype": directory if IC_EXT == "zarr" else None,
 }
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 

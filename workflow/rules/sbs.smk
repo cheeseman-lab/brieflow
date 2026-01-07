@@ -270,7 +270,12 @@ rule eval_mapping:
         sort_by=config["sbs"]["sort_calls"],
         barcode_type=config["sbs"].get("barcode_type", "simple"),
         sequencing_order=config["sbs"].get("sequencing_order", "map_recomb"),
-        library_barcode_col=config["sbs"].get("prefix_col", "prefix"),
+        library_barcode_col=(
+            config["sbs"].get("map_col", "prefix_map")
+            if config["sbs"].get("barcode_type", "simple") == "multi"
+            else config["sbs"].get("prefix_col", "prefix")
+        ),
+        recomb_col=config["sbs"].get("recomb_col", "prefix_recomb"),
     script:
         "../scripts/sbs/eval_mapping.py"
 

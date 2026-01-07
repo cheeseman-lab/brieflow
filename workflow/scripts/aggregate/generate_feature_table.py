@@ -59,6 +59,8 @@ metadata, features = prepare_alignment_data(
     control_key,
     pert_id_col,
 )
+if "batch_values" not in metadata_cols:
+    metadata_cols.append("batch_values")
 features = features.astype(np.float32)
 
 # centerscale features on controls

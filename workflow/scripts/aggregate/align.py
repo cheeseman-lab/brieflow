@@ -57,6 +57,8 @@ metadata, features = prepare_alignment_data(
     snakemake.params.control_key,
     snakemake.params.perturbation_id_col,
 )
+if "batch_values" not in metadata_cols:
+    metadata_cols.append("batch_values")
 pca = PCA(n_components=snakemake.params.variance_or_ncomp).fit(
     centerscale_by_batch(features, metadata, "batch_values")
 )

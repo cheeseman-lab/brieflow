@@ -9,6 +9,11 @@ OME_ZARR_CHUNK_SHAPE = config.get("preprocess", {}).get(
     "omezarr_chunk_shape", [1, OME_ZARR_CHUNK, OME_ZARR_CHUNK]
 )
 
+# Determine whether to use OME-Zarr or TIFF for intermediate steps
+USE_OME_ZARR = OME_ZARR_CFG.get("enabled", True)
+CONVERT_SBS_KEY = "convert_sbs_omezarr" if USE_OME_ZARR else "convert_sbs"
+CONVERT_PHENOTYPE_KEY = "convert_phenotype_omezarr" if USE_OME_ZARR else "convert_phenotype"
+
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
     input:
@@ -169,7 +174,7 @@ rule convert_phenotype_omezarr:
 rule calculate_ic_sbs:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_sbs_omezarr"],
+            PREPROCESS_OUTPUTS[CONVERT_SBS_KEY],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=sbs_wildcard_combos,
@@ -192,7 +197,7 @@ rule calculate_ic_sbs:
 rule calculate_ic_phenotype:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_phenotype_omezarr"],
+            PREPROCESS_OUTPUTS[CONVERT_PHENOTYPE_KEY],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=phenotype_wildcard_combos,

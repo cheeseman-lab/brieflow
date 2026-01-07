@@ -5,6 +5,10 @@ from snakemake.io import directory
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
+# Determine output format from config
+OME_ZARR_ENABLED = config.get("preprocess", {}).get("ome_zarr", {}).get("enabled", True)
+IC_EXT = "zarr" if OME_ZARR_ENABLED else "tiff"
+
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
         PREPROCESS_FP
@@ -130,7 +134,7 @@ PREPROCESS_OUTPUTS = {
                 "cycle": "{cycle}",
             },
             "ic_field",
-            "zarr",
+            IC_EXT,
         ),
     ],
     "calculate_ic_phenotype": [
@@ -143,10 +147,22 @@ PREPROCESS_OUTPUTS = {
                 "well": "{well}",
             },
             "ic_field",
-            "zarr",
+            IC_EXT,
         ),
     ],
 }
+
+# Filter outputs based on config
+if OME_ZARR_ENABLED:
+    if "convert_sbs" in PREPROCESS_OUTPUTS:
+        del PREPROCESS_OUTPUTS["convert_sbs"]
+    if "convert_phenotype" in PREPROCESS_OUTPUTS:
+        del PREPROCESS_OUTPUTS["convert_phenotype"]
+else:
+    if "convert_sbs_omezarr" in PREPROCESS_OUTPUTS:
+        del PREPROCESS_OUTPUTS["convert_sbs_omezarr"]
+    if "convert_phenotype_omezarr" in PREPROCESS_OUTPUTS:
+        del PREPROCESS_OUTPUTS["convert_phenotype_omezarr"]
 
 # Convert all Paths to strings
 for key in PREPROCESS_OUTPUTS:
@@ -161,8 +177,8 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "convert_phenotype": None,
     "convert_sbs_omezarr": directory,
     "convert_phenotype_omezarr": directory,
-    "calculate_ic_sbs": directory,
-    "calculate_ic_phenotype": directory,
+    "calculate_ic_sbs": directory if OME_ZARR_ENABLED else None,
+    "calculate_ic_phenotype": directory if OME_ZARR_ENABLED else None,
 }
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 

@@ -29,13 +29,17 @@ metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classi
 feature_cols = [col for col in cell_data.schema.names if col not in metadata_cols]
 feature_cols = get_feature_table_cols(feature_cols)
 
+# Filter metadata_cols to only include columns that exist in the parquet
+# (batch_values is added later by prepare_alignment_data)
+existing_metadata_cols = [col for col in metadata_cols if col in cell_data_cols]
+
 print(
-    f"Number of metadata columns: {len(metadata_cols)} | Number of feature columns: {len(feature_cols)}"
+    f"Number of metadata columns: {len(existing_metadata_cols)} | Number of feature columns: {len(feature_cols)}"
 )
 
 # load cell data and convert numerical columns to float32
 cell_data = cell_data.to_table(
-    columns=metadata_cols + feature_cols, use_threads=True, memory_pool=None
+    columns=existing_metadata_cols + feature_cols, use_threads=True, memory_pool=None
 ).to_pandas()
 print(f"Shape of input data: {cell_data.shape}")
 for col in cell_data.columns:

@@ -114,7 +114,8 @@ if merge_approach == "stitch":
             flipud=config.get("merge", {}).get("flipud", False),
             fliplr=config.get("merge", {}).get("fliplr", False),
             rot90=config.get("merge", {}).get("rot90", 0),
-            stitched_image=config.get("merge", {}).get("stitched_image", True),     
+            stitched_image=config.get("merge", {}).get("stitched_image", True),
+            ph_metadata_channel=config["merge"].get("ph_metadata_channel"),
         script:
             "../scripts/merge/stitch.py"
 
@@ -150,7 +151,9 @@ if merge_approach == "stitch":
             fliplr=config.get("merge", {}).get("fliplr", False),
             rot90=config.get("merge", {}).get("rot90", 0),
             overlap_fraction=config.get("merge", {}).get("overlap_fraction"),
-            stitched_image=config.get("merge", {}).get("stitched_image", True),     
+            stitched_image=config.get("merge", {}).get("stitched_image", True),
+            sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
+            sbs_metadata_channel=config["merge"].get("sbs_metadata_channel"),
         script:
             "../scripts/merge/stitch.py"
 

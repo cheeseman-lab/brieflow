@@ -6,8 +6,15 @@ from snakemake.io import directory
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
 # Determine output format from config
-OME_ZARR_ENABLED = config.get("preprocess", {}).get("ome_zarr", {}).get("enabled", True)
-IC_EXT = "zarr" if OME_ZARR_ENABLED else "tiff"
+output_formats = config.get("preprocess", {}).get("output_formats", ["zarr"])
+if isinstance(output_formats, str):
+    output_formats = [output_formats]
+
+ENABLE_ZARR = "zarr" in output_formats
+ENABLE_TIFF = "tiff" in output_formats
+
+# IC field format preference: Zarr > TIFF
+IC_EXT = "zarr" if ENABLE_ZARR else "tiff"
 
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
@@ -153,12 +160,13 @@ PREPROCESS_OUTPUTS = {
 }
 
 # Filter outputs based on config
-if OME_ZARR_ENABLED:
+if not ENABLE_TIFF:
     if "convert_sbs" in PREPROCESS_OUTPUTS:
         del PREPROCESS_OUTPUTS["convert_sbs"]
     if "convert_phenotype" in PREPROCESS_OUTPUTS:
         del PREPROCESS_OUTPUTS["convert_phenotype"]
-else:
+
+if not ENABLE_ZARR:
     if "convert_sbs_omezarr" in PREPROCESS_OUTPUTS:
         del PREPROCESS_OUTPUTS["convert_sbs_omezarr"]
     if "convert_phenotype_omezarr" in PREPROCESS_OUTPUTS:
@@ -177,8 +185,8 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "convert_phenotype": None,
     "convert_sbs_omezarr": directory,
     "convert_phenotype_omezarr": directory,
-    "calculate_ic_sbs": directory if OME_ZARR_ENABLED else None,
-    "calculate_ic_phenotype": directory if OME_ZARR_ENABLED else None,
+    "calculate_ic_sbs": directory if ENABLE_ZARR else None,
+    "calculate_ic_phenotype": directory if ENABLE_ZARR else None,
 }
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 

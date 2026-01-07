@@ -10,9 +10,16 @@ OME_ZARR_CHUNK_SHAPE = config.get("preprocess", {}).get(
 )
 
 # Determine whether to use OME-Zarr or TIFF for intermediate steps
-USE_OME_ZARR = OME_ZARR_CFG.get("enabled", True)
-CONVERT_SBS_KEY = "convert_sbs_omezarr" if USE_OME_ZARR else "convert_sbs"
-CONVERT_PHENOTYPE_KEY = "convert_phenotype_omezarr" if USE_OME_ZARR else "convert_phenotype"
+output_formats = config.get("preprocess", {}).get("output_formats", ["zarr"])
+if isinstance(output_formats, str):
+    output_formats = [output_formats]
+
+ENABLE_ZARR = "zarr" in output_formats
+ENABLE_TIFF = "tiff" in output_formats
+
+# Prefer Zarr for downstream processing if available
+CONVERT_SBS_KEY = "convert_sbs_omezarr" if ENABLE_ZARR else "convert_sbs"
+CONVERT_PHENOTYPE_KEY = "convert_phenotype_omezarr" if ENABLE_ZARR else "convert_phenotype"
 
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
@@ -86,7 +93,7 @@ rule combine_metadata_phenotype:
         "../scripts/shared/combine_dfs.py"
 
 
-if not USE_OME_ZARR:
+if ENABLE_TIFF:
     # Convert SBS ND2 files to TIFF
     rule convert_sbs:
         input:
@@ -123,7 +130,7 @@ if not USE_OME_ZARR:
         script:
             "../scripts/preprocess/nd2_to_tiff.py"
 
-else:
+if ENABLE_ZARR:
     rule convert_sbs_omezarr:
         input:
             lambda wildcards: get_sample_fps(

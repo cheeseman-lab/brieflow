@@ -44,6 +44,7 @@ sbs:
   max_filter_width: 3
   spot_detection_method: standard
   dapi_cycle: 1
+  dapi_cycle_index: 0
   cyto_cycle: 11
   cyto_cycle_index: 10
   dapi_index: 0
@@ -80,6 +81,7 @@ sbs:
   heatmap_shape: "6W_sbs"
 phenotype:
   align: false
+  segment_cells: true
   cell_diameter: 53.075815293046055
   cellprob_threshold: 0
   channel_names:

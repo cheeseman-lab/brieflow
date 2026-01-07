@@ -100,6 +100,7 @@ rule apply_ic_field_sbs:
         SBS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
         dapi_cycle=config["sbs"]["dapi_cycle"],
+        dapi_cycle_index=config["sbs"]["dapi_cycle_index"],
         cyto_cycle=config["sbs"]["cyto_cycle"],
         cyto_cycle_index=config["sbs"]["cyto_cycle_index"],
         extra_channel_indices=config["sbs"]["extra_channel_indices"],
@@ -271,9 +272,9 @@ rule eval_mapping:
         barcode_type=config["sbs"].get("barcode_type", "simple"),
         sequencing_order=config["sbs"].get("sequencing_order", "map_recomb"),
         library_barcode_col=(
-            config["sbs"].get("map_col", "prefix_map")
+            config["sbs"].get("map_col") or "prefix_map"
             if config["sbs"].get("barcode_type", "simple") == "multi"
-            else config["sbs"].get("prefix_col", "prefix")
+            else config["sbs"].get("prefix_col") or "prefix"
         ),
         recomb_col=config["sbs"].get("recomb_col", "prefix_recomb"),
     script:

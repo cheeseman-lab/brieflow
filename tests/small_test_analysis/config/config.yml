@@ -36,6 +36,7 @@ sbs:
   - A
   - C
   upsample_factor: 2
+  window: 2
   skip_cycles_indices: null
   manual_background_cycle_index: null
   manual_channel_mapping: null

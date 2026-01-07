@@ -18,6 +18,7 @@ rule align_sbs:
         method=config["sbs"]["alignment_method"],
         channel_names=config["sbs"]["channel_names"],
         upsample_factor=config["sbs"]["upsample_factor"],
+        window=config["sbs"].get("window", 2),
         skip_cycles_indices=config["sbs"]["skip_cycles_indices"],
         manual_background_cycle_index=config["sbs"]["manual_background_cycle_index"],
         manual_channel_mapping=config["sbs"]["manual_channel_mapping"],

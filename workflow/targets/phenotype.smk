@@ -15,6 +15,12 @@ def temp_zarr_directory(path):
 
 PHENOTYPE_FP = ROOT_FP / "phenotype"
 
+# Determine downstream format (defaulting to tiff if both enabled/unspecified)
+output_formats = config.get("preprocess", {}).get("output_formats", ["zarr"])
+if isinstance(output_formats, str): output_formats = [output_formats]
+default_downstream = "tiff" if "tiff" in output_formats else "zarr"
+EXT = config.get("preprocess", {}).get("downstream_input_format", default_downstream)
+
 # determine feature eval outputs based on channel names
 channel_names = config["phenotype"]["channel_names"]
 eval_features = [f"cell_{channel}_min" for channel in channel_names]
@@ -26,26 +32,26 @@ PHENOTYPE_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "illumination_corrected",
-            "zarr",
+            EXT,
         ),
     ],
     "align_phenotype": [
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "zarr"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", EXT
         ),
     ],
     "segment_phenotype": [
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "zarr"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", EXT
         ),
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "zarr"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", EXT
         ),
         PHENOTYPE_FP
         / "tsvs"
@@ -61,7 +67,7 @@ PHENOTYPE_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "identified_cytoplasms",
-            "zarr",
+            EXT,
         ),
     ],
     "extract_phenotype_info": [

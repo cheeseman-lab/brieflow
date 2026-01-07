@@ -15,12 +15,18 @@ def temp_zarr_directory(path):
 
 SBS_FP = ROOT_FP / "sbs"
 
+# Determine downstream format (defaulting to tiff if both enabled/unspecified)
+output_formats = config.get("preprocess", {}).get("output_formats", ["zarr"])
+if isinstance(output_formats, str): output_formats = [output_formats]
+default_downstream = "tiff" if "tiff" in output_formats else "zarr"
+EXT = config.get("preprocess", {}).get("downstream_input_format", default_downstream)
+
 SBS_OUTPUTS = {
     "align_sbs": [
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "zarr"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", EXT
         ),
     ],
     "log_filter": [
@@ -29,7 +35,7 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "log_filtered",
-            "zarr",
+            EXT,
         ),
     ],
     "compute_standard_deviation": [
@@ -38,14 +44,14 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "standard_deviation",
-            "zarr",
+            EXT,
         ),
     ],
     "find_peaks": [
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "peaks", "zarr"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "peaks", EXT
         ),
     ],
     "max_filter": [
@@ -54,7 +60,7 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "max_filtered",
-            "zarr",
+            EXT,
         ),
     ],
     "apply_ic_field_sbs": [
@@ -63,19 +69,19 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "illumination_corrected",
-            "zarr",
+            EXT,
         ),
     ],
     "segment_sbs": [
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "zarr"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", EXT
         ),
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "zarr"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", EXT
         ),
         SBS_FP
         / "tsvs"

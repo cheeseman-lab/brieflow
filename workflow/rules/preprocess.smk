@@ -17,9 +17,19 @@ if isinstance(output_formats, str):
 ENABLE_ZARR = "zarr" in output_formats
 ENABLE_TIFF = "tiff" in output_formats
 
-# Prefer Zarr for downstream processing if available
-CONVERT_SBS_KEY = "convert_sbs_omezarr" if ENABLE_ZARR else "convert_sbs"
-CONVERT_PHENOTYPE_KEY = "convert_phenotype_omezarr" if ENABLE_ZARR else "convert_phenotype"
+# Determine downstream input format
+# Default to TIFF if enabled, otherwise Zarr
+default_downstream = "tiff" if ENABLE_TIFF else "zarr"
+downstream_format = config.get("preprocess", {}).get("downstream_input_format", default_downstream)
+
+if downstream_format == "zarr" and not ENABLE_ZARR:
+    raise ValueError("Downstream format is Zarr but Zarr output is not enabled.")
+if downstream_format == "tiff" and not ENABLE_TIFF:
+    raise ValueError("Downstream format is TIFF but TIFF output is not enabled.")
+
+# Set keys for downstream use
+CONVERT_SBS_KEY = "convert_sbs_omezarr" if downstream_format == "zarr" else "convert_sbs"
+CONVERT_PHENOTYPE_KEY = "convert_phenotype_omezarr" if downstream_format == "zarr" else "convert_phenotype"
 
 # Extract metadata for SBS images
 rule extract_metadata_sbs:

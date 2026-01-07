@@ -13,8 +13,13 @@ if isinstance(output_formats, str):
 ENABLE_ZARR = "zarr" in output_formats
 ENABLE_TIFF = "tiff" in output_formats
 
-# IC field format preference: Zarr > TIFF
-IC_EXT = "zarr" if ENABLE_ZARR else "tiff"
+# Determine downstream input format
+# Default to TIFF if enabled, otherwise Zarr
+default_downstream = "tiff" if ENABLE_TIFF else "zarr"
+downstream_format = config.get("preprocess", {}).get("downstream_input_format", default_downstream)
+
+# IC field format follows downstream preference
+IC_EXT = downstream_format
 
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [

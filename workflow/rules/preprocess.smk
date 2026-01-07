@@ -86,88 +86,87 @@ rule combine_metadata_phenotype:
         "../scripts/shared/combine_dfs.py"
 
 
-# Convert SBS ND2 files to TIFF
-rule convert_sbs:
-    input:
-        lambda wildcards: get_sample_fps(
-            sbs_samples_df,
-            plate=wildcards.plate,
-            well=wildcards.well,
-            cycle=wildcards.cycle,
-            tile=wildcards.tile,
-            channel_order=config["preprocess"]["sbs_channel_order"],
-        ),
-    output:
-        PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
-    params:
-        channel_order_flip=config["preprocess"]["sbs_channel_order_flip"],
-    script:
-        "../scripts/preprocess/nd2_to_tiff.py"
+if not USE_OME_ZARR:
+    # Convert SBS ND2 files to TIFF
+    rule convert_sbs:
+        input:
+            lambda wildcards: get_sample_fps(
+                sbs_samples_df,
+                plate=wildcards.plate,
+                well=wildcards.well,
+                cycle=wildcards.cycle,
+                tile=wildcards.tile,
+                channel_order=config["preprocess"]["sbs_channel_order"],
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
+        params:
+            channel_order_flip=config["preprocess"]["sbs_channel_order_flip"],
+        script:
+            "../scripts/preprocess/nd2_to_tiff.py"
 
+    # Convert phenotype ND2 files to TIFF
+    rule convert_phenotype:
+        input:
+            lambda wildcards: get_sample_fps(
+                phenotype_samples_df,
+                plate=wildcards.plate,
+                well=wildcards.well,
+                tile=wildcards.tile,
+                round_order=config["preprocess"]["phenotype_round_order"],
+                channel_order=config["preprocess"]["phenotype_channel_order"],
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
+        params:
+            channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
+        script:
+            "../scripts/preprocess/nd2_to_tiff.py"
 
-rule convert_sbs_omezarr:
-    input:
-        lambda wildcards: get_sample_fps(
-            sbs_samples_df,
-            plate=wildcards.plate,
-            well=wildcards.well,
-            cycle=wildcards.cycle,
-            tile=wildcards.tile,
-            channel_order=config["preprocess"]["sbs_channel_order"],
-        ),
-    output:
-        PREPROCESS_OUTPUTS_MAPPED["convert_sbs_omezarr"],
-    params:
-        channel_order_flip=config["preprocess"]["sbs_channel_order_flip"],
-        chunk_shape=OME_ZARR_CHUNK_SHAPE,
-        coarsening_factor=config["preprocess"].get("omezarr_coarsening_factor", 2),
-        max_levels=config["preprocess"].get("omezarr_max_levels"),
-        compressor=OME_ZARR_COMPRESSOR,
-        channel_labels=config["sbs"]["channel_names"],
-    script:
-        "../scripts/preprocess/nd2_to_omezarr.py"
+else:
+    rule convert_sbs_omezarr:
+        input:
+            lambda wildcards: get_sample_fps(
+                sbs_samples_df,
+                plate=wildcards.plate,
+                well=wildcards.well,
+                cycle=wildcards.cycle,
+                tile=wildcards.tile,
+                channel_order=config["preprocess"]["sbs_channel_order"],
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["convert_sbs_omezarr"],
+        params:
+            channel_order_flip=config["preprocess"]["sbs_channel_order_flip"],
+            chunk_shape=OME_ZARR_CHUNK_SHAPE,
+            coarsening_factor=config["preprocess"].get("omezarr_coarsening_factor", 2),
+            max_levels=config["preprocess"].get("omezarr_max_levels"),
+            compressor=OME_ZARR_COMPRESSOR,
+            channel_labels=config["sbs"]["channel_names"],
+        script:
+            "../scripts/preprocess/nd2_to_omezarr.py"
 
-
-# Convert phenotype ND2 files to TIFF
-rule convert_phenotype:
-    input:
-        lambda wildcards: get_sample_fps(
-            phenotype_samples_df,
-            plate=wildcards.plate,
-            well=wildcards.well,
-            tile=wildcards.tile,
-            round_order=config["preprocess"]["phenotype_round_order"],
-            channel_order=config["preprocess"]["phenotype_channel_order"],
-        ),
-    output:
-        PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
-    params:
-        channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
-    script:
-        "../scripts/preprocess/nd2_to_tiff.py"
-
-
-rule convert_phenotype_omezarr:
-    input:
-        lambda wildcards: get_sample_fps(
-            phenotype_samples_df,
-            plate=wildcards.plate,
-            well=wildcards.well,
-            tile=wildcards.tile,
-            round_order=config["preprocess"]["phenotype_round_order"],
-            channel_order=config["preprocess"]["phenotype_channel_order"],
-        ),
-    output:
-        PREPROCESS_OUTPUTS_MAPPED["convert_phenotype_omezarr"],
-    params:
-        channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
-        chunk_shape=OME_ZARR_CHUNK_SHAPE,
-        coarsening_factor=config["preprocess"].get("omezarr_coarsening_factor", 2),
-        max_levels=config["preprocess"].get("omezarr_max_levels"),
-        compressor=OME_ZARR_COMPRESSOR,
-        channel_labels=config["phenotype"]["channel_names"],
-    script:
-        "../scripts/preprocess/nd2_to_omezarr.py"
+    rule convert_phenotype_omezarr:
+        input:
+            lambda wildcards: get_sample_fps(
+                phenotype_samples_df,
+                plate=wildcards.plate,
+                well=wildcards.well,
+                tile=wildcards.tile,
+                round_order=config["preprocess"]["phenotype_round_order"],
+                channel_order=config["preprocess"]["phenotype_channel_order"],
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["convert_phenotype_omezarr"],
+        params:
+            channel_order_flip=config["preprocess"]["phenotype_channel_order_flip"],
+            chunk_shape=OME_ZARR_CHUNK_SHAPE,
+            coarsening_factor=config["preprocess"].get("omezarr_coarsening_factor", 2),
+            max_levels=config["preprocess"].get("omezarr_max_levels"),
+            compressor=OME_ZARR_COMPRESSOR,
+            channel_labels=config["phenotype"]["channel_names"],
+        script:
+            "../scripts/preprocess/nd2_to_omezarr.py"
 
 
 # Calculate illumination correction function for SBS files

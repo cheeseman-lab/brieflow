@@ -18,6 +18,7 @@ rule align_sbs:
         method=config["sbs"]["alignment_method"],
         channel_names=config["sbs"]["channel_names"],
         upsample_factor=config["sbs"]["upsample_factor"],
+        window=config["sbs"].get("window", 2),
         skip_cycles_indices=config["sbs"]["skip_cycles_indices"],
         manual_background_cycle_index=config["sbs"]["manual_background_cycle_index"],
         manual_channel_mapping=config["sbs"]["manual_channel_mapping"],
@@ -100,6 +101,7 @@ rule apply_ic_field_sbs:
         SBS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
         dapi_cycle=config["sbs"]["dapi_cycle"],
+        dapi_cycle_index=config["sbs"]["dapi_cycle_index"],
         cyto_cycle=config["sbs"]["cyto_cycle"],
         cyto_cycle_index=config["sbs"]["cyto_cycle_index"],
         extra_channel_indices=config["sbs"]["extra_channel_indices"],
@@ -264,12 +266,18 @@ rule eval_mapping:
     output:
         SBS_OUTPUTS_MAPPED["eval_mapping"],
     params:
-        df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"], 
-        heatmap_plate=config["sbs"].get("heatmap_plate", "6W"),   
+        df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
+        heatmap_plate=config["sbs"].get("heatmap_plate", "6W"),
         heatmap_shape=config["sbs"].get("heatmap_shape", "6W_sbs"),
         sort_by=config["sbs"]["sort_calls"],
         barcode_type=config["sbs"].get("barcode_type", "simple"),
-        sequencing_order=config["sbs"].get("sequencing_order", "map_recomb"),       
+        sequencing_order=config["sbs"].get("sequencing_order", "map_recomb"),
+        library_barcode_col=(
+            config["sbs"].get("map_col") or "prefix_map"
+            if config["sbs"].get("barcode_type", "simple") == "multi"
+            else config["sbs"].get("prefix_col") or "prefix"
+        ),
+        recomb_col=config["sbs"].get("recomb_col", "prefix_recomb"),
     script:
         "../scripts/sbs/eval_mapping.py"
 

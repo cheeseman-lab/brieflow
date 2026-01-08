@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
 from itertools import product
+from joblib import Parallel, delayed
 
 warnings.filterwarnings("ignore")
 
@@ -27,6 +28,7 @@ def automated_parameter_search(
     metric_fn=None,
     fixed_params=None,
     barcode_type="simple",
+    n_jobs=-1,
     verbose=False,
 ):
     """Perform automated parameter search for SBS processing.
@@ -67,6 +69,9 @@ def automated_parameter_search(
         recomb_end, map_col, recomb_col, recomb_filter_col, recomb_q_thresh
     barcode_type : str, default='simple'
         Type of barcode protocol: 'simple' or 'multi'
+    n_jobs : int, default=-1
+        Number of parallel jobs to run. -1 uses all available cores.
+        Set to 1 for sequential execution (useful for debugging).
     verbose : bool, default=False
         If True, print progress and debug information.
 
@@ -95,21 +100,13 @@ def automated_parameter_search(
     if metric_name.startswith("metric_"):
         metric_name = metric_name[7:]  # Remove 'metric_' prefix
 
-    # Import required functions
+    # Import required functions for pre-processing
     try:
         from lib.shared.log_filter import log_filter
         from lib.sbs.max_filter import max_filter
-        from lib.sbs.compute_standard_deviation import compute_standard_deviation
-        from lib.sbs.find_peaks import find_peaks
-        from lib.sbs.extract_bases import extract_bases
-        from lib.sbs.call_reads import call_reads
-        from lib.sbs.call_cells import call_cells, prep_multi_reads
     except ImportError as e:
         print(f"Error importing required functions: {e}")
         return pd.DataFrame(), None
-
-    results = []
-    all_cells = []
 
     # Pre-process images (done once for all parameter combinations)
     if verbose:
@@ -136,172 +133,31 @@ def automated_parameter_search(
         print(f"Testing {total_combinations} parameter combinations...")
         print(f"Parameters: {param_names}")
         print(f"Metric: {metric_name}")
+        print(f"Using {n_jobs} parallel jobs (-1 = all cores)")
 
-    # Test each combination
-    for combo_idx, combo_values in enumerate(combinations, 1):
-        # Create parameter dictionary for this combination
-        current_params = dict(zip(param_names, combo_values))
+    # Run parameter combinations in parallel
+    results_list = Parallel(n_jobs=n_jobs, verbose=10 if verbose else 0)(
+        delayed(_process_combination)(
+            combo_values,
+            param_names,
+            loged,
+            maxed,
+            mask,
+            df_barcode_library,
+            wildcards,
+            bases,
+            extra_channel_indices,
+            fixed_params,
+            metric_fn,
+            metric_name,
+            barcode_type,
+        )
+        for combo_values in combinations
+    )
 
-        if verbose and combo_idx % 5 == 0:
-            print(f"Progress: {combo_idx}/{total_combinations}")
-
-        try:
-            # Extract parameters for this iteration
-            peak_width = current_params.get("peak_width", 5)
-            threshold_reads = current_params.get("threshold_reads", 100)
-            q_min = current_params.get("q_min", fixed_params.get("q_min", 0))
-            call_reads_method = current_params.get(
-                "call_reads_method", fixed_params.get("call_reads_method", "percentile")
-            )
-            error_correct = current_params.get(
-                "error_correct", fixed_params.get("error_correct", True)
-            )
-            sort_calls = current_params.get(
-                "sort_calls", fixed_params.get("sort_calls", "count")
-            )
-
-            # Compute standard deviation and find peaks
-            standard_deviation = compute_standard_deviation(
-                loged, remove_index=extra_channel_indices
-            )
-            peaks = find_peaks(standard_deviation, width=peak_width)
-
-            if peaks is None or (hasattr(peaks, "__len__") and len(peaks) == 0):
-                results.append(
-                    {
-                        **current_params,
-                        "metric_score": 0.0,
-                        "metric_name": metric_name,
-                        "total_cells": len(np.unique(mask)) - 1,
-                        "status": "no_peaks",
-                    }
-                )
-                continue
-
-            # Extract bases
-            df_bases = extract_bases(
-                peaks,
-                maxed,
-                mask,
-                threshold_reads,
-                wildcards=wildcards,
-                bases=bases,
-            )
-
-            if df_bases is None or len(df_bases) == 0:
-                results.append(
-                    {
-                        **current_params,
-                        "metric_score": 0.0,
-                        "metric_name": metric_name,
-                        "total_cells": len(np.unique(mask)) - 1,
-                        "status": "no_bases",
-                    }
-                )
-                continue
-
-            # Call reads
-            df_reads = call_reads(df_bases, peaks_data=peaks, method=call_reads_method)
-
-            if df_reads is None or len(df_reads) == 0:
-                results.append(
-                    {
-                        **current_params,
-                        "metric_score": 0.0,
-                        "metric_name": metric_name,
-                        "total_cells": len(np.unique(mask)) - 1,
-                        "status": "no_reads",
-                    }
-                )
-                continue
-
-            # Call cells using the barcode library
-            if barcode_type == "multi":
-                # Multi-barcode mode: prep reads first, then call cells
-                df_reads_prepped = prep_multi_reads(
-                    df_reads,
-                    map_start=fixed_params.get("map_start"),
-                    map_end=fixed_params.get("map_end"),
-                    recomb_start=fixed_params.get("recomb_start"),
-                    recomb_end=fixed_params.get("recomb_end"),
-                    map_col=fixed_params.get("map_col", "prefix_map"),
-                    recomb_col=fixed_params.get("recomb_col", "prefix_recomb"),
-                )
-
-                df_cells = call_cells(
-                    df_reads_prepped,
-                    df_barcode_library=df_barcode_library,
-                    q_min=q_min,
-                    map_start=fixed_params.get("map_start"),
-                    map_end=fixed_params.get("map_end"),
-                    map_col=fixed_params.get("map_col", "prefix_map"),
-                    recomb_start=fixed_params.get("recomb_start"),
-                    recomb_end=fixed_params.get("recomb_end"),
-                    recomb_col=fixed_params.get("recomb_col", "prefix_recomb"),
-                    recomb_filter_col=fixed_params.get("recomb_filter_col", None),
-                    recomb_q_thresh=fixed_params.get("recomb_q_thresh", 0.1),
-                    error_correct=error_correct,
-                    sort_calls=sort_calls,
-                    max_distance=fixed_params.get("max_distance", 2),
-                    barcode_info_cols=fixed_params.get("barcode_info_cols", None),
-                )
-            else:
-                # Simple barcode mode
-                df_cells = call_cells(
-                    df_reads,
-                    df_barcode_library=df_barcode_library,
-                    q_min=q_min,
-                    barcode_col=fixed_params.get("barcode_col", "sgRNA"),
-                    prefix_col=fixed_params.get("prefix_col", None),
-                    error_correct=error_correct,
-                    sort_calls=sort_calls,
-                    max_distance=fixed_params.get("max_distance", 2),
-                )
-
-            if df_cells is None or len(df_cells) == 0:
-                results.append(
-                    {
-                        **current_params,
-                        "metric_score": 0.0,
-                        "metric_name": metric_name,
-                        "total_cells": len(np.unique(mask)) - 1,
-                        "status": "call_cells_failed",
-                    }
-                )
-                continue
-
-            # Compute metric score with total_cells as denominator
-            total_cells = len(np.unique(mask)) - 1
-            metric_score = metric_fn(df_cells, total_cells)
-
-            # Annotate df_cells with parameters for tracking
-            for param_name, param_value in current_params.items():
-                df_cells[param_name] = param_value
-            all_cells.append(df_cells)
-
-            # Record results
-            results.append(
-                {
-                    **current_params,
-                    "metric_score": metric_score,
-                    "metric_name": metric_name,
-                    "total_cells": len(np.unique(mask)) - 1,
-                    "status": "success",
-                }
-            )
-
-        except Exception as e:
-            if verbose:
-                print(f"Error in combination {current_params}: {e}")
-            results.append(
-                {
-                    **current_params,
-                    "metric_score": 0.0,
-                    "metric_name": metric_name,
-                    "total_cells": len(np.unique(mask)) - 1,
-                    "status": f"error: {str(e)[:50]}",
-                }
-            )
+    # Unpack results
+    results = [r[0] for r in results_list]
+    all_cells = [r[1] for r in results_list if r[1] is not None]
 
     # Create results DataFrame
     results_df = pd.DataFrame(results)
@@ -772,3 +628,191 @@ def get_best_parameters(results_df, metric_name="metric_score", maximize=True):
             print(f"  {param} = {best_params[param]}")
 
     return best_params
+
+
+def _process_combination(
+    combo_values,
+    param_names,
+    loged,
+    maxed,
+    mask,
+    df_barcode_library,
+    wildcards,
+    bases,
+    extra_channel_indices,
+    fixed_params,
+    metric_fn,
+    metric_name,
+    barcode_type,
+):
+    """Process a single parameter combination (helper for parallel execution).
+
+    Returns:
+        tuple: (result_dict, df_cells or None)
+    """
+    # Import required functions (must be done in each worker)
+    from lib.sbs.compute_standard_deviation import compute_standard_deviation
+    from lib.sbs.find_peaks import find_peaks
+    from lib.sbs.extract_bases import extract_bases
+    from lib.sbs.call_reads import call_reads
+    from lib.sbs.call_cells import call_cells, prep_multi_reads
+
+    # Create parameter dictionary for this combination
+    current_params = dict(zip(param_names, combo_values))
+    total_cells = len(np.unique(mask)) - 1
+
+    try:
+        # Extract parameters for this iteration
+        peak_width = current_params.get("peak_width", 5)
+        threshold_reads = current_params.get("threshold_reads", 100)
+        q_min = current_params.get("q_min", fixed_params.get("q_min", 0))
+        call_reads_method = current_params.get(
+            "call_reads_method", fixed_params.get("call_reads_method", "percentile")
+        )
+        error_correct = current_params.get(
+            "error_correct", fixed_params.get("error_correct", True)
+        )
+        sort_calls = current_params.get(
+            "sort_calls", fixed_params.get("sort_calls", "count")
+        )
+
+        # Compute standard deviation and find peaks
+        standard_deviation = compute_standard_deviation(
+            loged, remove_index=extra_channel_indices
+        )
+        peaks = find_peaks(standard_deviation, width=peak_width)
+
+        if peaks is None or (hasattr(peaks, "__len__") and len(peaks) == 0):
+            return (
+                {
+                    **current_params,
+                    "metric_score": 0.0,
+                    "metric_name": metric_name,
+                    "total_cells": total_cells,
+                    "status": "no_peaks",
+                },
+                None,
+            )
+
+        # Extract bases
+        df_bases = extract_bases(
+            peaks,
+            maxed,
+            mask,
+            threshold_reads,
+            wildcards=wildcards,
+            bases=bases,
+        )
+
+        if df_bases is None or len(df_bases) == 0:
+            return (
+                {
+                    **current_params,
+                    "metric_score": 0.0,
+                    "metric_name": metric_name,
+                    "total_cells": total_cells,
+                    "status": "no_bases",
+                },
+                None,
+            )
+
+        # Call reads
+        df_reads = call_reads(df_bases, peaks_data=peaks, method=call_reads_method)
+
+        if df_reads is None or len(df_reads) == 0:
+            return (
+                {
+                    **current_params,
+                    "metric_score": 0.0,
+                    "metric_name": metric_name,
+                    "total_cells": total_cells,
+                    "status": "no_reads",
+                },
+                None,
+            )
+
+        # Call cells using the barcode library
+        if barcode_type == "multi":
+            # Multi-barcode mode: prep reads first, then call cells
+            df_reads_prepped = prep_multi_reads(
+                df_reads,
+                map_start=fixed_params.get("map_start"),
+                map_end=fixed_params.get("map_end"),
+                recomb_start=fixed_params.get("recomb_start"),
+                recomb_end=fixed_params.get("recomb_end"),
+                map_col=fixed_params.get("map_col", "prefix_map"),
+                recomb_col=fixed_params.get("recomb_col", "prefix_recomb"),
+            )
+
+            df_cells = call_cells(
+                df_reads_prepped,
+                df_barcode_library=df_barcode_library,
+                q_min=q_min,
+                map_start=fixed_params.get("map_start"),
+                map_end=fixed_params.get("map_end"),
+                map_col=fixed_params.get("map_col", "prefix_map"),
+                recomb_start=fixed_params.get("recomb_start"),
+                recomb_end=fixed_params.get("recomb_end"),
+                recomb_col=fixed_params.get("recomb_col", "prefix_recomb"),
+                recomb_filter_col=fixed_params.get("recomb_filter_col", None),
+                recomb_q_thresh=fixed_params.get("recomb_q_thresh", 0.1),
+                error_correct=error_correct,
+                sort_calls=sort_calls,
+                max_distance=fixed_params.get("max_distance", 2),
+                barcode_info_cols=fixed_params.get("barcode_info_cols", None),
+            )
+        else:
+            # Simple barcode mode
+            df_cells = call_cells(
+                df_reads,
+                df_barcode_library=df_barcode_library,
+                q_min=q_min,
+                barcode_col=fixed_params.get("barcode_col", "sgRNA"),
+                prefix_col=fixed_params.get("prefix_col", None),
+                error_correct=error_correct,
+                sort_calls=sort_calls,
+                max_distance=fixed_params.get("max_distance", 2),
+            )
+
+        if df_cells is None or len(df_cells) == 0:
+            return (
+                {
+                    **current_params,
+                    "metric_score": 0.0,
+                    "metric_name": metric_name,
+                    "total_cells": total_cells,
+                    "status": "call_cells_failed",
+                },
+                None,
+            )
+
+        # Compute metric score with total_cells as denominator
+        metric_score = metric_fn(df_cells, total_cells)
+
+        # Annotate df_cells with parameters for tracking
+        for param_name, param_value in current_params.items():
+            df_cells[param_name] = param_value
+
+        # Record results
+        return (
+            {
+                **current_params,
+                "metric_score": metric_score,
+                "metric_name": metric_name,
+                "total_cells": total_cells,
+                "status": "success",
+            },
+            df_cells,
+        )
+
+    except Exception as e:
+        return (
+            {
+                **current_params,
+                "metric_score": 0.0,
+                "metric_name": metric_name,
+                "total_cells": total_cells,
+                "status": f"error: {str(e)[:50]}",
+            },
+            None,
+        )

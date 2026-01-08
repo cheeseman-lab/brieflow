@@ -185,7 +185,11 @@ def segment_cellpose(
             return nuclei, cells
     else:
         nuclei = segment_cellpose_nuclei_rgb(
-            rgb, nuclei_diameter, gpu=gpu, **nuclei_kwargs
+            rgb,
+            nuclei_diameter,
+            cellpose_model=cellpose_model,
+            gpu=gpu,
+            **nuclei_kwargs,
         )
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
         print(f"Number of nuclei segmented: {counts['final_nuclei']}")
@@ -474,13 +478,20 @@ def segment_cellpose_rgb(
 
 
 def segment_cellpose_nuclei_rgb(
-    rgb, nuclei_diameter, gpu=False, remove_edges=True, **kwargs
+    rgb,
+    nuclei_diameter,
+    cellpose_model="nuclei",
+    gpu=False,
+    remove_edges=True,
+    **kwargs,
 ):
     """Segment nuclei using the Cellpose algorithm from an RGB image.
 
     Args:
         rgb (numpy.ndarray): RGB image.
         nuclei_diameter (int): Diameter of nuclei for segmentation.
+        cellpose_model (str, optional): Cellpose model to use. Default is "nuclei".
+            Can also use "cyto3" or other models if nuclei-specific model produces poor results.
         gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
         remove_edges (bool, optional): Whether to remove nuclei touching the image edges. Default is True.
         **kwargs: Additional keyword arguments.
@@ -488,17 +499,32 @@ def segment_cellpose_nuclei_rgb(
     Returns:
         numpy.ndarray: Labeled segmentation mask of nuclei.
     """
+    # Validate model compatibility with Cellpose version
+    if CELLPOSE_4X and cellpose_model != "cpsam":
+        raise ValueError(
+            f"Model '{cellpose_model}' requires Cellpose 3.x. "
+            f"Cellpose 4.x only supports the 'cpsam' model. "
+            f"Either change your config to use model='cpsam', "
+            f"or downgrade Cellpose: uv pip install cellpose==3.1.0"
+        )
+    if not CELLPOSE_4X and cellpose_model == "cpsam":
+        raise ValueError(
+            f"CPSAM model requires Cellpose 4.x. "
+            f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
+            f"Upgrade with: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
+        )
+
     # Create Cellpose model (different parameters for Cellpose 3.x vs 4.x)
     if CELLPOSE_4X:
-        # Cellpose 4.x: Use cpsam model
-        model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
+        # Cellpose 4.x: Use pretrained_model parameter
+        model = CellposeModel(pretrained_model=cellpose_model, gpu=gpu)
     else:
-        # Cellpose 3.x: Use nuclei model
-        model_dapi = CellposeModel(model_type="nuclei", gpu=gpu)
+        # Cellpose 3.x: Use model_type parameter
+        model = CellposeModel(model_type=cellpose_model, gpu=gpu)
 
     # Segment nuclei using CellposeModel from the RGB image
     # Pass only blue channel (DAPI) for nuclei segmentation
-    nuclei, _, _ = model_dapi.eval(rgb[2], diameter=nuclei_diameter, **kwargs)
+    nuclei, _, _ = model.eval(rgb[2], diameter=nuclei_diameter, **kwargs)
 
     # Print the number of nuclei found before and after removing edges
     print(

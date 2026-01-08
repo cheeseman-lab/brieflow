@@ -36,6 +36,9 @@ use_classifier = snakemake.params.get("use_classifier", False)
 metadata_cols = load_metadata_cols(
     metadata_cols_fp, include_classification_cols=use_classifier
 )
+# Add batch_values to metadata_cols (created by prepare_alignment_data in upstream scripts)
+if "batch_values" not in metadata_cols:
+    metadata_cols.append("batch_values")
 controls_metadata, controls_features = split_cell_data(control_cells, metadata_cols)
 
 # Get available features from construct table

@@ -528,7 +528,7 @@ def _adaptive_regional_alignment(
         # Success!
         determinant = np.linalg.det(rotation)
 
-        print(f"✅ Regional triangle hash alignment successful:")
+        print(f"Regional triangle hash alignment successful:")
         print(f"   Score: {calculated_score:.3f} (threshold: {score_threshold})")
         print(f"   Determinant: {determinant:.6f}")
         print(f"   Region size used: {region_size:.0f}")
@@ -550,7 +550,7 @@ def _adaptive_regional_alignment(
         return pd.DataFrame([alignment])
 
     # All attempts failed
-    print(f"❌ Regional triangle hash failed after {attempts} attempts")
+    print(f"Regional triangle hash failed after {attempts} attempts")
     print(f"Final region size tried: {region_size:.0f}")
 
     return None
@@ -595,7 +595,7 @@ def _sample_region_for_alignment(
     overlap_j_max = min(pheno_j_max, sbs_j_max)
 
     if overlap_i_max <= overlap_i_min or overlap_j_max <= overlap_j_min:
-        print("❌ No overlap found between datasets")
+        print("No overlap found between datasets")
         return pd.DataFrame(), pd.DataFrame(), {}
 
     # Center the sampling region

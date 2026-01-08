@@ -18,7 +18,8 @@ if merge_approach == "fast":
             ph_metadata_channel=config["merge"].get("ph_metadata_channel"),
             det_range=config["merge"]["det_range"],
             score=config["merge"]["score"],
-            initial_sites=config["merge"]["initial_sites"],
+            initial_sbs_tiles=config["merge"].get("initial_sbs_tiles"),
+            initial_sites=config["merge"].get("initial_sites"),
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
             alignment_flip_x=config["merge"].get("alignment_flip_x"),
@@ -113,7 +114,8 @@ if merge_approach == "stitch":
             flipud=config.get("merge", {}).get("flipud", False),
             fliplr=config.get("merge", {}).get("fliplr", False),
             rot90=config.get("merge", {}).get("rot90", 0),
-            stitched_image=config.get("merge", {}).get("stitched_image", True),     
+            stitched_image=config.get("merge", {}).get("stitched_image", True),
+            ph_metadata_channel=config["merge"].get("ph_metadata_channel"),
         script:
             "../scripts/merge/stitch.py"
 
@@ -149,7 +151,9 @@ if merge_approach == "stitch":
             fliplr=config.get("merge", {}).get("fliplr", False),
             rot90=config.get("merge", {}).get("rot90", 0),
             overlap_fraction=config.get("merge", {}).get("overlap_fraction"),
-            stitched_image=config.get("merge", {}).get("stitched_image", True),     
+            stitched_image=config.get("merge", {}).get("stitched_image", True),
+            sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
+            sbs_metadata_channel=config["merge"].get("sbs_metadata_channel"),
         script:
             "../scripts/merge/stitch.py"
 
@@ -175,14 +179,14 @@ if merge_approach == "stitch":
 
     rule stitch_merge:
         input:
-            scaled_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][0],      
+            scaled_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][0],
             sbs_positions=MERGE_OUTPUTS["stitch_sbs"][0],  # sbs_cell_positions
             alignment_params=MERGE_OUTPUTS["stitch_alignment"][3],
-            transformed_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][5],               
+            transformed_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][5],
         output:
-            raw_matches=MERGE_OUTPUTS_MAPPED["stitch_merge"][0],                    
-            merged_cells=MERGE_OUTPUTS_MAPPED["stitch_merge"][1],                   
-            merge_summary=MERGE_OUTPUTS_MAPPED["stitch_merge"][2],                  
+            raw_matches=MERGE_OUTPUTS_MAPPED["stitch_merge"][0],
+            merged_cells=MERGE_OUTPUTS_MAPPED["stitch_merge"][1],
+            merge_summary=MERGE_OUTPUTS_MAPPED["stitch_merge"][2],
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -190,6 +194,33 @@ if merge_approach == "stitch":
             score=config["merge"]["score"],
         script:
             "../scripts/merge/stitch_merge.py"
+
+    rule summarize_stitch:
+        input:
+            alignment_summary_paths=lambda wildcards: output_to_input(
+                MERGE_OUTPUTS["stitch_alignment"][4],
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=merge_wildcard_combos,
+            ),
+            merge_summary_paths=lambda wildcards: output_to_input(
+                MERGE_OUTPUTS["stitch_merge"][2],
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=merge_wildcard_combos,
+            ),
+        output:
+            alignment_summaries=MERGE_OUTPUTS_MAPPED["summarize_stitch"][0],
+            cell_merge_summaries=MERGE_OUTPUTS_MAPPED["summarize_stitch"][1],
+        params:
+            plate=lambda wildcards: wildcards.plate,
+            wells=lambda wildcards: [
+                str(combo["well"])
+                for combo in merge_wildcard_combos.to_dict('records')
+                if str(combo["plate"]) == str(wildcards.plate)
+            ],
+        script:
+            "../scripts/merge/summarize_stitch.py"
 
 
 rule format_merge:
@@ -205,6 +236,8 @@ rule format_merge:
         MERGE_OUTPUTS_MAPPED["format_merge"][0],
     params:
         approach=config.get("merge", {}).get("approach", "fast"),
+        phenotype_dimensions=config.get("merge", {}).get("phenotype_dimensions"),
+        sbs_dimensions=config.get("merge", {}).get("sbs_dimensions"),
     script:
         "../scripts/merge/format_merge.py"
 
@@ -261,70 +294,31 @@ rule eval_merge:
             metadata_combos=phenotype_wildcard_combos,
             ancient_output=True,
         ),
+        dedup_stats_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["deduplicate_merge"][0],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
+        ),
     params: 
         heatmap_plate_sbs=config["sbs"].get("heatmap_plate", "6W"),  
         heatmap_shape_sbs=config["sbs"].get("heatmap_shape", "6W_sbs"),
         heatmap_plate_ph=config["phenotype"].get("heatmap_plate", "6W"), 
         heatmap_shape_ph=config["phenotype"].get("heatmap_shape", "6W_ph"),
     output:
-        cell_mapping_stats=MERGE_OUTPUTS_MAPPED["eval_merge"][0],
+        merge_summary=MERGE_OUTPUTS_MAPPED["eval_merge"][0],
         sbs_to_ph_matching_rates_tsv=MERGE_OUTPUTS_MAPPED["eval_merge"][1],
         sbs_to_ph_matching_rates_png=MERGE_OUTPUTS_MAPPED["eval_merge"][2],
         ph_to_sbs_matching_rates_tsv=MERGE_OUTPUTS_MAPPED["eval_merge"][3],
         ph_to_sbs_matching_rates_png=MERGE_OUTPUTS_MAPPED["eval_merge"][4],
         all_cells_by_channel_min=MERGE_OUTPUTS_MAPPED["eval_merge"][5],
         cells_with_channel_min_0=MERGE_OUTPUTS_MAPPED["eval_merge"][6],
+        dedup_summaries=MERGE_OUTPUTS_MAPPED["eval_merge"][7],
+    params:
+        sbs_heatmap_shape=config["sbs"].get("heatmap_shape", "6W_sbs"),
+        phenotype_heatmap_shape=config["phenotype"].get("heatmap_shape", "6W_ph"),
     script:
         "../scripts/merge/eval_merge.py"
-
-
-rule summarize_merge:
-    input:
-        alignment_summary_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["stitch_alignment"][4],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-        merge_summary_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["stitch_merge"][2],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-        dedup_summary_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["deduplicate_merge"][0],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-        sbs_matching_rates_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["deduplicate_merge"][2],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-        phenotype_matching_rates_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["deduplicate_merge"][3],
-            wildcards=wildcards,
-            expansion_values=["well"],
-            metadata_combos=merge_wildcard_combos,
-        ),
-    output:
-        alignment_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][0],
-        cell_merge_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][1],
-        dedup_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][2],
-        sbs_matching_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][3],
-        phenotype_matching_summaries=MERGE_OUTPUTS_MAPPED["summarize_merge"][4],
-    params:
-        plate=lambda wildcards: wildcards.plate,
-        wells=lambda wildcards: [
-            str(combo["well"]) 
-            for combo in merge_wildcard_combos.to_dict('records') 
-            if str(combo["plate"]) == str(wildcards.plate)
-        ],
-    script:
-        "../scripts/merge/summarize_merge.py"
 
 
 # Rule for all merge processing steps

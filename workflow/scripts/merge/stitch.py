@@ -34,12 +34,27 @@ metadata = validate_dtypes(
     )
 )
 
-# Apply SBS-specific filtering if needed
+# Build and apply metadata filters based on data type
+filters = {}
 if data_type == "sbs":
-    sbs_filters = {"cycle": snakemake.config["merge"]["sbs_metadata_cycle"]}
-    for key, value in sbs_filters.items():
-        metadata = metadata[metadata[key] == value]
-    print(f"Applied SBS filter: {len(metadata)} entries remaining")
+    if getattr(snakemake.params, "sbs_metadata_cycle", None) is not None:
+        filters["cycle"] = snakemake.params.sbs_metadata_cycle
+    if getattr(snakemake.params, "sbs_metadata_channel", None) is not None:
+        filters["channel"] = snakemake.params.sbs_metadata_channel
+elif data_type == "phenotype":
+    if getattr(snakemake.params, "ph_metadata_channel", None) is not None:
+        filters["channel"] = snakemake.params.ph_metadata_channel
+
+for filter_key, filter_value in filters.items():
+    metadata = metadata[metadata[filter_key] == filter_value]
+    print(
+        f"Applied {data_type} filter {filter_key}={filter_value}: {len(metadata)} entries remaining"
+    )
+
+# If no filters were applied, deduplicate to handle multiple channels per tile
+if not filters:
+    metadata = metadata.drop_duplicates(subset=["plate", "well", "tile"])
+    print(f"Deduplicated metadata: {len(metadata)} unique tiles")
 
 # Load stitch configuration
 print("Loading stitch configuration...")

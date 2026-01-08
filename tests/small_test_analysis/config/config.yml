@@ -28,6 +28,7 @@ preprocess:
   sbs_combo_fp: config/sbs_combo.tsv
   sbs_samples_fp: config/sbs_samples.tsv
 sbs:
+  heatmap_shape: square
   alignment_method: null
   channel_names:
   - DAPI
@@ -77,8 +78,9 @@ sbs:
   cell_cellprob_threshold: 0
   cyto_model: cyto3
   heatmap_plate: "6W"
-  heatmap_shape: "6W_sbs"
+  heatmap_shape: "square"
 phenotype:
+  heatmap_shape: square
   align: false
   cell_diameter: 53.075815293046055
   cellprob_threshold: 0
@@ -99,27 +101,37 @@ phenotype:
   nuclei_diameter: 41.97813156768016
   reconcile: contained_in_cells
   heatmap_plate: "6W"
-  heatmap_shape: "6W_ph"
+  heatmap_shape: "square"
 merge:
-  det_range:
-  - 0.06
-  - 0.065
-  initial_sites:
-  - - 5
-    - 0
-  - - 141
-    - 32
+  approach: fast
   merge_combo_fp: config/merge_combo.tsv
-  ph_metadata_channel: null
-  sbs_metadata_channel: null
+  phenotype_dimensions:
+  - 2400
+  - 2400
+  sbs_dimensions:
+  - 1200
+  - 1200
   sbs_metadata_cycle: 1
   score: 0.1
   threshold: 2
+  sbs_metadata_channel: null
+  ph_metadata_channel: null
+  alignment_flip_x: false
+  alignment_flip_y: false
+  alignment_rotate_90: false
   sbs_dedup_prior:
     mapped_single_gene: false
     fov_distance_1: true
   pheno_dedup_prior:
     fov_distance_0: true
+  initial_sites:
+  - - 5
+    - 0
+  - - 141
+    - 32
+  det_range:
+  - 0.06
+  - 0.065
 aggregate:
   agg_method: median
   aggregate_combo_fp: config/aggregate_combo.tsv

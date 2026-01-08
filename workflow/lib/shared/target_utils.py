@@ -185,6 +185,39 @@ def get_montage_inputs(montage_data_checkpoint, montage_output_template, channel
     return output_files
 
 
+def get_merge_targets_by_approach(config):
+    """Get merge targets based on the configured approach.
+
+    Args:
+        config (dict): Snakemake configuration dictionary.
+
+    Returns:
+        list: List of target names for the configured merge approach.
+    """
+    approach = config.get("merge", {}).get("approach", "fast")
+
+    # Core targets that are always needed
+    core_targets = ["format_merge", "deduplicate_merge", "final_merge", "eval_merge"]
+
+    if approach == "stitch":
+        approach_targets = [
+            "estimate_stitch_phenotype",
+            "estimate_stitch_sbs",
+            "stitch_phenotype",
+            "stitch_sbs",
+            "stitch_alignment",
+            "stitch_merge",
+            "summarize_stitch",
+        ]
+    else:
+        # Fast approach targets (default)
+        approach_targets = ["fast_alignment", "fast_merge"]
+
+    all_targets = approach_targets + core_targets
+
+    return all_targets
+
+
 def map_wildcard_outputs(wildcard_combos_df, output_template, wildcards_to_map):
     """Map specified wildcards in a template string using values from a DataFrame.
 

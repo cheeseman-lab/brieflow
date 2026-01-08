@@ -1,5 +1,5 @@
 from lib.shared.file_utils import get_filename
-from lib.shared.target_utils import map_outputs, outputs_to_targets
+from lib.shared.target_utils import get_merge_targets_by_approach, map_outputs, outputs_to_targets
 
 
 MERGE_FP = ROOT_FP / "merge"
@@ -149,31 +149,6 @@ MERGE_OUTPUTS = {
 }
 
 
-def get_merge_targets_by_approach():
-    """Get targets based on the configured approach"""
-    approach = config.get("merge", {}).get("approach", "fast")
-
-    # Core targets that are always needed
-    core_targets = ["format_merge", "deduplicate_merge", "final_merge", "eval_merge"]
-
-    if approach == "stitch":
-        approach_targets = [
-            "estimate_stitch_phenotype", "estimate_stitch_sbs",
-            "stitch_phenotype", "stitch_sbs",
-            "stitch_alignment", "stitch_merge",
-            "summarize_stitch",
-        ]
-    else:
-        # Fast approach targets (default)
-        approach_targets = [
-            "fast_alignment", "fast_merge"
-        ]
-
-    all_targets = approach_targets + core_targets
-
-    return all_targets
-
-
 MERGE_OUTPUT_MAPPINGS = {
     "fast_alignment": None,
     "fast_merge": None,
@@ -193,7 +168,7 @@ MERGE_OUTPUT_MAPPINGS = {
 MERGE_OUTPUTS_MAPPED = map_outputs(MERGE_OUTPUTS, MERGE_OUTPUT_MAPPINGS)
 
 # Get targets based on approach
-MERGE_TARGETS_SELECTED = get_merge_targets_by_approach()
+MERGE_TARGETS_SELECTED = get_merge_targets_by_approach(config)
 
 MERGE_TARGETS_ALL = []
 for target in MERGE_TARGETS_SELECTED:

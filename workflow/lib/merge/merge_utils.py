@@ -23,40 +23,6 @@ from skimage.measure import regionprops
 from lib.merge.fast_merge import build_linear_model
 
 
-def _auto_fontsize(tile_size, plot_range, min_size=4, max_size=10):
-    """Calculate font size based on tile size relative to plot range.
-
-    Args:
-        tile_size (float): Size of the tile in plot coordinates.
-        plot_range (float): Total range of the plot (max - min).
-        min_size (int, optional): Minimum font size. Defaults to 4.
-        max_size (int, optional): Maximum font size. Defaults to 10.
-
-    Returns:
-        float: Calculated font size.
-    """
-    fraction = tile_size / plot_range
-    size = min_size + (max_size - min_size) * min(1, fraction * 20)
-    return max(min_size, min(max_size, size))
-
-
-def _estimate_tile_size_from_coords(metadata):
-    """Estimate tile size from coordinate spacing.
-
-    Args:
-        metadata (pd.DataFrame): DataFrame with 'x_pos' and 'y_pos' columns.
-
-    Returns:
-        float: Estimated tile size based on median spacing between adjacent tiles.
-    """
-    sorted_x = metadata["x_pos"].sort_values().diff().dropna()
-    sorted_y = metadata["y_pos"].sort_values().diff().dropna()
-    # Use median of non-zero diffs as spacing
-    x_spacing = sorted_x[sorted_x > 0].median()
-    y_spacing = sorted_y[sorted_y > 0].median()
-    return min(x_spacing, y_spacing) if pd.notna(x_spacing) else 1000
-
-
 def plot_combined_tile_grid(
     ph_metadata,
     sbs_metadata,
@@ -171,6 +137,40 @@ def plot_combined_tile_grid(
 
     plt.tight_layout()
     return fig
+
+
+def _auto_fontsize(tile_size, plot_range, min_size=4, max_size=10):
+    """Calculate font size based on tile size relative to plot range.
+
+    Args:
+        tile_size (float): Size of the tile in plot coordinates.
+        plot_range (float): Total range of the plot (max - min).
+        min_size (int, optional): Minimum font size. Defaults to 4.
+        max_size (int, optional): Maximum font size. Defaults to 10.
+
+    Returns:
+        float: Calculated font size.
+    """
+    fraction = tile_size / plot_range
+    size = min_size + (max_size - min_size) * min(1, fraction * 20)
+    return max(min_size, min(max_size, size))
+
+
+def _estimate_tile_size_from_coords(metadata):
+    """Estimate tile size from coordinate spacing.
+
+    Args:
+        metadata (pd.DataFrame): DataFrame with 'x_pos' and 'y_pos' columns.
+
+    Returns:
+        float: Estimated tile size based on median spacing between adjacent tiles.
+    """
+    sorted_x = metadata["x_pos"].sort_values().diff().dropna()
+    sorted_y = metadata["y_pos"].sort_values().diff().dropna()
+    # Use median of non-zero diffs as spacing
+    x_spacing = sorted_x[sorted_x > 0].median()
+    y_spacing = sorted_y[sorted_y > 0].median()
+    return min(x_spacing, y_spacing) if pd.notna(x_spacing) else 1000
 
 
 def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
@@ -534,11 +534,6 @@ def preview_mask_transformations(
     )
 
     return {"flipud": flipud, "fliplr": fliplr, "rot90": rot90}
-
-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 
 
 def align_metadata(

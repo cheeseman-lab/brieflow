@@ -157,6 +157,10 @@ for well, df in dedup_stats.items():
 
 if dedup_dfs:
     dedup_summaries = pd.concat(dedup_dfs, ignore_index=True)
+    stage_order = ["Initial", "After SBS dedup", "After phenotype dedup"]
+    dedup_summaries["stage"] = pd.Categorical(
+        dedup_summaries["stage"], categories=stage_order, ordered=True
+    )
     dedup_summaries = dedup_summaries.sort_values(["well", "stage"]).reset_index(
         drop=True
     )

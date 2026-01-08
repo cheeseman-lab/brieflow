@@ -127,8 +127,8 @@ valid_pairs_df = initial_alignment_df.query(
     "@d0 <= determinant <= @d1 & score > @score_thresh"
 )
 
-# Require minimum 5 valid pairs
-if len(valid_pairs_df) < 5:
+# Require minimum 5 valid pairs (only if > 5 candidates were provided)
+if len(candidate_pairs) > 5 and len(valid_pairs_df) < 5:
     raise ValueError(
         f"Only {len(valid_pairs_df)} initial sites passed thresholds (need >= 5). "
         f"Candidates tested: {candidate_pairs}. "

@@ -30,7 +30,7 @@ feature_cols = [col for col in cell_data.schema.names if col not in metadata_col
 feature_cols = get_feature_table_cols(feature_cols)
 
 # Filter metadata_cols to only include columns that exist in the parquet
-# (batch_values is added later by prepare_alignment_data)
+# (classifier columns 'class'/'confidence' may not exist if classifier was not used)
 existing_metadata_cols = [col for col in metadata_cols if col in cell_data_cols]
 
 print(
@@ -59,8 +59,6 @@ metadata, features = prepare_alignment_data(
     control_key,
     pert_id_col,
 )
-if "batch_values" not in metadata_cols:
-    metadata_cols.append("batch_values")
 features = features.astype(np.float32)
 
 # centerscale features on controls

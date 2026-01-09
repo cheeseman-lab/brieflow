@@ -47,6 +47,14 @@ def write_image_omezarr(
 
     # Ensure dask array for efficient scaling
     if not isinstance(image_data, da.Array):
+        # Validate that axes string matches the image dimensionality.
+        # This prevents confusing IndexError during chunk heuristic below.
+        if len(axes) != len(image_data.shape):
+            raise ValueError(
+                f"Axes '{axes}' (len={len(axes)}) does not match image_data.ndim={len(image_data.shape)} "
+                f"with shape={image_data.shape}. If exporting with Z, ensure the input array includes Z "
+                f"(e.g. preserve_z=True)."
+            )
         # Determine chunking if not provided
         if chunk_size is None:
             # Simple heuristic: keep C/T small, Y/X around 1024

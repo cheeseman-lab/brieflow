@@ -4,6 +4,8 @@ from tifffile import imread
 from lib.io.omezarr_writer import write_image_omezarr
 from lib.preprocess.preprocess import convert_to_array
 
+# TODO Add option to export zarr OR tiffs for downstream processing
+
 def _read_image_data():
     """
     Read image input either from a TIFF (default) or from original files via convert_to_array

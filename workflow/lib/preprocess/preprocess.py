@@ -62,6 +62,7 @@ def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, Any]:
         "n_z_planes": base_config.get(f"{image_type}_n_z_planes", None),
     }
 
+# TODO add direct nd2 to zarr conversion - bypass tiffs
 
 def extract_metadata_tile_nd2(
     file_path: str,
@@ -1136,14 +1137,16 @@ def convert_to_array(
     data_organization: str = "tile",
     position: int = None,
     channel_order_flip: bool = False,
+    preserve_z: bool = False,
     verbose: bool = False,
     **kwargs,
 ) -> np.ndarray:
-    """Convert microscopy image files to numpy array in CYX format.
+    """Convert microscopy image files to numpy array in CYX or CZYX format.
 
     Main entry point for image conversion that dispatches to appropriate
     implementation based on data format and organization. The output is always
-    a numpy array in CYX format (Channel, Y, X) for consistent downstream processing.
+    a numpy array in CYX format (Channel, Y, X) for consistent downstream processing,
+    unless preserve_z=True (tile-based ND2 only) in which case CZYX is returned.
 
     Args:
         files: Path(s) to image file(s)
@@ -1151,6 +1154,7 @@ def convert_to_array(
         data_organization: 'tile' (one FOV per file) or 'well' (multiple FOVs per file)
         position: Position/tile to extract (required for well organization)
         channel_order_flip: Reverse the order of channels
+        preserve_z: If True (tile-based ND2), preserve Z planes (returning CZYX)
         verbose: Print debug information
         **kwargs: Additional arguments passed to specific converters
 
@@ -1177,7 +1181,12 @@ def convert_to_array(
 
     if data_format == "nd2":
         if data_organization == "tile":
-            return convert_nd2_to_array_tile(files, channel_order_flip, verbose)
+            return convert_nd2_to_array_tile(
+                files,
+                channel_order_flip=channel_order_flip,
+                verbose=verbose,
+                preserve_z=preserve_z,
+            )
         elif data_organization == "well":
             if position is None:
                 raise ValueError("Position must be specified for well organization")

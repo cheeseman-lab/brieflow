@@ -1,5 +1,5 @@
 import pandas as pd
-from lib.io.omezarr_writer import write_table_zarr
+from lib.shared.omezarr_writer import write_table_zarr
 
 # Read input table
 # Can be parquet, tsv, csv

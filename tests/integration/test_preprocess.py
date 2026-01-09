@@ -4,11 +4,12 @@ Test analysis for the preprocess module.
 
 from pathlib import Path
 
+import pytest
 import yaml
 import pandas as pd
 from tifffile import imread
 
-from lib.shared.file_utils import get_filename
+from workflow.lib.shared.file_utils import get_filename
 
 TEST_ANALYSIS_PATH = Path(__file__).resolve().parents[1] / "small_test_analysis"
 TEST_PLATE = 1
@@ -23,7 +24,38 @@ with open(CONFIG_FILE_PATH, "r") as config_file:
     config = yaml.safe_load(config_file)
 
 
-ROOT_FP = TEST_ANALYSIS_PATH / "brieflow_output"
+def _resolve_brieflow_output_dir() -> Path:
+    """
+    Integration tests read artifacts produced by the small-test Snakemake run.
+
+    Prefer the canonical `tests/small_test_analysis/brieflow_output/`, but fall back to
+    the newest `brieflow_output_*` directory if the canonical directory was deleted or
+    not generated yet.
+    """
+    canonical = TEST_ANALYSIS_PATH / "brieflow_output"
+    if canonical.exists():
+        return canonical
+
+    candidates = sorted(
+        [
+            p
+            for p in TEST_ANALYSIS_PATH.iterdir()
+            if p.is_dir() and p.name.startswith("brieflow_output_")
+        ],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for p in candidates:
+        if (p / "preprocess" / "metadata").exists():
+            return p
+
+    pytest.skip(
+        "Brieflow output directory not found. Run tests/small_test_analysis/run_brieflow.sh "
+        "or tests/small_test_analysis/run_brieflow_omezarr.sh first."
+    )
+
+
+ROOT_FP = _resolve_brieflow_output_dir()
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
 

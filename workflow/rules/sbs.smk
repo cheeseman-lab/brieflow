@@ -285,6 +285,7 @@ if "export_sbs_omezarr" in SBS_OUTPUTS_MAPPED:
                 expansion_values=["well"],
                 metadata_combos=sbs_wildcard_combos,
             ),
+            omezarr_writer=str(Path(workflow.basedir) / "lib" / "shared" / "omezarr_writer.py"),
         output:
             SBS_OUTPUTS_MAPPED["export_sbs_omezarr"],
         params:

@@ -150,7 +150,7 @@ rule eval_features:
         cells_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["merge_phenotype"][1],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=["well", "tile"],
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:
@@ -160,6 +160,28 @@ rule eval_features:
         heatmap_plate=config["phenotype"].get("heatmap_plate", "6W"),
     script:
         "../scripts/phenotype/eval_features.py"
+
+
+# OME-Zarr export rules
+if "export_phenotype_omezarr" in PHENOTYPE_OUTPUTS_MAPPED:
+    rule export_phenotype_omezarr:
+        input:
+            image=PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"],
+            nuclei=PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"][0],
+            cells=PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"][1],
+            metadata=lambda wildcards: output_to_input(
+                PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+                wildcards=wildcards,
+                expansion_values=["well"],
+                metadata_combos=phenotype_wildcard_combos,
+            ),
+        output:
+            PHENOTYPE_OUTPUTS_MAPPED["export_phenotype_omezarr"],
+        params:
+            axes="cyx",
+            tile=lambda wildcards: wildcards.tile,
+        script:
+            "../scripts/phenotype/export_omezarr_phenotype.py"
 
 
 # Rule for all phenotype processing steps

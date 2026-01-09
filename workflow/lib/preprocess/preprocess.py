@@ -12,10 +12,14 @@ regardless of the input format.
 import pandas as pd
 import numpy as np
 import nd2
-from typing import Union, List, Dict, Any, Optional, Tuple
+from typing import Union, List, Dict, Any, Optional, Tuple, Sequence
 from pathlib import Path
 import warnings
 import gc
+import shutil
+from itertools import product
+
+from lib.io.omezarr_writer import write_image_omezarr
 
 
 # Data organization and format constants
@@ -532,12 +536,13 @@ def convert_nd2_to_array_tile(
     channel_order_flip: bool = False,
     verbose: bool = False,
     n_z_planes: int = None,
+    preserve_z: bool = False,
 ) -> np.ndarray:
-    """Convert tile-based ND2 files to numpy array in CYX format.
+    """Convert tile-based ND2 files to numpy array in CYX or CZYX format.
 
     Processes one or more ND2 files where each file contains a single FOV.
     If multiple files are provided, they are concatenated along the channel axis.
-    Z-stacks are handled by maximum intensity projection.
+    Z-stacks are handled by maximum intensity projection unless preserve_z is True.
 
     Note: n_z_planes parameter is accepted for API compatibility but not used,
     as Z-stack handling is automatic via maximum intensity projection.
@@ -547,18 +552,10 @@ def convert_nd2_to_array_tile(
         channel_order_flip: Reverse the order of channels
         verbose: Print debug information
         n_z_planes: Accepted for API compatibility but not used (Z-stack handled automatically)
+        preserve_z: If True, preserves Z dimension (returning CZYX).
 
     Returns:
-        numpy array in CYX format (Channel, Y, X) with dtype uint16
-
-    Example:
-        >>> # Single 4-channel image
-        >>> img = convert_nd2_to_array_tile("image.nd2")
-        >>> img.shape  # (4, 2048, 2048)
-
-        >>> # Multiple files concatenated
-        >>> img = convert_nd2_to_array_tile(["cyc1.nd2", "cyc2.nd2"])
-        >>> img.shape  # (8, 2048, 2048) if each has 4 channels
+        numpy array in CYX or CZYX format with dtype uint16
     """
     # Convert input to list of Path objects
     if isinstance(files, (str, Path)):
@@ -579,20 +576,31 @@ def convert_nd2_to_array_tile(
 
         # Handle Z-stack if present
         if "Z" in image.dims:
-            image = image.max(dim="Z")
+            if not preserve_z:
+                image = image.max(dim="Z")
+        elif preserve_z:
+            image = image.expand_dims("Z")
 
         # Convert to numpy array based on dimensions present
         if "C" in image.dims:
-            # If C dimension exists, ensure CYX order
-            img_array = image.transpose("C", "Y", "X").values
+            if preserve_z:
+                if "Z" not in image.dims:
+                    image = image.expand_dims("Z")
+                img_array = image.transpose("C", "Z", "Y", "X").values
+            else:
+                img_array = image.transpose("C", "Y", "X").values
 
             # Flip channel order if needed
             if channel_order_flip:
                 img_array = np.flip(img_array, axis=0)
         else:
             # If no C dimension, assume YX and add channel dimension
-            img_array = image.transpose("Y", "X").values
-            img_array = np.expand_dims(img_array, axis=0)  # Add channel dimension
+            if preserve_z:
+                img_array = image.transpose("Z", "Y", "X").values
+                img_array = np.expand_dims(img_array, axis=0)
+            else:
+                img_array = image.transpose("Y", "X").values
+                img_array = np.expand_dims(img_array, axis=0)  # Add channel dimension
 
         if verbose:
             print(f"Array shape after processing: {img_array.shape}")
@@ -609,7 +617,8 @@ def convert_nd2_to_array_tile(
     result = np.concatenate(image_arrays, axis=0)
 
     if verbose:
-        print(f"Final dimensions (CYX): {result.shape}")
+        suffix = "CZYX" if preserve_z else "CYX"
+        print(f"Final dimensions ({suffix}): {result.shape}")
 
     return result.astype(np.uint16)
 

@@ -49,7 +49,7 @@ MERGE_OUTPUTS = {
         ),  # [0] - sbs_cell_positions (always)
         MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_tile_qc", "png"
-        ),  # [1] - sbs_qc_plot (always)
+        ),  # [1] - sbs_tile_qc (always)
         MERGE_FP / "images" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_image", "npy"
         ),  # [2] - sbs_stitched_image (conditional - may be empty file)
@@ -146,7 +146,20 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}"}, "dedup_summaries", "tsv"
         ),  # [7]
     ],
+    "export_merge_zarr": [
+        MERGE_FP / "zarr" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "merge_table", "zarr"
+        ),
+    ],
 }
+
+
+
+# Filter zarr exports if not enabled
+omezarr_enabled = config.get("output", {}).get("omezarr", {}).get("enabled", False)
+after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
+if not (omezarr_enabled and "merge" in after_steps):
+    MERGE_OUTPUTS.pop("export_merge_zarr", None)
 
 
 MERGE_OUTPUT_MAPPINGS = {
@@ -163,6 +176,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "deduplicate_merge": [temp, None, temp, temp],
     "final_merge": None,
     "eval_merge": None,
+    "export_merge_zarr": directory,
 }
 
 MERGE_OUTPUTS_MAPPED = map_outputs(MERGE_OUTPUTS, MERGE_OUTPUT_MAPPINGS)
@@ -180,4 +194,3 @@ for target in MERGE_TARGETS_SELECTED:
                 {target: MERGE_OUTPUT_MAPPINGS[target]}
             )
         )
-        

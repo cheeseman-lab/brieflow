@@ -1,0 +1,212 @@
+"""
+OME-Zarr Writer Module for Brieflow.
+
+This module provides functions to export images, labels, and tables to OME-Zarr (v2) format.
+It uses the ome-zarr-py library for NGFF compliance.
+"""
+
+import os
+import zarr
+import numpy as np
+import pandas as pd
+from typing import List, Optional, Union, Dict, Any, Tuple
+from ome_zarr.io import parse_url
+from ome_zarr.writer import write_image, write_labels
+from ome_zarr.scale import Scaler
+import dask.array as da
+
+
+def write_image_omezarr(
+    image_data: Union[np.ndarray, da.Array],
+    out_path: str,
+    channel_names: Optional[List[str]] = None,
+    axes: str = "cyx",
+    pixel_size_um: Optional[float] = None,
+    chunk_size: Optional[Tuple[int, ...]] = None,
+    storage_options: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    Write an image array to OME-Zarr format with pyramids.
+
+    Args:
+        image_data: Numpy or Dask array containing image data.
+        out_path: Path to the output .zarr directory.
+        channel_names: List of channel names. Length must match channel dimension.
+        axes: String describing axes, e.g., "cyx", "tcyx".
+        pixel_size_um: Pixel size in microns (applied to X and Y).
+        chunk_size: Tuple for chunking (optional).
+        storage_options: Options for storage backend (optional).
+    """
+    os.makedirs(out_path, exist_ok=True)
+    # Enforce Zarr v2 for OME-NGFF v0.4 compliance
+    # zarr.open_group handles store creation and avoids v3 zarr.json default
+    root = zarr.open_group(out_path, mode='w', zarr_format=2)
+
+    # Ensure dask array for efficient scaling
+    if not isinstance(image_data, da.Array):
+        # Determine chunking if not provided
+        if chunk_size is None:
+            # Simple heuristic: keep C/T small, Y/X around 1024
+            shape = image_data.shape
+            chunks = list(shape)
+            if "y" in axes and "x" in axes:
+                y_idx = axes.find("y")
+                x_idx = axes.find("x")
+                chunks[y_idx] = min(shape[y_idx], 1024)
+                chunks[x_idx] = min(shape[x_idx], 1024)
+            chunk_size = tuple(chunks)
+        
+        image_data = da.from_array(image_data, chunks=chunk_size)
+
+    # Coordinate transformations
+    transforms = []
+    if pixel_size_um:
+        scale = [1.0] * len(axes)
+        if "y" in axes:
+            scale[axes.find("y")] = pixel_size_um
+        if "x" in axes:
+            scale[axes.find("x")] = pixel_size_um
+        transforms = [{"scale": scale, "type": "scale"}]
+
+    # Metadata
+    metadata = {}
+    if channel_names:
+        metadata["omero"] = {
+            "channels": [
+                {"label": name, "active": True, "color": "FFFFFF"} 
+                for name in channel_names
+            ]
+        }
+
+    # Write image
+    write_image(
+        image=image_data,
+        group=root,
+        axes=axes,
+        coordinate_transformations=[transforms] if transforms else None,
+        storage_options=storage_options,
+        scaler=Scaler(method="nearest"),  # 'nearest' is faster/safer for diverse data types
+        metadata=metadata
+    )
+
+
+def write_labels_omezarr(
+    label_data: Union[np.ndarray, da.Array],
+    out_path: str,
+    label_name: str,
+    axes: str = "yx",
+    pixel_size_um: Optional[float] = None,
+    chunk_size: Optional[Tuple[int, ...]] = None,
+) -> None:
+    """
+    Write a label mask to OME-Zarr format as a child of an existing image or standalone.
+    
+    If out_path points to an existing .zarr image, labels are added under /labels.
+    """
+    # Check if out_path is an existing group
+    if os.path.exists(out_path) and os.path.exists(os.path.join(out_path, ".zattrs")):
+        mode = "r+"
+    else:
+        mode = "w"
+        os.makedirs(out_path, exist_ok=True)
+
+    # Enforce Zarr v2
+    root = zarr.open_group(out_path, mode=mode, zarr_format=2)
+
+    # Ensure data type is compatible with OME-Zarr labels (unsigned int)
+    if isinstance(label_data, np.ndarray):
+        if label_data.dtype == np.int64 or label_data.dtype == np.int32:
+             # Check if values fit in uint32
+             if label_data.max() < 2**32:
+                 label_data = label_data.astype(np.uint32)
+    elif isinstance(label_data, da.Array):
+         if label_data.dtype == np.int64 or label_data.dtype == np.int32:
+             label_data = label_data.astype(np.uint32)
+
+    if not isinstance(label_data, da.Array):
+        if chunk_size is None:
+             # Default chunking for labels
+            shape = label_data.shape
+            chunks = list(shape)
+            if "y" in axes and "x" in axes:
+                y_idx = axes.find("y")
+                x_idx = axes.find("x")
+                chunks[y_idx] = min(shape[y_idx], 1024)
+                chunks[x_idx] = min(shape[x_idx], 1024)
+            chunk_size = tuple(chunks)
+        label_data = da.from_array(label_data, chunks=chunk_size)
+
+    # Transformations
+    transforms = []
+    if pixel_size_um:
+        scale = [1.0] * len(axes)
+        if "y" in axes:
+            scale[axes.find("y")] = pixel_size_um
+        if "x" in axes:
+            scale[axes.find("x")] = pixel_size_um
+        transforms = [{"scale": scale, "type": "scale"}]
+
+    write_labels(
+        labels=label_data,
+        group=root,
+        name=label_name,
+        axes=axes,
+        coordinate_transformations=[transforms] if transforms else None,
+    )
+
+
+def write_table_zarr(
+    df: pd.DataFrame,
+    out_path: str,
+    chunk_size: int = 10000
+) -> None:
+    """
+    Write a pandas DataFrame to Zarr (columnar format).
+    This is NOT OME-NGFF AnnData, but a simple columnar store for interoperability.
+    """
+    os.makedirs(out_path, exist_ok=True)
+    # Enforce Zarr v2
+    store = zarr.open(out_path, mode='w', zarr_format=2)
+    
+    # Write metadata
+    store.attrs['columns'] = list(df.columns)
+    store.attrs['index_name'] = df.index.name
+    store.attrs['num_rows'] = len(df)
+    
+    # Write index
+    if df.index.name:
+        _write_series_to_zarr(df.index.to_series(), store, df.index.name, chunk_size)
+    
+    # Write columns
+    for col in df.columns:
+        _write_series_to_zarr(df[col], store, col, chunk_size)
+
+
+def _write_series_to_zarr(series: pd.Series, group: zarr.Group, name: str, chunk_size: int):
+    # Handle nullable integers (Int64, Int32)
+    if pd.api.types.is_integer_dtype(series):
+        if series.hasnans:
+            # Fill NaNs with -1 for integer columns (common convention for IDs)
+            values = series.fillna(-1).astype(np.int64).values
+        else:
+            # Ensure numpy dtype (not pandas IntegerArray)
+            values = series.astype(np.int64).values
+        dtype = values.dtype
+    elif pd.api.types.is_float_dtype(series):
+        values = series.astype(np.float64).values
+        dtype = values.dtype
+    elif pd.api.types.is_string_dtype(series) or series.dtype == 'O':
+        values = series.astype(str).values
+        dtype = str
+    else:
+        values = series.values
+        dtype = values.dtype
+        
+    ds = group.create_dataset(
+        name,
+        data=values,
+        shape=values.shape,
+        chunks=(chunk_size,),
+        dtype=dtype,
+        overwrite=True
+    )

@@ -341,6 +341,16 @@ rule eval_merge:
         "../scripts/merge/eval_merge.py"
 
 
+if "export_merge_zarr" in MERGE_OUTPUTS_MAPPED:
+    rule export_merge_zarr:
+        input:
+            MERGE_OUTPUTS_MAPPED["final_merge"][0],
+        output:
+            MERGE_OUTPUTS_MAPPED["export_merge_zarr"],
+        script:
+            "../scripts/shared/export_zarr_table.py"
+
+
 # Rule for all merge processing steps
 rule all_merge:
     input:

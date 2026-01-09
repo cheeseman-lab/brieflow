@@ -1,4 +1,5 @@
 from lib.shared.file_utils import get_filename
+from snakemake.io import temp, directory
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 from lib.preprocess.file_utils import get_output_pattern
 
@@ -49,7 +50,28 @@ PREPROCESS_OUTPUTS = {
             "ic_field", "tiff"
         ),
     ],
+    "export_sbs_preprocess_omezarr": [
+        PREPROCESS_FP / "omezarr" / "sbs" / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
+            "image",
+            "zarr",
+        ),
+    ],
+    "export_phenotype_preprocess_omezarr": [
+        PREPROCESS_FP / "omezarr" / "phenotype" / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "image",
+            "zarr",
+        ),
+    ],
 }
+
+# Filter exports if not enabled
+omezarr_enabled = config.get("output", {}).get("omezarr", {}).get("enabled", False)
+after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
+if not (omezarr_enabled and "preprocess" in after_steps):
+    PREPROCESS_OUTPUTS.pop("export_sbs_preprocess_omezarr", None)
+    PREPROCESS_OUTPUTS.pop("export_phenotype_preprocess_omezarr", None)
 
 PREPROCESS_OUTPUT_MAPPINGS = {
     "extract_metadata_sbs": temp,
@@ -60,6 +82,8 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "convert_phenotype": None,
     "calculate_ic_sbs": None,
     "calculate_ic_phenotype": None,
+    "export_sbs_preprocess_omezarr": directory,
+    "export_phenotype_preprocess_omezarr": directory,
 }
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 

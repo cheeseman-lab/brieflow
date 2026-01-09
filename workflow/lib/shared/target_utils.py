@@ -124,7 +124,8 @@ def output_to_input(
         mask = pd.Series(True, index=metadata_combos.index)
         for key, value in wildcards.items():
             # Convert both sides to string to ensure matching types
-            mask &= metadata_combos[key].astype(str) == str(value)
+            if key in metadata_combos.columns:
+                mask &= metadata_combos[key].astype(str) == str(value)
 
         filtered_combos = metadata_combos[mask]
 

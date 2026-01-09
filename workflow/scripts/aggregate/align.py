@@ -46,7 +46,8 @@ sample_df = cell_dataset.scanner().take(random_indices)
 sample_df = sample_df.to_pandas(use_threads=True, memory_pool=None)
 
 # load sample df as pandas dataframe
-metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, True)
+use_classifier = snakemake.params.get("use_classifier", False)
+metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classifier)
 metadata, features = split_cell_data(sample_df, metadata_cols)
 metadata, features = prepare_alignment_data(
     metadata,

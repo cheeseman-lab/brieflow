@@ -11,8 +11,9 @@ cell_data = cell_data.to_table(use_threads=True, memory_pool=None).to_pandas()
 print(f"Shape of input data: {cell_data.shape}")
 
 # Split aligned data into features and metadata
+use_classifier = snakemake.params.get("use_classifier", False)
 metadata_cols = load_metadata_cols(
-    snakemake.params.metadata_cols_fp, include_classification_cols=True
+    snakemake.params.metadata_cols_fp, include_classification_cols=use_classifier
 ) + ["perturbation_score", "perturbation_auc", "batch_values"]
 metadata, tvn_normalized = split_cell_data(cell_data, metadata_cols)
 tvn_normalized = tvn_normalized.to_numpy()

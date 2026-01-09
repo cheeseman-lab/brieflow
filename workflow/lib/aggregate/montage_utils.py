@@ -129,6 +129,63 @@ def create_cell_montage(
     return montages
 
 
+def create_class_confidence_montages(
+    cell_class_dfs,
+    channels,
+    conf_col,
+    coordinate_cols,
+    montage_channel,
+    verbose=True,
+):
+    """Create montages for each class at lowest and highest confidence.
+
+    Args:
+        cell_class_dfs (dict): Mapping display_name -> DataFrame filtered for that class.
+        channels (list[str]): Channel names used by create_cell_montage.
+        conf_col (str): Column to sort by for confidence (e.g., f"{class_title}_confidence").
+        coordinate_cols (list[str]): Names of coordinate columns (e.g., ['nucleus_i','nucleus_j']).
+        montage_channel (str): Which channel to extract from the montage dict for plotting.
+        verbose (bool): If True, print skip messages when a class has no rows.
+
+    Returns:
+        (montages, titles):
+            montages (list[np.ndarray]) and titles (list[str]) aligned with montages order.
+    """
+    title_templates = {
+        True: "Lowest Confidence {cell_class} - {channel}",
+        False: "Highest Confidence {cell_class} - {channel}",
+    }
+
+    montages = []
+    titles = []
+
+    for display_name, cell_df in cell_class_dfs.items():
+        if cell_df.empty:
+            if verbose:
+                print(f"Skipping {display_name}: no rows available for montage.")
+            continue
+        for ascending in [True, False]:
+            montage_dict = create_cell_montage(
+                cell_data=cell_df,
+                channels=channels,
+                selection_params={
+                    "method": "sorted",
+                    "sort_by": conf_col,
+                    "ascending": ascending,
+                },
+                coordinate_cols=list(coordinate_cols),
+            )
+            montage = montage_dict[montage_channel]
+            montages.append(montage)
+            titles.append(
+                title_templates[ascending].format(
+                    cell_class=display_name, channel=montage_channel
+                )
+            )
+
+    return montages, titles
+
+
 def add_rect_bounds(cell_data, width=10, ij="ij", bounds_col="bounds"):
     """Add rectangular bounds to a DataFrame.
 

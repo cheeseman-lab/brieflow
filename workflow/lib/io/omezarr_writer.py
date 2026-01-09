@@ -59,14 +59,17 @@ def write_image_omezarr(
         image_data = da.from_array(image_data, chunks=chunk_size)
 
     # Coordinate transformations
-    transforms = []
-    if pixel_size_um:
-        scale = [1.0] * len(axes)
+    coordinate_transformations = []
+    num_levels = 5 # Default for Scaler()
+    
+    for i in range(num_levels):
+        level_pixel_size = pixel_size_um * (2**i) if pixel_size_um else (1.0 * (2**i))
+        scale_transform = [1.0] * len(axes)
         if "y" in axes:
-            scale[axes.find("y")] = pixel_size_um
+            scale_transform[axes.find("y")] = level_pixel_size
         if "x" in axes:
-            scale[axes.find("x")] = pixel_size_um
-        transforms = [{"scale": scale, "type": "scale"}]
+            scale_transform[axes.find("x")] = level_pixel_size
+        coordinate_transformations.append([{"scale": scale_transform, "type": "scale"}])
 
     # Metadata
     metadata = {}
@@ -83,10 +86,8 @@ def write_image_omezarr(
         image=image_data,
         group=root,
         axes=axes,
-        coordinate_transformations=[transforms] if transforms else None,
-        storage_options=storage_options,
-        scaler=Scaler(method="nearest"),  # 'nearest' is faster/safer for diverse data types
-        metadata=metadata
+        coordinate_transformations=coordinate_transformations,
+        scaler=Scaler(method="nearest"),
     )
 
 
@@ -137,21 +138,24 @@ def write_labels_omezarr(
         label_data = da.from_array(label_data, chunks=chunk_size)
 
     # Transformations
-    transforms = []
-    if pixel_size_um:
-        scale = [1.0] * len(axes)
+    coordinate_transformations = []
+    num_levels = 5 # Default for Scaler()
+    
+    for i in range(num_levels):
+        level_pixel_size = pixel_size_um * (2**i) if pixel_size_um else (1.0 * (2**i))
+        scale_transform = [1.0] * len(axes)
         if "y" in axes:
-            scale[axes.find("y")] = pixel_size_um
+            scale_transform[axes.find("y")] = level_pixel_size
         if "x" in axes:
-            scale[axes.find("x")] = pixel_size_um
-        transforms = [{"scale": scale, "type": "scale"}]
+            scale_transform[axes.find("x")] = level_pixel_size
+        coordinate_transformations.append([{"scale": scale_transform, "type": "scale"}])
 
     write_labels(
         labels=label_data,
         group=root,
         name=label_name,
         axes=axes,
-        coordinate_transformations=[transforms] if transforms else None,
+        coordinate_transformations=coordinate_transformations,
     )
 
 

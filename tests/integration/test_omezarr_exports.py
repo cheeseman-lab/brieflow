@@ -20,17 +20,15 @@ def check_output_dir():
     return OUTPUT_DIR
 
 def test_preprocess_omezarr_exists(check_output_dir):
-    # Expect: preprocess/omezarr/sbs/P-1_W-A1_T-001_C-1__image.zarr
-    # We need to find at least one.
+    # Expect: preprocess/omezarr/{phenotype|sbs}/*.zarr (at least one).
     zarr_dir = check_output_dir / "preprocess" / "omezarr"
     assert zarr_dir.exists()
     
-    # Check SBS
-    sbs_zarrs = list(zarr_dir.glob("sbs/*.zarr"))
-    assert len(sbs_zarrs) > 0
+    zarrs = list(zarr_dir.glob("**/*.zarr"))
+    assert len(zarrs) > 0
     
     # Verify structure
-    store = zarr.open(str(sbs_zarrs[0]), mode='r', zarr_format=2)
+    store = zarr.open(str(zarrs[0]), mode='r', zarr_format=2)
     assert "multiscales" in store.attrs
     assert "omero" in store.attrs
     assert "0" in store

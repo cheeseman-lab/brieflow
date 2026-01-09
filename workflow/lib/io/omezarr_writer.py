@@ -22,6 +22,9 @@ def write_image_omezarr(
     channel_names: Optional[List[str]] = None,
     axes: str = "cyx",
     pixel_size_um: Optional[Union[float, Tuple[float, ...], Dict[str, float]]] = None,
+    coarsening_factor: int = 2,
+    max_levels: int = 4,
+    is_label: bool = False,
     chunk_size: Optional[Tuple[int, ...]] = None,
     storage_options: Optional[Dict[str, Any]] = None,
 ) -> None:
@@ -37,6 +40,9 @@ def write_image_omezarr(
             - float: applied to X and Y
             - tuple: (y, x) or (z, y, x) depending on available axes
             - dict: keys from {"x","y","z"} (values can be None)
+        coarsening_factor: Factor by which to downscale the image.
+        max_levels: Maximum number of pyramid levels to generate.
+        is_label: Whether the image is a label image.
         chunk_size: Tuple for chunking (optional).
         storage_options: Options for storage backend (optional).
     """
@@ -69,9 +75,13 @@ def write_image_omezarr(
         
         image_data = da.from_array(image_data, chunks=chunk_size)
 
+    if max_levels < 1:
+        raise ValueError(f"max_levels must be >= 1, got {max_levels}")
+    if coarsening_factor < 2:
+        raise ValueError(f"coarsening_factor must be >= 2, got {coarsening_factor}")
+
     # Coordinate transformations
     coordinate_transformations = []
-    num_levels = 5 # Default for Scaler()
     
     def _parse_pixel_sizes(ps) -> Dict[str, Optional[float]]:
         if ps is None:
@@ -106,26 +116,36 @@ def write_image_omezarr(
 
     ps = _parse_pixel_sizes(pixel_size_um)
 
-    for i in range(num_levels):
+    for i in range(max_levels):
         scale_transform = [1.0] * len(axes)
         # Apply per-axis scales for spatial axes. We assume pyramids downsample spatial
-        # dimensions uniformly by 2**i.
+        # dimensions uniformly by coarsening_factor**i.
         if "z" in axes and ps.get("z") is not None:
-            scale_transform[axes.find("z")] = ps["z"] * (2**i)
+            scale_transform[axes.find("z")] = ps["z"] * (coarsening_factor**i)
         if "y" in axes and ps.get("y") is not None:
-            scale_transform[axes.find("y")] = ps["y"] * (2**i)
+            scale_transform[axes.find("y")] = ps["y"] * (coarsening_factor**i)
         if "x" in axes and ps.get("x") is not None:
-            scale_transform[axes.find("x")] = ps["x"] * (2**i)
+            scale_transform[axes.find("x")] = ps["x"] * (coarsening_factor**i)
         coordinate_transformations.append([{"scale": scale_transform, "type": "scale"}])
     # Metadata
     metadata = {}
+    omero: Dict[str, Any] = {}
     if channel_names:
-        metadata["omero"] = {
-            "channels": [
-                {"label": name, "active": True, "color": "FFFFFF"} 
-                for name in channel_names
+        if is_label:
+            omero["channels"] = [{"label": name, "active": True} for name in channel_names]
+        else:
+            omero["channels"] = [
+                {"label": name, "active": True, "color": "FFFFFF"} for name in channel_names
             ]
-        }
+    if any(v is not None for v in ps.values()):
+        # Store base pixel sizes (level 0) for convenience; NGFF scaling is encoded via
+        # coordinateTransformations in multiscales datasets.
+        omero["pixel_size"] = {k: v for k, v in ps.items() if v is not None}
+    if omero:
+        metadata["omero"] = omero
+    if is_label:
+        # Minimal marker so viewers can treat the image as label data.
+        metadata["image-label"] = {}
 
     # Write image
     write_image(
@@ -133,8 +153,14 @@ def write_image_omezarr(
         group=root,
         axes=axes,
         coordinate_transformations=coordinate_transformations,
-        scaler=Scaler(method="nearest"),
+        scaler=Scaler(method="nearest", downscale=coarsening_factor, max_layer=max_levels - 1, labeled=is_label),
+        **metadata,
     )
+
+    # ome-zarr-py does not reliably persist all extra root-level metadata passed via
+    # **metadata across all versions, so set root attrs explicitly.
+    for k, v in metadata.items():
+        root.attrs[k] = v
 
 
 def write_labels_omezarr(

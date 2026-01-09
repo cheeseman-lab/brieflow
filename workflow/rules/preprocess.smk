@@ -157,20 +157,39 @@ if "export_sbs_preprocess_omezarr" in PREPROCESS_OUTPUTS_MAPPED:
             axes="cyx",
             channel_names=config["preprocess"].get("sbs_channel_order", []),
             tile=lambda wildcards: wildcards.tile,
+            data_format=config["preprocess"].get("sbs_data_format"),
+            data_organization=config["preprocess"].get("sbs_data_organization"),
+            channel_order_flip=config["preprocess"].get("sbs_channel_order_flip", False),
+            preserve_z=config.get("output", {}).get("omezarr", {}).get("preserve_z", False),
         script:
             "../scripts/shared/export_omezarr_image.py"
 
 if "export_phenotype_preprocess_omezarr" in PREPROCESS_OUTPUTS_MAPPED:
     rule export_phenotype_preprocess_omezarr:
         input:
-            image=PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
+            image=lambda wildcards: (
+                get_sample_fps(
+                    phenotype_samples_df,
+                    plate=wildcards.plate,
+                    well=wildcards.well,
+                    tile=wildcards.tile if include_tile_in_input("phenotype", config) else None,
+                    round_order=config["preprocess"]["phenotype_round_order"],
+                    channel_order=config["preprocess"]["phenotype_channel_order"],
+                )
+                if config.get("output", {}).get("omezarr", {}).get("preserve_z", False)
+                else PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"]
+            ),
             metadata=lambda wildcards: str(PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"][0]).format(plate=wildcards.plate, well=wildcards.well),
         output:
             PREPROCESS_OUTPUTS_MAPPED["export_phenotype_preprocess_omezarr"],
         params:
-            axes="cyx",
+            axes="czyx" if config.get("output", {}).get("omezarr", {}).get("preserve_z", False) else "cyx",
             channel_names=config["preprocess"].get("phenotype_channel_order", []),
             tile=lambda wildcards: wildcards.tile,
+            data_format=config["preprocess"].get("phenotype_data_format"),
+            data_organization=config["preprocess"].get("phenotype_data_organization"),
+            channel_order_flip=config["preprocess"].get("phenotype_channel_order_flip", False),
+            preserve_z=config.get("output", {}).get("omezarr", {}).get("preserve_z", False),
         script:
             "../scripts/shared/export_omezarr_image.py"
 

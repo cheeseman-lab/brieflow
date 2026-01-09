@@ -21,7 +21,7 @@ def write_image_omezarr(
     out_path: str,
     channel_names: Optional[List[str]] = None,
     axes: str = "cyx",
-    pixel_size_um: Optional[float] = None,
+    pixel_size_um: Optional[Union[float, Tuple[float, ...], Dict[str, float]]] = None,
     chunk_size: Optional[Tuple[int, ...]] = None,
     storage_options: Optional[Dict[str, Any]] = None,
 ) -> None:
@@ -33,7 +33,10 @@ def write_image_omezarr(
         out_path: Path to the output .zarr directory.
         channel_names: List of channel names. Length must match channel dimension.
         axes: String describing axes, e.g., "cyx", "tcyx".
-        pixel_size_um: Pixel size in microns (applied to X and Y).
+        pixel_size_um: Pixel size in microns.
+            - float: applied to X and Y
+            - tuple: (y, x) or (z, y, x) depending on available axes
+            - dict: keys from {"x","y","z"} (values can be None)
         chunk_size: Tuple for chunking (optional).
         storage_options: Options for storage backend (optional).
     """
@@ -62,15 +65,50 @@ def write_image_omezarr(
     coordinate_transformations = []
     num_levels = 5 # Default for Scaler()
     
-    for i in range(num_levels):
-        level_pixel_size = pixel_size_um * (2**i) if pixel_size_um else (1.0 * (2**i))
-        scale_transform = [1.0] * len(axes)
-        if "y" in axes:
-            scale_transform[axes.find("y")] = level_pixel_size
-        if "x" in axes:
-            scale_transform[axes.find("x")] = level_pixel_size
-        coordinate_transformations.append([{"scale": scale_transform, "type": "scale"}])
+    def _parse_pixel_sizes(ps) -> Dict[str, Optional[float]]:
+        if ps is None:
+            return {"x": None, "y": None, "z": None}
+        if isinstance(ps, (int, float)):
+            v = float(ps)
+            return {"x": v, "y": v, "z": None}
+        if isinstance(ps, dict):
+            return {
+                "x": float(ps["x"]) if ps.get("x") is not None else None,
+                "y": float(ps["y"]) if ps.get("y") is not None else None,
+                "z": float(ps["z"]) if ps.get("z") is not None else None,
+            }
+        if isinstance(ps, tuple):
+            if len(ps) == 2:
+                y, x = ps
+                return {
+                    "x": float(x) if x is not None else None,
+                    "y": float(y) if y is not None else None,
+                    "z": None,
+                }
+            if len(ps) == 3:
+                z, y, x = ps
+                return {
+                    "x": float(x) if x is not None else None,
+                    "y": float(y) if y is not None else None,
+                    "z": float(z) if z is not None else None,
+                }
+        raise ValueError(
+            f"Unsupported pixel_size_um type: {type(ps)}. Expected float, tuple, or dict."
+        )
 
+    ps = _parse_pixel_sizes(pixel_size_um)
+
+    for i in range(num_levels):
+        scale_transform = [1.0] * len(axes)
+        # Apply per-axis scales for spatial axes. We assume pyramids downsample spatial
+        # dimensions uniformly by 2**i.
+        if "z" in axes and ps.get("z") is not None:
+            scale_transform[axes.find("z")] = ps["z"] * (2**i)
+        if "y" in axes and ps.get("y") is not None:
+            scale_transform[axes.find("y")] = ps["y"] * (2**i)
+        if "x" in axes and ps.get("x") is not None:
+            scale_transform[axes.find("x")] = ps["x"] * (2**i)
+        coordinate_transformations.append([{"scale": scale_transform, "type": "scale"}])
     # Metadata
     metadata = {}
     if channel_names:
@@ -96,7 +134,7 @@ def write_labels_omezarr(
     out_path: str,
     label_name: str,
     axes: str = "yx",
-    pixel_size_um: Optional[float] = None,
+    pixel_size_um: Optional[Union[float, Tuple[float, ...], Dict[str, float]]] = None,
     chunk_size: Optional[Tuple[int, ...]] = None,
 ) -> None:
     """
@@ -139,15 +177,50 @@ def write_labels_omezarr(
 
     # Transformations
     coordinate_transformations = []
+    # TODO: add num_levels under ome-zarr config optional params
     num_levels = 5 # Default for Scaler()
     
+    def _parse_pixel_sizes(ps) -> Dict[str, Optional[float]]:
+        if ps is None:
+            return {"x": None, "y": None, "z": None}
+        if isinstance(ps, (int, float)):
+            v = float(ps)
+            return {"x": v, "y": v, "z": None}
+        if isinstance(ps, dict):
+            return {
+                "x": float(ps["x"]) if ps.get("x") is not None else None,
+                "y": float(ps["y"]) if ps.get("y") is not None else None,
+                "z": float(ps["z"]) if ps.get("z") is not None else None,
+            }
+        if isinstance(ps, tuple):
+            if len(ps) == 2:
+                y, x = ps
+                return {
+                    "x": float(x) if x is not None else None,
+                    "y": float(y) if y is not None else None,
+                    "z": None,
+                }
+            if len(ps) == 3:
+                z, y, x = ps
+                return {
+                    "x": float(x) if x is not None else None,
+                    "y": float(y) if y is not None else None,
+                    "z": float(z) if z is not None else None,
+                }
+        raise ValueError(
+            f"Unsupported pixel_size_um type: {type(ps)}. Expected float, tuple, or dict."
+        )
+
+    ps = _parse_pixel_sizes(pixel_size_um)
+
     for i in range(num_levels):
-        level_pixel_size = pixel_size_um * (2**i) if pixel_size_um else (1.0 * (2**i))
         scale_transform = [1.0] * len(axes)
-        if "y" in axes:
-            scale_transform[axes.find("y")] = level_pixel_size
-        if "x" in axes:
-            scale_transform[axes.find("x")] = level_pixel_size
+        if "z" in axes and ps.get("z") is not None:
+            scale_transform[axes.find("z")] = ps["z"] * (2**i)
+        if "y" in axes and ps.get("y") is not None:
+            scale_transform[axes.find("y")] = ps["y"] * (2**i)
+        if "x" in axes and ps.get("x") is not None:
+            scale_transform[axes.find("x")] = ps["x"] * (2**i)
         coordinate_transformations.append([{"scale": scale_transform, "type": "scale"}])
 
     write_labels(

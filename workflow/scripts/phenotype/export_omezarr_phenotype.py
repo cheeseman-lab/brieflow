@@ -17,11 +17,19 @@ if hasattr(snakemake.input, "metadata") and hasattr(snakemake.params, "tile"):
         tile_meta = meta_df[meta_df["tile"] == tile_id]
         
         if not tile_meta.empty:
-            # Get pixel_size_x (assuming square pixels usually)
-            if "pixel_size_x" in tile_meta.columns:
-                px = tile_meta["pixel_size_x"].iloc[0]
-                if pd.notna(px) and px > 0:
-                    pixel_size_um = float(px)
+            px = tile_meta["pixel_size_x"].iloc[0] if "pixel_size_x" in tile_meta.columns else None
+            py = tile_meta["pixel_size_y"].iloc[0] if "pixel_size_y" in tile_meta.columns else None
+            pz = tile_meta["pixel_size_z"].iloc[0] if "pixel_size_z" in tile_meta.columns else None
+
+            def _valid(v):
+                return v is not None and pd.notna(v) and float(v) > 0
+
+            px_u = float(px) if _valid(px) else None
+            py_u = float(py) if _valid(py) else (px_u if px_u is not None else None)
+            pz_u = float(pz) if _valid(pz) else None
+
+            if px_u is not None or py_u is not None or pz_u is not None:
+                pixel_size_um = {"x": px_u, "y": py_u, "z": pz_u}
     except Exception as e:
         print(f"Warning: Failed to extract pixel size from metadata: {e}")
 

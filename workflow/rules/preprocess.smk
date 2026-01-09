@@ -145,6 +145,36 @@ rule calculate_ic_phenotype:
         "../scripts/preprocess/calculate_ic_field.py"
 
 
+# OME-Zarr export rules
+if "export_sbs_preprocess_omezarr" in PREPROCESS_OUTPUTS_MAPPED:
+    rule export_sbs_preprocess_omezarr:
+        input:
+            image=PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
+            metadata=lambda wildcards: str(PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"][0]).format(plate=wildcards.plate, well=wildcards.well),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["export_sbs_preprocess_omezarr"],
+        params:
+            axes="cyx",
+            channel_names=config["preprocess"].get("sbs_channel_order", []),
+            tile=lambda wildcards: wildcards.tile,
+        script:
+            "../scripts/shared/export_omezarr_image.py"
+
+if "export_phenotype_preprocess_omezarr" in PREPROCESS_OUTPUTS_MAPPED:
+    rule export_phenotype_preprocess_omezarr:
+        input:
+            image=PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
+            metadata=lambda wildcards: str(PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"][0]).format(plate=wildcards.plate, well=wildcards.well),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["export_phenotype_preprocess_omezarr"],
+        params:
+            axes="cyx",
+            channel_names=config["preprocess"].get("phenotype_channel_order", []),
+            tile=lambda wildcards: wildcards.tile,
+        script:
+            "../scripts/shared/export_omezarr_image.py"
+
+
 # rule for all preprocessing steps
 rule all_preprocess:
     input:

@@ -49,7 +49,7 @@ MERGE_OUTPUTS = {
         ),  # [0] - sbs_cell_positions (always)
         MERGE_FP / "eval" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_tile_qc", "png"
-        ),  # [1] - sbs_qc_plot (always)
+        ),  # [1] - sbs_tile_qc (always)
         MERGE_FP / "images" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_image", "npy"
         ),  # [2] - sbs_stitched_image (conditional - may be empty file)
@@ -152,6 +152,11 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}"}, "phenotype_matching_summaries", "tsv"
         ),  # [4] - phenotype_matching_summaries
     ],
+    "export_merge_zarr": [
+        MERGE_FP / "zarr" / get_filename(
+            {"plate": "{plate}", "well": "{well}"}, "merge_table", "zarr"
+        ),
+    ],
 }
 
 
@@ -161,6 +166,15 @@ def get_merge_targets_by_approach():
     
     # Core targets that are always needed
     core_targets = ["format_merge", "deduplicate_merge", "final_merge", "eval_merge"]
+    
+    # Filter exports if not enabled
+    omezarr_enabled = config.get("output", {}).get("omezarr", {}).get("enabled", False)
+    after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
+    if omezarr_enabled and "merge" in after_steps:
+        core_targets.append("export_merge_zarr")
+    else:
+        if "export_merge_zarr" in MERGE_OUTPUTS:
+            del MERGE_OUTPUTS["export_merge_zarr"]
     
     if approach == "stitch":
         approach_targets = [
@@ -195,6 +209,7 @@ MERGE_OUTPUT_MAPPINGS = {
     "final_merge": None,
     "eval_merge": None,
     "summarize_merge": None,
+    "export_merge_zarr": directory,
 }
 
 MERGE_OUTPUTS_MAPPED = map_outputs(MERGE_OUTPUTS, MERGE_OUTPUT_MAPPINGS)
@@ -212,4 +227,3 @@ for target in MERGE_TARGETS_SELECTED:
                 {target: MERGE_OUTPUT_MAPPINGS[target]}
             )
         )
-        

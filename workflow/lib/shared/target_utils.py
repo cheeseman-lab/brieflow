@@ -107,14 +107,14 @@ def output_to_input(
     Returns:
         list: A list of expanded and/or filtered file paths as strings.
     """
-    # Get a single string output from a list
+    # Normalize "output" to a single template (str/Path). Many call sites pass a single
+    # Path template (not a list), so we handle both.
     if isinstance(output, list):
-        if len(output) == 1:
-            output = output[0]
-        else:
+        if len(output) != 1:
             raise ValueError(
-                "Expected a single string for 'output', but received a list with multiple items."
+                "Expected a single template for 'output', but received a list with multiple items."
             )
+        output = output[0]
 
     if metadata_combos is None:
         # Directly expand paths when metadata_combos is not provided
@@ -130,16 +130,29 @@ def output_to_input(
         filtered_combos = metadata_combos[mask]
 
         # Extract relevant expansion values
-        expansion_dicts = filtered_combos[expansion_values].to_dict(orient="records")
+        selected_cols_df = filtered_combos[expansion_values]
 
-        # Expand paths using Snakemake's expand function
-        expanded_paths = [
-            expand(str(output), **wildcards, **subset_values, **combo)
-            for combo in expansion_dicts
-        ]
+        if len(expansion_values) == 1:
+            expansion_dicts = [
+                {expansion_values[0]: value} for value in selected_cols_df.iloc[:, 0]
+            ]
+        else:
+            expansion_dicts = selected_cols_df.to_dict(orient="records")
 
-        # Flatten nested lists of paths
-        expanded_paths = [path for sublist in expanded_paths for path in sublist]
+        expanded_paths = []
+        for combo in expansion_dicts:
+            all_wildcards_for_expand = {}
+            all_wildcards_for_expand.update(wildcards)  # fixed wildcards
+            all_wildcards_for_expand.update(subset_values)  # subset wildcards
+            all_wildcards_for_expand.update(combo)  # expansion wildcards
+
+            expanded_paths.extend(expand(str(output), **all_wildcards_for_expand))
+
+        # Flatten nested lists of paths (if expand returns list of lists)
+        if any(isinstance(i, list) for i in expanded_paths):
+            expanded_paths = [
+                path for sublist in expanded_paths for path in sublist
+            ]
 
         # Remove duplicates while preserving order
         expanded_paths = list(dict.fromkeys(expanded_paths))

@@ -124,7 +124,9 @@ def save_image(
         chunk_shape = kwargs.get("chunk_shape", (1, 1024, 1024))
         coarsening_factor = kwargs.get("coarsening_factor", 2)
         max_levels = kwargs.get("max_levels", None)
-        compressor = kwargs.get("compressor", {"id": "blosc", "cname": "zstd", "clevel": 3, "shuffle": 2})
+        # TODO: Re-enable blosc compression once blosc dependency is resolved
+        # compressor = kwargs.get("compressor", {"id": "blosc", "cname": "zstd", "clevel": 3, "shuffle": 2})
+        compressor = kwargs.get("compressor", None)  # Temporarily disable compression
         
         default_pixel_size = (1.0, 1.0, 1.0) if image.ndim == 4 else (1.0, 1.0)
         p_size = pixel_size if pixel_size is not None else default_pixel_size

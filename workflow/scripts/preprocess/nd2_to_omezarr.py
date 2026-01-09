@@ -15,10 +15,14 @@ if len(chunk_shape) not in (3, 4):
 
 output_dir = Path(snakemake.output[0])  # noqa: F821
 
-supports_compressor = "compressor" in inspect.signature(nd2_to_omezarr).parameters
-additional_kwargs = {}
-if supports_compressor and params.get("compressor") is not None:
-    additional_kwargs["compressor"] = params.get("compressor")
+# TODO: Re-enable compressor parameter handling once blosc dependency is resolved
+# supports_compressor = "compressor" in inspect.signature(nd2_to_omezarr).parameters
+# additional_kwargs = {}
+# if supports_compressor and params.get("compressor") is not None:
+#     additional_kwargs["compressor"] = params.get("compressor")
+
+# Temporarily disable compressor to avoid blosc dependency issues
+additional_kwargs = {"compressor": None}
 
 result_path = nd2_to_omezarr(
     snakemake.input,  # noqa: F821

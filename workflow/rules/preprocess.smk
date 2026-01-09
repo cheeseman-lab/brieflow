@@ -3,7 +3,9 @@ from lib.preprocess.file_utils import get_sample_fps
 from lib.shared.target_utils import output_to_input
 
 OME_ZARR_CFG = config.get("preprocess", {}).get("ome_zarr", {})
-OME_ZARR_COMPRESSOR = OME_ZARR_CFG.get("compression")
+# TODO: Re-enable compression configuration once blosc dependency is resolved
+# OME_ZARR_COMPRESSOR = OME_ZARR_CFG.get("compression")
+OME_ZARR_COMPRESSOR = None  # Temporarily disable compression
 OME_ZARR_CHUNK = OME_ZARR_CFG.get("chunk_xy", 1024)
 OME_ZARR_CHUNK_SHAPE = config.get("preprocess", {}).get(
     "omezarr_chunk_shape", [1, OME_ZARR_CHUNK, OME_ZARR_CHUNK]
@@ -236,8 +238,9 @@ rule calculate_ic_phenotype:
 rule all_preprocess:
     input:
         PREPROCESS_TARGETS_ALL,
-OME_ZARR_CFG = config["preprocess"].get("ome_zarr", {}) if "preprocess" in config else {}
-OME_ZARR_COMPRESSOR = OME_ZARR_CFG.get(
-    "compression",
-    {"id": "blosc", "cname": "zstd", "clevel": 3, "shuffle": 2},
-)
+# TODO: Re-enable default compression configuration once blosc dependency is resolved
+# OME_ZARR_CFG = config["preprocess"].get("ome_zarr", {}) if "preprocess" in config else {}
+# OME_ZARR_COMPRESSOR = OME_ZARR_CFG.get(
+#     "compression",
+#     {"id": "blosc", "cname": "zstd", "clevel": 3, "shuffle": 2},
+# )

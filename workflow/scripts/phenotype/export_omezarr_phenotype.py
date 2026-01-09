@@ -1,6 +1,6 @@
 import pandas as pd
 from tifffile import imread
-from lib.io.omezarr_writer import write_image_omezarr, write_labels_omezarr
+from lib.shared.omezarr_writer import write_image_omezarr, write_labels_omezarr
 
 # Read input image (aligned phenotype)
 image_data = imread(snakemake.input.image)

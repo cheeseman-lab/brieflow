@@ -151,6 +151,7 @@ if "export_sbs_preprocess_omezarr" in PREPROCESS_OUTPUTS_MAPPED:
         input:
             image=PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
             metadata=lambda wildcards: str(PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"][0]).format(plate=wildcards.plate, well=wildcards.well),
+            omezarr_writer=str(Path(workflow.basedir) / "lib" / "shared" / "omezarr_writer.py"),
         output:
             PREPROCESS_OUTPUTS_MAPPED["export_sbs_preprocess_omezarr"],
         params:
@@ -180,6 +181,7 @@ if "export_phenotype_preprocess_omezarr" in PREPROCESS_OUTPUTS_MAPPED:
                 else PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"]
             ),
             metadata=lambda wildcards: str(PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"][0]).format(plate=wildcards.plate, well=wildcards.well),
+            omezarr_writer=str(Path(workflow.basedir) / "lib" / "shared" / "omezarr_writer.py"),
         output:
             PREPROCESS_OUTPUTS_MAPPED["export_phenotype_preprocess_omezarr"],
         params:

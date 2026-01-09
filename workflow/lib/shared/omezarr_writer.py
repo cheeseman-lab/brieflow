@@ -49,7 +49,7 @@ def write_image_omezarr(
     os.makedirs(out_path, exist_ok=True)
     # Enforce Zarr v2 for OME-NGFF v0.4 compliance
     # zarr.open_group handles store creation and avoids v3 zarr.json default
-    root = zarr.open_group(out_path, mode='w', zarr_format=2)
+    root = zarr.open_group(out_path, mode="w", zarr_format=2)
 
     # Ensure dask array for efficient scaling
     if not isinstance(image_data, da.Array):
@@ -72,7 +72,7 @@ def write_image_omezarr(
                 chunks[y_idx] = min(shape[y_idx], 1024)
                 chunks[x_idx] = min(shape[x_idx], 1024)
             chunk_size = tuple(chunks)
-        
+
         image_data = da.from_array(image_data, chunks=chunk_size)
 
     if max_levels < 1:
@@ -82,7 +82,7 @@ def write_image_omezarr(
 
     # Coordinate transformations
     coordinate_transformations = []
-    
+
     def _parse_pixel_sizes(ps) -> Dict[str, Optional[float]]:
         if ps is None:
             return {"x": None, "y": None, "z": None}
@@ -118,10 +118,10 @@ def write_image_omezarr(
 
     for i in range(max_levels):
         scale_transform = [1.0] * len(axes)
-        # Apply per-axis scales for spatial axes. We assume pyramids downsample spatial
-        # dimensions uniformly by coarsening_factor**i.
+        # Apply per-axis scales for spatial axes.
+        # ome-zarr-py downscales in X/Y only (not Z), so Z scale stays constant.
         if "z" in axes and ps.get("z") is not None:
-            scale_transform[axes.find("z")] = ps["z"] * (coarsening_factor**i)
+            scale_transform[axes.find("z")] = ps["z"]
         if "y" in axes and ps.get("y") is not None:
             scale_transform[axes.find("y")] = ps["y"] * (coarsening_factor**i)
         if "x" in axes and ps.get("x") is not None:
@@ -153,7 +153,12 @@ def write_image_omezarr(
         group=root,
         axes=axes,
         coordinate_transformations=coordinate_transformations,
-        scaler=Scaler(method="nearest", downscale=coarsening_factor, max_layer=max_levels - 1, labeled=is_label),
+        scaler=Scaler(
+            method="nearest",
+            downscale=coarsening_factor,
+            max_layer=max_levels - 1,
+            labeled=is_label,
+        ),
         **metadata,
     )
 
@@ -173,7 +178,7 @@ def write_labels_omezarr(
 ) -> None:
     """
     Write a label mask to OME-Zarr format as a child of an existing image or standalone.
-    
+
     If out_path points to an existing .zarr image, labels are added under /labels.
     """
     # Check if out_path is an existing group
@@ -189,16 +194,16 @@ def write_labels_omezarr(
     # Ensure data type is compatible with OME-Zarr labels (unsigned int)
     if isinstance(label_data, np.ndarray):
         if label_data.dtype == np.int64 or label_data.dtype == np.int32:
-             # Check if values fit in uint32
-             if label_data.max() < 2**32:
-                 label_data = label_data.astype(np.uint32)
+            # Check if values fit in uint32
+            if label_data.max() < 2**32:
+                label_data = label_data.astype(np.uint32)
     elif isinstance(label_data, da.Array):
-         if label_data.dtype == np.int64 or label_data.dtype == np.int32:
-             label_data = label_data.astype(np.uint32)
+        if label_data.dtype == np.int64 or label_data.dtype == np.int32:
+            label_data = label_data.astype(np.uint32)
 
     if not isinstance(label_data, da.Array):
         if chunk_size is None:
-             # Default chunking for labels
+            # Default chunking for labels
             shape = label_data.shape
             chunks = list(shape)
             if "y" in axes and "x" in axes:
@@ -212,8 +217,8 @@ def write_labels_omezarr(
     # Transformations
     coordinate_transformations = []
     # TODO: add num_levels under ome-zarr config optional params
-    num_levels = 5 # Default for Scaler()
-    
+    num_levels = 5  # Default for Scaler()
+
     def _parse_pixel_sizes(ps) -> Dict[str, Optional[float]]:
         if ps is None:
             return {"x": None, "y": None, "z": None}
@@ -249,8 +254,9 @@ def write_labels_omezarr(
 
     for i in range(num_levels):
         scale_transform = [1.0] * len(axes)
+        # Labels follow the same downsampling behavior: X/Y only, Z constant.
         if "z" in axes and ps.get("z") is not None:
-            scale_transform[axes.find("z")] = ps["z"] * (2**i)
+            scale_transform[axes.find("z")] = ps["z"]
         if "y" in axes and ps.get("y") is not None:
             scale_transform[axes.find("y")] = ps["y"] * (2**i)
         if "x" in axes and ps.get("x") is not None:
@@ -269,7 +275,7 @@ def write_labels_omezarr(
 def write_table_zarr(
     df: pd.DataFrame,
     out_path: str,
-    chunk_size: int = 10000
+    chunk_size: int = 10000,
 ) -> None:
     """
     Write a pandas DataFrame to Zarr (columnar format).
@@ -277,23 +283,25 @@ def write_table_zarr(
     """
     os.makedirs(out_path, exist_ok=True)
     # Enforce Zarr v2
-    store = zarr.open(out_path, mode='w', zarr_format=2)
-    
+    store = zarr.open(out_path, mode="w", zarr_format=2)
+
     # Write metadata
-    store.attrs['columns'] = list(df.columns)
-    store.attrs['index_name'] = df.index.name
-    store.attrs['num_rows'] = len(df)
-    
+    store.attrs["columns"] = list(df.columns)
+    store.attrs["index_name"] = df.index.name
+    store.attrs["num_rows"] = len(df)
+
     # Write index
     if df.index.name:
         _write_series_to_zarr(df.index.to_series(), store, df.index.name, chunk_size)
-    
+
     # Write columns
     for col in df.columns:
         _write_series_to_zarr(df[col], store, col, chunk_size)
 
 
-def _write_series_to_zarr(series: pd.Series, group: zarr.Group, name: str, chunk_size: int):
+def _write_series_to_zarr(
+    series: pd.Series, group: zarr.Group, name: str, chunk_size: int
+):
     # Handle nullable integers (Int64, Int32)
     if pd.api.types.is_integer_dtype(series):
         if series.hasnans:
@@ -306,18 +314,20 @@ def _write_series_to_zarr(series: pd.Series, group: zarr.Group, name: str, chunk
     elif pd.api.types.is_float_dtype(series):
         values = series.astype(np.float64).values
         dtype = values.dtype
-    elif pd.api.types.is_string_dtype(series) or series.dtype == 'O':
+    elif pd.api.types.is_string_dtype(series) or series.dtype == "O":
         values = series.astype(str).values
         dtype = str
     else:
         values = series.values
         dtype = values.dtype
-        
-    ds = group.create_dataset(
+
+    group.create_dataset(
         name,
         data=values,
         shape=values.shape,
         chunks=(chunk_size,),
         dtype=dtype,
-        overwrite=True
+        overwrite=True,
     )
+
+

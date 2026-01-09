@@ -175,6 +175,7 @@ if "export_phenotype_omezarr" in PHENOTYPE_OUTPUTS_MAPPED:
                 expansion_values=["well"],
                 metadata_combos=phenotype_wildcard_combos,
             ),
+            omezarr_writer=str(Path(workflow.basedir) / "lib" / "shared" / "omezarr_writer.py"),
         output:
             PHENOTYPE_OUTPUTS_MAPPED["export_phenotype_omezarr"],
         params:

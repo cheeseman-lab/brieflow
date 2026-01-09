@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from tifffile import imread
-from lib.io.omezarr_writer import write_image_omezarr
+from lib.shared.omezarr_writer import write_image_omezarr
 from lib.preprocess.preprocess import convert_to_array
 
 # TODO Add option to export zarr OR tiffs for downstream processing

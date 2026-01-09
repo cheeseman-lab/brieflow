@@ -13,7 +13,7 @@ import numpy as np
 from tifffile import imread as tiff_imread
 from tifffile import imwrite as tiff_imwrite
 
-from workflow.lib.io.omezarr_writer import write_image_omezarr
+from .omezarr_writer import write_image_omezarr
 
 
 PathLike = Union[str, Path]

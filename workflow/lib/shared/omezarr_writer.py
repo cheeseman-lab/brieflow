@@ -191,15 +191,46 @@ def write_labels_omezarr(
     # Enforce Zarr v2
     root = zarr.open_group(out_path, mode=mode, zarr_format=2)
 
-    # Ensure data type is compatible with OME-Zarr labels (unsigned int)
-    if isinstance(label_data, np.ndarray):
-        if label_data.dtype == np.int64 or label_data.dtype == np.int32:
-            # Check if values fit in uint32
-            if label_data.max() < 2**32:
-                label_data = label_data.astype(np.uint32)
-    elif isinstance(label_data, da.Array):
-        if label_data.dtype == np.int64 or label_data.dtype == np.int32:
-            label_data = label_data.astype(np.uint32)
+    # Ensure label dtype is a reasonable integer type for viewer compatibility.
+    #
+    # Note: Although unsigned integer labels are valid, some napari/vispy stacks
+    # are more robust with *signed* int32 label textures. Prefer int32 when safe.
+    def _coerce_labels_to_int32_if_safe(arr):
+        if not np.issubdtype(arr.dtype, np.integer):
+            raise ValueError(
+                f"Label data for '{label_name}' must be integer type, got dtype={arr.dtype}"
+            )
+
+        # Fast path: already int32
+        if arr.dtype == np.int32:
+            return arr
+
+        # Numpy arrays: check range if we want to downcast safely
+        if isinstance(arr, np.ndarray):
+            # Empty labels are fine; just cast to int32
+            if arr.size == 0:
+                return arr.astype(np.int32)
+            vmax = int(arr.max())
+            vmin = int(arr.min())
+            if vmin >= np.iinfo(np.int32).min and vmax <= np.iinfo(np.int32).max:
+                return arr.astype(np.int32)
+            # Fall back to int64 (still integer, but larger); keeps correctness.
+            return arr.astype(np.int64)
+
+        # Dask arrays: we may not want to compute min/max; just cast based on dtype size.
+        if isinstance(arr, da.Array):
+            if arr.dtype == np.int64:
+                # Keep int64 to avoid accidental overflow without computing bounds.
+                return arr
+            if arr.dtype == np.uint32:
+                # Keep uint32 to avoid overflow without computing bounds.
+                return arr
+            # Most other integer types are safe to cast to int32 (e.g. uint16, int16)
+            return arr.astype(np.int32)
+
+        return arr
+
+    label_data = _coerce_labels_to_int32_if_safe(label_data)
 
     if not isinstance(label_data, da.Array):
         if chunk_size is None:

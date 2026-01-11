@@ -529,14 +529,26 @@ def prioritize(well_locations_0, well_locations_1, matches):
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
         # allow testing with subset of tiles
-        if a.shape[0] == a.shape[1]:
+        # If we have very few samples, use min_samples=1 or skip RANSAC entirely
+        n_samples = a.shape[0]
+        if n_samples == 1:
+            # With only 1 sample, we can't fit RANSAC - just use the identity mapping
+            # This is a fallback for very small test datasets
+            model = None
+        elif n_samples < 3 or a.shape[0] == a.shape[1]:
             model = RANSACRegressor(min_samples=1)
         else:
             model = RANSACRegressor()
-        model.fit(a, b)  # Fit the RANSAC model to the matching coordinates
+        
+        if model is not None:
+            model.fit(a, b)  # Fit the RANSAC model to the matching coordinates
 
     # Predict coordinates for the first set and calculate distances to the second set
-    predicted = model.predict(well_locations_0.values)
+    if model is not None:
+        predicted = model.predict(well_locations_0.values)
+    else:
+        # No model fitted (only 1 sample), use original coordinates
+        predicted = well_locations_0.values
     distances = cdist(predicted, well_locations_1.values, metric="sqeuclidean")
     ix = np.argsort(distances.flatten())  # Sort distances to find the closest matches
     ix_0, ix_1 = np.unravel_index(

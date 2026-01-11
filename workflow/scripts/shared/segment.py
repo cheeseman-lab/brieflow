@@ -5,6 +5,15 @@ import pandas as pd
 # Load illumination corrected data
 aligned_data = read_image(snakemake.input[0])
 
+# Handle Z-dimension: if data is CZYX (4D), reduce to CYX (3D) for segmentation
+# Segmentation expects 3D data (CYX)
+if aligned_data.ndim == 4:
+    print(f"Reducing Z-dimension for segmentation: {aligned_data.shape} -> ", end="")
+    # Take mean projection along Z axis (axis=1 for CZYX) to avoid amplifying noise
+    # Mean projection is better than max for noisy/empty images
+    aligned_data = np.mean(aligned_data, axis=1).astype(aligned_data.dtype)
+    print(f"{aligned_data.shape}")
+
 # Get configuration from params
 params = snakemake.params.config
 

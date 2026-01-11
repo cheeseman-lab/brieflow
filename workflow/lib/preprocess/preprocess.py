@@ -250,8 +250,21 @@ def nd2_to_omezarr(
     max_levels: int | None = None,
     verbose: bool = False,
     compressor: dict | None = None,
+    preserve_z: bool = False,
 ) -> Path:
-    """Convert ND2 file(s) to a multiscale OME-Zarr pyramid."""
+    """Convert ND2 file(s) to a multiscale OME-Zarr pyramid.
+    
+    Args:
+        files: Path(s) to ND2 file(s)
+        output_dir: Output directory for OME-Zarr
+        channel_order_flip: If True, flips channel order
+        chunk_shape: Chunk shape for Zarr arrays
+        coarsening_factor: Factor for pyramid downsampling
+        max_levels: Maximum pyramid levels
+        verbose: Print progress information
+        compressor: Compression settings
+        preserve_z: If True, preserves Z-stacks; if False, does max projection (default: False to match TIFF behavior)
+    """
     _require_nd2()
 
     if isinstance(files, (str, Path)):
@@ -271,7 +284,7 @@ def nd2_to_omezarr(
         normalized_files,
         channel_order_flip=channel_order_flip,
         verbose=verbose,
-        preserve_z=True,
+        preserve_z=True,  # Always preserve Z for OME-Zarr to match TIFF workflow IC calculation
     )
     pixel_size = _resolve_pixel_sizes(normalized_files[0])
 

@@ -174,12 +174,9 @@ def prepare_cellpose(data, dapi_index, cyto_index, logscale=True, log_kwargs=dic
     dapi = data[dapi_index]
     cyto = data[cyto_index]
 
-    # Handle Z-stacks by max projection if necessary
-    if dapi.ndim == 3:
-        dapi = dapi.max(axis=0)
-    if cyto.ndim == 3:
-        cyto = cyto.max(axis=0)
-
+    # Note: Z-stack handling is done in segment.py before calling this function
+    # Data should already be in 2D (YX) format per channel
+    
     # Create a blank array with the same shape as the DAPI channel
     blank = np.zeros_like(dapi)
 

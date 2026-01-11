@@ -69,7 +69,8 @@ def test_script_parses_params_and_invokes_monkeypatched_functions(monkeypatch, t
     assert args["coarsening_factor"] == 2
     assert args["max_levels"] == 3
     assert args["verbose"] is True
-    assert args["compressor"]["id"] == "blosc"
+    # Compressor is currently disabled (set to None) to avoid blosc dependency issues
+    assert args["compressor"] is None
     assert captured["channel_labels"] == ["DAPI", "GFP"]
 
 

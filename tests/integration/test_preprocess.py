@@ -9,6 +9,7 @@ import pandas as pd
 from tifffile import imread
 
 from lib.shared.file_utils import get_filename
+from lib.shared.io import read_image
 
 TEST_ANALYSIS_PATH = Path(__file__).resolve().parents[1] / "small_test_analysis"
 TEST_PLATE = 1
@@ -99,7 +100,10 @@ def test_convert_phenotype():
 
 
 def test_calculate_ic_sbs():
-    sbs_ic_field_path = str(
+    # Get the configured downstream input format (tiff or zarr)
+    downstream_format = config["preprocess"].get("downstream_input_format", "tiff")
+    
+    sbs_ic_field_path = (
         PREPROCESS_FP
         / "ic_fields"
         / "sbs"
@@ -110,15 +114,20 @@ def test_calculate_ic_sbs():
                 "cycle": TEST_CYCLE,
             },
             "ic_field",
-            "tiff",
-        ),
+            downstream_format,
+        )
     )
-    sbs_ic_field = imread(sbs_ic_field_path)
+    
+    # Use read_image which handles both tiff and zarr
+    sbs_ic_field = read_image(sbs_ic_field_path)
     assert sbs_ic_field.shape == (5, 1200, 1200)
 
 
 def test_calculate_ic_phenotype():
-    phenotype_ic_field_path = str(
+    # Get the configured downstream input format (tiff or zarr)
+    downstream_format = config["preprocess"].get("downstream_input_format", "tiff")
+    
+    phenotype_ic_field_path = (
         PREPROCESS_FP
         / "ic_fields"
         / "phenotype"
@@ -128,8 +137,15 @@ def test_calculate_ic_phenotype():
                 "well": TEST_WELL,
             },
             "ic_field",
-            "tiff",
-        ),
+            downstream_format,
+        )
     )
-    phenotype_ic_field = imread(phenotype_ic_field_path)
-    assert phenotype_ic_field.shape == (4, 2400, 2400)
+    
+    # Use read_image which handles both tiff and zarr
+    phenotype_ic_field = read_image(phenotype_ic_field_path)
+    
+    # Phenotype images can be CYX or CZYX depending on whether they have Z-stacks
+    # The shape should be (4 channels, ..., 2400, 2400)
+    assert phenotype_ic_field.shape[0] == 4  # 4 channels
+    assert phenotype_ic_field.shape[-2:] == (2400, 2400)  # Y, X dimensions
+    assert phenotype_ic_field.ndim in (3, 4)  # CYX or CZYX

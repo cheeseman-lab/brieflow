@@ -5,9 +5,10 @@ from lib.shared.target_utils import output_to_input
 
 # Determine whether to use OME-Zarr or TIFF for intermediate steps
 OME_ZARR_CFG = config.get("preprocess", {}).get("ome_zarr", {})
-USE_OME_ZARR = OME_ZARR_CFG.get("enabled", True)
-CONVERT_SBS_KEY = "convert_sbs_omezarr" if USE_OME_ZARR else "convert_sbs"
-CONVERT_PHENOTYPE_KEY = "convert_phenotype_omezarr" if USE_OME_ZARR else "convert_phenotype"
+USE_OME_ZARR = OME_ZARR_CFG.get("enabled", False)
+# For now, always use TIFF outputs for downstream; OME-Zarr exports are optional extras
+CONVERT_SBS_KEY = "convert_sbs"
+CONVERT_PHENOTYPE_KEY = "convert_phenotype"
 
 # Extract metadata for SBS images
 rule extract_metadata_sbs:

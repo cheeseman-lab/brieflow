@@ -6,13 +6,31 @@ from lib.preprocess.file_utils import get_output_pattern
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
 # Determine output format from config
-OME_ZARR_ENABLED = config.get("preprocess", {}).get("ome_zarr", {}).get("enabled", True)
-IC_EXT = "zarr" if OME_ZARR_ENABLED else "tiff"
+# output_formats controls what file formats are created during preprocessing:
+#   - "tiff": Create TIFF files in images/sbs/ and images/phenotype/
+#   - "zarr": Create standard Zarr arrays in images/sbs/ and images/phenotype/ (for downstream)
+#              AND OME-Zarr multiscale in omezarr/sbs/ and omezarr/phenotype/ (for visualization)
+# downstream_input_format controls which format is used for SBS/phenotype analysis:
+#   - "tiff": Use TIFF files (default if TIFF enabled)
+#   - "zarr": Use standard Zarr arrays (NOT OME-Zarr multiscale)
+output_formats = config.get("preprocess", {}).get("output_formats", ["zarr"])
+if isinstance(output_formats, str):
+    output_formats = [output_formats]
 
-# Define conversion keys for use across all rule files
-USE_OME_ZARR = OME_ZARR_ENABLED
-CONVERT_SBS_KEY = "convert_sbs_omezarr" if USE_OME_ZARR else "convert_sbs"
-CONVERT_PHENOTYPE_KEY = "convert_phenotype_omezarr" if USE_OME_ZARR else "convert_phenotype"
+ENABLE_ZARR = "zarr" in output_formats
+ENABLE_TIFF = "tiff" in output_formats
+
+# Determine downstream input format
+# Default to TIFF if enabled, otherwise Zarr
+default_downstream = "tiff" if ENABLE_TIFF else "zarr"
+downstream_format = config.get("preprocess", {}).get("downstream_input_format", default_downstream)
+
+# IC field format follows downstream preference
+IC_EXT = downstream_format
+
+# Define conversion keys for use across all rule files (e.g., in preprocess.smk)
+CONVERT_SBS_KEY = "convert_sbs_zarr" if downstream_format == "zarr" else "convert_sbs"
+CONVERT_PHENOTYPE_KEY = "convert_phenotype_zarr" if downstream_format == "zarr" else "convert_phenotype"
 
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
@@ -41,20 +59,32 @@ PREPROCESS_OUTPUTS = {
             "image", "tiff"
         ),
     ],
+    "convert_sbs_zarr": [
+        PREPROCESS_FP / "images" / "sbs" / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
+            "image", "zarr"
+        ),
+    ],
     "convert_phenotype": [
         PREPROCESS_FP / "images" / "phenotype" / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "image", "tiff"
         ),
     ],
+    "convert_phenotype_zarr": [
+        PREPROCESS_FP / "images" / "phenotype" / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "image", "zarr"
+        ),
+    ],
     "convert_sbs_omezarr": [
-        PREPROCESS_FP / "images" / "sbs" / get_filename(
+        PREPROCESS_FP / "omezarr" / "sbs" / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
             "image", "zarr"
         ),
     ],
     "convert_phenotype_omezarr": [
-        PREPROCESS_FP / "images" / "phenotype" / get_filename(
+        PREPROCESS_FP / "omezarr" / "phenotype" / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "image", "zarr"
         ),
@@ -71,21 +101,12 @@ PREPROCESS_OUTPUTS = {
             "ic_field", IC_EXT
         ),
     ],
-    "export_sbs_preprocess_omezarr": [
-        PREPROCESS_FP / "omezarr" / "sbs" / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
-            "image",
-            "zarr",
-        ),
-    ],
-    "export_phenotype_preprocess_omezarr": [
-        PREPROCESS_FP / "omezarr" / "phenotype" / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "image",
-            "zarr",
-        ),
-    ],
 }
+
+# Determine which Zarr outputs to create
+# Standard Zarr is for downstream processing, OME-Zarr is for visualization
+ENABLE_STANDARD_ZARR = ENABLE_ZARR and downstream_format == "zarr"
+ENABLE_OMEZARR = ENABLE_ZARR  # OME-Zarr can be created regardless of downstream format
 
 # Define output mappings FIRST (before filtering)
 PREPROCESS_OUTPUT_MAPPINGS = {
@@ -95,67 +116,59 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "combine_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,
+    "convert_sbs_zarr": directory,
+    "convert_phenotype_zarr": directory,
     "convert_sbs_omezarr": directory,
     "convert_phenotype_omezarr": directory,
-    "calculate_ic_sbs": directory if OME_ZARR_ENABLED else None,
-    "calculate_ic_phenotype": directory if OME_ZARR_ENABLED else None,
-    "export_sbs_preprocess_omezarr": directory,
-    "export_phenotype_preprocess_omezarr": directory,
+    "calculate_ic_sbs": directory if IC_EXT == "zarr" else None,
+    "calculate_ic_phenotype": directory if IC_EXT == "zarr" else None,
 }
 
-# Filter outputs based on whether OME-Zarr is the primary format
-if OME_ZARR_ENABLED:
-    # Remove TIFF conversion targets when Zarr is primary
-    PREPROCESS_OUTPUTS.pop("convert_sbs", None)
-    PREPROCESS_OUTPUTS.pop("convert_phenotype", None)
-else:
-    # Remove Zarr conversion targets when TIFF is primary
-    PREPROCESS_OUTPUTS.pop("convert_sbs_omezarr", None)
-    PREPROCESS_OUTPUTS.pop("convert_phenotype_omezarr", None)
+# Filter outputs based on config
+if not ENABLE_TIFF:
+    if "convert_sbs" in PREPROCESS_OUTPUTS:
+        del PREPROCESS_OUTPUTS["convert_sbs"]
+    if "convert_phenotype" in PREPROCESS_OUTPUTS:
+        del PREPROCESS_OUTPUTS["convert_phenotype"]
 
-# Filter optional exports if not enabled
-omezarr_enabled = config.get("output", {}).get("omezarr", {}).get("enabled", False)
-after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
-if not (omezarr_enabled and "preprocess" in after_steps):
-    PREPROCESS_OUTPUTS.pop("export_sbs_preprocess_omezarr", None)
-    PREPROCESS_OUTPUTS.pop("export_phenotype_preprocess_omezarr", None)
+if not ENABLE_STANDARD_ZARR:
+    if "convert_sbs_zarr" in PREPROCESS_OUTPUTS:
+        del PREPROCESS_OUTPUTS["convert_sbs_zarr"]
+    if "convert_phenotype_zarr" in PREPROCESS_OUTPUTS:
+        del PREPROCESS_OUTPUTS["convert_phenotype_zarr"]
+
+if not ENABLE_OMEZARR:
+    if "convert_sbs_omezarr" in PREPROCESS_OUTPUTS:
+        del PREPROCESS_OUTPUTS["convert_sbs_omezarr"]
+    if "convert_phenotype_omezarr" in PREPROCESS_OUTPUTS:
+        del PREPROCESS_OUTPUTS["convert_phenotype_omezarr"]
+
+# Convert all Paths to strings
+for key in PREPROCESS_OUTPUTS:
+    PREPROCESS_OUTPUTS[key] = [str(p) for p in PREPROCESS_OUTPUTS[key]]
 
 # Map outputs after filtering
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 
-# Generate targets using the appropriate wildcard combinations
-# Metadata extraction uses metadata-specific wildcards
-PREPROCESS_TARGETS_SBS_METADATA = outputs_to_targets(
-    {"extract_metadata_sbs": PREPROCESS_OUTPUTS["extract_metadata_sbs"]},
-    sbs_metadata_wildcard_combos,
-    PREPROCESS_OUTPUT_MAPPINGS
-)
-
-PREPROCESS_TARGETS_PHENOTYPE_METADATA = outputs_to_targets(
-    {"extract_metadata_phenotype": PREPROCESS_OUTPUTS["extract_metadata_phenotype"]},
-    phenotype_metadata_wildcard_combos,
-    PREPROCESS_OUTPUT_MAPPINGS
-)
-
-# Other targets use regular wildcard combinations
-PREPROCESS_OUTPUTS_SBS_OTHER = {
-    k: v for k, v in PREPROCESS_OUTPUTS.items() 
-    if "sbs" in k and not k.startswith("extract_metadata")
+# Generate sbs preprocessing targets
+PREPROCESS_OUTPUTS_SBS = {
+    rule_name: templates
+    for rule_name, templates in PREPROCESS_OUTPUTS.items()
+    if "sbs" in rule_name
 }
-PREPROCESS_TARGETS_SBS_OTHER = outputs_to_targets(
-    PREPROCESS_OUTPUTS_SBS_OTHER, sbs_wildcard_combos, PREPROCESS_OUTPUT_MAPPINGS
+PREPROCESS_TARGETS_SBS = outputs_to_targets(
+    PREPROCESS_OUTPUTS_SBS, sbs_wildcard_combos, PREPROCESS_OUTPUT_MAPPINGS
 )
 
-PREPROCESS_OUTPUTS_PHENOTYPE_OTHER = {
-    k: v for k, v in PREPROCESS_OUTPUTS.items() 
-    if "phenotype" in k and not k.startswith("extract_metadata")
+# Generate phenotype preprocessing targets
+PREPROCESS_OUTPUTS_PHENOTYPE = {
+    rule_name: templates
+    for rule_name, templates in PREPROCESS_OUTPUTS.items()
+    if "phenotype" in rule_name
 }
-PREPROCESS_TARGETS_PHENOTYPE_OTHER = outputs_to_targets(
-    PREPROCESS_OUTPUTS_PHENOTYPE_OTHER, phenotype_wildcard_combos, PREPROCESS_OUTPUT_MAPPINGS
+PREPROCESS_TARGETS_PHENOTYPE = outputs_to_targets(
+    PREPROCESS_OUTPUTS_PHENOTYPE, phenotype_wildcard_combos, PREPROCESS_OUTPUT_MAPPINGS
 )
 
 # Combine all preprocessing targets
-PREPROCESS_TARGETS_ALL = (
-    PREPROCESS_TARGETS_SBS_METADATA + PREPROCESS_TARGETS_SBS_OTHER +
-    PREPROCESS_TARGETS_PHENOTYPE_METADATA + PREPROCESS_TARGETS_PHENOTYPE_OTHER
-)
+PREPROCESS_TARGETS_ALL = PREPROCESS_TARGETS_SBS + PREPROCESS_TARGETS_PHENOTYPE

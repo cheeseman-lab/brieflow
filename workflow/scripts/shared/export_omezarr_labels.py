@@ -1,9 +1,9 @@
 from pathlib import Path
-from tifffile import imread
+from lib.shared.io import read_image
 from lib.shared.omezarr_writer import write_labels_omezarr
 
-# Read input mask
-label_data = imread(snakemake.input[0])
+# Read input mask (supports TIFF and Zarr)
+label_data = read_image(snakemake.input[0])
 
 # Determine paths
 output_path = Path(snakemake.output[0])

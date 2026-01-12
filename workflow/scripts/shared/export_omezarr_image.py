@@ -1,17 +1,17 @@
 import numpy as np
 import pandas as pd
-from tifffile import imread
 from lib.shared.omezarr_writer import write_image_omezarr
 from lib.preprocess.preprocess import convert_to_array
+from lib.shared.io import read_image
 
 # TODO Add option to export zarr OR tiffs for downstream processing
 
 
 def _read_image_data():
-    """Read image data from TIFF or from original files via `convert_to_array`.
+    """Read image data from TIFF/Zarr or from original files via `convert_to_array`.
 
     `convert_to_array` is used when exporting with Z (preserve_z) and/or when inputs are
-    non-TIFF (e.g. ND2).
+    non-TIFF/non-Zarr (e.g. ND2).
     """
     data_format = snakemake.params.get("data_format", None)
     data_organization = snakemake.params.get("data_organization", None)
@@ -23,13 +23,18 @@ def _read_image_data():
 
     def _is_nd2_path(p: str) -> bool:
         return str(p).lower().endswith(".nd2")
+    
+    def _is_zarr_path(p: str) -> bool:
+        return str(p).lower().endswith(".zarr")
 
-    # Normalize input(s)
+    # Normalize input(s) - convert Snakemake Namedlist to standard types
     input_paths = snakemake.input.image
-    if isinstance(input_paths, (list, tuple)):
-        first_path = input_paths[0] if len(input_paths) else ""
+    # Handle Snakemake Namedlist or other iterables by converting to list
+    if hasattr(input_paths, '__iter__') and not isinstance(input_paths, str):
+        input_paths = list(input_paths)
+        first_path = str(input_paths[0]) if len(input_paths) else ""
     else:
-        first_path = input_paths
+        first_path = str(input_paths)
 
     # Use convert_to_array when we are actually given raw files (e.g. ND2) or when we
     # explicitly want to preserve Z (which requires reading from the raw format).
@@ -57,8 +62,9 @@ def _read_image_data():
             verbose=False,
         )
 
-    # Default: read the pre-converted TIFF
-    return imread(snakemake.input.image)
+    # Default: read the pre-converted TIFF or Zarr (supports both)
+    # Convert to string in case Snakemake passes a Namedlist
+    return read_image(str(snakemake.input.image))
 
 
 # Read input image

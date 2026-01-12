@@ -5,7 +5,7 @@ import pandas as pd
 import zarr
 import pytest
 from pathlib import Path
-from workflow.lib.io.omezarr_writer import (
+from workflow.lib.shared.omezarr_writer import (
     write_image_omezarr,
     write_labels_omezarr,
     write_table_zarr,

@@ -1,9 +1,10 @@
-from tifffile import imread, imwrite
+from tifffile import imwrite
 
 from lib.shared.log_filter import log_filter
+from lib.shared.io import read_image
 
-# load aligned image data
-aligned_image_data = imread(snakemake.input[0])
+# load aligned image data (supports TIFF and Zarr)
+aligned_image_data = read_image(snakemake.input[0])
 
 # apply log filter
 log_filtered = log_filter(

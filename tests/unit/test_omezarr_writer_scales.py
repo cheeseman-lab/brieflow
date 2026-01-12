@@ -7,7 +7,7 @@ def _read_zattrs(zarr_path):
 
 
 def test_write_image_omezarr_scalar_pixel_size_sets_xy_scale(tmp_path):
-    from workflow.lib.io.omezarr_writer import write_image_omezarr
+    from workflow.lib.shared.omezarr_writer import write_image_omezarr
 
     out = tmp_path / "img.zarr"
     # Use a reasonably sized image to avoid edge cases in pyramid generation
@@ -22,7 +22,7 @@ def test_write_image_omezarr_scalar_pixel_size_sets_xy_scale(tmp_path):
 
 
 def test_write_image_omezarr_dict_pixel_size_sets_xyz_scale(tmp_path):
-    from workflow.lib.io.omezarr_writer import write_image_omezarr
+    from workflow.lib.shared.omezarr_writer import write_image_omezarr
 
     out = tmp_path / "img3d.zarr"
     img = np.zeros((1, 2, 128, 128), dtype=np.uint16)  # czyx
@@ -44,7 +44,7 @@ def test_write_image_omezarr_xyz_scale_does_not_downsample_z(tmp_path):
     """
     ome-zarr-py generates pyramids by downsampling X/Y only; Z resolution stays constant.
     """
-    from workflow.lib.io.omezarr_writer import write_image_omezarr
+    from workflow.lib.shared.omezarr_writer import write_image_omezarr
 
     out = tmp_path / "img3d.zarr"
     img = np.zeros((1, 4, 128, 128), dtype=np.uint16)  # czyx

@@ -1,16 +1,15 @@
-from tifffile import imread
-
 from lib.sbs.extract_bases import extract_bases
+from lib.shared.io import read_image
 
 
-# load peaks data
-peaks_data = imread(snakemake.input[0])
+# load peaks data (supports TIFF and Zarr)
+peaks_data = read_image(snakemake.input[0])
 
 # load max filtered data
-max_filtered_data = imread(snakemake.input[1])
+max_filtered_data = read_image(snakemake.input[1])
 
 # load cells data
-cells_data = imread(snakemake.input[2])
+cells_data = read_image(snakemake.input[2])
 
 # extract bases
 bases_data = extract_bases(

@@ -162,6 +162,7 @@ if ENABLE_ZARR:
             max_levels=config["preprocess"].get("omezarr_max_levels"),
             compressor=OME_ZARR_COMPRESSOR,
             channel_labels=config["sbs"]["channel_names"],
+            preserve_z=config["preprocess"].get("sbs_preserve_z", False),  # SBS uses max projection to match TIFF workflow
         script:
             "../scripts/preprocess/nd2_to_omezarr.py"
 
@@ -184,6 +185,7 @@ if ENABLE_ZARR:
             max_levels=config["preprocess"].get("omezarr_max_levels"),
             compressor=OME_ZARR_COMPRESSOR,
             channel_labels=config["phenotype"]["channel_names"],
+            preserve_z=config["preprocess"].get("phenotype_preserve_z", False),  # Phenotype uses max projection to match TIFF
         script:
             "../scripts/preprocess/nd2_to_omezarr.py"
 

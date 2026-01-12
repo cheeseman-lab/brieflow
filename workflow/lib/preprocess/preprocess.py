@@ -284,7 +284,7 @@ def nd2_to_omezarr(
         normalized_files,
         channel_order_flip=channel_order_flip,
         verbose=verbose,
-        preserve_z=True,  # Always preserve Z for OME-Zarr to match TIFF workflow IC calculation
+        preserve_z=preserve_z,  # Use parameter to control Z-stack handling per module
     )
     pixel_size = _resolve_pixel_sizes(normalized_files[0])
 

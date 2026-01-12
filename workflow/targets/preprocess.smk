@@ -82,6 +82,22 @@ PREPROCESS_OUTPUTS = {
     ],
 }
 
+# Define output mappings FIRST (before filtering)
+PREPROCESS_OUTPUT_MAPPINGS = {
+    "extract_metadata_sbs": temp,
+    "combine_metadata_sbs": None,
+    "extract_metadata_phenotype": temp,
+    "combine_metadata_phenotype": None,
+    "convert_sbs": None,
+    "convert_phenotype": None,
+    "convert_sbs_omezarr": directory,
+    "convert_phenotype_omezarr": directory,
+    "calculate_ic_sbs": directory if OME_ZARR_ENABLED else None,
+    "calculate_ic_phenotype": directory if OME_ZARR_ENABLED else None,
+    "export_sbs_preprocess_omezarr": directory,
+    "export_phenotype_preprocess_omezarr": directory,
+}
+
 # Filter outputs based on whether OME-Zarr is the primary format
 if OME_ZARR_ENABLED:
     # Remove TIFF conversion targets when Zarr is primary
@@ -99,20 +115,7 @@ if not (omezarr_enabled and "preprocess" in after_steps):
     PREPROCESS_OUTPUTS.pop("export_sbs_preprocess_omezarr", None)
     PREPROCESS_OUTPUTS.pop("export_phenotype_preprocess_omezarr", None)
 
-PREPROCESS_OUTPUT_MAPPINGS = {
-    "extract_metadata_sbs": temp,
-    "combine_metadata_sbs": None,
-    "extract_metadata_phenotype": temp,
-    "combine_metadata_phenotype": None,
-    "convert_sbs": None,
-    "convert_phenotype": None,
-    "convert_sbs_omezarr": directory,
-    "convert_phenotype_omezarr": directory,
-    "calculate_ic_sbs": directory if OME_ZARR_ENABLED else None,
-    "calculate_ic_phenotype": directory if OME_ZARR_ENABLED else None,
-    "export_sbs_preprocess_omezarr": directory,
-    "export_phenotype_preprocess_omezarr": directory,
-}
+# Map outputs after filtering
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 
 # Generate targets using the appropriate wildcard combinations

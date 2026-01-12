@@ -3,10 +3,10 @@
 # Fix OpenMP library conflict issue with Cellpose/PyTorch
 export KMP_DUPLICATE_LIB_OK=TRUE
 
-# Run only the rules responsible for writing OME-Zarr outputs
+# Run the entire workflow from end to end
+# Must specify target rules since there's no default 'rule all'
 snakemake --use-conda --cores all \
-    --snakefile "/Users/cspeters/brieflow/workflow/Snakefile" \
+    --snakefile "../../workflow/Snakefile" \
     --configfile "config/config.yml" \
     --rerun-triggers mtime \
-    --until convert_sbs_omezarr \
-    --until convert_phenotype_omezarr
+    --until all_preprocess all_sbs all_phenotype all_merge all_aggregate all_cluster

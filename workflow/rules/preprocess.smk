@@ -3,12 +3,7 @@ from lib.preprocess.preprocess import get_data_config, include_tile_in_input, ge
 from lib.shared.target_utils import output_to_input
 
 
-# Determine whether to use OME-Zarr or TIFF for intermediate steps
-OME_ZARR_CFG = config.get("preprocess", {}).get("ome_zarr", {})
-USE_OME_ZARR = OME_ZARR_CFG.get("enabled", False)
-# When OME-Zarr is enabled, convert ND2 → Zarr directly; otherwise use TIFF
-CONVERT_SBS_KEY = "convert_sbs_omezarr" if USE_OME_ZARR else "convert_sbs"
-CONVERT_PHENOTYPE_KEY = "convert_phenotype_omezarr" if USE_OME_ZARR else "convert_phenotype"
+# CONVERT_SBS_KEY, CONVERT_PHENOTYPE_KEY, USE_OME_ZARR are defined in targets/preprocess.smk
 
 # Extract metadata for SBS images
 rule extract_metadata_sbs:

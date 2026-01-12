@@ -6,7 +6,7 @@ from lib.shared.rule_utils import get_spot_detection_params, get_segmentation_pa
 rule align_sbs:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_sbs"],
+            PREPROCESS_OUTPUTS[CONVERT_SBS_KEY],
             wildcards=wildcards,
             expansion_values=["cycle"],
             metadata_combos=sbs_wildcard_combos,

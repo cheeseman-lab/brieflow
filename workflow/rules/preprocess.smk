@@ -3,6 +3,12 @@ from lib.preprocess.preprocess import get_data_config, include_tile_in_input, ge
 from lib.shared.target_utils import output_to_input
 
 
+# Determine whether to use OME-Zarr or TIFF for intermediate steps
+OME_ZARR_CFG = config.get("preprocess", {}).get("ome_zarr", {})
+USE_OME_ZARR = OME_ZARR_CFG.get("enabled", True)
+CONVERT_SBS_KEY = "convert_sbs_omezarr" if USE_OME_ZARR else "convert_sbs"
+CONVERT_PHENOTYPE_KEY = "convert_phenotype_omezarr" if USE_OME_ZARR else "convert_phenotype"
+
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
     input:
@@ -113,7 +119,7 @@ rule convert_phenotype:
 rule calculate_ic_sbs:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_sbs"],
+            PREPROCESS_OUTPUTS[CONVERT_SBS_KEY],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=sbs_wildcard_combos,
@@ -131,7 +137,7 @@ rule calculate_ic_sbs:
 rule calculate_ic_phenotype:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_phenotype"],
+            PREPROCESS_OUTPUTS[CONVERT_PHENOTYPE_KEY],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=phenotype_wildcard_combos,

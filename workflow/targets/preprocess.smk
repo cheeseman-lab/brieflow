@@ -82,7 +82,17 @@ PREPROCESS_OUTPUTS = {
     ],
 }
 
-# Filter exports if not enabled
+# Filter outputs based on whether OME-Zarr is the primary format
+if OME_ZARR_ENABLED:
+    # Remove TIFF conversion targets when Zarr is primary
+    PREPROCESS_OUTPUTS.pop("convert_sbs", None)
+    PREPROCESS_OUTPUTS.pop("convert_phenotype", None)
+else:
+    # Remove Zarr conversion targets when TIFF is primary
+    PREPROCESS_OUTPUTS.pop("convert_sbs_omezarr", None)
+    PREPROCESS_OUTPUTS.pop("convert_phenotype_omezarr", None)
+
+# Filter optional exports if not enabled
 omezarr_enabled = config.get("output", {}).get("omezarr", {}).get("enabled", False)
 after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
 if not (omezarr_enabled and "preprocess" in after_steps):

@@ -176,7 +176,7 @@ def prepare_cellpose(data, dapi_index, cyto_index, logscale=True, log_kwargs=dic
 
     # Note: Z-stack handling is done in segment.py before calling this function
     # Data should already be in 2D (YX) format per channel
-    
+
     # Create a blank array with the same shape as the DAPI channel
     blank = np.zeros_like(dapi)
 
@@ -187,7 +187,7 @@ def prepare_cellpose(data, dapi_index, cyto_index, logscale=True, log_kwargs=dic
 
     # Normalize the intensity of the DAPI channel and scale it to the range [0, 1]
     dapi_upper = np.percentile(dapi, 99.5)
-    
+
     if dapi_upper > 0:
         dapi = dapi / dapi_upper
         dapi[dapi > 1] = 1

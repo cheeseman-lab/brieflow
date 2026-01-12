@@ -18,12 +18,15 @@ corrected_cycles_list = []
 ic_fields_map = {}
 for cycle_ic_path in snakemake.input[1:]:
     # Extract cycle from the filename, e.g., 'P-1_W-A1_C-1__ic_field.zarr' -> '1'
-    match = re.search(r'_C-(\d+)__ic_field.zarr', os.path.basename(cycle_ic_path))
+    match = re.search(r"_C-(\d+)__ic_field.zarr", os.path.basename(cycle_ic_path))
     if match:
         cycle_name = match.group(1)
         ic_fields_map[cycle_name] = read_image(cycle_ic_path)
     else:
-        print(f"WARNING: Could not parse cycle from IC field path: {cycle_ic_path}", file=sys.stderr)
+        print(
+            f"WARNING: Could not parse cycle from IC field path: {cycle_ic_path}",
+            file=sys.stderr,
+        )
 
 
 # Get the list of all cycles from snakemake params
@@ -41,8 +44,11 @@ for cycle_array_idx, cycle_data in enumerate(aligned_image_data):
 
     if ic_field is None:
         # If IC field is not found for a cycle, skip correction for this cycle
-        print(f"WARNING: No IC field found for cycle {current_cycle_name}. Skipping correction for this cycle.", file=sys.stderr)
-        corrected_cycles_list.append(cycle_data) # Add uncorrected data
+        print(
+            f"WARNING: No IC field found for cycle {current_cycle_name}. Skipping correction for this cycle.",
+            file=sys.stderr,
+        )
+        corrected_cycles_list.append(cycle_data)  # Add uncorrected data
         continue
 
     # Apply illumination correction for this cycle

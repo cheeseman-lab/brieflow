@@ -36,10 +36,10 @@ def read_image(path: Union[str, Path]) -> np.ndarray:
     if is_zarr:
         if zarr is None:
             raise ImportError("zarr package is required to read OME-Zarr files.")
-        
+
         # Open the group
         store = zarr.open_group(str(path), mode="r")
-        
+
         # Check for multiscales
         attrs = store.attrs.asdict()
         if "multiscales" in attrs:
@@ -50,11 +50,11 @@ def read_image(path: Union[str, Path]) -> np.ndarray:
                 arr = store[high_res_path]
                 # Load into memory as numpy array
                 return np.array(arr)
-        
+
         # Fallback: try to find '0' or 'scale0'
         if "0" in store:
             return np.array(store["0"])
-        
+
         raise ValueError(f"Could not find image data in OME-Zarr: {path}")
 
     # Assume TIFF
@@ -80,10 +80,14 @@ def read_pixel_size(path: Union[str, Path]) -> Tuple[float, float, float]:
             attrs = store.attrs.asdict()
             if "omero" in attrs and "pixel_size" in attrs["omero"]:
                 p = attrs["omero"]["pixel_size"]
-                return (float(p.get("z", 1.0)), float(p.get("y", 1.0)), float(p.get("x", 1.0)))
+                return (
+                    float(p.get("z", 1.0)),
+                    float(p.get("y", 1.0)),
+                    float(p.get("x", 1.0)),
+                )
         except Exception:
             pass
-            
+
     return (1.0, 1.0, 1.0)
 
 
@@ -106,17 +110,25 @@ def save_image(
         **kwargs: Additional arguments passed to the writer.
     """
     path = Path(path)
-    
+
     # Ensure correct dimensionality for OME-Zarr writer (CYX or CZYX)
     if image.ndim == 2:
         # YX -> 1YX
         image = image[np.newaxis, ...]
-    
+
     if path.suffix == ".zarr":
         # Extract pixel_size from kwargs if not provided
         if pixel_size is None:
-            if "pixel_size_z" in kwargs and "pixel_size_y" in kwargs and "pixel_size_x" in kwargs:
-                pixel_size = (kwargs["pixel_size_z"], kwargs["pixel_size_y"], kwargs["pixel_size_x"])
+            if (
+                "pixel_size_z" in kwargs
+                and "pixel_size_y" in kwargs
+                and "pixel_size_x" in kwargs
+            ):
+                pixel_size = (
+                    kwargs["pixel_size_z"],
+                    kwargs["pixel_size_y"],
+                    kwargs["pixel_size_x"],
+                )
             elif "pixel_size_y" in kwargs and "pixel_size_x" in kwargs:
                 pixel_size = (kwargs["pixel_size_y"], kwargs["pixel_size_x"])
 
@@ -127,7 +139,7 @@ def save_image(
         # TODO: Re-enable blosc compression once blosc dependency is resolved
         # compressor = kwargs.get("compressor", {"id": "blosc", "cname": "zstd", "clevel": 3, "shuffle": 2})
         compressor = kwargs.get("compressor", None)  # Temporarily disable compression
-        
+
         default_pixel_size = (1.0, 1.0, 1.0) if image.ndim == 4 else (1.0, 1.0)
         p_size = pixel_size if pixel_size is not None else default_pixel_size
 

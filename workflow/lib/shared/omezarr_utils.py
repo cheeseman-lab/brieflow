@@ -124,9 +124,7 @@ def _default_hex_palette(n: int) -> List[str]:
 def default_omero_color_ints(n_channels: int) -> List[int]:
     """Return default OMERO ARGB color integers for `n_channels`."""
     palette = _default_hex_palette(n_channels)
-    return [
-        int(_normalize_color_to_omero_int(hex_color)) for hex_color in palette
-    ]
+    return [int(_normalize_color_to_omero_int(hex_color)) for hex_color in palette]
 
 
 def ensure_omero_channel_colors(

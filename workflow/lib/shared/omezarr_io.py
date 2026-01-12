@@ -24,8 +24,7 @@ def _downscale_local_mean(image: np.ndarray, factors: Sequence[int]) -> np.ndarr
     c_factor, y_factor, x_factor = factors
     if c_factor != 1:
         raise ValueError(
-            "Fallback downscale supports channel factors of 1 only. "
-            f"Got {c_factor}."
+            f"Fallback downscale supports channel factors of 1 only. Got {c_factor}."
         )
 
     pad_y = (y_factor - (image.shape[1] % y_factor)) % y_factor
@@ -55,7 +54,9 @@ def _downscale_spatial_dims(image: np.ndarray, factor: int) -> np.ndarray:
     elif image.ndim == 4:  # CZYX
         factors = (1, 1, factor, factor)
     else:
-        raise ValueError("Unsupported dimensionality for downscaling (expected 3 or 4).")
+        raise ValueError(
+            "Unsupported dimensionality for downscaling (expected 3 or 4)."
+        )
     return _downscale_local_mean(image, factors)
 
 
@@ -76,7 +77,7 @@ def _build_pyramid(
             break
 
         current = pyramid[-1]
-        
+
         # Check if we should stop based on minimum dimensions (e.g. chunk size)
         # If the current image fits within the min shape, we don't need further downsampling
         if min_spatial_shape is not None:
@@ -93,9 +94,7 @@ def _build_pyramid(
         if next_y < 1 or next_x < 1:
             break
 
-        reduced = _downscale_spatial_dims(
-            current.astype(np.float32), coarsening_factor
-        )
+        reduced = _downscale_spatial_dims(current.astype(np.float32), coarsening_factor)
 
         if np.issubdtype(image.dtype, np.integer):
             # Clip and round to maintain integer integrity
@@ -182,7 +181,7 @@ def _write_zarr_array(
             chunk_fp /= str(idx)
         chunk_fp.parent.mkdir(parents=True, exist_ok=True)
         raw_bytes = np.ascontiguousarray(chunk).tobytes(order="C")
-        
+
         # TODO: Re-enable blosc compression once blosc dependency is properly configured
         # if compressor_id == "blosc":
         #     import blosc
@@ -195,10 +194,10 @@ def _write_zarr_array(
         #     )
         # else:
         #     chunk_bytes = raw_bytes
-        
+
         # Temporarily disable compression to avoid blosc dependency issues
         chunk_bytes = raw_bytes
-            
+
         chunk_fp.write_bytes(chunk_bytes)
 
 
@@ -224,28 +223,30 @@ def _write_group_metadata(
         "type": "image",
         "metadata": {"method": "mean"},
         "axes": (
-                [
-                    {"name": "c", "type": "channel"},
-                    *(
-                        [{
+            [
+                {"name": "c", "type": "channel"},
+                *(
+                    [
+                        {
                             "name": "z",
                             "type": "space",
                             "unit": "micrometer",
-                        }]
-                        if has_z
-                        else []
-                    ),
-                    {"name": "y", "type": "space", "unit": "micrometer"},
-                    {"name": "x", "type": "space", "unit": "micrometer"},
-                ]
-            ),
+                        }
+                    ]
+                    if has_z
+                    else []
+                ),
+                {"name": "y", "type": "space", "unit": "micrometer"},
+                {"name": "x", "type": "space", "unit": "micrometer"},
+            ]
+        ),
         "datasets": datasets,
     }
     if image_name:
         multiscale_entry["name"] = image_name
 
     multiscales = [multiscale_entry]
-    
+
     # Base attributes
     root_attrs = {
         "multiscales": multiscales,
@@ -256,22 +257,22 @@ def _write_group_metadata(
         root_attrs["image-label"] = {
             "version": "0.4",
             "source": {
-                "image": "../../" # Default relative path convention
-            }
+                "image": "../../"  # Default relative path convention
+            },
         }
     else:
         # Add OMERO metadata (colors, windows)
         # Only if it's NOT a label image (usually labels rely on separate lookup or random coloring)
         # OR if we want to provide labels for the channels (e.g. Nuclei, Cells)
-        
+
         dtype_info = np.iinfo(dtype) if np.issubdtype(dtype, np.integer) else None
         window_max = int(dtype_info.max) if dtype_info else 1.0
         window_min = 0
         window_start = window_min
         window_end = window_max
-        
+
         n_channels = int(datasets[0]["shape"][0]) if datasets else 0
-        
+
         # Generate OME metadata
         pixel_dict = {
             "x": pixel_x,
@@ -285,7 +286,7 @@ def _write_group_metadata(
             "channels": [],
             "pixel_size": pixel_dict,
         }
-        
+
         channel_colors = default_omero_color_ints(n_channels) if n_channels else []
 
         def _format_color(color_value: int | str | None) -> str:
@@ -298,7 +299,7 @@ def _write_group_metadata(
             label = f"Channel {idx}"
             if channel_names and idx < len(channel_names):
                 label = channel_names[idx]
-            
+
             channel_entry = {
                 "label": label,
                 "window": {
@@ -308,10 +309,10 @@ def _write_group_metadata(
                     "end": window_end,
                 },
             }
-            
+
             color = channel_colors[idx] if idx < len(channel_colors) else None
             channel_entry["color"] = _format_color(color)
-                
+
             omero["channels"].append(channel_entry)
 
         root_attrs["omero"] = omero
@@ -352,7 +353,9 @@ def write_multiscale_omezarr(
         if output_path.is_dir():
             shutil.rmtree(output_path)
         else:
-            raise ValueError(f"Output path {output_path} exists and is not a directory.")
+            raise ValueError(
+                f"Output path {output_path} exists and is not a directory."
+            )
 
     output_path.mkdir(parents=True, exist_ok=False)
 

@@ -158,7 +158,7 @@ def get_segmentation_params(module, config):
         "pixel_size_z": config["pixel_size_z"],
         "pixel_size_y": config["pixel_size_y"],
         "pixel_size_x": config["pixel_size_x"],
-        "channel_names": config[module]["channel_names"], # Modified
+        "channel_names": config[module]["channel_names"],  # Modified
     }
 
     # Method-specific parameters

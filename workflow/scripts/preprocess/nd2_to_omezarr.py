@@ -32,7 +32,9 @@ result_path = nd2_to_omezarr(
     coarsening_factor=params.get("coarsening_factor", 2),
     max_levels=params.get("max_levels"),
     verbose=params.get("verbose", False),
-    preserve_z=params.get("preserve_z", False),  # Default to False (max projection) to match TIFF
+    preserve_z=params.get(
+        "preserve_z", False
+    ),  # Default to False (max projection) to match TIFF
     **additional_kwargs,
 )
 

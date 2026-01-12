@@ -9,7 +9,10 @@ cytoplasms = read_image(snakemake.input[3])
 
 # Handle Z-dimension mismatch: if data is CZYX but labels are CYX, take mean projection
 if data_phenotype.ndim == 4 and nuclei.ndim == 3:
-    print(f"Taking mean projection: data_phenotype shape {data_phenotype.shape} -> ", end="")
+    print(
+        f"Taking mean projection: data_phenotype shape {data_phenotype.shape} -> ",
+        end="",
+    )
     # Take mean projection along Z axis (axis=1 for CZYX)
     data_phenotype = np.mean(data_phenotype, axis=1).astype(data_phenotype.dtype)
     print(f"{data_phenotype.shape}")

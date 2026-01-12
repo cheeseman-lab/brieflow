@@ -47,7 +47,22 @@ def calculate_ic_field(
     slicer: slice = slice(None),
     sample_fraction: float = 1.0,
 ) -> np.ndarray:
-    print(f"DEBUG: calculate_ic_field started with {len(files)} files.", file=sys.stderr)
+    """Calculate illumination correction field from a list of image files.
+    
+    Args:
+        files: List of image file paths.
+        smooth: Smoothing factor for gaussian filter (default: None).
+        rescale: Whether to rescale the output (default: True).
+        threading: Whether to use threading for parallel processing (default: False).
+        slicer: Slice to apply to images (default: slice(None)).
+        sample_fraction: Fraction of files to sample for calculation (default: 1.0).
+    
+    Returns:
+        Calculated illumination correction field as numpy array.
+    """
+    print(
+        f"DEBUG: calculate_ic_field started with {len(files)} files.", file=sys.stderr
+    )
     # Randomly sample a subset of files if sample_fraction is less than 1.0
     if sample_fraction < 1.0:
         sample_size = int(len(files) * sample_fraction)
@@ -56,7 +71,10 @@ def calculate_ic_field(
 
     # Initialize data variable
     data = read_image(files[0])[slicer] / len(files)
-    print(f"DEBUG: Initialized data with shape {data.shape} from {files[0]}.", file=sys.stderr)
+    print(
+        f"DEBUG: Initialized data with shape {data.shape} from {files[0]}.",
+        file=sys.stderr,
+    )
 
     # Accumulate images using threading or sequential processing, averaging them
     if threading:
@@ -69,13 +87,22 @@ def calculate_ic_field(
             data += result  # Aggregate results from parallel processing
     else:
         for i, file in enumerate(files[1:]):
-            print(f"DEBUG: Accumulating file {i+1}/{len(files)-1}: {file}", file=sys.stderr)
+            print(
+                f"DEBUG: Accumulating file {i + 1}/{len(files) - 1}: {file}",
+                file=sys.stderr,
+            )
             data = accumulate_image(file, slicer, data, len(files))
 
-    print(f"DEBUG: All images accumulated. Final data shape: {data.shape}.", file=sys.stderr)
+    print(
+        f"DEBUG: All images accumulated. Final data shape: {data.shape}.",
+        file=sys.stderr,
+    )
     # Squeeze and convert data to uint16 (remove any dimensions of size 1)
     data = np.squeeze(data.astype(np.uint16))
-    print(f"DEBUG: Data squeezed and cast to uint16. New shape: {data.shape}.", file=sys.stderr)
+    print(
+        f"DEBUG: Data squeezed and cast to uint16. New shape: {data.shape}.",
+        file=sys.stderr,
+    )
 
     # Calculate default smoothing factor if not provided
     if not smooth:
@@ -88,24 +115,47 @@ def calculate_ic_field(
     # Apply median filter with warning suppression
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        print(f"DEBUG: Applying median filter to data of shape {data.shape}.", file=sys.stderr)
+        print(
+            f"DEBUG: Applying median filter to data of shape {data.shape}.",
+            file=sys.stderr,
+        )
         smoothed = median_filter(data, selem, behavior="rank")
-        print(f"DEBUG: Median filter applied. Smoothed data shape: {smoothed.shape}.", file=sys.stderr)
+        print(
+            f"DEBUG: Median filter applied. Smoothed data shape: {smoothed.shape}.",
+            file=sys.stderr,
+        )
 
     # Rescale channels if requested
     if rescale:
         print("DEBUG: Rescaling channels.", file=sys.stderr)
         smoothed = rescale_channels(smoothed)
-        print(f"DEBUG: Channels rescaled. Smoothed data shape: {smoothed.shape}.", file=sys.stderr)
+        print(
+            f"DEBUG: Channels rescaled. Smoothed data shape: {smoothed.shape}.",
+            file=sys.stderr,
+        )
 
     print("DEBUG: calculate_ic_field finished.", file=sys.stderr)
     return smoothed
 
 
 def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.ndarray:
+    """Accumulate image data from a file into existing array.
+    
+    Args:
+        file: Path to the image file.
+        slicer: Slice to apply to the image.
+        data: Existing data array to accumulate into.
+        N: Number of files for averaging normalization.
+    
+    Returns:
+        Updated data array with accumulated image data.
+    """
     print(f"DEBUG: accumulate_image: Reading {file}", file=sys.stderr)
     data += read_image(file)[slicer] / N
-    print(f"DEBUG: accumulate_image: Finished reading and accumulating {file}", file=sys.stderr)
+    print(
+        f"DEBUG: accumulate_image: Finished reading and accumulating {file}",
+        file=sys.stderr,
+    )
     return data
 
 
@@ -191,9 +241,6 @@ def applyIJ_parallel(f, arr, n_jobs=-2, backend="threading", *args, **kwargs):
 
     output_shape = arr.shape[:-2] + arr_[0].shape
     return np.array(arr_).reshape(output_shape)
-
-
-
 
 
 @applyIJ

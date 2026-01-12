@@ -539,7 +539,7 @@ def prioritize(well_locations_0, well_locations_1, matches):
             model = RANSACRegressor(min_samples=1)
         else:
             model = RANSACRegressor()
-        
+
         if model is not None:
             model.fit(a, b)  # Fit the RANSAC model to the matching coordinates
 

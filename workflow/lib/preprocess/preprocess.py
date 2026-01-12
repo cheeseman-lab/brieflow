@@ -253,7 +253,7 @@ def nd2_to_omezarr(
     preserve_z: bool = False,
 ) -> Path:
     """Convert ND2 file(s) to a multiscale OME-Zarr pyramid.
-    
+
     Args:
         files: Path(s) to ND2 file(s)
         output_dir: Output directory for OME-Zarr

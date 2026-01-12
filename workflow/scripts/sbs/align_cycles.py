@@ -1,12 +1,14 @@
 from lib.shared.io import read_image, save_image
 from lib.sbs.align_cycles import align_cycles
 
+
 def read_and_project(file_path):
     img = read_image(file_path)
     # If 4D (C, Z, Y, X), max project along Z (axis 1)
     if img.ndim == 4:
         return img.max(axis=1)
     return img
+
 
 # load image data
 image_data = [read_and_project(file_path) for file_path in snakemake.input]

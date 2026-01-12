@@ -179,7 +179,7 @@ save_image(
     pixel_size_z=params["pixel_size_z"],
     pixel_size_y=params["pixel_size_y"],
     pixel_size_x=params["pixel_size_x"],
-    channel_names=["nuclei"], # Specific channel name for nuclei
+    channel_names=["nuclei"],  # Specific channel name for nuclei
     is_label=True,
 )
 # Save segmented cells data
@@ -189,7 +189,7 @@ save_image(
     pixel_size_z=params["pixel_size_z"],
     pixel_size_y=params["pixel_size_y"],
     pixel_size_x=params["pixel_size_x"],
-    channel_names=["cells"], # Specific channel name for cells
+    channel_names=["cells"],  # Specific channel name for cells
     is_label=True,
 )
 # Save counts data

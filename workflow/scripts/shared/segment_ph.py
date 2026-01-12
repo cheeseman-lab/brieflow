@@ -10,9 +10,9 @@ params = snakemake.params.config
 
 # Choose segmentation method based on parameter
 method = params.get("segmentation_method", "cellpose")
-#UNCOMMENT WHEN DOING PHENOTYPING
+# UNCOMMENT WHEN DOING PHENOTYPING
 # segment_cells = params.get("segment_cells_phenotype", True)
-#UNCOMMENT WHEN DOING SBS
+# UNCOMMENT WHEN DOING SBS
 segment_cells = False
 
 if method == "cellpose":

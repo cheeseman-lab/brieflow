@@ -6,10 +6,12 @@ from lib.preprocess.preprocess import convert_to_array
 
 # TODO Add option to export zarr OR tiffs for downstream processing
 
+
 def _read_image_data():
-    """
-    Read image input either from a TIFF (default) or from original files via convert_to_array
-    (used when exporting with Z and/or when inputs are non-TIFF).
+    """Read image data from TIFF or from original files via `convert_to_array`.
+
+    `convert_to_array` is used when exporting with Z (preserve_z) and/or when inputs are
+    non-TIFF (e.g. ND2).
     """
     data_format = snakemake.params.get("data_format", None)
     data_organization = snakemake.params.get("data_organization", None)
@@ -34,7 +36,10 @@ def _read_image_data():
     use_convert = (
         bool(preserve_z)
         or _is_nd2_path(first_path)
-        or (isinstance(input_paths, (list, tuple)) and any(_is_nd2_path(p) for p in input_paths))
+        or (
+            isinstance(input_paths, (list, tuple))
+            and any(_is_nd2_path(p) for p in input_paths)
+        )
     )
 
     if use_convert and data_format is not None and data_organization is not None:
@@ -70,15 +75,27 @@ if hasattr(snakemake.input, "metadata") and hasattr(snakemake.params, "tile"):
     try:
         # Read parquet metadata
         meta_df = pd.read_parquet(snakemake.input.metadata)
-        
+
         # Filter for current tile
         tile_id = int(snakemake.params.tile)
         tile_meta = meta_df[meta_df["tile"] == tile_id]
-        
+
         if not tile_meta.empty:
-            px = tile_meta["pixel_size_x"].iloc[0] if "pixel_size_x" in tile_meta.columns else None
-            py = tile_meta["pixel_size_y"].iloc[0] if "pixel_size_y" in tile_meta.columns else None
-            pz = tile_meta["pixel_size_z"].iloc[0] if "pixel_size_z" in tile_meta.columns else None
+            px = (
+                tile_meta["pixel_size_x"].iloc[0]
+                if "pixel_size_x" in tile_meta.columns
+                else None
+            )
+            py = (
+                tile_meta["pixel_size_y"].iloc[0]
+                if "pixel_size_y" in tile_meta.columns
+                else None
+            )
+            pz = (
+                tile_meta["pixel_size_z"].iloc[0]
+                if "pixel_size_z" in tile_meta.columns
+                else None
+            )
 
             # Apply upsample factor (spatial X/Y only)
             upsample = float(snakemake.params.get("upsample_factor", 1.0))
@@ -89,7 +106,11 @@ if hasattr(snakemake.input, "metadata") and hasattr(snakemake.params, "tile"):
                 return v is not None and pd.notna(v) and float(v) > 0
 
             px_u = float(px) / upsample if _valid(px) else None
-            py_u = float(py) / upsample if _valid(py) else (px_u if px_u is not None else None)
+            py_u = (
+                float(py) / upsample
+                if _valid(py)
+                else (px_u if px_u is not None else None)
+            )
             pz_u = float(pz) if _valid(pz) else None
 
             # Provide per-axis calibration when available; otherwise fall back to scalar.

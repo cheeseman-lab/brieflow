@@ -1,6 +1,4 @@
-"""
-OME-Zarr IO helpers kept for backwards-compatible imports in tests.
-"""
+"""OME-Zarr IO helpers kept for backwards-compatible imports in tests."""
 
 from __future__ import annotations
 
@@ -22,8 +20,7 @@ def write_multiscale_omezarr(
     channel_names: Optional[Sequence[str]] = None,
     is_label: bool = False,
 ) -> None:
-    """
-    Write an OME-NGFF v0.4 (Zarr v2) multiscale pyramid.
+    """Write an OME-NGFF v0.4 (Zarr v2) multiscale pyramid.
 
     This is a small wrapper around `workflow.lib.shared.omezarr_writer.write_image_omezarr`.
     """
@@ -47,7 +44,7 @@ def write_multiscale_omezarr(
         channel_names=(
             list(channel_names)
             if channel_names is not None
-            else [f"c{i}" for i in range(int(data.shape[axes.index('c')]))]
+            else [f"c{i}" for i in range(int(data.shape[axes.index("c")]))]
         )
         if "c" in axes
         else None,
@@ -57,5 +54,3 @@ def write_multiscale_omezarr(
         max_levels=max_levels,
         is_label=is_label,
     )
-
-

@@ -12,8 +12,4 @@ else:
     df = pd.read_csv(input_path)
 
 # Write to Zarr
-write_table_zarr(
-    df=df,
-    out_path=str(snakemake.output[0])
-)
-
+write_table_zarr(df=df, out_path=str(snakemake.output[0]))

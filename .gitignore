@@ -19,3 +19,6 @@ tests/small_test_analysis/compare_images.py
 tests/small_test_analysis/CHANGES_SUMMARY.md
 tests/small_test_analysis/run_phenotype_only.sh
 /brieflow_output_*/
+
+# machine learning models (large binary files)
+*.joblib

@@ -13,12 +13,14 @@ We have built Brieflow in tandem with [brieflow-analysis](https://github.com/che
 
 Brieflow currently automates the following OPS tasks:
 
-- **Preprocessing**: Converts raw microscope `.nd2` files into tiled `.tiff` images and extracts associated metadata (e.g. cycle, tile, well).
+- **Preprocessing**: Converts raw microscope `.nd2` files into tiled `.tiff` or `.zarr` images and extracts associated metadata (e.g. cycle, tile, well).
 - **SBS**: Identifies and decodes in situ sequencing barcodes from fluorescence imaging data.
 - **Phenotype**: Extracts morphological and intensity-based features for each cell from the imaging data.
 - **Merge**: Matches phenotypic features with decoded barcodes across cycles and imaging rounds.
 - **Aggregate**: Aggregates single-cell data by perturbation or barcode, producing summary-level datasets.
 - **Cluster**: Performs unsupervised clustering to identify patterns or phenotypic signatures across perturbations.
+
+Brieflow supports both TIFF and Zarr formats, with Zarr offering improved performance for large datasets and native support for visualization in Napari. See the [Zarr Support](zarr_support.md) page for details.
 
 We recommend you view the doc pages below (in order) before using brieflow/brieflow-analysis to ensure you have a good understanding of the system.
 
@@ -32,6 +34,7 @@ Brieflow is a community-driven project, and we welcome contributions from anyone
 1.before_you_screen.md
 2.installation_analysis_setup.md
 3.running_modules.md
+zarr_support.md
 4.development.md
 example_analyses.md
 config_glossary.md

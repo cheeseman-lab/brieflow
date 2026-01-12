@@ -79,7 +79,7 @@ rule combine_metadata_phenotype:
 
 
 # Define conversion rules based on output format
-if not USE_OME_ZARR:
+if "convert_sbs" in PREPROCESS_OUTPUTS_MAPPED:
     # Convert SBS image files to TIFF
     rule convert_sbs:
         input:
@@ -98,6 +98,7 @@ if not USE_OME_ZARR:
         script:
             "../scripts/preprocess/image_to_tiff.py"
 
+if "convert_phenotype" in PREPROCESS_OUTPUTS_MAPPED:
     # Convert phenotype image files to TIFF
     rule convert_phenotype:
         input:
@@ -116,7 +117,7 @@ if not USE_OME_ZARR:
         script:
             "../scripts/preprocess/image_to_tiff.py"
 
-else:
+if "convert_sbs_omezarr" in PREPROCESS_OUTPUTS_MAPPED:
     # Convert SBS image files directly to OME-Zarr
     rule convert_sbs_omezarr:
         input:
@@ -135,6 +136,7 @@ else:
         script:
             "../scripts/preprocess/image_to_omezarr.py"
 
+if "convert_phenotype_omezarr" in PREPROCESS_OUTPUTS_MAPPED:
     # Convert phenotype image files directly to OME-Zarr
     rule convert_phenotype_omezarr:
         input:

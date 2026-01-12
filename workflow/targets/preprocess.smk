@@ -9,6 +9,11 @@ PREPROCESS_FP = ROOT_FP / "preprocess"
 OME_ZARR_ENABLED = config.get("preprocess", {}).get("ome_zarr", {}).get("enabled", True)
 IC_EXT = "zarr" if OME_ZARR_ENABLED else "tiff"
 
+# Define conversion keys for use across all rule files
+USE_OME_ZARR = OME_ZARR_ENABLED
+CONVERT_SBS_KEY = "convert_sbs_omezarr" if USE_OME_ZARR else "convert_sbs"
+CONVERT_PHENOTYPE_KEY = "convert_phenotype_omezarr" if USE_OME_ZARR else "convert_phenotype"
+
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
         PREPROCESS_FP / "metadata" / "sbs" / get_filename(

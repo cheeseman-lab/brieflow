@@ -104,15 +104,23 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "combine_metadata_sbs": None,
     "extract_metadata_phenotype": temp,
     "combine_metadata_phenotype": None,
-    "convert_sbs": None,
-    "convert_phenotype": None,
-    "convert_sbs_omezarr": directory,
-    "convert_phenotype_omezarr": directory,
     "calculate_ic_sbs": directory if OME_ZARR_ENABLED else None,
     "calculate_ic_phenotype": directory if OME_ZARR_ENABLED else None,
-    "export_sbs_preprocess_omezarr": directory,
-    "export_phenotype_preprocess_omezarr": directory,
 }
+
+# Add conversion mappings based on format
+if OME_ZARR_ENABLED:
+    PREPROCESS_OUTPUT_MAPPINGS["convert_sbs_omezarr"] = directory
+    PREPROCESS_OUTPUT_MAPPINGS["convert_phenotype_omezarr"] = directory
+else:
+    PREPROCESS_OUTPUT_MAPPINGS["convert_sbs"] = None
+    PREPROCESS_OUTPUT_MAPPINGS["convert_phenotype"] = None
+
+# Add optional export mappings if configured
+if "export_sbs_preprocess_omezarr" in PREPROCESS_OUTPUTS:
+    PREPROCESS_OUTPUT_MAPPINGS["export_sbs_preprocess_omezarr"] = directory
+if "export_phenotype_preprocess_omezarr" in PREPROCESS_OUTPUTS:
+    PREPROCESS_OUTPUT_MAPPINGS["export_phenotype_preprocess_omezarr"] = directory
 PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MAPPINGS)
 
 # Generate targets using the appropriate wildcard combinations

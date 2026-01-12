@@ -11,15 +11,27 @@ if hasattr(snakemake.input, "metadata") and hasattr(snakemake.params, "tile"):
     try:
         # Read parquet metadata
         meta_df = pd.read_parquet(snakemake.input.metadata)
-        
+
         # Filter for current tile
         tile_id = int(snakemake.params.tile)
         tile_meta = meta_df[meta_df["tile"] == tile_id]
-        
+
         if not tile_meta.empty:
-            px = tile_meta["pixel_size_x"].iloc[0] if "pixel_size_x" in tile_meta.columns else None
-            py = tile_meta["pixel_size_y"].iloc[0] if "pixel_size_y" in tile_meta.columns else None
-            pz = tile_meta["pixel_size_z"].iloc[0] if "pixel_size_z" in tile_meta.columns else None
+            px = (
+                tile_meta["pixel_size_x"].iloc[0]
+                if "pixel_size_x" in tile_meta.columns
+                else None
+            )
+            py = (
+                tile_meta["pixel_size_y"].iloc[0]
+                if "pixel_size_y" in tile_meta.columns
+                else None
+            )
+            pz = (
+                tile_meta["pixel_size_z"].iloc[0]
+                if "pixel_size_z" in tile_meta.columns
+                else None
+            )
 
             def _valid(v):
                 return v is not None and pd.notna(v) and float(v) > 0

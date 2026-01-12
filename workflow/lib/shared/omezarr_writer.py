@@ -1,5 +1,4 @@
-"""
-OME-Zarr Writer Module for Brieflow.
+"""OME-Zarr Writer Module for Brieflow.
 
 This module provides functions to export images, labels, and tables to OME-Zarr (v2) format.
 It uses the ome-zarr-py library for NGFF compliance.
@@ -28,8 +27,7 @@ def write_image_omezarr(
     chunk_size: Optional[Tuple[int, ...]] = None,
     storage_options: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """
-    Write an image array to OME-Zarr format with pyramids.
+    """Write an image array to OME-Zarr format with pyramids.
 
     Args:
         image_data: Numpy or Dask array containing image data.
@@ -132,10 +130,13 @@ def write_image_omezarr(
     omero: Dict[str, Any] = {}
     if channel_names:
         if is_label:
-            omero["channels"] = [{"label": name, "active": True} for name in channel_names]
+            omero["channels"] = [
+                {"label": name, "active": True} for name in channel_names
+            ]
         else:
             omero["channels"] = [
-                {"label": name, "active": True, "color": "FFFFFF"} for name in channel_names
+                {"label": name, "active": True, "color": "FFFFFF"}
+                for name in channel_names
             ]
     if any(v is not None for v in ps.values()):
         # Store base pixel sizes (level 0) for convenience; NGFF scaling is encoded via
@@ -176,8 +177,7 @@ def write_labels_omezarr(
     pixel_size_um: Optional[Union[float, Tuple[float, ...], Dict[str, float]]] = None,
     chunk_size: Optional[Tuple[int, ...]] = None,
 ) -> None:
-    """
-    Write a label mask to OME-Zarr format as a child of an existing image or standalone.
+    """Write a label mask to OME-Zarr format as a child of an existing image or standalone.
 
     If out_path points to an existing .zarr image, labels are added under /labels.
     """
@@ -308,8 +308,8 @@ def write_table_zarr(
     out_path: str,
     chunk_size: int = 10000,
 ) -> None:
-    """
-    Write a pandas DataFrame to Zarr (columnar format).
+    """Write a pandas DataFrame to Zarr (columnar format).
+
     This is NOT OME-NGFF AnnData, but a simple columnar store for interoperability.
     """
     os.makedirs(out_path, exist_ok=True)
@@ -360,5 +360,3 @@ def _write_series_to_zarr(
         dtype=dtype,
         overwrite=True,
     )
-
-

@@ -150,9 +150,7 @@ def output_to_input(
 
         # Flatten nested lists of paths (if expand returns list of lists)
         if any(isinstance(i, list) for i in expanded_paths):
-            expanded_paths = [
-                path for sublist in expanded_paths for path in sublist
-            ]
+            expanded_paths = [path for sublist in expanded_paths for path in sublist]
 
         # Remove duplicates while preserving order
         expanded_paths = list(dict.fromkeys(expanded_paths))

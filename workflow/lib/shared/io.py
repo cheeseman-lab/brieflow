@@ -1,5 +1,4 @@
-"""
-Lightweight IO helpers used by unit tests.
+"""Lightweight IO helpers used by unit tests.
 
 These utilities provide a small, stable API around TIFF and OME-Zarr reading/writing.
 """
@@ -20,8 +19,7 @@ PathLike = Union[str, Path]
 
 
 def read_image(path: PathLike) -> np.ndarray:
-    """
-    Read an image from TIFF or OME-Zarr.
+    """Read an image from TIFF or OME-Zarr.
 
     For OME-Zarr, returns the highest-resolution (level 0) array.
     """
@@ -64,9 +62,7 @@ def save_image(
     max_levels: int = 5,
     is_label: bool = False,
 ) -> None:
-    """
-    Save an image to TIFF or OME-Zarr depending on the output path suffix.
-    """
+    """Save an image to TIFF or OME-Zarr depending on the output path suffix."""
     out = Path(output_path)
     suffix = out.suffix.lower()
 
@@ -107,5 +103,3 @@ def save_image(
         return
 
     raise ValueError(f"Unsupported output path: {out}")
-
-

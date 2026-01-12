@@ -62,7 +62,9 @@ def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, Any]:
         "n_z_planes": base_config.get(f"{image_type}_n_z_planes", None),
     }
 
+
 # TODO add direct nd2 to zarr conversion - bypass tiffs
+
 
 def extract_metadata_tile_nd2(
     file_path: str,
@@ -173,10 +175,15 @@ def extract_metadata_tile_nd2(
             # Binning isn't available as a structured field from nd2; parse from text_info if present
             try:
                 import nd2 as _nd2  # local import to avoid hard dependency at module import time
+
                 img = _nd2.imread(str(file_path), xarray=True)
                 md = img.attrs.get("metadata", {})
                 text_info = md.get("text_info", {})
-                desc = text_info.get("description", "") if isinstance(text_info, dict) else ""
+                desc = (
+                    text_info.get("description", "")
+                    if isinstance(text_info, dict)
+                    else ""
+                )
                 import re
 
                 m = re.search(r"Binning:\\s*(\\d+)x(\\d+)", desc)
@@ -198,7 +205,12 @@ def extract_metadata_tile_nd2(
                     bx = float(bx)
                     by = float(by)
                     if abs(bx - by) < 1e-6 and bx > 0:
-                        camera_px_um_est = float(pixel_size_x) * float(objective_mag) * float(zoom_mag) * bx
+                        camera_px_um_est = (
+                            float(pixel_size_x)
+                            * float(objective_mag)
+                            * float(zoom_mag)
+                            * bx
+                        )
                         # Typical scientific camera pixel sizes are ~4.5–11 µm.
                         if camera_px_um_est < 3.0 or camera_px_um_est > 15.0:
                             warnings.warn(
@@ -273,11 +285,15 @@ def extract_metadata_well_nd2(
         binning_xy = None
         try:
             import nd2 as _nd2
+
             img = _nd2.imread(str(file_path), xarray=True)
             md = img.attrs.get("metadata", {})
             text_info = md.get("text_info", {})
-            desc = text_info.get("description", "") if isinstance(text_info, dict) else ""
+            desc = (
+                text_info.get("description", "") if isinstance(text_info, dict) else ""
+            )
             import re
+
             m = re.search(r"Binning:\\s*(\\d+)x(\\d+)", desc)
             if m:
                 binning_xy = f"{m.group(1)}x{m.group(2)}"
@@ -328,7 +344,9 @@ def extract_metadata_well_nd2(
 
             if frame_meta.channels:
                 ch0 = frame_meta.channels[0]
-                if hasattr(ch0, "volume") and getattr(ch0.volume, "axesCalibration", None):
+                if hasattr(ch0, "volume") and getattr(
+                    ch0.volume, "axesCalibration", None
+                ):
                     x_cal, y_cal, z_cal = ch0.volume.axesCalibration
                     pixel_size_x = x_cal
                     pixel_size_y = y_cal
@@ -347,17 +365,29 @@ def extract_metadata_well_nd2(
                         pass
 
                 if hasattr(ch0, "microscope") and ch0.microscope is not None:
-                    objective_mag = getattr(ch0.microscope, "objectiveMagnification", None)
+                    objective_mag = getattr(
+                        ch0.microscope, "objectiveMagnification", None
+                    )
                     zoom_mag = getattr(ch0.microscope, "zoomMagnification", None)
 
                 # Sanity warning
                 try:
-                    if pixel_size_x is not None and objective_mag and zoom_mag and binning_xy:
+                    if (
+                        pixel_size_x is not None
+                        and objective_mag
+                        and zoom_mag
+                        and binning_xy
+                    ):
                         bx, by = binning_xy.split("x")
                         bx = float(bx)
                         by = float(by)
                         if abs(bx - by) < 1e-6 and bx > 0:
-                            camera_px_um_est = float(pixel_size_x) * float(objective_mag) * float(zoom_mag) * bx
+                            camera_px_um_est = (
+                                float(pixel_size_x)
+                                * float(objective_mag)
+                                * float(zoom_mag)
+                                * bx
+                            )
                             if camera_px_um_est < 3.0 or camera_px_um_est > 15.0:
                                 warnings.warn(
                                     f"Implausible camera pixel estimate {camera_px_um_est:.3f} µm "

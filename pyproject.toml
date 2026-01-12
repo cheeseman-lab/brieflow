@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "BrieFlow"
-version = "1.4.7"
+version = "1.5.0"
 description = "Package for processing data from optical poooled screens."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -73,3 +73,8 @@ pydocstyle = { convention = "google" }
 "tests/*.py" = ["ALL"]
 # Visualization code
 "visualization/*.py" = ["ALL"]
+
+[tool.pytest.ini_options]
+markers = [
+  "unit: unit tests",
+]

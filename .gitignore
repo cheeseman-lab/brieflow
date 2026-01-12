@@ -28,3 +28,7 @@ BRIEFLOW_ARCHITECTURE_AND_OMEZARR_PLAN.md
 workflow/tests/OMEZARR_TEST_SUMMARY.md
 workflow/tests/README.md
 tasks/omezarr_*.md
+workflow_comparison.md
+.gitmodules
+brieflow
+tests/small_test_analysis/run_brieflow_omezarr.sh

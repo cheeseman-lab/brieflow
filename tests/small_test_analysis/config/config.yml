@@ -42,7 +42,7 @@ preprocess:
     - 4
     version: "0.4"
     validate: true
-  ic_smooth_factor: 5
+  # ic_smooth_factor: 5  # Commented out to use default (auto-calculated based on image size)
 sbs:
   alignment_method: null
   channel_names:

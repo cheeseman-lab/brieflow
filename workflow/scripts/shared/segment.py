@@ -9,9 +9,9 @@ aligned_data = read_image(snakemake.input[0])
 # Segmentation expects 3D data (CYX)
 if aligned_data.ndim == 4:
     print(f"Reducing Z-dimension for segmentation: {aligned_data.shape} -> ", end="")
-    # Take mean projection along Z axis (axis=1 for CZYX) to avoid amplifying noise
-    # Mean projection is better than max for noisy/empty images
-    aligned_data = np.mean(aligned_data, axis=1).astype(aligned_data.dtype)
+    # Use max projection along Z axis (axis=1 for CZYX) to match TIFF workflow
+    # This should not occur for phenotype if preserve_z=False is set correctly
+    aligned_data = aligned_data.max(axis=1)
     print(f"{aligned_data.shape}")
 
 # Get configuration from params

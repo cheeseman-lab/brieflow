@@ -200,6 +200,11 @@ def intensity_filter(
     Returns:
         tuple: (filtered_metadata, filtered_features) DataFrames with outliers removed.
     """
+    # If no cells remain after previous filters, return empty DataFrames
+    if len(metadata) == 0:
+        print("No cells remaining after previous filters. Skipping intensity filter.")
+        return metadata, features
+
     # Identify feature cols
     feature_cols = features.columns.tolist()
 

@@ -5,6 +5,10 @@ from lib.preprocess.file_utils import get_output_pattern
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
+# Determine output format from config
+OME_ZARR_ENABLED = config.get("preprocess", {}).get("ome_zarr", {}).get("enabled", True)
+IC_EXT = "zarr" if OME_ZARR_ENABLED else "tiff"
+
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
         PREPROCESS_FP / "metadata" / "sbs" / get_filename(
@@ -41,13 +45,13 @@ PREPROCESS_OUTPUTS = {
     "calculate_ic_sbs": [
         PREPROCESS_FP / "ic_fields" / "sbs" / get_filename(
             {"plate": "{plate}", "well": "{well}", "cycle": "{cycle}"},
-            "ic_field", "tiff"
+            "ic_field", IC_EXT
         ),
     ],
     "calculate_ic_phenotype": [
         PREPROCESS_FP / "ic_fields" / "phenotype" / get_filename(
             {"plate": "{plate}", "well": "{well}"},
-            "ic_field", "tiff"
+            "ic_field", IC_EXT
         ),
     ],
     "export_sbs_preprocess_omezarr": [
@@ -80,8 +84,8 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "combine_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,
-    "calculate_ic_sbs": None,
-    "calculate_ic_phenotype": None,
+    "calculate_ic_sbs": directory if OME_ZARR_ENABLED else None,
+    "calculate_ic_phenotype": directory if OME_ZARR_ENABLED else None,
     "export_sbs_preprocess_omezarr": directory,
     "export_phenotype_preprocess_omezarr": directory,
 }

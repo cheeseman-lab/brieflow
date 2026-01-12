@@ -7,7 +7,7 @@ from ome_zarr.format import FormatV04
 from ome_zarr.io import parse_url
 from ome_zarr.reader import Reader
 
-from workflow.lib.io.omezarr_writer import write_image_omezarr
+from workflow.lib.shared.omezarr_writer import write_image_omezarr
 
 
 def _read_zattrs(zarr_path):

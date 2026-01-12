@@ -1,9 +1,10 @@
 import pandas as pd
-from tifffile import imread
 from lib.shared.omezarr_writer import write_image_omezarr, write_labels_omezarr
+from lib.shared.io import read_image
 
-# Read input image (aligned phenotype)
-image_data = imread(snakemake.input.image)
+# Read input image (aligned phenotype - supports TIFF and Zarr)
+# Convert to string in case Snakemake passes a Namedlist
+image_data = read_image(str(snakemake.input.image))
 
 # Extract pixel size from metadata if available
 pixel_size_um = None
@@ -55,7 +56,7 @@ write_image_omezarr(
 
 # Read and write nuclei labels
 if hasattr(snakemake.input, "nuclei"):
-    nuclei_data = imread(snakemake.input.nuclei)
+    nuclei_data = read_image(str(snakemake.input.nuclei))
     write_labels_omezarr(
         label_data=nuclei_data,
         out_path=str(snakemake.output[0]),
@@ -66,7 +67,7 @@ if hasattr(snakemake.input, "nuclei"):
 
 # Read and write cells labels
 if hasattr(snakemake.input, "cells"):
-    cells_data = imread(snakemake.input.cells)
+    cells_data = read_image(str(snakemake.input.cells))
     write_labels_omezarr(
         label_data=cells_data,
         out_path=str(snakemake.output[0]),

@@ -82,4 +82,5 @@ pydocstyle = { convention = "google" }
 [tool.pytest.ini_options]
 markers = [
   "unit: unit tests",
+  "integration: integration tests",
 ]

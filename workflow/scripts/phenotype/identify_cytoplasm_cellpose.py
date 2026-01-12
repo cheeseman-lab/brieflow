@@ -1,13 +1,14 @@
 import numpy as np
-from tifffile import imread, imwrite
+from tifffile import imwrite
 
 from lib.phenotype.identify_cytoplasm_cellpose import (
     identify_cytoplasm_cellpose,
 )
+from lib.shared.io import read_image
 
-# load nuclei and cell segmentation data
-nuclei = imread(snakemake.input[0])
-cells = imread(snakemake.input[1])
+# load nuclei and cell segmentation data (supports TIFF and Zarr)
+nuclei = read_image(snakemake.input[0])
+cells = read_image(snakemake.input[1])
 
 # check if cell segmentation is enabled
 segment_cells = snakemake.params.get("segment_cells", True)

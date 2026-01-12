@@ -1,4 +1,6 @@
-from tifffile import imread, imwrite
+from tifffile import imwrite
+
+from lib.shared.io import read_image
 
 # Get configuration from params
 params = snakemake.params.config
@@ -10,8 +12,8 @@ method = params.get("method", "standard")
 if method == "standard":
     from lib.sbs.find_peaks import find_peaks
 
-    # Load standard deviation data for standard method
-    standard_deviation_data = imread(snakemake.input[0])
+    # Load standard deviation data for standard method (supports TIFF and Zarr)
+    standard_deviation_data = read_image(snakemake.input[0])
 
     # Get standard method parameters
     peak_width = params["peak_width"]
@@ -24,8 +26,8 @@ if method == "standard":
 elif method == "spotiflow":
     from lib.sbs.find_peaks import find_peaks_spotiflow
 
-    # Load aligned images for spotiflow method
-    aligned_images = imread(snakemake.input[0])
+    # Load aligned images for spotiflow method (supports TIFF and Zarr)
+    aligned_images = read_image(snakemake.input[0])
 
     # Get spotiflow parameters
     model = params["spotiflow_model"]

@@ -10,6 +10,7 @@ import pandas as pd
 from tifffile import imread
 
 from workflow.lib.shared.file_utils import get_filename
+from workflow.lib.shared.io import read_image
 
 TEST_ANALYSIS_PATH = Path(__file__).resolve().parents[1] / "small_test_analysis"
 TEST_PLATE = 1
@@ -120,72 +121,108 @@ def test_combine_metadata_phenotype():
 
 
 def test_convert_sbs():
-    sbs_image_path = str(
-        PREPROCESS_FP
-        / "images"
-        / "sbs"
-        / get_filename(
-            {
-                "plate": TEST_PLATE,
-                "well": TEST_WELL,
-                "tile": TEST_TILE_SBS,
-                "cycle": TEST_CYCLE,
-            },
-            "image",
-            "tiff",
-        ),
+    # Try Zarr first (new default), then TIFF (legacy)
+    base_path = PREPROCESS_FP / "images" / "sbs"
+    filename_base = get_filename(
+        {
+            "plate": TEST_PLATE,
+            "well": TEST_WELL,
+            "tile": TEST_TILE_SBS,
+            "cycle": TEST_CYCLE,
+        },
+        "image",
+        "zarr",
     )
-    sbs_image = imread(sbs_image_path)
+    
+    # Remove the extension to get the base name
+    filename_no_ext = filename_base.rsplit(".", 1)[0]
+    zarr_path = base_path / f"{filename_no_ext}.zarr"
+    tiff_path = base_path / f"{filename_no_ext}.tiff"
+    
+    if zarr_path.exists():
+        sbs_image = read_image(str(zarr_path))
+    elif tiff_path.exists():
+        sbs_image = imread(str(tiff_path))
+    else:
+        pytest.fail(f"Neither Zarr nor TIFF found: {zarr_path} or {tiff_path}")
+    
     assert sbs_image.shape == (5, 1200, 1200)
 
 
 def test_convert_phenotype():
-    phenotype_image_path = str(
-        PREPROCESS_FP
-        / "images"
-        / "phenotype"
-        / get_filename(
-            {"plate": TEST_PLATE, "well": TEST_WELL, "tile": TEST_TILE_PHENOTYPE},
-            "image",
-            "tiff",
-        )
+    # Try Zarr first (new default), then TIFF (legacy)
+    base_path = PREPROCESS_FP / "images" / "phenotype"
+    filename_base = get_filename(
+        {"plate": TEST_PLATE, "well": TEST_WELL, "tile": TEST_TILE_PHENOTYPE},
+        "image",
+        "zarr",
     )
-    phenotype_image = imread(phenotype_image_path)
+    
+    # Remove the extension to get the base name
+    filename_no_ext = filename_base.rsplit(".", 1)[0]
+    zarr_path = base_path / f"{filename_no_ext}.zarr"
+    tiff_path = base_path / f"{filename_no_ext}.tiff"
+    
+    if zarr_path.exists():
+        phenotype_image = read_image(str(zarr_path))
+    elif tiff_path.exists():
+        phenotype_image = imread(str(tiff_path))
+    else:
+        pytest.fail(f"Neither Zarr nor TIFF found: {zarr_path} or {tiff_path}")
+    
     assert phenotype_image.shape == (4, 2400, 2400)
 
 
 def test_calculate_ic_sbs():
-    sbs_ic_field_path = str(
-        PREPROCESS_FP
-        / "ic_fields"
-        / "sbs"
-        / get_filename(
-            {
-                "plate": TEST_PLATE,
-                "well": TEST_WELL,
-                "cycle": TEST_CYCLE,
-            },
-            "ic_field",
-            "tiff",
-        ),
+    # Try Zarr first (new default), then TIFF (legacy)
+    base_path = PREPROCESS_FP / "ic_fields" / "sbs"
+    filename_base = get_filename(
+        {
+            "plate": TEST_PLATE,
+            "well": TEST_WELL,
+            "cycle": TEST_CYCLE,
+        },
+        "ic_field",
+        "zarr",
     )
-    sbs_ic_field = imread(sbs_ic_field_path)
+    
+    # Remove the extension to get the base name
+    filename_no_ext = filename_base.rsplit(".", 1)[0]
+    zarr_path = base_path / f"{filename_no_ext}.zarr"
+    tiff_path = base_path / f"{filename_no_ext}.tiff"
+    
+    if zarr_path.exists():
+        sbs_ic_field = read_image(str(zarr_path))
+    elif tiff_path.exists():
+        sbs_ic_field = imread(str(tiff_path))
+    else:
+        pytest.fail(f"Neither Zarr nor TIFF found: {zarr_path} or {tiff_path}")
+    
     assert sbs_ic_field.shape == (5, 1200, 1200)
 
 
 def test_calculate_ic_phenotype():
-    phenotype_ic_field_path = str(
-        PREPROCESS_FP
-        / "ic_fields"
-        / "phenotype"
-        / get_filename(
-            {
-                "plate": TEST_PLATE,
-                "well": TEST_WELL,
-            },
-            "ic_field",
-            "tiff",
-        ),
+    # Try Zarr first (new default), then TIFF (legacy)
+    base_path = PREPROCESS_FP / "ic_fields" / "phenotype"
+    filename_base = get_filename(
+        {
+            "plate": TEST_PLATE,
+            "well": TEST_WELL,
+        },
+        "ic_field",
+        "zarr",
     )
-    phenotype_ic_field = imread(phenotype_ic_field_path)
+    
+    # Remove the extension to get the base name
+    filename_no_ext = filename_base.rsplit(".", 1)[0]
+    zarr_path = base_path / f"{filename_no_ext}.zarr"
+    tiff_path = base_path / f"{filename_no_ext}.tiff"
+    
+    if zarr_path.exists():
+        phenotype_ic_field = read_image(str(zarr_path))
+    elif tiff_path.exists():
+        phenotype_ic_field = imread(str(tiff_path))
+    else:
+        pytest.fail(f"Neither Zarr nor TIFF found: {zarr_path} or {tiff_path}")
+    
     assert phenotype_ic_field.shape == (4, 2400, 2400)

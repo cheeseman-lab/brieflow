@@ -22,3 +22,9 @@ tests/small_test_analysis/run_phenotype_only.sh
 
 # machine learning models (large binary files)
 *.joblib
+
+# documentation/planning files (keep local, don't commit)
+BRIEFLOW_ARCHITECTURE_AND_OMEZARR_PLAN.md
+workflow/tests/OMEZARR_TEST_SUMMARY.md
+workflow/tests/README.md
+tasks/omezarr_*.md

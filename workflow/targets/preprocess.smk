@@ -42,6 +42,18 @@ PREPROCESS_OUTPUTS = {
             "image", "tiff"
         ),
     ],
+    "convert_sbs_omezarr": [
+        PREPROCESS_FP / "images" / "sbs" / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
+            "image", "zarr"
+        ),
+    ],
+    "convert_phenotype_omezarr": [
+        PREPROCESS_FP / "images" / "phenotype" / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "image", "zarr"
+        ),
+    ],
     "calculate_ic_sbs": [
         PREPROCESS_FP / "ic_fields" / "sbs" / get_filename(
             {"plate": "{plate}", "well": "{well}", "cycle": "{cycle}"},
@@ -84,6 +96,8 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "combine_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,
+    "convert_sbs_omezarr": directory,
+    "convert_phenotype_omezarr": directory,
     "calculate_ic_sbs": directory if OME_ZARR_ENABLED else None,
     "calculate_ic_phenotype": directory if OME_ZARR_ENABLED else None,
     "export_sbs_preprocess_omezarr": directory,

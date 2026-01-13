@@ -27,7 +27,9 @@ zarr_data = read_image(zarr_preprocess)
 print(f"  Shape: {zarr_data.shape}")
 print(f"  Dtype: {zarr_data.dtype}")
 print(f"  Min: {zarr_data.min()}, Max: {zarr_data.max()}, Mean: {zarr_data.mean():.2f}")
-print(f"  First channel stats: min={zarr_data[0].min()}, max={zarr_data[0].max()}, mean={zarr_data[0].mean():.2f}")
+print(
+    f"  First channel stats: min={zarr_data[0].min()}, max={zarr_data[0].max()}, mean={zarr_data[0].mean():.2f}"
+)
 
 # Read tiff preprocessed
 print(f"\nReading tiff: {tiff_preprocess}")
@@ -35,7 +37,9 @@ tiff_data = read_image(tiff_preprocess)
 print(f"  Shape: {tiff_data.shape}")
 print(f"  Dtype: {tiff_data.dtype}")
 print(f"  Min: {tiff_data.min()}, Max: {tiff_data.max()}, Mean: {tiff_data.mean():.2f}")
-print(f"  First channel stats: min={tiff_data[0].min()}, max={tiff_data[0].max()}, mean={tiff_data[0].mean():.2f}")
+print(
+    f"  First channel stats: min={tiff_data[0].min()}, max={tiff_data[0].max()}, mean={tiff_data[0].mean():.2f}"
+)
 
 # Compare
 if zarr_data.shape == tiff_data.shape:
@@ -47,7 +51,9 @@ if zarr_data.shape == tiff_data.shape:
         print(f"✗ Arrays DIFFER:")
         print(f"  Max difference: {diff.max()}")
         print(f"  Mean difference: {diff.mean():.4f}")
-        print(f"  Num different pixels: {np.sum(diff > 0)} / {diff.size} ({100*np.sum(diff > 0)/diff.size:.2f}%)")
+        print(
+            f"  Num different pixels: {np.sum(diff > 0)} / {diff.size} ({100 * np.sum(diff > 0) / diff.size:.2f}%)"
+        )
 else:
     print(f"\n✗ Shapes DO NOT match: zarr={zarr_data.shape} vs tiff={tiff_data.shape}")
 
@@ -60,16 +66,24 @@ print(f"\nReading zarr IC: {zarr_ic_corrected}")
 zarr_ic_data = read_image(zarr_ic_corrected)
 print(f"  Shape: {zarr_ic_data.shape}")
 print(f"  Dtype: {zarr_ic_data.dtype}")
-print(f"  Min: {zarr_ic_data.min()}, Max: {zarr_ic_data.max()}, Mean: {zarr_ic_data.mean():.2f}")
-print(f"  First channel stats: min={zarr_ic_data[0].min()}, max={zarr_ic_data[0].max()}, mean={zarr_ic_data[0].mean():.2f}")
+print(
+    f"  Min: {zarr_ic_data.min()}, Max: {zarr_ic_data.max()}, Mean: {zarr_ic_data.mean():.2f}"
+)
+print(
+    f"  First channel stats: min={zarr_ic_data[0].min()}, max={zarr_ic_data[0].max()}, mean={zarr_ic_data[0].mean():.2f}"
+)
 
 # Read tiff IC corrected
 print(f"\nReading tiff IC: {tiff_ic_corrected}")
 tiff_ic_data = read_image(tiff_ic_corrected)
 print(f"  Shape: {tiff_ic_data.shape}")
 print(f"  Dtype: {tiff_ic_data.dtype}")
-print(f"  Min: {tiff_ic_data.min()}, Max: {tiff_ic_data.max()}, Mean: {tiff_ic_data.mean():.2f}")
-print(f"  First channel stats: min={tiff_ic_data[0].min()}, max={tiff_ic_data[0].max()}, mean={tiff_ic_data[0].mean():.2f}")
+print(
+    f"  Min: {tiff_ic_data.min()}, Max: {tiff_ic_data.max()}, Mean: {tiff_ic_data.mean():.2f}"
+)
+print(
+    f"  First channel stats: min={tiff_ic_data[0].min()}, max={tiff_ic_data[0].max()}, mean={tiff_ic_data[0].mean():.2f}"
+)
 
 # Compare
 if zarr_ic_data.shape == tiff_ic_data.shape:
@@ -81,9 +95,13 @@ if zarr_ic_data.shape == tiff_ic_data.shape:
         print(f"✗ Arrays DIFFER:")
         print(f"  Max difference: {diff.max()}")
         print(f"  Mean difference: {diff.mean():.4f}")
-        print(f"  Num different pixels: {np.sum(diff > 0)} / {diff.size} ({100*np.sum(diff > 0)/diff.size:.2f}%)")
+        print(
+            f"  Num different pixels: {np.sum(diff > 0)} / {diff.size} ({100 * np.sum(diff > 0) / diff.size:.2f}%)"
+        )
 else:
-    print(f"\n✗ Shapes DO NOT match: zarr={zarr_ic_data.shape} vs tiff={tiff_ic_data.shape}")
+    print(
+        f"\n✗ Shapes DO NOT match: zarr={zarr_ic_data.shape} vs tiff={tiff_ic_data.shape}"
+    )
 
 print("\n" + "=" * 80)
 print("COMPARING IC FIELDS")
@@ -96,13 +114,17 @@ print(f"\nReading zarr IC field: {zarr_ic_field}")
 zarr_ic_field_data = read_image(zarr_ic_field)
 print(f"  Shape: {zarr_ic_field_data.shape}")
 print(f"  Dtype: {zarr_ic_field_data.dtype}")
-print(f"  Min: {zarr_ic_field_data.min()}, Max: {zarr_ic_field_data.max()}, Mean: {zarr_ic_field_data.mean():.2f}")
+print(
+    f"  Min: {zarr_ic_field_data.min()}, Max: {zarr_ic_field_data.max()}, Mean: {zarr_ic_field_data.mean():.2f}"
+)
 
 print(f"\nReading tiff IC field: {tiff_ic_field}")
 tiff_ic_field_data = read_image(tiff_ic_field)
 print(f"  Shape: {tiff_ic_field_data.shape}")
 print(f"  Dtype: {tiff_ic_field_data.dtype}")
-print(f"  Min: {tiff_ic_field_data.min()}, Max: {tiff_ic_field_data.max()}, Mean: {tiff_ic_field_data.mean():.2f}")
+print(
+    f"  Min: {tiff_ic_field_data.min()}, Max: {tiff_ic_field_data.max()}, Mean: {tiff_ic_field_data.mean():.2f}"
+)
 
 # Compare IC fields
 if zarr_ic_field_data.shape == tiff_ic_field_data.shape:
@@ -110,11 +132,16 @@ if zarr_ic_field_data.shape == tiff_ic_field_data.shape:
     if np.array_equal(zarr_ic_field_data, tiff_ic_field_data):
         print("✓ IC fields are IDENTICAL")
     else:
-        diff = np.abs(zarr_ic_field_data.astype(float) - tiff_ic_field_data.astype(float))
+        diff = np.abs(
+            zarr_ic_field_data.astype(float) - tiff_ic_field_data.astype(float)
+        )
         print(f"✗ IC fields DIFFER:")
         print(f"  Max difference: {diff.max()}")
         print(f"  Mean difference: {diff.mean():.4f}")
-        print(f"  Num different pixels: {np.sum(diff > 0)} / {diff.size} ({100*np.sum(diff > 0)/diff.size:.2f}%)")
+        print(
+            f"  Num different pixels: {np.sum(diff > 0)} / {diff.size} ({100 * np.sum(diff > 0) / diff.size:.2f}%)"
+        )
 else:
-    print(f"\n✗ IC field shapes DO NOT match: zarr={zarr_ic_field_data.shape} vs tiff={tiff_ic_field_data.shape}")
-
+    print(
+        f"\n✗ IC field shapes DO NOT match: zarr={zarr_ic_field_data.shape} vs tiff={tiff_ic_field_data.shape}"
+    )

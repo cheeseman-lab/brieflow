@@ -49,11 +49,11 @@ print(f"Creating Zarr array at: {snakemake.output[0]}")
 print(f"Chunk shape: {chunks}")
 
 # Create Zarr group (compatible with zarr v2 and v3)
-root = zarr.open_group(snakemake.output[0], mode='w')
+root = zarr.open_group(snakemake.output[0], mode="w")
 
 # Configure compression (zstd is fast and has good compression)
 try:
-    compressor = zarr.Blosc(cname='zstd', clevel=3, shuffle=zarr.Blosc.BITSHUFFLE)
+    compressor = zarr.Blosc(cname="zstd", clevel=3, shuffle=zarr.Blosc.BITSHUFFLE)
 except Exception:
     # Fallback if blosc not available
     compressor = None
@@ -63,7 +63,7 @@ except Exception:
 try:
     # Zarr v3 API
     zarr_array = root.create_array(
-        '0',
+        "0",
         shape=image_data.shape,
         dtype=image_data.dtype,
         chunks=chunks,
@@ -73,7 +73,7 @@ try:
 except AttributeError:
     # Zarr v2 API fallback
     zarr_array = root.create_dataset(
-        '0',
+        "0",
         shape=image_data.shape,
         dtype=image_data.dtype,
         chunks=chunks,
@@ -86,19 +86,23 @@ print("Writing data to Zarr...")
 zarr_array[:] = image_data
 
 # Store metadata for compatibility
-zarr_array.attrs.update({
-    'shape': list(image_data.shape),
-    'dtype': str(image_data.dtype),
-    'source': 'brieflow_preprocess',
-    'format': 'standard_zarr',  # Not OME-Zarr multiscale
-    'chunks': list(chunks),
-})
+zarr_array.attrs.update(
+    {
+        "shape": list(image_data.shape),
+        "dtype": str(image_data.dtype),
+        "source": "brieflow_preprocess",
+        "format": "standard_zarr",  # Not OME-Zarr multiscale
+        "chunks": list(chunks),
+    }
+)
 
 # Add root-level metadata
-root.attrs.update({
-    'version': '1.0',
-    'format': 'standard_zarr',
-})
+root.attrs.update(
+    {
+        "version": "1.0",
+        "format": "standard_zarr",
+    }
+)
 
 print(f"   Standard Zarr array created successfully")
 print(f"   Shape: {image_data.shape}")

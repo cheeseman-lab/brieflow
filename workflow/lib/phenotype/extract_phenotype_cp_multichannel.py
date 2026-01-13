@@ -39,7 +39,35 @@ def extract_phenotype_cp_multichannel(
 ):
     """Extract phenotype features from CellProfiler-like data with multi-channel functionality.
 
-    Updated version with proper column ordering.
+    Extracts grayscale intensity features, shape features, correlation features between
+    channels, neighbor measurements, and optionally foci features from segmented nuclei,
+    cells, and cytoplasms.
+
+    Args:
+        data_phenotype (numpy.ndarray): Multi-channel phenotype image array with shape
+            (..., channels, height, width).
+        nuclei (numpy.ndarray): Labeled segmentation mask for nuclei.
+        cells (numpy.ndarray): Labeled segmentation mask for cells.
+        wildcards (dict): Dictionary of wildcard values (e.g., well, tile) to add as
+            metadata columns.
+        cytoplasms (numpy.ndarray, optional): Labeled segmentation mask for cytoplasms.
+            If None, cytoplasm features are not extracted. Default is None.
+        nucleus_channels (list or str, optional): List of channel indices to use for
+            nucleus feature extraction, or "all" to use all channels. Default is "all".
+        cell_channels (list or str, optional): List of channel indices to use for
+            cell feature extraction, or "all" to use all channels. Default is "all".
+        cytoplasm_channels (list or str, optional): List of channel indices to use for
+            cytoplasm feature extraction, or "all" to use all channels. Default is "all".
+        foci_channel (int, list, or None, optional): Channel index or list of channel
+            indices for foci detection. If None, foci features are not extracted.
+            Default is None.
+        channel_names (list, optional): List of channel names used for labeling output
+            columns. Default is ["dapi", "tubulin", "gh2ax", "phalloidin"].
+
+    Returns:
+        pandas.DataFrame: DataFrame containing extracted features with columns ordered as:
+            label, metadata (well, tile, etc.), nucleus features, cell features,
+            cytoplasm features (if applicable), and foci features (if applicable).
     """
     # If nuclei or cells are empty, return an empty DataFrame
     if np.sum(nuclei) == 0 or np.sum(cells) == 0:
@@ -152,14 +180,19 @@ def extract_phenotype_cp_multichannel(
 
     # Extract foci features if foci channel is provided
     if foci_channel is not None:
-        foci = find_foci(
-            data_phenotype[..., foci_channel, :, :], remove_border_foci=True
-        )
-        dfs.append(
-            extract_features_bare(foci, cells, features=foci_features)
-            .set_index("label")
-            .add_prefix(f"cell_{channel_names[foci_channel]}_")
-        )
+        # Normalize to list for consistent handling
+        if isinstance(foci_channel, int):
+            foci_channels = [foci_channel]
+        else:
+            foci_channels = foci_channel
+
+        for fc in foci_channels:
+            foci = find_foci(data_phenotype[..., fc, :, :], remove_border_foci=True)
+            dfs.append(
+                extract_features_bare(foci, cells, features=foci_features)
+                .set_index("label")
+                .add_prefix(f"cell_{channel_names[fc]}_")
+            )
 
     # Extract nucleus and cell neighbors
     dfs.append(

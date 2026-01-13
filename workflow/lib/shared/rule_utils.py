@@ -135,9 +135,14 @@ def get_spot_detection_params(config: Dict[str, Any]) -> Dict[str, Any]:
 
     # Method-specific parameters
     if method == "standard":
-        # No additional parameters needed for standard method
-        pass
+        params.update(
+            {
+                "peak_width": module_config.get("peak_width", 5),
+            }
+        )
     elif method == "spotiflow":
+        # Default remove_index to extra_channel_indices (non-base channels like DAPI)
+        default_remove_index = module_config.get("extra_channel_indices", None)
         params.update(
             {
                 "spotiflow_model": module_config.get("spotiflow_model", "general"),
@@ -146,7 +151,9 @@ def get_spot_detection_params(config: Dict[str, Any]) -> Dict[str, Any]:
                 "spotiflow_min_distance": module_config.get(
                     "spotiflow_min_distance", 1
                 ),
-                "remove_index": module_config.get("spotiflow_remove_index", 0),
+                "remove_index": module_config.get(
+                    "spotiflow_remove_index", default_remove_index
+                ),
             }
         )
     else:

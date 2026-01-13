@@ -13,6 +13,7 @@ FILENAME_METADATA_MAPPING = {
     "well": ["W-", str],
     "tile": ["T-", int],
     "cycle": ["C-", int],
+    "round": ["R-", str],
     "cell_class": ["CeCl-", str],
     "channel_combo": ["ChCo-", str],
     "gene": ["G-", str],

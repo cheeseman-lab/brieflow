@@ -13,6 +13,7 @@ from microfilm.microplot import Micropanel
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import skimage.morphology
 from scipy.spatial.distance import cdist
 import matplotlib.colors as mcolors
@@ -22,88 +23,154 @@ from skimage.measure import regionprops
 from lib.merge.fast_merge import build_linear_model
 
 
-def plot_combined_tile_grid(ph_test_metadata, sbs_test_metadata):
-    """Plots a combined grid of X-Y positions for PH and SBS datasets with annotations.
+def plot_combined_tile_grid(
+    ph_metadata,
+    sbs_metadata,
+    ph_image_dims=(2960, 2960),
+    sbs_image_dims=(1480, 1480),
+    figsize=None,
+):
+    """Plots a combined grid of X-Y positions for PH and SBS datasets as rectangles.
 
-    Note: Plot sizing is hard coded with arbitrary values that will not work for ND2 images with different sizes.
+    Tile sizes are calculated dynamically from pixel_size metadata if available,
+    otherwise estimated from coordinate spacing. Labels are centered inside tiles
+    with auto-scaled font sizes.
 
     Args:
-        ph_test_metadata (pd.DataFrame): DataFrame containing PH metadata with columns:
-            'x_pos', 'y_pos', 'tile', and other relevant fields.
-        sbs_test_metadata (pd.DataFrame): DataFrame containing SBS metadata with columns:
-            'x_pos', 'y_pos', 'tile', and other relevant fields.
+        ph_metadata (pd.DataFrame): DataFrame containing PH metadata with columns:
+            'x_pos', 'y_pos', 'tile', and optionally 'pixel_size_x'.
+        sbs_metadata (pd.DataFrame): DataFrame containing SBS metadata with columns:
+            'x_pos', 'y_pos', 'tile', and optionally 'pixel_size_x'.
+        ph_image_dims (tuple, optional): Phenotype image dimensions (height, width)
+            in pixels. Used with pixel_size to calculate tile size. Defaults to (2960, 2960).
+        sbs_image_dims (tuple, optional): SBS image dimensions (height, width)
+            in pixels. Used with pixel_size to calculate tile size. Defaults to (1480, 1480).
+        figsize (tuple, optional): Figure size. If None, auto-calculated based on
+            data extent. Defaults to None.
 
     Returns:
         matplotlib.figure.Figure: The figure object containing the plot.
     """
-    # Create figure
-    fig = plt.figure(figsize=(30, 24))
+    # Calculate tile sizes
+    if "pixel_size_x" in ph_metadata.columns:
+        ph_tile_size = ph_image_dims[0] * ph_metadata["pixel_size_x"].iloc[0]
+    else:
+        ph_tile_size = _estimate_tile_size_from_coords(ph_metadata)
 
-    # Scatter plot for PH data
-    plt.scatter(
-        ph_test_metadata["x_pos"],
-        ph_test_metadata["y_pos"],
-        s=450,
-        c="white",
-        marker="s",
-        edgecolors="black",
-        linewidths=1,
-        alpha=0.7,
-        label="PH",
-    )
+    if "pixel_size_x" in sbs_metadata.columns:
+        sbs_tile_size = sbs_image_dims[0] * sbs_metadata["pixel_size_x"].iloc[0]
+    else:
+        sbs_tile_size = _estimate_tile_size_from_coords(sbs_metadata)
 
-    # Label each PH point with the 'tile' variable
-    for i, txt in enumerate(ph_test_metadata["tile"]):
-        plt.annotate(
-            txt,
-            (ph_test_metadata["x_pos"].iloc[i], ph_test_metadata["y_pos"].iloc[i]),
-            textcoords="offset points",
-            xytext=(0, 3),
+    # Auto-calculate figure size based on data extent
+    all_x = pd.concat([ph_metadata["x_pos"], sbs_metadata["x_pos"]])
+    all_y = pd.concat([ph_metadata["y_pos"], sbs_metadata["y_pos"]])
+    x_range = all_x.max() - all_x.min() + max(ph_tile_size, sbs_tile_size)
+    y_range = all_y.max() - all_y.min() + max(ph_tile_size, sbs_tile_size)
+    aspect = x_range / y_range if y_range > 0 else 1
+
+    if figsize is None:
+        figsize = (min(24, 14 * aspect), 14)
+
+    fig, ax = plt.subplots(figsize=figsize, dpi=300)
+
+    # Draw PH tiles as rectangles with labels
+    for _, row in ph_metadata.iterrows():
+        rect = mpatches.Rectangle(
+            (row["x_pos"], row["y_pos"]),
+            ph_tile_size,
+            ph_tile_size,
+            linewidth=0.5,
+            edgecolor="black",
+            facecolor="white",
+            alpha=0.7,
+        )
+        ax.add_patch(rect)
+        # Label centered in tile
+        ax.text(
+            row["x_pos"] + ph_tile_size / 2,
+            row["y_pos"] + ph_tile_size / 2,
+            str(int(row["tile"])),
             ha="center",
-            fontsize=12,
+            va="center",
+            fontsize=_auto_fontsize(ph_tile_size, x_range),
             color="black",
         )
 
-    # Scatter plot for SBS data
-    plt.scatter(
-        sbs_test_metadata["x_pos"],
-        sbs_test_metadata["y_pos"],
-        s=1800,
-        c="red",
-        marker="s",
-        edgecolors="black",
-        linewidths=1,
-        alpha=0.5,
-        label="SBS",
-    )
-
-    # Label each SBS point with the 'tile' variable
-    for i, txt in enumerate(sbs_test_metadata["tile"]):
-        plt.annotate(
-            txt,
-            (sbs_test_metadata["x_pos"].iloc[i], sbs_test_metadata["y_pos"].iloc[i]),
-            textcoords="offset points",
-            xytext=(0, -7),
+    # Draw SBS tiles as rectangles with labels
+    for _, row in sbs_metadata.iterrows():
+        rect = mpatches.Rectangle(
+            (row["x_pos"], row["y_pos"]),
+            sbs_tile_size,
+            sbs_tile_size,
+            linewidth=0.5,
+            edgecolor="darkred",
+            facecolor="red",
+            alpha=0.4,
+        )
+        ax.add_patch(rect)
+        ax.text(
+            row["x_pos"] + sbs_tile_size / 2,
+            row["y_pos"] + sbs_tile_size / 2,
+            str(int(row["tile"])),
             ha="center",
-            fontsize=12,
-            color="red",
+            va="center",
+            fontsize=_auto_fontsize(sbs_tile_size, x_range),
+            color="darkred",
+            fontweight="bold",
         )
 
-    # Set labels and title
-    plt.xlabel("X Position", fontsize=30)
-    plt.ylabel("Y Position", fontsize=30)
-    plt.title(
-        "Combined Grid Plot of X-Y Positions with Field of View Labels, SBS & PH",
-        fontsize=30,
+    # Create legend patches
+    ph_patch = mpatches.Patch(
+        facecolor="white", edgecolor="black", alpha=0.7, label="PH"
     )
+    sbs_patch = mpatches.Patch(
+        facecolor="red", edgecolor="darkred", alpha=0.4, label="SBS"
+    )
+    ax.legend(handles=[ph_patch, sbs_patch], fontsize=12, loc="upper right")
 
-    # Add legend
-    plt.legend(fontsize=30)
+    ax.set_aspect("equal")
+    ax.autoscale()
+    ax.set_xlabel("X Position (µm)", fontsize=14)
+    ax.set_ylabel("Y Position (µm)", fontsize=14)
+    ax.set_title("Combined Tile Grid - PH (white) & SBS (red)", fontsize=16)
 
-    # Adjust layout
     plt.tight_layout()
-
     return fig
+
+
+def _auto_fontsize(tile_size, plot_range, min_size=4, max_size=10):
+    """Calculate font size based on tile size relative to plot range.
+
+    Args:
+        tile_size (float): Size of the tile in plot coordinates.
+        plot_range (float): Total range of the plot (max - min).
+        min_size (int, optional): Minimum font size. Defaults to 4.
+        max_size (int, optional): Maximum font size. Defaults to 10.
+
+    Returns:
+        float: Calculated font size.
+    """
+    fraction = tile_size / plot_range
+    size = min_size + (max_size - min_size) * min(1, fraction * 20)
+    return max(min_size, min(max_size, size))
+
+
+def _estimate_tile_size_from_coords(metadata):
+    """Estimate tile size from coordinate spacing.
+
+    Args:
+        metadata (pd.DataFrame): DataFrame with 'x_pos' and 'y_pos' columns.
+
+    Returns:
+        float: Estimated tile size based on median spacing between adjacent tiles.
+    """
+    sorted_x = metadata["x_pos"].sort_values().diff().dropna()
+    sorted_y = metadata["y_pos"].sort_values().diff().dropna()
+    # Use median of non-zero diffs as spacing
+    x_spacing = sorted_x[sorted_x > 0].median()
+    y_spacing = sorted_y[sorted_y > 0].median()
+    return min(x_spacing, y_spacing) if pd.notna(x_spacing) else 1000
 
 
 def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
@@ -467,11 +534,6 @@ def preview_mask_transformations(
     )
 
     return {"flipud": flipud, "fliplr": fliplr, "rot90": rot90}
-
-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 
 
 def align_metadata(

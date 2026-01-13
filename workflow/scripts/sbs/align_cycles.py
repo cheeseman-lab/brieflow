@@ -12,6 +12,7 @@ aligned_data = align_cycles(
     channel_order=snakemake.params.channel_names,
     method=snakemake.params.method,
     upsample_factor=snakemake.params.upsample_factor,
+    window=snakemake.params.window,
     skip_cycles=snakemake.params.skip_cycles_indices,
     manual_background_cycle=snakemake.params.manual_background_cycle_index,
     manual_channel_mapping=snakemake.params.manual_channel_mapping,

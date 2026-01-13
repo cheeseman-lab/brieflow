@@ -23,14 +23,14 @@ def _read_image_data():
 
     def _is_nd2_path(p: str) -> bool:
         return str(p).lower().endswith(".nd2")
-    
+
     def _is_zarr_path(p: str) -> bool:
         return str(p).lower().endswith(".zarr")
 
     # Normalize input(s) - convert Snakemake Namedlist to standard types
     input_paths = snakemake.input.image
     # Handle Snakemake Namedlist or other iterables by converting to list
-    if hasattr(input_paths, '__iter__') and not isinstance(input_paths, str):
+    if hasattr(input_paths, "__iter__") and not isinstance(input_paths, str):
         input_paths = list(input_paths)
         first_path = str(input_paths[0]) if len(input_paths) else ""
     else:

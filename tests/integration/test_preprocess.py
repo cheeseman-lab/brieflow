@@ -133,19 +133,19 @@ def test_convert_sbs():
         "image",
         "zarr",
     )
-    
+
     # Remove the extension to get the base name
     filename_no_ext = filename_base.rsplit(".", 1)[0]
     zarr_path = base_path / f"{filename_no_ext}.zarr"
     tiff_path = base_path / f"{filename_no_ext}.tiff"
-    
+
     if zarr_path.exists():
         sbs_image = read_image(str(zarr_path))
     elif tiff_path.exists():
         sbs_image = imread(str(tiff_path))
     else:
         pytest.fail(f"Neither Zarr nor TIFF found: {zarr_path} or {tiff_path}")
-    
+
     assert sbs_image.shape == (5, 1200, 1200)
 
 
@@ -157,19 +157,19 @@ def test_convert_phenotype():
         "image",
         "zarr",
     )
-    
+
     # Remove the extension to get the base name
     filename_no_ext = filename_base.rsplit(".", 1)[0]
     zarr_path = base_path / f"{filename_no_ext}.zarr"
     tiff_path = base_path / f"{filename_no_ext}.tiff"
-    
+
     if zarr_path.exists():
         phenotype_image = read_image(str(zarr_path))
     elif tiff_path.exists():
         phenotype_image = imread(str(tiff_path))
     else:
         pytest.fail(f"Neither Zarr nor TIFF found: {zarr_path} or {tiff_path}")
-    
+
     assert phenotype_image.shape == (4, 2400, 2400)
 
 
@@ -185,19 +185,19 @@ def test_calculate_ic_sbs():
         "ic_field",
         "zarr",
     )
-    
+
     # Remove the extension to get the base name
     filename_no_ext = filename_base.rsplit(".", 1)[0]
     zarr_path = base_path / f"{filename_no_ext}.zarr"
     tiff_path = base_path / f"{filename_no_ext}.tiff"
-    
+
     if zarr_path.exists():
         sbs_ic_field = read_image(str(zarr_path))
     elif tiff_path.exists():
         sbs_ic_field = imread(str(tiff_path))
     else:
         pytest.fail(f"Neither Zarr nor TIFF found: {zarr_path} or {tiff_path}")
-    
+
     assert sbs_ic_field.shape == (5, 1200, 1200)
 
 
@@ -212,17 +212,17 @@ def test_calculate_ic_phenotype():
         "ic_field",
         "zarr",
     )
-    
+
     # Remove the extension to get the base name
     filename_no_ext = filename_base.rsplit(".", 1)[0]
     zarr_path = base_path / f"{filename_no_ext}.zarr"
     tiff_path = base_path / f"{filename_no_ext}.tiff"
-    
+
     if zarr_path.exists():
         phenotype_ic_field = read_image(str(zarr_path))
     elif tiff_path.exists():
         phenotype_ic_field = imread(str(tiff_path))
     else:
         pytest.fail(f"Neither Zarr nor TIFF found: {zarr_path} or {tiff_path}")
-    
+
     assert phenotype_ic_field.shape == (4, 2400, 2400)

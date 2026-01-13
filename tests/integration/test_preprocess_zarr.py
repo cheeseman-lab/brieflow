@@ -507,11 +507,10 @@ def test_zarr_compression_applied():
     # Note: Zarr v3 may have additional overhead, so be more lenient
     # Also, if data is already highly compressible (lots of zeros), compression ratio can vary
     compression_ratio = actual_size / uncompressed_size
-    
+
     # If compression_ratio > 2, something is wrong (file is larger than uncompressed!)
     # But for this test, we'll just check that it's not massively larger
     assert compression_ratio < 5.0, (
         f"Zarr file is unexpectedly large: {actual_size} bytes on disk vs "
         f"{uncompressed_size} bytes uncompressed (ratio: {compression_ratio:.2f})"
     )
-

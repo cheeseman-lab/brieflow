@@ -111,6 +111,7 @@ rule merge_phenotype:
         ),
     params:
         channel_names=config["phenotype"]["channel_names"],
+        segment_cells=config["phenotype"].get("segment_cells", True),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype"],
     script:

@@ -4,9 +4,11 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 PHENOTYPE_FP = ROOT_FP / "phenotype"
 
-# determine feature eval outputs based on channel names
+# determine feature eval outputs based on channel names and segment_cells setting
 channel_names = config["phenotype"]["channel_names"]
-eval_features = [f"cell_{channel}_min" for channel in channel_names]
+segment_cells = config["phenotype"].get("segment_cells", True)
+prefix = "cell" if segment_cells else "nucleus"
+eval_features = [f"{prefix}_{channel}_min" for channel in channel_names]
 
 PHENOTYPE_OUTPUTS = {
     "apply_ic_field_phenotype": [

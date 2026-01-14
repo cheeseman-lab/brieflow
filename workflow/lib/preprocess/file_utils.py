@@ -261,6 +261,10 @@ def get_inputs_for_metadata_extraction(
         if hasattr(wildcards, attr):
             filter_args[attr] = getattr(wildcards, attr)
 
+    # Rename 'round' to 'round_order' to match get_sample_fps parameter
+    if "round" in filter_args:
+        filter_args["round_order"] = filter_args.pop("round")
+
     inputs = {"samples": [], "metadata": []}
 
     if not metadata_samples_df.empty:

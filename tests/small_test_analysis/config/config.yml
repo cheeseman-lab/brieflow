@@ -120,13 +120,27 @@ merge:
     fov_distance_1: true
   pheno_dedup_prior:
     fov_distance_0: true
+classify:
+  classifier_path: config/binary_xgb_robust_model.dill
+  confidence_thresholds:
+    1:
+      threshold: 0.5
+      mode: exclude
+    2:
+      threshold: 0.5
+      mode: exclude
+  metadata_cols_fp: config/cell_data_metadata_cols.tsv
+  class_title: cell_stage
+  class_mapping:
+    label_to_class:
+      1: Mitotic
+      2: Interphase
 aggregate:
   agg_method: median
   aggregate_combo_fp: config/aggregate_combo.tsv
   batch_cols:
   - plate
   - well
-  classifier_path: config/binary_xgb_robust_model.dill
   collapse_cols:
   - cell_barcode_0
   - gene_symbol_0

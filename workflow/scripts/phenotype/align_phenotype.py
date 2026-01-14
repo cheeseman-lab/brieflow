@@ -1,10 +1,11 @@
-from tifffile import imread, imwrite
+from tifffile import imwrite
 
 from lib.phenotype.align_channels import align_phenotype_channels
 from lib.shared.align import apply_custom_offsets
+from lib.shared.io import read_image
 
-# Load image data
-image_data = imread(snakemake.input[0])
+# Load image data (supports TIFF and Zarr)
+image_data = read_image(snakemake.input[0])
 
 # Get the alignment config
 align_config = snakemake.params.config

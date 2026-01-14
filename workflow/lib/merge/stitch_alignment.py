@@ -528,7 +528,7 @@ def _adaptive_regional_alignment(
         # Success!
         determinant = np.linalg.det(rotation)
 
-        print(f"Regional triangle hash alignment successful:")
+        print(f" Regional triangle hash alignment successful:")
         print(f"   Score: {calculated_score:.3f} (threshold: {score_threshold})")
         print(f"   Determinant: {determinant:.6f}")
         print(f"   Region size used: {region_size:.0f}")

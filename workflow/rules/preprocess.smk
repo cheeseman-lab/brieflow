@@ -3,6 +3,8 @@ from lib.preprocess.preprocess import get_data_config, include_tile_in_input, ge
 from lib.shared.target_utils import output_to_input
 
 
+# CONVERT_SBS_KEY, CONVERT_PHENOTYPE_KEY, USE_OME_ZARR are defined in targets/preprocess.smk
+
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
     input:
@@ -71,49 +73,127 @@ rule combine_metadata_phenotype:
         "../scripts/preprocess/combine_metadata.py"
 
 
-# Convert SBS image files to TIFF
-rule convert_sbs:
-    input:
-        lambda wildcards: get_sample_fps(
-            sbs_samples_df,
-            plate=wildcards.plate,
-            well=wildcards.well,
-            cycle=wildcards.cycle,
-            tile=wildcards.tile if include_tile_in_input("sbs", config) else None,
-            channel_order=config["preprocess"]["sbs_channel_order"],
-        ),
-    output:
-        PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
-    params:
-        tile=lambda wildcards: int(wildcards.tile),
-    script:
-        "../scripts/preprocess/image_to_tiff.py"
+# Define conversion rules based on output format
+if "convert_sbs" in PREPROCESS_OUTPUTS_MAPPED:
+    # Convert SBS image files to TIFF
+    rule convert_sbs:
+        input:
+            lambda wildcards: get_sample_fps(
+                sbs_samples_df,
+                plate=wildcards.plate,
+                well=wildcards.well,
+                cycle=wildcards.cycle,
+                tile=wildcards.tile if include_tile_in_input("sbs", config) else None,
+                channel_order=config["preprocess"]["sbs_channel_order"],
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
+        params:
+            tile=lambda wildcards: int(wildcards.tile),
+        script:
+            "../scripts/preprocess/image_to_tiff.py"
 
+if "convert_phenotype" in PREPROCESS_OUTPUTS_MAPPED:
+    # Convert phenotype image files to TIFF
+    rule convert_phenotype:
+        input:
+            lambda wildcards: get_sample_fps(
+                phenotype_samples_df,
+                plate=wildcards.plate,
+                well=wildcards.well,
+                tile=wildcards.tile if include_tile_in_input("phenotype", config) else None,
+                round_order=config["preprocess"]["phenotype_round_order"],
+                channel_order=config["preprocess"]["phenotype_channel_order"]
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
+        params:
+            tile=lambda wildcards: int(wildcards.tile),
+        script:
+            "../scripts/preprocess/image_to_tiff.py"
 
-# Convert phenotype image files to TIFF
-rule convert_phenotype:
-    input:
-        lambda wildcards: get_sample_fps(
-            phenotype_samples_df,
-            plate=wildcards.plate,
-            well=wildcards.well,
-            tile=wildcards.tile if include_tile_in_input("phenotype", config) else None,
-            round_order=config["preprocess"]["phenotype_round_order"],
-            channel_order=config["preprocess"]["phenotype_channel_order"]
-        ),
-    output:
-        PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
-    params:
-        tile=lambda wildcards: int(wildcards.tile),
-    script:
-        "../scripts/preprocess/image_to_tiff.py"
+# Standard Zarr conversion (for downstream processing)
+if "convert_sbs_zarr" in PREPROCESS_OUTPUTS_MAPPED:
+    rule convert_sbs_zarr:
+        input:
+            lambda wildcards: get_sample_fps(
+                sbs_samples_df,
+                plate=wildcards.plate,
+                well=wildcards.well,
+                cycle=wildcards.cycle,
+                tile=wildcards.tile if include_tile_in_input("sbs", config) else None,
+                channel_order=config["preprocess"]["sbs_channel_order"],
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["convert_sbs_zarr"],
+        params:
+            tile=lambda wildcards: int(wildcards.tile),
+        script:
+            "../scripts/preprocess/nd2_to_zarr.py"
+
+if "convert_phenotype_zarr" in PREPROCESS_OUTPUTS_MAPPED:
+    rule convert_phenotype_zarr:
+        input:
+            lambda wildcards: get_sample_fps(
+                phenotype_samples_df,
+                plate=wildcards.plate,
+                well=wildcards.well,
+                tile=wildcards.tile if include_tile_in_input("phenotype", config) else None,
+                round_order=config["preprocess"]["phenotype_round_order"],
+                channel_order=config["preprocess"]["phenotype_channel_order"]
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["convert_phenotype_zarr"],
+        params:
+            tile=lambda wildcards: int(wildcards.tile),
+        script:
+            "../scripts/preprocess/nd2_to_zarr.py"
+
+# OME-Zarr multiscale conversion (for visualization)
+if "convert_sbs_omezarr" in PREPROCESS_OUTPUTS_MAPPED:
+    # Convert SBS image files directly to OME-Zarr
+    rule convert_sbs_omezarr:
+        input:
+            lambda wildcards: get_sample_fps(
+                sbs_samples_df,
+                plate=wildcards.plate,
+                well=wildcards.well,
+                cycle=wildcards.cycle,
+                tile=wildcards.tile if include_tile_in_input("sbs", config) else None,
+                channel_order=config["preprocess"]["sbs_channel_order"],
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["convert_sbs_omezarr"],
+        params:
+            tile=lambda wildcards: int(wildcards.tile),
+        script:
+            "../scripts/preprocess/image_to_omezarr.py"
+
+if "convert_phenotype_omezarr" in PREPROCESS_OUTPUTS_MAPPED:
+    # Convert phenotype image files directly to OME-Zarr
+    rule convert_phenotype_omezarr:
+        input:
+            lambda wildcards: get_sample_fps(
+                phenotype_samples_df,
+                plate=wildcards.plate,
+                well=wildcards.well,
+                tile=wildcards.tile if include_tile_in_input("phenotype", config) else None,
+                round_order=config["preprocess"]["phenotype_round_order"],
+                channel_order=config["preprocess"]["phenotype_channel_order"]
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["convert_phenotype_omezarr"],
+        params:
+            tile=lambda wildcards: int(wildcards.tile),
+        script:
+            "../scripts/preprocess/image_to_omezarr.py"
 
 
 # Calculate illumination correction function for SBS files
 rule calculate_ic_sbs:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_sbs"],
+            PREPROCESS_OUTPUTS[CONVERT_SBS_KEY],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=sbs_wildcard_combos,
@@ -131,7 +211,7 @@ rule calculate_ic_sbs:
 rule calculate_ic_phenotype:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["convert_phenotype"],
+            PREPROCESS_OUTPUTS[CONVERT_PHENOTYPE_KEY],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=phenotype_wildcard_combos,

@@ -1,9 +1,11 @@
-from tifffile import imread, imwrite
+from tifffile import imwrite
 import numpy as np
 import pandas as pd
 
-# Load illumination corrected data
-aligned_data = imread(snakemake.input[0])
+from lib.shared.io import read_image
+
+# Load illumination corrected data (supports TIFF and Zarr)
+aligned_data = read_image(snakemake.input[0])
 
 # Get configuration from params
 params = snakemake.params.config

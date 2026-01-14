@@ -1,9 +1,10 @@
-from tifffile import imread, imwrite
+from tifffile import imwrite
 
 from lib.sbs.max_filter import max_filter
+from lib.shared.io import read_image
 
-# load log filtered image data
-log_filtered_data = imread(snakemake.input[0])
+# load log filtered image data (supports TIFF and Zarr)
+log_filtered_data = read_image(snakemake.input[0])
 
 # apply max filter
 max_filtered = max_filter(

@@ -1,9 +1,10 @@
-from tifffile import imread, imwrite
+from tifffile import imwrite
 
 from lib.sbs.align_cycles import align_cycles
+from lib.shared.io import read_image
 
-# load image data
-image_data = [imread(file_path) for file_path in snakemake.input]
+# load image data (supports both TIFF and Zarr)
+image_data = [read_image(file_path) for file_path in snakemake.input]
 
 # align cycles
 aligned_data = align_cycles(

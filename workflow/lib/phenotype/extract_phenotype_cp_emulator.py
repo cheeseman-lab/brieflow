@@ -25,7 +25,7 @@ from lib.shared.log_filter import log_ndi
 from lib.phenotype.constants import DEFAULT_METADATA_COLS
 
 
-def extract_phenotype_cp_multichannel(
+def extract_phenotype_cp_emulator(
     data_phenotype,
     nuclei,
     cells,
@@ -69,8 +69,8 @@ def extract_phenotype_cp_multichannel(
             label, metadata (well, tile, etc.), nucleus features, cell features,
             cytoplasm features (if applicable), and foci features (if applicable).
     """
-    # If nuclei or cells are empty, return an empty DataFrame
-    if np.sum(nuclei) == 0 or np.sum(cells) == 0:
+    # If nuclei are empty, return an empty DataFrame
+    if np.sum(nuclei) == 0:
         return pd.DataFrame(columns=["well", "tile"])
 
     # Check if all channels should be used
@@ -130,9 +130,8 @@ def extract_phenotype_cp_multichannel(
         columns.update(shape_columns)
         return columns
 
-    # Create column maps for nucleus and cell
+    # Create column maps for nucleus
     nucleus_columns = make_column_map(nucleus_channels)
-    cell_columns = make_column_map(cell_channels)
 
     # Extract nucleus features
     dfs.append(
@@ -148,19 +147,21 @@ def extract_phenotype_cp_multichannel(
         .add_prefix("nucleus_")
     )
 
-    # Extract cell features
-    dfs.append(
-        extract_features(
-            data_phenotype[..., cell_channels, :, :],
-            cells,
-            dict(),
-            features,
-            multichannel=True,
+    # Extract cell features (only if cells is provided and not empty)
+    if cells is not None and np.sum(cells) > 0:
+        cell_columns = make_column_map(cell_channels)
+        dfs.append(
+            extract_features(
+                data_phenotype[..., cell_channels, :, :],
+                cells,
+                dict(),
+                features,
+                multichannel=True,
+            )
+            .rename(columns=cell_columns)
+            .set_index("label")
+            .add_prefix("cell_")
         )
-        .rename(columns=cell_columns)
-        .set_index("label")
-        .add_prefix("cell_")
-    )
 
     # Extract cytoplasmic features if cytoplasms are provided
     if cytoplasms is not None:
@@ -179,7 +180,10 @@ def extract_phenotype_cp_multichannel(
         )
 
     # Extract foci features if foci channel is provided
+    # Use cells if available, otherwise fall back to nuclei
     if foci_channel is not None:
+        foci_mask = cells if (cells is not None and np.sum(cells) > 0) else nuclei
+
         # Normalize to list for consistent handling
         if isinstance(foci_channel, int):
             foci_channels = [foci_channel]
@@ -189,23 +193,25 @@ def extract_phenotype_cp_multichannel(
         for fc in foci_channels:
             foci = find_foci(data_phenotype[..., fc, :, :], remove_border_foci=True)
             dfs.append(
-                extract_features_bare(foci, cells, features=foci_features)
+                extract_features_bare(foci, foci_mask, features=foci_features)
                 .set_index("label")
                 .add_prefix(f"cell_{channel_names[fc]}_")
             )
 
-    # Extract nucleus and cell neighbors
+    # Extract nucleus neighbors
     dfs.append(
         neighbor_measurements(nuclei, distances=[1])
         .set_index("label")
         .add_prefix("nucleus_")
     )
 
-    dfs.append(
-        neighbor_measurements(cells, distances=[1])
-        .set_index("label")
-        .add_prefix("cell_")
-    )
+    # Extract cell neighbors (only if cells is provided and not empty)
+    if cells is not None and np.sum(cells) > 0:
+        dfs.append(
+            neighbor_measurements(cells, distances=[1])
+            .set_index("label")
+            .add_prefix("cell_")
+        )
 
     if cytoplasms is not None:
         dfs.append(

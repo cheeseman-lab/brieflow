@@ -231,7 +231,7 @@ rule format_merge:
             else MERGE_OUTPUTS["fast_merge"][0]
         ),
         ancient(SBS_OUTPUTS["combine_cells"]),
-        ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1]),
+        ancient(PHENOTYPE_OUTPUTS["merge_phenotype"][1]),
     output:
         MERGE_OUTPUTS_MAPPED["format_merge"][0],
     params:
@@ -246,7 +246,7 @@ rule deduplicate_merge:
     input:
         MERGE_OUTPUTS["format_merge"][0],
         ancient(SBS_OUTPUTS["combine_cells"]),
-        ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1]),
+        ancient(PHENOTYPE_OUTPUTS["merge_phenotype"][1]),
     output:
         deduplication_stats=MERGE_OUTPUTS_MAPPED["deduplicate_merge"][0],
         deduplicated_data=MERGE_OUTPUTS_MAPPED["deduplicate_merge"][1],
@@ -263,7 +263,7 @@ rule deduplicate_merge:
 rule final_merge:
     input:
         MERGE_OUTPUTS["deduplicate_merge"][1],
-        ancient(PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0]),
+        ancient(PHENOTYPE_OUTPUTS["merge_phenotype"][0]),
     output:
         MERGE_OUTPUTS_MAPPED["final_merge"][0],
     params:
@@ -288,7 +288,7 @@ rule eval_merge:
             ancient_output=True,
         ),
         min_phenotype_cp_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
+            PHENOTYPE_OUTPUTS["merge_phenotype"][1],
             wildcards=wildcards,
             expansion_values=["well"],
             metadata_combos=phenotype_wildcard_combos,

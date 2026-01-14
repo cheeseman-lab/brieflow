@@ -92,7 +92,7 @@ phenotype:
   - COXIV
   - CENPA
   - WGA
-  cp_method: 
+  cp_method: cp_emulator
   cyto_index: 1
   cellpose_model: cyto3
   dapi_index: 0

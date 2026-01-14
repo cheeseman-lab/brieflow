@@ -69,7 +69,7 @@ PHENOTYPE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "phenotype_info", "parquet"
         ),
     ],
-    "extract_phenotype_cp": [
+    "extract_phenotype": [
         PHENOTYPE_FP
         / "tsvs"
         / get_filename(
@@ -78,7 +78,7 @@ PHENOTYPE_OUTPUTS = {
             "tsv",
         ),
     ],
-    "merge_phenotype_cp": [
+    "merge_phenotype": [
         PHENOTYPE_FP
         / "parquets"
         / get_filename(
@@ -128,8 +128,8 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "identify_cytoplasm": temp,
     "extract_phenotype_info": temp,
     "combine_phenotype_info": None,
-    "extract_phenotype_cp": temp,
-    "merge_phenotype_cp": None,
+    "extract_phenotype": temp,
+    "merge_phenotype": None,
     "eval_segmentation_phenotype": None,
     "eval_features": None,
 }

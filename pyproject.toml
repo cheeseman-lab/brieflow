@@ -48,6 +48,7 @@ dependencies = [
   "jupyterlab-widgets==3.0.15",
   "widgetsnbextension==4.0.14",
   "lightgbm==4.6.0",
+  "scikit-learn==1.8.0",
 ]
 
 

@@ -117,6 +117,19 @@ def calibrate_confidence(
 
     join_keys, id_col = _resolve_join_keys(classify_by)
 
+    # Handle merge data: uses 'cell_0' instead of 'label' for cell mode
+    if id_col == "label":
+        # Check if this is merge data (has cell_0 but not label)
+        has_cell_0 = "cell_0" in classified_metadata.columns
+        has_label = "label" in classified_metadata.columns
+        if has_cell_0 and not has_label:
+            if verbose:
+                print(
+                    "Detected merge data: using 'cell_0' instead of 'label' for joins"
+                )
+            join_keys = ["cell_0" if k == "label" else k for k in join_keys]
+            id_col = "cell_0"
+
     # Required columns sanity checks (minimal; detailed checks happen during merges)
     required_cls_cols = set(join_keys + [class_title, f"{class_title}_confidence"])
     missing_cls = required_cls_cols - set(classified_metadata.columns)
@@ -147,21 +160,40 @@ def calibrate_confidence(
             "No feature list found on the loaded classifier (clf.features is empty)."
         )
 
-    # Build master features table (one row per join key)
+    # Check if manual_labeled_data already has the required features
+    # (common when training data includes features, e.g., from merge parquets)
+    missing_feats_in_manual = [c for c in feature_cols if c not in manual_norm.columns]
+
+    # Always build feat_master - needed later for applying calibration to target data
     feat_master = (
         master_norm[join_keys + feature_cols].drop_duplicates(subset=join_keys).copy()
     )
 
-    manual_join = (
-        manual_norm[join_keys + [class_title]]
-        .dropna(subset=join_keys + [class_title])
-        .copy()
-    )
-    cal_df = manual_join.merge(feat_master, on=join_keys, how="inner")
-    if cal_df.empty:
-        raise ValueError(
-            "No overlap between manual_labeled_data and feature table on the specified keys."
+    if not missing_feats_in_manual:
+        # Use features directly from manual_labeled_data
+        if verbose:
+            print("Using features from manual_labeled_data directly (no join needed)")
+        cal_df = (
+            manual_norm[join_keys + [class_title] + feature_cols]
+            .dropna(subset=join_keys + [class_title])
+            .copy()
         )
+    else:
+        # Fall back to joining with master_phenotype_df to get features
+        if verbose:
+            print(
+                f"Joining with master_phenotype_df to get {len(missing_feats_in_manual)} missing features"
+            )
+        manual_join = (
+            manual_norm[join_keys + [class_title]]
+            .dropna(subset=join_keys + [class_title])
+            .copy()
+        )
+        cal_df = manual_join.merge(feat_master, on=join_keys, how="inner")
+        if cal_df.empty:
+            raise ValueError(
+                "No overlap between manual_labeled_data and feature table on the specified keys."
+            )
 
     # Ensure all requested features exist
     missing_feats = [c for c in feature_cols if c not in cal_df.columns]
@@ -180,10 +212,53 @@ def calibrate_confidence(
     )
 
     # Fit calibrator on the prefit estimator
-    cal_wrapper = CalibratedClassifierCV(
-        estimator=est_prefit, cv="prefit", method=chosen_method
-    )
-    cal_wrapper.fit(X_manual, y_manual_enc)
+    # sklearn 1.4+ deprecated cv="prefit" in favor of FrozenEstimator
+    # We need to set cv based on sample size to avoid split errors
+    n_samples = len(X_manual)
+    min_class_count = min(np.bincount(y_manual_enc))
+
+    try:
+        from sklearn.frozen import FrozenEstimator
+
+        # Use cv=2 minimum, but ensure we have enough samples per class
+        n_splits = min(5, min_class_count, n_samples // 2)
+        if n_splits < 2:
+            if verbose:
+                print(
+                    f"Warning: Only {min_class_count} samples in smallest class, skipping CV calibration"
+                )
+            # Fall back to no calibration - just use original confidences
+            cal_wrapper = None
+        else:
+            cal_wrapper = CalibratedClassifierCV(
+                estimator=FrozenEstimator(est_prefit), cv=n_splits, method=chosen_method
+            )
+    except ImportError:
+        # sklearn < 1.4: use cv="prefit"
+        cal_wrapper = CalibratedClassifierCV(
+            estimator=est_prefit, cv="prefit", method=chosen_method
+        )
+
+    if cal_wrapper is not None:
+        cal_wrapper.fit(X_manual, y_manual_enc)
+    else:
+        # Not enough samples for calibration - return original data
+        if verbose:
+            print(
+                "Calibration skipped due to insufficient samples. Returning original confidences."
+            )
+        return classified_metadata.copy(deep=True), {
+            "correction": "skipped",
+            "calibration_method": chosen_method,
+            "fallback_from_isotonic": did_fallback,
+            "rows_with_features": len(X_manual),
+            "rows_replaced": 0,
+            "rows_unmodified": len(classified_metadata),
+            "used_label_encoder": used_le,
+            "filtered_by_plate": test_plate is not None,
+            "filtered_by_well": test_well is not None,
+            "skip_reason": f"min_class_count={min_class_count}, need at least 2",
+        }
 
     target_df = cls_norm.merge(
         feat_master, on=join_keys, how="left", suffixes=("", "_feat")

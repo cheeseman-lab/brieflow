@@ -33,6 +33,7 @@ from sklearn.preprocessing import (
     RobustScaler,
     StandardScaler,
 )
+from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.utils.class_weight import compute_class_weight
 from xgboost import XGBClassifier
@@ -329,13 +330,9 @@ def select_features_from_split(
 
     if exclude_markers is None:
         exclude_markers = []
-        if verbose:
-            print("No markers to exclude")
 
     if exclude_cols is None:
         exclude_cols = []
-        if verbose:
-            print("No specific columns to exclude")
 
     # Get all columns as potential features
     all_feature_cols = features_df.columns.tolist()
@@ -363,16 +360,6 @@ def select_features_from_split(
             for col in feature_cols
             if not any(col.startswith(prefix) for prefix in object_prefixes_to_exclude)
         ]
-
-        if verbose:
-            excluded_types = [
-                obj
-                for obj in ["nucleus", "cell", "cytoplasm", "second_obj"]
-                if obj not in training_object_types
-            ]
-            if excluded_types:
-                print(f"Excluded object types: {excluded_types}")
-            print(f"Included object types: {training_object_types}")
 
     # Initialize feature lists by marker
     feature_sets = {marker: [] for marker in feature_markers}
@@ -408,31 +395,9 @@ def select_features_from_split(
 
     # Remove columns with NaN values if requested
     if remove_nan:
-        if verbose:
-            print(
-                f"Number of selected features before NaN removal: {len(selected_features)}"
-            )
         selected_features = [
             col for col in selected_features if features_df[col].notna().all()
         ]
-        if verbose:
-            print(
-                f"Number of selected features after NaN removal: {len(selected_features)}"
-            )
-
-    # Print feature information if verbose
-    if verbose:
-        print("\nFeature Selection Summary:")
-        print(f"Total features selected: {len(selected_features)}")
-        print("\nFeatures by category:")
-        for category, features in feature_sets.items():
-            if feature_markers.get(category, category == "morphology"):
-                included = [f for f in features if f in selected_features]
-                print(f"  {category}: {len(included)} features")
-                if len(included) > 0 and len(included) <= 5:
-                    print(f"    Examples: {', '.join(included)}")
-                elif len(included) > 5:
-                    print(f"    Examples: {', '.join(included[:5])}...")
 
     return selected_features
 
@@ -540,40 +505,7 @@ def plot_distribution_statistics(
             if v not in target_values:
                 target_values.append(v)
 
-    # 1) Overall distribution (by display strings)
-    plt.figure(figsize=figsize)
-    ax = sns.countplot(
-        data=filtered,
-        x=display_col,
-        hue=display_col,
-        order=target_values,
-        hue_order=target_values,
-        palette=palette,
-        legend=False,
-    )
-    for p in ax.patches:
-        ax.annotate(
-            f"{int(p.get_height())}",
-            (p.get_x() + p.get_width() / 2.0, p.get_height()),
-            ha="center",
-            va="bottom",
-            fontsize=10,
-            fontweight="bold",
-        )
-    plt.title(f"{target_col} Distribution", fontsize=16, fontweight="bold")
-    plt.xlabel(target_col, fontsize=14)
-    plt.ylabel("Count", fontsize=14)
-    plt.xticks(rotation=45, ha="right")
-    ax.grid(axis="y", alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(
-        os.path.join(output_dir, f"{prefix}{target_col}_distribution.png"),
-        dpi=dpi,
-        bbox_inches="tight",
-    )
-    plt.close()
-
-    # 2) Distribution by split variable
+    # Distribution plots by split variable
     if split_col:
         plt.figure(figsize=figsize)
         split_counts = (
@@ -625,45 +557,52 @@ def plot_distribution_statistics(
         )
         plt.close()
 
-        # Per-class bar by split
-        for target_value in target_values:
-            value_percent = (
-                filtered.groupby(split_col)[display_col]
-                .apply(lambda x: sum(x == target_value) / len(x) * 100)
-                .reset_index()
-            )
-            value_percent.columns = [split_col, f"{target_value} Percentage (%)"]
-            plt.figure(figsize=figsize)
-            ax = sns.barplot(
-                x=split_col,
-                y=f"{target_value} Percentage (%)",
-                data=value_percent,
-                color="#3498db",
-                alpha=0.8,
-            )
-            for i, v in enumerate(value_percent[f"{target_value} Percentage (%)"]):
+        # Stacked COUNTS by split variable
+        plt.figure(figsize=figsize)
+        # Reuse split_counts from above, reorder columns
+        cols_in_order_counts = [c for c in target_values if c in split_counts.columns]
+        split_counts_ordered = split_counts[cols_in_order_counts]
+        ax = split_counts_ordered.plot(
+            kind="bar",
+            stacked=True,
+            figsize=figsize,
+            colormap=palette if isinstance(palette, str) else None,
+            color=palette if not isinstance(palette, str) else None,
+        )
+        plt.title(f"{target_col} Counts by {split_col}", fontsize=16, fontweight="bold")
+        plt.xlabel(split_col, fontsize=14)
+        plt.ylabel("Count", fontsize=14)
+        plt.xticks(rotation=0)
+        leg = plt.legend(
+            title=target_col,
+            title_fontsize=12,
+            frameon=True,
+            fancybox=True,
+            framealpha=0.9,
+            fontsize=10,
+        )
+        leg.get_frame().set_edgecolor("lightgray")
+        # Add count labels on bars (only if bar is tall enough)
+        for bar in ax.patches:
+            height = bar.get_height()
+            if height > 0:
                 ax.text(
-                    i, v + 0.5, f"{v:.1f}%", ha="center", fontsize=10, fontweight="bold"
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_y() + height / 2,
+                    f"{int(height)}",
+                    ha="center",
+                    va="center",
+                    fontsize=9,
+                    fontweight="bold",
+                    color="white",
                 )
-            plt.title(
-                f"{target_value} Percentage by {split_col}",
-                fontsize=16,
-                fontweight="bold",
-            )
-            plt.ylabel(f"Percentage of {target_value}", fontsize=14)
-            plt.xlabel(split_col, fontsize=14)
-            plt.ylim(0, max(value_percent[f"{target_value} Percentage (%)"]) * 1.2)
-            ax.grid(axis="y", alpha=0.3)
-            plt.tight_layout()
-            safe_name = str(target_value).replace(" ", "_").replace("+", "plus")
-            plt.savefig(
-                os.path.join(
-                    output_dir, f"{prefix}{safe_name}_percent_by_{split_col}.png"
-                ),
-                dpi=dpi,
-                bbox_inches="tight",
-            )
-            plt.close()
+        plt.tight_layout()
+        plt.savefig(
+            os.path.join(output_dir, f"{prefix}{target_col}_counts_by_{split_col}.png"),
+            dpi=dpi,
+            bbox_inches="tight",
+        )
+        plt.close()
 
     # Summary statistics keyed by display names
     stats = {
@@ -741,9 +680,6 @@ def enhance_feature_selection(
         # Update feature list
         low_var_removed = [feat for i, feat in enumerate(final_features) if support[i]]
 
-        print(
-            f"Removed {len(final_features) - len(low_var_removed)} low variance features"
-        )
         final_features = low_var_removed
 
     # Step 2: Remove highly correlated features
@@ -767,9 +703,6 @@ def enhance_feature_selection(
         # Update feature list
         corr_removed = [feat for feat in final_features if feat not in to_drop]
 
-        print(
-            f"Removed {len(final_features) - len(corr_removed)} highly correlated features"
-        )
         final_features = corr_removed
 
         # Plot correlation matrix if output directory provided
@@ -779,7 +712,7 @@ def enhance_feature_selection(
             sns.heatmap(
                 features_df[final_features].corr(),
                 annot=False,
-                cmap="cell_classifier",
+                cmap="coolwarm",
                 vmin=-1,
                 vmax=1,
                 square=True,
@@ -818,7 +751,6 @@ def enhance_feature_selection(
         feature_scores = pd.DataFrame({"Feature": final_features, "Score": scores})
         feature_scores = feature_scores.sort_values(by="Score", ascending=False)
 
-        print(f"Selected top {len(anova_selected)} features based on ANOVA F-value")
         final_features = anova_selected
 
         # Plot feature importance if output directory provided
@@ -1063,6 +995,7 @@ class SciKitCellClassifier(CellClassifier):
         remove_correlated=True,
         correlation_threshold=0.95,
         select_k_best=None,
+        verbose=True,
     ):
         """Create and train a classifier, saving artifacts and returning a SciKitCellClassifier."""
         # Create output directory if needed
@@ -1114,7 +1047,10 @@ class SciKitCellClassifier(CellClassifier):
                 feature_path = os.path.join(model_dir, f"{prefix}_features.txt")
                 with open(feature_path, "w") as f:
                     f.write("\n".join(selected_features))
-                print(f"Saved selected features to {feature_path}")
+                if verbose:
+                    print(
+                        f"Feature selection: {len(features_df.columns)} features -> {len(selected_features)} features"
+                    )
 
         # Determine if we need label encoding (xgb/lgb typically need encoded 0..K-1 labels)
         needs_label_encoder = model_type in ["xgb", "lgb"]
@@ -1235,6 +1171,22 @@ class SciKitCellClassifier(CellClassifier):
                         ),
                     )
                 )
+        elif model_type == "lr":
+            param_grid = {
+                "lr__C": [0.01, 0.1, 1, 10],
+                "lr__max_iter": [1000],
+            }
+            pipeline_steps.append(
+                (
+                    "lr",
+                    LogisticRegression(
+                        random_state=42,
+                        class_weight="balanced",
+                        max_iter=1000,
+                        solver="lbfgs",
+                    ),
+                )
+            )
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
@@ -1253,35 +1205,24 @@ class SciKitCellClassifier(CellClassifier):
 
         start_time = time.time()
         if do_grid_search:
-            print(
-                f"Performing grid search for '{target_column}' classification with {model_type}..."
-            )
             grid_search = GridSearchCV(
                 pipeline,
                 param_grid,
                 cv=5,
                 scoring="balanced_accuracy",
-                verbose=1,
+                verbose=0,
                 n_jobs=10,
             )
             grid_search.fit(X_train, y_train)
             best_pipeline = grid_search.best_estimator_
             best_params = grid_search.best_params_
-            print("Best parameters:", best_params)
-            print(f"Best cross-validation score: {grid_search.best_score_:.4f}")
         else:
-            print(
-                f"Training {model_type} model for '{target_column}' classification..."
-            )
             pipeline.fit(X_train, y_train)
             best_pipeline = pipeline
         training_time = time.time() - start_time
-        print(f"Training completed in {training_time:.2f} seconds")
 
         y_pred = best_pipeline.predict(X_test)
         class_report = sklearn_classification_report(y_test, y_pred, output_dict=True)
-        print("\nTest Set Classification Report:")
-        print(sklearn_classification_report(y_test, y_pred))
 
         # Build mapping/order for display
         class_id_to_name = None
@@ -1335,18 +1276,11 @@ class SciKitCellClassifier(CellClassifier):
                 )
 
         if retrain_on_full_data:
-            print("\nRetraining model on full dataset with optimal parameters...")
             final_pipeline = clone(best_pipeline) if do_grid_search else best_pipeline
-            full_start_time = time.time()
             if model_type == "xgb" and not is_binary:
-                # Optional: sample weights, but we keep behavior consistent
                 final_pipeline.fit(X, y)
             else:
                 final_pipeline.fit(X, y)
-            full_training_time = time.time() - full_start_time
-            print(
-                f"Full dataset training completed in {full_training_time:.2f} seconds"
-            )
             classifier = cls(
                 model=final_pipeline,
                 features=selected_features,
@@ -1373,13 +1307,9 @@ class SciKitCellClassifier(CellClassifier):
                 classifier.target_col,
                 f"{classifier.target_col}_confidence",
             ]
-            print("\nTest prediction examples:")
-            print(metadata_result[preview_cols].head())
-
         if model_dir is not None and prefix is not None:
             model_path = os.path.join(model_dir, f"{prefix}_model.dill")
             classifier.save(model_path)
-            print(f"Model saved to: {model_path}")
 
             # Save feature list at model root (for notebook consumption)
             feature_path = os.path.join(model_dir, f"{prefix}_features.txt")
@@ -1465,7 +1395,9 @@ class SciKitCellClassifier(CellClassifier):
         if num_classes == 2:
             # Identify positive column index based on y_label_values (second class)
             pos_index = 1
-            fpr, tpr, _ = roc_curve(y_true, y_prob[:, pos_index])
+            fpr, tpr, _ = roc_curve(
+                y_true, y_prob[:, pos_index], pos_label=y_label_values[pos_index]
+            )
             roc_auc = auc(fpr, tpr)
             plt.plot(
                 fpr,
@@ -1775,9 +1707,7 @@ def train_classifier_pipeline(
     )
 
     if verbose:
-        print(
-            f"\n=== Training '{class_title}' classifiers for '{training_name}' (channels: {', '.join(training_channels)}) ===\n"
-        )
+        print(f"\nTraining {len(model_configs)} models for '{class_title}'...")
 
     # 6. Model training loop
     multiclass_results: List[Dict[str, Any]] = []
@@ -1790,8 +1720,6 @@ def train_classifier_pipeline(
         else:
             name, model_type, scaler_type, feature_config = config
         model_name = f"multiclass_{name}"
-        if verbose:
-            print(f"\n{'-' * 50}\nTraining model: {model_name}\n{'-' * 50}")
 
         # Base enhancement defaults
         enhance_params = {
@@ -1829,6 +1757,7 @@ def train_classifier_pipeline(
                 remove_correlated=enhance_params["remove_correlated"],
                 correlation_threshold=enhance_params["correlation_threshold"],
                 select_k_best=enhance_params["select_k_best"],
+                verbose=False,
             )
 
             # Report path
@@ -1914,10 +1843,12 @@ def train_classifier_pipeline(
 
             multiclass_results.append(metrics)
             if verbose:
-                print(f"[pipeline] Trained {model_name}")
+                acc = metrics.get("accuracy", 0) * 100
+                f1 = metrics.get("macro_avg_f1", 0) * 100
+                print(f"  {model_name}: accuracy={acc:.1f}%, F1={f1:.1f}%")
 
         except Exception as e:
-            print(f"[pipeline][ERROR] {model_name}: {e}")
+            print(f"  {model_name}: ERROR - {e}")
             continue
 
     metrics_df = pd.DataFrame(multiclass_results)
@@ -1928,54 +1859,56 @@ def train_classifier_pipeline(
             print(f"[pipeline] Saved metrics CSV: {metrics_out}")
 
     # 7. Plots
-    if verbose:
-        print("\n=== Generating Result Comparisons ===\n")
 
     if not metrics_df.empty:
-        # Accuracy bar
+        # Accuracy bar (exclude failed models with accuracy=0)
         if generate_accuracy_bar:
-            plt.figure(figsize=(12, 8))
-            model_types = metrics_df["model_type"].unique()
-            color_positions = np.linspace(0.1, 0.9, len(model_types))
-            model_type_colors = {
-                m: plt.cm.viridis(pos) for m, pos in zip(model_types, color_positions)
-            }
-            ax = sns.barplot(
-                x="model",
-                y="accuracy",
-                hue="model_type",
-                data=metrics_df,
-                palette=model_type_colors,
-                alpha=0.8,
-            )
-            for p in ax.patches:
-                h = p.get_height()
-                ax.annotate(
-                    f"{h:.3f}",
-                    (p.get_x() + p.get_width() / 2.0, h),
-                    ha="center",
-                    va="bottom",
-                    fontsize=9,
+            successful_df = metrics_df[metrics_df["accuracy"] > 0]
+            if not successful_df.empty:
+                plt.figure(figsize=(12, 8))
+                model_types = successful_df["model_type"].unique()
+                color_positions = np.linspace(0.1, 0.9, max(len(model_types), 1))
+                model_type_colors = {
+                    m: plt.cm.viridis(pos)
+                    for m, pos in zip(model_types, color_positions)
+                }
+                ax = sns.barplot(
+                    x="model",
+                    y="accuracy",
+                    hue="model_type",
+                    data=successful_df,
+                    palette=model_type_colors,
+                    alpha=0.8,
+                )
+                for p in ax.patches:
+                    h = p.get_height()
+                    if h > 0.01:  # Only annotate non-trivial bars
+                        ax.annotate(
+                            f"{h:.3f}",
+                            (p.get_x() + p.get_width() / 2.0, h),
+                            ha="center",
+                            va="bottom",
+                            fontsize=9,
+                            fontweight="bold",
+                        )
+                ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+                plt.title(
+                    f"{class_title}: Accuracy Comparison across Models",
+                    fontsize=16,
                     fontweight="bold",
                 )
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
-            plt.title(
-                f"{class_title}: Accuracy Comparison across Models",
-                fontsize=16,
-                fontweight="bold",
-            )
-            plt.ylabel("Accuracy")
-            plt.xlabel("Model")
-            leg = plt.legend(
-                title="Model Type", frameon=True, fancybox=True, framealpha=0.9
-            )
-            leg.get_title().set_fontweight("bold")
-            plt.tight_layout()
-            out_fp = os.path.join(plots_dir, f"{training_name}_accuracy_comparison.png")
-            plt.savefig(out_fp, dpi=300, bbox_inches="tight")
-            plt.close()
-            if verbose:
-                print(f"[pipeline] Saved plot: {out_fp}")
+                plt.ylabel("Accuracy")
+                plt.xlabel("Model")
+                leg = plt.legend(
+                    title="Model Type", frameon=True, fancybox=True, framealpha=0.9
+                )
+                leg.get_title().set_fontweight("bold")
+                plt.tight_layout()
+                out_fp = os.path.join(
+                    plots_dir, f"{training_name}_accuracy_comparison.png"
+                )
+                plt.savefig(out_fp, dpi=300, bbox_inches="tight")
+                plt.close()
 
         # F1 heatmap
         if generate_f1_heatmap:
@@ -2018,80 +1951,8 @@ def train_classifier_pipeline(
                 if verbose:
                     print(f"[pipeline] Saved plot: {out_fp}")
 
-        # Feature count vs accuracy
-        if generate_feature_vs_accuracy and "feature_count" in metrics_df.columns:
-            plt.figure(figsize=(12, 8))
-            model_types = metrics_df["model_type"].unique()
-            markers = ["o", "s", "^", "d", "v"]
-            for i, mtype in enumerate(model_types):
-                subset = metrics_df[metrics_df["model_type"] == mtype]
-                color_pos = i / (len(model_types) - 1) if len(model_types) > 1 else 0.5
-                color = plt.cm.viridis(color_pos)
-                marker = markers[i % len(markers)]
-                plt.scatter(
-                    subset["feature_count"],
-                    subset["accuracy"],
-                    label=mtype,
-                    color=color,
-                    marker=marker,
-                    alpha=0.8,
-                    s=150,
-                    edgecolors="black",
-                    linewidths=0.5,
-                )
-            for _, row in metrics_df.iterrows():
-                plt.annotate(
-                    row["model"].replace("multiclass_", ""),
-                    (row["feature_count"], row["accuracy"]),
-                    xytext=(5, 0),
-                    textcoords="offset points",
-                    fontsize=8,
-                    alpha=0.8,
-                )
-            if len(metrics_df) > 1:
-                slope, intercept, r_value, p_value, std_err = linregress(
-                    metrics_df["feature_count"], metrics_df["accuracy"]
-                )
-                x_range = np.array(
-                    [
-                        metrics_df["feature_count"].min(),
-                        metrics_df["feature_count"].max(),
-                    ]
-                )
-                plt.plot(
-                    x_range,
-                    intercept + slope * x_range,
-                    "k--",
-                    alpha=0.6,
-                    label=f"R² = {r_value**2:.3f}",
-                )
-            leg = plt.legend(
-                title="Model Type",
-                frameon=True,
-                fancybox=True,
-                framealpha=0.9,
-                loc="best",
-            )
-            leg.get_title().set_fontweight("bold")
-            plt.xlabel("Number of Features")
-            plt.ylabel("Accuracy")
-            plt.title(
-                f"{training_name}: Feature Count vs. Accuracy",
-                fontsize=16,
-                fontweight="bold",
-            )
-            plt.grid(True, alpha=0.3, linestyle="--")
-            plt.tight_layout()
-            out_fp = os.path.join(
-                plots_dir, f"{training_name}_feature_count_vs_accuracy.png"
-            )
-            plt.savefig(out_fp, dpi=300, bbox_inches="tight")
-            plt.close()
-            if verbose:
-                print(f"[pipeline] Saved plot: {out_fp}")
-
     if verbose:
-        print("[pipeline] Complete.")
+        print(f"[pipeline] Complete. Results saved to: {dirs['run']}")
 
     return {
         "metrics_df": metrics_df,

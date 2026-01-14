@@ -282,10 +282,20 @@ def load_parquet(
     well: Union[str, int],
     *,
     cache: Optional[Dict[Any, Any]] = None,
+    columns: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """Load phenotype parquet for a specific plate/well and mode ('vacuole' or 'cell').
 
     For cell mode, if 'phenotype_cp.parquet' is missing, will fall back to 'phenotype_cp_min.parquet'.
+
+    Args:
+        phenotype_output_fp: Path to phenotype output directory containing parquets/.
+        mode: Either 'vacuole' or 'cell' to select parquet type.
+        plate: Plate number.
+        well: Well identifier (e.g., 'A1').
+        cache: Optional dict to cache loaded dataframes by (mode, plate, well) key.
+        columns: Optional list of columns to load. If None, loads all columns.
+                 For coordinate lookup, use ['tile', 'label', 'cell_i', 'cell_j'].
     """
     phenotype_output_fp = Path(phenotype_output_fp)
     mode_ = str(mode).lower()
@@ -329,7 +339,13 @@ def load_parquet(
         raise FileNotFoundError(
             f"Parquet not found for mode={mode_}, plate={plate}, well={wname}. Tried: {tried}"
         )
-    df = pd.read_parquet(pq)
+    # If specific columns requested, filter to only those that exist
+    if columns is not None:
+        import pyarrow.parquet as pq_reader
+
+        available_cols = set(pq_reader.ParquetFile(pq).schema.names)
+        columns = [c for c in columns if c in available_cols]
+    df = pd.read_parquet(pq, columns=columns)
     if cache is not None:
         cache[key] = df
     return df
@@ -346,8 +362,22 @@ def get_coords_for_mask(
     parquet_cache: Optional[Dict[Any, Any]] = None,
 ) -> Tuple[int, int]:
     """Retrieve (i,j) coordinates for a mask centroid from the phenotype parquet."""
-    df = load_parquet(phenotype_output_fp, mode, plate, well, cache=parquet_cache)
     mode_ = str(mode).lower()
+
+    # Only load the columns we need for coordinate lookup (not entire parquet)
+    if mode_ == "vacuole":
+        coord_cols = ["tile", "vacuole_id", "vacuole_i", "vacuole_j"]
+    else:
+        # Cell mode: need to try different label column names
+        # Load all possible label columns plus coordinates
+        coord_cols = ["tile", "cell_id", "label", "labels", "cell_i", "cell_j"]
+
+    # Load only coordinate columns (much smaller than full parquet)
+    # Note: pandas will ignore columns that don't exist when using columns parameter
+    df = load_parquet(
+        phenotype_output_fp, mode, plate, well, cache=parquet_cache, columns=coord_cols
+    )
+
     if mode_ == "vacuole":
         sub = df[(df["tile"] == tile) & (df["vacuole_id"] == mask_label)]
         if sub.empty:

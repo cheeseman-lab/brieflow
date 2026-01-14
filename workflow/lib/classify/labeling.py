@@ -247,38 +247,55 @@ def consolidate_manual_classifications(
             )
             id_col = "vacuole_id"
         else:
-            # Prefer 'phenotype_cp', fall back to 'phenotype_cp_min' if needed
-            main = parquet_dir / get_filename(
-                {"plate": plate_int, "well": well_for_filename(well_str)},
-                "phenotype_cp",
-                "parquet",
-            )
-            alt = parquet_dir / get_filename(
-                {"plate": plate_int, "well": well_for_filename(well_str)},
-                "phenotype_cp_min",
-                "parquet",
-            )
-            pq_path = main if main.exists() else alt
-            if not pq_path.exists():
-                raise FileNotFoundError(f"Missing parquet: {main} (also tried {alt})")
-            try:
-                cols_schema = pq.ParquetFile(pq_path).schema.names
-            except Exception:
-                cols_schema = list(pd.read_parquet(pq_path).head(0).columns)
-            id_col = (
-                "label"
-                if "label" in cols_schema
-                else ("labels" if "labels" in cols_schema else None)
-            )
-            if id_col is None:
-                df_tmp = pd.read_parquet(pq_path)
+            # Determine if this is a merge data source
+            is_merge = "merge" in str(parquet_dir).lower()
+
+            if is_merge:
+                pq_path = parquet_dir / get_filename(
+                    {"plate": plate_int, "well": well_for_filename(well_str)},
+                    "merge_final",
+                    "parquet",
+                )
+                if not pq_path.exists():
+                    raise FileNotFoundError(f"Missing parquet: {pq_path}")
+                id_col = "cell_0"  # phenotype cell ID in merge parquets
+            else:
+                # Prefer 'phenotype_cp', fall back to 'phenotype_cp_min' if needed
+                main = parquet_dir / get_filename(
+                    {"plate": plate_int, "well": well_for_filename(well_str)},
+                    "phenotype_cp",
+                    "parquet",
+                )
+                alt = parquet_dir / get_filename(
+                    {"plate": plate_int, "well": well_for_filename(well_str)},
+                    "phenotype_cp_min",
+                    "parquet",
+                )
+                pq_path = main if main.exists() else alt
+                if not pq_path.exists():
+                    raise FileNotFoundError(
+                        f"Missing parquet: {main} (also tried {alt})"
+                    )
+                try:
+                    cols_schema = pq.ParquetFile(pq_path).schema.names
+                except Exception:
+                    cols_schema = list(pd.read_parquet(pq_path).head(0).columns)
                 id_col = (
                     "label"
-                    if "label" in df_tmp.columns
-                    else ("labels" if "labels" in df_tmp.columns else None)
+                    if "label" in cols_schema
+                    else ("labels" if "labels" in cols_schema else None)
                 )
                 if id_col is None:
-                    raise KeyError(f"Neither 'label' nor 'labels' found in {pq_path}")
+                    df_tmp = pd.read_parquet(pq_path)
+                    id_col = (
+                        "label"
+                        if "label" in df_tmp.columns
+                        else ("labels" if "labels" in df_tmp.columns else None)
+                    )
+                    if id_col is None:
+                        raise KeyError(
+                            f"Neither 'label' nor 'labels' found in {pq_path}"
+                        )
 
         if not pq_path.exists():
             raise FileNotFoundError(f"Missing parquet: {pq_path}")
@@ -356,6 +373,9 @@ def prepare_mask_dataframes(
     gate_max: Optional[Union[float, Sequence[Optional[float]]]] = None,
     gate_min_percentile: Optional[Union[float, Sequence[Optional[float]]]] = None,
     gate_max_percentile: Optional[Union[float, Sequence[Optional[float]]]] = None,
+    sample_fraction: Optional[float] = None,
+    max_rows: Optional[int] = None,
+    random_seed: int = 42,
     verbose: bool = False,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, List[Dict]]:
     """Build mask summary and key tables from per-well parquets and (optionally) apply thresholds.
@@ -371,6 +391,9 @@ def prepare_mask_dataframes(
         gate_max: Numeric upper bound(s) (exclusive) or None.
         gate_min_percentile: Lower quantile(s) in [0,1] (exclusive) or None.
         gate_max_percentile: Upper quantile(s) in [0,1] (exclusive) or None.
+        sample_fraction: Fraction of rows to sample (0-1) after gating. None for all data.
+        max_rows: Maximum rows per pool after gating. None for no limit.
+        random_seed: Random seed for reproducible sampling.
         verbose: If True, print progress messages.
 
     Returns:
@@ -520,6 +543,47 @@ def prepare_mask_dataframes(
             print(f"out_of_gate_df (OUT): {len(out_of_gate_df)} rows")
 
     summary_df = _update_mask_summary(summary_df, in_gate_df, out_of_gate_df)
+
+    # Apply sampling at TILE level (after gating to preserve threshold accuracy)
+    if sample_fraction is not None and 0 < sample_fraction < 1:
+        pre_sample_tiles = len(summary_df)
+        pre_sample_in = len(in_gate_df)
+        pre_sample_out = len(out_of_gate_df)
+
+        # Sample tiles from summary_df
+        sampled_summary = summary_df.sample(
+            frac=sample_fraction, random_state=random_seed
+        )
+        sampled_tile_keys = sampled_summary[["plate", "well", "tile"]]
+
+        # Filter cell pools to only include cells from sampled tiles
+        in_gate_df = in_gate_df.merge(
+            sampled_tile_keys, on=["plate", "well", "tile"], how="inner"
+        )
+        out_of_gate_df = out_of_gate_df.merge(
+            sampled_tile_keys, on=["plate", "well", "tile"], how="inner"
+        )
+        summary_df = sampled_summary
+
+        if verbose:
+            print(
+                f"\nSampled {sample_fraction * 100:.1f}% of tiles: {pre_sample_tiles}->{len(summary_df)}"
+            )
+            print(
+                f"  in_gate: {pre_sample_in}->{len(in_gate_df)}, out_of_gate: {pre_sample_out}->{len(out_of_gate_df)}"
+            )
+
+    if max_rows is not None:
+        pre_max_in = len(in_gate_df)
+        pre_max_out = len(out_of_gate_df)
+        if len(in_gate_df) > max_rows:
+            in_gate_df = in_gate_df.sample(n=max_rows, random_state=random_seed)
+        if len(out_of_gate_df) > max_rows:
+            out_of_gate_df = out_of_gate_df.sample(n=max_rows, random_state=random_seed)
+        if verbose and (pre_max_in > max_rows or pre_max_out > max_rows):
+            print(
+                f"Limited to max_rows={max_rows}: in_gate {pre_max_in}->{len(in_gate_df)}, out_of_gate {pre_max_out}->{len(out_of_gate_df)}"
+            )
 
     if verbose:
         print("\nFinal tables ready for the UI:")
@@ -726,6 +790,49 @@ def initialize_labeling_state(
     return state
 
 
+def get_checkpoint_path(
+    classifier_output_dir: Union[str, Path], class_title: str
+) -> Path:
+    """Get the checkpoint file path for auto-saving classifications.
+
+    Args:
+        classifier_output_dir: Classifier output directory path.
+        class_title: Name of the classification column.
+
+    Returns:
+        Path to the checkpoint parquet file.
+    """
+    p = Path(classifier_output_dir)
+    checkpoint_dir = p / "checkpoints"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    return checkpoint_dir / f".checkpoint_{class_title}.parquet"
+
+
+def load_checkpoint(
+    classifier_output_dir: Union[str, Path], class_title: str
+) -> Optional[pd.DataFrame]:
+    """Load existing checkpoint if available.
+
+    Args:
+        classifier_output_dir: Classifier output directory path.
+        class_title: Name of the classification column.
+
+    Returns:
+        DataFrame with checkpoint data, or None if no checkpoint exists.
+    """
+    checkpoint_path = get_checkpoint_path(classifier_output_dir, class_title)
+    if checkpoint_path.exists():
+        try:
+            df = pd.read_parquet(checkpoint_path)
+            print(
+                f"Loaded checkpoint with {len(df)} classifications from {checkpoint_path}"
+            )
+            return df
+        except Exception as e:
+            print(f"Warning: Could not load checkpoint: {e}")
+    return None
+
+
 def _get_parquet_dir(base_path: Union[str, Path]) -> Path:
     """Get the parquet directory, avoiding double 'parquets' in path.
 
@@ -742,46 +849,59 @@ def _get_parquet_dir(base_path: Union[str, Path]) -> Path:
 
 
 def _id_col_for_mode(columns, mode: str) -> str:
-    """Determine the ID column name used inside phenotype parquet files for a mode.
+    """Determine the ID column name used inside parquet files for a mode.
 
     Args:
         columns: Iterable of column names present in the parquet.
         mode: Normalized mode ('vacuole' or 'cell').
 
     Returns:
-        The ID column name to use ('vacuole_id' | 'label' | 'labels').
+        The ID column name to use ('vacuole_id' | 'label' | 'labels' | 'cell_0').
     """
     cols = set(columns)
     if mode == "vacuole":
         if "vacuole_id" in cols:
             return "vacuole_id"
         raise ValueError("Parquet is missing 'vacuole_id' for vacuole mode.")
-    for c in ("label", "labels"):
+    # For cell mode: check phenotype parquet columns first ('label'/'labels'),
+    # then merge parquet column ('cell_0' = phenotype cell ID, tile-based)
+    for c in ("label", "labels", "cell_0"):
         if c in cols:
             return c
-    raise ValueError("Parquet is missing 'label'/'labels' for cell mode.")
+    raise ValueError("Parquet is missing 'label'/'labels'/'cell_0' for cell mode.")
 
 
 def _pq_path_for(plate, well, data_source: Path, mode: str) -> Path:
-    """Construct the phenotype parquet path for a given plate, well, and mode.
+    """Construct the parquet path for a given plate, well, and mode.
 
     Args:
         plate: Plate identifier.
         well: Well identifier.
-        data_source: Phenotype output directory (parquets subdirectory is appended).
+        data_source: Output directory (phenotype or merge; parquets subdirectory is appended).
         mode: 'cell' or 'vacuole'.
 
     Returns:
-        The resolved parquet file path. For cell mode, if 'phenotype_cp.parquet' is
-        missing, falls back to 'phenotype_cp_min.parquet' when present.
+        The resolved parquet file path. For cell mode with phenotype source,
+        if 'phenotype_cp.parquet' is missing, falls back to 'phenotype_cp_min.parquet'.
     """
     pq_dir = _get_parquet_dir(data_source)
     wnorm = well_for_filename(well)
+
+    # Determine if this is a merge data source
+    is_merge = "merge" in str(data_source).lower()
+
     if mode == "vacuole":
         return pq_dir / get_filename(
             {"plate": plate, "well": wnorm}, "phenotype_vacuoles", "parquet"
         )
-    # cell mode: try cp then cp_min
+
+    # cell mode
+    if is_merge:
+        return pq_dir / get_filename(
+            {"plate": plate, "well": wnorm}, "merge_final", "parquet"
+        )
+
+    # phenotype source: try cp then cp_min
     main = pq_dir / get_filename(
         {"plate": plate, "well": wnorm}, "phenotype_cp", "parquet"
     )
@@ -929,6 +1049,9 @@ def _load_feature_index(
     missing_feature = []
     frames = []
 
+    # Determine if this is a merge data source
+    is_merge = "merge" in str(pq_dir).lower()
+
     for plate, well in (
         in_gate_df_all[["plate", "well"]].drop_duplicates().itertuples(index=False)
     ):
@@ -936,6 +1059,10 @@ def _load_feature_index(
         if mode == "vacuole":
             pq_path = pq_dir / get_filename(
                 {"plate": plate, "well": wnorm}, "phenotype_vacuoles", "parquet"
+            )
+        elif is_merge:
+            pq_path = pq_dir / get_filename(
+                {"plate": plate, "well": wnorm}, "merge_final", "parquet"
             )
         else:
             main = pq_dir / get_filename(
@@ -1394,6 +1521,14 @@ def _collect_and_advance_random(
             ignore_index=True,
         )
 
+    # Auto-save checkpoint if path is configured in state
+    checkpoint_path = state.get("_checkpoint_path")
+    if checkpoint_path and state.get("manual_classified_df") is not None:
+        try:
+            state["manual_classified_df"].to_parquet(checkpoint_path, index=False)
+        except Exception as e:
+            print(f"Warning: Could not save checkpoint: {e}")
+
 
 def _handle_click(
     state: dict, classification: list, class_title: str, keys: list, on_relaunch
@@ -1431,6 +1566,7 @@ def _render_next_batch(
     channel_indices: list,
     *,
     data_source: Path,
+    classifier_output_dir: Path,
     images_source: Optional[Path] = None,
     channel_names: list,
     mode: str,
@@ -1457,6 +1593,7 @@ def _render_next_batch(
         out_of_gate_count: Max number of out-of-threshold rows per page.
         channel_indices: Indices of channels to display.
         data_source: Root data source path (for parquets).
+        classifier_output_dir: Classifier output directory (for checkpoint storage).
         images_source: Path to directory containing images/ subdirectory. If None, defaults to data_source.
         channel_names: Channel names (for aligned stack validation).
         mode: Normalized mode ('vacuole' or 'cell').
@@ -1470,11 +1607,14 @@ def _render_next_batch(
     """
     clear_output(wait=True)
 
+    # Set checkpoint path for auto-saving (uses classifier_output_dir and class_title)
+    state["_checkpoint_path"] = get_checkpoint_path(classifier_output_dir, class_title)
+
     # initialize container once
     if state.get("container") is None:
         state["status"] = widgets.HTML()
         state["button"] = widgets.Button(
-            description="show_10_new_images",
+            description="Consolidate and show new images",
             button_style="primary",
             layout=widgets.Layout(width="auto", min_width="200px"),
         )
@@ -1574,11 +1714,17 @@ def _render_next_batch(
         rows_to_show.append(meta)
 
     # Default images_source to data_source if not provided
+    # For merge data source, images are in phenotype directory (sibling to merge)
     if images_source is None:
-        images_source = data_source
+        if "merge" in str(data_source).lower():
+            # data_source is .../merge, images are in .../phenotype
+            images_source = data_source.parent / "phenotype"
+        else:
+            images_source = data_source
 
-    row_widgets = [
-        _render_row(
+    row_widgets = []
+    for meta in rows_to_show:
+        widget = _render_row(
             meta,
             state=state,
             mode=mode,
@@ -1590,8 +1736,10 @@ def _render_next_batch(
             display_channel=display_channel,
             classification=classification,
         )
-        for meta in rows_to_show
-    ]
+        row_widgets.append(widget)
+        # Clear large image caches after each row to prevent memory accumulation
+        state["aligned_cache"].clear()
+        state["mask_cache"].clear()
 
     def on_relaunch():
         in_left, out_left = remove_seen_from_pools(
@@ -1616,6 +1764,7 @@ def _render_next_batch(
             out_of_gate_count=out_of_gate_count,
             channel_indices=channel_indices,
             data_source=data_source,
+            classifier_output_dir=classifier_output_dir,
             images_source=images_source,
             channel_names=channel_names,
             mode=mode,
@@ -1625,7 +1774,7 @@ def _render_next_batch(
             gate_feature_present=gate_feature_present,
         )
 
-    state["button"].description = "show_10_new_images"
+    state["button"].description = "Consolidate and show new images"
     for cb in list(state["button"]._click_handlers.callbacks):
         state["button"].on_click(cb, remove=True)
     state["button"].on_click(

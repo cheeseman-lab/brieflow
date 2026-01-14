@@ -1,11 +1,10 @@
 """This module provides functions for testing classifiers and determining confidence thresholds.
 
 It includes utilities for displaying model evaluation plots, loading phenotype data,
-creating class montages, and an interactive UI for selecting confidence thresholds
-based on ranked predictions.
+summarizing classification results, and an interactive UI for selecting confidence
+thresholds based on ranked predictions.
 """
 
-import os
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
@@ -17,10 +16,6 @@ from IPython.display import clear_output, display, Image as DisplayImage
 from matplotlib import colors as mcolors
 
 from lib.aggregate.eval_aggregate import summarize_cell_data
-from lib.aggregate.montage_utils import (
-    add_filenames,
-    create_class_confidence_montages,
-)
 from lib.classify.shared import (
     compose_rgb_crops,
     compute_crop_bounds,
@@ -336,6 +331,9 @@ def build_master_phenotype_df(
     preview_cols: int = 10,
     preview_rows: int = 5,
     display_fn: Optional[Any] = None,  # pass IPython.display.display from the notebook
+    max_rows: Optional[int] = None,
+    sample_fraction: Optional[float] = None,
+    random_seed: int = 42,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """Load per-(plate, well) parquet files and concatenate into a master DataFrame.
 
@@ -349,6 +347,10 @@ def build_master_phenotype_df(
         preview_cols: Number of leading columns to preview (0 to disable).
         preview_rows: Number of rows to preview when previewing columns.
         display_fn: Optional display function (e.g., IPython.display.display) for notebook previews.
+        max_rows: Maximum total rows to return (applied after concatenation). If None, no limit.
+        sample_fraction: Fraction of rows to sample from EACH file (0-1). Applied per-file during
+            loading to prevent memory issues. E.g., 0.01 loads 1% of each file.
+        random_seed: Random seed for reproducible sampling.
 
     Returns:
         master_df: Concatenated DataFrame of all successfully loaded files (empty if none).
@@ -358,12 +360,18 @@ def build_master_phenotype_df(
                 "missing_files": List[str],
                 "files_loaded": int,
                 "total_rows": int,
+                "total_rows_before_sampling": int,
                 "parquet_dir": str,
               }
     """
-    # Determine name_suffix from mode
+    # Determine name_suffix from mode and data source
+    is_merge = "merge" in str(parquet_dir).lower()
+
     if mode == "cell":
-        name_suffix = "phenotype_cp.parquet"
+        if is_merge:
+            name_suffix = "merge_final.parquet"
+        else:
+            name_suffix = "phenotype_cp.parquet"
     elif mode == "vacuole":
         name_suffix = "phenotype_vacuoles.parquet"
     else:
@@ -406,6 +414,11 @@ def build_master_phenotype_df(
             if chosen is not None:
                 try:
                     df_part = pd.read_parquet(chosen, **read_kwargs)
+                    # Sample each file as it's loaded to prevent memory issues
+                    if sample_fraction is not None and 0 < sample_fraction < 1:
+                        df_part = df_part.sample(
+                            frac=sample_fraction, random_state=random_seed
+                        )
                     loaded_parts.append(df_part)
                     found_files.append(str(chosen))
                 except Exception as e:
@@ -418,11 +431,26 @@ def build_master_phenotype_df(
 
     if loaded_parts:
         master_df = pd.concat(loaded_parts, ignore_index=True)
+        total_rows_before_sampling = len(master_df)
         if verbose:
-            print(f"Loaded {len(found_files)} file(s), total rows: {len(master_df)}")
+            sample_note = (
+                f" (each file sampled to {sample_fraction * 100:.1f}%)"
+                if sample_fraction
+                else ""
+            )
+            print(
+                f"Loaded {len(found_files)} file(s), total rows: {total_rows_before_sampling}{sample_note}"
+            )
             print(f"Source directory: {parquet_dir}")
+
+        # Apply max_rows limit after concatenation (sample_fraction already applied per-file)
+        if max_rows is not None and len(master_df) > max_rows:
+            master_df = master_df.sample(n=max_rows, random_state=random_seed)
+            if verbose:
+                print(f"Limited to max_rows={max_rows}")
     else:
         master_df = pd.DataFrame()
+        total_rows_before_sampling = 0
         if verbose:
             print(
                 "No files loaded. Check 'plates_to_classify' and 'wells_to_classify' in config."
@@ -444,161 +472,44 @@ def build_master_phenotype_df(
         "missing_files": missing_files,
         "files_loaded": len(found_files),
         "total_rows": int(len(master_df)),
+        "total_rows_before_sampling": total_rows_before_sampling,
         "parquet_dir": str(parquet_dir),
     }
     return master_df, info
 
 
-def build_montages_and_summary(
-    *,
-    master_phenotype_df: pd.DataFrame,
+def summarize_classification(
     classified_metadata: pd.DataFrame,
-    classify_by: str,
     class_mapping: Dict,
     class_title: str,
-    root_fp: Union[str, Path],
-    channels: Sequence[str],
-    montage_channel: str,
     collapse_cols: Sequence[str],
-    verbose: bool = False,
-    show_figure: bool = True,
     display_fn: Optional[Callable[[pd.DataFrame], None]] = None,
-) -> Tuple[
-    Optional[plt.Figure],
-    Optional[np.ndarray],
-    List[np.ndarray],
-    List[str],
-    List[str],
-    pd.DataFrame,
-]:
-    """Merge coordinates, prepare filenames, map display class names, build montages and produce a summary DataFrame.
-
-    Uses imported helpers:
-      - add_filenames (lib.aggregate.montage_utils)
-      - create_cell_montage (lib.aggregate.montage_utils)
-      - summarize_cell_data (lib.aggregate.eval_aggregate)
+) -> Tuple[pd.DataFrame, List[str]]:
+    """Generate summary statistics for classified data.
 
     Args:
-        master_phenotype_df: Master DF containing coordinates and keys.
-        classified_metadata: Classified rows to visualize/summarize (will NOT be mutated).
-        classify_by: One of {"cell","cells","cp"} or {"vacuole","vacuoles","vac"}.
-        class_mapping: Mapping dict, expected to contain "label_to_class".
-        class_title: Column holding class/label IDs; confidence column is f"{class_title}_confidence".
-        root_fp: Root path used by add_filenames.
-        channels: Channel names passed to create_cell_montage.
-        montage_channel: Which channel key to extract from the montage dict.
+        classified_metadata: DataFrame with classification results (must have class_title column).
+        class_mapping: Mapping dict with "label_to_class" for display names.
+        class_title: Column holding class IDs.
         collapse_cols: Columns to collapse in the summary.
-        verbose: Print debug info (dtypes, missing files checks, skips).
-        show_figure: If True, calls plt.show() after plotting.
-        display_fn: Optional callable (e.g., IPython.display.display) to show the summary in notebooks.
+        display_fn: Optional callable (e.g., display) to show the summary.
 
     Returns:
-        fig, axes, montages, titles, ordered_classes, summary_df
+        Tuple of (summary_df, ordered_classes) where:
+            - summary_df: DataFrame with class counts/statistics
+            - ordered_classes: List of class names in order
     """
-    # 1) Determine coordinate columns and join keys
-    ctype = str(classify_by).lower()
-    if ctype in {"cell", "cells", "cp"}:
-        coord_cols_present = ("nucleus_i", "nucleus_j")
-        join_keys = ["label", "plate", "well", "tile"]
-    elif ctype in {"vacuole", "vacuoles", "vac"}:
-        coord_cols_present = ("vacuole_i", "vacuole_j")
-        join_keys = ["vacuole_id", "plate", "well", "tile"]
-    else:
+    if classified_metadata is None or len(classified_metadata) == 0:
+        raise ValueError("No classified data provided (classified_metadata is empty).")
+
+    if class_title not in classified_metadata.columns:
         raise ValueError(
-            f"Unsupported classify_by value: {classify_by}. Use 'cell' or 'vacuole'."
+            f"class_title '{class_title}' not found in classified_metadata columns."
         )
 
-    # Validate master_phenotype_df has required columns
-    required_master_cols = join_keys + [coord_cols_present[0], coord_cols_present[1]]
-    missing_master = [
-        c for c in required_master_cols if c not in master_phenotype_df.columns
-    ]
-    if missing_master:
-        raise KeyError(
-            "Missing required columns in master_phenotype_df: "
-            + ", ".join(missing_master)
-        )
+    cm = classified_metadata.copy()
 
-    # 2) Merge coordinates into classified metadata (work on a copy)
-    coords_and_keys = list(required_master_cols)
-    cm = classified_metadata.copy(deep=True)
-
-    # Determine which join keys are available in classified_metadata
-    available_join_keys = [c for c in join_keys if c in cm.columns]
-
-    if verbose:
-        print(f"Join keys needed: {join_keys}")
-        print(f"Join keys available in classified_metadata: {available_join_keys}")
-        print(f"Coordinate columns to add: {coord_cols_present}")
-
-    # Check if coordinate columns are already present
-    coords_already_present = all(c in cm.columns for c in coord_cols_present)
-
-    if coords_already_present:
-        if verbose:
-            print("Coordinate columns already present in classified_metadata")
-        # Verify join keys are also present
-        missing_join_keys = [k for k in join_keys if k not in cm.columns]
-        if missing_join_keys:
-            raise ValueError(
-                f"Coordinates present but missing required join keys: {missing_join_keys}. "
-                f"This indicates malformed input data."
-            )
-    elif not available_join_keys:
-        raise ValueError(
-            f"Cannot merge coordinates: no join keys found in classified_metadata. "
-            f"Required keys: {join_keys}, available columns: {list(cm.columns)}"
-        )
-    else:
-        # Perform the merge
-        cm = cm.merge(
-            master_phenotype_df[coords_and_keys].drop_duplicates(),
-            on=available_join_keys,
-            how="left",
-        )
-
-        # Check if merge was successful
-        if not all(c in cm.columns for c in coord_cols_present):
-            missing_coords = [c for c in coord_cols_present if c not in cm.columns]
-            raise ValueError(
-                f"Merge failed to add coordinate columns {missing_coords}. "
-                f"This may be due to mismatched join keys. "
-                f"Used join keys: {available_join_keys}. "
-                f"Check that classified_metadata has proper {available_join_keys} values."
-            )
-
-    # 3) Normalize dtypes for filename construction
-    if "plate" in cm.columns:
-        cm["plate"] = pd.to_numeric(cm["plate"], errors="coerce").astype("Int64")
-    if "tile" in cm.columns:
-        cm["tile"] = pd.to_numeric(cm["tile"], errors="coerce").astype("Int64")
-    if "well" in cm.columns:
-        cm["well"] = cm["well"].astype(str)
-    if "label" in cm.columns and ctype in {"cell", "cells", "cp"}:
-        cm["label"] = pd.to_numeric(cm["label"], errors="coerce").astype("Int64")
-
-    # 4) Drop rows missing essentials and cast to int
-    required_cols = [
-        c
-        for c in ["plate", "well", "tile", coord_cols_present[0], coord_cols_present[1]]
-        if c in cm.columns
-    ]
-    before = len(cm)
-    cm = cm.dropna(subset=required_cols)
-    after = len(cm)
-    if verbose and after < before:
-        print(
-            f"Dropped {before - after} rows with missing plate/well/tile/coords before montage."
-        )
-
-    for col in ["plate", "tile"]:
-        if col in cm.columns:
-            cm[col] = cm[col].astype(int)
-
-    # 5) Add image paths
-    cm = add_filenames(cm, root_fp)
-
-    # 6) Build display class names (mapping numeric ids to strings)
+    # Build display class names (mapping numeric ids to strings)
     label_to_class = (
         class_mapping.get("label_to_class", {})
         if isinstance(class_mapping, dict)
@@ -622,73 +533,312 @@ def build_montages_and_summary(
     present_display = set(cm["__display__"].unique())
     ordered_classes = [d for d in ordered_display_all if d in present_display]
 
-    # 7) Debug prints: dtypes, sample image paths, missing file checks
-    if verbose:
-        cols_to_show = [c for c in ["plate", "well", "tile"] if c in cm.columns]
-        print("Dtypes:")
-        print(cm[cols_to_show].dtypes)
-        print("Sample image paths:")
-        print(cm["image_path"].head(3).to_list())
-        missing_paths = [p for p in cm["image_path"].head(50) if not os.path.exists(p)]
-        print(f"Missing files among first 50: {len(missing_paths)}")
-        if missing_paths:
-            print("Example missing:", missing_paths[:3])
+    # Build summary
+    cm["class"] = cm["__display__"]
+    summary_df = summarize_cell_data(cm, ordered_classes, collapse_cols)
 
-    # 8) Partition rows per class (display names)
-    cell_class_dfs = {
-        display_name: cm[cm["__display__"] == display_name]
-        for display_name in ordered_classes
-    }
-
-    # 9) Montage generation (delegate to montage_utils)
-    conf_col = f"{class_title}_confidence"
-
-    if verbose:
-        print(f"\nPreparing montages...")
-        print(f"cm columns: {list(cm.columns)}")
-        print(f"Coordinate columns needed: {coord_cols_present}")
-        coord_check = [c in cm.columns for c in coord_cols_present]
-        print(f"Coordinate columns present: {coord_check}")
-
-    montages, titles = create_class_confidence_montages(
-        cell_class_dfs,
-        channels,
-        conf_col,
-        list(coord_cols_present),
-        montage_channel,
-        verbose=verbose,
-    )
-
-    # 10) Plot montages in a (rows = classes, cols = 2) grid
-    if len(ordered_classes) == 0:
-        fig, axes = None, None
-    else:
-        num_rows = len(ordered_classes)
-        fig, axes = plt.subplots(num_rows, 2, figsize=(10, 3 * num_rows))
-        axes_arr = np.atleast_2d(axes)  # handles num_rows == 1
-
-        for ax, title, montage in zip(axes_arr.flat, titles, montages):
-            ax.imshow(montage, cmap="gray")
-            ax.set_title(title, fontsize=14)
-            ax.axis("off")
-
-        if verbose:
-            print("Montages of classes:")
-        plt.tight_layout()
-        if show_figure:
-            plt.show()
-
-    # 11) Build summary (without mutating inputs)
-    cm_for_summary = cm.copy()
-    cm_for_summary["class"] = cm_for_summary["__display__"]
-    summary_df = summarize_cell_data(cm_for_summary, ordered_classes, collapse_cols)
     if display_fn is not None:
         display_fn(summary_df)
 
-    # Clean up temp col in the copy before returning
-    cm_for_summary.drop(columns=["__display__"], inplace=True, errors="ignore")
+    return summary_df, ordered_classes
 
-    return fig, axes, montages, titles, ordered_classes, summary_df
+
+def plot_confidence_distribution(
+    classified_metadata: pd.DataFrame,
+    class_title: str,
+    class_mapping: Dict,
+    thresholds: Optional[Dict] = None,
+    log_scale: bool = True,
+    figsize: Tuple[int, int] = (12, 4),
+) -> plt.Figure:
+    """Plot confidence distribution per class with optional threshold lines.
+
+    Creates a subplot for each class showing the distribution of confidence scores.
+    Uses log scale on y-axis by default to better visualize the tail of distributions.
+
+    Args:
+        classified_metadata: DataFrame with classification results.
+        class_title: Column name holding class IDs.
+        class_mapping: Mapping dict with "label_to_class" for display names.
+        thresholds: Optional dict mapping class_id to threshold config. Supports:
+            - Simple: {1: 0.94, 2: 0.50}
+            - Per-class: {1: {"threshold": 0.94, "mode": "exclude"}, ...}
+        log_scale: If True, use log scale on y-axis (default True).
+        figsize: Figure size as (width, height) tuple.
+
+    Returns:
+        matplotlib Figure object.
+    """
+    conf_col = f"{class_title}_confidence"
+    if conf_col not in classified_metadata.columns:
+        raise KeyError(f"Missing confidence column '{conf_col}'.")
+    if class_title not in classified_metadata.columns:
+        raise KeyError(f"Missing class column '{class_title}'.")
+
+    label_to_class = (
+        class_mapping.get("label_to_class", {})
+        if isinstance(class_mapping, dict)
+        else {}
+    )
+
+    # Get unique class IDs present in data
+    class_ids = sorted(classified_metadata[class_title].dropna().unique())
+    n_classes = len(class_ids)
+
+    if n_classes == 0:
+        raise ValueError("No classes found in classified_metadata.")
+
+    fig, axes = plt.subplots(1, n_classes, figsize=figsize, squeeze=False)
+    axes = axes.flatten()
+
+    for i, class_id in enumerate(class_ids):
+        ax = axes[i]
+        mask = classified_metadata[class_title] == class_id
+        conf_values = classified_metadata.loc[mask, conf_col].dropna()
+
+        # Get display name
+        try:
+            class_name = label_to_class.get(int(class_id), str(class_id))
+        except (ValueError, TypeError):
+            class_name = label_to_class.get(class_id, str(class_id))
+
+        # Plot histogram
+        ax.hist(conf_values, bins=50, alpha=0.7, edgecolor="black", linewidth=0.5)
+        ax.set_xlabel("Confidence")
+        ax.set_ylabel("Count")
+        ax.set_title(f"{class_name} (n={len(conf_values):,})")
+
+        if log_scale:
+            ax.set_yscale("log")
+
+        # Draw threshold line if provided
+        if thresholds is not None:
+            config = thresholds.get(class_id) or thresholds.get(int(class_id))
+            if config is not None:
+                # Support both simple and dict formats
+                if isinstance(config, dict):
+                    thresh = config.get("threshold")
+                    mode = config.get("mode", "exclude")
+                else:
+                    thresh = float(config)
+                    mode = "exclude"
+
+                if thresh is not None:
+                    ax.axvline(
+                        x=thresh,
+                        color="red",
+                        linestyle="--",
+                        linewidth=2,
+                        label=f"Threshold: {thresh:.2f} ({mode})",
+                    )
+                    # Count cells above/below threshold
+                    n_above = (conf_values >= thresh).sum()
+                    n_below = (conf_values < thresh).sum()
+                    ax.text(
+                        0.02,
+                        0.98,
+                        f"≥ thresh: {n_above:,}\n< thresh: {n_below:,}",
+                        transform=ax.transAxes,
+                        verticalalignment="top",
+                        fontsize=9,
+                        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+                    )
+                    ax.legend(loc="upper right", fontsize=8)
+
+        ax.set_xlim(0, 1)
+
+    plt.tight_layout()
+    return fig
+
+
+def _parse_threshold_config(thresholds: Dict, class_id) -> Tuple[Optional[float], str]:
+    """Parse threshold config for a class, supporting both formats.
+
+    Supports:
+        - Simple format: {1: 0.94} -> (0.94, "exclude")
+        - Dict format: {1: {"threshold": 0.94, "mode": "exclude"}} -> (0.94, "exclude")
+
+    Returns:
+        Tuple of (threshold_value, mode). Returns (None, "exclude") if class not in config.
+    """
+    config = thresholds.get(class_id) or thresholds.get(int(class_id))
+    if config is None:
+        return None, "exclude"
+
+    if isinstance(config, dict):
+        return config.get("threshold"), config.get("mode", "exclude")
+    else:
+        # Simple format: just the threshold value, default to exclude
+        return float(config), "exclude"
+
+
+def apply_class_thresholds(
+    classified_metadata: pd.DataFrame,
+    class_title: str,
+    thresholds: Dict,
+    class_mapping: Dict,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Apply per-class confidence thresholds with per-class mode configuration.
+
+    Args:
+        classified_metadata: DataFrame with classification results.
+        class_title: Column name holding class IDs.
+        thresholds: Dict mapping class_id to threshold config. Supports two formats:
+            - Simple: {1: 0.94, 2: 0.50} (defaults to "exclude" mode)
+            - Per-class config: {
+                1: {"threshold": 0.94, "mode": "exclude"},
+                2: {"threshold": 0.50, "mode": "reassign"},
+              }
+            Modes:
+                - "exclude": drops cells below threshold
+                - "reassign": tries to reassign to another class if it passes that threshold
+        class_mapping: Mapping with "label_to_class" for display names.
+
+    Returns:
+        Tuple of:
+            - filtered_df: DataFrame after applying thresholds
+            - summary_df: Before/after counts per class with mode info
+    """
+    conf_col = f"{class_title}_confidence"
+    if conf_col not in classified_metadata.columns:
+        raise KeyError(f"Missing confidence column '{conf_col}'.")
+    if class_title not in classified_metadata.columns:
+        raise KeyError(f"Missing class column '{class_title}'.")
+
+    label_to_class = (
+        class_mapping.get("label_to_class", {})
+        if isinstance(class_mapping, dict)
+        else {}
+    )
+
+    df = classified_metadata.copy()
+
+    # Get unique class IDs
+    class_ids = sorted(df[class_title].dropna().unique())
+
+    # Parse threshold configs for all classes
+    class_configs = {}
+    for class_id in class_ids:
+        thresh, mode = _parse_threshold_config(thresholds, class_id)
+        try:
+            class_name = label_to_class.get(int(class_id), str(class_id))
+        except (ValueError, TypeError):
+            class_name = label_to_class.get(class_id, str(class_id))
+        class_configs[class_id] = {
+            "threshold": thresh,
+            "mode": mode,
+            "name": class_name,
+            "before": (df[class_title] == class_id).sum(),
+        }
+
+    # Process reassignments first (before exclusions)
+    filtered_df = df.copy()
+    reassigned = pd.Series(False, index=df.index)
+
+    for class_id in class_ids:
+        config = class_configs[class_id]
+        if config["mode"] != "reassign" or config["threshold"] is None:
+            continue
+
+        thresh = config["threshold"]
+        class_mask = filtered_df[class_title] == class_id
+        below_thresh = filtered_df[conf_col] < thresh
+        candidates = class_mask & below_thresh & ~reassigned
+
+        if not candidates.any():
+            continue
+
+        # Try to reassign to other classes based on their probability columns
+        for other_id in class_ids:
+            if other_id == class_id:
+                continue
+
+            other_config = class_configs[other_id]
+            other_thresh = other_config["threshold"]
+            if other_thresh is None:
+                continue
+
+            other_name = other_config["name"]
+
+            # Look for probability column for the other class
+            prob_col = f"{class_title}_prob_{other_name}"
+            if prob_col not in filtered_df.columns:
+                prob_col = f"{class_title}_prob_{other_id}"
+            if prob_col not in filtered_df.columns:
+                continue
+
+            # Check if candidates pass the other class's threshold
+            passes_other = filtered_df[prob_col] >= other_thresh
+            to_reassign = candidates & passes_other
+
+            if to_reassign.any():
+                filtered_df.loc[to_reassign, class_title] = other_id
+                filtered_df.loc[to_reassign, conf_col] = filtered_df.loc[
+                    to_reassign, prob_col
+                ]
+                reassigned = reassigned | to_reassign
+                candidates = candidates & ~to_reassign
+
+    # Now apply exclusions (for both "exclude" mode and failed reassignments)
+    keep_mask = pd.Series(True, index=filtered_df.index)
+
+    for class_id in class_ids:
+        config = class_configs[class_id]
+        thresh = config["threshold"]
+        if thresh is None:
+            continue
+
+        class_mask = filtered_df[class_title] == class_id
+        below_thresh = filtered_df[conf_col] < thresh
+        keep_mask = keep_mask & ~(class_mask & below_thresh)
+
+    filtered_df = filtered_df[keep_mask].copy()
+
+    # Count after and build summary
+    summary_rows = []
+    for class_id in class_ids:
+        config = class_configs[class_id]
+        after_count = (filtered_df[class_title] == class_id).sum()
+        summary_rows.append(
+            {
+                "class_id": class_id,
+                "class_name": config["name"],
+                "threshold": config["threshold"]
+                if config["threshold"] is not None
+                else "none",
+                "mode": config["mode"],
+                "before": config["before"],
+                "after": after_count,
+                "dropped": config["before"] - after_count,
+                "pct_retained": (
+                    100.0 * after_count / config["before"]
+                    if config["before"] > 0
+                    else 0.0
+                ),
+            }
+        )
+
+    # Add totals row
+    total_before = sum(c["before"] for c in class_configs.values())
+    total_after = len(filtered_df)
+    summary_rows.append(
+        {
+            "class_id": "",
+            "class_name": "TOTAL",
+            "threshold": "",
+            "mode": "",
+            "before": total_before,
+            "after": total_after,
+            "dropped": total_before - total_after,
+            "pct_retained": (
+                100.0 * total_after / total_before if total_before > 0 else 0.0
+            ),
+        }
+    )
+
+    summary_df = pd.DataFrame(summary_rows)
+
+    return filtered_df, summary_df
 
 
 def launch_rankline_ui(
@@ -777,15 +927,18 @@ def launch_rankline_ui(
 
     # Mode & ID column
     mode = str(classify_by).lower()
+    is_merge = "merge" in str(data_source).lower()
     if mode == "vacuole":
         id_col = "vacuole_id"
     else:
-        if "cell_id" in classified_metadata.columns:
+        if is_merge and "cell_0" in classified_metadata.columns:
+            id_col = "cell_0"  # phenotype cell ID in merge parquets
+        elif "cell_id" in classified_metadata.columns:
             id_col = "cell_id"
         elif "label" in classified_metadata.columns:
             id_col = "label"
         else:
-            raise KeyError("Need 'cell_id' or 'label' column for cell mode.")
+            raise KeyError("Need 'cell_0', 'cell_id' or 'label' column for cell mode.")
 
     # ---------- STATE per launch ----------
     STATE = {

@@ -65,8 +65,10 @@ def get_sample_fps(
             filtered_df = filtered_df[filtered_df["z"].astype(str) == str(z)]
 
     if round_order is not None:
-        # Filter to only include specified rounds
-        filtered_df = filtered_df[filtered_df["round"].isin(round_order)]
+        # Filter to only include specified rounds (convert to str for consistency with other filters)
+        filtered_df = filtered_df[
+            filtered_df["round"].astype(str).isin([str(r) for r in round_order])
+        ]
 
         # If no data after filtering, return results based on available rounds
         if len(filtered_df) == 0:

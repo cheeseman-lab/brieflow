@@ -6,11 +6,7 @@ import numpy as np
 from pandas.api.types import is_numeric_dtype
 
 from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
-from lib.aggregate.cell_data_utils import (
-    load_metadata_cols,
-    split_cell_data,
-    get_feature_table_cols,
-)
+from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
 from lib.aggregate.bootstrap import create_pseudogene_groups
 
 # get snakemake parameters
@@ -22,15 +18,13 @@ control_key = snakemake.params.control_key
 print("Loading cell data")
 cell_data = ds.dataset(snakemake.input.filtered_paths, format="parquet")
 
-# determine cols
+# Determine columns
 cell_data_cols = cell_data.schema.names
 use_classifier = snakemake.params.get("use_classifier", False)
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classifier)
 feature_cols = [col for col in cell_data.schema.names if col not in metadata_cols]
-feature_cols = get_feature_table_cols(feature_cols)
 
 # Filter metadata_cols to only include columns that exist in the parquet
-# (classifier columns 'class'/'confidence' may not exist if classifier was not used)
 existing_metadata_cols = [col for col in metadata_cols if col in cell_data_cols]
 
 print(
@@ -46,11 +40,12 @@ for col in cell_data.columns:
     if is_numeric_dtype(cell_data[col]):
         cell_data[col] = cell_data[col].astype("float32")
 
-# centerscale features on controls
-# split metadata and features
+# Split metadata and features
 metadata, features = split_cell_data(cell_data, metadata_cols)
 del cell_data
 gc.collect()
+
+# Prepare alignment data (add batch_values column)
 metadata, features = prepare_alignment_data(
     metadata,
     features,
@@ -61,7 +56,7 @@ metadata, features = prepare_alignment_data(
 )
 features = features.astype(np.float32)
 
-# centerscale features on controls
+# Centerscale features on controls
 features = centerscale_on_controls(
     features,
     metadata,

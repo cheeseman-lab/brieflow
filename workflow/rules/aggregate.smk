@@ -234,6 +234,7 @@ checkpoint prepare_bootstrap_data:
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
         exclusion_string=config.get("aggregate", {}).get("exclusion_string", None),
+        bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 
@@ -292,6 +293,7 @@ rule bootstrap_gene:
             gene=wildcards.gene,
             construct="{construct}"
         ),
+        bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
     script:
         "../scripts/aggregate/bootstrap_gene.py"
 

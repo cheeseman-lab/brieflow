@@ -82,13 +82,6 @@ phenotype_metadata_wildcard_combos = get_metadata_wildcard_combos(
     phenotype_samples_df, phenotype_metadata_samples_df
 )
 
-print(
-    f"SBS metadata jobs: {len(sbs_metadata_wildcard_combos)} (columns: {list(sbs_metadata_wildcard_combos.columns) if len(sbs_metadata_wildcard_combos) > 0 else 'none'})"
-)
-print(
-    f"SBS image processing jobs: {len(sbs_wildcard_combos)} (columns: {list(sbs_wildcard_combos.columns) if len(sbs_wildcard_combos) > 0 else 'none'})"
-)
-
 # Check for plate filter
 # If plate filter is set, only process the specified plate
 plate_filter = config.get("plate_filter", None)

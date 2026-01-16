@@ -19,12 +19,16 @@ phenotype_cp.to_parquet(snakemake.output[0])
 
 
 # Create subset of features
+# Use cell_ prefix if segmenting cells, otherwise nucleus_
+segment_cells = snakemake.params.get("segment_cells", True)
+prefix = "cell" if segment_cells else "nucleus"
+
 # Add bounds for each channel
-bounds_features = [f"cell_bounds_{i}" for i in range(4)]
+bounds_features = [f"{prefix}_bounds_{i}" for i in range(4)]
 
 # Add minimum intensity feature for each channel
 channel_min_features = [
-    f"cell_{channel}_min" for channel in snakemake.params.channel_names
+    f"{prefix}_{channel}_min" for channel in snakemake.params.channel_names
 ]
 # Final features
 phenotype_cp_min_features = [
@@ -32,8 +36,8 @@ phenotype_cp_min_features = [
     "well",
     "tile",
     "label",
-    "cell_i",
-    "cell_j",
+    f"{prefix}_i",
+    f"{prefix}_j",
 ]
 phenotype_cp_min_features.extend(bounds_features + channel_min_features)
 

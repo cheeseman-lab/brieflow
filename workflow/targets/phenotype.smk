@@ -4,9 +4,11 @@ from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 PHENOTYPE_FP = ROOT_FP / "phenotype"
 
-# determine feature eval outputs based on channel names
+# determine feature eval outputs based on channel names and segment_cells setting
 channel_names = config["phenotype"]["channel_names"]
-eval_features = [f"cell_{channel}_min" for channel in channel_names]
+segment_cells = config["phenotype"].get("segment_cells", True)
+prefix = "cell" if segment_cells else "nucleus"
+eval_features = [f"{prefix}_{channel}_min" for channel in channel_names]
 
 PHENOTYPE_OUTPUTS = {
     "apply_ic_field_phenotype": [
@@ -69,7 +71,7 @@ PHENOTYPE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "phenotype_info", "parquet"
         ),
     ],
-    "extract_phenotype_cp": [
+    "extract_phenotype": [
         PHENOTYPE_FP
         / "tsvs"
         / get_filename(
@@ -78,7 +80,7 @@ PHENOTYPE_OUTPUTS = {
             "tsv",
         ),
     ],
-    "merge_phenotype_cp": [
+    "merge_phenotype": [
         PHENOTYPE_FP
         / "parquets"
         / get_filename(
@@ -128,8 +130,8 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "identify_cytoplasm": temp,
     "extract_phenotype_info": temp,
     "combine_phenotype_info": None,
-    "extract_phenotype_cp": temp,
-    "merge_phenotype_cp": None,
+    "extract_phenotype": temp,
+    "merge_phenotype": None,
     "eval_segmentation_phenotype": None,
     "eval_features": None,
 }

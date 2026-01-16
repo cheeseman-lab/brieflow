@@ -425,11 +425,13 @@ def multistep_alignment(
 
         # Prepare data for parallel processing
         work = []
+        processed_candidates = []  # Track which candidates were actually processed
         d_0 = dict(list(well_triangles_0.groupby("tile")))
         d_1 = dict(list(well_triangles_1.groupby("site")))
         for ix_0, ix_1 in candidates[:batch_size]:
             if ix_0 in d_0 and ix_1 in d_1:  # Only process if both keys exist
                 work.append([d_0[ix_0], d_1[ix_1]])
+                processed_candidates.append((ix_0, ix_1))
             else:
                 print(f"Skipping tile {ix_0}, site {ix_1} - not found in data")
 
@@ -441,8 +443,8 @@ def multistep_alignment(
         df_align_new = pd.concat(
             Parallel(n_jobs=n_jobs)(delayed(work_on)(*w) for w in work), axis=1
         ).T.assign(
-            tile=[t for t, _ in candidates[: len(work)]],
-            site=[s for _, s in candidates[: len(work)]],
+            tile=[t for t, _ in processed_candidates],
+            site=[s for _, s in processed_candidates],
         )
 
         # Append new alignments to the list

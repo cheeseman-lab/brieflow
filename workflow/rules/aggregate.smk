@@ -65,7 +65,7 @@ rule generate_feature_table:
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
         batch_cols=config["aggregate"]["batch_cols"],
-        batches=10,
+        num_align_batches=config["aggregate"]["num_align_batches"],
         feature_normalization=config["aggregate"].get("feature_normalization", "standard"),
         pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None),
     script:

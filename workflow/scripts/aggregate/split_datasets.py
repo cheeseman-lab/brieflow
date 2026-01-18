@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 from lib.aggregate.cell_classification import CellClassifier
 from lib.aggregate.cell_data_utils import (
@@ -7,6 +8,96 @@ from lib.aggregate.cell_data_utils import (
     channel_combo_subset,
 )
 
+
+def apply_confidence_thresholds(metadata, features, thresholds, class_col="class"):
+    """Apply per-class confidence thresholds with mode support.
+
+    Args:
+        metadata: DataFrame with classification results (must have class_col and 'confidence')
+        features: DataFrame with feature data (aligned with metadata)
+        thresholds: Either a scalar threshold (legacy) or dict of per-class thresholds:
+            {class_id: {"threshold": float, "mode": "exclude"|"reassign"}, ...}
+        class_col: Name of the column containing class predictions
+
+    Returns:
+        Filtered (metadata, features) tuple
+    """
+    if thresholds is None:
+        return metadata, features
+
+    before_count = len(metadata)
+
+    # Handle legacy scalar threshold format
+    if isinstance(thresholds, (int, float)):
+        mask = metadata["confidence"] >= thresholds
+        metadata = metadata[mask]
+        features = features[mask]
+        print(
+            f"Filtered by confidence >= {thresholds}: {before_count} -> {len(metadata)} cells"
+        )
+        return metadata, features
+
+    # Handle new per-class threshold format
+    if not isinstance(thresholds, dict):
+        print(
+            f"Warning: Unrecognized threshold format {type(thresholds)}, skipping filtering"
+        )
+        return metadata, features
+
+    # Build mask for cells to keep
+    keep_mask = np.ones(len(metadata), dtype=bool)
+
+    for class_id, config in thresholds.items():
+        # Handle both int and string keys (YAML may parse as either)
+        class_id = int(class_id) if isinstance(class_id, str) else class_id
+
+        if isinstance(config, (int, float)):
+            # Simple threshold value
+            threshold = config
+            mode = "exclude"
+        elif isinstance(config, dict):
+            threshold = config.get("threshold", 0.5)
+            mode = config.get("mode", "exclude")
+        else:
+            print(f"Warning: Unrecognized config format for class {class_id}, skipping")
+            continue
+
+        # Find cells of this class
+        class_mask = metadata[class_col] == class_id
+        class_confidence = metadata.loc[class_mask, "confidence"]
+
+        # Apply threshold based on mode
+        if mode == "exclude":
+            # Drop cells below threshold
+            low_conf_mask = class_mask & (metadata["confidence"] < threshold)
+            keep_mask = keep_mask & ~low_conf_mask
+            dropped = low_conf_mask.sum()
+            print(
+                f"Class {class_id}: excluded {dropped} cells below threshold {threshold}"
+            )
+
+        elif mode == "reassign":
+            # For reassign mode, we'd need to re-predict with the classifier
+            # For now, treat as exclude (reassign requires classifier access)
+            low_conf_mask = class_mask & (metadata["confidence"] < threshold)
+            keep_mask = keep_mask & ~low_conf_mask
+            dropped = low_conf_mask.sum()
+            print(
+                f"Class {class_id}: excluded {dropped} cells below threshold {threshold} (reassign mode not yet implemented in pipeline)"
+            )
+
+        else:
+            print(f"Warning: Unknown mode '{mode}' for class {class_id}, using exclude")
+            low_conf_mask = class_mask & (metadata["confidence"] < threshold)
+            keep_mask = keep_mask & ~low_conf_mask
+
+    metadata = metadata[keep_mask]
+    features = features[keep_mask]
+    print(f"Total after thresholding: {before_count} -> {len(metadata)} cells")
+
+    return metadata, features
+
+
 # Load merge data
 cell_data = pd.read_parquet(snakemake.input[0])
 
@@ -14,15 +105,43 @@ cell_data = pd.read_parquet(snakemake.input[0])
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp)
 metadata, features = split_cell_data(cell_data, metadata_cols)
 
-# Classify cells
-import numpy as np
-
 # Classify cells only if classifier path is provided
 classifier_path = snakemake.params.get("classifier_path")
+confidence_thresholds = snakemake.params.get("confidence_thresholds")
+class_title = snakemake.params.get("class_title")  # e.g., "cell_stage"
+class_mapping = snakemake.params.get(
+    "class_mapping"
+)  # e.g., {"label_to_class": {1: "Mitotic", 2: "Interphase"}}
+
 if classifier_path is not None:
     print("Applying cell classification...")
     classifier = CellClassifier.load(classifier_path)
     metadata, features = classifier.classify_cells(metadata, features)
+
+    # Add standard 'class' and 'confidence' columns using the mapping
+    if class_title:
+        confidence_col = f"{class_title}_confidence"
+        if class_mapping and "label_to_class" in class_mapping:
+            label_to_class = class_mapping["label_to_class"]
+            # Convert numeric IDs to string labels
+            metadata["class"] = metadata[class_title].map(
+                lambda x: label_to_class.get(x, label_to_class.get(str(x), str(x)))
+            )
+        else:
+            # No mapping available, use numeric values as strings
+            metadata["class"] = metadata[class_title].astype(str)
+        # Add standard confidence column
+        metadata["confidence"] = metadata[confidence_col]
+    else:
+        # Legacy: assume classifier outputs 'class' and 'confidence' directly
+        pass
+
+    # Apply confidence thresholds using numeric class IDs (thresholds keyed by class ID)
+    # Use the original class_title column for thresholding since thresholds use numeric IDs
+    threshold_class_col = class_title if class_title else "class"
+    metadata, features = apply_confidence_thresholds(
+        metadata, features, confidence_thresholds, class_col=threshold_class_col
+    )
 else:
     print("No classifier specified - skipping cell classification")
 

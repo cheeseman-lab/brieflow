@@ -6,12 +6,14 @@ import glob
 from pathlib import Path
 
 from lib.aggregate.bootstrap import load_construct_null_arrays, calculate_pvals
+from lib.aggregate.cell_data_utils import get_feature_table_cols
 
 # Get parameters from wildcards
 gene_id = snakemake.wildcards.gene
 cell_class = snakemake.wildcards.cell_class
 channel_combo = snakemake.wildcards.channel_combo
 num_sims = snakemake.params.num_sims
+bootstrap_features_fp = snakemake.params.get("bootstrap_features_fp", None)
 
 print(f"Running gene-level bootstrap aggregation for: {gene_id}")
 
@@ -47,10 +49,23 @@ if len(gene_row) == 0:
     print(f"Available genes: {sorted(gene_table['gene_symbol_0'].unique())}")
     raise ValueError(f"Gene {gene_id} not found in gene table")
 
-# Get available features from gene table (same as prepare_bootstrap_data.py)
-available_features = [
+# Get available features from gene table (same filtering as prepare_bootstrap_data.py)
+all_features = [
     col for col in gene_table.columns if col not in ["gene_symbol_0", "cell_count"]
 ]
+
+# Filter features for bootstrap analysis (must match prepare_bootstrap_data.py)
+if bootstrap_features_fp is not None:
+    # Read features from file (one feature per line)
+    print(f"Loading bootstrap features from: {bootstrap_features_fp}")
+    with open(bootstrap_features_fp, "r") as f:
+        requested_features = [line.strip() for line in f if line.strip()]
+    # Only keep features that exist in the data
+    available_features = [f for f in requested_features if f in all_features]
+else:
+    # Use get_feature_table_cols to filter to nucleus/cell intensity, shape, and overlap features
+    available_features = get_feature_table_cols(all_features)
+
 print(f"Using {len(available_features)} features for bootstrap analysis")
 
 # Get observed gene medians (now with filtered features)

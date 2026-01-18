@@ -128,7 +128,7 @@ merge:
   - 0.06
   - 0.065
 classify:
-  classifier_path: config/multiclass_lgb_standard_model.dill
+  classifier_path: config/multiclass_rf_standard_model.dill
   confidence_thresholds:
     1:
       threshold: 0.5

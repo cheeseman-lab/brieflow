@@ -50,13 +50,41 @@ def perturbation_score(
     ].to_numpy()
 
     print(f"Processing {len(perturbed_genes)} genes with {n_jobs} parallel jobs...")
+    print("Pre-computing gene subsets...")
 
-    # Process genes in parallel
-    results = Parallel(n_jobs=n_jobs, verbose=10)(
-        delayed(_process_single_gene)(
-            gene, cell_data, metadata_cols, nt_idx, minimum_cell_count
+    # Pre-compute subsets in main process (avoids copying full DataFrame to workers)
+    perturbation_col = cell_data[perturbation_name_col]
+    gene_data = []
+    for gene in perturbed_genes:
+        gene_idx = perturbation_col.index[perturbation_col == gene].to_numpy()
+
+        # Sample control cells (same logic as before)
+        rng = np.random.default_rng(hash(gene) % (2**32))
+        nt_keep = rng.choice(
+            nt_idx, size=min(len(gene_idx), len(nt_idx)), replace=False
         )
-        for gene in perturbed_genes
+        keep_idx = np.union1d(gene_idx, nt_keep)
+
+        # Extract subset
+        gene_subset_df = cell_data.iloc[keep_idx].copy()
+        original_idx = gene_subset_df.index.copy()
+        gene_subset_df = gene_subset_df.reset_index(drop=True)
+
+        gene_data.append((gene, gene_idx, gene_subset_df, original_idx))
+
+    print(f"Pre-computation complete. Starting parallel processing...")
+
+    # Process genes in parallel - workers receive only small subsets
+    results = Parallel(n_jobs=n_jobs, verbose=10)(
+        delayed(_process_gene_subset)(
+            gene,
+            gene_idx,
+            gene_subset_df,
+            original_idx,
+            metadata_cols,
+            minimum_cell_count,
+        )
+        for gene, gene_idx, gene_subset_df, original_idx in gene_data
     )
 
     # Collect results and update cell_data
@@ -121,29 +149,27 @@ def calculate_perturbation_scores(
     return pd.Series(scores, index=cell_data.index), auc
 
 
-def _process_single_gene(
+def _process_gene_subset(
     gene: str,
-    cell_data: pd.DataFrame,
+    gene_idx: np.ndarray,
+    gene_subset_df: pd.DataFrame,
+    original_idx: pd.Index,
     metadata_cols: list[str],
-    nt_idx: np.ndarray,
     minimum_cell_count: int,
 ) -> tuple[str, np.ndarray, pd.Series, float] | None:
-    """Process a single gene and return perturbation scores.
+    """Process a pre-sliced gene subset and return perturbation scores.
+
+    Args:
+        gene: Gene symbol being processed.
+        gene_idx: Original indices of gene cells in the full dataset.
+        gene_subset_df: Pre-sliced DataFrame with gene + control cells (reset index).
+        original_idx: Original indices before reset (for mapping scores back).
+        metadata_cols: Metadata column names.
+        minimum_cell_count: Minimum cells required.
 
     Returns:
         Tuple of (gene, gene_idx, perturbation_scores, auc) or None if skipped.
     """
-    perturbation_col = cell_data["gene_symbol_0"]
-    gene_idx = perturbation_col.index[perturbation_col == gene].to_numpy()
-
-    # Sample control cells
-    rng = np.random.default_rng(hash(gene) % (2**32))
-    nt_keep = rng.choice(nt_idx, size=min(len(gene_idx), len(nt_idx)), replace=False)
-    keep_idx = np.union1d(gene_idx, nt_keep)
-    gene_subset_df = cell_data.iloc[keep_idx].copy()
-    original_idx = gene_subset_df.index.copy()
-    gene_subset_df = gene_subset_df.reset_index(drop=True)
-
     if gene_subset_df.shape[0] < minimum_cell_count:
         print(f"!! Skipping {gene} due to low cell count ({gene_subset_df.shape[0]})")
         return None

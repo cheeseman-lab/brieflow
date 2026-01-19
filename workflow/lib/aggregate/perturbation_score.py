@@ -1,12 +1,13 @@
 """This module provides functions for calculating per-cell perturbation scores.
 
 Functions:
-- calculate_perturbation_scores: Calculate per-cell perturbation scores using logistic regression
 - perturbation_score: Process all perturbations and assign scores to cells based on AUC threshold
+- calculate_perturbation_scores: Calculate per-cell perturbation scores using logistic regression
 """
 
 import pandas as pd
 import numpy as np
+from joblib import Parallel, delayed
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from sklearn.feature_selection import SelectKBest, f_classif
@@ -14,6 +15,56 @@ from sklearn.metrics import roc_auc_score
 
 from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
 from lib.aggregate.cell_data_utils import split_cell_data
+
+
+def perturbation_score(
+    cell_data: pd.DataFrame,
+    metadata_cols: list[str],
+    perturbation_name_col: str,
+    control_key: str,
+    minimum_cell_count: int = 100,
+    n_jobs: int = -1,
+) -> None:
+    """Process all perturbations and assign perturbation scores to cells based on AUC threshold.
+
+    This function processes all non-control perturbations in parallel using joblib,
+    calculates perturbation scores using logistic regression, and assigns scores to cells.
+    The cell_data DataFrame is modified in-place to add 'perturbation_score' and 'perturbation_auc' columns.
+
+    Args:
+        cell_data (pd.DataFrame): DataFrame containing cell data that will be modified in-place.
+        metadata_cols (list[str]): List of metadata column names that will be updated to include 'perturbation_score'.
+        perturbation_name_col (str): Column name containing perturbation identifiers.
+        control_key (str): Prefix identifying control perturbations (e.g., 'nontargeting').
+        minimum_cell_count (int, optional): Minimum number of cells required to process a perturbation. Defaults to 100.
+        n_jobs (int, optional): Number of parallel jobs. -1 uses all available CPUs. Defaults to -1.
+    """
+    perturbation_col = cell_data[perturbation_name_col]
+    perturbed_genes = [
+        gene
+        for gene in perturbation_col.unique().tolist()
+        if not gene.startswith(control_key)
+    ]
+    nt_idx = perturbation_col.index[
+        perturbation_col.str.startswith(control_key)
+    ].to_numpy()
+
+    print(f"Processing {len(perturbed_genes)} genes with {n_jobs} parallel jobs...")
+
+    # Process genes in parallel
+    results = Parallel(n_jobs=n_jobs, verbose=10)(
+        delayed(_process_single_gene)(
+            gene, cell_data, metadata_cols, nt_idx, minimum_cell_count
+        )
+        for gene in perturbed_genes
+    )
+
+    # Collect results and update cell_data
+    for result in results:
+        if result is not None:
+            gene, gene_idx, scores, auc = result
+            cell_data.loc[gene_idx, "perturbation_score"] = scores
+            cell_data.loc[gene_idx, "perturbation_auc"] = auc
 
 
 def calculate_perturbation_scores(
@@ -70,91 +121,67 @@ def calculate_perturbation_scores(
     return pd.Series(scores, index=cell_data.index), auc
 
 
-def perturbation_score(
+def _process_single_gene(
+    gene: str,
     cell_data: pd.DataFrame,
     metadata_cols: list[str],
-    perturbation_name_col: str,
-    control_key: str,
-    minimum_cell_count: int = 100,
-) -> None:
-    """Process all perturbations and assign perturbation scores to cells based on AUC threshold.
+    nt_idx: np.ndarray,
+    minimum_cell_count: int,
+) -> tuple[str, np.ndarray, pd.Series, float] | None:
+    """Process a single gene and return perturbation scores.
 
-    This function iterates through all non-control perturbations, calculates perturbation scores
-    using logistic regression, and assigns scores to cells only if the AUC exceeds the threshold.
-    The cell_data DataFrame is modified in-place to add a 'perturbation_score' column.
-
-    Args:
-        cell_data (pd.DataFrame): DataFrame containing cell data that will be modified in-place.
-        metadata_cols (list[str]): List of metadata column names that will be updated to include 'perturbation_score'.
-        perturbation_name_col (str): Column name containing perturbation identifiers.
-        control_key (str): Prefix identifying control perturbations (e.g., 'nontargeting').
-        minimum_cell_count (int, optional): Minimum number of cells required to process a perturbation. Defaults to 100.
+    Returns:
+        Tuple of (gene, gene_idx, perturbation_scores, auc) or None if skipped.
     """
-    perturbation_col = cell_data[perturbation_name_col]
-    perturbed_genes = [
-        gene
-        for gene in perturbation_col.unique().tolist()
-        if not gene.startswith(control_key)
-    ]
-    nt_idx = perturbation_col.index[
-        perturbation_col.str.startswith(control_key)
-    ].to_numpy()
+    perturbation_col = cell_data["gene_symbol_0"]
+    gene_idx = perturbation_col.index[perturbation_col == gene].to_numpy()
 
-    for gene in perturbed_genes:
-        print(f"Processing {gene}...")
-        gene_idx = perturbation_col.index[perturbation_col == gene].to_numpy()
-        nt_keep = np.random.choice(
-            nt_idx, size=min(len(gene_idx), len(nt_idx)), replace=False
-        )
-        keep_idx = np.union1d(gene_idx, nt_keep)
-        gene_subset_df = cell_data.iloc[keep_idx].copy()
-        original_idx = gene_subset_df.index.copy()
-        gene_subset_df = gene_subset_df.reset_index(drop=True)
+    # Sample control cells
+    rng = np.random.default_rng(hash(gene) % (2**32))
+    nt_keep = rng.choice(nt_idx, size=min(len(gene_idx), len(nt_idx)), replace=False)
+    keep_idx = np.union1d(gene_idx, nt_keep)
+    gene_subset_df = cell_data.iloc[keep_idx].copy()
+    original_idx = gene_subset_df.index.copy()
+    gene_subset_df = gene_subset_df.reset_index(drop=True)
 
-        if gene_subset_df.shape[0] < minimum_cell_count:
-            print(
-                f"!! Skipping {gene} due to low cell count ({gene_subset_df.shape[0]})"
-            )
-            continue
+    if gene_subset_df.shape[0] < minimum_cell_count:
+        print(f"!! Skipping {gene} due to low cell count ({gene_subset_df.shape[0]})")
+        return None
 
-        # SCALE PERTURBATION GENE AND CONTROL FEATURES
+    # SCALE PERTURBATION GENE AND CONTROL FEATURES
+    feature_cols = gene_subset_df.columns.difference(metadata_cols, sort=False)
+    metadata, features = split_cell_data(gene_subset_df, metadata_cols)
+    metadata, features = prepare_alignment_data(
+        metadata,
+        features,
+        ["plate", "well"],
+        "gene_symbol_0",
+        "nontargeting",
+        "cell_barcode_0",
+    )
 
-        feature_cols = gene_subset_df.columns.difference(metadata_cols, sort=False)
-        metadata, features = split_cell_data(gene_subset_df, metadata_cols)
-        metadata, features = prepare_alignment_data(
-            metadata,
-            features,
-            ["plate", "well"],
-            "gene_symbol_0",
-            "nontargeting",
-            "cell_barcode_0",
-        )
+    features = features.astype(np.float32)
+    features = centerscale_on_controls(
+        features,
+        metadata,
+        "gene_symbol_0",
+        "nontargeting",
+        "batch_values",
+    )
+    features = pd.DataFrame(features, columns=feature_cols)
+    gene_subset_df = pd.concat([metadata, features], axis=1)
 
-        features = features.astype(np.float32)
-        features = centerscale_on_controls(
-            features,
-            metadata,
-            "gene_symbol_0",
-            "nontargeting",
-            "batch_values",
-        )
-        features = pd.DataFrame(features, columns=feature_cols)
-        gene_subset_df = pd.concat([metadata, features], axis=1)
+    # CALCULATE PERTURBATION SCORES
+    perturbation_scores, auc = calculate_perturbation_scores(
+        gene_subset_df,
+        gene,
+        feature_cols,
+        perturbation_col="gene_symbol_0",
+    )
 
-        # REMOVE LOW PERTURBATION SCORE CELLS
+    print(
+        f"!! {gene} perturbation score details| Number of Cells: {gene_subset_df.shape[0] // 2} AUC: {auc:.3f}"
+    )
 
-        perturbation_scores, auc = calculate_perturbation_scores(
-            gene_subset_df,
-            gene,
-            feature_cols,
-            perturbation_col="gene_symbol_0",
-        )
-
-        print(
-            f"!! {gene} perturbation score details| Number of Cells: {gene_subset_df.shape[0] // 2} AUC: {auc:.3f}"
-        )
-
-        # set the gene rows in original cell dataset to perturbation scores
-        perturbation_scores.index = original_idx
-        cell_data.loc[gene_idx, "perturbation_score"] = perturbation_scores[gene_idx]
-        cell_data.loc[gene_idx, "perturbation_auc"] = auc
+    perturbation_scores.index = original_idx
+    return (gene, gene_idx, perturbation_scores[gene_idx], auc)

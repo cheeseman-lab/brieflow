@@ -183,71 +183,130 @@ def get_phenotype_stats(config):
 
 
 def get_merge_stats(config):
-    """Get merge statistics for mapped vs unmapped cells.
+    """Get merge statistics from merge summary files.
 
     Args:
         config: Configuration dictionary
 
     Returns:
-        dict: Statistics including total cells, mapped cells, and mapping percentages
+        dict: Statistics including total cells, matched cells, and mapping rates
     """
-    # Extract paths from config
     root_fp = Path(config["all"]["root_fp"])
     merge_eval_dir = root_fp / "merge" / "eval"
 
-    # Find all cell mapping stats files
+    # Find merge summary files (new format: P-{plate}__merge_summary.tsv)
+    summary_files = list(merge_eval_dir.glob("*__merge_summary.tsv"))
+
+    if not summary_files:
+        # Fall back to old cell_mapping_stats format
+        return _get_merge_stats_legacy(config)
+
+    # Aggregate across all plates
+    total_ph_cells = 0
+    total_sbs_cells = 0
+    total_matched = 0
+    total_with_barcode = 0
+    total_single_gene = 0
+    plate_summaries = []
+
+    for file in summary_files:
+        df = pd.read_csv(file, sep="\t")
+
+        # Get TOTAL row if present, otherwise sum all wells
+        if "TOTAL" in df["well"].values:
+            totals = df[df["well"] == "TOTAL"].iloc[0]
+        else:
+            totals = df.sum(numeric_only=True)
+            totals["ph_match_rate"] = df["ph_match_rate"].mean()
+            totals["sbs_match_rate"] = df["sbs_match_rate"].mean()
+
+        total_ph_cells += int(totals.get("ph_cells", 0))
+        total_sbs_cells += int(totals.get("sbs_cells", 0))
+        total_matched += int(totals.get("matched_final", totals.get("matched_raw", 0)))
+        total_with_barcode += int(totals.get("cells_with_barcode", 0))
+        total_single_gene += int(totals.get("single_gene_count", 0))
+
+        plate_summaries.append(
+            {
+                "plate": file.stem.split("__")[0],
+                "ph_match_rate": float(totals.get("ph_match_rate", 0)),
+                "sbs_match_rate": float(totals.get("sbs_match_rate", 0)),
+            }
+        )
+
+    # Calculate overall rates
+    avg_ph_match_rate = (
+        np.mean([p["ph_match_rate"] for p in plate_summaries]) if plate_summaries else 0
+    )
+    avg_sbs_match_rate = (
+        np.mean([p["sbs_match_rate"] for p in plate_summaries])
+        if plate_summaries
+        else 0
+    )
+    single_gene_rate = (
+        total_single_gene / total_with_barcode if total_with_barcode > 0 else 0
+    )
+
+    return {
+        "phenotype_cells": total_ph_cells,
+        "sbs_cells": total_sbs_cells,
+        "matched_cells": total_matched,
+        "cells_with_barcode": total_with_barcode,
+        "cells_with_single_gene": total_single_gene,
+        "phenotype_match_rate": avg_ph_match_rate,
+        "sbs_match_rate": avg_sbs_match_rate,
+        "single_gene_rate": single_gene_rate,
+    }
+
+
+def _get_merge_stats_legacy(config):
+    """Legacy merge stats using cell_mapping_stats files."""
+    root_fp = Path(config["all"]["root_fp"])
+    merge_eval_dir = root_fp / "merge" / "eval"
+
     mapping_stats_files = list(merge_eval_dir.glob("**/*__cell_mapping_stats.tsv"))
 
     if not mapping_stats_files:
-        return {"error": "No cell mapping statistics files found"}
+        return {"error": "No merge statistics files found"}
 
-    # Initialize counters
     total_mapped_cells = 0
     total_cells = 0
     mapping_percentages = []
 
-    # Process each file
     for file in mapping_stats_files:
         df = pd.read_csv(file, sep="\t")
-
-        # Get counts for mapped and unmapped cells
         mapped_row = df[df["category"] == "mapped_cells"]
         unmapped_row = df[df["category"] == "unmapped_cells"]
 
         if not mapped_row.empty and not unmapped_row.empty:
-            # Add to totals
             mapped_count = mapped_row["count"].iloc[0]
             unmapped_count = unmapped_row["count"].iloc[0]
             file_total = mapped_count + unmapped_count
 
             total_mapped_cells += mapped_count
             total_cells += file_total
-
-            # Calculate and store mapping percentage for this file
-            mapping_percentage = mapped_count / file_total * 100
-            mapping_percentages.append(mapping_percentage)
-
-    # Calculate overall percentage and average percentage
-    avg_mapping_percentage = np.mean(mapping_percentages) if mapping_percentages else 0
+            mapping_percentages.append(mapped_count / file_total * 100)
 
     return {
-        "total_cells": total_cells,
-        "total_mapped_cells": total_mapped_cells,
-        "average_mapping_percentage_across_plates": avg_mapping_percentage,
+        "phenotype_cells": total_cells,
+        "matched_cells": total_mapped_cells,
+        "phenotype_match_rate": np.mean(mapping_percentages) / 100
+        if mapping_percentages
+        else 0,
     }
 
 
-def get_aggregate_stats(config, n_rows=1000):
-    """Get aggregation statistics including perturbation counts and batch effect metrics.
+def get_aggregate_stats(config, n_rows=1000, include_batch_effects=False):
+    """Get aggregation statistics including perturbation counts.
 
     Args:
         config: Configuration dictionary
         n_rows: Optional number of rows to sample for memory efficiency
+        include_batch_effects: Whether to calculate batch effect metrics (slow)
 
     Returns:
         dict: Dictionary with statistics for each cell_class/channel_combo combination
     """
-    # Extract paths from config
     root_fp = Path(config["all"]["root_fp"])
     aggregate_dir = root_fp / "aggregate"
 
@@ -258,7 +317,10 @@ def get_aggregate_stats(config, n_rows=1000):
     # Get unique cell_class and channel_combo combinations
     unique_combos = aggregate_combos[["cell_class", "channel_combo"]].drop_duplicates()
 
-    # Store results for each combination
+    # Get perturbation column name from config
+    perturbation_col = config["aggregate"].get("perturbation_name_col", "gene_symbol_0")
+    control_key = config["aggregate"].get("control_key", "nontargeting")
+
     all_results = {}
 
     for _, combo in unique_combos.iterrows():
@@ -266,9 +328,16 @@ def get_aggregate_stats(config, n_rows=1000):
         channel_combo = combo["channel_combo"]
 
         try:
-            # Process this combination
             result = _get_single_aggregate_stats(
-                config, cell_class, channel_combo, n_rows, root_fp, aggregate_dir
+                config,
+                cell_class,
+                channel_combo,
+                n_rows,
+                root_fp,
+                aggregate_dir,
+                perturbation_col,
+                control_key,
+                include_batch_effects,
             )
             all_results[f"{cell_class}_{channel_combo}"] = result
         except Exception as e:
@@ -279,12 +348,18 @@ def get_aggregate_stats(config, n_rows=1000):
 
 
 def _get_single_aggregate_stats(
-    config, cell_class, channel_combo, n_rows, root_fp, aggregate_dir
+    config,
+    cell_class,
+    channel_combo,
+    n_rows,
+    root_fp,
+    aggregate_dir,
+    perturbation_col,
+    control_key,
+    include_batch_effects,
 ):
     """Helper function to get stats for a single cell_class/channel_combo combination."""
-    from lib.aggregate.cell_data_utils import DEFAULT_METADATA_COLS
     from lib.shared.file_utils import load_parquet_subset
-    from sklearn.feature_selection import f_classif
 
     # Load the aggregated TSV file
     aggregated_path = (
@@ -295,11 +370,11 @@ def _get_single_aggregate_stats(
     aggregated = pd.read_csv(aggregated_path, sep="\t")
 
     # Calculate distinct perturbation count and median perturbation cells
-    distinct_perturbation_count = len(aggregated["gene_symbol_0"].unique())
+    distinct_perturbation_count = len(aggregated[perturbation_col].unique())
     median_perturbation_cells = int(aggregated["cell_count"].median())
 
     # Count total cells in the final aggregate TSV
-    total_aggregated_cells = aggregated["cell_count"].sum()
+    total_aggregated_cells = int(aggregated["cell_count"].sum())
 
     # Count features in the final aggregate TSV (columns starting with PC_)
     feature_cols = [col for col in aggregated.columns if col.startswith("PC_")]
@@ -310,14 +385,12 @@ def _get_single_aggregate_stats(
         root_fp.glob(f"**/*_CeCl-{cell_class}_ChCo-{channel_combo}__merge_data.parquet")
     )
 
-    # Count total cells by getting metadata only (not loading full dataframes)
     total_pre_filtered_cells = 0
     for path in merge_data_paths:
-        # Get row count from parquet metadata without loading the data
         parquet_file = pq.ParquetFile(path)
         total_pre_filtered_cells += parquet_file.metadata.num_rows
 
-    # Process filtered data
+    # Count filtered cells from parquet metadata (fast)
     filtered_dir = aggregate_dir / "parquets"
     filtered_paths = list(
         filtered_dir.glob(
@@ -325,56 +398,93 @@ def _get_single_aggregate_stats(
         )
     )
 
-    # Handle filtered data based on n_rows parameter
+    total_filtered_cells = 0
+    for path in filtered_paths:
+        parquet_file = pq.ParquetFile(path)
+        total_filtered_cells += parquet_file.metadata.num_rows
+
+    result = {
+        "cell_class": cell_class,
+        "distinct_perturbation_count": distinct_perturbation_count,
+        "median_perturbation_cells": median_perturbation_cells,
+        "total_pre_filtered_cells": total_pre_filtered_cells,
+        "total_filtered_cells": total_filtered_cells,
+        "total_aggregated_cells": total_aggregated_cells,
+        "feature_count": feature_count,
+    }
+
+    # Optional batch effect calculation (slow)
+    if include_batch_effects:
+        batch_stats = _calculate_batch_effects(
+            config,
+            cell_class,
+            channel_combo,
+            n_rows,
+            aggregate_dir,
+            perturbation_col,
+            control_key,
+        )
+        result.update(batch_stats)
+
+    return result
+
+
+def _calculate_batch_effects(
+    config,
+    cell_class,
+    channel_combo,
+    n_rows,
+    aggregate_dir,
+    perturbation_col,
+    control_key,
+):
+    """Calculate batch effect metrics (pre/post alignment)."""
+    from lib.aggregate.cell_data_utils import DEFAULT_METADATA_COLS
+    from lib.shared.file_utils import load_parquet_subset
+    from sklearn.feature_selection import f_classif
+
+    filtered_dir = aggregate_dir / "parquets"
+    filtered_paths = list(
+        filtered_dir.glob(
+            f"**/*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet"
+        )
+    )
+
+    # Load filtered data
     if n_rows is None:
-        # Original approach - load all data
         filtered = ds.dataset(filtered_paths, format="parquet")
         filtered = filtered.to_table(use_threads=True, memory_pool=None).to_pandas()
     else:
-        # Use load_parquet_subset when n_rows is specified
         if len(filtered_paths) == 1:
-            # If there's only one file, load with subset function
             filtered = load_parquet_subset(filtered_paths[0], n_rows)
         else:
-            # If multiple files, load and concatenate with row limit per file
-            filtered_dfs = []
-            for path in filtered_paths:
-                df = load_parquet_subset(path, n_rows)
-                filtered_dfs.append(df)
+            filtered_dfs = [
+                load_parquet_subset(path, n_rows) for path in filtered_paths
+            ]
             filtered = pd.concat(filtered_dfs, ignore_index=True)
 
-    # Count total cells in the filtered dataset
-    total_filtered_cells = len(filtered)
-
-    # Calculate batch effect metrics for pre-alignment data
+    # Pre-alignment batch effects
     filtered = filtered.dropna(axis=1)
-    old_control_data = filtered[
-        filtered["gene_symbol_0"].str.startswith("nontargeting")
-    ]
+    control_data = filtered[filtered[perturbation_col].str.startswith(control_key)]
     metadata_cols = DEFAULT_METADATA_COLS + ["class", "confidence"]
-    old_control_data["batch"] = (
-        old_control_data["plate"].astype(str) + "_" + old_control_data["well"]
+    control_data = control_data.copy()
+    control_data["batch"] = (
+        control_data["plate"].astype(str) + "_" + control_data["well"]
     )
-    old_control_data = old_control_data.drop(columns=metadata_cols)
+    cols_to_drop = [c for c in metadata_cols if c in control_data.columns]
+    control_data = control_data.drop(columns=cols_to_drop, errors="ignore")
 
-    # Drop features with zero variance
-    old_feature_data = old_control_data.drop(columns=["batch"])
-    non_constant_features = old_feature_data.columns[old_feature_data.var() > 0]
-    old_feature_data_filtered = old_feature_data[non_constant_features]
+    feature_data = control_data.drop(columns=["batch"])
+    non_constant = feature_data.columns[feature_data.var() > 0]
+    feature_data = feature_data[non_constant]
 
-    # Run ANOVA on the filtered features
-    X = old_feature_data_filtered.values
-    y = old_control_data["batch"].values
+    X = feature_data.values
+    y = control_data["batch"].values
+    _, p_vals = f_classif(X, y)
+    valid_p_vals = p_vals[~np.isnan(p_vals)]
+    pre_align_p_median = np.median(valid_p_vals) if len(valid_p_vals) > 0 else np.nan
 
-    # Run ANOVA F-test
-    f_stats, p_vals = f_classif(X, y)
-
-    # Filter out the NaN values
-    valid_idx = ~np.isnan(p_vals)
-    valid_p_vals = p_vals[valid_idx]
-    old_p_vals_median = np.median(valid_p_vals)
-
-    # Read aligned data and calculate post-alignment batch effects
+    # Post-alignment batch effects
     aligned_path = (
         aggregate_dir
         / "parquets"
@@ -386,34 +496,24 @@ def _get_single_aggregate_stats(
     else:
         aligned = load_parquet_subset(aligned_path, n_rows)
 
-    new_control_data = aligned[aligned["gene_symbol_0"].str.startswith("nontargeting")]
-    feature_cols = [col for col in new_control_data.columns if col.startswith("PC_")]
-    new_control_data["batch"] = (
-        new_control_data["plate"].astype(str) + "_" + new_control_data["well"]
+    control_aligned = aligned[
+        aligned[perturbation_col].str.startswith(control_key)
+    ].copy()
+    pc_cols = [col for col in control_aligned.columns if col.startswith("PC_")]
+    control_aligned["batch"] = (
+        control_aligned["plate"].astype(str) + "_" + control_aligned["well"]
     )
-    new_control_data = new_control_data[feature_cols + ["batch"]]
+    control_aligned = control_aligned[pc_cols + ["batch"]]
 
-    # Separate features and batch labels
-    X = new_control_data.drop(columns=["batch"]).values
-    y = new_control_data["batch"].values
-
-    # Run ANOVA F-test
-    f_stats, p_vals = f_classif(X, y)
-
-    # Filter out the NaN values
-    valid_idx = ~np.isnan(p_vals)
-    valid_p_vals = p_vals[valid_idx]
-    new_p_vals_median = np.median(valid_p_vals)
+    X = control_aligned.drop(columns=["batch"]).values
+    y = control_aligned["batch"].values
+    _, p_vals = f_classif(X, y)
+    valid_p_vals = p_vals[~np.isnan(p_vals)]
+    post_align_p_median = np.median(valid_p_vals) if len(valid_p_vals) > 0 else np.nan
 
     return {
-        "distinct_perturbation_count": distinct_perturbation_count,
-        "median_perturbation_cells": median_perturbation_cells,
-        "old_control_p_vals_median": old_p_vals_median,
-        "new_control_p_vals_median": new_p_vals_median,
-        "total_pre_filtered_cells": total_pre_filtered_cells,
-        "total_filtered_cells": total_filtered_cells,
-        "total_aggregated_cells": total_aggregated_cells,
-        "feature_count": feature_count,
+        "pre_alignment_batch_p_median": pre_align_p_median,
+        "post_alignment_batch_p_median": post_align_p_median,
     }
 
 
@@ -424,11 +524,8 @@ def get_cluster_stats(config):
         config: Configuration dictionary
 
     Returns:
-        dict: Contains detailed_results, best_resolutions, and summary_by_cell_class DataFrames
+        dict: Contains detailed_results and summary DataFrames
     """
-    from statsmodels.stats.multitest import fdrcorrection
-
-    # Extract paths from config
     root_fp = Path(config["all"]["root_fp"])
     cluster_dir = root_fp / "cluster"
 
@@ -436,293 +533,128 @@ def get_cluster_stats(config):
     cluster_combo_fp = Path(config["cluster"]["cluster_combo_fp"])
     cluster_combos = pd.read_csv(cluster_combo_fp, sep="\t")
 
-    # Initialize a dictionary to store results
     results = []
 
-    # Process each cluster combination
     for _, row in cluster_combos.iterrows():
         cell_class = row["cell_class"]
         channel_combo = row["channel_combo"]
         leiden_resolution = row["leiden_resolution"]
 
-        # Build path to the specific cluster directory
         cluster_specific_dir = (
             cluster_dir / channel_combo / cell_class / str(leiden_resolution)
         )
 
-        # Path to the combined table and global metrics (real and shuffled)
+        # Path to metrics files
         combined_table_path = cluster_specific_dir / "CB-Real__combined_table.tsv"
         real_metrics_path = cluster_specific_dir / "CB-Real__global_metrics.json"
         shuffled_metrics_path = (
             cluster_specific_dir / "CB-Shuffled__global_metrics.json"
         )
 
-        if not combined_table_path.exists() or not real_metrics_path.exists():
-            # Skip if essential files don't exist
+        if not real_metrics_path.exists():
             continue
 
-        # Count unique clusters from combined table
-        try:
-            combined_table = pd.read_csv(combined_table_path, sep="\t")
-            unique_clusters = len(combined_table["cluster"].unique())
-        except Exception as e:
-            print(
-                f"Error reading combined table for {cell_class}/{channel_combo}/{leiden_resolution}: {str(e)}"
-            )
-            unique_clusters = 0
+        # Count unique clusters
+        unique_clusters = 0
+        if combined_table_path.exists():
+            try:
+                combined_table = pd.read_csv(combined_table_path, sep="\t")
+                unique_clusters = len(combined_table["cluster"].unique())
+            except Exception:
+                pass
 
-        # Read real enrichment metrics from global metrics JSON
+        # Read real metrics
         try:
             with open(real_metrics_path, "r") as f:
                 real_metrics = json.load(f)
 
-            # Extract CORUM and KEGG enriched clusters (real)
-            real_corum_enriched = real_metrics.get("CORUM", {}).get(
-                "num_enriched_clusters", 0
-            )
-            real_kegg_enriched = real_metrics.get("KEGG", {}).get(
-                "num_enriched_clusters", 0
-            )
-            real_corum_proportion = real_metrics.get("CORUM", {}).get(
-                "proportion_enriched", 0
-            )
-            real_kegg_proportion = real_metrics.get("KEGG", {}).get(
-                "proportion_enriched", 0
-            )
-
-        except Exception as e:
-            print(
-                f"Error reading real metrics for {cell_class}/{channel_combo}/{leiden_resolution}: {str(e)}"
-            )
-            real_corum_enriched = 0
-            real_kegg_enriched = 0
-            real_corum_proportion = 0
-            real_kegg_proportion = 0
-
-        # Read shuffled enrichment metrics if available
-        shuffled_corum_enriched = 0
-        shuffled_kegg_enriched = 0
-        shuffled_corum_proportion = 0
-        shuffled_kegg_proportion = 0
-
-        if shuffled_metrics_path.exists():
-            try:
-                with open(shuffled_metrics_path, "r") as f:
-                    shuffled_metrics = json.load(f)
-
-                # Extract CORUM and KEGG enriched clusters (shuffled)
-                shuffled_corum_enriched = shuffled_metrics.get("CORUM", {}).get(
-                    "num_enriched_clusters", 0
-                )
-                shuffled_kegg_enriched = shuffled_metrics.get("KEGG", {}).get(
-                    "num_enriched_clusters", 0
-                )
-                shuffled_corum_proportion = shuffled_metrics.get("CORUM", {}).get(
-                    "proportion_enriched", 0
-                )
-                shuffled_kegg_proportion = shuffled_metrics.get("KEGG", {}).get(
-                    "proportion_enriched", 0
-                )
-
-            except Exception as e:
-                print(
-                    f"Error reading shuffled metrics for {cell_class}/{channel_combo}/{leiden_resolution}: {str(e)}"
-                )
-
-        # Calculate total enriched clusters and proportions for each type
-        total_real_enriched = real_corum_enriched + real_kegg_enriched
-        total_shuffled_enriched = shuffled_corum_enriched + shuffled_kegg_enriched
-
-        # Calculate average proportion for total (CORUM + KEGG)
-        # Use weighted average based on the number of clusters in each category
-        if real_corum_enriched + real_kegg_enriched > 0:
-            real_avg_proportion = (
-                real_corum_proportion * real_corum_enriched
-                + real_kegg_proportion * real_kegg_enriched
-            ) / (real_corum_enriched + real_kegg_enriched)
-        else:
-            real_avg_proportion = 0
-
-        if shuffled_corum_enriched + shuffled_kegg_enriched > 0:
-            shuffled_avg_proportion = (
-                shuffled_corum_proportion * shuffled_corum_enriched
-                + shuffled_kegg_proportion * shuffled_kegg_enriched
-            ) / (shuffled_corum_enriched + shuffled_kegg_enriched)
-        else:
-            shuffled_avg_proportion = 0
-
-        # Calculate enrichment fold change (real vs. shuffled)
-        # Avoid division by zero
-        fold_change_corum = real_corum_proportion / max(
-            shuffled_corum_proportion, 1e-10
-        )
-        fold_change_kegg = real_kegg_proportion / max(shuffled_kegg_proportion, 1e-10)
-        fold_change_total = real_avg_proportion / max(shuffled_avg_proportion, 1e-10)
-
-        # Statistical test - Fisher's exact test for proportion comparison
-        # For CORUM
-        if unique_clusters > 0:
-            real_corum_not_enriched = unique_clusters - real_corum_enriched
-            shuffled_corum_not_enriched = unique_clusters - shuffled_corum_enriched
-
-            corum_contingency = np.array(
-                [
-                    [real_corum_enriched, real_corum_not_enriched],
-                    [shuffled_corum_enriched, shuffled_corum_not_enriched],
-                ]
-            )
-            _, corum_pvalue = stats.fisher_exact(corum_contingency)
-
-            # For KEGG
-            real_kegg_not_enriched = unique_clusters - real_kegg_enriched
-            shuffled_kegg_not_enriched = unique_clusters - shuffled_kegg_enriched
-
-            kegg_contingency = np.array(
-                [
-                    [real_kegg_enriched, real_kegg_not_enriched],
-                    [shuffled_kegg_enriched, shuffled_kegg_not_enriched],
-                ]
-            )
-            _, kegg_pvalue = stats.fisher_exact(kegg_contingency)
-
-            # For combined
-            real_total_not_enriched = unique_clusters - total_real_enriched
-            shuffled_total_not_enriched = unique_clusters - total_shuffled_enriched
-
-            # Handle case where total enriched might exceed unique_clusters
-            real_total_not_enriched = max(0, real_total_not_enriched)
-            shuffled_total_not_enriched = max(0, shuffled_total_not_enriched)
-
-            total_contingency = np.array(
-                [
-                    [total_real_enriched, real_total_not_enriched],
-                    [total_shuffled_enriched, shuffled_total_not_enriched],
-                ]
-            )
-            _, total_pvalue = stats.fisher_exact(total_contingency)
-        else:
-            corum_pvalue = 1.0
-            kegg_pvalue = 1.0
-            total_pvalue = 1.0
-
-        # Store results for this combination
-        results.append(
-            {
+            result = {
                 "cell_class": cell_class,
                 "channel_combo": channel_combo,
                 "leiden_resolution": leiden_resolution,
                 "unique_clusters": unique_clusters,
-                "real_corum_enriched": real_corum_enriched,
-                "real_kegg_enriched": real_kegg_enriched,
-                "total_real_enriched": total_real_enriched,
-                "real_corum_proportion": real_corum_proportion,
-                "real_kegg_proportion": real_kegg_proportion,
-                "real_avg_proportion": real_avg_proportion,
-                "shuffled_corum_enriched": shuffled_corum_enriched,
-                "shuffled_kegg_enriched": shuffled_kegg_enriched,
-                "total_shuffled_enriched": total_shuffled_enriched,
-                "shuffled_corum_proportion": shuffled_corum_proportion,
-                "shuffled_kegg_proportion": shuffled_kegg_proportion,
-                "shuffled_avg_proportion": shuffled_avg_proportion,
-                "fold_change_corum": fold_change_corum,
-                "fold_change_kegg": fold_change_kegg,
-                "fold_change_total": fold_change_total,
-                "corum_pvalue": corum_pvalue,
-                "kegg_pvalue": kegg_pvalue,
-                "total_pvalue": total_pvalue,
+                # CORUM metrics
+                "corum_enriched": real_metrics.get("CORUM", {}).get(
+                    "num_enriched_clusters", 0
+                ),
+                "corum_proportion": real_metrics.get("CORUM", {}).get(
+                    "proportion_enriched", 0
+                ),
+                # KEGG metrics
+                "kegg_enriched": real_metrics.get("KEGG", {}).get(
+                    "num_enriched_clusters", 0
+                ),
+                "kegg_proportion": real_metrics.get("KEGG", {}).get(
+                    "proportion_enriched", 0
+                ),
+                # STRING metrics
+                "string_precision": real_metrics.get("STRING", {}).get("precision", 0),
+                "string_recall": real_metrics.get("STRING", {}).get("recall", 0),
+                "string_f1": real_metrics.get("STRING", {}).get("f1_score", 0),
+                "string_true_positives": real_metrics.get("STRING", {}).get(
+                    "true_positives", 0
+                ),
             }
-        )
 
-    # Convert results to DataFrame for easier analysis
+            # Read shuffled metrics if available
+            if shuffled_metrics_path.exists():
+                with open(shuffled_metrics_path, "r") as f:
+                    shuffled_metrics = json.load(f)
+                result["shuffled_corum_proportion"] = shuffled_metrics.get(
+                    "CORUM", {}
+                ).get("proportion_enriched", 0)
+                result["shuffled_kegg_proportion"] = shuffled_metrics.get(
+                    "KEGG", {}
+                ).get("proportion_enriched", 0)
+                result["shuffled_string_f1"] = shuffled_metrics.get("STRING", {}).get(
+                    "f1_score", 0
+                )
+
+            results.append(result)
+
+        except Exception as e:
+            print(
+                f"Error reading metrics for {cell_class}/{channel_combo}/{leiden_resolution}: {e}"
+            )
+
     results_df = pd.DataFrame(results)
 
-    # If results dataframe is empty, return early
     if results_df.empty:
         return {
             "detailed_results": results_df,
-            "best_resolutions": pd.DataFrame(),
-            "summary_by_cell_class": pd.DataFrame(),
+            "summary": pd.DataFrame(),
         }
 
-    # Calculate adjusted p-values using Benjamini-Hochberg correction
-    if not results_df.empty and len(results_df) > 1:
-        # Apply FDR correction to each set of p-values
-        results_df["corum_pvalue_adj"] = fdrcorrection(
-            results_df["corum_pvalue"].values
-        )[1]
-        results_df["kegg_pvalue_adj"] = fdrcorrection(results_df["kegg_pvalue"].values)[
-            1
-        ]
-        results_df["total_pvalue_adj"] = fdrcorrection(
-            results_df["total_pvalue"].values
-        )[1]
-    else:
-        # If there's only one result, adjusted p-value equals the original p-value
-        if not results_df.empty:
-            results_df["corum_pvalue_adj"] = results_df["corum_pvalue"]
-            results_df["kegg_pvalue_adj"] = results_df["kegg_pvalue"]
-            results_df["total_pvalue_adj"] = results_df["total_pvalue"]
-
-    # Find the best resolution for each cell_class and channel_combo based on fold change and significance
-    best_resolutions = []
-
-    for (cell, channel), group in results_df.groupby(["cell_class", "channel_combo"]):
-        # Sort by real average proportion (descending) to find the highest proportion of enriched pathways
-        sorted_group = group.sort_values(by="real_avg_proportion", ascending=False)
-
-        # Take the top resolution
-        if not sorted_group.empty:
-            best_resolution = sorted_group.iloc[0]
-            best_resolutions.append(best_resolution)
-
-    best_resolutions_df = (
-        pd.DataFrame(best_resolutions) if best_resolutions else pd.DataFrame()
-    )
-
-    # Summary by cell class
-    if not results_df.empty:
-        summary_by_cell_class = (
-            results_df.groupby("cell_class")
-            .agg(
-                {
-                    "unique_clusters": "mean",
-                    "real_corum_enriched": "sum",
-                    "real_kegg_enriched": "sum",
-                    "total_real_enriched": "sum",
-                    "real_corum_proportion": "mean",
-                    "real_kegg_proportion": "mean",
-                    "real_avg_proportion": "mean",
-                    "shuffled_corum_enriched": "sum",
-                    "shuffled_kegg_enriched": "sum",
-                    "total_shuffled_enriched": "sum",
-                    "shuffled_corum_proportion": "mean",
-                    "shuffled_kegg_proportion": "mean",
-                    "shuffled_avg_proportion": "mean",
-                    "fold_change_corum": "mean",
-                    "fold_change_kegg": "mean",
-                    "fold_change_total": "mean",
-                    "corum_pvalue": "min",  # Take the most significant p-value
-                    "kegg_pvalue": "min",
-                    "total_pvalue": "min",
-                }
-            )
-            .reset_index()
+    # Create summary grouped by cell_class
+    summary = (
+        results_df.groupby("cell_class")
+        .agg(
+            {
+                "unique_clusters": "sum",
+                "corum_enriched": "sum",
+                "corum_proportion": "mean",
+                "kegg_enriched": "sum",
+                "kegg_proportion": "mean",
+                "string_f1": "mean",
+                "string_precision": "mean",
+                "string_recall": "mean",
+            }
         )
-    else:
-        summary_by_cell_class = pd.DataFrame()
+        .reset_index()
+    )
 
     return {
         "detailed_results": results_df,
-        "best_resolutions": best_resolutions_df,
-        "summary_by_cell_class": summary_by_cell_class,
+        "summary": summary,
     }
 
 
-def get_all_stats(config):
+def get_all_stats(config, include_batch_effects=False):
     """Convenience function to get all pipeline statistics at once with formatted output.
 
     Args:
         config: Loaded configuration file
+        include_batch_effects: Whether to calculate batch effect metrics (slow)
 
     Returns:
         dict: Dictionary containing all statistics from different pipeline stages
@@ -737,29 +669,29 @@ def get_all_stats(config):
     print("\n[1/6] Gathering preprocessing statistics...")
     stats["preprocess"] = get_preprocess_stats(config)
     print("\n PREPROCESSING STATISTICS:")
-    print(f"   • ND2 input files: {stats['preprocess']['nd2_files']:,}")
-    print(f"   • SBS tiles generated: {stats['preprocess']['sbs_tiles']:,}")
-    print(f"   • Phenotype tiles generated: {stats['preprocess']['phenotype_tiles']:,}")
+    print(f"   - ND2 input files: {stats['preprocess']['nd2_files']:,}")
+    print(f"   - SBS tiles generated: {stats['preprocess']['sbs_tiles']:,}")
+    print(f"   - Phenotype tiles generated: {stats['preprocess']['phenotype_tiles']:,}")
 
     # SBS Statistics
     print("\n[2/6] Gathering SBS statistics...")
     stats["sbs"] = get_sbs_stats(config)
     print("\n SBS STATISTICS:")
-    print(f"   • Total cells segmented: {stats['sbs']['total_cells']:,}")
+    print(f"   - Total cells segmented: {stats['sbs']['total_cells']:,}")
     print(
-        f"   • Cells with barcode: {stats['sbs']['percent_cells_with_barcode']:.1f}% ({stats['sbs']['total_with_barcode']:,} cells)"
+        f"   - Cells with barcode: {stats['sbs']['percent_cells_with_barcode']:.1f}% ({stats['sbs']['total_with_barcode']:,} cells)"
     )
     print(
-        f"   • Cells with unique gene mapping: {stats['sbs']['percent_cells_with_unique_mapping']:.1f}% ({stats['sbs']['total_with_unique_gene']:,} cells)"
+        f"   - Cells with unique gene mapping: {stats['sbs']['percent_cells_with_unique_mapping']:.1f}% ({stats['sbs']['total_with_unique_gene']:,} cells)"
     )
 
     # Phenotype Statistics
     print("\n[3/6] Gathering phenotype statistics...")
     stats["phenotype"] = get_phenotype_stats(config)
     print("\n PHENOTYPE STATISTICS:")
-    print(f"   • Total cells segmented: {stats['phenotype']['total_cells']:,}")
+    print(f"   - Total cells segmented: {stats['phenotype']['total_cells']:,}")
     print(
-        f"   • Number of morphological features: {stats['phenotype']['feature_count']:,}"
+        f"   - Number of morphological features: {stats['phenotype']['feature_count']:,}"
     )
 
     # Merge Statistics
@@ -767,80 +699,76 @@ def get_all_stats(config):
     stats["merge"] = get_merge_stats(config)
     print("\n MERGE STATISTICS:")
     if "error" not in stats["merge"]:
-        print(f"   • Total cells processed: {stats['merge']['total_cells']:,}")
-        print(
-            f"   • Successfully mapped cells: {stats['merge']['total_mapped_cells']:,}"
-        )
-        print(
-            f"   • Average mapping rate: {stats['merge']['average_mapping_percentage_across_plates']:.1f}%"
-        )
+        merge = stats["merge"]
+        print(f"   - Phenotype cells: {merge.get('phenotype_cells', 0):,}")
+        print(f"   - SBS cells: {merge.get('sbs_cells', 0):,}")
+        print(f"   - Matched cells: {merge.get('matched_cells', 0):,}")
+        print(f"   - Phenotype match rate: {merge.get('phenotype_match_rate', 0):.1%}")
+        print(f"   - SBS match rate: {merge.get('sbs_match_rate', 0):.1%}")
+        if "cells_with_single_gene" in merge:
+            print(
+                f"   - Cells with single gene: {merge['cells_with_single_gene']:,} ({merge.get('single_gene_rate', 0):.1%})"
+            )
     else:
-        print(f"   ⚠️  {stats['merge']['error']}")
+        print(f"   [!] {stats['merge']['error']}")
 
     # Aggregate Statistics
     print("\n[5/6] Gathering aggregation statistics...")
-    print(
-        "   (This may take a moment as it processes multiple cell class/channel combinations...)"
+    stats["aggregate"] = get_aggregate_stats(
+        config, include_batch_effects=include_batch_effects
     )
-    stats["aggregate"] = get_aggregate_stats(config)
     print("\n AGGREGATION STATISTICS:")
 
     for combo_key, combo_stats in stats["aggregate"].items():
-        cell_class, channel_combo = combo_key.split("_", 1)
-        print(f"\n   {cell_class} cells - {channel_combo}:")
+        cell_class = combo_stats.get("cell_class", combo_key.split("_")[0])
+        print(f"\n   {combo_key}:")
 
         if "error" not in combo_stats:
             print(
-                f"      • Distinct perturbations: {combo_stats['distinct_perturbation_count']:,}"
+                f"      - Distinct perturbations: {combo_stats['distinct_perturbation_count']:,}"
             )
             print(
-                f"      • Median cells per perturbation: {combo_stats['median_perturbation_cells']:,}"
+                f"      - Median cells per perturbation: {combo_stats['median_perturbation_cells']:,}"
             )
             print(
-                f"      • Total cells (pre-filter): {combo_stats['total_pre_filtered_cells']:,}"
+                f"      - Total cells (pre-filter): {combo_stats['total_pre_filtered_cells']:,}"
             )
             print(
-                f"      • Total cells (post-filter): {combo_stats['total_filtered_cells']:,}"
+                f"      - Total cells (post-filter): {combo_stats['total_filtered_cells']:,}"
             )
             print(
-                f"      • Total cells (aggregated): {combo_stats['total_aggregated_cells']:,}"
+                f"      - Total cells (aggregated): {combo_stats['total_aggregated_cells']:,}"
             )
-            print(f"      • PC features: {combo_stats['feature_count']}")
-            print(
-                f"      • Batch effect reduction: {combo_stats['old_control_p_vals_median']:.4f} → {combo_stats['new_control_p_vals_median']:.4f}"
-            )
+            print(f"      - PC features: {combo_stats['feature_count']}")
+            if include_batch_effects and "pre_alignment_batch_p_median" in combo_stats:
+                print(
+                    f"      - Batch effect (pre/post alignment): {combo_stats['pre_alignment_batch_p_median']:.4f} -> {combo_stats['post_alignment_batch_p_median']:.4f}"
+                )
         else:
-            print(f"      ⚠️  Error: {combo_stats['error']}")
+            print(f"      [!] Error: {combo_stats['error']}")
 
     # Cluster Statistics
     print("\n[6/6] Gathering clustering statistics...")
-    print("   (Analyzing enrichment results across multiple resolutions...)")
     stats["cluster"] = get_cluster_stats(config)
-    print("\n🌐 CLUSTERING STATISTICS:")
+    print("\n CLUSTERING STATISTICS:")
 
-    if not stats["cluster"]["best_resolutions"].empty:
-        print("\n   Best resolution for each cell class/channel combination:")
-        for _, row in stats["cluster"]["best_resolutions"].iterrows():
-            print(f"\n   {row['cell_class']} cells - {row['channel_combo']}:")
-            print(f"      • Best resolution: {row['leiden_resolution']}")
-            print(f"      • Number of clusters: {row['unique_clusters']}")
-            print(f"      • Enriched clusters (real): {row['real_avg_proportion']:.1%}")
+    if not stats["cluster"]["detailed_results"].empty:
+        for _, row in stats["cluster"]["detailed_results"].iterrows():
             print(
-                f"      • Enriched clusters (shuffled): {row['shuffled_avg_proportion']:.1%}"
+                f"\n   {row['cell_class']} - {row['channel_combo']} (resolution={row['leiden_resolution']}):"
             )
-            print(f"      • Fold enrichment: {row['fold_change_total']:.2f}x")
-
-            # Add significance indicator
-            if "total_pvalue_adj" in row and row["total_pvalue_adj"] < 0.05:
-                print(
-                    f"      • Statistical significance: *** (p_adj = {row['total_pvalue_adj']:.3e})"
-                )
-            elif "total_pvalue" in row and row["total_pvalue"] < 0.05:
-                print(
-                    f"      • Statistical significance: * (p = {row['total_pvalue']:.3e})"
-                )
+            print(f"      - Clusters: {row['unique_clusters']}")
+            print(
+                f"      - CORUM enriched: {row['corum_enriched']} ({row['corum_proportion']:.1%})"
+            )
+            print(
+                f"      - KEGG enriched: {row['kegg_enriched']} ({row['kegg_proportion']:.1%})"
+            )
+            print(
+                f"      - STRING F1: {row['string_f1']:.3f} (P={row['string_precision']:.3f}, R={row['string_recall']:.3f})"
+            )
     else:
-        print("   ⚠️  No clustering results found")
+        print("   [!] No clustering results found")
 
     print("\n" + "=" * 80)
     print("REPORT COMPLETE")

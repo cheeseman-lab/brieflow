@@ -5,6 +5,8 @@ Functions:
 - calculate_perturbation_scores: Calculate per-cell perturbation scores using logistic regression
 """
 
+import os
+
 import pandas as pd
 import numpy as np
 from joblib import Parallel, delayed
@@ -50,49 +52,70 @@ def perturbation_score(
     ].to_numpy()
 
     print(f"Processing {len(perturbed_genes)} genes with {n_jobs} parallel jobs...")
-    print("Pre-computing gene subsets...")
 
-    # Pre-compute subsets in main process (avoids copying full DataFrame to workers)
-    perturbation_col = cell_data[perturbation_name_col]
-    gene_data = []
-    for gene in perturbed_genes:
-        gene_idx = perturbation_col.index[perturbation_col == gene].to_numpy()
+    # Resolve n_jobs to actual core count for batch sizing
+    if n_jobs == -1:
+        n_jobs_actual = os.cpu_count() or 1
+    else:
+        n_jobs_actual = n_jobs
 
-        # Sample control cells (same logic as before)
-        rng = np.random.default_rng(hash(gene) % (2**32))
-        nt_keep = rng.choice(
-            nt_idx, size=min(len(gene_idx), len(nt_idx)), replace=False
+    print(f"Using batch size of {n_jobs_actual} (based on n_jobs)")
+
+    # Process in batches to limit memory usage
+    all_results = []
+    n_batches = (len(perturbed_genes) + n_jobs_actual - 1) // n_jobs_actual
+    for batch_start in range(0, len(perturbed_genes), n_jobs_actual):
+        batch_genes = perturbed_genes[batch_start : batch_start + n_jobs_actual]
+        batch_num = batch_start // n_jobs_actual + 1
+        print(
+            f"Processing batch {batch_num}/{n_batches}: genes {batch_start}-{batch_start + len(batch_genes) - 1}"
         )
-        keep_idx = np.union1d(gene_idx, nt_keep)
 
-        # Extract subset
-        gene_subset_df = cell_data.iloc[keep_idx].copy()
-        original_idx = gene_subset_df.index.copy()
-        gene_subset_df = gene_subset_df.reset_index(drop=True)
+        # Pre-compute subsets for this batch only
+        batch_data = []
+        for gene in batch_genes:
+            gene_idx = perturbation_col.index[perturbation_col == gene].to_numpy()
 
-        gene_data.append((gene, gene_idx, gene_subset_df, original_idx))
+            # Sample control cells (same logic as before)
+            rng = np.random.default_rng(hash(gene) % (2**32))
+            nt_keep = rng.choice(
+                nt_idx, size=min(len(gene_idx), len(nt_idx)), replace=False
+            )
+            keep_idx = np.union1d(gene_idx, nt_keep)
 
-    print(f"Pre-computation complete. Starting parallel processing...")
+            # Extract subset
+            gene_subset_df = cell_data.iloc[keep_idx].copy()
+            original_idx = gene_subset_df.index.copy()
+            gene_subset_df = gene_subset_df.reset_index(drop=True)
 
-    # Process genes in parallel - workers receive only small subsets
-    results = Parallel(n_jobs=n_jobs, verbose=10)(
-        delayed(_process_gene_subset)(
-            gene,
-            gene_idx,
-            gene_subset_df,
-            original_idx,
-            metadata_cols,
-            minimum_cell_count,
+            batch_data.append((gene, gene_idx, gene_subset_df, original_idx))
+
+        # Process batch in parallel - workers receive only small subsets
+        batch_results = Parallel(n_jobs=n_jobs, verbose=10)(
+            delayed(_process_gene_subset)(
+                gene,
+                gene_idx,
+                gene_subset_df,
+                original_idx,
+                metadata_cols,
+                minimum_cell_count,
+            )
+            for gene, gene_idx, gene_subset_df, original_idx in batch_data
         )
-        for gene, gene_idx, gene_subset_df, original_idx in gene_data
+
+        # Collect batch results and update cell_data immediately
+        for result in batch_results:
+            if result is not None:
+                gene, gene_idx, scores, auc = result
+                cell_data.loc[gene_idx, "perturbation_score"] = scores
+                cell_data.loc[gene_idx, "perturbation_auc"] = auc
+
+        all_results.extend(batch_results)
+        del batch_data, batch_results  # Free memory
+
+    print(
+        f"Completed processing all {len(perturbed_genes)} genes across {n_batches} batches"
     )
-
-    # Collect results and update cell_data
-    for result in results:
-        if result is not None:
-            gene, gene_idx, scores, auc = result
-            cell_data.loc[gene_idx, "perturbation_score"] = scores
-            cell_data.loc[gene_idx, "perturbation_auc"] = auc
 
 
 def calculate_perturbation_scores(

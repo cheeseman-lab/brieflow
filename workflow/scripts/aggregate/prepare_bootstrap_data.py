@@ -6,7 +6,11 @@ import numpy as np
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 
-from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
+from lib.aggregate.cell_data_utils import (
+    load_metadata_cols,
+    split_cell_data,
+    get_feature_table_cols,
+)
 from lib.aggregate.bootstrap import write_construct_data
 
 # Get parameters
@@ -15,6 +19,7 @@ perturbation_id_col = snakemake.params.perturbation_id_col
 control_key = snakemake.params.control_key
 exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp
+bootstrap_features_fp = snakemake.params.get("bootstrap_features_fp", None)
 
 print("Loading single-cell features data...")
 all_features_cells = pd.read_parquet(snakemake.input.features_singlecell)
@@ -32,15 +37,48 @@ control_cells = all_features_cells[control_mask]
 print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 
 # Load metadata columns and split control cell data
-metadata_cols = load_metadata_cols(metadata_cols_fp, include_classification_cols=True)
+use_classifier = snakemake.params.get("use_classifier", False)
+metadata_cols = load_metadata_cols(
+    metadata_cols_fp, include_classification_cols=use_classifier
+)
+# Add batch_values to metadata_cols (created by prepare_alignment_data in upstream scripts)
+if "batch_values" not in metadata_cols:
+    metadata_cols.append("batch_values")
 controls_metadata, controls_features = split_cell_data(control_cells, metadata_cols)
 
 # Get available features from construct table
-available_features = [
+all_features = [
     col
     for col in construct_table.columns
     if col not in [perturbation_id_col, perturbation_col, "cell_count"]
 ]
+
+# Filter features for bootstrap analysis
+if bootstrap_features_fp is not None:
+    # Read features from file (one feature per line)
+    print(f"Loading bootstrap features from: {bootstrap_features_fp}")
+    with open(bootstrap_features_fp, "r") as f:
+        requested_features = [line.strip() for line in f if line.strip()]
+    # Only keep features that exist in the data
+    available_features = [f for f in requested_features if f in all_features]
+    missing = set(requested_features) - set(available_features)
+    if missing:
+        print(
+            f"Warning: {len(missing)} requested features not found in data: {missing}"
+        )
+else:
+    # Use get_feature_table_cols to filter to nucleus/cell intensity, shape, and overlap features
+    print("Using default feature filtering (nucleus/cell: intensity, shape, overlap)")
+    available_features = get_feature_table_cols(all_features)
+
+print(
+    f"Using {len(available_features)} features for bootstrap analysis (from {len(all_features)} total)"
+)
+print(
+    f"Features: {available_features[:10]}..."
+    if len(available_features) > 10
+    else f"Features: {available_features}"
+)
 
 # Filter control features to match available features
 controls_features_selected = controls_features[available_features]

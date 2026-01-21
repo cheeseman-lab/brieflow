@@ -1464,3 +1464,219 @@ def cluster_heatmap(
         cbar_new.ax.set_xlabel(cbar_label, fontsize=label_size - 4)
 
     return g
+
+
+def volcano_plot(
+    merged_df,
+    feature,
+    perturbation_name_col="gene_symbol_0",
+    cluster_df=None,
+    cluster_id=None,
+    fdr_threshold=0.05,
+    zscore_threshold=2.0,
+    figsize=(10, 8),
+    title=None,
+    label_genes=None,
+    show_thresholds=True,
+):
+    """Create a volcano plot showing effect size vs significance.
+
+    Visualizes the relationship between feature effect sizes (z-scores) and
+    statistical significance (-log10 p-values) from bootstrap analysis.
+    Optionally highlights genes from a specific cluster.
+
+    Args:
+        merged_df (pandas.DataFrame): DataFrame with feature z-scores and bootstrap
+            statistics (must contain {feature} and {feature}_log10 columns).
+        feature (str): Feature name to plot (z-score column).
+        perturbation_name_col (str, optional): Column name for gene identifiers.
+            Defaults to "gene_symbol_0".
+        cluster_df (pandas.DataFrame, optional): DataFrame with cluster assignments.
+        cluster_id (int or str, optional): Cluster ID to highlight.
+        fdr_threshold (float, optional): FDR threshold for significance line.
+            Defaults to 0.05.
+        zscore_threshold (float, optional): Z-score threshold for effect size lines.
+            Defaults to 2.0.
+        figsize (tuple, optional): Figure size. Defaults to (10, 8).
+        title (str, optional): Plot title.
+        label_genes (int, list, or None, optional): Controls gene labeling:
+            - If int: Label top N most significant genes
+            - If list: Label only these specific genes
+            - If None: Label significant cluster genes (default)
+        show_thresholds (bool, optional): Whether to show threshold lines.
+            Defaults to True.
+
+    Returns:
+        tuple: (fig, ax) matplotlib figure and axes objects.
+    """
+    # Check required columns
+    log10_col = f"{feature}_log10"
+    fdr_col = f"{feature}_fdr"
+
+    if feature not in merged_df.columns:
+        raise ValueError(f"Feature column '{feature}' not found in DataFrame")
+    if log10_col not in merged_df.columns:
+        raise ValueError(f"Log10 p-value column '{log10_col}' not found in DataFrame")
+
+    # Create working copy
+    df_plot = merged_df.copy()
+    df_plot = df_plot.dropna(subset=[feature, log10_col])
+
+    # Get cluster genes if provided
+    cluster_genes = []
+    if cluster_df is not None and cluster_id is not None:
+        cluster_genes = cluster_df[cluster_df["cluster"] == cluster_id][
+            perturbation_name_col
+        ].tolist()
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize, dpi=300)
+
+    # Assign categories
+    df_plot["category"] = "background"
+    if cluster_genes:
+        cluster_mask = df_plot[perturbation_name_col].isin(cluster_genes)
+        df_plot.loc[cluster_mask, "category"] = "cluster"
+
+    # Mark significant genes (pass both thresholds)
+    if fdr_col in df_plot.columns:
+        sig_mask = (df_plot[fdr_col] < fdr_threshold) & (
+            df_plot[feature].abs() >= zscore_threshold
+        )
+        df_plot.loc[sig_mask & (df_plot["category"] == "background"), "category"] = (
+            "significant"
+        )
+
+    # Plot background points
+    bg_mask = df_plot["category"] == "background"
+    ax.scatter(
+        df_plot.loc[bg_mask, feature],
+        df_plot.loc[bg_mask, log10_col],
+        s=15,
+        color="lightgray",
+        alpha=0.5,
+        edgecolors="none",
+        label="Background",
+    )
+
+    # Plot significant points
+    sig_mask = df_plot["category"] == "significant"
+    if sig_mask.any():
+        ax.scatter(
+            df_plot.loc[sig_mask, feature],
+            df_plot.loc[sig_mask, log10_col],
+            s=25,
+            color="#756bb1",
+            alpha=0.7,
+            edgecolors="none",
+            label="Significant",
+        )
+
+    # Plot cluster points
+    cluster_mask = df_plot["category"] == "cluster"
+    if cluster_mask.any():
+        ax.scatter(
+            df_plot.loc[cluster_mask, feature],
+            df_plot.loc[cluster_mask, log10_col],
+            s=40,
+            color="#d73027",
+            alpha=1.0,
+            edgecolors="black",
+            linewidths=0.8,
+            label=f"Cluster {cluster_id}",
+            zorder=10,
+        )
+
+    # Add threshold lines
+    if show_thresholds:
+        # Z-score thresholds
+        ax.axvline(
+            x=zscore_threshold,
+            color="gray",
+            linestyle="--",
+            alpha=0.5,
+            linewidth=1,
+        )
+        ax.axvline(
+            x=-zscore_threshold,
+            color="gray",
+            linestyle="--",
+            alpha=0.5,
+            linewidth=1,
+        )
+
+        # FDR threshold (convert to -log10)
+        if fdr_col in df_plot.columns:
+            # Find approximate -log10(p) for FDR threshold
+            # Use genes near the FDR threshold to estimate
+            near_threshold = df_plot[
+                (df_plot[fdr_col] > fdr_threshold * 0.5)
+                & (df_plot[fdr_col] < fdr_threshold * 2)
+            ]
+            if len(near_threshold) > 0:
+                approx_log10 = near_threshold[log10_col].median()
+                ax.axhline(
+                    y=approx_log10,
+                    color="gray",
+                    linestyle="--",
+                    alpha=0.5,
+                    linewidth=1,
+                )
+
+    # Determine genes to label
+    genes_to_label = pd.DataFrame()
+    if label_genes is not None:
+        if isinstance(label_genes, int):
+            # Label top N most significant
+            genes_to_label = df_plot.nlargest(label_genes, log10_col)
+        elif isinstance(label_genes, list):
+            # Label specific genes
+            genes_to_label = df_plot[df_plot[perturbation_name_col].isin(label_genes)]
+    elif cluster_genes:
+        # Label significant cluster genes by default
+        cluster_data = df_plot[cluster_mask]
+        if fdr_col in df_plot.columns:
+            genes_to_label = cluster_data[
+                (cluster_data[fdr_col] < fdr_threshold)
+                | (cluster_data[feature].abs() >= zscore_threshold)
+            ]
+        else:
+            genes_to_label = cluster_data[
+                cluster_data[feature].abs() >= zscore_threshold
+            ]
+
+    # Add labels with adjustText
+    if len(genes_to_label) > 0:
+        texts = []
+        for _, row in genes_to_label.iterrows():
+            texts.append(
+                ax.text(
+                    row[feature],
+                    row[log10_col],
+                    row[perturbation_name_col],
+                    fontsize=8,
+                    ha="center",
+                    va="bottom",
+                )
+            )
+        if texts:
+            adjust_text(
+                texts,
+                ax=ax,
+                arrowprops=dict(arrowstyle="-", color="gray", alpha=0.5, lw=0.5),
+            )
+
+    # Labels and title
+    ax.set_xlabel(f"{feature} (z-score)", fontsize=12)
+    ax.set_ylabel(r"$-\log_{10}$(p-value)", fontsize=12)
+
+    if title:
+        ax.set_title(title, fontsize=14)
+    else:
+        ax.set_title(f"Volcano Plot: {feature}", fontsize=14)
+
+    ax.legend(loc="upper right", framealpha=0.9)
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    return fig, ax

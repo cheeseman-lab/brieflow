@@ -1,109 +1,177 @@
 import gc
+import math
 
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pyarrow.dataset as ds
 import pandas as pd
 import numpy as np
 from pandas.api.types import is_numeric_dtype
 
 from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
-from lib.aggregate.cell_data_utils import (
-    load_metadata_cols,
-    split_cell_data,
-    get_feature_table_cols,
-)
+from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
 from lib.aggregate.bootstrap import create_pseudogene_groups
 
 # get snakemake parameters
 pert_col = snakemake.params.perturbation_name_col
 pert_id_col = snakemake.params.perturbation_id_col
 control_key = snakemake.params.control_key
+num_batches = snakemake.params.get("num_align_batches", 1)
 
-# Load cell data using PyArrow dataset
-print("Loading cell data")
-cell_data = ds.dataset(snakemake.input.filtered_paths, format="parquet")
+# Load cell data using PyArrow dataset (lazy - no data loaded yet)
+print("Loading cell data as PyArrow dataset...")
+cell_dataset = ds.dataset(snakemake.input.filtered_paths, format="parquet")
 
-# determine cols
-cell_data_cols = cell_data.schema.names
-metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, True)
-feature_cols = [col for col in cell_data.schema.names if col not in metadata_cols]
-feature_cols = get_feature_table_cols(feature_cols)
+# Determine columns
+cell_data_cols = cell_dataset.schema.names
+use_classifier = snakemake.params.get("use_classifier", False)
+metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classifier)
+feature_cols = [col for col in cell_dataset.schema.names if col not in metadata_cols]
+
+# Filter metadata_cols to only include columns that exist in the parquet
+existing_metadata_cols = [col for col in metadata_cols if col in cell_data_cols]
 
 print(
-    f"Number of metadata columns: {len(metadata_cols)} | Number of feature columns: {len(feature_cols)}"
+    f"Number of metadata columns: {len(existing_metadata_cols)} | Number of feature columns: {len(feature_cols)}"
 )
 
-# load cell data and convert numerical columns to float32
-cell_data = cell_data.to_table(
-    columns=metadata_cols + feature_cols, use_threads=True, memory_pool=None
-).to_pandas()
-print(f"Shape of input data: {cell_data.shape}")
-for col in cell_data.columns:
-    if is_numeric_dtype(cell_data[col]):
-        cell_data[col] = cell_data[col].astype("float32")
+# Count total rows
+total_rows = cell_dataset.count_rows()
+print(f"Total rows across all parquet files: {total_rows}")
 
-# centerscale features on controls
-# split metadata and features
-metadata, features = split_cell_data(cell_data, metadata_cols)
-del cell_data
-gc.collect()
-metadata, features = prepare_alignment_data(
-    metadata,
-    features,
-    snakemake.params.batch_cols,
-    pert_col,
-    control_key,
-    pert_id_col,
-)
-features = features.astype(np.float32)
+# Create random indices for batched processing (like align.py)
+np.random.seed(0)
+all_indices = np.random.permutation(total_rows)
+chunk_size = math.ceil(total_rows / num_batches)
+subset_indices = [
+    all_indices[i * chunk_size : (i + 1) * chunk_size] for i in range(num_batches)
+]
 
-# centerscale features on controls
-features = centerscale_on_controls(
-    features,
-    metadata,
-    pert_col,
-    control_key,
-    "batch_values",
-    method=snakemake.params.feature_normalization,
-).astype(np.float32)
+print(f"Processing data in {num_batches} batch(es), ~{chunk_size} rows per batch")
 
-# OUTPUT 1: Save center-scaled single-cell data for bootstrap
-print("Saving center-scaled single-cell data for bootstrap...")
-aligned_cell_data = pd.concat(
-    [metadata, pd.DataFrame(features, columns=feature_cols)], axis=1
-)
+# Initialize outputs
 aligned_output = snakemake.output[0]
-aligned_cell_data.to_parquet(aligned_output, index=False)
-print(f"Saved aligned cell data to: {aligned_output}")
+writer = None
+
+# Accumulators for construct-level aggregation
+# We'll collect per-construct data across batches
+construct_cell_counts = {}  # {construct_id: count}
+construct_gene_map = {}  # {construct_id: gene_name}
+construct_feature_sums = {}  # {construct_id: [sum of features]}
+construct_feature_counts = {}  # {construct_id: count for averaging}
+# For median, we need all values - store them
+construct_feature_values = {}  # {construct_id: list of feature arrays}
+
+# Process each batch
+for batch_idx, indices in enumerate(subset_indices):
+    print(
+        f"\n=== Processing batch {batch_idx + 1}/{num_batches} with {len(indices)} cells ==="
+    )
+
+    # Load only this batch using .scanner().take() (like align.py)
+    indices_sorted = np.sort(indices)  # Sort for efficient reading
+    batch_df = (
+        cell_dataset.scanner(columns=existing_metadata_cols + feature_cols)
+        .take(pa.array(indices_sorted))
+        .to_pandas(use_threads=True)
+    )
+    print(f"Loaded batch shape: {batch_df.shape}")
+
+    # Convert numerical columns to float32
+    for col in batch_df.columns:
+        if is_numeric_dtype(batch_df[col]):
+            batch_df[col] = batch_df[col].astype("float32")
+
+    # Split metadata and features
+    metadata, features = split_cell_data(batch_df, metadata_cols)
+    del batch_df
+    gc.collect()
+
+    # Prepare alignment data (add batch_values column)
+    metadata, features = prepare_alignment_data(
+        metadata,
+        features,
+        snakemake.params.batch_cols,
+        pert_col,
+        control_key,
+        pert_id_col,
+    )
+    features = features.astype(np.float32)
+
+    # Centerscale features on controls
+    features = centerscale_on_controls(
+        features,
+        metadata,
+        pert_col,
+        control_key,
+        "batch_values",
+        method=snakemake.params.feature_normalization,
+    ).astype(np.float32)
+
+    # OUTPUT 1: Write center-scaled single-cell data incrementally
+    print(f"Writing batch {batch_idx + 1} to parquet...")
+    aligned_batch = pd.concat(
+        [metadata.reset_index(drop=True), pd.DataFrame(features, columns=feature_cols)],
+        axis=1,
+    )
+
+    # Write using PyArrow for incremental output (like align.py)
+    aligned_table = pa.Table.from_pandas(aligned_batch, preserve_index=False)
+    if writer is None:
+        writer = pq.ParquetWriter(aligned_output, aligned_table.schema)
+    writer.write_table(aligned_table)
+
+    del aligned_table, aligned_batch
+    gc.collect()
+
+    # Accumulate construct-level data for median computation
+    print(f"Accumulating construct statistics for batch {batch_idx + 1}...")
+    for construct_id in metadata[pert_id_col].unique():
+        mask = metadata[pert_id_col].values == construct_id
+        construct_features = features[mask]
+        gene_name = metadata.loc[mask, pert_col].iloc[0]
+
+        if construct_id not in construct_cell_counts:
+            construct_cell_counts[construct_id] = 0
+            construct_gene_map[construct_id] = gene_name
+            construct_feature_values[construct_id] = []
+
+        construct_cell_counts[construct_id] += mask.sum()
+        construct_feature_values[construct_id].append(construct_features)
+
+    # Clean up batch data
+    del metadata, features
+    gc.collect()
+
+# Close the parquet writer
+if writer is not None:
+    writer.close()
+print(f"\nSaved aligned cell data to: {aligned_output}")
 
 # TABLE 1: Construct-level table (one row per sgRNA)
-print("Creating construct-level table...")
+print("\n=== Creating construct-level table ===")
 
-# Calculate sample sizes at sgRNA level
-construct_sample_sizes = (
-    metadata.groupby(pert_id_col, observed=True).size().reset_index(name="cell_count")
-)
+construct_rows = []
+for construct_id in construct_cell_counts.keys():
+    # Concatenate all feature arrays for this construct
+    all_features = np.vstack(construct_feature_values[construct_id])
+    # Compute median across all cells
+    median_features = np.median(all_features, axis=0)
 
-# Get corresponding gene for each sgRNA
-construct_gene_map = (
-    metadata.groupby(pert_id_col, observed=True)[pert_col].first().reset_index()
-)
+    row = {
+        pert_id_col: construct_id,
+        pert_col: construct_gene_map[construct_id],
+        "cell_count": construct_cell_counts[construct_id],
+    }
+    for i, col in enumerate(feature_cols):
+        row[col] = median_features[i]
+    construct_rows.append(row)
 
-# Get median features at sgRNA level
-features_df = pd.DataFrame(features, columns=feature_cols)
-features_df[pert_id_col] = metadata[pert_id_col].values
+# Free memory from accumulated features
+del construct_feature_values
+gc.collect()
 
-construct_features = features_df.groupby(
-    pert_id_col, sort=False, observed=True
-).median()
-construct_features = construct_features.reset_index()
-
-# Merge everything for construct table
-construct_table = pd.merge(
-    construct_features, construct_sample_sizes, on=pert_id_col, how="left"
-)
-construct_table = pd.merge(
-    construct_table, construct_gene_map, on=pert_id_col, how="left"
-)
+construct_table = pd.DataFrame(construct_rows)
 
 # Reorder columns: sgRNA, gene, cell_count, features
 construct_columns = [pert_id_col, pert_col, "cell_count"] + feature_cols
@@ -112,7 +180,7 @@ construct_table = construct_table[construct_columns]
 print(f"Construct table shape: {construct_table.shape}")
 
 # TABLE 2: Gene-level table (median of construct medians)
-print("Creating gene-level table...")
+print("\n=== Creating gene-level table ===")
 
 # Filter out controls for gene-level aggregation
 non_control_constructs = construct_table[
@@ -265,5 +333,5 @@ gene_output = snakemake.output[2]
 construct_table.to_csv(construct_output, sep="\t", index=False)
 final_gene_table.to_csv(gene_output, sep="\t", index=False)
 
-print(f"Saved gene table to: {gene_output}")
+print(f"\nSaved gene table to: {gene_output}")
 print(f"Saved construct table to: {construct_output}")

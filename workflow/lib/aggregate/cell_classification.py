@@ -47,11 +47,13 @@ class CellClassifier(ABC):
         """Load a classifier from a file.
 
         Args:
-            filename (str): Path to the serialized classifier file.
+            filename (str): Path to the serialized classifier file. If None, returns None.
 
         Returns:
-            CellClassifier: The loaded classifier instance.
+            CellClassifier: The loaded classifier instance, or None if filename is None.
         """
+        if filename is None:
+            return None
         with open(filename, "rb") as f:
             return dill.load(f)
 

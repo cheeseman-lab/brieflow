@@ -10,9 +10,10 @@ from lib.aggregate.filter import (
 
 # Load cell data
 cell_data = pd.read_parquet(snakemake.input[0])
+use_classifier = snakemake.params.get("use_classifier", False)
 metadata_cols = load_metadata_cols(
     snakemake.params.metadata_cols_fp,
-    include_classification_cols=True,
+    include_classification_cols=use_classifier,
 )
 metadata, features = split_cell_data(cell_data, metadata_cols)
 

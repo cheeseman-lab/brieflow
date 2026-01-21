@@ -15,8 +15,11 @@ rule split_datasets:
         ),
     params:
         all_channels=config["phenotype"]["channel_names"],
-        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
-        classifier_path=config["aggregate"]["classifier_path"],
+        metadata_cols_fp=config.get("classify", {}).get("metadata_cols_fp") or config["aggregate"]["metadata_cols_fp"],
+        classifier_path=config.get("classify", {}).get("classifier_path"),
+        confidence_thresholds=config.get("classify", {}).get("confidence_thresholds"),
+        class_title=config.get("classify", {}).get("class_title"),
+        class_mapping=config.get("classify", {}).get("class_mapping"),
         cell_classes=aggregate_wildcard_combos["cell_class"].unique(),
         channel_combos=aggregate_wildcard_combos["channel_combo"].unique(),
     script:
@@ -30,6 +33,7 @@ rule filter:
         AGGREGATE_OUTPUTS_MAPPED["filter"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         filter_queries=config["aggregate"]["filter_queries"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         drop_cols_threshold=config["aggregate"]["drop_cols_threshold"],
@@ -56,13 +60,14 @@ rule generate_feature_table:
         AGGREGATE_OUTPUTS_MAPPED["generate_feature_table"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
         batch_cols=config["aggregate"]["batch_cols"],
-        batches=10,
+        num_align_batches=config["aggregate"]["num_align_batches"],
         feature_normalization=config["aggregate"].get("feature_normalization", "standard"),
-        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None), 
+        pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None),
     script:
         "../scripts/aggregate/generate_feature_table.py"
 
@@ -82,6 +87,7 @@ rule align:
         AGGREGATE_OUTPUTS_MAPPED["align"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         batch_cols=config["aggregate"]["batch_cols"],
@@ -100,6 +106,7 @@ rule aggregate:
         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         agg_method=config["aggregate"]["agg_method"],
         ps_probability_threshold=config["aggregate"]["ps_probability_threshold"],
@@ -222,10 +229,12 @@ checkpoint prepare_bootstrap_data:
         sample_sizes=BOOTSTRAP_OUTPUTS["sample_sizes"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
         exclusion_string=config.get("aggregate", {}).get("exclusion_string", None),
+        bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 
@@ -284,6 +293,7 @@ rule bootstrap_gene:
             gene=wildcards.gene,
             construct="{construct}"
         ),
+        bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
     script:
         "../scripts/aggregate/bootstrap_gene.py"
 

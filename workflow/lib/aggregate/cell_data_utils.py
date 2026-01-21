@@ -32,17 +32,27 @@ def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     return metadata_cols
 
 
-def split_cell_data(cell_data, metadata_cols):
+def split_cell_data(
+    cell_data, metadata_cols, validate_dtypes=True, raise_on_invalid=True
+):
     """Splits the cell data into metadata and features.
 
     Args:
         cell_data (pd.DataFrame): Input DataFrame containing cell data.
         metadata_cols (list): List of column names that represent metadata.
+        validate_dtypes (bool, optional): Whether to validate that feature columns
+            have numeric dtypes. Defaults to True.
+        raise_on_invalid (bool, optional): Whether to raise an error if invalid
+            dtypes are found. If False, only prints a warning. Defaults to True.
 
     Returns:
         tuple: (metadata, features) where metadata is a DataFrame containing
             only metadata columns and features is a DataFrame containing all
             non-metadata columns.
+
+    Raises:
+        ValueError: If validate_dtypes=True, raise_on_invalid=True, and non-numeric
+            feature columns are detected.
     """
     # Ensure all metadata columns exist in the data
     existing_metadata_cols = [col for col in metadata_cols if col in cell_data.columns]
@@ -52,6 +62,34 @@ def split_cell_data(cell_data, metadata_cols):
 
     # Get feature columns (all columns not in metadata)
     features = cell_data.drop(columns=existing_metadata_cols).copy()
+
+    # Validate feature dtypes
+    if validate_dtypes:
+        print("Validating feature columns ...")
+        invalid_cols = []
+        for col in features.columns:
+            dtype = features[col].dtype
+            if dtype == "object" or dtype.name == "object":
+                invalid_cols.append(col)
+
+        if invalid_cols:
+            error_msg = f"\nWARNING: Found {len(invalid_cols)} non-numeric columns in features!\n"
+            error_msg += "These columns should be added to METADATA_COLS:\n\n"
+            for col in invalid_cols:
+                sample_val = features[col].iloc[0] if len(features) > 0 else "N/A"
+                error_msg += (
+                    f"  - {col}: dtype={features[col].dtype}, sample='{sample_val}'\n"
+                )
+            error_msg += f"\nAdd these to CANDIDATE_METADATA_COLS (or the metadata_cols parameter) to fix."
+
+            if raise_on_invalid:
+                raise ValueError(
+                    f"Invalid feature dtypes detected: {invalid_cols}\n{error_msg}"
+                )
+            else:
+                print(error_msg)
+        else:
+            print("All feature columns have valid numeric dtypes")
 
     return metadata, features
 

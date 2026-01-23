@@ -42,7 +42,17 @@ common_params = {
 if use_ml:
     from lib.phenotype.segment_secondary_object import segment_second_objs_ml
 
-    # Collect ML-specific parameters (any param not in common_params or standard CV params)
+    # Parameters already handled in common_params (by key name)
+    common_param_keys = {
+        "second_obj_channel_index",
+        "second_obj_min_size",
+        "second_obj_max_size",
+        "size_filter_method",
+        "max_objects_per_cell",
+        "overlap_threshold",
+        "max_total_objects",
+    }
+    # Parameters specific to threshold/CV method (should not be passed to ML)
     cv_only_params = {
         "threshold_smoothing_scale",
         "threshold_method",
@@ -55,14 +65,37 @@ if use_ml:
         "maxima_reduction_factor",
         "use_shape_refinement",
         "proportion_threshold",
-        "use_ml_segmentation",
-        "second_obj_channel_index",
     }
 
+    # General config parameters (not segmentation-specific)
+    config_level_params = {
+        "use_ml_segmentation",
+        "second_obj_detection",
+        "foci_channel_index",
+        "channel_names",
+        "dapi_index",
+        "cyto_index",
+        "align",
+        "segmentation_method",
+        "reconcile",
+        "cp_method",
+        "nuclei_diameter",
+        "cell_diameter",
+        "target",
+        "source",
+        "riders",
+        "remove_channel",
+        "upsample_factor",
+        "window",
+    }
+    
+    # Collect ML-specific parameters only
     ml_params = {
         k: v
         for k, v in params.items()
-        if k not in common_params and k not in cv_only_params
+        if k not in common_param_keys 
+        and k not in cv_only_params 
+        and k not in config_level_params
     }
 
     # Call ML segmentation with common params and ML-specific params

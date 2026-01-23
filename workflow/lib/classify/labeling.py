@@ -1784,6 +1784,8 @@ def _render_next_batch(
             scale_bar=scale_bar,
             existing_keys=existing_keys,
             gate_feature_present=gate_feature_present,
+            min_half=min_half,
+            pad=pad,
         )
 
     state["button"].description = "Consolidate and show new images"

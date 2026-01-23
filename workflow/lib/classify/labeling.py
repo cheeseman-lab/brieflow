@@ -1580,6 +1580,8 @@ def _render_next_batch(
     scale_bar: int = 0,
     existing_keys: Optional[set] = None,
     gate_feature_present: bool = False,
+    min_half: int = 20,
+    pad: int = 6,
 ) -> None:
     """Render a page of mask rows and wire the "show next" button to advance batches.
 
@@ -1607,6 +1609,8 @@ def _render_next_batch(
         scale_bar: Scale bar size in pixels (0 disables).
         existing_keys: Keys present in existing training dataset (for relabeling priority).
         gate_feature_present: Whether thresholding is active (affects status text).
+        min_half: Minimum crop radius in pixels (default 20).
+        pad: Additional padding around mask in pixels (default 6).
 
     Returns:
         None. Displays and updates widgets in-place.
@@ -1741,6 +1745,8 @@ def _render_next_batch(
             scale_bar=scale_bar,
             display_channel=display_channel,
             classification=classification,
+            min_half=min_half,
+            pad=pad,
         )
         row_widgets.append(widget)
         # Clear large image caches after each row to prevent memory accumulation

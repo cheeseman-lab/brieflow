@@ -147,7 +147,12 @@ rule extract_phenotype_cp:
         PHENOTYPE_OUTPUTS["segment_phenotype"][0],
         # cells segmentation map
         PHENOTYPE_OUTPUTS["segment_phenotype"][1],
-        PHENOTYPE_OUTPUTS["identify_cytoplasm"],
+        # cytoplasm mask - use updated cytoplasm if secondary objects enabled
+        lambda wildcards: (
+            PHENOTYPE_OUTPUTS["identify_second_objs"][2]
+            if config["phenotype"].get("second_obj_detection", False)
+            else PHENOTYPE_OUTPUTS["identify_cytoplasm"]
+        ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_cp"],
     params:

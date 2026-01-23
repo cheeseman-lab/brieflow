@@ -1341,6 +1341,8 @@ def _render_row(
     scale_bar: int,
     display_channel: List[str],
     classification: List[str],
+    min_half: int = 20,
+    pad: int = 6,
 ) -> widgets.Widget:
     """Render a single UI row showing channel crops and a merged image with a boundary overlay.
 
@@ -1355,6 +1357,8 @@ def _render_row(
         scale_bar: Scale bar length in pixels (0 to disable).
         display_channel: Labels shown above channel images.
         classification: List of class names for the dropdown.
+        min_half: Minimum crop radius in pixels (default 20).
+        pad: Additional padding around mask in pixels (default 6).
 
     Returns:
         A widgets.Widget representing the row.
@@ -1386,6 +1390,8 @@ def _render_row(
         (H, W),
         mask_cache=state.get("mask_cache"),
         parquet_cache=state.get("parquet_cache"),
+        min_half=min_half,
+        pad=pad,
     )
 
     imgs, merged = compose_rgb_crops(

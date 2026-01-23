@@ -71,13 +71,11 @@ if use_ml:
     config_level_params = {
         "use_ml_segmentation",
         "second_obj_detection",
-        "second_obj_method",
         "foci_channel_index",
         "channel_names",
         "dapi_index",
         "cyto_index",
         "align",
-        "gpu",
         "segmentation_method",
         "reconcile",
         "cp_method",

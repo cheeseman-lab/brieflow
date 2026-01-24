@@ -68,30 +68,13 @@ def get_sbs_stats(config):
     root_fp = Path(config["all"]["root_fp"])
     sbs_eval_dir = root_fp / "sbs" / "eval"
 
-    # Load segmentation overview data
-    seg_overview_files = list(
-        sbs_eval_dir.glob("**/segmentation/*__segmentation_overview.tsv")
-    )
-
-    total_cells = 0
-    if seg_overview_files:
-        # Combine all segmentation overview files
-        seg_dfs = []
-        for file in seg_overview_files:
-            df = pd.read_csv(file, sep="\t")
-            seg_dfs.append(df)
-
-        if seg_dfs:
-            seg_combined = pd.concat(seg_dfs)
-            # Sum the final_cells column to get total cells
-            total_cells = seg_combined["final_cells"].sum()
-
-    # Load mapping overview data
+    # Load mapping overview data (contains all needed metrics)
     mapping_overview_files = list(
         sbs_eval_dir.glob("**/mapping/*__mapping_overview.tsv")
     )
 
     # Initialize metrics
+    total_cells = 0
     one_gene_cells_percent = 0
     one_or_more_barcodes_percent = 0
     total_with_barcode = 0
@@ -106,6 +89,9 @@ def get_sbs_stats(config):
 
         if map_dfs:
             map_combined = pd.concat(map_dfs)
+
+            # Get total cells from mapping overview
+            total_cells = map_combined["total_cells__count"].sum()
 
             # Calculate averages across all wells
             one_or_more_barcodes_percent = map_combined[
@@ -157,8 +143,13 @@ def get_phenotype_stats(config):
 
         if seg_dfs:
             seg_combined = pd.concat(seg_dfs)
-            # Sum the final_cells column to get total cells
-            total_cells = seg_combined["final_cells"].sum()
+            # Sum the final_cells column to get total cells (fallback to final_nuclei if needed)
+            if "final_cells" in seg_combined.columns:
+                total_cells = seg_combined["final_cells"].sum()
+            elif "final_nuclei" in seg_combined.columns:
+                total_cells = seg_combined["final_nuclei"].sum()
+            else:
+                total_cells = 0
 
     # Get feature count by reading column names from a sample parquet file
     # without loading the entire file into memory
@@ -204,7 +195,9 @@ def get_merge_stats(config):
     # Aggregate across all plates
     total_ph_cells = 0
     total_sbs_cells = 0
-    total_matched = 0
+    total_match_pairs = 0
+    total_unique_ph = 0
+    total_unique_sbs = 0
     total_with_barcode = 0
     total_single_gene = 0
     plate_summaries = []
@@ -212,34 +205,54 @@ def get_merge_stats(config):
     for file in summary_files:
         df = pd.read_csv(file, sep="\t")
 
-        # Get TOTAL row if present, otherwise sum all wells
+        # Get TOTAL row if present, otherwise aggregate wells
         if "TOTAL" in df["well"].values:
             totals = df[df["well"] == "TOTAL"].iloc[0]
         else:
-            totals = df.sum(numeric_only=True)
-            totals["ph_match_rate"] = df["ph_match_rate"].mean()
-            totals["sbs_match_rate"] = df["sbs_match_rate"].mean()
+            # Sum countable metrics
+            totals = pd.Series(
+                {
+                    "ph_cells": df["ph_cells"].sum(),
+                    "sbs_cells": df["sbs_cells"].sum(),
+                    "matched_raw": df["matched_raw"].sum(),
+                    "total_match_pairs": df["total_match_pairs"].sum(),
+                    "unique_ph_in_merge": df["unique_ph_in_merge"].sum(),
+                    "unique_sbs_in_merge": df["unique_sbs_in_merge"].sum(),
+                    "cells_with_barcode": df["cells_with_barcode"].sum(),
+                    "single_gene_count": df["single_gene_count"].sum(),
+                    # Average rate/stat metrics
+                    "ph_recovery_rate": df["ph_recovery_rate"].mean(),
+                    "sbs_recovery_rate": df["sbs_recovery_rate"].mean(),
+                    "dist_mean": df["dist_mean"].mean(),
+                    "dist_median": df["dist_median"].mean(),
+                    "single_gene_rate": df["single_gene_rate"].mean(),
+                }
+            )
 
-        total_ph_cells += int(totals.get("ph_cells", 0))
-        total_sbs_cells += int(totals.get("sbs_cells", 0))
-        total_matched += int(totals.get("matched_final", totals.get("matched_raw", 0)))
-        total_with_barcode += int(totals.get("cells_with_barcode", 0))
-        total_single_gene += int(totals.get("single_gene_count", 0))
+        total_ph_cells += int(totals["ph_cells"])
+        total_sbs_cells += int(totals["sbs_cells"])
+        total_match_pairs += int(totals["total_match_pairs"])
+        total_unique_ph += int(totals["unique_ph_in_merge"])
+        total_unique_sbs += int(totals["unique_sbs_in_merge"])
+        total_with_barcode += int(totals["cells_with_barcode"])
+        total_single_gene += int(totals["single_gene_count"])
 
         plate_summaries.append(
             {
                 "plate": file.stem.split("__")[0],
-                "ph_match_rate": float(totals.get("ph_match_rate", 0)),
-                "sbs_match_rate": float(totals.get("sbs_match_rate", 0)),
+                "ph_recovery_rate": float(totals["ph_recovery_rate"]),
+                "sbs_recovery_rate": float(totals["sbs_recovery_rate"]),
             }
         )
 
     # Calculate overall rates
-    avg_ph_match_rate = (
-        np.mean([p["ph_match_rate"] for p in plate_summaries]) if plate_summaries else 0
+    avg_ph_recovery_rate = (
+        np.mean([p["ph_recovery_rate"] for p in plate_summaries])
+        if plate_summaries
+        else 0
     )
-    avg_sbs_match_rate = (
-        np.mean([p["sbs_match_rate"] for p in plate_summaries])
+    avg_sbs_recovery_rate = (
+        np.mean([p["sbs_recovery_rate"] for p in plate_summaries])
         if plate_summaries
         else 0
     )
@@ -250,11 +263,13 @@ def get_merge_stats(config):
     return {
         "phenotype_cells": total_ph_cells,
         "sbs_cells": total_sbs_cells,
-        "matched_cells": total_matched,
+        "unique_ph_in_merge": total_unique_ph,
+        "unique_sbs_in_merge": total_unique_sbs,
+        "total_match_pairs": total_match_pairs,
         "cells_with_barcode": total_with_barcode,
         "cells_with_single_gene": total_single_gene,
-        "phenotype_match_rate": avg_ph_match_rate,
-        "sbs_match_rate": avg_sbs_match_rate,
+        "phenotype_recovery_rate": avg_ph_recovery_rate,
+        "sbs_recovery_rate": avg_sbs_recovery_rate,
         "single_gene_rate": single_gene_rate,
     }
 
@@ -287,12 +302,21 @@ def _get_merge_stats_legacy(config):
             total_cells += file_total
             mapping_percentages.append(mapped_count / file_total * 100)
 
+    # Return new structure for consistency, using legacy data
+    # Note: Legacy format doesn't distinguish unique cells from match pairs
     return {
         "phenotype_cells": total_cells,
-        "matched_cells": total_mapped_cells,
-        "phenotype_match_rate": np.mean(mapping_percentages) / 100
+        "sbs_cells": 0,  # Not available in legacy format
+        "unique_ph_in_merge": total_mapped_cells,  # Best approximation
+        "unique_sbs_in_merge": 0,  # Not available in legacy format
+        "total_match_pairs": total_mapped_cells,  # Legacy doesn't separate these
+        "cells_with_barcode": 0,  # Not available in legacy format
+        "cells_with_single_gene": 0,  # Not available in legacy format
+        "phenotype_recovery_rate": np.mean(mapping_percentages) / 100
         if mapping_percentages
         else 0,
+        "sbs_recovery_rate": 0,  # Not available in legacy format
+        "single_gene_rate": 0,  # Not available in legacy format
     }
 
 
@@ -700,11 +724,15 @@ def get_all_stats(config, include_batch_effects=False):
     print("\n MERGE STATISTICS:")
     if "error" not in stats["merge"]:
         merge = stats["merge"]
-        print(f"   - Phenotype cells: {merge.get('phenotype_cells', 0):,}")
-        print(f"   - SBS cells: {merge.get('sbs_cells', 0):,}")
-        print(f"   - Matched cells: {merge.get('matched_cells', 0):,}")
-        print(f"   - Phenotype match rate: {merge.get('phenotype_match_rate', 0):.1%}")
-        print(f"   - SBS match rate: {merge.get('sbs_match_rate', 0):.1%}")
+        print(f"   - Phenotype cells (original): {merge.get('phenotype_cells', 0):,}")
+        print(f"   - SBS cells (original): {merge.get('sbs_cells', 0):,}")
+        print(f"   - Phenotype cells in merge: {merge.get('unique_ph_in_merge', 0):,}")
+        print(f"   - SBS cells in merge: {merge.get('unique_sbs_in_merge', 0):,}")
+        print(
+            f"   - Phenotype recovery rate: {merge.get('phenotype_recovery_rate', 0):.1%}"
+        )
+        print(f"   - SBS recovery rate: {merge.get('sbs_recovery_rate', 0):.1%}")
+        print(f"   - Total match pairs: {merge.get('total_match_pairs', 0):,}")
         if "cells_with_single_gene" in merge:
             print(
                 f"   - Cells with single gene: {merge['cells_with_single_gene']:,} ({merge.get('single_gene_rate', 0):.1%})"

@@ -320,7 +320,7 @@ def _get_merge_stats_legacy(config):
     }
 
 
-def get_aggregate_stats(config, n_rows=1000, include_batch_effects=False):
+def get_aggregate_stats(config, n_rows=500, include_batch_effects=False):
     """Get aggregation statistics including perturbation counts.
 
     Args:
@@ -405,8 +405,12 @@ def _get_single_aggregate_stats(
     feature_count = len(feature_cols)
 
     # Count total cells from merge_data parquets (pre-filter)
+    # Use direct path instead of recursive glob for speed
+    merge_data_dir = aggregate_dir / "parquets"
     merge_data_paths = list(
-        root_fp.glob(f"**/*_CeCl-{cell_class}_ChCo-{channel_combo}__merge_data.parquet")
+        merge_data_dir.glob(
+            f"*_CeCl-{cell_class}_ChCo-{channel_combo}__merge_data.parquet"
+        )
     )
 
     total_pre_filtered_cells = 0
@@ -417,9 +421,7 @@ def _get_single_aggregate_stats(
     # Count filtered cells from parquet metadata (fast)
     filtered_dir = aggregate_dir / "parquets"
     filtered_paths = list(
-        filtered_dir.glob(
-            f"**/*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet"
-        )
+        filtered_dir.glob(f"*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet")
     )
 
     total_filtered_cells = 0
@@ -468,28 +470,36 @@ def _calculate_batch_effects(
     from sklearn.feature_selection import f_classif
 
     filtered_dir = aggregate_dir / "parquets"
+    # Use direct path instead of recursive glob for speed
     filtered_paths = list(
-        filtered_dir.glob(
-            f"**/*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet"
-        )
+        filtered_dir.glob(f"*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet")
     )
 
-    # Load filtered data
-    if n_rows is None:
-        filtered = ds.dataset(filtered_paths, format="parquet")
-        filtered = filtered.to_table(use_threads=True, memory_pool=None).to_pandas()
+    # Load filtered data (sample aggressively for speed)
+    # Use smaller sample size for batch effects calculation
+    sample_rows = min(n_rows, 500) if n_rows else 500
+
+    if len(filtered_paths) == 1:
+        filtered = load_parquet_subset(filtered_paths[0], sample_rows)
     else:
-        if len(filtered_paths) == 1:
-            filtered = load_parquet_subset(filtered_paths[0], n_rows)
-        else:
-            filtered_dfs = [
-                load_parquet_subset(path, n_rows) for path in filtered_paths
-            ]
-            filtered = pd.concat(filtered_dfs, ignore_index=True)
+        # Sample evenly across files
+        rows_per_file = max(1, sample_rows // len(filtered_paths))
+        filtered_dfs = [
+            load_parquet_subset(path, rows_per_file) for path in filtered_paths
+        ]
+        filtered = pd.concat(filtered_dfs, ignore_index=True)
 
     # Pre-alignment batch effects
     filtered = filtered.dropna(axis=1)
     control_data = filtered[filtered[perturbation_col].str.startswith(control_key)]
+
+    # Skip if no control data
+    if len(control_data) == 0:
+        return {
+            "pre_alignment_batch_p_median": np.nan,
+            "post_alignment_batch_p_median": np.nan,
+        }
+
     metadata_cols = DEFAULT_METADATA_COLS + ["class", "confidence"]
     control_data = control_data.copy()
     control_data["batch"] = (
@@ -501,6 +511,13 @@ def _calculate_batch_effects(
     feature_data = control_data.drop(columns=["batch"])
     non_constant = feature_data.columns[feature_data.var() > 0]
     feature_data = feature_data[non_constant]
+
+    # Sample features if too many (f_classif is O(n_features))
+    if len(feature_data.columns) > 1000:
+        sampled_features = np.random.choice(
+            feature_data.columns, size=1000, replace=False
+        )
+        feature_data = feature_data[sampled_features]
 
     X = feature_data.values
     y = control_data["batch"].values
@@ -515,19 +532,30 @@ def _calculate_batch_effects(
         / f"CeCl-{cell_class}_ChCo-{channel_combo}__aligned.parquet"
     )
 
-    if n_rows is None:
-        aligned = pd.read_parquet(aligned_path)
-    else:
-        aligned = load_parquet_subset(aligned_path, n_rows)
+    # Use same sample size as pre-alignment for consistency
+    aligned = load_parquet_subset(aligned_path, sample_rows)
 
     control_aligned = aligned[
         aligned[perturbation_col].str.startswith(control_key)
     ].copy()
+
+    # Skip if no control data
+    if len(control_aligned) == 0:
+        return {
+            "pre_alignment_batch_p_median": pre_align_p_median,
+            "post_alignment_batch_p_median": np.nan,
+        }
+
     pc_cols = [col for col in control_aligned.columns if col.startswith("PC_")]
     control_aligned["batch"] = (
         control_aligned["plate"].astype(str) + "_" + control_aligned["well"]
     )
     control_aligned = control_aligned[pc_cols + ["batch"]]
+
+    # Sample PCs if too many (for speed)
+    if len(pc_cols) > 1000:
+        sampled_pcs = np.random.choice(pc_cols, size=1000, replace=False)
+        control_aligned = control_aligned[list(sampled_pcs) + ["batch"]]
 
     X = control_aligned.drop(columns=["batch"]).values
     y = control_aligned["batch"].values

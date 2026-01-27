@@ -274,8 +274,8 @@ rule final_merge:
 
 rule eval_merge:
     input:
-        format_merge_paths=lambda wildcards: output_to_input(
-            MERGE_OUTPUTS["format_merge"],
+        deduplicated_merge_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["deduplicate_merge"][1],
             wildcards=wildcards,
             expansion_values=["well"],
             metadata_combos=merge_wildcard_combos,
@@ -299,6 +299,26 @@ rule eval_merge:
             wildcards=wildcards,
             expansion_values=["well"],
             metadata_combos=merge_wildcard_combos,
+        ),
+        formatted_merge_paths=lambda wildcards: output_to_input(
+            MERGE_OUTPUTS["format_merge"][0],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=merge_wildcard_combos,
+        ),
+        sbs_info_paths=lambda wildcards: output_to_input(
+            SBS_OUTPUTS["combine_sbs_info"],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=sbs_wildcard_combos,
+            ancient_output=True,
+        ),
+        phenotype_info_paths=lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["combine_phenotype_info"],
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=phenotype_wildcard_combos,
+            ancient_output=True,
         ),
     params: 
         heatmap_plate_sbs=config["sbs"].get("heatmap_plate", "6W"),  

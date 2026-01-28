@@ -627,9 +627,6 @@ def convert_nd2_to_array_well(
     Processes ND2 files containing multiple positions/FOVs and extracts
     a specific position. Handles Z-stacks via maximum intensity projection.
 
-    Note: n_z_planes parameter is accepted for API compatibility but not used,
-    as Z-stack handling is automatic via maximum intensity projection.
-
     Args:
         files: Path(s) to ND2 file(s) containing multiple positions
         position: Position index to extract (0-based)

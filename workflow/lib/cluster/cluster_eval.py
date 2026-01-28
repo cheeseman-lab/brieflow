@@ -176,14 +176,23 @@ def find_optimal_resolution(
         + results_df["string_f1_norm"]
     ) / 3
 
-    # Calculate balanced score (enrichment + size utility)
-    # Primary constraint is cluster size (biologically meaningful)
-    # Cluster count is indirectly constrained through size preference
     def cluster_size_utility(size, ideal_min, ideal_max):
         """Score cluster size - strongly prefer smaller clusters in ideal range.
 
+        Calculates balanced score combining enrichment and size utility.
+        Primary constraint is cluster size (biologically meaningful).
+        Cluster count is indirectly constrained through size preference.
+
         Heavily penalizes clusters larger than ideal range.
         More forgiving for clusters slightly below ideal range.
+
+        Args:
+            size: The cluster size to score.
+            ideal_min: Minimum of ideal cluster size range.
+            ideal_max: Maximum of ideal cluster size range.
+
+        Returns:
+            float: Score between 0 and 1.
         """
         target = (
             ideal_min + ideal_max
@@ -451,19 +460,6 @@ def analyze_all_resolutions(
     Returns:
         dict: Dictionary mapping "cellclass_channel" to result dict from find_optimal_resolution.
             Also includes "summary_df" key with pandas DataFrame of all optimal resolutions.
-
-    Example:
-        results = analyze_all_resolutions(
-            root_fp=ROOT_FP,
-            cell_classes=["Interphase", "Mitotic"],
-            channel_combos=["DAPI_TUBULIN_GH2AX_PHALLOIDIN"],
-            ideal_size_range=(15, 25),
-            size_metric="mean",
-        )
-        # Access summary
-        display(results["summary_df"])
-        # Access specific result
-        interphase_result = results["Interphase_DAPI_TUBULIN_GH2AX_PHALLOIDIN"]
     """
     import matplotlib.pyplot as plt
     from IPython.display import display

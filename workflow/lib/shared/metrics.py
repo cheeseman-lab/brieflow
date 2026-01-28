@@ -189,8 +189,7 @@ def get_merge_stats(config):
     summary_files = list(merge_eval_dir.glob("*__merge_summary.tsv"))
 
     if not summary_files:
-        # Fall back to old cell_mapping_stats format
-        return _get_merge_stats_legacy(config)
+        return {"error": "No merge summary files found"}
 
     # Aggregate across all plates
     total_ph_cells = 0
@@ -271,52 +270,6 @@ def get_merge_stats(config):
         "phenotype_recovery_rate": avg_ph_recovery_rate,
         "sbs_recovery_rate": avg_sbs_recovery_rate,
         "single_gene_rate": single_gene_rate,
-    }
-
-
-def _get_merge_stats_legacy(config):
-    """Legacy merge stats using cell_mapping_stats files."""
-    root_fp = Path(config["all"]["root_fp"])
-    merge_eval_dir = root_fp / "merge" / "eval"
-
-    mapping_stats_files = list(merge_eval_dir.glob("**/*__cell_mapping_stats.tsv"))
-
-    if not mapping_stats_files:
-        return {"error": "No merge statistics files found"}
-
-    total_mapped_cells = 0
-    total_cells = 0
-    mapping_percentages = []
-
-    for file in mapping_stats_files:
-        df = pd.read_csv(file, sep="\t")
-        mapped_row = df[df["category"] == "mapped_cells"]
-        unmapped_row = df[df["category"] == "unmapped_cells"]
-
-        if not mapped_row.empty and not unmapped_row.empty:
-            mapped_count = mapped_row["count"].iloc[0]
-            unmapped_count = unmapped_row["count"].iloc[0]
-            file_total = mapped_count + unmapped_count
-
-            total_mapped_cells += mapped_count
-            total_cells += file_total
-            mapping_percentages.append(mapped_count / file_total * 100)
-
-    # Return new structure for consistency, using legacy data
-    # Note: Legacy format doesn't distinguish unique cells from match pairs
-    return {
-        "phenotype_cells": total_cells,
-        "sbs_cells": 0,  # Not available in legacy format
-        "unique_ph_in_merge": total_mapped_cells,  # Best approximation
-        "unique_sbs_in_merge": 0,  # Not available in legacy format
-        "total_match_pairs": total_mapped_cells,  # Legacy doesn't separate these
-        "cells_with_barcode": 0,  # Not available in legacy format
-        "cells_with_single_gene": 0,  # Not available in legacy format
-        "phenotype_recovery_rate": np.mean(mapping_percentages) / 100
-        if mapping_percentages
-        else 0,
-        "sbs_recovery_rate": 0,  # Not available in legacy format
-        "single_gene_rate": 0,  # Not available in legacy format
     }
 
 

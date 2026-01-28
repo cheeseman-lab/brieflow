@@ -77,6 +77,10 @@ def aggregate(
             "cell_count": len(group),
         }
 
+        # Always include perturbation_auc if present (needed for gene-level filtering in clustering)
+        if "perturbation_auc" in metadata.columns:
+            agg_meta["perturbation_auc"] = group["perturbation_auc"].iloc[0]
+
         if ps_probability_threshold is not None or ps_percentile_threshold is not None:
             # aggregate perturbation score with same function
             pert_score = (
@@ -86,7 +90,6 @@ def aggregate(
             )
 
             agg_meta["aggregated_perturbation_score"] = pert_score
-            agg_meta["perturbation_auc"] = group["perturbation_auc"].iloc[0]
 
         aggregated_metadata.append(agg_meta)
 

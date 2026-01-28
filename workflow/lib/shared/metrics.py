@@ -68,30 +68,13 @@ def get_sbs_stats(config):
     root_fp = Path(config["all"]["root_fp"])
     sbs_eval_dir = root_fp / "sbs" / "eval"
 
-    # Load segmentation overview data
-    seg_overview_files = list(
-        sbs_eval_dir.glob("**/segmentation/*__segmentation_overview.tsv")
-    )
-
-    total_cells = 0
-    if seg_overview_files:
-        # Combine all segmentation overview files
-        seg_dfs = []
-        for file in seg_overview_files:
-            df = pd.read_csv(file, sep="\t")
-            seg_dfs.append(df)
-
-        if seg_dfs:
-            seg_combined = pd.concat(seg_dfs)
-            # Sum the final_cells column to get total cells
-            total_cells = seg_combined["final_cells"].sum()
-
-    # Load mapping overview data
+    # Load mapping overview data (contains all needed metrics)
     mapping_overview_files = list(
         sbs_eval_dir.glob("**/mapping/*__mapping_overview.tsv")
     )
 
     # Initialize metrics
+    total_cells = 0
     one_gene_cells_percent = 0
     one_or_more_barcodes_percent = 0
     total_with_barcode = 0
@@ -106,6 +89,9 @@ def get_sbs_stats(config):
 
         if map_dfs:
             map_combined = pd.concat(map_dfs)
+
+            # Get total cells from mapping overview
+            total_cells = map_combined["total_cells__count"].sum()
 
             # Calculate averages across all wells
             one_or_more_barcodes_percent = map_combined[
@@ -157,8 +143,13 @@ def get_phenotype_stats(config):
 
         if seg_dfs:
             seg_combined = pd.concat(seg_dfs)
-            # Sum the final_cells column to get total cells
-            total_cells = seg_combined["final_cells"].sum()
+            # Sum the final_cells column to get total cells (fallback to final_nuclei if needed)
+            if "final_cells" in seg_combined.columns:
+                total_cells = seg_combined["final_cells"].sum()
+            elif "final_nuclei" in seg_combined.columns:
+                total_cells = seg_combined["final_nuclei"].sum()
+            else:
+                total_cells = 0
 
     # Get feature count by reading column names from a sample parquet file
     # without loading the entire file into memory
@@ -198,13 +189,14 @@ def get_merge_stats(config):
     summary_files = list(merge_eval_dir.glob("*__merge_summary.tsv"))
 
     if not summary_files:
-        # Fall back to old cell_mapping_stats format
-        return _get_merge_stats_legacy(config)
+        return {"error": "No merge summary files found"}
 
     # Aggregate across all plates
     total_ph_cells = 0
     total_sbs_cells = 0
-    total_matched = 0
+    total_match_pairs = 0
+    total_unique_ph = 0
+    total_unique_sbs = 0
     total_with_barcode = 0
     total_single_gene = 0
     plate_summaries = []
@@ -212,34 +204,54 @@ def get_merge_stats(config):
     for file in summary_files:
         df = pd.read_csv(file, sep="\t")
 
-        # Get TOTAL row if present, otherwise sum all wells
+        # Get TOTAL row if present, otherwise aggregate wells
         if "TOTAL" in df["well"].values:
             totals = df[df["well"] == "TOTAL"].iloc[0]
         else:
-            totals = df.sum(numeric_only=True)
-            totals["ph_match_rate"] = df["ph_match_rate"].mean()
-            totals["sbs_match_rate"] = df["sbs_match_rate"].mean()
+            # Sum countable metrics
+            totals = pd.Series(
+                {
+                    "ph_cells": df["ph_cells"].sum(),
+                    "sbs_cells": df["sbs_cells"].sum(),
+                    "matched_raw": df["matched_raw"].sum(),
+                    "total_match_pairs": df["total_match_pairs"].sum(),
+                    "unique_ph_in_merge": df["unique_ph_in_merge"].sum(),
+                    "unique_sbs_in_merge": df["unique_sbs_in_merge"].sum(),
+                    "cells_with_barcode": df["cells_with_barcode"].sum(),
+                    "single_gene_count": df["single_gene_count"].sum(),
+                    # Average rate/stat metrics
+                    "ph_recovery_rate": df["ph_recovery_rate"].mean(),
+                    "sbs_recovery_rate": df["sbs_recovery_rate"].mean(),
+                    "dist_mean": df["dist_mean"].mean(),
+                    "dist_median": df["dist_median"].mean(),
+                    "single_gene_rate": df["single_gene_rate"].mean(),
+                }
+            )
 
-        total_ph_cells += int(totals.get("ph_cells", 0))
-        total_sbs_cells += int(totals.get("sbs_cells", 0))
-        total_matched += int(totals.get("matched_final", totals.get("matched_raw", 0)))
-        total_with_barcode += int(totals.get("cells_with_barcode", 0))
-        total_single_gene += int(totals.get("single_gene_count", 0))
+        total_ph_cells += int(totals["ph_cells"])
+        total_sbs_cells += int(totals["sbs_cells"])
+        total_match_pairs += int(totals["total_match_pairs"])
+        total_unique_ph += int(totals["unique_ph_in_merge"])
+        total_unique_sbs += int(totals["unique_sbs_in_merge"])
+        total_with_barcode += int(totals["cells_with_barcode"])
+        total_single_gene += int(totals["single_gene_count"])
 
         plate_summaries.append(
             {
                 "plate": file.stem.split("__")[0],
-                "ph_match_rate": float(totals.get("ph_match_rate", 0)),
-                "sbs_match_rate": float(totals.get("sbs_match_rate", 0)),
+                "ph_recovery_rate": float(totals["ph_recovery_rate"]),
+                "sbs_recovery_rate": float(totals["sbs_recovery_rate"]),
             }
         )
 
     # Calculate overall rates
-    avg_ph_match_rate = (
-        np.mean([p["ph_match_rate"] for p in plate_summaries]) if plate_summaries else 0
+    avg_ph_recovery_rate = (
+        np.mean([p["ph_recovery_rate"] for p in plate_summaries])
+        if plate_summaries
+        else 0
     )
-    avg_sbs_match_rate = (
-        np.mean([p["sbs_match_rate"] for p in plate_summaries])
+    avg_sbs_recovery_rate = (
+        np.mean([p["sbs_recovery_rate"] for p in plate_summaries])
         if plate_summaries
         else 0
     )
@@ -250,53 +262,18 @@ def get_merge_stats(config):
     return {
         "phenotype_cells": total_ph_cells,
         "sbs_cells": total_sbs_cells,
-        "matched_cells": total_matched,
+        "unique_ph_in_merge": total_unique_ph,
+        "unique_sbs_in_merge": total_unique_sbs,
+        "total_match_pairs": total_match_pairs,
         "cells_with_barcode": total_with_barcode,
         "cells_with_single_gene": total_single_gene,
-        "phenotype_match_rate": avg_ph_match_rate,
-        "sbs_match_rate": avg_sbs_match_rate,
+        "phenotype_recovery_rate": avg_ph_recovery_rate,
+        "sbs_recovery_rate": avg_sbs_recovery_rate,
         "single_gene_rate": single_gene_rate,
     }
 
 
-def _get_merge_stats_legacy(config):
-    """Legacy merge stats using cell_mapping_stats files."""
-    root_fp = Path(config["all"]["root_fp"])
-    merge_eval_dir = root_fp / "merge" / "eval"
-
-    mapping_stats_files = list(merge_eval_dir.glob("**/*__cell_mapping_stats.tsv"))
-
-    if not mapping_stats_files:
-        return {"error": "No merge statistics files found"}
-
-    total_mapped_cells = 0
-    total_cells = 0
-    mapping_percentages = []
-
-    for file in mapping_stats_files:
-        df = pd.read_csv(file, sep="\t")
-        mapped_row = df[df["category"] == "mapped_cells"]
-        unmapped_row = df[df["category"] == "unmapped_cells"]
-
-        if not mapped_row.empty and not unmapped_row.empty:
-            mapped_count = mapped_row["count"].iloc[0]
-            unmapped_count = unmapped_row["count"].iloc[0]
-            file_total = mapped_count + unmapped_count
-
-            total_mapped_cells += mapped_count
-            total_cells += file_total
-            mapping_percentages.append(mapped_count / file_total * 100)
-
-    return {
-        "phenotype_cells": total_cells,
-        "matched_cells": total_mapped_cells,
-        "phenotype_match_rate": np.mean(mapping_percentages) / 100
-        if mapping_percentages
-        else 0,
-    }
-
-
-def get_aggregate_stats(config, n_rows=1000, include_batch_effects=False):
+def get_aggregate_stats(config, n_rows=500, include_batch_effects=False):
     """Get aggregation statistics including perturbation counts.
 
     Args:
@@ -381,8 +358,12 @@ def _get_single_aggregate_stats(
     feature_count = len(feature_cols)
 
     # Count total cells from merge_data parquets (pre-filter)
+    # Use direct path instead of recursive glob for speed
+    merge_data_dir = aggregate_dir / "parquets"
     merge_data_paths = list(
-        root_fp.glob(f"**/*_CeCl-{cell_class}_ChCo-{channel_combo}__merge_data.parquet")
+        merge_data_dir.glob(
+            f"*_CeCl-{cell_class}_ChCo-{channel_combo}__merge_data.parquet"
+        )
     )
 
     total_pre_filtered_cells = 0
@@ -393,9 +374,7 @@ def _get_single_aggregate_stats(
     # Count filtered cells from parquet metadata (fast)
     filtered_dir = aggregate_dir / "parquets"
     filtered_paths = list(
-        filtered_dir.glob(
-            f"**/*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet"
-        )
+        filtered_dir.glob(f"*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet")
     )
 
     total_filtered_cells = 0
@@ -444,28 +423,36 @@ def _calculate_batch_effects(
     from sklearn.feature_selection import f_classif
 
     filtered_dir = aggregate_dir / "parquets"
+    # Use direct path instead of recursive glob for speed
     filtered_paths = list(
-        filtered_dir.glob(
-            f"**/*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet"
-        )
+        filtered_dir.glob(f"*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet")
     )
 
-    # Load filtered data
-    if n_rows is None:
-        filtered = ds.dataset(filtered_paths, format="parquet")
-        filtered = filtered.to_table(use_threads=True, memory_pool=None).to_pandas()
+    # Load filtered data (sample aggressively for speed)
+    # Use smaller sample size for batch effects calculation
+    sample_rows = min(n_rows, 500) if n_rows else 500
+
+    if len(filtered_paths) == 1:
+        filtered = load_parquet_subset(filtered_paths[0], sample_rows)
     else:
-        if len(filtered_paths) == 1:
-            filtered = load_parquet_subset(filtered_paths[0], n_rows)
-        else:
-            filtered_dfs = [
-                load_parquet_subset(path, n_rows) for path in filtered_paths
-            ]
-            filtered = pd.concat(filtered_dfs, ignore_index=True)
+        # Sample evenly across files
+        rows_per_file = max(1, sample_rows // len(filtered_paths))
+        filtered_dfs = [
+            load_parquet_subset(path, rows_per_file) for path in filtered_paths
+        ]
+        filtered = pd.concat(filtered_dfs, ignore_index=True)
 
     # Pre-alignment batch effects
     filtered = filtered.dropna(axis=1)
     control_data = filtered[filtered[perturbation_col].str.startswith(control_key)]
+
+    # Skip if no control data
+    if len(control_data) == 0:
+        return {
+            "pre_alignment_batch_p_median": np.nan,
+            "post_alignment_batch_p_median": np.nan,
+        }
+
     metadata_cols = DEFAULT_METADATA_COLS + ["class", "confidence"]
     control_data = control_data.copy()
     control_data["batch"] = (
@@ -477,6 +464,13 @@ def _calculate_batch_effects(
     feature_data = control_data.drop(columns=["batch"])
     non_constant = feature_data.columns[feature_data.var() > 0]
     feature_data = feature_data[non_constant]
+
+    # Sample features if too many (f_classif is O(n_features))
+    if len(feature_data.columns) > 1000:
+        sampled_features = np.random.choice(
+            feature_data.columns, size=1000, replace=False
+        )
+        feature_data = feature_data[sampled_features]
 
     X = feature_data.values
     y = control_data["batch"].values
@@ -491,19 +485,30 @@ def _calculate_batch_effects(
         / f"CeCl-{cell_class}_ChCo-{channel_combo}__aligned.parquet"
     )
 
-    if n_rows is None:
-        aligned = pd.read_parquet(aligned_path)
-    else:
-        aligned = load_parquet_subset(aligned_path, n_rows)
+    # Use same sample size as pre-alignment for consistency
+    aligned = load_parquet_subset(aligned_path, sample_rows)
 
     control_aligned = aligned[
         aligned[perturbation_col].str.startswith(control_key)
     ].copy()
+
+    # Skip if no control data
+    if len(control_aligned) == 0:
+        return {
+            "pre_alignment_batch_p_median": pre_align_p_median,
+            "post_alignment_batch_p_median": np.nan,
+        }
+
     pc_cols = [col for col in control_aligned.columns if col.startswith("PC_")]
     control_aligned["batch"] = (
         control_aligned["plate"].astype(str) + "_" + control_aligned["well"]
     )
     control_aligned = control_aligned[pc_cols + ["batch"]]
+
+    # Sample PCs if too many (for speed)
+    if len(pc_cols) > 1000:
+        sampled_pcs = np.random.choice(pc_cols, size=1000, replace=False)
+        control_aligned = control_aligned[list(sampled_pcs) + ["batch"]]
 
     X = control_aligned.drop(columns=["batch"]).values
     y = control_aligned["batch"].values
@@ -700,11 +705,15 @@ def get_all_stats(config, include_batch_effects=False):
     print("\n MERGE STATISTICS:")
     if "error" not in stats["merge"]:
         merge = stats["merge"]
-        print(f"   - Phenotype cells: {merge.get('phenotype_cells', 0):,}")
-        print(f"   - SBS cells: {merge.get('sbs_cells', 0):,}")
-        print(f"   - Matched cells: {merge.get('matched_cells', 0):,}")
-        print(f"   - Phenotype match rate: {merge.get('phenotype_match_rate', 0):.1%}")
-        print(f"   - SBS match rate: {merge.get('sbs_match_rate', 0):.1%}")
+        print(f"   - Phenotype cells (original): {merge.get('phenotype_cells', 0):,}")
+        print(f"   - SBS cells (original): {merge.get('sbs_cells', 0):,}")
+        print(f"   - Phenotype cells in merge: {merge.get('unique_ph_in_merge', 0):,}")
+        print(f"   - SBS cells in merge: {merge.get('unique_sbs_in_merge', 0):,}")
+        print(
+            f"   - Phenotype recovery rate: {merge.get('phenotype_recovery_rate', 0):.1%}"
+        )
+        print(f"   - SBS recovery rate: {merge.get('sbs_recovery_rate', 0):.1%}")
+        print(f"   - Total match pairs: {merge.get('total_match_pairs', 0):,}")
         if "cells_with_single_gene" in merge:
             print(
                 f"   - Cells with single gene: {merge['cells_with_single_gene']:,} ({merge.get('single_gene_rate', 0):.1%})"

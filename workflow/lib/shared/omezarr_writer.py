@@ -1,7 +1,13 @@
 """OME-Zarr Writer Module for Brieflow.
 
-This module provides functions to export images, labels, and tables to OME-Zarr (v2) format.
+This module provides functions to export images, labels, and tables to OME-Zarr format.
 It uses the ome-zarr-py library for NGFF compliance.
+
+Zarr format version is configurable via ``ZARR_FORMAT``:
+  - ``2``: Zarr v2 on-disk format (.zarray/.zgroup/.zattrs), OME-NGFF v0.4 (default)
+  - ``3``: Zarr v3 on-disk format (zarr.json), OME-NGFF v0.5
+    Requires ome-zarr-py with v0.5 writing support (unreleased as of Jan 2026;
+    available on ome-zarr-py main branch after PR #413).
 """
 
 import os
@@ -13,6 +19,11 @@ from ome_zarr.io import parse_url
 from ome_zarr.writer import write_image, write_labels
 from ome_zarr.scale import Scaler
 import dask.array as da
+
+# Default Zarr on-disk format version.
+# Set to 2 for broad compatibility (OME-NGFF v0.4).
+# Switch to 3 for Zarr v3 / OME-NGFF v0.5 when ome-zarr-py releases full v0.5 writing.
+ZARR_FORMAT = 2
 
 
 def write_image_omezarr(
@@ -45,9 +56,7 @@ def write_image_omezarr(
         storage_options: Options for storage backend (optional).
     """
     os.makedirs(out_path, exist_ok=True)
-    # Enforce Zarr v2 for OME-NGFF v0.4 compliance
-    # zarr.open_group handles store creation and avoids v3 zarr.json default
-    root = zarr.open_group(out_path, mode="w", zarr_format=2)
+    root = zarr.open_group(out_path, mode="w", zarr_format=ZARR_FORMAT)
 
     # Ensure dask array for efficient scaling
     if not isinstance(image_data, da.Array):
@@ -181,15 +190,17 @@ def write_labels_omezarr(
 
     If out_path points to an existing .zarr image, labels are added under /labels.
     """
-    # Check if out_path is an existing group
-    if os.path.exists(out_path) and os.path.exists(os.path.join(out_path, ".zattrs")):
+    # Check if out_path is an existing zarr group (v2: .zattrs, v3: zarr.json)
+    if os.path.exists(out_path) and (
+        os.path.exists(os.path.join(out_path, ".zattrs"))
+        or os.path.exists(os.path.join(out_path, "zarr.json"))
+    ):
         mode = "r+"
     else:
         mode = "w"
         os.makedirs(out_path, exist_ok=True)
 
-    # Enforce Zarr v2
-    root = zarr.open_group(out_path, mode=mode, zarr_format=2)
+    root = zarr.open_group(out_path, mode=mode, zarr_format=ZARR_FORMAT)
 
     # Ensure label dtype is a reasonable integer type for viewer compatibility.
     #
@@ -313,8 +324,7 @@ def write_table_zarr(
     This is NOT OME-NGFF AnnData, but a simple columnar store for interoperability.
     """
     os.makedirs(out_path, exist_ok=True)
-    # Enforce Zarr v2
-    store = zarr.open(out_path, mode="w", zarr_format=2)
+    store = zarr.open_group(out_path, mode="w", zarr_format=ZARR_FORMAT)
 
     # Write metadata
     store.attrs["columns"] = list(df.columns)
@@ -352,7 +362,7 @@ def _write_series_to_zarr(
         values = series.values
         dtype = values.dtype
 
-    group.create_dataset(
+    group.create_array(
         name,
         data=values,
         shape=values.shape,

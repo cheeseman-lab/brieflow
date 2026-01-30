@@ -20,9 +20,10 @@ def write_multiscale_omezarr(
     channel_names: Optional[Sequence[str]] = None,
     is_label: bool = False,
 ) -> None:
-    """Write an OME-NGFF v0.4 (Zarr v2) multiscale pyramid.
+    """Write an OME-NGFF multiscale pyramid.
 
     This is a small wrapper around `workflow.lib.shared.omezarr_writer.write_image_omezarr`.
+    The zarr format version is controlled by ``omezarr_writer.ZARR_FORMAT``.
     """
     out = Path(output_dir)
 

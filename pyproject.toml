@@ -48,8 +48,8 @@ dependencies = [
   "widgetsnbextension==4.0.14",
   "lightgbm==4.6.0",
   "scikit-learn==1.8.0",
-  "ome-zarr>=0.8.0",
-  "zarr>=2.16.0",
+  "ome-zarr>=0.12.0",
+  "zarr>=3.0.0",
   "dask[array]",
   "fsspec",
 ]

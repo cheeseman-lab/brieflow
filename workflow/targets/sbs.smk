@@ -1,15 +1,19 @@
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
+from snakemake.io import directory
 
 
 SBS_FP = ROOT_FP / "sbs"
+
+# Determine image output format from config (default: tiff for backward compatibility)
+SBS_IMG_FMT = config.get("sbs", {}).get("image_output_format", "tiff")
 
 SBS_OUTPUTS = {
     "align_sbs": [
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", SBS_IMG_FMT
         ),
     ],
     "log_filter": [
@@ -18,7 +22,7 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "log_filtered",
-            "tiff",
+            SBS_IMG_FMT,
         ),
     ],
     "compute_standard_deviation": [
@@ -27,14 +31,14 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "standard_deviation",
-            "tiff",
+            SBS_IMG_FMT,
         ),
     ],
     "find_peaks": [
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "peaks", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "peaks", SBS_IMG_FMT
         ),
     ],
     "max_filter": [
@@ -43,7 +47,7 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "max_filtered",
-            "tiff",
+            SBS_IMG_FMT,
         ),
     ],
     "apply_ic_field_sbs": [
@@ -52,19 +56,19 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "illumination_corrected",
-            "tiff",
+            SBS_IMG_FMT,
         ),
     ],
     "segment_sbs": [
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", SBS_IMG_FMT
         ),
         SBS_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", SBS_IMG_FMT
         ),
         SBS_FP
         / "tsvs"
@@ -192,14 +196,19 @@ after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
 if not (omezarr_enabled and "sbs" in after_steps):
     SBS_OUTPUTS.pop("export_sbs_omezarr", None)
 
+# When outputting zarr, image outputs need directory() mapping and should not be temp
+# (Snakemake can't reliably temp() a directory output)
+_sbs_img_dir = directory if SBS_IMG_FMT == "zarr" else None
+_sbs_img_temp = temp if SBS_IMG_FMT != "zarr" else None
+
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": temp,
-    "log_filter": temp,
-    "compute_standard_deviation": temp,
-    "find_peaks": temp,
-    "max_filter": temp,
-    "apply_ic_field_sbs": temp,
-    "segment_sbs": None,
+    "align_sbs": _sbs_img_temp,
+    "log_filter": _sbs_img_temp,
+    "compute_standard_deviation": _sbs_img_temp,
+    "find_peaks": _sbs_img_temp,
+    "max_filter": _sbs_img_temp,
+    "apply_ic_field_sbs": _sbs_img_temp,
+    "segment_sbs": [_sbs_img_dir, _sbs_img_dir, None] if SBS_IMG_FMT == "zarr" else None,
     "extract_bases": temp,
     "call_reads": temp,
     "call_cells": temp,

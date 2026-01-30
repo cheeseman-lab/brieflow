@@ -1,7 +1,5 @@
-from tifffile import imwrite
-
 from lib.sbs.align_cycles import align_cycles
-from lib.shared.io import read_image
+from lib.shared.io import read_image, save_image
 
 # load image data (supports both TIFF and Zarr)
 image_data = [read_image(file_path) for file_path in snakemake.input]
@@ -18,5 +16,5 @@ aligned_data = align_cycles(
     manual_channel_mapping=snakemake.params.manual_channel_mapping,
 )
 
-# Save the aligned data as a .tiff file
-imwrite(snakemake.output[0], aligned_data)
+# Save the aligned data
+save_image(aligned_data, snakemake.output[0])

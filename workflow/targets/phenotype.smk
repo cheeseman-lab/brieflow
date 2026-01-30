@@ -1,8 +1,12 @@
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
+from snakemake.io import directory
 
 
 PHENOTYPE_FP = ROOT_FP / "phenotype"
+
+# Determine image output format from config (default: tiff for backward compatibility)
+PHENOTYPE_IMG_FMT = config.get("phenotype", {}).get("image_output_format", "tiff")
 
 # determine feature eval outputs based on channel names and segment_cells setting
 channel_names = config["phenotype"]["channel_names"]
@@ -17,26 +21,32 @@ PHENOTYPE_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "illumination_corrected",
-            "tiff",
+            PHENOTYPE_IMG_FMT,
         ),
     ],
     "align_phenotype": [
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "aligned",
+            PHENOTYPE_IMG_FMT,
         ),
     ],
     "segment_phenotype": [
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "nuclei",
+            PHENOTYPE_IMG_FMT,
         ),
         PHENOTYPE_FP
         / "images"
         / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tiff"
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "cells",
+            PHENOTYPE_IMG_FMT,
         ),
         PHENOTYPE_FP
         / "tsvs"
@@ -52,7 +62,7 @@ PHENOTYPE_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "identified_cytoplasms",
-            "tiff",
+            PHENOTYPE_IMG_FMT,
         ),
     ],
     "extract_phenotype_info": [
@@ -136,11 +146,20 @@ after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
 if not (omezarr_enabled and "phenotype" in after_steps):
     PHENOTYPE_OUTPUTS.pop("export_phenotype_omezarr", None)
 
+# When outputting zarr, image outputs need directory() mapping and should not be temp
+# (Snakemake can't reliably temp() a directory output)
+_phenotype_img_dir = directory if PHENOTYPE_IMG_FMT == "zarr" else None
+_phenotype_img_temp = temp if PHENOTYPE_IMG_FMT != "zarr" else None
+
 PHENOTYPE_OUTPUT_MAPPINGS = {
-    "apply_ic_field_phenotype": temp,
-    "align_phenotype": None,
-    "segment_phenotype": None,
-    "identify_cytoplasm": temp,
+    "apply_ic_field_phenotype": _phenotype_img_temp,
+    "align_phenotype": _phenotype_img_dir,
+    "segment_phenotype": (
+        [_phenotype_img_dir, _phenotype_img_dir, None]
+        if PHENOTYPE_IMG_FMT == "zarr"
+        else None
+    ),
+    "identify_cytoplasm": _phenotype_img_temp,
     "extract_phenotype_info": temp,
     "combine_phenotype_info": None,
     "extract_phenotype": temp,

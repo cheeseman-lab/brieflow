@@ -1,8 +1,7 @@
-from tifffile import imwrite
 import numpy as np
 import pandas as pd
 
-from lib.shared.io import read_image
+from lib.shared.io import read_image, save_image
 
 # Load illumination corrected data (supports TIFF and Zarr)
 aligned_data = read_image(snakemake.input[0])
@@ -140,8 +139,8 @@ else:
     )
 
 # Save segmented nuclei data
-imwrite(snakemake.output[0], nuclei_data)
+save_image(nuclei_data, snakemake.output[0], is_label=True)
 # Save segmented cells data
-imwrite(snakemake.output[1], cells_data)
+save_image(cells_data, snakemake.output[1], is_label=True)
 # Save counts data
 counts_df.to_csv(snakemake.output[2], index=False, sep="\t")

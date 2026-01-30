@@ -1,8 +1,6 @@
-from tifffile import imwrite
-
 from lib.phenotype.align_channels import align_phenotype_channels
 from lib.shared.align import apply_custom_offsets
-from lib.shared.io import read_image
+from lib.shared.io import read_image, save_image
 
 # Load image data (supports TIFF and Zarr)
 image_data = read_image(snakemake.input[0])
@@ -63,5 +61,5 @@ if align_config["align"]:
 else:
     print("STEP 2: Skipping automatic alignment")
 
-# Save the aligned/unaligned data as a .tiff file
-imwrite(snakemake.output[0], aligned_data)
+# Save the aligned/unaligned data
+save_image(aligned_data, snakemake.output[0])

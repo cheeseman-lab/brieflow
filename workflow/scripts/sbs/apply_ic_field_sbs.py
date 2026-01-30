@@ -1,6 +1,5 @@
-from tifffile import imwrite
 from lib.shared.illumination_correction import apply_ic_field, combine_ic_images
-from lib.shared.io import read_image
+from lib.shared.io import read_image, save_image
 
 # Load aligned image data (supports TIFF and Zarr)
 aligned_image_data = read_image(snakemake.input[0])
@@ -39,4 +38,4 @@ corrected_image_data = apply_ic_field(
 )
 
 # Save corrected image data
-imwrite(snakemake.output[0], corrected_image_data)
+save_image(corrected_image_data, snakemake.output[0])

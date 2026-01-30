@@ -1,6 +1,4 @@
-from tifffile import imwrite
-
-from lib.shared.io import read_image
+from lib.shared.io import read_image, save_image
 
 # Get configuration from params
 params = snakemake.params.config
@@ -48,4 +46,4 @@ elif method == "spotiflow":
     )
 
 # Save peak data (same for both methods)
-imwrite(snakemake.output[0], peaks)
+save_image(peaks, snakemake.output[0])

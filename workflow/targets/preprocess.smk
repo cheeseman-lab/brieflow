@@ -1,4 +1,4 @@
-from lib.shared.file_utils import get_filename
+from lib.shared.file_utils import get_nested_path
 from snakemake.io import temp, directory
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 from lib.preprocess.file_utils import get_output_pattern
@@ -34,69 +34,69 @@ CONVERT_PHENOTYPE_KEY = "convert_phenotype_zarr" if downstream_format == "zarr" 
 
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
-        PREPROCESS_FP / "metadata" / "sbs" / get_filename(
+        PREPROCESS_FP / "metadata" / "sbs" / get_nested_path(
             get_output_pattern(sbs_metadata_wildcard_combos), "metadata", "tsv"
         ),
     ],
     "combine_metadata_sbs": [
-        PREPROCESS_FP / "metadata" / "sbs" / get_filename(
+        PREPROCESS_FP / "metadata" / "sbs" / get_nested_path(
             {"plate": "{plate}", "well": "{well}"}, "combined_metadata", "parquet"
         ),
     ],
     "extract_metadata_phenotype": [
-        PREPROCESS_FP / "metadata" / "phenotype" / get_filename(
+        PREPROCESS_FP / "metadata" / "phenotype" / get_nested_path(
             get_output_pattern(phenotype_metadata_wildcard_combos), "metadata", "tsv"
         ),
     ],
     "combine_metadata_phenotype": [
-        PREPROCESS_FP / "metadata" / "phenotype" / get_filename(
+        PREPROCESS_FP / "metadata" / "phenotype" / get_nested_path(
             {"plate": "{plate}", "well": "{well}"}, "combined_metadata", "parquet"
         ),
     ],
     "convert_sbs": [
-        PREPROCESS_FP / "images" / "sbs" / get_filename(
+        PREPROCESS_FP / "images" / "sbs" / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
             "image", "tiff"
         ),
     ],
     "convert_sbs_zarr": [
-        PREPROCESS_FP / "images" / "sbs" / get_filename(
+        PREPROCESS_FP / "images" / "sbs" / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
             "image", "zarr"
         ),
     ],
     "convert_phenotype": [
-        PREPROCESS_FP / "images" / "phenotype" / get_filename(
+        PREPROCESS_FP / "images" / "phenotype" / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "image", "tiff"
         ),
     ],
     "convert_phenotype_zarr": [
-        PREPROCESS_FP / "images" / "phenotype" / get_filename(
+        PREPROCESS_FP / "images" / "phenotype" / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "image", "zarr"
         ),
     ],
     "convert_sbs_omezarr": [
-        PREPROCESS_FP / "omezarr" / "sbs" / get_filename(
+        PREPROCESS_FP / "omezarr" / "sbs" / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
             "image", "zarr"
         ),
     ],
     "convert_phenotype_omezarr": [
-        PREPROCESS_FP / "omezarr" / "phenotype" / get_filename(
+        PREPROCESS_FP / "omezarr" / "phenotype" / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "image", "zarr"
         ),
     ],
     "calculate_ic_sbs": [
-        PREPROCESS_FP / "ic_fields" / "sbs" / get_filename(
+        PREPROCESS_FP / "ic_fields" / "sbs" / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "cycle": "{cycle}"},
             "ic_field", IC_EXT
         ),
     ],
     "calculate_ic_phenotype": [
-        PREPROCESS_FP / "ic_fields" / "phenotype" / get_filename(
+        PREPROCESS_FP / "ic_fields" / "phenotype" / get_nested_path(
             {"plate": "{plate}", "well": "{well}"},
             "ic_field", IC_EXT
         ),

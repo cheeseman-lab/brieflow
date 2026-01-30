@@ -1,4 +1,4 @@
-from lib.shared.file_utils import get_filename
+from lib.shared.file_utils import get_nested_path
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 from snakemake.io import directory
 
@@ -12,14 +12,16 @@ SBS_OUTPUTS = {
     "align_sbs": [
         SBS_FP
         / "images"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", SBS_IMG_FMT
+        / get_nested_path(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "aligned",
+            SBS_IMG_FMT,
         ),
     ],
     "log_filter": [
         SBS_FP
         / "images"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "log_filtered",
             SBS_IMG_FMT,
@@ -28,7 +30,7 @@ SBS_OUTPUTS = {
     "compute_standard_deviation": [
         SBS_FP
         / "images"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "standard_deviation",
             SBS_IMG_FMT,
@@ -37,14 +39,16 @@ SBS_OUTPUTS = {
     "find_peaks": [
         SBS_FP
         / "images"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "peaks", SBS_IMG_FMT
+        / get_nested_path(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "peaks",
+            SBS_IMG_FMT,
         ),
     ],
     "max_filter": [
         SBS_FP
         / "images"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "max_filtered",
             SBS_IMG_FMT,
@@ -53,7 +57,7 @@ SBS_OUTPUTS = {
     "apply_ic_field_sbs": [
         SBS_FP
         / "images"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "illumination_corrected",
             SBS_IMG_FMT,
@@ -62,17 +66,21 @@ SBS_OUTPUTS = {
     "segment_sbs": [
         SBS_FP
         / "images"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", SBS_IMG_FMT
+        / get_nested_path(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "nuclei",
+            SBS_IMG_FMT,
         ),
         SBS_FP
         / "images"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", SBS_IMG_FMT
+        / get_nested_path(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "cells",
+            SBS_IMG_FMT,
         ),
         SBS_FP
         / "tsvs"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "segmentation_stats",
             "tsv",
@@ -81,108 +89,112 @@ SBS_OUTPUTS = {
     "extract_bases": [
         SBS_FP
         / "tsvs"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "bases", "tsv"
         ),
     ],
     "call_reads": [
         SBS_FP
         / "tsvs"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "reads", "tsv"
         ),
     ],
     "call_cells": [
         SBS_FP
         / "tsvs"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tsv"
         ),
     ],
     "extract_sbs_info": [
         SBS_FP
         / "tsvs"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "sbs_info", "tsv"
         ),
     ],
     "combine_reads": [
         SBS_FP
         / "parquets"
-        / get_filename({"plate": "{plate}", "well": "{well}"}, "reads", "parquet"),
+        / get_nested_path({"plate": "{plate}", "well": "{well}"}, "reads", "parquet"),
     ],
     "combine_cells": [
         SBS_FP
         / "parquets"
-        / get_filename({"plate": "{plate}", "well": "{well}"}, "cells", "parquet"),
+        / get_nested_path({"plate": "{plate}", "well": "{well}"}, "cells", "parquet"),
     ],
     "combine_sbs_info": [
         SBS_FP
         / "parquets"
-        / get_filename({"plate": "{plate}", "well": "{well}"}, "sbs_info", "parquet"),
+        / get_nested_path(
+            {"plate": "{plate}", "well": "{well}"}, "sbs_info", "parquet"
+        ),
     ],
     "eval_segmentation_sbs": [
         SBS_FP
         / "eval"
         / "segmentation"
-        / get_filename({"plate": "{plate}"}, "segmentation_overview", "tsv"),
+        / get_nested_path({"plate": "{plate}"}, "segmentation_overview", "tsv"),
         SBS_FP
         / "eval"
         / "segmentation"
-        / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "tsv"),
+        / get_nested_path({"plate": "{plate}"}, "cell_density_heatmap", "tsv"),
         SBS_FP
         / "eval"
         / "segmentation"
-        / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "png"),
+        / get_nested_path({"plate": "{plate}"}, "cell_density_heatmap", "png"),
     ],
     "eval_mapping": [
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "mapping_vs_threshold_peak", "png"),
+        / get_nested_path({"plate": "{plate}"}, "mapping_vs_threshold_peak", "png"),
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "mapping_vs_threshold_qmin", "png"),
+        / get_nested_path({"plate": "{plate}"}, "mapping_vs_threshold_qmin", "png"),
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "read_mapping_heatmap", "png"),
+        / get_nested_path({"plate": "{plate}"}, "read_mapping_heatmap", "png"),
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_one", "tsv"),
+        / get_nested_path({"plate": "{plate}"}, "cell_mapping_heatmap_one", "tsv"),
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_one", "png"),
+        / get_nested_path({"plate": "{plate}"}, "cell_mapping_heatmap_one", "png"),
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_any", "tsv"),
+        / get_nested_path({"plate": "{plate}"}, "cell_mapping_heatmap_any", "tsv"),
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "cell_mapping_heatmap_any", "png"),
+        / get_nested_path({"plate": "{plate}"}, "cell_mapping_heatmap_any", "png"),
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "cell_metric_histogram", "png"),
+        / get_nested_path({"plate": "{plate}"}, "cell_metric_histogram", "png"),
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "gene_symbol_histogram", "png"),
+        / get_nested_path({"plate": "{plate}"}, "gene_symbol_histogram", "png"),
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "mapping_overview", "tsv"),
+        / get_nested_path({"plate": "{plate}"}, "mapping_overview", "tsv"),
         SBS_FP
         / "eval"
         / "mapping"
-        / get_filename({"plate": "{plate}"}, "barcode_prefix_matching", "png"),
+        / get_nested_path({"plate": "{plate}"}, "barcode_prefix_matching", "png"),
     ],
     "export_sbs_omezarr": [
-        SBS_FP / "omezarr" / get_filename(
+        SBS_FP
+        / "omezarr"
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "sbs_aligned",
             "zarr",

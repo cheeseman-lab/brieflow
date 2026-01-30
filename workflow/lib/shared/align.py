@@ -7,6 +7,7 @@ areas with noise, and perform various transformations to enhance image data qual
 
 import numpy as np
 import skimage
+from scipy.ndimage import shift as ndi_shift
 
 from lib.shared.image_utils import applyIJ, remove_channels
 
@@ -57,33 +58,57 @@ def fill_noise(data, mask, x1, x2):
     return filtered
 
 
-def calculate_offsets(data_, upsample_factor):
+def calculate_offsets(data_, upsample_factor, max_offset=None, reference="first"):
     """Calculate offsets between images using phase cross-correlation.
 
     Args:
-        data_ (np.ndarray): Image data.
+        data_ (np.ndarray): Image data with first axis as frames.
         upsample_factor (int): Upsampling factor for cross-correlation.
+        max_offset (float, optional): Maximum allowed offset in pixels. Offsets with
+            magnitude exceeding this threshold are clamped and a warning is printed.
+            If None, defaults to 10% of the smallest image dimension. Defaults to None.
+        reference (str, optional): Reference strategy for computing offsets. Options:
+            - "first": Align all frames to the first frame (original behavior).
+            - "mean": Align all frames to the mean of all frames. More robust when
+              individual frames are noisy or have artifacts.
+            Defaults to "first".
 
     Returns:
-        np.ndarray: Offset values between images.
+        np.ndarray: Offset values (y, x) between images, shape (N, 2).
     """
-    # Set the target frame as the first frame in the data
-    target = data_[0]
-    # Initialize an empty list to store offsets
+    # Determine reference image
+    if reference == "mean":
+        target = data_.mean(axis=0)
+    else:
+        target = data_[0]
+
+    # Auto-compute max_offset based on image dimensions if not provided
+    if max_offset is None:
+        max_offset = min(data_.shape[-2], data_.shape[-1]) * 0.1
+
     offsets = []
-    # Iterate through each frame in the data
     for i, src in enumerate(data_):
-        # If it's the first frame, add a zero offset
-        if i == 0:
-            offsets += [(0, 0)]
+        # First frame gets zero offset when using "first" reference
+        if reference == "first" and i == 0:
+            offsets.append((0, 0))
         else:
-            # Calculate the offset between the current frame and the target frame
             offset, _, _ = skimage.registration.phase_cross_correlation(
                 src, target, upsample_factor=upsample_factor
             )
-            # Add the offset to the list
-            offsets += [offset]
-    # Convert the list of offsets to a numpy array and return
+
+            # Validate offset magnitude and clamp if too large
+            offset_magnitude = np.sqrt(offset[0] ** 2 + offset[1] ** 2)
+            if offset_magnitude > max_offset:
+                print(
+                    f"Warning: Frame {i} offset ({offset[0]:.2f}, {offset[1]:.2f}) "
+                    f"magnitude {offset_magnitude:.2f}px exceeds max_offset "
+                    f"{max_offset:.1f}px. Clamping to max."
+                )
+                scale = max_offset / offset_magnitude
+                offset = offset * scale
+
+            offsets.append(tuple(offset))
+
     return np.array(offsets)
 
 
@@ -108,29 +133,28 @@ def filter_percentiles(data, q1, q2):
 
 
 def apply_offsets(data_, offsets):
-    """Apply offsets to image data.
+    """Apply translation offsets to image data using scipy.ndimage.shift.
+
+    Uses scipy.ndimage.shift for efficient sub-pixel translation with bilinear
+    interpolation. This is purpose-built for pure translations and avoids the
+    overhead of general-purpose geometric warping.
 
     Args:
-        data_ (np.ndarray): Image data.
-        offsets (np.ndarray): Offset values to be applied.
+        data_ (np.ndarray): Image data with first axis as frames.
+        offsets (np.ndarray): Offset values (y, x) to apply to each frame.
 
     Returns:
-        np.ndarray: Warped image data.
+        np.ndarray: Shifted image data.
     """
-    # Initialize an empty list to store warped frames
     warped = []
-    # Iterate through each frame and its corresponding offset
     for frame, offset in zip(data_, offsets):
-        # If the offset is zero, add the frame as it is
         if offset[0] == 0 and offset[1] == 0:
-            warped += [frame]
+            warped.append(frame)
         else:
-            # Otherwise, apply a similarity transform to warp the frame based on the offset
-            st = skimage.transform.SimilarityTransform(translation=offset[::-1])
-            frame_ = skimage.transform.warp(frame, st, preserve_range=True)
-            # Add the warped frame to the list
-            warped += [frame_.astype(data_.dtype)]
-    # Convert the list of warped frames to a numpy array and return
+            # scipy.ndimage.shift with order=1 (bilinear interpolation) and
+            # mode='constant' (fill edges with 0) matches previous warp behavior
+            frame_ = ndi_shift(frame, offset, order=1, mode="constant", cval=0)
+            warped.append(frame_.astype(data_.dtype))
     return np.array(warped)
 
 

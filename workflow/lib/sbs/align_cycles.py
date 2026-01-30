@@ -6,6 +6,7 @@ areas with noise, and perform various transformations to enhance image data qual
 """
 
 import numpy as np
+import skimage.registration
 
 from lib.shared.align import (
     apply_window,
@@ -29,6 +30,9 @@ def align_cycles(
     manual_background_cycle=None,
     manual_channel_mapping=None,
     verbose=False,
+    n_iter=2,
+    normalize=True,
+    max_offset=None,
 ):
     """Rigid alignment of sequencing cycles and channels.
 
@@ -66,6 +70,16 @@ def align_cycles(
         verbose (bool, optional): If True, print detailed alignment information including
             calculated offsets for each cycle. Useful for debugging alignment issues.
             Defaults to False.
+        n_iter (int, optional): Number of alignment iterations for between-cycle alignment.
+            First pass aligns to the first frame; subsequent passes align to the mean of
+            aligned frames. Higher values improve robustness at the cost of compute time.
+            Defaults to 2.
+        normalize (bool, optional): Normalize the reference channel by percentile before
+            computing between-cycle offsets. Improves cross-correlation when intensity
+            varies across cycles. Defaults to True.
+        max_offset (float, optional): Maximum allowed offset in pixels for any single
+            alignment step. Offsets exceeding this are clamped. If None, auto-computed
+            as 10% of the smallest image dimension. Defaults to None.
 
     Returns:
         np.ndarray: SBS image aligned across cycles.
@@ -254,19 +268,27 @@ def align_cycles(
             channel_order is None or channel_order[0] == "DAPI"
         ):
             dapi_index = 0
-            # Align cycles using the DAPI channel
+            # Align cycles using the DAPI channel with iterative refinement
             aligned, offsets = align_between_cycles(
                 aligned,
                 channel_index=dapi_index,
                 window=window,
                 upsample_factor=upsample_factor,
                 return_offsets=True,
+                n_iter=n_iter,
+                normalize=normalize,
+                max_offset=max_offset,
             )
 
             if verbose:
-                print("\n=== Cycle Alignment Offsets (DAPI method) ===")
+                print(
+                    f"\n=== Cycle Alignment Offsets (DAPI method, {n_iter} iteration(s)) ==="
+                )
                 for cycle_idx, offset in enumerate(offsets):
-                    print(f"  Cycle {cycle_idx}: shift = {offset} pixels (y, x)")
+                    magnitude = np.sqrt(offset[0] ** 2 + offset[1] ** 2)
+                    print(
+                        f"  Cycle {cycle_idx}: shift = ({offset[0]:.3f}, {offset[1]:.3f}) pixels (y, x), magnitude = {magnitude:.3f}px"
+                    )
         else:
             print(
                 "Warning: 'DAPI' method selected but DAPI channel not available. Switching to 'sbs_mean'."
@@ -286,12 +308,48 @@ def align_cycles(
         target = apply_window(aligned[:, sbs_channels], window=window).max(axis=1)
         normed = normalize_by_percentile(target, q_norm=q_norm)
         normed[normed > cutoff] = cutoff
-        offsets = calculate_offsets(normed, upsample_factor=upsample_factor)
+
+        # First pass: align to first frame
+        offsets = calculate_offsets(
+            normed, upsample_factor=upsample_factor, max_offset=max_offset
+        )
+
+        # Iterative refinement for sbs_mean: align to mean of aligned frames
+        for iteration in range(1, n_iter):
+            aligned_normed = apply_offsets(normed, offsets)
+            mean_ref = aligned_normed.mean(axis=0)
+
+            new_offsets = []
+            for i, src in enumerate(normed):
+                offset, _, _ = skimage.registration.phase_cross_correlation(
+                    src, mean_ref, upsample_factor=upsample_factor
+                )
+                # Validate offset magnitude
+                if max_offset is not None:
+                    effective_max = max_offset
+                else:
+                    effective_max = min(src.shape[-2], src.shape[-1]) * 0.1
+                offset_magnitude = np.sqrt(offset[0] ** 2 + offset[1] ** 2)
+                if offset_magnitude > effective_max:
+                    print(
+                        f"Warning: sbs_mean iter {iteration}, cycle {i} offset "
+                        f"({offset[0]:.2f}, {offset[1]:.2f}) magnitude "
+                        f"{offset_magnitude:.2f}px exceeds max {effective_max:.1f}px. Clamping."
+                    )
+                    scale = effective_max / offset_magnitude
+                    offset = offset * scale
+                new_offsets.append(tuple(offset))
+            offsets = np.array(new_offsets)
 
         if verbose:
-            print("\n=== Cycle Alignment Offsets (sbs_mean method) ===")
+            print(
+                f"\n=== Cycle Alignment Offsets (sbs_mean method, {n_iter} iteration(s)) ==="
+            )
             for cycle_idx, offset in enumerate(offsets):
-                print(f"  Cycle {cycle_idx}: shift = {offset} pixels (y, x)")
+                magnitude = np.sqrt(offset[0] ** 2 + offset[1] ** 2)
+                print(
+                    f"  Cycle {cycle_idx}: shift = ({offset[0]:.3f}, {offset[1]:.3f}) pixels (y, x), magnitude = {magnitude:.3f}px"
+                )
 
         # Apply cycle offsets conditionally based on channel type
         for channel in range(aligned.shape[1]):
@@ -317,7 +375,7 @@ def align_cycles(
     return aligned
 
 
-def align_within_cycle(data_, upsample_factor=4, window=1, q1=0, q2=90):
+def align_within_cycle(data_, upsample_factor=4, window=1, q1=0, q2=90, max_offset=None):
     """Align images within the same cycle.
 
     Args:
@@ -326,47 +384,120 @@ def align_within_cycle(data_, upsample_factor=4, window=1, q1=0, q2=90):
         window (int, optional): Size of the window to apply during alignment. Defaults to 1.
         q1 (int, optional): Lower percentile threshold. Defaults to 0.
         q2 (int, optional): Upper percentile threshold. Defaults to 90.
+        max_offset (float, optional): Maximum allowed offset in pixels. If None,
+            auto-computed as 10% of smallest image dimension. Defaults to None.
 
     Returns:
         np.ndarray: Aligned image data.
     """
     # Filter the input data based on percentiles
     filtered = filter_percentiles(apply_window(data_, window), q1=q1, q2=q2)
-    # Calculate offsets using the filtered data
-    offsets = calculate_offsets(filtered, upsample_factor=upsample_factor)
+    # Calculate offsets using the filtered data with max_offset validation
+    offsets = calculate_offsets(
+        filtered, upsample_factor=upsample_factor, max_offset=max_offset
+    )
     # Apply the calculated offsets to the original data and return the result
     return apply_offsets(data_, offsets)
 
 
 def align_between_cycles(
-    data, channel_index, upsample_factor=4, window=1, return_offsets=False
+    data,
+    channel_index,
+    upsample_factor=4,
+    window=1,
+    return_offsets=False,
+    n_iter=2,
+    normalize=True,
+    max_offset=None,
 ):
-    """Align images between different cycles.
+    """Align images between different cycles with optional iterative refinement.
+
+    Supports multi-pass alignment: the first pass aligns to the first frame,
+    then subsequent passes align to the mean of the previously aligned frames.
+    This iterative approach produces more robust alignment because the mean
+    reference averages out noise and artifacts from any single cycle.
+
+    Optionally normalizes the reference channel by percentile before computing
+    offsets, which improves cross-correlation when intensity varies across cycles.
 
     Args:
-        data (np.ndarray): Image data.
+        data (np.ndarray): Image data with shape (CYCLE, CHANNEL, I, J).
         channel_index (int): Index of the channel to align between cycles.
         upsample_factor (int, optional): Upsampling factor for cross-correlation. Defaults to 4.
         window (int, optional): Size of the window to apply during alignment. Defaults to 1.
         return_offsets (bool, optional): Whether to return the calculated offsets. Defaults to False.
+        n_iter (int, optional): Number of alignment iterations. First pass aligns to the
+            first frame; subsequent passes align to the mean of aligned frames.
+            Higher values improve accuracy at the cost of compute time.
+            Defaults to 2.
+        normalize (bool, optional): Normalize the reference channel by percentile before
+            computing offsets. Helps when intensity varies across cycles. Defaults to True.
+        max_offset (float, optional): Maximum allowed offset in pixels. Offsets exceeding
+            this are clamped. If None, auto-computed as 10% of the smallest image dimension.
+            Defaults to None.
 
     Returns:
         np.ndarray: Aligned image data.
         np.ndarray, optional: Calculated offsets if return_offsets is True.
     """
-    # Calculate offsets from the target channel
-    target = apply_window(data[:, channel_index], window)
-    offsets = calculate_offsets(target, upsample_factor=upsample_factor)
+    # Extract the reference channel across cycles
+    ref_channel = data[:, channel_index].copy()
 
-    # Apply the calculated offsets to all channels
+    # Normalize reference channel if requested (helps with intensity variation across cycles)
+    if normalize:
+        ref_channel = normalize_by_percentile(ref_channel.astype(np.float64))
+
+    # First pass: align to first frame
+    windowed = apply_window(ref_channel, window)
+    offsets = calculate_offsets(
+        windowed,
+        upsample_factor=upsample_factor,
+        max_offset=max_offset,
+        reference="first",
+    )
+
+    # Iterative refinement: align to mean of previously aligned frames
+    for iteration in range(1, n_iter):
+        # Apply current offsets to reference channel
+        aligned_ref = apply_offsets(ref_channel, offsets)
+
+        # Compute mean reference from aligned frames
+        mean_ref = apply_window(aligned_ref, window).mean(axis=0)
+
+        # Re-calculate offsets of original (unshifted) windowed data against mean reference
+        windowed_original = apply_window(ref_channel, window)
+        new_offsets = []
+        for i, src in enumerate(windowed_original):
+            offset, _, _ = skimage.registration.phase_cross_correlation(
+                src, mean_ref, upsample_factor=upsample_factor
+            )
+
+            # Validate offset magnitude
+            if max_offset is not None:
+                effective_max = max_offset
+            else:
+                effective_max = min(src.shape[-2], src.shape[-1]) * 0.1
+            offset_magnitude = np.sqrt(offset[0] ** 2 + offset[1] ** 2)
+            if offset_magnitude > effective_max:
+                print(
+                    f"Warning: Iter {iteration}, cycle {i} offset "
+                    f"({offset[0]:.2f}, {offset[1]:.2f}) magnitude "
+                    f"{offset_magnitude:.2f}px exceeds max {effective_max:.1f}px. Clamping."
+                )
+                scale = effective_max / offset_magnitude
+                offset = offset * scale
+
+            new_offsets.append(tuple(offset))
+
+        offsets = np.array(new_offsets)
+
+    # Apply the final offsets to all channels
     warped = []
     for data_ in data.transpose([1, 0, 2, 3]):
-        warped += [apply_offsets(data_, offsets)]
+        warped.append(apply_offsets(data_, offsets))
 
-    # Transpose the array back to its original shape
     aligned = np.array(warped).transpose([1, 0, 2, 3])
 
-    # Return aligned data with offsets if requested
     if return_offsets:
         return aligned, offsets
     else:

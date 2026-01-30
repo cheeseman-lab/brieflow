@@ -131,22 +131,7 @@ PHENOTYPE_OUTPUTS = {
         / get_nested_path({"plate": "{plate}"}, f"{feature}_heatmap", "png")
         for feature in eval_features
     ],
-    "export_phenotype_omezarr": [
-        PHENOTYPE_FP
-        / "omezarr"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "phenotype",
-            "zarr",
-        ),
-    ],
 }
-
-# Filter exports if not enabled
-omezarr_enabled = config.get("output", {}).get("omezarr", {}).get("enabled", False)
-after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
-if not (omezarr_enabled and "phenotype" in after_steps):
-    PHENOTYPE_OUTPUTS.pop("export_phenotype_omezarr", None)
 
 # When outputting zarr, image outputs need directory() mapping and should not be temp
 # (Snakemake can't reliably temp() a directory output)
@@ -168,7 +153,6 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "merge_phenotype": None,
     "eval_segmentation_phenotype": None,
     "eval_features": None,
-    "export_phenotype_omezarr": directory,
 }
 
 PHENOTYPE_OUTPUTS_MAPPED = map_outputs(PHENOTYPE_OUTPUTS, PHENOTYPE_OUTPUT_MAPPINGS)

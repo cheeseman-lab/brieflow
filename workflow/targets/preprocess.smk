@@ -8,11 +8,10 @@ PREPROCESS_FP = ROOT_FP / "preprocess"
 # Determine output format from config
 # output_formats controls what file formats are created during preprocessing:
 #   - "tiff": Create TIFF files in images/sbs/ and images/phenotype/
-#   - "zarr": Create standard Zarr arrays in images/sbs/ and images/phenotype/ (for downstream)
-#              AND OME-Zarr multiscale in omezarr/sbs/ and omezarr/phenotype/ (for visualization)
-# downstream_input_format controls which format is used for SBS/phenotype analysis:
+#   - "zarr": Create OME-Zarr (multiscale pyramids) in images/sbs/ and images/phenotype/
+# downstream_input_format controls which format SBS/phenotype reads from:
 #   - "tiff": Use TIFF files (default if TIFF enabled)
-#   - "zarr": Use standard Zarr arrays (NOT OME-Zarr multiscale)
+#   - "zarr": Use OME-Zarr stores
 output_formats = config.get("preprocess", {}).get("output_formats", ["zarr"])
 if isinstance(output_formats, str):
     output_formats = [output_formats]
@@ -77,18 +76,6 @@ PREPROCESS_OUTPUTS = {
             "image", "zarr"
         ),
     ],
-    "convert_sbs_omezarr": [
-        PREPROCESS_FP / "omezarr" / "sbs" / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
-            "image", "zarr"
-        ),
-    ],
-    "convert_phenotype_omezarr": [
-        PREPROCESS_FP / "omezarr" / "phenotype" / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "image", "zarr"
-        ),
-    ],
     "calculate_ic_sbs": [
         PREPROCESS_FP / "ic_fields" / "sbs" / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "cycle": "{cycle}"},
@@ -103,11 +90,6 @@ PREPROCESS_OUTPUTS = {
     ],
 }
 
-# Determine which Zarr outputs to create
-# Standard Zarr is for downstream processing, OME-Zarr is for visualization
-ENABLE_STANDARD_ZARR = ENABLE_ZARR and downstream_format == "zarr"
-ENABLE_OMEZARR = ENABLE_ZARR  # OME-Zarr can be created regardless of downstream format
-
 # Define output mappings FIRST (before filtering)
 PREPROCESS_OUTPUT_MAPPINGS = {
     "extract_metadata_sbs": temp,
@@ -118,8 +100,6 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "convert_phenotype": None,
     "convert_sbs_zarr": directory,
     "convert_phenotype_zarr": directory,
-    "convert_sbs_omezarr": directory,
-    "convert_phenotype_omezarr": directory,
     "calculate_ic_sbs": directory if IC_EXT == "zarr" else None,
     "calculate_ic_phenotype": directory if IC_EXT == "zarr" else None,
 }
@@ -131,17 +111,11 @@ if not ENABLE_TIFF:
     if "convert_phenotype" in PREPROCESS_OUTPUTS:
         del PREPROCESS_OUTPUTS["convert_phenotype"]
 
-if not ENABLE_STANDARD_ZARR:
+if not ENABLE_ZARR:
     if "convert_sbs_zarr" in PREPROCESS_OUTPUTS:
         del PREPROCESS_OUTPUTS["convert_sbs_zarr"]
     if "convert_phenotype_zarr" in PREPROCESS_OUTPUTS:
         del PREPROCESS_OUTPUTS["convert_phenotype_zarr"]
-
-if not ENABLE_OMEZARR:
-    if "convert_sbs_omezarr" in PREPROCESS_OUTPUTS:
-        del PREPROCESS_OUTPUTS["convert_sbs_omezarr"]
-    if "convert_phenotype_omezarr" in PREPROCESS_OUTPUTS:
-        del PREPROCESS_OUTPUTS["convert_phenotype_omezarr"]
 
 # Convert all Paths to strings
 for key in PREPROCESS_OUTPUTS:

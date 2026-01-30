@@ -162,27 +162,18 @@ rule eval_features:
         "../scripts/phenotype/eval_features.py"
 
 
-# OME-Zarr export rules
-if "export_phenotype_omezarr" in PHENOTYPE_OUTPUTS_MAPPED:
-    rule export_phenotype_omezarr:
+# Assemble HCS plate-level zarr stores from per-tile outputs (zarr mode only)
+if PHENOTYPE_IMG_FMT == "zarr":
+    rule finalize_hcs_phenotype:
         input:
-            image=PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"],
-            nuclei=PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"][0],
-            cells=PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"][1],
-            metadata=lambda wildcards: output_to_input(
-                PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
-                wildcards=wildcards,
-                expansion_values=["well"],
-                metadata_combos=phenotype_wildcard_combos,
-            ),
-            omezarr_writer=str(Path(workflow.basedir) / "lib" / "shared" / "omezarr_writer.py"),
+            PHENOTYPE_TARGETS_ALL,
         output:
-            PHENOTYPE_OUTPUTS_MAPPED["export_phenotype_omezarr"],
+            touch(str(PHENOTYPE_FP / ".hcs_done")),
         params:
-            axes="cyx",
-            tile=lambda wildcards: wildcards.tile,
+            images_dir=str(PHENOTYPE_FP / "images"),
+            hcs_dir=str(PHENOTYPE_FP / "hcs"),
         script:
-            "../scripts/phenotype/export_omezarr_phenotype.py"
+            "../scripts/shared/write_hcs_metadata.py"
 
 
 # Rule for all phenotype processing steps

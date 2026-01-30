@@ -1,10 +1,13 @@
-"""Convert ND2 files to standard Zarr arrays (not OME-Zarr multiscale).
+"""Convert ND2 files to OME-Zarr format with multiscale pyramids.
 
-This creates simple Zarr arrays with the same structure as TIFF outputs, suitable for downstream processing.
+Uses the unified save_image() I/O layer, which writes OME-Zarr via
+write_image_omezarr(). This replaces the previous simple-zarr writer
+(group with array at key "0") with a fully OME-NGFF compliant store
+including multiscale pyramids and channel metadata.
 """
 
-import zarr
 from lib.preprocess.preprocess import convert_to_array, get_data_config
+from lib.shared.io import save_image
 
 # Get data configuration from rule name
 rule_name = snakemake.rule
@@ -29,83 +32,18 @@ image_data = convert_to_array(
 )
 print(f"Loaded shape: {image_data.shape}, dtype: {image_data.dtype}")
 
-# Determine optimal chunk shape based on data dimensions
-if image_data.ndim == 3:
-    # (C, Y, X) - typical after max projection
-    # Keep all channels together, chunk spatially
-    chunk_y = min(1024, image_data.shape[1])
-    chunk_x = min(1024, image_data.shape[2])
-    chunks = (image_data.shape[0], chunk_y, chunk_x)
-elif image_data.ndim == 4:
-    # (C, Z, Y, X) - if Z was preserved
-    chunk_z = 1
-    chunk_y = min(1024, image_data.shape[2])
-    chunk_x = min(1024, image_data.shape[3])
-    chunks = (image_data.shape[0], chunk_z, chunk_y, chunk_x)
-else:
-    chunks = None
+# Get channel names from config for OME metadata
+channel_names = data_config.get("channel_order")
 
-print(f"Creating Zarr array at: {snakemake.output[0]}")
-print(f"Chunk shape: {chunks}")
-
-# Create Zarr group (compatible with zarr v2 and v3)
-root = zarr.open_group(snakemake.output[0], mode="w")
-
-# Configure compression (zstd is fast and has good compression)
-try:
-    compressor = zarr.Blosc(cname="zstd", clevel=3, shuffle=zarr.Blosc.BITSHUFFLE)
-except Exception:
-    # Fallback if blosc not available
-    compressor = None
-    print("Warning: Blosc compression not available, using default")
-
-# Create dataset (use create_array for zarr v3 compatibility)
-try:
-    # Zarr v3 API
-    zarr_array = root.create_array(
-        "0",
-        shape=image_data.shape,
-        dtype=image_data.dtype,
-        chunks=chunks,
-        compressor=compressor if compressor else None,
-        overwrite=True,
-    )
-except AttributeError:
-    # Zarr v2 API fallback
-    zarr_array = root.create_dataset(
-        "0",
-        shape=image_data.shape,
-        dtype=image_data.dtype,
-        chunks=chunks,
-        compressor=compressor,
-        overwrite=True,
-    )
-
-# Write data
-print("Writing data to Zarr...")
-zarr_array[:] = image_data
-
-# Store metadata for compatibility
-zarr_array.attrs.update(
-    {
-        "shape": list(image_data.shape),
-        "dtype": str(image_data.dtype),
-        "source": "brieflow_preprocess",
-        "format": "standard_zarr",  # Not OME-Zarr multiscale
-        "chunks": list(chunks),
-    }
+# Write OME-Zarr with multiscale pyramids via unified I/O layer
+print(f"Writing OME-Zarr to: {snakemake.output[0]}")
+save_image(
+    image_data,
+    snakemake.output[0],
+    channel_names=channel_names,
 )
 
-# Add root-level metadata
-root.attrs.update(
-    {
-        "version": "1.0",
-        "format": "standard_zarr",
-    }
-)
-
-print(f"   Standard Zarr array created successfully")
-print(f"   Shape: {image_data.shape}")
-print(f"   Dtype: {image_data.dtype}")
-print(f"   Chunks: {chunks}")
-print(f"   Size: {image_data.nbytes / 1024**2:.1f} MB")
+print(f"  OME-Zarr created successfully")
+print(f"  Shape: {image_data.shape}")
+print(f"  Dtype: {image_data.dtype}")
+print(f"  Size: {image_data.nbytes / 1024**2:.1f} MB")

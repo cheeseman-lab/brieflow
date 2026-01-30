@@ -282,27 +282,18 @@ rule eval_mapping:
         "../scripts/sbs/eval_mapping.py"
 
 
-# OME-Zarr export rule
-if "export_sbs_omezarr" in SBS_OUTPUTS_MAPPED:
-    rule export_sbs_omezarr:
+# Assemble HCS plate-level zarr stores from per-tile outputs (zarr mode only)
+if SBS_IMG_FMT == "zarr":
+    rule finalize_hcs_sbs:
         input:
-            image=SBS_OUTPUTS_MAPPED["align_sbs"],
-            metadata=lambda wildcards: output_to_input(
-                PREPROCESS_OUTPUTS["combine_metadata_sbs"],
-                wildcards=wildcards,
-                expansion_values=["well"],
-                metadata_combos=sbs_wildcard_combos,
-            ),
-            omezarr_writer=str(Path(workflow.basedir) / "lib" / "shared" / "omezarr_writer.py"),
+            SBS_TARGETS_ALL,
         output:
-            SBS_OUTPUTS_MAPPED["export_sbs_omezarr"],
+            touch(str(SBS_FP / ".hcs_done")),
         params:
-            axes="tcyx",
-            channel_names=config["sbs"].get("channel_names", []),
-            tile=lambda wildcards: wildcards.tile,
-            upsample_factor=config["sbs"].get("upsample_factor", 1.0),
+            images_dir=str(SBS_FP / "images"),
+            hcs_dir=str(SBS_FP / "hcs"),
         script:
-            "../scripts/shared/export_omezarr_image.py"
+            "../scripts/shared/write_hcs_metadata.py"
 
 
 # rule for all sbs processing steps

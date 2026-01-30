@@ -4,10 +4,9 @@ This module provides functions to export images, labels, and tables to OME-Zarr 
 It uses the ome-zarr-py library for NGFF compliance.
 
 Zarr format version is configurable via ``ZARR_FORMAT``:
-  - ``2``: Zarr v2 on-disk format (.zarray/.zgroup/.zattrs), OME-NGFF v0.4 (default)
-  - ``3``: Zarr v3 on-disk format (zarr.json), OME-NGFF v0.5
-    Requires ome-zarr-py with v0.5 writing support (unreleased as of Jan 2026;
-    available on ome-zarr-py main branch after PR #413).
+  - ``2``: Zarr v2 on-disk format (.zarray/.zgroup/.zattrs), OME-NGFF v0.4
+  - ``3``: Zarr v3 on-disk format (zarr.json), OME-NGFF v0.5 (default)
+    Supported by ome-zarr-py >=0.12.0 (PR #413, released Aug 2025).
 """
 
 import os
@@ -20,10 +19,10 @@ from ome_zarr.writer import write_image, write_labels
 from ome_zarr.scale import Scaler
 import dask.array as da
 
-# Default Zarr on-disk format version.
-# Set to 2 for broad compatibility (OME-NGFF v0.4).
-# Switch to 3 for Zarr v3 / OME-NGFF v0.5 when ome-zarr-py releases full v0.5 writing.
-ZARR_FORMAT = 2
+# Zarr on-disk format version.
+# 3 = Zarr v3 / OME-NGFF v0.5 (zarr.json metadata).
+# 2 = Zarr v2 / OME-NGFF v0.4 (.zarray/.zgroup/.zattrs) for legacy compat.
+ZARR_FORMAT = 3
 
 
 def write_image_omezarr(

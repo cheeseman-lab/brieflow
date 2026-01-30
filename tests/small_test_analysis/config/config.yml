@@ -7,6 +7,8 @@
 all:
   root_fp: brieflow_output/
 preprocess:
+  output_formats: ["tiff"]
+  downstream_input_format: tiff
   sbs_data_format: nd2
   sbs_data_organization: tile
   sbs_n_z_planes: null

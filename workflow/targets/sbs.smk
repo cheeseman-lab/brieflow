@@ -191,22 +191,7 @@ SBS_OUTPUTS = {
         / "mapping"
         / get_nested_path({"plate": "{plate}"}, "barcode_prefix_matching", "png"),
     ],
-    "export_sbs_omezarr": [
-        SBS_FP
-        / "omezarr"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "sbs_aligned",
-            "zarr",
-        ),
-    ],
 }
-
-# Filter exports if not enabled
-omezarr_enabled = config.get("output", {}).get("omezarr", {}).get("enabled", False)
-after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
-if not (omezarr_enabled and "sbs" in after_steps):
-    SBS_OUTPUTS.pop("export_sbs_omezarr", None)
 
 # When outputting zarr, image outputs need directory() mapping and should not be temp
 # (Snakemake can't reliably temp() a directory output)
@@ -230,7 +215,6 @@ SBS_OUTPUT_MAPPINGS = {
     "combine_sbs_info": None,
     "eval_segmentation_sbs": None,
     "eval_mapping": None,
-    "export_sbs_omezarr": directory,
 }
 
 SBS_OUTPUTS_MAPPED = map_outputs(SBS_OUTPUTS, SBS_OUTPUT_MAPPINGS)

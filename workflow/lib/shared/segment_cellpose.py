@@ -61,9 +61,11 @@ def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
     model compatibility with the installed Cellpose version.
 
     Args:
-        model_type (str): Cellpose model type to use (e.g., 'cyto3', 'nuclei', 'cpsam').
+        model_type (str): Cellpose model type to use (e.g., 'cyto3', 'nuclei', 'cpsam')
+            or a path to a custom trained model (e.g., 'models/my_custom_model').
             - Cellpose 3.x: Supports 'cyto3', 'nuclei', 'cyto2'
             - Cellpose 4.x: Only supports 'cpsam'
+            - Custom model paths (containing '/' or '\\') are supported in both versions
         gpu (bool, optional): Whether to use GPU for inference. Default is False.
 
     Returns:
@@ -72,8 +74,12 @@ def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
     Raises:
         ValueError: If model_type is incompatible with installed Cellpose version.
     """
+    # Check if model_type is a custom model path (contains path separators)
+    is_custom_model = model_type is not None and ("/" in model_type or "\\" in model_type)
+
     # Validate compatibility
-    if CELLPOSE_4X and model_type not in ("cpsam", None):
+    # Custom model paths are allowed with any Cellpose version
+    if CELLPOSE_4X and model_type not in ("cpsam", None) and not is_custom_model:
         raise ValueError(
             f"Model '{model_type}' requires Cellpose 3.x. "
             f"Cellpose 4.x only supports the 'cpsam' model. "
@@ -88,7 +94,11 @@ def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
         )
 
     # Version-aware initialization
+    # Custom model paths use pretrained_model parameter in both versions
     if CELLPOSE_4X:
+        return CellposeModel(pretrained_model=model_type, gpu=gpu)
+    elif is_custom_model:
+        # For Cellpose 3.x with custom models, use pretrained_model
         return CellposeModel(pretrained_model=model_type, gpu=gpu)
     else:
         return CellposeModel(model_type=model_type, gpu=gpu)

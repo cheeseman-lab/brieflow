@@ -43,24 +43,20 @@ from skimage.segmentation import mark_boundaries
 import matplotlib.pyplot as plt
 from microfilm.microplot import Microimage
 from lib.shared.configuration_utils import create_micropanel
+from lib.shared.segment_cellpose import (
+    prepare_cellpose,
+    create_cellpose_model,
+    CELLPOSE_VERSION,
+    CELLPOSE_4X,
+)
 import cv2
 
-# Cellpose version detection for compatibility (3.x vs 4.x)
+# Check if Cellpose is available (for error messaging)
 try:
     import cellpose
-    from cellpose.models import CellposeModel
-
-    try:
-        CELLPOSE_VERSION = tuple(map(int, cellpose.version.split(".")[:2]))
-    except (AttributeError, ValueError):
-        CELLPOSE_VERSION = (3, 0)
-
-    CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
     CELLPOSE_AVAILABLE = True
 except ImportError:
     CELLPOSE_AVAILABLE = False
-    CELLPOSE_4X = False
-    CELLPOSE_VERSION = None
 
 
 def segment_second_objs_ml(
@@ -76,6 +72,8 @@ def segment_second_objs_ml(
     overlap_threshold=0.1,
     nuclei_centroids=None,
     max_total_objects=1000,
+    # Preprocessing parameters
+    logscale=True,
     # ML-specific parameters - users add more as needed
     **ml_params,
 ):
@@ -119,6 +117,10 @@ def segment_second_objs_ml(
         Cell nuclei centroids for distance calculations
     max_total_objects : int or None
         Failsafe limit on detected objects
+    logscale : bool
+        Apply log scaling and normalization preprocessing to the target channel
+        before segmentation. This matches the preprocessing used in segment_cellpose
+        and improves segmentation performance. Default is True.
 
     **ml_params : dict
         Additional ML model parameters. Required and optional parameters depend on ml_method:
@@ -165,8 +167,19 @@ def segment_second_objs_ml(
     - Output format is guaranteed to match segment_second_objs()
     - Requires cellpose or stardist packages to be installed
     """
-    # Extract target channel
-    target_channel = image[second_obj_channel_index]
+    # Extract and preprocess target channel
+    if logscale:
+        # Use prepare_cellpose for preprocessing (ensures consistency with training)
+        rgb = prepare_cellpose(
+            image,
+            dapi_index=second_obj_channel_index,  # Dummy - will use cyto channel
+            cyto_index=second_obj_channel_index,  # Target channel
+            helper_index=None,
+            logscale=True,
+        )
+        target_channel = rgb[1]  # Extract green (log scaled + normalized)
+    else:
+        target_channel = image[second_obj_channel_index].copy()
 
     # Get ML method
     ml_method = ml_params.get("second_obj_method", None)
@@ -204,26 +217,8 @@ def segment_second_objs_ml(
                 "Install it with: pip install cellpose"
             )
 
-        # Validate model compatibility with Cellpose version
-        if CELLPOSE_4X and model_type != "cpsam":
-            raise ValueError(
-                f"Model '{model_type}' requires Cellpose 3.x. "
-                f"Cellpose 4.x only supports the 'cpsam' model. "
-                f"Either use second_obj_cellpose_model='cpsam', "
-                f"or downgrade Cellpose: pip install cellpose==3.1.0"
-            )
-        if not CELLPOSE_4X and model_type == "cpsam":
-            raise ValueError(
-                f"CPSAM model requires Cellpose 4.x. "
-                f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
-                f"Upgrade with: pip install cellpose==4.0.4"
-            )
-
-        # Initialize Cellpose model with version-appropriate parameters
-        if CELLPOSE_4X:
-            model = CellposeModel(pretrained_model=model_type, gpu=gpu)
-        else:
-            model = CellposeModel(model_type=model_type, gpu=gpu)
+        # Initialize Cellpose model (handles version detection and validation)
+        model = create_cellpose_model(model_type, gpu=gpu)
 
         # Run Cellpose segmentation
         # Note: CellposeModel.eval() returns 3 values (masks, flows, styles)

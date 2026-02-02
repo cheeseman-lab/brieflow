@@ -54,6 +54,46 @@ except (AttributeError, ValueError):
 CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
 
 
+def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
+    """Create a CellposeModel with version-aware initialization.
+
+    Handles differences between Cellpose 3.x and 4.x APIs and validates
+    model compatibility with the installed Cellpose version.
+
+    Args:
+        model_type (str): Cellpose model type to use (e.g., 'cyto3', 'nuclei', 'cpsam').
+            - Cellpose 3.x: Supports 'cyto3', 'nuclei', 'cyto2'
+            - Cellpose 4.x: Only supports 'cpsam'
+        gpu (bool, optional): Whether to use GPU for inference. Default is False.
+
+    Returns:
+        CellposeModel: Initialized Cellpose model ready for inference.
+
+    Raises:
+        ValueError: If model_type is incompatible with installed Cellpose version.
+    """
+    # Validate compatibility
+    if CELLPOSE_4X and model_type not in ("cpsam", None):
+        raise ValueError(
+            f"Model '{model_type}' requires Cellpose 3.x. "
+            f"Cellpose 4.x only supports the 'cpsam' model. "
+            f"Either change your config to use model='cpsam', "
+            f"or downgrade Cellpose: uv pip install cellpose==3.1.0"
+        )
+    if not CELLPOSE_4X and model_type == "cpsam":
+        raise ValueError(
+            f"CPSAM model requires Cellpose 4.x. "
+            f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
+            f"Upgrade with: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
+        )
+
+    # Version-aware initialization
+    if CELLPOSE_4X:
+        return CellposeModel(pretrained_model=model_type, gpu=gpu)
+    else:
+        return CellposeModel(model_type=model_type, gpu=gpu)
+
+
 def segment_cellpose(
     data,
     dapi_index,
@@ -379,30 +419,11 @@ def segment_cellpose_rgb(
     Raises:
         ValueError: If model is incompatible with installed Cellpose version
     """
-    # Validate model compatibility with Cellpose version
-    if CELLPOSE_4X and cellpose_model != "cpsam":
-        raise ValueError(
-            f"Model '{cellpose_model}' requires Cellpose 3.x. "
-            f"Cellpose 4.x only supports the 'cpsam' model. "
-            f"Either change your config to use model='cpsam', "
-            f"or downgrade Cellpose: uv pip install cellpose==3.1.0"
-        )
-    if not CELLPOSE_4X and cellpose_model == "cpsam":
-        raise ValueError(
-            f"CPSAM model requires Cellpose 4.x. "
-            f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
-            f"Upgrade with: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
-        )
-
-    # Create Cellpose models (different parameters for Cellpose 3.x vs 4.x)
-    if CELLPOSE_4X:
-        # Cellpose 4.x: Use pretrained_model parameter
-        model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
-        model_cyto = CellposeModel(pretrained_model=cellpose_model, gpu=gpu)
-    else:
-        # Cellpose 3.x: Use model_type parameter
-        model_dapi = CellposeModel(model_type="nuclei", gpu=gpu)
-        model_cyto = CellposeModel(model_type=cellpose_model, gpu=gpu)
+    # Create Cellpose models using version-aware helper
+    # Nuclei model: "cpsam" for 4.x, "nuclei" for 3.x
+    nuclei_model_type = "cpsam" if CELLPOSE_4X else "nuclei"
+    model_dapi = create_cellpose_model(nuclei_model_type, gpu=gpu)
+    model_cyto = create_cellpose_model(cellpose_model, gpu=gpu)
 
     # Set default kwargs if not provided
     if nuclei_kwargs is None:
@@ -499,28 +520,8 @@ def segment_cellpose_nuclei_rgb(
     Returns:
         numpy.ndarray: Labeled segmentation mask of nuclei.
     """
-    # Validate model compatibility with Cellpose version
-    if CELLPOSE_4X and cellpose_model != "cpsam":
-        raise ValueError(
-            f"Model '{cellpose_model}' requires Cellpose 3.x. "
-            f"Cellpose 4.x only supports the 'cpsam' model. "
-            f"Either change your config to use model='cpsam', "
-            f"or downgrade Cellpose: uv pip install cellpose==3.1.0"
-        )
-    if not CELLPOSE_4X and cellpose_model == "cpsam":
-        raise ValueError(
-            f"CPSAM model requires Cellpose 4.x. "
-            f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
-            f"Upgrade with: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
-        )
-
-    # Create Cellpose model (different parameters for Cellpose 3.x vs 4.x)
-    if CELLPOSE_4X:
-        # Cellpose 4.x: Use pretrained_model parameter
-        model = CellposeModel(pretrained_model=cellpose_model, gpu=gpu)
-    else:
-        # Cellpose 3.x: Use model_type parameter
-        model = CellposeModel(model_type=cellpose_model, gpu=gpu)
+    # Create Cellpose model using version-aware helper
+    model = create_cellpose_model(cellpose_model, gpu=gpu)
 
     # Segment nuclei using CellposeModel from the RGB image
     # Pass only blue channel (DAPI) for nuclei segmentation

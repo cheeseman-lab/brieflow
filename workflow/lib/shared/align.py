@@ -57,18 +57,53 @@ def fill_noise(data, mask, x1, x2):
     return filtered
 
 
-def calculate_offsets(data_, upsample_factor):
+def normalize_for_alignment(image, lower_percentile=1, upper_percentile=99):
+    """Normalize image using percentile clipping for robust cross-correlation.
+
+    This helps when DAPI intensity varies significantly between cycles,
+    making cross-correlation more robust to intensity differences.
+
+    Args:
+        image (np.ndarray): 2D image array.
+        lower_percentile (float): Lower percentile for clipping (removes dark outliers).
+        upper_percentile (float): Upper percentile for clipping (removes bright outliers).
+
+    Returns:
+        np.ndarray: Normalized image scaled to [0, 1] range as float32.
+    """
+    p_low = np.percentile(image, lower_percentile)
+    p_high = np.percentile(image, upper_percentile)
+
+    # Clip and scale to [0, 1]
+    normalized = np.clip(image, p_low, p_high)
+    normalized = (normalized - p_low) / (p_high - p_low + 1e-8)
+
+    return normalized.astype(np.float32)
+
+
+def calculate_offsets(
+    data_, upsample_factor, normalize=False, lower_percentile=1, upper_percentile=99
+):
     """Calculate offsets between images using phase cross-correlation.
 
     Args:
         data_ (np.ndarray): Image data.
         upsample_factor (int): Upsampling factor for cross-correlation.
+        normalize (bool): Whether to apply percentile normalization before
+            cross-correlation. Improves alignment when intensity varies across cycles.
+        lower_percentile (float): Lower percentile for normalization (default: 1).
+        upper_percentile (float): Upper percentile for normalization (default: 99).
 
     Returns:
         np.ndarray: Offset values between images.
     """
     # Set the target frame as the first frame in the data
     target = data_[0]
+
+    # Normalize target if requested
+    if normalize:
+        target = normalize_for_alignment(target, lower_percentile, upper_percentile)
+
     # Initialize an empty list to store offsets
     offsets = []
     # Iterate through each frame in the data
@@ -77,6 +112,10 @@ def calculate_offsets(data_, upsample_factor):
         if i == 0:
             offsets += [(0, 0)]
         else:
+            # Normalize source if requested
+            if normalize:
+                src = normalize_for_alignment(src, lower_percentile, upper_percentile)
+
             # Calculate the offset between the current frame and the target frame
             offset, _, _ = skimage.registration.phase_cross_correlation(
                 src, target, upsample_factor=upsample_factor

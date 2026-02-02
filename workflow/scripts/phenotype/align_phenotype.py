@@ -46,6 +46,15 @@ if align_config["align"]:
                     "upsample_factor", align_config.get("upsample_factor", 2)
                 ),
                 window=step.get("window", align_config.get("window", 2)),
+                normalize_percentile=step.get(
+                    "normalize_percentile", align_config.get("normalize_percentile", False)
+                ),
+                lower_percentile=step.get(
+                    "lower_percentile", align_config.get("lower_percentile", 1)
+                ),
+                upper_percentile=step.get(
+                    "upper_percentile", align_config.get("upper_percentile", 99)
+                ),
             )
     else:
         # Handle single-step alignment
@@ -58,6 +67,9 @@ if align_config["align"]:
             remove_channel=align_config["remove_channel"],
             upsample_factor=align_config.get("upsample_factor", 2),
             window=align_config.get("window", 2),
+            normalize_percentile=align_config.get("normalize_percentile", False),
+            lower_percentile=align_config.get("lower_percentile", 1),
+            upper_percentile=align_config.get("upper_percentile", 99),
         )
 else:
     print("STEP 2: Skipping automatic alignment")

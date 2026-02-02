@@ -152,7 +152,7 @@ rule extract_phenotype_cp:
         # cytoplasm segmentation map
         PHENOTYPE_OUTPUTS["identify_cytoplasm"][0],
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype"],
+        PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_cp"],
     params:
         foci_channel_index=config["phenotype"]["foci_channel_index"],
         channel_names=config["phenotype"]["channel_names"],
@@ -189,7 +189,7 @@ rule merge_phenotype:
         channel_names=config["phenotype"]["channel_names"],
         segment_cells=config["phenotype"].get("segment_cells", True),
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype"],
+        PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_cp"],
     script:
         "../scripts/phenotype/merge_phenotype.py"
 
@@ -224,7 +224,7 @@ rule eval_features:
     input:
         # use minimum phenotype features for evaluation
         cells_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype"][1],
+            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
             wildcards=wildcards,
             expansion_values=["well"],
             metadata_combos=phenotype_wildcard_combos,

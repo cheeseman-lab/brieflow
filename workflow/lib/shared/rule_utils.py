@@ -42,6 +42,9 @@ def get_alignment_params(wildcards, config: Dict[str, Any]) -> Dict[str, Any]:
                 "steps": plate_config["steps"],
                 "window": plate_config.get("window", 2),
                 "upsample_factor": plate_config.get("upsample_factor", 2),
+                "normalize_percentile": plate_config.get("normalize_percentile", False),
+                "lower_percentile": plate_config.get("lower_percentile", 1),
+                "upper_percentile": plate_config.get("upper_percentile", 99),
             }
 
             # Add custom channel offsets if they exist
@@ -79,6 +82,9 @@ def get_alignment_params(wildcards, config: Dict[str, Any]) -> Dict[str, Any]:
             "remove_channel": plate_config.get("remove_channel", False),
             "upsample_factor": plate_config.get("upsample_factor", 2),
             "window": plate_config.get("window", 2),
+            "normalize_percentile": plate_config.get("normalize_percentile", False),
+            "lower_percentile": plate_config.get("lower_percentile", 1),
+            "upper_percentile": plate_config.get("upper_percentile", 99),
         }
 
         # Add custom channel offsets if they exist
@@ -99,6 +105,9 @@ def get_alignment_params(wildcards, config: Dict[str, Any]) -> Dict[str, Any]:
         "remove_channel": config["phenotype"].get("remove_channel", False),
         "upsample_factor": config["phenotype"].get("upsample_factor", 2),
         "window": config["phenotype"].get("window", 2),
+        "normalize_percentile": config["phenotype"].get("normalize_percentile", False),
+        "lower_percentile": config["phenotype"].get("lower_percentile", 1),
+        "upper_percentile": config["phenotype"].get("upper_percentile", 99),
     }
 
     # Add global custom channel offsets if they exist

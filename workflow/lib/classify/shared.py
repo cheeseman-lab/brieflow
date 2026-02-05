@@ -370,7 +370,17 @@ def get_coords_for_mask(
     else:
         # Cell mode: need to try different label column names
         # Load all possible label columns plus coordinates
-        coord_cols = ["tile", "cell_id", "label", "labels", "cell_i", "cell_j"]
+        # Include nucleus coordinates as fallback for nucleus-only segmentations
+        coord_cols = [
+            "tile",
+            "cell_id",
+            "label",
+            "labels",
+            "cell_i",
+            "cell_j",
+            "nucleus_i",
+            "nucleus_j",
+        ]
 
     # Load only coordinate columns (much smaller than full parquet)
     # Note: pandas will ignore columns that don't exist when using columns parameter
@@ -401,7 +411,21 @@ def get_coords_for_mask(
         raise KeyError(
             f"No parquet row for cell: P-{plate} W-{well_for_filename(well)} T-{tile} {label_col}={mask_label}"
         )
-    return int(sub.iloc[0]["cell_i"]), int(sub.iloc[0]["cell_j"])
+
+    # Determine which coordinate columns to use
+    # Try cell coordinates first (standard cell segmentations)
+    # Fall back to nucleus coordinates (nucleus-only segmentations)
+    i_col, j_col = None, None
+    if "cell_i" in df.columns and "cell_j" in df.columns:
+        i_col, j_col = "cell_i", "cell_j"
+    elif "nucleus_i" in df.columns and "nucleus_j" in df.columns:
+        i_col, j_col = "nucleus_i", "nucleus_j"
+    else:
+        raise KeyError(
+            "Neither ('cell_i', 'cell_j') nor ('nucleus_i', 'nucleus_j') found in parquet columns"
+        )
+
+    return int(sub.iloc[0][i_col]), int(sub.iloc[0][j_col])
 
 
 def compute_crop_bounds(

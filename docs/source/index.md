@@ -20,7 +20,7 @@ Brieflow currently automates the following OPS tasks:
 - **Aggregate**: Aggregates single-cell data by perturbation or barcode, producing summary-level datasets.
 - **Cluster**: Performs unsupervised clustering to identify patterns or phenotypic signatures across perturbations.
 
-Brieflow supports both TIFF and Zarr formats, with Zarr offering improved performance for large datasets and native support for visualization in Napari. See the [Zarr Support](zarr_support.md) page for details.
+Brieflow supports both TIFF and Zarr formats for image storage, with Zarr offering improved performance for large datasets and native support for visualization in Napari.
 
 We recommend you view the doc pages below (in order) before using brieflow/brieflow-analysis to ensure you have a good understanding of the system.
 
@@ -34,7 +34,6 @@ Brieflow is a community-driven project, and we welcome contributions from anyone
 1.before_you_screen.md
 2.installation_analysis_setup.md
 3.running_modules.md
-zarr_support.md
 4.development.md
 example_analyses.md
 config_glossary.md

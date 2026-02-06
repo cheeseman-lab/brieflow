@@ -19,7 +19,7 @@ import gc
 import shutil
 from itertools import product
 
-from lib.shared.omezarr_writer import write_image_omezarr
+from lib.shared.io import write_image_omezarr
 
 
 # Data organization and format constants

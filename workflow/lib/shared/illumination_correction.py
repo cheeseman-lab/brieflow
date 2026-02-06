@@ -52,7 +52,7 @@ def calculate_ic_field(
         sample_size = int(len(files) * sample_fraction)
         files = random.sample(files, sample_size)
 
-    # Initialize data variable (supports both TIFF and Zarr)
+    # Initialize data variable
     data = read_image(files[0])[slicer] / len(files)
 
     # Accumulate images using threading or sequential processing, averaging them
@@ -178,7 +178,7 @@ def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.n
     """Accumulates an image's contribution by adding a sliced version of it to the provided data array.
 
     Args:
-        file (str): Path to the image file to be accumulated (supports TIFF and Zarr).
+        file (str): Path to the image file to be accumulated.
         slicer (slice): Slice object to select specific parts of the image.
         data (np.ndarray): The numpy array where the accumulated image data is stored.
         N (int): The number of files, used to average the data by dividing each image.

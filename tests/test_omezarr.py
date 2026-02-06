@@ -39,13 +39,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from workflow.lib.shared.file_utils import get_filename
-from workflow.lib.shared.io import read_image, save_image
-from workflow.lib.shared.omezarr_io import write_multiscale_omezarr
-from workflow.lib.shared.omezarr_writer import (
-    write_image_omezarr,
-    write_labels_omezarr,
-    write_table_zarr,
-)
+from workflow.lib.shared.io import read_image, save_image, write_image_omezarr
 
 # ===========================================================================
 # Section 1: Fixtures
@@ -94,35 +88,6 @@ class TestOmezarrWriterRoundtrip:
         assert omero is not None
         assert len(omero["channels"]) == 3
         assert omero["channels"][0]["label"] == "r"
-
-    def test_write_labels_roundtrip(self, tmp_path):
-        """Write labels into an existing image store and read them back."""
-        shape = (64, 64)
-        out = tmp_path / "img.ome.zarr"
-        write_image_omezarr(np.zeros(shape, dtype=np.uint8), str(out), axes="yx")
-
-        labels = np.random.randint(0, 5, size=shape, dtype=np.uint32)
-        write_labels_omezarr(
-            label_data=labels, out_path=str(out), label_name="nuclei", axes="yx"
-        )
-
-        store = zarr.open(str(out), mode="r")
-        assert "labels" in store
-        assert "nuclei" in store["labels"]
-        np.testing.assert_array_equal(labels, store["labels"]["nuclei"]["0"][:])
-
-    def test_write_table_roundtrip(self, tmp_path):
-        """Write a DataFrame as columnar Zarr and verify columns."""
-        df = pd.DataFrame(
-            {"cell_id": [1, 2, 3], "score": [0.1, 0.5, 0.9], "cls": ["A", "B", "A"]}
-        )
-        table_path = tmp_path / "table.zarr"
-        write_table_zarr(df, str(table_path))
-
-        store = zarr.open(str(table_path), mode="r")
-        np.testing.assert_array_equal(store["cell_id"][:], df["cell_id"].values)
-        np.testing.assert_array_almost_equal(store["score"][:], df["score"].values)
-        assert np.all(store["cls"][:] == df["cls"].values)
 
 
 # ===========================================================================
@@ -337,12 +302,13 @@ class TestIORoundtrip:
     def test_read_omezarr_multiscale(self, tmp_path, dummy_3d_uint16):
         """read_image returns full-resolution level from a multiscale store."""
         zp = tmp_path / "ms.zarr"
-        write_multiscale_omezarr(
-            image=dummy_3d_uint16,
-            output_dir=zp,
+        write_image_omezarr(
+            image_data=dummy_3d_uint16,
+            out_path=str(zp),
+            axes="cyx",
             coarsening_factor=2,
             max_levels=2,
-            pixel_size=(0.5, 0.5),
+            pixel_size_um=(0.5, 0.5),
         )
         np.testing.assert_array_equal(dummy_3d_uint16, read_image(zp))
 
@@ -373,19 +339,6 @@ class TestIORoundtrip:
         (bad / ".zgroup").write_text(json.dumps({"zarr_format": 2}))
         with pytest.raises(ValueError, match="Could not find image data"):
             read_image(bad)
-
-    def test_read_image_zarr_not_installed(self, tmp_path, monkeypatch):
-        """ImportError raised when zarr package is missing."""
-        monkeypatch.setitem(sys.modules, "zarr", None)
-
-        zp = tmp_path / "no_zarr.zarr"
-        zp.mkdir()
-        (zp / ".zgroup").write_text(json.dumps({"zarr_format": 2}))
-        (zp / ".zattrs").write_text(
-            json.dumps({"multiscales": [{"datasets": [{"path": "0"}]}]})
-        )
-        with pytest.raises(ImportError, match="zarr package is required"):
-            read_image(zp)
 
 
 # ===========================================================================

@@ -39,12 +39,9 @@ def segmentation_overview(segmentation_stats_paths):
         segmentation_stats = pd.read_csv(segmentation_stats_path, sep="\t")
 
         # Parse filename to get well and tile information
-        # Supports both flat filenames (P-plate_W-A1_T-01__segmentation_stats.tsv)
-        # and nested paths (.../plate/A1/01/segmentation_stats.tsv)
         segmentation_filename = Path(segmentation_stats_path).name
         data_location, _, _ = parse_filename(segmentation_filename)
         if not data_location:
-            # Nested path format: metadata is in directory structure
             data_location, _, _ = parse_nested_path(
                 segmentation_stats_path, ["plate", "well", "tile"]
             )

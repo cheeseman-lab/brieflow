@@ -5,7 +5,7 @@ from lib.shared.rule_utils import get_alignment_params, get_segmentation_params
 # Apply illumination correction field
 rule apply_ic_field_phenotype:
     input:
-        ancient(PREPROCESS_OUTPUTS[CONVERT_PHENOTYPE_KEY]),
+        ancient(PREPROCESS_OUTPUTS["convert_phenotype"]),
         ancient(PREPROCESS_OUTPUTS["calculate_ic_phenotype"]),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["apply_ic_field_phenotype"],

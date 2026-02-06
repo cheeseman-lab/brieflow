@@ -6,8 +6,6 @@ from lib.preprocess.file_utils import get_output_pattern
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
 IC_EXT = IMG_FMT
-CONVERT_SBS_KEY = "convert_sbs"
-CONVERT_PHENOTYPE_KEY = "convert_phenotype"
 
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [

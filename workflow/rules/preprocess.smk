@@ -3,8 +3,6 @@ from lib.preprocess.preprocess import get_data_config, include_tile_in_input, ge
 from lib.shared.target_utils import output_to_input
 
 
-# CONVERT_SBS_KEY, CONVERT_PHENOTYPE_KEY, USE_OME_ZARR are defined in targets/preprocess.smk
-
 # Extract metadata for SBS images
 rule extract_metadata_sbs:
     input:
@@ -89,7 +87,7 @@ rule convert_sbs:
     params:
         tile=lambda wildcards: int(wildcards.tile),
     script:
-        "../scripts/preprocess/nd2_to_zarr.py" if IMG_FMT == "zarr" else "../scripts/preprocess/image_to_tiff.py"
+        "../scripts/preprocess/convert_image.py"
 
 # Convert phenotype image files to the configured format
 rule convert_phenotype:
@@ -107,13 +105,13 @@ rule convert_phenotype:
     params:
         tile=lambda wildcards: int(wildcards.tile),
     script:
-        "../scripts/preprocess/nd2_to_zarr.py" if IMG_FMT == "zarr" else "../scripts/preprocess/image_to_tiff.py"
+        "../scripts/preprocess/convert_image.py"
 
 # Calculate illumination correction function for SBS files
 rule calculate_ic_sbs:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS[CONVERT_SBS_KEY],
+            PREPROCESS_OUTPUTS["convert_sbs"],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=sbs_wildcard_combos,
@@ -131,7 +129,7 @@ rule calculate_ic_sbs:
 rule calculate_ic_phenotype:
     input:
         lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS[CONVERT_PHENOTYPE_KEY],
+            PREPROCESS_OUTPUTS["convert_phenotype"],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=phenotype_wildcard_combos,

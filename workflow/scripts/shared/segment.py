@@ -3,7 +3,7 @@ import pandas as pd
 
 from lib.shared.io import read_image, save_image
 
-# Load illumination corrected data (supports TIFF and Zarr)
+# Load illumination corrected data
 aligned_data = read_image(snakemake.input[0])
 
 # Get configuration from params

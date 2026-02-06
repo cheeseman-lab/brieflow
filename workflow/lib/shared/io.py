@@ -47,7 +47,12 @@ def read_image(path: PathLike) -> np.ndarray:
             ds_path = "0"
         if ds_path is None:
             raise ValueError("Could not find image data in OME-Zarr")
-        return root[ds_path][:]
+        arr = root[ds_path][:]
+        # Squeeze singleton leading dimension added by save_image() for OME-Zarr
+        # (e.g., 2D labels saved as (1, I, J) should be read back as (I, J))
+        if arr.ndim > 2 and arr.shape[0] == 1:
+            arr = arr[0]
+        return arr
 
     raise ValueError(f"Unsupported image path: {p}")
 

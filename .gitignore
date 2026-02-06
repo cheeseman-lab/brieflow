@@ -12,4 +12,5 @@ docs/build/
 # test analysis
 tests/small_test_analysis/.snakemake/
 tests/small_test_analysis/brieflow_output/
+tests/small_test_analysis/brieflow_output_zarr/
 tests/small_test_analysis/small_test_data/

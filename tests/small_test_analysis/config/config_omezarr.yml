@@ -5,7 +5,7 @@
 
 # Parameters:
 all:
-  root_fp: brieflow_output/
+  root_fp: brieflow_output_zarr/
 preprocess:
   output_formats: ["zarr"]
   downstream_input_format: zarr

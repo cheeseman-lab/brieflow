@@ -1,10 +1,10 @@
-from tifffile import imread
+from lib.shared.io import read_image
 
-# load inputs
-data_phenotype = imread(snakemake.input[0])
-nuclei = imread(snakemake.input[1])
-cells = imread(snakemake.input[2])
-cytoplasms = imread(snakemake.input[3])
+# load inputs (supports TIFF and Zarr)
+data_phenotype = read_image(snakemake.input[0])
+nuclei = read_image(snakemake.input[1])
+cells = read_image(snakemake.input[2])
+cytoplasms = read_image(snakemake.input[3])
 
 # Check if cell segmentation is enabled - if not, pass None to skip cell/cytoplasm features
 segment_cells = snakemake.params.get("segment_cells", True)

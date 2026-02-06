@@ -47,16 +47,6 @@ rule benchmark_clusters:
         "../scripts/cluster/benchmark_clusters.py"
 
 
-if "export_cluster_zarr" in CLUSTER_OUTPUTS_MAPPED:
-    rule export_cluster_zarr:
-        input:
-            CLUSTER_OUTPUTS_MAPPED["phate_leiden_clustering"][0],
-        output:
-            CLUSTER_OUTPUTS_MAPPED["export_cluster_zarr"],
-        script:
-            "../scripts/shared/export_zarr_table.py"
-
-
 # Rule for all cluster processing steps
 rule all_cluster:
     input:

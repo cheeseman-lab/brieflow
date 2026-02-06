@@ -91,30 +91,12 @@ CLUSTER_OUTPUTS = {
             {"cluster_benchmark": "Shuffled"}, "enrichment_bar_chart", "png"
         ),
     ],
-    "export_cluster_zarr": [
-        CLUSTER_FP
-        / "{channel_combo}"
-        / "{cell_class}"
-        / "{leiden_resolution}"
-        / get_filename(
-            {},
-            "phate_leiden_clustering",
-            "zarr",
-        ),
-    ],
 }
-
-# Filter exports if not enabled
-omezarr_enabled = config.get("output", {}).get("omezarr", {}).get("enabled", False)
-after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
-if not (omezarr_enabled and "cluster" in after_steps):
-    CLUSTER_OUTPUTS.pop("export_cluster_zarr", None)
 
 CLUSTER_OUTPUT_MAPPINGS = {
     "clean_aggregate": None,
     "phate_leiden_clustering": None,
     "benchmark_clusters": None,
-    "export_cluster_zarr": directory,
 }
 
 

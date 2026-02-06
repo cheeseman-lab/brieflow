@@ -1,6 +1,5 @@
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
-from snakemake.io import directory
 
 
 AGGREGATE_FP = ROOT_FP / "aggregate"
@@ -99,20 +98,7 @@ AGGREGATE_OUTPUTS = {
             "png",
         ),
     ],
-    "export_aggregate_zarr": [
-        AGGREGATE_FP / "zarr" / get_filename(
-            {"cell_class": "{cell_class}", "channel_combo": "{channel_combo}"},
-            "aggregate",
-            "zarr",
-        ),
-    ],
 }
-
-# Filter exports if not enabled
-omezarr_enabled = config.get("output", {}).get("omezarr", {}).get("enabled", False)
-after_steps = config.get("output", {}).get("omezarr", {}).get("after_steps", [])
-if not (omezarr_enabled and "aggregate" in after_steps):
-    AGGREGATE_OUTPUTS.pop("export_aggregate_zarr", None)
 
 AGGREGATE_OUTPUT_MAPPINGS = {
     "split_datasets": None,
@@ -122,7 +108,6 @@ AGGREGATE_OUTPUT_MAPPINGS = {
     "aggregate": None,
     "eval_aggregate": None,
     "generate_feature_table": None,
-    "export_aggregate_zarr": directory,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)

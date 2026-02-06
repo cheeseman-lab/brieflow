@@ -328,16 +328,6 @@ rule combine_bootstrap:
         "../scripts/aggregate/combine_bootstrap.py"
 
 
-if "export_aggregate_zarr" in AGGREGATE_OUTPUTS_MAPPED:
-    rule export_aggregate_zarr:
-        input:
-            AGGREGATE_OUTPUTS_MAPPED["aggregate"],
-        output:
-            AGGREGATE_OUTPUTS_MAPPED["export_aggregate_zarr"],
-        script:
-            "../scripts/shared/export_zarr_table.py"
-
-
 # Rule for all aggregate processing steps
 rule all_aggregate:
     input:

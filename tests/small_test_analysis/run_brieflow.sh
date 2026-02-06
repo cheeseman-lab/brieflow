@@ -5,4 +5,5 @@ snakemake --use-conda --cores all \
     --snakefile "../../workflow/Snakefile" \
     --configfile "config/config.yml" \
     --rerun-triggers mtime \
+    --forceall \
     --until all_preprocess all_sbs all_phenotype

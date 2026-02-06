@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pandas as pd
-from tifffile import imread
+from lib.shared.io import read_image
 from microfilm.microplot import Microimage
 import matplotlib.pyplot as plt
 
@@ -312,11 +312,11 @@ def evaluate_segmentation_paramsearch(
         )
 
         # Create visualization
-        optimal_nuclei = imread(optimal_nuclei_path)
-        optimal_cells = imread(optimal_cells_path)
-        default_nuclei = imread(default_nuclei_path)
-        default_cells = imread(default_cells_path)
-        corrected_image_data = imread(corrected_full_path)
+        optimal_nuclei = read_image(optimal_nuclei_path)
+        optimal_cells = read_image(optimal_cells_path)
+        default_nuclei = read_image(default_nuclei_path)
+        default_cells = read_image(default_cells_path)
+        corrected_image_data = read_image(corrected_full_path)
 
         if segmentation_process == "phenotype":
             annotated_optimal = image_segmentation_annotations(

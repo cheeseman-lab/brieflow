@@ -9,6 +9,8 @@ for downstream processing in the pipeline. This ensures consistent data structur
 regardless of the input format.
 """
 
+import re
+
 import pandas as pd
 import numpy as np
 import nd2
@@ -16,10 +18,6 @@ from typing import Union, List, Dict, Any, Optional, Tuple, Sequence
 from pathlib import Path
 import warnings
 import gc
-import shutil
-from itertools import product
-
-from lib.shared.io import write_image_omezarr
 
 
 # Data organization and format constants
@@ -139,87 +137,13 @@ def extract_metadata_tile_nd2(
         if round is not None:
             metadata["round"] = round
 
-        # Get pixel size + acquisition metadata from first channel's volume/microscope information
-        pixel_size_x = pixel_size_y = pixel_size_z = None
-        objective_mag = zoom_mag = None
-        binning_xy = None
-
-        if frame_meta.channels:
-            ch0 = frame_meta.channels[0]
-
-            # Pixel calibration (units: microns)
-            if hasattr(ch0, "volume") and getattr(ch0.volume, "axesCalibration", None):
-                x_cal, y_cal, z_cal = ch0.volume.axesCalibration
-                pixel_size_x = x_cal
-                pixel_size_y = y_cal
-                pixel_size_z = z_cal
-
-                # Warn if XY calibration is unexpectedly anisotropic
-                try:
-                    if (
-                        pixel_size_x is not None
-                        and pixel_size_y is not None
-                        and abs(float(pixel_size_x) - float(pixel_size_y)) > 1e-6
-                    ):
-                        warnings.warn(
-                            f"pixel_size_x ({pixel_size_x}) != pixel_size_y ({pixel_size_y}) for {file_path}"
-                        )
-                except Exception:
-                    pass
-
-            # Acquisition optics metadata (used for sanity checks / provenance)
-            if hasattr(ch0, "microscope") and ch0.microscope is not None:
-                objective_mag = getattr(ch0.microscope, "objectiveMagnification", None)
-                zoom_mag = getattr(ch0.microscope, "zoomMagnification", None)
-
-            # Binning isn't available as a structured field from nd2; parse from text_info if present
-            try:
-                import nd2 as _nd2  # local import to avoid hard dependency at module import time
-
-                img = _nd2.imread(str(file_path), xarray=True)
-                md = img.attrs.get("metadata", {})
-                text_info = md.get("text_info", {})
-                desc = (
-                    text_info.get("description", "")
-                    if isinstance(text_info, dict)
-                    else ""
-                )
-                import re
-
-                m = re.search(r"Binning:\\s*(\\d+)x(\\d+)", desc)
-                if m:
-                    binning_xy = f"{m.group(1)}x{m.group(2)}"
-            except Exception:
-                binning_xy = None
-
-            # Optional sanity warning: estimate camera pixel size from objective/zoom if available
-            # camera_px_um ~= pixel_size_x * objective_mag * zoom_mag * binning
-            try:
-                if (
-                    pixel_size_x is not None
-                    and objective_mag
-                    and zoom_mag
-                    and binning_xy
-                ):
-                    bx, by = binning_xy.split("x")
-                    bx = float(bx)
-                    by = float(by)
-                    if abs(bx - by) < 1e-6 and bx > 0:
-                        camera_px_um_est = (
-                            float(pixel_size_x)
-                            * float(objective_mag)
-                            * float(zoom_mag)
-                            * bx
-                        )
-                        # Typical scientific camera pixel sizes are ~4.5–11 µm.
-                        if camera_px_um_est < 3.0 or camera_px_um_est > 15.0:
-                            warnings.warn(
-                                f"Implausible camera pixel estimate {camera_px_um_est:.3f} µm "
-                                f"(pixel_size_x={pixel_size_x}, objective={objective_mag}, zoom={zoom_mag}, binning={binning_xy}) "
-                                f"for {file_path}"
-                            )
-            except Exception:
-                pass
+        pixel_size_x, pixel_size_y, pixel_size_z, objective_mag, zoom_mag = (
+            _extract_pixel_calibration(frame_meta, file_path)
+        )
+        binning_xy = _parse_binning_from_nd2(file_path)
+        _validate_camera_pixel_size(
+            pixel_size_x, objective_mag, zoom_mag, binning_xy, file_path
+        )
 
         metadata.update(
             {
@@ -281,24 +205,7 @@ def extract_metadata_well_nd2(
             print(f"Number of positions: {num_positions}")
             print(f"Number of Z planes: {z_planes}")
 
-        # Attempt to parse binning once per file (best-effort)
-        binning_xy = None
-        try:
-            import nd2 as _nd2
-
-            img = _nd2.imread(str(file_path), xarray=True)
-            md = img.attrs.get("metadata", {})
-            text_info = md.get("text_info", {})
-            desc = (
-                text_info.get("description", "") if isinstance(text_info, dict) else ""
-            )
-            import re
-
-            m = re.search(r"Binning:\\s*(\\d+)x(\\d+)", desc)
-            if m:
-                binning_xy = f"{m.group(1)}x{m.group(2)}"
-        except Exception:
-            binning_xy = None
+        binning_xy = _parse_binning_from_nd2(file_path)
 
         # Only process one frame per unique XY position
         for pos_idx in range(0, num_positions * z_planes, z_planes):
@@ -338,64 +245,17 @@ def extract_metadata_well_nd2(
             if round is not None:
                 metadata["round"] = round
 
-            # Get pixel calibration + acquisition metadata if available
-            pixel_size_x = pixel_size_y = pixel_size_z = None
-            objective_mag = zoom_mag = None
-
-            if frame_meta.channels:
-                ch0 = frame_meta.channels[0]
-                if hasattr(ch0, "volume") and getattr(
-                    ch0.volume, "axesCalibration", None
-                ):
-                    x_cal, y_cal, z_cal = ch0.volume.axesCalibration
-                    pixel_size_x = x_cal
-                    pixel_size_y = y_cal
-                    pixel_size_z = z_cal
-
-                    try:
-                        if (
-                            pixel_size_x is not None
-                            and pixel_size_y is not None
-                            and abs(float(pixel_size_x) - float(pixel_size_y)) > 1e-6
-                        ):
-                            warnings.warn(
-                                f"pixel_size_x ({pixel_size_x}) != pixel_size_y ({pixel_size_y}) for {file_path} pos {pos_idx}"
-                            )
-                    except Exception:
-                        pass
-
-                if hasattr(ch0, "microscope") and ch0.microscope is not None:
-                    objective_mag = getattr(
-                        ch0.microscope, "objectiveMagnification", None
-                    )
-                    zoom_mag = getattr(ch0.microscope, "zoomMagnification", None)
-
-                # Sanity warning
-                try:
-                    if (
-                        pixel_size_x is not None
-                        and objective_mag
-                        and zoom_mag
-                        and binning_xy
-                    ):
-                        bx, by = binning_xy.split("x")
-                        bx = float(bx)
-                        by = float(by)
-                        if abs(bx - by) < 1e-6 and bx > 0:
-                            camera_px_um_est = (
-                                float(pixel_size_x)
-                                * float(objective_mag)
-                                * float(zoom_mag)
-                                * bx
-                            )
-                            if camera_px_um_est < 3.0 or camera_px_um_est > 15.0:
-                                warnings.warn(
-                                    f"Implausible camera pixel estimate {camera_px_um_est:.3f} µm "
-                                    f"(pixel_size_x={pixel_size_x}, objective={objective_mag}, zoom={zoom_mag}, binning={binning_xy}) "
-                                    f"for {file_path}"
-                                )
-                except Exception:
-                    pass
+            pixel_size_x, pixel_size_y, pixel_size_z, objective_mag, zoom_mag = (
+                _extract_pixel_calibration(frame_meta, file_path, pos_idx=pos_idx)
+            )
+            _validate_camera_pixel_size(
+                pixel_size_x,
+                objective_mag,
+                zoom_mag,
+                binning_xy,
+                file_path,
+                pos_idx=pos_idx,
+            )
 
             metadata.update(
                 {
@@ -1340,3 +1200,122 @@ def update_config_for_unified_processing(config: dict) -> dict:
 
     config["preprocess"] = preprocess_config
     return config
+
+
+# --- Private helpers (deduplicated from extract_metadata_*_nd2) ---
+
+
+def _parse_binning_from_nd2(file_path: str) -> Optional[str]:
+    """Parse camera binning from ND2 text_info metadata (best-effort).
+
+    Args:
+        file_path: Path to the ND2 file.
+
+    Returns:
+        Binning string like '2x2', or None if not found.
+    """
+    try:
+        img = nd2.imread(str(file_path), xarray=True)
+        md = img.attrs.get("metadata", {})
+        text_info = md.get("text_info", {})
+        desc = text_info.get("description", "") if isinstance(text_info, dict) else ""
+        m = re.search(r"Binning:\\s*(\\d+)x(\\d+)", desc)
+        if m:
+            return f"{m.group(1)}x{m.group(2)}"
+    except Exception:
+        pass
+    return None
+
+
+def _extract_pixel_calibration(
+    frame_meta, file_path: str, *, pos_idx: Optional[int] = None
+) -> Tuple[
+    Optional[float], Optional[float], Optional[float], Optional[float], Optional[float]
+]:
+    """Extract pixel calibration and optics metadata from an ND2 frame.
+
+    Args:
+        frame_meta: Frame metadata object from ``ND2File.frame_metadata()``.
+        file_path: Path to the ND2 file (used in warning messages).
+        pos_idx: Optional position index (used in warning messages for well files).
+
+    Returns:
+        Tuple of (pixel_size_x, pixel_size_y, pixel_size_z,
+                  objective_magnification, zoom_magnification).
+        Any value may be None if not available.
+    """
+    pixel_size_x = pixel_size_y = pixel_size_z = None
+    objective_mag = zoom_mag = None
+
+    if not frame_meta.channels:
+        return pixel_size_x, pixel_size_y, pixel_size_z, objective_mag, zoom_mag
+
+    ch0 = frame_meta.channels[0]
+
+    if hasattr(ch0, "volume") and getattr(ch0.volume, "axesCalibration", None):
+        x_cal, y_cal, z_cal = ch0.volume.axesCalibration
+        pixel_size_x = x_cal
+        pixel_size_y = y_cal
+        pixel_size_z = z_cal
+
+        try:
+            if (
+                pixel_size_x is not None
+                and pixel_size_y is not None
+                and abs(float(pixel_size_x) - float(pixel_size_y)) > 1e-6
+            ):
+                pos_suffix = f" pos {pos_idx}" if pos_idx is not None else ""
+                warnings.warn(
+                    f"pixel_size_x ({pixel_size_x}) != pixel_size_y ({pixel_size_y}) "
+                    f"for {file_path}{pos_suffix}"
+                )
+        except Exception:
+            pass
+
+    if hasattr(ch0, "microscope") and ch0.microscope is not None:
+        objective_mag = getattr(ch0.microscope, "objectiveMagnification", None)
+        zoom_mag = getattr(ch0.microscope, "zoomMagnification", None)
+
+    return pixel_size_x, pixel_size_y, pixel_size_z, objective_mag, zoom_mag
+
+
+def _validate_camera_pixel_size(
+    pixel_size_x: Optional[float],
+    objective_mag: Optional[float],
+    zoom_mag: Optional[float],
+    binning_xy: Optional[str],
+    file_path: str,
+    *,
+    pos_idx: Optional[int] = None,
+) -> None:
+    """Warn if the estimated camera pixel size is implausible.
+
+    Typical scientific camera pixel sizes are ~4.5–11 µm.
+
+    Args:
+        pixel_size_x: Calibrated pixel size in X (µm).
+        objective_mag: Objective magnification.
+        zoom_mag: Zoom magnification.
+        binning_xy: Binning string (e.g. '2x2').
+        file_path: Path to ND2 file (for warning message).
+        pos_idx: Optional position index (for warning message).
+    """
+    try:
+        if pixel_size_x is not None and objective_mag and zoom_mag and binning_xy:
+            bx, by = binning_xy.split("x")
+            bx = float(bx)
+            by = float(by)
+            if abs(bx - by) < 1e-6 and bx > 0:
+                camera_px_um_est = (
+                    float(pixel_size_x) * float(objective_mag) * float(zoom_mag) * bx
+                )
+                if camera_px_um_est < 3.0 or camera_px_um_est > 15.0:
+                    pos_suffix = f" pos {pos_idx}" if pos_idx is not None else ""
+                    warnings.warn(
+                        f"Implausible camera pixel estimate {camera_px_um_est:.3f} µm "
+                        f"(pixel_size_x={pixel_size_x}, objective={objective_mag}, "
+                        f"zoom={zoom_mag}, binning={binning_xy}) "
+                        f"for {file_path}{pos_suffix}"
+                    )
+    except Exception:
+        pass

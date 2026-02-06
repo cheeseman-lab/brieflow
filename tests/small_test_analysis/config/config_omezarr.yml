@@ -6,9 +6,8 @@
 # Parameters:
 all:
   root_fp: brieflow_output_zarr/
+  image_format: zarr
 preprocess:
-  output_formats: ["zarr"]
-  downstream_input_format: zarr
   sbs_data_format: nd2
   sbs_data_organization: tile
   sbs_n_z_planes: null
@@ -26,7 +25,6 @@ preprocess:
   sbs_combo_fp: config/sbs_combo.tsv
   sbs_samples_fp: config/sbs_samples.tsv
 sbs:
-  image_output_format: zarr
   heatmap_shape: square
   alignment_method: null
   channel_names:
@@ -80,7 +78,6 @@ sbs:
   cyto_model: cyto3
   heatmap_plate: 6W
 phenotype:
-  image_output_format: zarr
   heatmap_shape: square
   align: false
   segment_cells: true

@@ -5,8 +5,7 @@ from snakemake.io import directory
 
 PHENOTYPE_FP = ROOT_FP / "phenotype"
 
-# Determine image output format from config (default: tiff for backward compatibility)
-PHENOTYPE_IMG_FMT = config.get("phenotype", {}).get("image_output_format", "tiff")
+PHENOTYPE_IMG_FMT = IMG_FMT
 
 # determine feature eval outputs based on channel names and segment_cells setting
 channel_names = config["phenotype"]["channel_names"]

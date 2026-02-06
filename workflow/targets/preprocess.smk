@@ -5,31 +5,9 @@ from lib.preprocess.file_utils import get_output_pattern
 
 PREPROCESS_FP = ROOT_FP / "preprocess"
 
-# Determine output format from config
-# output_formats controls what file formats are created during preprocessing:
-#   - "tiff": Create TIFF files in images/sbs/ and images/phenotype/
-#   - "zarr": Create OME-Zarr (multiscale pyramids) in images/sbs/ and images/phenotype/
-# downstream_input_format controls which format SBS/phenotype reads from:
-#   - "tiff": Use TIFF files (default if TIFF enabled)
-#   - "zarr": Use OME-Zarr stores
-output_formats = config.get("preprocess", {}).get("output_formats", ["zarr"])
-if isinstance(output_formats, str):
-    output_formats = [output_formats]
-
-ENABLE_ZARR = "zarr" in output_formats
-ENABLE_TIFF = "tiff" in output_formats
-
-# Determine downstream input format
-# Default to TIFF if enabled, otherwise Zarr
-default_downstream = "tiff" if ENABLE_TIFF else "zarr"
-downstream_format = config.get("preprocess", {}).get("downstream_input_format", default_downstream)
-
-# IC field format follows downstream preference
-IC_EXT = downstream_format
-
-# Define conversion keys for use across all rule files (e.g., in preprocess.smk)
-CONVERT_SBS_KEY = "convert_sbs_zarr" if downstream_format == "zarr" else "convert_sbs"
-CONVERT_PHENOTYPE_KEY = "convert_phenotype_zarr" if downstream_format == "zarr" else "convert_phenotype"
+IC_EXT = IMG_FMT
+CONVERT_SBS_KEY = "convert_sbs"
+CONVERT_PHENOTYPE_KEY = "convert_phenotype"
 
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
@@ -55,25 +33,13 @@ PREPROCESS_OUTPUTS = {
     "convert_sbs": [
         PREPROCESS_FP / "images" / "sbs" / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
-            "image", "tiff"
-        ),
-    ],
-    "convert_sbs_zarr": [
-        PREPROCESS_FP / "images" / "sbs" / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
-            "image", "zarr"
+            "image", IMG_FMT
         ),
     ],
     "convert_phenotype": [
         PREPROCESS_FP / "images" / "phenotype" / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "image", "tiff"
-        ),
-    ],
-    "convert_phenotype_zarr": [
-        PREPROCESS_FP / "images" / "phenotype" / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "image", "zarr"
+            "image", IMG_FMT
         ),
     ],
     "calculate_ic_sbs": [
@@ -96,26 +62,11 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "combine_metadata_sbs": None,
     "extract_metadata_phenotype": temp,
     "combine_metadata_phenotype": None,
-    "convert_sbs": None,
-    "convert_phenotype": None,
-    "convert_sbs_zarr": directory,
-    "convert_phenotype_zarr": directory,
+    "convert_sbs": directory if IMG_FMT == "zarr" else None,
+    "convert_phenotype": directory if IMG_FMT == "zarr" else None,
     "calculate_ic_sbs": directory if IC_EXT == "zarr" else None,
     "calculate_ic_phenotype": directory if IC_EXT == "zarr" else None,
 }
-
-# Filter outputs based on config
-if not ENABLE_TIFF:
-    if "convert_sbs" in PREPROCESS_OUTPUTS:
-        del PREPROCESS_OUTPUTS["convert_sbs"]
-    if "convert_phenotype" in PREPROCESS_OUTPUTS:
-        del PREPROCESS_OUTPUTS["convert_phenotype"]
-
-if not ENABLE_ZARR:
-    if "convert_sbs_zarr" in PREPROCESS_OUTPUTS:
-        del PREPROCESS_OUTPUTS["convert_sbs_zarr"]
-    if "convert_phenotype_zarr" in PREPROCESS_OUTPUTS:
-        del PREPROCESS_OUTPUTS["convert_phenotype_zarr"]
 
 # Convert all Paths to strings
 for key in PREPROCESS_OUTPUTS:

@@ -5,8 +5,7 @@ from snakemake.io import directory
 
 SBS_FP = ROOT_FP / "sbs"
 
-# Determine image output format from config (default: tiff for backward compatibility)
-SBS_IMG_FMT = config.get("sbs", {}).get("image_output_format", "tiff")
+SBS_IMG_FMT = IMG_FMT
 
 SBS_OUTPUTS = {
     "align_sbs": [

@@ -437,15 +437,20 @@ class TestZarrStructural:
         self.preprocess = self.root / "preprocess"
 
     def _sbs_zarr_path(self) -> Path:
-        return self.preprocess / "images" / "sbs" / get_filename(
-            {
-                "plate": _TEST_PLATE,
-                "well": _TEST_WELL,
-                "tile": _TEST_TILE_SBS,
-                "cycle": _TEST_CYCLE,
-            },
-            "image",
-            "zarr",
+        return (
+            self.preprocess
+            / "images"
+            / "sbs"
+            / get_filename(
+                {
+                    "plate": _TEST_PLATE,
+                    "well": _TEST_WELL,
+                    "tile": _TEST_TILE_SBS,
+                    "cycle": _TEST_CYCLE,
+                },
+                "image",
+                "zarr",
+            )
         )
 
     @pytest.mark.integration
@@ -481,15 +486,20 @@ class TestZarrStructural:
     @pytest.mark.integration
     def test_omezarr_multiscale_structure(self):
         """OME-Zarr export has valid multiscales metadata with >=2 levels."""
-        omezarr_path = self.preprocess / "omezarr" / "sbs" / get_filename(
-            {
-                "plate": _TEST_PLATE,
-                "well": _TEST_WELL,
-                "tile": _TEST_TILE_SBS,
-                "cycle": _TEST_CYCLE,
-            },
-            "image",
-            "zarr",
+        omezarr_path = (
+            self.preprocess
+            / "omezarr"
+            / "sbs"
+            / get_filename(
+                {
+                    "plate": _TEST_PLATE,
+                    "well": _TEST_WELL,
+                    "tile": _TEST_TILE_SBS,
+                    "cycle": _TEST_CYCLE,
+                },
+                "image",
+                "zarr",
+            )
         )
         if not omezarr_path.exists():
             pytest.skip("OME-Zarr export not found.")
@@ -511,15 +521,20 @@ class TestZarrStructural:
     def test_omezarr_matches_standard_zarr_at_level0(self):
         """OME-Zarr level-0 pixel data is identical to standard Zarr output."""
         std = self._sbs_zarr_path()
-        ome = self.preprocess / "omezarr" / "sbs" / get_filename(
-            {
-                "plate": _TEST_PLATE,
-                "well": _TEST_WELL,
-                "tile": _TEST_TILE_SBS,
-                "cycle": _TEST_CYCLE,
-            },
-            "image",
-            "zarr",
+        ome = (
+            self.preprocess
+            / "omezarr"
+            / "sbs"
+            / get_filename(
+                {
+                    "plate": _TEST_PLATE,
+                    "well": _TEST_WELL,
+                    "tile": _TEST_TILE_SBS,
+                    "cycle": _TEST_CYCLE,
+                },
+                "image",
+                "zarr",
+            )
         )
         if not std.exists() or not ome.exists():
             pytest.skip("Both standard Zarr and OME-Zarr needed.")
@@ -598,9 +613,7 @@ class TestTargetUtils:
             Path("brieflow_output")
             / "sbs"
             / "parquets"
-            / get_filename(
-                {"plate": "{plate}", "well": "{well}"}, "cells", "parquet"
-            )
+            / get_filename({"plate": "{plate}", "well": "{well}"}, "cells", "parquet")
         ]
 
         result = output_to_input(

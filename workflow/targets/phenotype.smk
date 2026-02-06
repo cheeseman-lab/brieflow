@@ -1,8 +1,11 @@
-from lib.shared.file_utils import get_filename
+from lib.shared.file_utils import get_nested_path
 from lib.shared.target_utils import map_outputs, outputs_to_targets
+from snakemake.io import directory
 
 
 PHENOTYPE_FP = ROOT_FP / "phenotype"
+
+PHENOTYPE_IMG_FMT = IMG_FMT
 
 # determine feature eval outputs based on channel names and segment_cells setting
 channel_names = config["phenotype"]["channel_names"]
@@ -14,33 +17,39 @@ PHENOTYPE_OUTPUTS = {
     "apply_ic_field_phenotype": [
         PHENOTYPE_FP
         / "images"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "illumination_corrected",
-            "tiff",
+            PHENOTYPE_IMG_FMT,
         ),
     ],
     "align_phenotype": [
         PHENOTYPE_FP
         / "images"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
+        / get_nested_path(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "aligned",
+            PHENOTYPE_IMG_FMT,
         ),
     ],
     "segment_phenotype": [
         PHENOTYPE_FP
         / "images"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "nuclei", "tiff"
+        / get_nested_path(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "nuclei",
+            PHENOTYPE_IMG_FMT,
         ),
         PHENOTYPE_FP
         / "images"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tiff"
+        / get_nested_path(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "cells",
+            PHENOTYPE_IMG_FMT,
         ),
         PHENOTYPE_FP
         / "tsvs"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "segmentation_stats",
             "tsv",
@@ -49,16 +58,16 @@ PHENOTYPE_OUTPUTS = {
     "identify_cytoplasm": [
         PHENOTYPE_FP
         / "images"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "identified_cytoplasms",
-            "tiff",
+            PHENOTYPE_IMG_FMT,
         ),
     ],
     "extract_phenotype_info": [
         PHENOTYPE_FP
         / "tsvs"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "phenotype_info",
             "tsv",
@@ -67,14 +76,14 @@ PHENOTYPE_OUTPUTS = {
     "combine_phenotype_info": [
         PHENOTYPE_FP
         / "parquets"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_info", "parquet"
         ),
     ],
     "extract_phenotype": [
         PHENOTYPE_FP
         / "tsvs"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
             "phenotype_cp",
             "tsv",
@@ -83,12 +92,12 @@ PHENOTYPE_OUTPUTS = {
     "merge_phenotype": [
         PHENOTYPE_FP
         / "parquets"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_cp", "parquet"
         ),
         PHENOTYPE_FP
         / "parquets"
-        / get_filename(
+        / get_nested_path(
             {"plate": "{plate}", "well": "{well}"}, "phenotype_cp_min", "parquet"
         ),
     ],
@@ -96,38 +105,43 @@ PHENOTYPE_OUTPUTS = {
         PHENOTYPE_FP
         / "eval"
         / "segmentation"
-        / get_filename({"plate": "{plate}"}, "segmentation_overview", "tsv"),
+        / get_nested_path({"plate": "{plate}"}, "segmentation_overview", "tsv"),
         PHENOTYPE_FP
         / "eval"
         / "segmentation"
-        / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "tsv"),
+        / get_nested_path({"plate": "{plate}"}, "cell_density_heatmap", "tsv"),
         PHENOTYPE_FP
         / "eval"
         / "segmentation"
-        / get_filename({"plate": "{plate}"}, "cell_density_heatmap", "png"),
+        / get_nested_path({"plate": "{plate}"}, "cell_density_heatmap", "png"),
     ],
     # create heatmap tsv and png for each evaluated feature
     "eval_features": [
         PHENOTYPE_FP
         / "eval"
         / "features"
-        / get_filename({"plate": "{plate}"}, f"{feature}_heatmap", "tsv")
+        / get_nested_path({"plate": "{plate}"}, f"{feature}_heatmap", "tsv")
         for feature in eval_features
     ]
     + [
         PHENOTYPE_FP
         / "eval"
         / "features"
-        / get_filename({"plate": "{plate}"}, f"{feature}_heatmap", "png")
+        / get_nested_path({"plate": "{plate}"}, f"{feature}_heatmap", "png")
         for feature in eval_features
     ],
 }
 
+# When outputting zarr, image outputs need directory() mapping and should not be temp
+# (Snakemake can't reliably temp() a directory output)
+# When outputting tiff, intermediate images can be temp() for cleanup
+_phenotype_img_mapping = directory if PHENOTYPE_IMG_FMT == "zarr" else temp
+
 PHENOTYPE_OUTPUT_MAPPINGS = {
-    "apply_ic_field_phenotype": temp,
-    "align_phenotype": None,
-    "segment_phenotype": None,
-    "identify_cytoplasm": temp,
+    "apply_ic_field_phenotype": _phenotype_img_mapping,
+    "align_phenotype": _phenotype_img_mapping,
+    "segment_phenotype": [_phenotype_img_mapping, _phenotype_img_mapping, None],
+    "identify_cytoplasm": _phenotype_img_mapping,
     "extract_phenotype_info": temp,
     "combine_phenotype_info": None,
     "extract_phenotype": temp,

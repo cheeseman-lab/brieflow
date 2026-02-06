@@ -150,7 +150,7 @@ rule eval_features:
         cells_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["merge_phenotype"][1],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=["well", "tile"],
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:
@@ -160,6 +160,20 @@ rule eval_features:
         heatmap_plate=config["phenotype"].get("heatmap_plate", "6W"),
     script:
         "../scripts/phenotype/eval_features.py"
+
+
+# Assemble HCS plate-level zarr stores from per-tile outputs (zarr mode only)
+if PHENOTYPE_IMG_FMT == "zarr":
+    rule finalize_hcs_phenotype:
+        input:
+            PHENOTYPE_TARGETS_ALL,
+        output:
+            touch(str(PHENOTYPE_FP / ".hcs_done")),
+        params:
+            images_dir=str(PHENOTYPE_FP / "images"),
+            hcs_dir=str(PHENOTYPE_FP / "hcs"),
+        script:
+            "../scripts/shared/write_hcs_metadata.py"
 
 
 # Rule for all phenotype processing steps

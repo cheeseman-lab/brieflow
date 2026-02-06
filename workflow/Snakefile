@@ -6,6 +6,7 @@ from lib.preprocess.file_utils import get_metadata_wildcard_combos
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
+IMG_FMT = config.get("all", {}).get("image_format", "tiff")
 
 # Get paths to the sample and combo files dfs
 SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])

@@ -71,7 +71,7 @@ rule combine_metadata_phenotype:
         "../scripts/preprocess/combine_metadata.py"
 
 
-# Convert SBS image files to TIFF
+# Convert SBS image files to the configured format
 rule convert_sbs:
     input:
         lambda wildcards: get_sample_fps(
@@ -87,10 +87,9 @@ rule convert_sbs:
     params:
         tile=lambda wildcards: int(wildcards.tile),
     script:
-        "../scripts/preprocess/image_to_tiff.py"
+        "../scripts/preprocess/convert_image.py"
 
-
-# Convert phenotype image files to TIFF
+# Convert phenotype image files to the configured format
 rule convert_phenotype:
     input:
         lambda wildcards: get_sample_fps(
@@ -106,8 +105,7 @@ rule convert_phenotype:
     params:
         tile=lambda wildcards: int(wildcards.tile),
     script:
-        "../scripts/preprocess/image_to_tiff.py"
-
+        "../scripts/preprocess/convert_image.py"
 
 # Calculate illumination correction function for SBS files
 rule calculate_ic_sbs:
@@ -143,6 +141,20 @@ rule calculate_ic_phenotype:
         sample_fraction=config["preprocess"]["sample_fraction"],
     script:
         "../scripts/preprocess/calculate_ic_field.py"
+
+
+# Assemble HCS plate-level zarr stores from per-tile outputs (zarr mode only)
+if IMG_FMT == "zarr":
+    rule finalize_hcs_preprocess:
+        input:
+            PREPROCESS_TARGETS_ALL,
+        output:
+            touch(str(PREPROCESS_FP / ".hcs_done")),
+        params:
+            images_dir=str(PREPROCESS_FP / "images"),
+            hcs_dir=str(PREPROCESS_FP / "hcs"),
+        script:
+            "../scripts/shared/write_hcs_metadata.py"
 
 
 # rule for all preprocessing steps

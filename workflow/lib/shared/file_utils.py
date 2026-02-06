@@ -27,6 +27,9 @@ FILENAME_METADATA_MAPPING = {
 def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     """Generate a structured filename based on data location, information type, and file type.
 
+    Produces flat filenames with metadata encoded as prefixes, e.g.:
+        P-plate1_W-A1_T-01__aligned.tiff
+
     Args:
         data_location (dict): Dictionary containing location info like well, tile, and cycle.
         info_type (str): Type of information (e.g., 'cell_features', 'sbs_reads').
@@ -50,6 +53,74 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     )
 
     return filename
+
+
+def get_nested_path(data_location: dict, info_type: str, file_type: str) -> str:
+    """Generate a nested directory path with metadata encoded as directory levels.
+
+    Produces nested paths like:
+        plate1/A1/01/aligned.tiff
+
+    The data_location keys become directory levels (in insertion order),
+    and the filename is simply ``{info_type}.{file_type}``.
+
+    Args:
+        data_location (dict): Dictionary containing location info like well, tile, and cycle.
+            Values become directory names in the order provided.
+        info_type (str): Type of information (e.g., 'aligned', 'nuclei').
+        file_type (str): File extension/type (e.g., 'tsv', 'parquet', 'tiff', 'zarr').
+
+    Returns:
+        str: Nested path string, e.g. ``plate1/A1/01/aligned.tiff``.
+    """
+    dir_parts = [str(v) for v in data_location.values()]
+    return str(Path(*dir_parts, f"{info_type}.{file_type}"))
+
+
+def parse_nested_path(file_path: str, location_keys: list) -> tuple:
+    """Parse a nested directory path to extract metadata, info_type, and file_type.
+
+    For a path like ``/output/sbs/images/plate1/A1/01/aligned.tiff``
+    with ``location_keys=["plate", "well", "tile"]``, returns::
+
+        ({"plate": "plate1", "well": "A1", "tile": 1}, "aligned", "tiff")
+
+    The last ``len(location_keys)`` directory components above the file are
+    mapped to the provided keys, and their values are cast using the data type
+    defined in ``FILENAME_METADATA_MAPPING``.
+
+    Args:
+        file_path (str): Full or relative file path with nested directory structure.
+        location_keys (list of str): Metadata keys corresponding to the directory
+            levels directly above the file, from outermost to innermost.
+            Must be keys present in ``FILENAME_METADATA_MAPPING``.
+
+    Returns:
+        tuple: A tuple containing:
+            - metadata (dict): Extracted metadata with typed values.
+            - info_type (str): The stem of the filename (e.g., 'aligned').
+            - file_type (str): The file extension without dot (e.g., 'tiff').
+    """
+    path = Path(file_path)
+    file_type = path.suffix.lstrip(".")
+    info_type = path.stem
+
+    dir_parts = list(path.parent.parts)
+    n_keys = len(location_keys)
+
+    if len(dir_parts) < n_keys:
+        raise ValueError(
+            f"Path '{file_path}' has {len(dir_parts)} directory levels but "
+            f"{n_keys} location keys were provided: {location_keys}"
+        )
+
+    metadata = {}
+    for i, key in enumerate(location_keys):
+        raw_value = dir_parts[-(n_keys - i)]
+        _, data_type = FILENAME_METADATA_MAPPING[key]
+        metadata[key] = data_type(raw_value)
+
+    return metadata, info_type, file_type
 
 
 def parse_filename(file_path: str) -> tuple:

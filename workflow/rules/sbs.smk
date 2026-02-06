@@ -282,6 +282,20 @@ rule eval_mapping:
         "../scripts/sbs/eval_mapping.py"
 
 
+# Assemble HCS plate-level zarr stores from per-tile outputs (zarr mode only)
+if SBS_IMG_FMT == "zarr":
+    rule finalize_hcs_sbs:
+        input:
+            SBS_TARGETS_ALL,
+        output:
+            touch(str(SBS_FP / ".hcs_done")),
+        params:
+            images_dir=str(SBS_FP / "images"),
+            hcs_dir=str(SBS_FP / "hcs"),
+        script:
+            "../scripts/shared/write_hcs_metadata.py"
+
+
 # rule for all sbs processing steps
 rule all_sbs:
     input:

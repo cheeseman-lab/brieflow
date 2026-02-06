@@ -1,18 +1,17 @@
-from tifffile import imread
-
 from lib.sbs.extract_bases import extract_bases
+from lib.shared.io import read_image
 
 
-# load peaks data
-peaks_data = imread(snakemake.input[0])
+# Load peaks data
+peaks_data = read_image(snakemake.input[0])
 
-# load max filtered data
-max_filtered_data = imread(snakemake.input[1])
+# Load max filtered data
+max_filtered_data = read_image(snakemake.input[1])
 
-# load cells data
-cells_data = imread(snakemake.input[2])
+# Load cells data
+cells_data = read_image(snakemake.input[2])
 
-# extract bases
+# Extract bases
 bases_data = extract_bases(
     peaks_data=peaks_data,
     max_filtered_data=max_filtered_data,
@@ -22,5 +21,5 @@ bases_data = extract_bases(
     wildcards=dict(snakemake.wildcards),
 )
 
-# save bases data
+# Save bases data
 bases_data.to_csv(snakemake.output[0], index=False, sep="\t")

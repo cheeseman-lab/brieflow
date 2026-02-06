@@ -1,15 +1,15 @@
 import numpy as np
-from tifffile import imread, imwrite
 
 from lib.phenotype.identify_cytoplasm_cellpose import (
     identify_cytoplasm_cellpose,
 )
+from lib.shared.io import read_image, save_image
 
-# load nuclei and cell segmentation data
-nuclei = imread(snakemake.input[0])
-cells = imread(snakemake.input[1])
+# Load nuclei and cell segmentation data
+nuclei = read_image(snakemake.input[0])
+cells = read_image(snakemake.input[1])
 
-# check if cell segmentation is enabled
+# Check if cell segmentation is enabled
 segment_cells = snakemake.params.get("segment_cells", True)
 
 if segment_cells:
@@ -19,5 +19,5 @@ else:
     # write blank array when cell segmentation is disabled
     cytoplasms = np.zeros_like(nuclei, dtype=np.int32)
 
-# save cytoplasms data
-imwrite(snakemake.output[0], cytoplasms)
+# Save cytoplasms data
+save_image(cytoplasms, snakemake.output[0], is_label=True)

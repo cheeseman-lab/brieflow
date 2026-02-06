@@ -2,7 +2,7 @@ from lib.phenotype.align_channels import align_phenotype_channels
 from lib.shared.align import apply_custom_offsets
 from lib.shared.io import read_image, save_image
 
-# Load image data (supports TIFF and Zarr)
+# Load image data
 image_data = read_image(snakemake.input[0])
 
 # Get the alignment config

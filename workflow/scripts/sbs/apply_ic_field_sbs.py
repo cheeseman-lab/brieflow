@@ -1,7 +1,7 @@
 from lib.shared.illumination_correction import apply_ic_field, combine_ic_images
 from lib.shared.io import read_image, save_image
 
-# Load aligned image data (supports TIFF and Zarr)
+# Load aligned image data
 aligned_image_data = read_image(snakemake.input[0])
 
 # Logic based on whether DAPI and CYTO come from same or different cycles

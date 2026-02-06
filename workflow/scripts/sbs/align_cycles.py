@@ -1,10 +1,10 @@
 from lib.sbs.align_cycles import align_cycles
 from lib.shared.io import read_image, save_image
 
-# load image data (supports both TIFF and Zarr)
+# Load image data
 image_data = [read_image(file_path) for file_path in snakemake.input]
 
-# align cycles
+# Align cycles
 aligned_data = align_cycles(
     image_data,
     channel_order=snakemake.params.channel_names,

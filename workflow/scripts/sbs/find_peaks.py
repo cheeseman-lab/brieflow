@@ -10,7 +10,7 @@ method = params.get("method", "standard")
 if method == "standard":
     from lib.sbs.find_peaks import find_peaks
 
-    # Load standard deviation data for standard method (supports TIFF and Zarr)
+    # Load standard deviation data
     standard_deviation_data = read_image(snakemake.input[0])
 
     # Get standard method parameters
@@ -24,7 +24,7 @@ if method == "standard":
 elif method == "spotiflow":
     from lib.sbs.find_peaks import find_peaks_spotiflow
 
-    # Load aligned images for spotiflow method (supports TIFF and Zarr)
+    # Load aligned images for spotiflow method
     aligned_images = read_image(snakemake.input[0])
 
     # Get spotiflow parameters

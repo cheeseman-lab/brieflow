@@ -1,6 +1,6 @@
 from lib.shared.io import read_image
 
-# load inputs (supports TIFF and Zarr)
+# Load inputs
 data_phenotype = read_image(snakemake.input[0])
 nuclei = read_image(snakemake.input[1])
 cells = read_image(snakemake.input[2])
@@ -47,5 +47,5 @@ else:
         f"Unknown cp_method: {cp_method}. Choose 'cp_measure' or 'cp_emulator'."
     )
 
-# save phenotype cp
+# Save phenotype cp
 phenotype_cp.to_csv(snakemake.output[0], index=False, sep="\t")

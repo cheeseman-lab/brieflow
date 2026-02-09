@@ -265,6 +265,7 @@ def extract_metadata_well_nd2(
 def _extract_ims_per_file_metadata(ims_file):
     def _decode_hdf5_value(v):
         """Return a Python-friendly value for common HDF5 attribute/dataset types.
+
         - bytes -> decoded utf-8 string (ignore errors)
         - numpy byte-char arrays -> joined string
         - numpy scalars -> Python scalar via .item()
@@ -282,6 +283,7 @@ def _extract_ims_per_file_metadata(ims_file):
 
     def _hdf5_to_dict(h5obj, load_datasets=False):
         """Recursively convert groups/datasets into a nested dict with '@attrs' keys for attributes.
+        
         - load_datasets: if True, dataset values are read into 'value' keys (not used by default).
         """
         out = {}
@@ -334,8 +336,7 @@ def extract_metadata_ims(
     metadata_file_path: str = None,
     verbose: bool = False,
 ) -> "pd.DataFrame":
-    """
-    Extract metadata from one or more Imaris .ims files and optional Fusion plaintext metadata.
+    """Extract metadata from one or more Imaris .ims files and optional Fusion plaintext metadata.
 
     Summary:
     - Reads HDF5 (.ims) attributes and common groups (DataSetInfo, VoxelSize, sFieldOfView,
@@ -362,7 +363,6 @@ def extract_metadata_ims(
     - Magnification is treated as a scalar; if 0 or missing, txt pixel sizes are used unmodified.
     - Internal helpers are nested to avoid polluting the module namespace.
     """
-
     if isinstance(file_path, (str, Path)):
         files = [file_path]
     else:
@@ -755,6 +755,7 @@ def convert_nd2_to_array_well(
         channel_order_flip: Reverse the order of channels
         return_tiles: If True, also return the total number of tiles
         verbose: Print debug information
+        **kwargs: Additional arguments for compatibility
 
     Returns:
         numpy array in CYX format, optionally with tile count
@@ -862,8 +863,7 @@ def convert_ims_to_array(
         flip_y_axis: bool = True,
         verbose: bool = False,
     ) -> np.ndarray:
-    
-    '''Convert tile-based Imaris files to numpy array in CYX format.
+    """Convert tile-based Imaris files to numpy array in CYX format.
 
     Processes one or more Imaris files where each file contains a single FOV.
     If multiple files are provided, they are concatenated along the channel axis.
@@ -886,8 +886,7 @@ def convert_ims_to_array(
         >>> # Multiple files concatenated
         >>> img = convert_ims_to_array(["cyc1.ims", "cyc2.ims"])
         >>> img.shape  # (8, 2048, 2048) if each has 4 channels
-    '''
-
+    """
     # Convert input to list of Path objects
     if isinstance(files, (str, Path)):
         files = [Path(files)]

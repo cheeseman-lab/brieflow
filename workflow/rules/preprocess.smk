@@ -32,7 +32,7 @@ rule combine_metadata_sbs:
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
     params:
-        well=lambda wildcards: wildcards.well,
+        well=lambda wildcards: _get_well(wildcards),
     script:
         "../scripts/preprocess/combine_metadata.py"
 
@@ -66,7 +66,7 @@ rule combine_metadata_phenotype:
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
     params:
-        well=lambda wildcards: wildcards.well,
+        well=lambda wildcards: _get_well(wildcards),
     script:
         "../scripts/preprocess/combine_metadata.py"
 
@@ -77,7 +77,7 @@ rule convert_sbs:
         lambda wildcards: get_sample_fps(
             sbs_samples_df,
             plate=wildcards.plate,
-            well=wildcards.well,
+            well=_get_well(wildcards),
             cycle=wildcards.cycle,
             tile=wildcards.tile if include_tile_in_input("sbs", config) else None,
             channel_order=config["preprocess"]["sbs_channel_order"],
@@ -95,7 +95,7 @@ rule convert_phenotype:
         lambda wildcards: get_sample_fps(
             phenotype_samples_df,
             plate=wildcards.plate,
-            well=wildcards.well,
+            well=_get_well(wildcards),
             tile=wildcards.tile if include_tile_in_input("phenotype", config) else None,
             round_order=config["preprocess"]["phenotype_round_order"],
             channel_order=config["preprocess"]["phenotype_channel_order"]
@@ -143,7 +143,7 @@ rule calculate_ic_phenotype:
         "../scripts/preprocess/calculate_ic_field.py"
 
 
-# Assemble HCS plate-level zarr stores from per-tile outputs (zarr mode only)
+# Assemble HCS plate-level metadata for zarr stores (zarr mode only)
 if IMG_FMT == "zarr":
     rule finalize_hcs_preprocess:
         input:
@@ -151,8 +151,12 @@ if IMG_FMT == "zarr":
         output:
             touch(str(PREPROCESS_FP / ".hcs_done")),
         params:
-            images_dir=str(PREPROCESS_FP / "images"),
-            hcs_dir=str(PREPROCESS_FP / "hcs"),
+            plate_zarr_dirs=(
+                [str(PREPROCESS_FP / "sbs" / f"{p}.zarr")
+                 for p in sorted(sbs_wildcard_combos["plate"].unique())]
+                + [str(PREPROCESS_FP / "phenotype" / f"{p}.zarr")
+                   for p in sorted(phenotype_wildcard_combos["plate"].unique())]
+            ),
         script:
             "../scripts/shared/write_hcs_metadata.py"
 

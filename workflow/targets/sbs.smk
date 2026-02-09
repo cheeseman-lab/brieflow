@@ -7,188 +7,86 @@ SBS_FP = ROOT_FP / "sbs"
 
 SBS_IMG_FMT = IMG_FMT
 
+# --- Conditional path helpers based on image format ---
+if SBS_IMG_FMT == "zarr":
+    from lib.shared.file_utils import get_hcs_nested_path
+
+    _sbs_tile_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}", "tile": "{tile}"}
+    _sbs_well_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}"}
+    _sbs_plate_loc = {"plate": "{plate}"}
+
+    def _sbs_img(info):
+        return SBS_FP / get_hcs_nested_path(_sbs_tile_loc, info)
+
+    def _sbs_tsv(info):
+        return SBS_FP / "tsvs" / get_nested_path(_sbs_tile_loc, info, "tsv")
+
+    def _sbs_well_pq(info):
+        return SBS_FP / "parquets" / get_nested_path(_sbs_well_loc, info, "parquet")
+
+    def _sbs_plate_eval(subdir, info, ext):
+        return SBS_FP / "eval" / subdir / get_nested_path(_sbs_plate_loc, info, ext)
+
+    # Expansion helpers for rules
+    _sbs_well_expand = ["row", "col"]
+    _sbs_tile_expand = ["row", "col", "tile"]
+else:
+    _sbs_tile_loc = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
+    _sbs_well_loc = {"plate": "{plate}", "well": "{well}"}
+    _sbs_plate_loc = {"plate": "{plate}"}
+
+    def _sbs_img(info):
+        return SBS_FP / "images" / get_nested_path(_sbs_tile_loc, info, SBS_IMG_FMT)
+
+    def _sbs_tsv(info):
+        return SBS_FP / "tsvs" / get_nested_path(_sbs_tile_loc, info, "tsv")
+
+    def _sbs_well_pq(info):
+        return SBS_FP / "parquets" / get_nested_path(_sbs_well_loc, info, "parquet")
+
+    def _sbs_plate_eval(subdir, info, ext):
+        return SBS_FP / "eval" / subdir / get_nested_path(_sbs_plate_loc, info, ext)
+
+    _sbs_well_expand = ["well"]
+    _sbs_tile_expand = ["well", "tile"]
+
+
 SBS_OUTPUTS = {
-    "align_sbs": [
-        SBS_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "aligned",
-            SBS_IMG_FMT,
-        ),
-    ],
-    "log_filter": [
-        SBS_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "log_filtered",
-            SBS_IMG_FMT,
-        ),
-    ],
-    "compute_standard_deviation": [
-        SBS_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "standard_deviation",
-            SBS_IMG_FMT,
-        ),
-    ],
-    "find_peaks": [
-        SBS_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "peaks",
-            SBS_IMG_FMT,
-        ),
-    ],
-    "max_filter": [
-        SBS_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "max_filtered",
-            SBS_IMG_FMT,
-        ),
-    ],
-    "apply_ic_field_sbs": [
-        SBS_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "illumination_corrected",
-            SBS_IMG_FMT,
-        ),
-    ],
+    "align_sbs": [_sbs_img("aligned")],
+    "log_filter": [_sbs_img("log_filtered")],
+    "compute_standard_deviation": [_sbs_img("standard_deviation")],
+    "find_peaks": [_sbs_img("peaks")],
+    "max_filter": [_sbs_img("max_filtered")],
+    "apply_ic_field_sbs": [_sbs_img("illumination_corrected")],
     "segment_sbs": [
-        SBS_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "nuclei",
-            SBS_IMG_FMT,
-        ),
-        SBS_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "cells",
-            SBS_IMG_FMT,
-        ),
-        SBS_FP
-        / "tsvs"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "segmentation_stats",
-            "tsv",
-        ),
+        _sbs_img("nuclei"),
+        _sbs_img("cells"),
+        _sbs_tsv("segmentation_stats"),
     ],
-    "extract_bases": [
-        SBS_FP
-        / "tsvs"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "bases", "tsv"
-        ),
-    ],
-    "call_reads": [
-        SBS_FP
-        / "tsvs"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "reads", "tsv"
-        ),
-    ],
-    "call_cells": [
-        SBS_FP
-        / "tsvs"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "cells", "tsv"
-        ),
-    ],
-    "extract_sbs_info": [
-        SBS_FP
-        / "tsvs"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "sbs_info", "tsv"
-        ),
-    ],
-    "combine_reads": [
-        SBS_FP
-        / "parquets"
-        / get_nested_path({"plate": "{plate}", "well": "{well}"}, "reads", "parquet"),
-    ],
-    "combine_cells": [
-        SBS_FP
-        / "parquets"
-        / get_nested_path({"plate": "{plate}", "well": "{well}"}, "cells", "parquet"),
-    ],
-    "combine_sbs_info": [
-        SBS_FP
-        / "parquets"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}"}, "sbs_info", "parquet"
-        ),
-    ],
+    "extract_bases": [_sbs_tsv("bases")],
+    "call_reads": [_sbs_tsv("reads")],
+    "call_cells": [_sbs_tsv("cells")],
+    "extract_sbs_info": [_sbs_tsv("sbs_info")],
+    "combine_reads": [_sbs_well_pq("reads")],
+    "combine_cells": [_sbs_well_pq("cells")],
+    "combine_sbs_info": [_sbs_well_pq("sbs_info")],
     "eval_segmentation_sbs": [
-        SBS_FP
-        / "eval"
-        / "segmentation"
-        / get_nested_path({"plate": "{plate}"}, "segmentation_overview", "tsv"),
-        SBS_FP
-        / "eval"
-        / "segmentation"
-        / get_nested_path({"plate": "{plate}"}, "cell_density_heatmap", "tsv"),
-        SBS_FP
-        / "eval"
-        / "segmentation"
-        / get_nested_path({"plate": "{plate}"}, "cell_density_heatmap", "png"),
+        _sbs_plate_eval("segmentation", "segmentation_overview", "tsv"),
+        _sbs_plate_eval("segmentation", "cell_density_heatmap", "tsv"),
+        _sbs_plate_eval("segmentation", "cell_density_heatmap", "png"),
     ],
     "eval_mapping": [
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "mapping_vs_threshold_peak", "png"),
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "mapping_vs_threshold_qmin", "png"),
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "read_mapping_heatmap", "png"),
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "cell_mapping_heatmap_one", "tsv"),
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "cell_mapping_heatmap_one", "png"),
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "cell_mapping_heatmap_any", "tsv"),
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "cell_mapping_heatmap_any", "png"),
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "cell_metric_histogram", "png"),
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "gene_symbol_histogram", "png"),
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "mapping_overview", "tsv"),
-        SBS_FP
-        / "eval"
-        / "mapping"
-        / get_nested_path({"plate": "{plate}"}, "barcode_prefix_matching", "png"),
+        _sbs_plate_eval("mapping", "mapping_vs_threshold_peak", "png"),
+        _sbs_plate_eval("mapping", "mapping_vs_threshold_qmin", "png"),
+        _sbs_plate_eval("mapping", "read_mapping_heatmap", "png"),
+        _sbs_plate_eval("mapping", "cell_mapping_heatmap_one", "tsv"),
+        _sbs_plate_eval("mapping", "cell_mapping_heatmap_one", "png"),
+        _sbs_plate_eval("mapping", "cell_mapping_heatmap_any", "tsv"),
+        _sbs_plate_eval("mapping", "cell_mapping_heatmap_any", "png"),
+        _sbs_plate_eval("mapping", "cell_metric_histogram", "png"),
+        _sbs_plate_eval("mapping", "gene_symbol_histogram", "png"),
+        _sbs_plate_eval("mapping", "mapping_overview", "tsv"),
+        _sbs_plate_eval("mapping", "barcode_prefix_matching", "png"),
     ],
 }
 

@@ -55,6 +55,41 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     return filename
 
 
+def get_hcs_nested_path(
+    data_location: dict, info_type: str, file_type: str = "zarr"
+) -> str:
+    """Generate an HCS-layout nested path for zarr stores within a plate zarr.
+
+    Produces paths like:
+        1.zarr/A/1/0/aligned.zarr
+        1.zarr/A/1/0/3/image.zarr  (with cycle)
+
+    The plate value gets a ``.zarr`` suffix, row and col become directory
+    levels (matching HCS row/column convention), and the info_type file
+    also gets a ``.zarr`` extension by default.
+
+    Args:
+        data_location (dict): Must contain 'plate', 'row', 'col', 'tile'.
+            May optionally contain 'cycle'.
+        info_type (str): Type of information (e.g., 'aligned', 'nuclei').
+        file_type (str): File extension (default 'zarr').
+
+    Returns:
+        str: HCS nested path string.
+    """
+    plate = data_location["plate"]
+    parts = [
+        f"{plate}.zarr",
+        data_location["row"],
+        data_location["col"],
+        data_location["tile"],
+    ]
+    if "cycle" in data_location:
+        parts.append(str(data_location["cycle"]))
+    parts.append(f"{info_type}.{file_type}")
+    return str(Path(*parts))
+
+
 def get_nested_path(data_location: dict, info_type: str, file_type: str) -> str:
     """Generate a nested directory path with metadata encoded as directory levels.
 

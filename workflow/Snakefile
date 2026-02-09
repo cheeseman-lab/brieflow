@@ -127,6 +127,30 @@ if plate_filter is not None:
         )
 
 
+# Helper to reconstruct well from row+col wildcards (works in both modes)
+def _get_well(wildcards):
+    """Get well identifier from wildcards (handles both {well} and {row}/{col} modes)."""
+    if hasattr(wildcards, 'well'):
+        return str(wildcards.well)
+    return str(wildcards.row) + str(wildcards.col)
+
+
+# In zarr mode, derive row/col from well for HCS-layout paths
+if IMG_FMT == "zarr":
+    def _split_well_to_cols(df):
+        """Add 'row' and 'col' columns derived from 'well' (e.g., 'A1' → row='A', col='1')."""
+        if len(df) > 0 and "well" in df.columns:
+            splits = df["well"].str.extract(r"^([A-Za-z]+)(\d+)$")
+            df = df.copy()
+            df["row"] = splits[0].values
+            df["col"] = splits[1].values
+        return df
+
+    sbs_wildcard_combos = _split_well_to_cols(sbs_wildcard_combos)
+    phenotype_wildcard_combos = _split_well_to_cols(phenotype_wildcard_combos)
+    # Note: metadata combos intentionally NOT split — metadata rules keep {well} wildcards
+
+
 include: "targets/preprocess.smk"
 include: "rules/preprocess.smk"
 

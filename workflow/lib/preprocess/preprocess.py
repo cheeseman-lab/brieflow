@@ -1129,8 +1129,8 @@ def get_expansion_values(
         metadata_columns = list(metadata_wildcard_combos.columns)
 
         # Add any columns that exist in metadata but not in base expansion
-        # Exclude 'plate' and 'well' as these are typically not expanded
-        exclude_columns = {"plate", "well"}
+        # Exclude 'plate', 'well', 'row', 'col' as these are fixed wildcards, not expanded
+        exclude_columns = {"plate", "well", "row", "col"}
         additional_columns = [
             col
             for col in metadata_columns

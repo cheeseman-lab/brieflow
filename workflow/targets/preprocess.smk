@@ -7,7 +7,57 @@ PREPROCESS_FP = ROOT_FP / "preprocess"
 
 IC_EXT = IMG_FMT
 
+# --- Conditional path helpers based on image format ---
+if IMG_FMT == "zarr":
+    from lib.shared.file_utils import get_hcs_nested_path
+
+    # Tile-level location for image outputs (HCS layout)
+    _pp_sbs_tile_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}", "tile": "{tile}", "cycle": "{cycle}"}
+    _pp_phen_tile_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}", "tile": "{tile}"}
+    # Well-level location for IC fields (no HCS, just row/col instead of well)
+    _pp_sbs_ic_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}", "cycle": "{cycle}"}
+    _pp_phen_ic_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}"}
+
+    def _pp_sbs_img(info):
+        return PREPROCESS_FP / "sbs" / get_hcs_nested_path(_pp_sbs_tile_loc, info)
+
+    def _pp_phen_img(info):
+        return PREPROCESS_FP / "phenotype" / get_hcs_nested_path(_pp_phen_tile_loc, info)
+
+    def _pp_sbs_ic(info):
+        return PREPROCESS_FP / "ic_fields" / "sbs" / get_nested_path(_pp_sbs_ic_loc, info, IC_EXT)
+
+    def _pp_phen_ic(info):
+        return PREPROCESS_FP / "ic_fields" / "phenotype" / get_nested_path(_pp_phen_ic_loc, info, IC_EXT)
+
+    # Expansion helpers for rules
+    _pp_well_expand = ["row", "col"]
+else:
+    def _pp_sbs_img(info):
+        return PREPROCESS_FP / "images" / "sbs" / get_nested_path(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}, info, IMG_FMT
+        )
+
+    def _pp_phen_img(info):
+        return PREPROCESS_FP / "images" / "phenotype" / get_nested_path(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, info, IMG_FMT
+        )
+
+    def _pp_sbs_ic(info):
+        return PREPROCESS_FP / "ic_fields" / "sbs" / get_nested_path(
+            {"plate": "{plate}", "well": "{well}", "cycle": "{cycle}"}, info, IC_EXT
+        )
+
+    def _pp_phen_ic(info):
+        return PREPROCESS_FP / "ic_fields" / "phenotype" / get_nested_path(
+            {"plate": "{plate}", "well": "{well}"}, info, IC_EXT
+        )
+
+    _pp_well_expand = ["well"]
+
+
 PREPROCESS_OUTPUTS = {
+    # Metadata rules always use {well} (not {row}/{col}) — they produce TSVs/parquets
     "extract_metadata_sbs": [
         PREPROCESS_FP / "metadata" / "sbs" / get_nested_path(
             get_output_pattern(sbs_metadata_wildcard_combos), "metadata", "tsv"
@@ -28,30 +78,11 @@ PREPROCESS_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "combined_metadata", "parquet"
         ),
     ],
-    "convert_sbs": [
-        PREPROCESS_FP / "images" / "sbs" / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"},
-            "image", IMG_FMT
-        ),
-    ],
-    "convert_phenotype": [
-        PREPROCESS_FP / "images" / "phenotype" / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "image", IMG_FMT
-        ),
-    ],
-    "calculate_ic_sbs": [
-        PREPROCESS_FP / "ic_fields" / "sbs" / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "cycle": "{cycle}"},
-            "ic_field", IC_EXT
-        ),
-    ],
-    "calculate_ic_phenotype": [
-        PREPROCESS_FP / "ic_fields" / "phenotype" / get_nested_path(
-            {"plate": "{plate}", "well": "{well}"},
-            "ic_field", IC_EXT
-        ),
-    ],
+    # Image and IC rules use conditional paths
+    "convert_sbs": [_pp_sbs_img("image")],
+    "convert_phenotype": [_pp_phen_img("image")],
+    "calculate_ic_sbs": [_pp_sbs_ic("ic_field")],
+    "calculate_ic_phenotype": [_pp_phen_ic("ic_field")],
 }
 
 # Define output mappings FIRST (before filtering)

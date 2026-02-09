@@ -13,121 +13,77 @@ segment_cells = config["phenotype"].get("segment_cells", True)
 prefix = "cell" if segment_cells else "nucleus"
 eval_features = [f"{prefix}_{channel}_min" for channel in channel_names]
 
+# --- Conditional path helpers based on image format ---
+if PHENOTYPE_IMG_FMT == "zarr":
+    from lib.shared.file_utils import get_hcs_nested_path
+
+    _phen_tile_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}", "tile": "{tile}"}
+    _phen_well_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}"}
+    _phen_plate_loc = {"plate": "{plate}"}
+
+    def _phen_img(info):
+        return PHENOTYPE_FP / get_hcs_nested_path(_phen_tile_loc, info)
+
+    def _phen_tsv(info):
+        return PHENOTYPE_FP / "tsvs" / get_nested_path(_phen_tile_loc, info, "tsv")
+
+    def _phen_well_pq(info):
+        return PHENOTYPE_FP / "parquets" / get_nested_path(_phen_well_loc, info, "parquet")
+
+    def _phen_plate_eval(subdir, info, ext):
+        return PHENOTYPE_FP / "eval" / subdir / get_nested_path(_phen_plate_loc, info, ext)
+
+    # Expansion helpers for rules
+    _phen_well_expand = ["row", "col"]
+    _phen_tile_expand = ["row", "col", "tile"]
+else:
+    _phen_tile_loc = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
+    _phen_well_loc = {"plate": "{plate}", "well": "{well}"}
+    _phen_plate_loc = {"plate": "{plate}"}
+
+    def _phen_img(info):
+        return PHENOTYPE_FP / "images" / get_nested_path(_phen_tile_loc, info, PHENOTYPE_IMG_FMT)
+
+    def _phen_tsv(info):
+        return PHENOTYPE_FP / "tsvs" / get_nested_path(_phen_tile_loc, info, "tsv")
+
+    def _phen_well_pq(info):
+        return PHENOTYPE_FP / "parquets" / get_nested_path(_phen_well_loc, info, "parquet")
+
+    def _phen_plate_eval(subdir, info, ext):
+        return PHENOTYPE_FP / "eval" / subdir / get_nested_path(_phen_plate_loc, info, ext)
+
+    _phen_well_expand = ["well"]
+    _phen_tile_expand = ["well", "tile"]
+
+
 PHENOTYPE_OUTPUTS = {
-    "apply_ic_field_phenotype": [
-        PHENOTYPE_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "illumination_corrected",
-            PHENOTYPE_IMG_FMT,
-        ),
-    ],
-    "align_phenotype": [
-        PHENOTYPE_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "aligned",
-            PHENOTYPE_IMG_FMT,
-        ),
-    ],
+    "apply_ic_field_phenotype": [_phen_img("illumination_corrected")],
+    "align_phenotype": [_phen_img("aligned")],
     "segment_phenotype": [
-        PHENOTYPE_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "nuclei",
-            PHENOTYPE_IMG_FMT,
-        ),
-        PHENOTYPE_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "cells",
-            PHENOTYPE_IMG_FMT,
-        ),
-        PHENOTYPE_FP
-        / "tsvs"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "segmentation_stats",
-            "tsv",
-        ),
+        _phen_img("nuclei"),
+        _phen_img("cells"),
+        _phen_tsv("segmentation_stats"),
     ],
-    "identify_cytoplasm": [
-        PHENOTYPE_FP
-        / "images"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "identified_cytoplasms",
-            PHENOTYPE_IMG_FMT,
-        ),
-    ],
-    "extract_phenotype_info": [
-        PHENOTYPE_FP
-        / "tsvs"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "phenotype_info",
-            "tsv",
-        ),
-    ],
-    "combine_phenotype_info": [
-        PHENOTYPE_FP
-        / "parquets"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_info", "parquet"
-        ),
-    ],
-    "extract_phenotype": [
-        PHENOTYPE_FP
-        / "tsvs"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
-            "phenotype_cp",
-            "tsv",
-        ),
-    ],
+    "identify_cytoplasm": [_phen_img("identified_cytoplasms")],
+    "extract_phenotype_info": [_phen_tsv("phenotype_info")],
+    "combine_phenotype_info": [_phen_well_pq("phenotype_info")],
+    "extract_phenotype": [_phen_tsv("phenotype_cp")],
     "merge_phenotype": [
-        PHENOTYPE_FP
-        / "parquets"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_cp", "parquet"
-        ),
-        PHENOTYPE_FP
-        / "parquets"
-        / get_nested_path(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_cp_min", "parquet"
-        ),
+        _phen_well_pq("phenotype_cp"),
+        _phen_well_pq("phenotype_cp_min"),
     ],
     "eval_segmentation_phenotype": [
-        PHENOTYPE_FP
-        / "eval"
-        / "segmentation"
-        / get_nested_path({"plate": "{plate}"}, "segmentation_overview", "tsv"),
-        PHENOTYPE_FP
-        / "eval"
-        / "segmentation"
-        / get_nested_path({"plate": "{plate}"}, "cell_density_heatmap", "tsv"),
-        PHENOTYPE_FP
-        / "eval"
-        / "segmentation"
-        / get_nested_path({"plate": "{plate}"}, "cell_density_heatmap", "png"),
+        _phen_plate_eval("segmentation", "segmentation_overview", "tsv"),
+        _phen_plate_eval("segmentation", "cell_density_heatmap", "tsv"),
+        _phen_plate_eval("segmentation", "cell_density_heatmap", "png"),
     ],
     # create heatmap tsv and png for each evaluated feature
     "eval_features": [
-        PHENOTYPE_FP
-        / "eval"
-        / "features"
-        / get_nested_path({"plate": "{plate}"}, f"{feature}_heatmap", "tsv")
+        _phen_plate_eval("features", f"{feature}_heatmap", "tsv")
         for feature in eval_features
-    ]
-    + [
-        PHENOTYPE_FP
-        / "eval"
-        / "features"
-        / get_nested_path({"plate": "{plate}"}, f"{feature}_heatmap", "png")
+    ] + [
+        _phen_plate_eval("features", f"{feature}_heatmap", "png")
         for feature in eval_features
     ],
 }

@@ -14,6 +14,11 @@ if not segment_cells:
 
 cp_method = snakemake.params.cp_method
 
+# Build wildcards dict, synthesizing 'well' from 'row'+'col' in zarr mode
+wc = dict(snakemake.wildcards)
+if "row" in wc and "col" in wc and "well" not in wc:
+    wc["well"] = wc["row"] + wc["col"]
+
 if cp_method == "cp_measure":
     from lib.phenotype.extract_phenotype_cp_measure import (
         extract_phenotype_cp_measure,
@@ -40,7 +45,7 @@ elif cp_method == "cp_emulator":
         cytoplasms=cytoplasms,
         foci_channel=snakemake.params.foci_channel_index,
         channel_names=snakemake.params.channel_names,
-        wildcards=snakemake.wildcards,
+        wildcards=wc,
     )
 else:
     raise ValueError(

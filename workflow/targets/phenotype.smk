@@ -24,6 +24,9 @@ if PHENOTYPE_IMG_FMT == "zarr":
     def _phen_img(info):
         return PHENOTYPE_FP / get_hcs_nested_path(_phen_tile_loc, info)
 
+    def _phen_label(info):
+        return PHENOTYPE_FP / get_hcs_nested_path(_phen_tile_loc, info, subdirectory="labels")
+
     def _phen_tsv(info):
         return PHENOTYPE_FP / "tsvs" / get_nested_path(_phen_tile_loc, info, "tsv")
 
@@ -44,6 +47,8 @@ else:
     def _phen_img(info):
         return PHENOTYPE_FP / "images" / get_nested_path(_phen_tile_loc, info, PHENOTYPE_IMG_FMT)
 
+    _phen_label = _phen_img  # No labels/ nesting for TIFF
+
     def _phen_tsv(info):
         return PHENOTYPE_FP / "tsvs" / get_nested_path(_phen_tile_loc, info, "tsv")
 
@@ -61,11 +66,11 @@ PHENOTYPE_OUTPUTS = {
     "apply_ic_field_phenotype": [_phen_img("illumination_corrected")],
     "align_phenotype": [_phen_img("aligned")],
     "segment_phenotype": [
-        _phen_img("nuclei"),
-        _phen_img("cells"),
+        _phen_label("nuclei"),
+        _phen_label("cells"),
         _phen_tsv("segmentation_stats"),
     ],
-    "identify_cytoplasm": [_phen_img("identified_cytoplasms")],
+    "identify_cytoplasm": [_phen_label("identified_cytoplasms")],
     "extract_phenotype_info": [_phen_tsv("phenotype_info")],
     "combine_phenotype_info": [_phen_well_pq("phenotype_info")],
     "extract_phenotype": [_phen_tsv("phenotype_cp")],

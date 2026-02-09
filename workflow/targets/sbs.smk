@@ -18,6 +18,9 @@ if SBS_IMG_FMT == "zarr":
     def _sbs_img(info):
         return SBS_FP / get_hcs_nested_path(_sbs_tile_loc, info)
 
+    def _sbs_label(info):
+        return SBS_FP / get_hcs_nested_path(_sbs_tile_loc, info, subdirectory="labels")
+
     def _sbs_tsv(info):
         return SBS_FP / "tsvs" / get_nested_path(_sbs_tile_loc, info, "tsv")
 
@@ -37,6 +40,8 @@ else:
 
     def _sbs_img(info):
         return SBS_FP / "images" / get_nested_path(_sbs_tile_loc, info, SBS_IMG_FMT)
+
+    _sbs_label = _sbs_img  # No labels/ nesting for TIFF
 
     def _sbs_tsv(info):
         return SBS_FP / "tsvs" / get_nested_path(_sbs_tile_loc, info, "tsv")
@@ -59,8 +64,8 @@ SBS_OUTPUTS = {
     "max_filter": [_sbs_img("max_filtered")],
     "apply_ic_field_sbs": [_sbs_img("illumination_corrected")],
     "segment_sbs": [
-        _sbs_img("nuclei"),
-        _sbs_img("cells"),
+        _sbs_label("nuclei"),
+        _sbs_label("cells"),
         _sbs_tsv("segmentation_stats"),
     ],
     "extract_bases": [_sbs_tsv("bases")],

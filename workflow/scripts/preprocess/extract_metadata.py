@@ -19,18 +19,36 @@ sample_files = getattr(snakemake.input, "samples", [])
 metadata_files = getattr(snakemake.input, "metadata", [])
 
 # Determine what we're extracting from
-if metadata_files:
-    # Extract from metadata CSV files
-    metadata_file_path = metadata_files[0]
-    file_input = metadata_file_path  # Pass the CSV file as the main input
-    print(f"Using metadata file: {metadata_file_path}")
-elif sample_files:
-    # Extract from image files
-    file_input = sample_files
-    metadata_file_path = None
-    print("No metadata file - extracting from image headers")
-else:
-    raise ValueError("No input files provided - need either samples or metadata")
+if False: #Version that allows both metadata and sample files to be used. 
+    metadata_file_path = metadata_files[0] if metadata_files else None
+    # Prefer passing image sample files as the primary input and pass the metadata txt/csv
+    # separately so extract_metadata can iterate over all image files while using the
+    # text metadata for per-well values.
+    if sample_files:
+        file_input = sample_files
+        if metadata_file_path:
+            print(f"Using metadata file alongside image files: {metadata_file_path}")
+        else:
+            print("No metadata file - extracting from image headers")
+    elif metadata_file_path:
+        # Fallback: no sample files available, use metadata file as the primary input
+        file_input = metadata_file_path
+        print(f"Using metadata file as primary input: {metadata_file_path}")
+    else:
+        raise ValueError("No input files provided - need either samples or metadata")
+else: #Legacy Version that only allows sample or metadata files
+    if metadata_files:
+        # Extract from metadata CSV files
+        metadata_file_path = metadata_files[0]
+        file_input = metadata_file_path  # Pass the CSV file as the main input
+        print(f"Using metadata file: {metadata_file_path}")
+    elif sample_files:
+        # Extract from image files
+        file_input=sample_files
+        metadata_file_path=None
+        print("No metadata file - extracting from image headers")
+    else:
+        raise ValueError("No input files provided - need either samples or metadata")
 
 # Extract metadata using main function
 metadata_df = extract_metadata(

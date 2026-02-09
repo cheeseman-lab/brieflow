@@ -160,4 +160,4 @@ if IMG_FMT == "zarr":
 # rule for all preprocessing steps
 rule all_preprocess:
     input:
-        PREPROCESS_TARGETS_ALL,
+        PREPROCESS_TARGETS_ALL + ([str(PREPROCESS_FP / ".hcs_done")] if IMG_FMT == "zarr" else []),

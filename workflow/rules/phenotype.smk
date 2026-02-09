@@ -179,4 +179,4 @@ if PHENOTYPE_IMG_FMT == "zarr":
 # Rule for all phenotype processing steps
 rule all_phenotype:
     input:
-        PHENOTYPE_TARGETS_ALL,
+        PHENOTYPE_TARGETS_ALL + ([str(PHENOTYPE_FP / ".hcs_done")] if PHENOTYPE_IMG_FMT == "zarr" else []),

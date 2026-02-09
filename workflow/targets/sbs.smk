@@ -195,16 +195,17 @@ SBS_OUTPUTS = {
 # When outputting zarr, image outputs need directory() mapping and should not be temp
 # (Snakemake can't reliably temp() a directory output)
 # When outputting tiff, intermediate images can be temp() for cleanup
-_sbs_img_mapping = directory if SBS_IMG_FMT == "zarr" else temp
+_sbs_img_temp = directory if SBS_IMG_FMT == "zarr" else temp
+_sbs_img_keep = directory if SBS_IMG_FMT == "zarr" else None
 
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": _sbs_img_mapping,
-    "log_filter": _sbs_img_mapping,
-    "compute_standard_deviation": _sbs_img_mapping,
-    "find_peaks": _sbs_img_mapping,
-    "max_filter": _sbs_img_mapping,
-    "apply_ic_field_sbs": _sbs_img_mapping,
-    "segment_sbs": [_sbs_img_mapping, _sbs_img_mapping, None],
+    "align_sbs": _sbs_img_temp,
+    "log_filter": _sbs_img_temp,
+    "compute_standard_deviation": _sbs_img_temp,
+    "find_peaks": _sbs_img_temp,
+    "max_filter": _sbs_img_temp,
+    "apply_ic_field_sbs": _sbs_img_temp,
+    "segment_sbs": [_sbs_img_keep, _sbs_img_keep, None],
     "extract_bases": temp,
     "call_reads": temp,
     "call_cells": temp,

@@ -7,6 +7,7 @@ plate-level HCS zarr stores with OME-NGFF v0.5 metadata and symlinks.
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 
@@ -21,17 +22,21 @@ def discover_zarr_stores(images_dir):
     Expected structure: images_dir/{plate}/{well}/{tile}/{image_type}.zarr/
     Or for SBS: images_dir/{plate}/{well}/{tile}/{cycle}/{image_type}.zarr/
 
+    Stores are classified as images or labels by checking for the
+    ``"image-label"`` key in each store's ``zarr.json`` attributes.
+
     Args:
         images_dir: Path to the images directory to scan.
 
     Returns:
-        dict: Nested dict of {image_type: {plate: {well: {tile: zarr_path}}}}
+        tuple: (images, labels) where each is
+               {image_type: {plate: {well: {tile: zarr_path}}}}
     """
     images_path = Path(images_dir)
-    stores = {}
+    images, labels = {}, {}
 
     if not images_path.exists():
-        return stores
+        return images, labels
 
     for zarr_dir in sorted(images_path.rglob("*.zarr")):
         if not zarr_dir.is_dir():
@@ -53,30 +58,37 @@ def discover_zarr_stores(images_dir):
         else:
             continue
 
-        stores.setdefault(group_key, {}).setdefault(plate, {}).setdefault(well, {})[
+        target = labels if _is_label_store(zarr_dir) else images
+        target.setdefault(group_key, {}).setdefault(plate, {}).setdefault(well, {})[
             tile
         ] = str(zarr_dir)
 
-    return stores
+    return images, labels
 
 
-def assemble_hcs_plate(image_type, plate, wells_data, hcs_dir, images_dir):
-    """Assemble one HCS plate zarr store from per-tile stores.
+def assemble_hcs_plate(plate, images_by_type, hcs_dir, images_dir, labels_data=None):
+    """Assemble one HCS plate zarr store containing all image types.
 
-    Creates plate-level zarr.json metadata, well-level metadata, and
-    symlinks from field indices to per-tile zarr stores.
+    The first image type (alphabetically) becomes the primary multiscale
+    image at each field.  Other intensity image types are nested as named
+    subgroups inside the field directory.  Label stores are nested under a
+    ``labels/`` subgroup per the OME-NGFF spec.
 
     Args:
-        image_type: e.g., "aligned", "peaks", "nuclei"
         plate: Plate identifier.
-        wells_data: dict of {well: {tile: zarr_path}}
+        images_by_type: dict of {image_type: {well: {tile: zarr_path}}}
         hcs_dir: Root HCS output directory.
         images_dir: Root images directory (for computing relative symlink paths).
+        labels_data: Optional dict of {label_type: {plate: {well: {tile: zarr_path}}}}
     """
-    plate_zarr = Path(hcs_dir) / image_type / f"{plate}.zarr"
+    plate_zarr = Path(hcs_dir) / f"{plate}.zarr"
+
+    # Choose primary image type (first alphabetically)
+    primary_type = sorted(images_by_type.keys())[0]
+    primary_wells = images_by_type[primary_type]
 
     wells_by_row_col = {}
-    for well_str in wells_data:
+    for well_str in primary_wells:
         row, col = _split_well(well_str)
         wells_by_row_col[(row, col)] = well_str
 
@@ -87,20 +99,37 @@ def assemble_hcs_plate(image_type, plate, wells_data, hcs_dir, images_dir):
 
     for (row, col), well_str in sorted(wells_by_row_col.items()):
         well_dir = plate_zarr / row / col
-        tiles = wells_data[well_str]
-        field_indices = sorted(tiles.keys())
+        primary_tiles = primary_wells[well_str]
+        field_indices = sorted(primary_tiles.keys())
 
         _write_well_metadata(well_dir, field_indices)
 
         for tile in field_indices:
-            field_link = well_dir / str(tile)
-            target = Path(tiles[tile])
+            field_dir = well_dir / str(tile)
+            source_store = Path(primary_tiles[tile])
 
-            if field_link.exists() or field_link.is_symlink():
-                os.remove(field_link)
+            # Create field as a real directory (not a whole-store symlink)
+            if field_dir.is_symlink():
+                os.remove(field_dir)
+            field_dir.mkdir(parents=True, exist_ok=True)
 
-            rel_target = os.path.relpath(target, field_link.parent)
-            os.symlink(rel_target, field_link)
+            # Primary image: copy zarr.json and symlink pyramid levels
+            shutil.copy2(source_store / "zarr.json", field_dir / "zarr.json")
+            _symlink_pyramid_levels(source_store, field_dir)
+
+            # Nest labels
+            if labels_data:
+                _nest_labels(field_dir, tile, labels_data, plate, well_str)
+
+            # Nest other image types as named subgroups
+            for img_type in sorted(images_by_type.keys()):
+                if img_type == primary_type:
+                    continue
+                wells = images_by_type[img_type]
+                if well_str not in wells or tile not in wells[well_str]:
+                    continue
+                other_store = Path(wells[well_str][tile])
+                _nest_image_subgroup(field_dir, img_type, other_store)
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +143,80 @@ def _split_well(well_str):
     if not match:
         raise ValueError(f"Cannot parse well identifier: '{well_str}'")
     return match.group(1), match.group(2)
+
+
+def _is_label_store(zarr_path):
+    """Check if a zarr store is a label image by reading its zarr.json."""
+    zarr_json = Path(zarr_path) / "zarr.json"
+    if not zarr_json.exists():
+        return False
+    with open(zarr_json) as f:
+        meta = json.load(f)
+    return "image-label" in meta.get("attributes", {})
+
+
+def _symlink_pyramid_levels(source_store, target_dir):
+    """Create symlinks for each pyramid level directory in source_store."""
+    for level_dir in sorted(source_store.iterdir()):
+        if level_dir.is_dir() and level_dir.name.isdigit():
+            link = target_dir / level_dir.name
+            if link.exists() or link.is_symlink():
+                os.remove(link)
+            os.symlink(os.path.relpath(level_dir, target_dir), link)
+
+
+def _nest_labels(field_dir, tile, labels_data, plate, well_str):
+    """Create labels/ subgroup inside a field with symlinks to label stores."""
+    available_labels = []
+    for label_type, plates in labels_data.items():
+        if (
+            plate in plates
+            and well_str in plates[plate]
+            and tile in plates[plate][well_str]
+        ):
+            available_labels.append((label_type, Path(plates[plate][well_str][tile])))
+
+    if not available_labels:
+        return
+
+    labels_dir = field_dir / "labels"
+    _write_labels_group_metadata(labels_dir, [name for name, _ in available_labels])
+
+    for label_name, label_store in available_labels:
+        label_dir = labels_dir / label_name
+        label_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy label store's zarr.json
+        shutil.copy2(label_store / "zarr.json", label_dir / "zarr.json")
+
+        # Symlink each pyramid level
+        _symlink_pyramid_levels(label_store, label_dir)
+
+
+def _nest_image_subgroup(field_dir, image_type, source_store):
+    """Create a named subgroup inside a field for an additional image type."""
+    subgroup_dir = field_dir / image_type
+    subgroup_dir.mkdir(parents=True, exist_ok=True)
+
+    shutil.copy2(source_store / "zarr.json", subgroup_dir / "zarr.json")
+    _symlink_pyramid_levels(source_store, subgroup_dir)
+
+
+def _write_labels_group_metadata(labels_dir, label_names):
+    """Write labels group zarr.json listing available labels."""
+    labels_dir.mkdir(parents=True, exist_ok=True)
+    metadata = {
+        "zarr_format": 3,
+        "node_type": "group",
+        "attributes": {
+            "ome": {
+                "version": "0.5",
+                "labels": label_names,
+            }
+        },
+    }
+    with open(labels_dir / "zarr.json", "w") as f:
+        json.dump(metadata, f, indent=2)
 
 
 def _write_zarr_v3_group_metadata(path):
@@ -141,18 +244,21 @@ def _write_plate_metadata(plate_zarr_path, wells_by_row_col):
         "zarr_format": 3,
         "node_type": "group",
         "attributes": {
-            "plate": {
-                "acquisitions": [{"id": 0, "name": "default"}],
-                "columns": [{"name": c} for c in cols],
-                "rows": [{"name": r} for r in rows],
-                "wells": [
-                    {
-                        "path": f"{rc[0]}/{rc[1]}",
-                        "rowIndex": rows.index(rc[0]),
-                        "columnIndex": cols.index(rc[1]),
-                    }
-                    for rc in sorted(wells_by_row_col.keys())
-                ],
+            "ome": {
+                "version": "0.5",
+                "plate": {
+                    "acquisitions": [{"id": 0, "name": "default"}],
+                    "columns": [{"name": c} for c in cols],
+                    "rows": [{"name": r} for r in rows],
+                    "wells": [
+                        {
+                            "path": f"{rc[0]}/{rc[1]}",
+                            "rowIndex": rows.index(rc[0]),
+                            "columnIndex": cols.index(rc[1]),
+                        }
+                        for rc in sorted(wells_by_row_col.keys())
+                    ],
+                },
             }
         },
     }
@@ -170,10 +276,13 @@ def _write_well_metadata(well_path, field_indices):
         "zarr_format": 3,
         "node_type": "group",
         "attributes": {
-            "well": {
-                "images": [
-                    {"path": str(idx), "acquisition": 0} for idx in field_indices
-                ],
+            "ome": {
+                "version": "0.5",
+                "well": {
+                    "images": [
+                        {"path": str(idx), "acquisition": 0} for idx in field_indices
+                    ],
+                },
             }
         },
     }

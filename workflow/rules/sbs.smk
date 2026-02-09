@@ -299,4 +299,4 @@ if SBS_IMG_FMT == "zarr":
 # rule for all sbs processing steps
 rule all_sbs:
     input:
-        SBS_TARGETS_ALL,
+        SBS_TARGETS_ALL + ([str(SBS_FP / ".hcs_done")] if SBS_IMG_FMT == "zarr" else []),

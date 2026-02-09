@@ -60,7 +60,7 @@ def segment_cellpose(
     cyto_index,
     nuclei_diameter,
     cell_diameter,
-    cyto_model="cyto3",
+    cellpose_model="cyto3",
     helper_index=None,
     cellpose_kwargs=dict(
         flow_threshold=0.4,
@@ -84,8 +84,8 @@ def segment_cellpose(
         cyto_index (int): Index of cytoplasmic channel.
         nuclei_diameter (int): Estimated diameter of nuclei.
         cell_diameter (int): Estimated diameter of cells.
-        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
-            Use 'cpsam' for Cellpose-SAM (requires Cellpose 4.x).
+        cellpose_model (str, optional): Cellpose model type to use (e.g., 'cyto3', 'cpsam').
+            Default is 'cyto3'. Use 'cpsam' for Cellpose-SAM (requires Cellpose 4.x).
         helper_index (int, optional): Index of helper channel for improved segmentation (CPSAM feature).
             Only used with multi-channel models. Default is None (blank channel).
         cellpose_kwargs (dict, optional): Additional keyword arguments for Cellpose, including:
@@ -152,7 +152,7 @@ def segment_cellpose(
                 rgb,
                 nuclei_diameter,
                 cell_diameter,
-                cyto_model=cyto_model,
+                cellpose_model=cellpose_model,
                 reconcile=reconcile,
                 return_counts=True,
                 gpu=gpu,
@@ -166,7 +166,7 @@ def segment_cellpose(
                 rgb,
                 nuclei_diameter,
                 cell_diameter,
-                cyto_model=cyto_model,
+                cellpose_model=cellpose_model,
                 reconcile=reconcile,
                 gpu=gpu,
                 nuclei_kwargs=nuclei_kwargs,
@@ -185,7 +185,11 @@ def segment_cellpose(
             return nuclei, cells
     else:
         nuclei = segment_cellpose_nuclei_rgb(
-            rgb, nuclei_diameter, gpu=gpu, **nuclei_kwargs
+            rgb,
+            nuclei_diameter,
+            cellpose_model=cellpose_model,
+            gpu=gpu,
+            **nuclei_kwargs,
         )
         counts["final_nuclei"] = len(np.unique(nuclei)) - 1
         print(f"Number of nuclei segmented: {counts['final_nuclei']}")
@@ -258,7 +262,7 @@ def estimate_diameters(
     cyto_index,
     helper_index=None,
     channels=[2, 3],  # Default channels for cell estimation
-    cyto_model="cyto3",
+    cellpose_model="cyto3",
     cellpose_kwargs=dict(flow_threshold=0.4, cellprob_threshold=0),
     gpu=False,
     logscale=True,
@@ -274,7 +278,7 @@ def estimate_diameters(
         cyto_index (int): Index of cytoplasmic channel
         helper_index (int, optional): Index of helper channel. Default is None.
         channels (list): Channel indices for diameter estimation [cytoplasm, nuclei]
-        cyto_model (str): Cellpose model type to use (e.g., 'cyto3', 'cpsam')
+        cellpose_model (str): Cellpose model type to use (e.g., 'cyto3', 'cpsam')
         cellpose_kwargs (dict): Additional keyword arguments for Cellpose
         gpu (bool): Whether to use GPU
         logscale (bool): Whether to apply log scaling to image
@@ -323,9 +327,10 @@ def estimate_diameters(
 
     # Find optimal cell diameter using explicit SizeModel
     print("Estimating cell diameters...")
-    model_cyto = CellposeModel(model_type=cyto_model, gpu=gpu)
+    model_cyto = CellposeModel(model_type=cellpose_model, gpu=gpu)
     size_model_cyto = SizeModel(
-        cp_model=model_cyto, pretrained_size=cellpose_models.size_model_path(cyto_model)
+        cp_model=model_cyto,
+        pretrained_size=cellpose_models.size_model_path(cellpose_model),
     )
     diam_cell, _ = size_model_cyto.eval(rgb, channels=channels)
     diam_cell = np.maximum(5.0, diam_cell)
@@ -339,7 +344,7 @@ def segment_cellpose_rgb(
     rgb,
     nuclei_diameter,
     cell_diameter,
-    cyto_model="cyto3",
+    cellpose_model="cyto3",
     reconcile="consensus",
     remove_edges=True,
     return_counts=False,
@@ -354,9 +359,9 @@ def segment_cellpose_rgb(
         rgb (numpy.ndarray): RGB image.
         nuclei_diameter (int): Diameter of nuclei for segmentation.
         cell_diameter (int): Diameter of cells for segmentation.
-        cyto_model (str, optional): Type of cytoplasmic model to use. Default is 'cyto3'.
-            Cellpose 3.x: Use 'cyto3', 'nuclei', 'cyto2'
-            Cellpose 4.x: Use 'cpsam' only
+        cellpose_model (str, optional): Cellpose model type to use (e.g., 'cyto3', 'cpsam').
+            Default is 'cyto3'. Cellpose 3.x: Use 'cyto3', 'nuclei', 'cyto2'.
+            Cellpose 4.x: Use 'cpsam' only.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
         remove_edges (bool, optional): Whether to remove nuclei and cells touching the image edges. Default is True.
         return_counts (bool, optional): Whether to return counts of nuclei and cells before reconciliation. Default is False.
@@ -375,14 +380,14 @@ def segment_cellpose_rgb(
         ValueError: If model is incompatible with installed Cellpose version
     """
     # Validate model compatibility with Cellpose version
-    if CELLPOSE_4X and cyto_model != "cpsam":
+    if CELLPOSE_4X and cellpose_model != "cpsam":
         raise ValueError(
-            f"Model '{cyto_model}' requires Cellpose 3.x. "
+            f"Model '{cellpose_model}' requires Cellpose 3.x. "
             f"Cellpose 4.x only supports the 'cpsam' model. "
             f"Either change your config to use model='cpsam', "
             f"or downgrade Cellpose: uv pip install cellpose==3.1.0"
         )
-    if not CELLPOSE_4X and cyto_model == "cpsam":
+    if not CELLPOSE_4X and cellpose_model == "cpsam":
         raise ValueError(
             f"CPSAM model requires Cellpose 4.x. "
             f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
@@ -393,11 +398,11 @@ def segment_cellpose_rgb(
     if CELLPOSE_4X:
         # Cellpose 4.x: Use pretrained_model parameter
         model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
-        model_cyto = CellposeModel(pretrained_model=cyto_model, gpu=gpu)
+        model_cyto = CellposeModel(pretrained_model=cellpose_model, gpu=gpu)
     else:
         # Cellpose 3.x: Use model_type parameter
         model_dapi = CellposeModel(model_type="nuclei", gpu=gpu)
-        model_cyto = CellposeModel(model_type=cyto_model, gpu=gpu)
+        model_cyto = CellposeModel(model_type=cellpose_model, gpu=gpu)
 
     # Set default kwargs if not provided
     if nuclei_kwargs is None:
@@ -414,7 +419,7 @@ def segment_cellpose_rgb(
     # Segment cells using cell-specific parameters
     # For CPSAM (Cellpose 4.x), use all 3 channels: [red/helper, green/cyto, blue/DAPI]
     # For standard models (Cellpose 3.x), use [green/cyto, blue/DAPI]
-    if CELLPOSE_4X and cyto_model == "cpsam":
+    if CELLPOSE_4X and cellpose_model == "cpsam":
         # CPSAM can use all 3 channels
         cells, _, _ = model_cyto.eval(
             rgb, diameter=cell_diameter, channels=[1, 2, 3], **cell_kwargs
@@ -473,13 +478,20 @@ def segment_cellpose_rgb(
 
 
 def segment_cellpose_nuclei_rgb(
-    rgb, nuclei_diameter, gpu=False, remove_edges=True, **kwargs
+    rgb,
+    nuclei_diameter,
+    cellpose_model="nuclei",
+    gpu=False,
+    remove_edges=True,
+    **kwargs,
 ):
     """Segment nuclei using the Cellpose algorithm from an RGB image.
 
     Args:
         rgb (numpy.ndarray): RGB image.
         nuclei_diameter (int): Diameter of nuclei for segmentation.
+        cellpose_model (str, optional): Cellpose model to use. Default is "nuclei".
+            Can also use "cyto3" or other models if nuclei-specific model produces poor results.
         gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
         remove_edges (bool, optional): Whether to remove nuclei touching the image edges. Default is True.
         **kwargs: Additional keyword arguments.
@@ -487,17 +499,32 @@ def segment_cellpose_nuclei_rgb(
     Returns:
         numpy.ndarray: Labeled segmentation mask of nuclei.
     """
+    # Validate model compatibility with Cellpose version
+    if CELLPOSE_4X and cellpose_model != "cpsam":
+        raise ValueError(
+            f"Model '{cellpose_model}' requires Cellpose 3.x. "
+            f"Cellpose 4.x only supports the 'cpsam' model. "
+            f"Either change your config to use model='cpsam', "
+            f"or downgrade Cellpose: uv pip install cellpose==3.1.0"
+        )
+    if not CELLPOSE_4X and cellpose_model == "cpsam":
+        raise ValueError(
+            f"CPSAM model requires Cellpose 4.x. "
+            f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
+            f"Upgrade with: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
+        )
+
     # Create Cellpose model (different parameters for Cellpose 3.x vs 4.x)
     if CELLPOSE_4X:
-        # Cellpose 4.x: Use cpsam model
-        model_dapi = CellposeModel(pretrained_model="cpsam", gpu=gpu)
+        # Cellpose 4.x: Use pretrained_model parameter
+        model = CellposeModel(pretrained_model=cellpose_model, gpu=gpu)
     else:
-        # Cellpose 3.x: Use nuclei model
-        model_dapi = CellposeModel(model_type="nuclei", gpu=gpu)
+        # Cellpose 3.x: Use model_type parameter
+        model = CellposeModel(model_type=cellpose_model, gpu=gpu)
 
     # Segment nuclei using CellposeModel from the RGB image
     # Pass only blue channel (DAPI) for nuclei segmentation
-    nuclei, _, _ = model_dapi.eval(rgb[2], diameter=nuclei_diameter, **kwargs)
+    nuclei, _, _ = model.eval(rgb[2], diameter=nuclei_diameter, **kwargs)
 
     # Print the number of nuclei found before and after removing edges
     print(

@@ -23,7 +23,7 @@ def plot_mapping_vs_threshold(
             Expected barcodes from the pool library design.
         threshold_var (str, optional):
             Variable to apply varying thresholds to for comparing mapping rates. Standard variables are
-            'peak' and 'QC_min'. Can also use a user-defined variable, but must be a column of the df_reads
+            'peak' and 'Q_min'. Can also use a user-defined variable, but must be a column of the df_reads
             table. Defaults to 'peak'.
         ax (matplotlib.axis, optional):
             Optional. If not None, this is an axis object to plot on. Helpful when plotting on
@@ -478,7 +478,12 @@ def plot_gene_symbol_histogram(df, x_cutoff=None):
 
 
 def plot_barcode_prefix_matching(
-    df_reads, df_library, barcode_col="barcode", library_col=None
+    df_reads,
+    df_library,
+    barcode_col="barcode",
+    library_col=None,
+    library_col_recomb=None,
+    sequencing_order=None,
 ):
     """Plot barcode prefix matching rate vs random expectation.
 
@@ -493,26 +498,41 @@ def plot_barcode_prefix_matching(
             DataFrame of library barcodes to match against.
         barcode_col (str, optional):
             Column name in df_reads containing barcode sequences. Defaults to "barcode".
-        library_col (str, optional):
-            Column name in df_library containing barcode sequences.
-            If None, tries common column names: 'barcode', 'sgRNA', 'iBAR_2'.
-            Defaults to None.
+        library_col (str):
+            Column name in df_library containing barcode sequences to match against.
+            For simple mode, this is the prefix column.
+            For multi-mode, this is the MAP region prefix column.
+        library_col_recomb (str, optional):
+            Column name in df_library containing RECOMB region barcode sequences.
+            Only used in multi-mode. Defaults to None.
+        sequencing_order (str, optional):
+            Order of barcode regions during sequencing. Options are "map_recomb" or
+            "recomb_map". Only used when library_col_recomb is provided. Defaults to None.
 
     Returns:
         pandas.DataFrame: Summary table with columns 'prefix_length', 'match_rate', 'random_rate'.
         matplotlib.figure.Figure: The figure object containing the plot.
     """
-    # Determine library column
+    # Validate library column is specified
     if library_col is None:
-        for col in ["barcode", "sgRNA", "iBAR_2"]:
-            if col in df_library.columns:
-                library_col = col
-                break
-        if library_col is None:
+        raise ValueError("library_col parameter is required.")
+
+    # Handle multi-mode: concatenate library barcodes based on sequencing order
+    if library_col_recomb is not None and sequencing_order is not None:
+        if sequencing_order == "map_recomb":
+            library_barcodes = df_library[library_col].astype(str) + df_library[
+                library_col_recomb
+            ].astype(str)
+        elif sequencing_order == "recomb_map":
+            library_barcodes = df_library[library_col_recomb].astype(str) + df_library[
+                library_col
+            ].astype(str)
+        else:
             raise ValueError(
-                "Could not find barcode column in library. "
-                "Please specify library_col parameter."
+                f"sequencing_order must be 'map_recomb' or 'recomb_map', got '{sequencing_order}'"
             )
+    else:
+        library_barcodes = df_library[library_col].astype(str)
 
     # Get barcode length from reads
     barcode_length = len(df_reads[barcode_col].iloc[0])
@@ -523,7 +543,7 @@ def plot_barcode_prefix_matching(
     for i in range(1, barcode_length + 1):
         # Get prefix matches
         read_prefixes = df_reads[barcode_col].str[:i]
-        library_prefixes = set(df_library[library_col].str[:i])
+        library_prefixes = set(library_barcodes.str[:i])
         match_rate = read_prefixes.isin(library_prefixes).mean()
         match_rates.append(round(match_rate, 4))
         random_rates.append(1 / (4**i))

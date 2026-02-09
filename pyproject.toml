@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "BrieFlow"
-version = "1.4.5"
+version = "1.4.9"
 description = "Package for processing data from optical poooled screens."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -45,6 +45,11 @@ dependencies = [
   "dexp==2023.4.10.686",
   "levenshtein==0.27.1",
   "imaris-ims-file-reader==0.1.8"
+  "ipywidgets==8.1.7",
+  "jupyterlab-widgets==3.0.15",
+  "widgetsnbextension==4.0.14",
+  "lightgbm==4.6.0",
+  "scikit-learn==1.8.0",
 ]
 
 

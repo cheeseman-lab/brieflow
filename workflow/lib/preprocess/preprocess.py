@@ -658,6 +658,7 @@ def convert_nd2_to_array_tile(
     files: Union[str, List[str], Path, List[Path]],
     channel_order_flip: bool = False,
     verbose: bool = False,
+    n_z_planes: int = None,
 ) -> np.ndarray:
     """Convert tile-based ND2 files to numpy array in CYX format.
 
@@ -665,10 +666,14 @@ def convert_nd2_to_array_tile(
     If multiple files are provided, they are concatenated along the channel axis.
     Z-stacks are handled by maximum intensity projection.
 
+    Note: n_z_planes parameter is accepted for API compatibility but not used,
+    as Z-stack handling is automatic via maximum intensity projection.
+
     Args:
         files: Path(s) to ND2 file(s)
         channel_order_flip: Reverse the order of channels
         verbose: Print debug information
+        n_z_planes: Accepted for API compatibility but not used (Z-stack handled automatically)
 
     Returns:
         numpy array in CYX format (Channel, Y, X) with dtype uint16
@@ -743,6 +748,7 @@ def convert_nd2_to_array_well(
     return_tiles: bool = False,
     verbose: bool = False,
     **kwargs
+    n_z_planes: int = None,
 ) -> Union[np.ndarray, Tuple[np.ndarray, int]]:
     """Extract specific position from well-based ND2 files.
 
@@ -756,6 +762,7 @@ def convert_nd2_to_array_well(
         return_tiles: If True, also return the total number of tiles
         verbose: Print debug information
         **kwargs: Additional arguments for compatibility
+        n_z_planes: Accepted for API compatibility but not used (Z-stack handled automatically)
 
     Returns:
         numpy array in CYX format, optionally with tile count

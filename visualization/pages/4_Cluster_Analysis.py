@@ -37,6 +37,49 @@ SOURCE_INDEX = 3
 # FUNCTIONS
 
 
+def has_mozzarellm_analysis(channel_combo: str) -> bool:
+    """Check if a channel combo has mozzarellm analysis for any cell_class/leiden_resolution."""
+    channel_dir = os.path.join(CLUSTER_ROOT, channel_combo)
+    if not os.path.exists(channel_dir):
+        return False
+    # Check all cell_class/leiden_resolution subdirectories for mozzarellm/clusters
+    for cell_class in os.listdir(channel_dir):
+        cell_class_dir = os.path.join(channel_dir, cell_class)
+        if not os.path.isdir(cell_class_dir):
+            continue
+        for leiden_res in os.listdir(cell_class_dir):
+            mozzarellm_clusters = os.path.join(
+                cell_class_dir, leiden_res, "mozzarellm", "clusters"
+            )
+            if os.path.exists(mozzarellm_clusters):
+                return True
+    return False
+
+
+def has_mozzarellm_for_cell_class(channel_combo: str, cell_class: str) -> bool:
+    """Check if mozzarellm exists for channel_combo + cell_class + any leiden_resolution."""
+    cell_class_dir = os.path.join(CLUSTER_ROOT, channel_combo, cell_class)
+    if not os.path.exists(cell_class_dir):
+        return False
+    for leiden_res in os.listdir(cell_class_dir):
+        mozzarellm_clusters = os.path.join(
+            cell_class_dir, leiden_res, "mozzarellm", "clusters"
+        )
+        if os.path.exists(mozzarellm_clusters):
+            return True
+    return False
+
+
+def has_mozzarellm_for_leiden(channel_combo: str, cell_class: str, leiden_res) -> bool:
+    """Check if mozzarellm exists for the exact channel_combo + cell_class + leiden_resolution."""
+    # Convert to int then string to handle float values like 15.0 -> "15"
+    leiden_str = str(int(float(leiden_res)))
+    mozzarellm_clusters = os.path.join(
+        CLUSTER_ROOT, channel_combo, cell_class, leiden_str, "mozzarellm", "clusters"
+    )
+    return os.path.exists(mozzarellm_clusters)
+
+
 # -- Data Load Methods --
 # Load and merge cluster TSV files
 @st.cache_data
@@ -586,6 +629,25 @@ def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
             )
 
 
+def get_available_llm_combinations(channel_combo: str) -> list:
+    """Find all cell_class/resolution combinations that have LLM data."""
+    available = []
+    channel_dir = os.path.join(CLUSTER_ROOT, channel_combo)
+    if not os.path.exists(channel_dir):
+        return available
+    for cell_class in os.listdir(channel_dir):
+        cell_class_dir = os.path.join(channel_dir, cell_class)
+        if not os.path.isdir(cell_class_dir):
+            continue
+        for leiden_res in os.listdir(cell_class_dir):
+            mozzarellm_clusters = os.path.join(
+                cell_class_dir, leiden_res, "mozzarellm", "clusters"
+            )
+            if os.path.exists(mozzarellm_clusters) and os.listdir(mozzarellm_clusters):
+                available.append((cell_class, leiden_res))
+    return available
+
+
 def display_cluster_json(cluster_data, container=st.container()):
     if (
         "selected_item" in st.session_state
@@ -593,95 +655,125 @@ def display_cluster_json(cluster_data, container=st.container()):
     ):
         # Because the interphase folder has mixed case
         cluster_dir = os.path.dirname(cluster_data["source_full_path"].unique()[0])
+        cluster_id = str(st.session_state.selected_item)
 
-        # Build the path to the clusters.json file in mozzarellm_analysis dir
-        mozzarellm_dir = os.path.join(cluster_dir, "mozzarellm_analysis")
-        cluster_json_path = ""
+        # Build the path to the individual cluster JSON file in mozzarellm/clusters/
+        mozzarellm_clusters_dir = os.path.join(cluster_dir, "mozzarellm", "clusters")
+        cluster_json_path = os.path.join(
+            mozzarellm_clusters_dir, f"cluster_{cluster_id}.json"
+        )
 
-        if os.path.exists(mozzarellm_dir):
-            # Find the first file that ends with _clusters.json
-            json_files = [
-                f for f in os.listdir(mozzarellm_dir) if f.endswith("_clusters.json")
-            ]
-            if json_files:
-                cluster_json_path = os.path.join(mozzarellm_dir, json_files[0])
+        # Always show the section header
+        st.markdown("### LLM Cluster Analysis")
 
         if os.path.exists(cluster_json_path):
-            st.markdown("### LLM Cluster Analysis")
             with open(cluster_json_path, "r") as f:
-                cluster_json = json.load(f)
-            cluster_id = str(st.session_state.selected_item)
-            clusters = cluster_json.get("clusters", {})
-
-            if cluster_id in clusters:
-                c = clusters[cluster_id]
-                # Card layout using markdown and Streamlit elements
-                st.markdown(
-                    f"""
-                    <div style='background-color:#1e1e1e; border-radius:10px; padding:20px; margin-bottom:20px; box-shadow:0 2px 8px #00000040;'>
-                        <div style='display:flex; justify-content:space-between; align-items:center;'>
-                            <div>
-                                <span style='font-size:1.3em; font-weight:bold; color:#e0e0e0;'>Dominant Process:</span>
-                                <span style='font-size:1.3em; color:#60a5fa; font-weight:bold;'>{
-                        c.get("dominant_process", "")
-                    }</span>
-                            </div>
-                            <div>
-                                <span style='background:#1e3a8a; color:#93c5fd; border-radius:6px; padding:4px 12px; font-weight:600;'>Confidence: {
-                        c.get("pathway_confidence", "")
-                    }</span>
-                            </div>
+                c = json.load(f)
+            # Card layout using markdown and Streamlit elements
+            st.markdown(
+                f"""
+                <div style='background-color:#1e1e1e; border-radius:10px; padding:20px; margin-bottom:20px; box-shadow:0 2px 8px #00000040;'>
+                    <div style='display:flex; justify-content:space-between; align-items:center;'>
+                        <div>
+                            <span style='font-size:1.3em; font-weight:bold; color:#e0e0e0;'>Dominant Process:</span>
+                            <span style='font-size:1.3em; color:#60a5fa; font-weight:bold;'>{
+                    c.get("dominant_process", "")
+                }</span>
                         </div>
-                        <div style='margin-top:10px; margin-bottom:10px; font-size:1.1em; color:#d1d5db;'>
-                            {c.get("summary", "")}
-                        </div>
-                        <div style='margin-top:18px;'>
-                            <span style='font-weight:600; color:#60a5fa;'>Established Genes:</span>
-                            <span style='margin-left:8px;'>{
-                        " ".join(
-                            [
-                                f"<span style='background:#064e3b; color:#6ee7b7; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene}</span>"
-                                for gene in c.get("established_genes", [])
-                            ]
-                        )
-                    }</span>
-                        </div>
-                        <div style='margin-top:10px;'>
-                            <span style='font-weight:600; color:#fbbf24;'>Novel Role Genes:</span>
-                            <ul style='margin:0; padding-left:20px;'>
-                            {
-                        "".join(
-                            [
-                                f"<li><span style='background:#78350f; color:#fcd34d; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>"
-                                for gene in c.get("novel_role_genes", [])
-                            ]
-                        )
-                    }</ul>
-                        </div>
-                        <div style='margin-top:10px;'>
-                            <span style='font-weight:600; color:#c084fc;'>Uncharacterized Genes:</span>
-                            <ul style='margin:0; padding-left:20px;'>
-                            {
-                        "".join(
-                            [
-                                f"<li><span style='background:#5b21b6; color:#d8b4fe; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>"
-                                for gene in c.get("uncharacterized_genes", [])
-                            ]
-                        )
-                    }</ul>
+                        <div>
+                            <span style='background:#1e3a8a; color:#93c5fd; border-radius:6px; padding:4px 12px; font-weight:600;'>Confidence: {
+                    c.get("pathway_confidence", "")
+                }</span>
                         </div>
                     </div>
-                """,
-                    unsafe_allow_html=True,
-                )
+                    <div style='margin-top:10px; margin-bottom:10px; font-size:1.1em; color:#d1d5db;'>
+                        {c.get("summary", "")}
+                    </div>
+                    <div style='margin-top:18px;'>
+                        <span style='font-weight:600; color:#60a5fa;'>Established Genes:</span>
+                        <span style='margin-left:8px;'>{
+                    " ".join(
+                        [
+                            f"<span style='background:#064e3b; color:#6ee7b7; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene}</span>"
+                            for gene in c.get("established_genes", [])
+                        ]
+                    )
+                }</span>
+                    </div>
+                    <div style='margin-top:10px;'>
+                        <span style='font-weight:600; color:#fbbf24;'>Novel Role Genes:</span>
+                        <ul style='margin:0; padding-left:20px;'>
+                        {
+                    "".join(
+                        [
+                            f"<li><span style='background:#78350f; color:#fcd34d; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>"
+                            for gene in c.get("novel_role_genes", [])
+                        ]
+                    )
+                }</ul>
+                    </div>
+                    <div style='margin-top:10px;'>
+                        <span style='font-weight:600; color:#c084fc;'>Uncharacterized Genes:</span>
+                        <ul style='margin:0; padding-left:20px;'>
+                        {
+                    "".join(
+                        [
+                            f"<li><span style='background:#5b21b6; color:#d8b4fe; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>"
+                            for gene in c.get("uncharacterized_genes", [])
+                        ]
+                    )
+                }</ul>
+                    </div>
+                </div>
+            """,
+                unsafe_allow_html=True,
+            )
+        else:
+            # Show placeholder card when LLM data is not available
+            current_cell_class = st.session_state.get("cell_class", "unknown")
+            current_resolution = st.session_state.get("leiden_resolution", "unknown")
+            channel_combo = st.session_state.get("channel_combo", "")
+
+            # Find which combinations have LLM data
+            available = get_available_llm_combinations(channel_combo)
+
+            # Smart context: tailor message based on what's wrong
+            if not available:
+                available_text = "No LLM analysis available for this dataset."
             else:
-                st.error(
-                    f"Cluster {cluster_id} not found in the analysis. Available clusters are: {', '.join(clusters.keys())}"
-                )
-                st.info(
-                    "This might indicate that the cluster analysis was run with different parameters or the JSON file is from a different analysis run."
-                )
-                return
+                # Check if current cell class has any LLM data
+                cell_classes_with_llm = set(cc for cc, res in available)
+                resolutions_for_current_class = [
+                    res for cc, res in available if cc == current_cell_class
+                ]
+
+                if current_cell_class in cell_classes_with_llm:
+                    # Right cell class, wrong resolution
+                    res_list = ", ".join(sorted(resolutions_for_current_class, key=int))
+                    available_text = (
+                        f"Available for {current_cell_class} at resolution: {res_list}"
+                    )
+                else:
+                    # Wrong cell class
+                    available_text = (
+                        f"Available for: {', '.join(sorted(cell_classes_with_llm))}"
+                    )
+
+            st.markdown(
+                f"""
+                <div style='background-color:#1e1e1e; border-radius:10px; padding:20px; margin-bottom:20px; box-shadow:0 2px 8px #00000040; border: 1px solid #374151;'>
+                    <div style='color:#9ca3af; font-size:1.1em;'>
+                        <span style='font-size:1.2em;'>ℹ️</span>
+                        LLM analysis is not available for <strong>{current_cell_class}</strong> cells
+                        at resolution <strong>{current_resolution}</strong>.
+                    </div>
+                    <div style='margin-top:12px; color:#6b7280; font-size:0.95em;'>
+                        {available_text}
+                    </div>
+                </div>
+            """,
+                unsafe_allow_html=True,
+            )
 
 
 def display_uniprot_info():
@@ -854,6 +946,10 @@ def apply_all_filters(data):
             channel_combo_options[0] if channel_combo_options else None
         )
 
+    # Format channel combo display label
+    def format_channel_combo(combo: str) -> str:
+        return combo
+
     # Create the radio button with a stable key
     selected_channel_combo = st.sidebar.radio(
         "**Channel Combo** - *Used to subset features during aggregation*",
@@ -863,6 +959,7 @@ def apply_all_filters(data):
         else 0,
         key="channel_combo_radio_main",
         on_change=on_channel_combo_change,
+        format_func=format_channel_combo,
     )
     data = apply_filter(data, "channel_combo", selected_channel_combo)
 
@@ -872,6 +969,10 @@ def apply_all_filters(data):
     if "cell_class" not in st.session_state:
         st.session_state.cell_class = "all"
 
+    # Format cell class display label
+    def format_cell_class(cc: str) -> str:
+        return cc
+
     # Create the radio button with a stable key
     selected_cell_class = st.sidebar.radio(
         "**Cell Class** - *Used to subset single cell data with classifier provided during aggregation*",
@@ -879,6 +980,7 @@ def apply_all_filters(data):
         index=cell_class_options.index(st.session_state.cell_class),
         key="cell_class_radio_main",
         on_change=on_cell_class_change,
+        format_func=format_cell_class,
     )
     data = apply_filter(data, "cell_class", selected_cell_class)
 
@@ -892,6 +994,10 @@ def apply_all_filters(data):
             leiden_options[0] if leiden_options else None
         )
 
+    # Format leiden resolution display label
+    def format_leiden(lr: str) -> str:
+        return str(lr)
+
     # Create the radio button with a stable key
     selected_lr = st.sidebar.radio(
         """**Leiden Resolution** - *Used in the Leiden clustering algorithm to determine gene clusters*""",
@@ -901,6 +1007,7 @@ def apply_all_filters(data):
         else 0,
         key="leiden_resolution_radio_main",
         on_change=on_leiden_resolution_change,
+        format_func=format_leiden,
     )
     data = apply_filter(data, "leiden_resolution", selected_lr)
 

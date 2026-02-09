@@ -46,6 +46,8 @@ rule identify_cytoplasm:
         PHENOTYPE_OUTPUTS["segment_phenotype"][1],
     output:
         PHENOTYPE_OUTPUTS_MAPPED["identify_cytoplasm"],
+    params:
+        segment_cells=config["phenotype"].get("segment_cells", True),
     script:
         "../scripts/phenotype/identify_cytoplasm_cellpose.py"
 
@@ -76,41 +78,44 @@ rule combine_phenotype_info:
         "../scripts/shared/combine_dfs.py"
 
 
-# Extract full phenotype information using CellProfiler from phenotype images
-rule extract_phenotype_cp:
+# Extract full phenotype information from phenotype images
+rule extract_phenotype:
     input:
         # aligned phenotype image
-        PHENOTYPE_OUTPUTS["align_phenotype"],
+        PHENOTYPE_OUTPUTS["align_phenotype"][0],
         # nuclei segmentation map
         PHENOTYPE_OUTPUTS["segment_phenotype"][0],
         # cells segmentation map
         PHENOTYPE_OUTPUTS["segment_phenotype"][1],
-        PHENOTYPE_OUTPUTS["identify_cytoplasm"],
+        # cytoplasm segmentation map
+        PHENOTYPE_OUTPUTS["identify_cytoplasm"][0],
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_cp"],
+        PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype"],
     params:
         foci_channel_index=config["phenotype"]["foci_channel_index"],
         channel_names=config["phenotype"]["channel_names"],
         cp_method=config["phenotype"]["cp_method"],
+        segment_cells=config["phenotype"].get("segment_cells", True),
     script:
-        "../scripts/phenotype/extract_phenotype_cp_multichannel.py"
+        "../scripts/phenotype/extract_phenotype.py"
 
 
 # Combine phenotype results from different tiles
-rule merge_phenotype_cp:
+rule merge_phenotype:
     input:
         lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
+            PHENOTYPE_OUTPUTS["extract_phenotype"],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=phenotype_wildcard_combos,
         ),
     params:
         channel_names=config["phenotype"]["channel_names"],
+        segment_cells=config["phenotype"].get("segment_cells", True),
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_cp"],
+        PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype"],
     script:
-        "../scripts/phenotype/merge_phenotype_cp.py"
+        "../scripts/phenotype/merge_phenotype.py"
 
 
 # Evaluate segmentation results
@@ -133,22 +138,26 @@ rule eval_segmentation_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
     params:
-        heatmap_shape="6W_ph",
+        heatmap_shape=config["phenotype"].get("heatmap_shape", "6W_ph"),
+        heatmap_plate=config["phenotype"].get("heatmap_plate", "6W"),
     script:
         "../scripts/shared/eval_segmentation.py"
 
 
 rule eval_features:
     input:
-        # use minimum phenotype CellProfiler features for evaluation
+        # use minimum phenotype features for evaluation
         cells_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
+            PHENOTYPE_OUTPUTS["merge_phenotype"][1],
             wildcards=wildcards,
             expansion_values=["well"],
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],
+    params:
+        heatmap_shape=config["phenotype"].get("heatmap_shape", "6W_ph"),
+        heatmap_plate=config["phenotype"].get("heatmap_plate", "6W"),
     script:
         "../scripts/phenotype/eval_features.py"
 

@@ -148,8 +148,9 @@ def extract_phenotype_cp_measure(
         (cells, "cells"),
         (cytoplasms, "cytoplasms"),
     ]:
-        if mask is not None and not isinstance(mask, np.ndarray) or mask.ndim != 2:
-            raise ValueError(f"{mask_name} must be a 2D array (height, width)")
+        if mask is not None:
+            if not isinstance(mask, np.ndarray) or mask.ndim != 2:
+                raise ValueError(f"{mask_name} must be a 2D array (height, width)")
 
     print("Starting feature extraction...")
 
@@ -157,8 +158,14 @@ def extract_phenotype_cp_measure(
     print("\nInput data properties:")
     print(f"data_phenotype: shape={data_phenotype.shape}, dtype={data_phenotype.dtype}")
     print(f"nuclei: shape={nuclei.shape}, dtype={nuclei.dtype}")
-    print(f"cells: shape={cells.shape}, dtype={cells.dtype}")
-    print(f"cytoplasms: shape={cytoplasms.shape}, dtype={cytoplasms.dtype}")
+    if cells is not None:
+        print(f"cells: shape={cells.shape}, dtype={cells.dtype}")
+    else:
+        print("cells: None (cell segmentation disabled)")
+    if cytoplasms is not None:
+        print(f"cytoplasms: shape={cytoplasms.shape}, dtype={cytoplasms.dtype}")
+    else:
+        print("cytoplasms: None")
 
     # Creating default channel names in the case that channel name list not provided
     if channel_names is None:

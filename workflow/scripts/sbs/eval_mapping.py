@@ -37,7 +37,12 @@ fig.savefig(snakemake.output[0])
 _, fig = plot_mapping_vs_threshold(reads, barcodes, "Q_min", num_thresholds=10)
 fig.savefig(snakemake.output[1])
 
-fig = plot_read_mapping_heatmap(reads, barcodes, shape="6W_sbs")
+fig = plot_read_mapping_heatmap(
+    reads,
+    barcodes,
+    plate=snakemake.params.heatmap_plate,
+    shape=snakemake.params.heatmap_shape,
+)
 fig.savefig(snakemake.output[2])
 
 df_summary_one, fig = plot_cell_mapping_heatmap(
@@ -46,7 +51,8 @@ df_summary_one, fig = plot_cell_mapping_heatmap(
     barcodes,
     mapping_to="one",
     mapping_strategy="gene symbols",
-    shape="6W_sbs",
+    shape=snakemake.params.heatmap_shape,
+    plate=snakemake.params.heatmap_plate,
     return_summary=True,
 )
 df_summary_one.to_csv(snakemake.output[3], index=False, sep="\t")
@@ -58,7 +64,8 @@ df_summary_any, fig = plot_cell_mapping_heatmap(
     barcodes,
     mapping_to="any",
     mapping_strategy="gene symbols",
-    shape="6W_sbs",
+    shape=snakemake.params.heatmap_shape,
+    plate=snakemake.params.heatmap_plate,
     return_summary=True,
 )
 df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")
@@ -75,5 +82,19 @@ mapping_overview_df = mapping_overview(
 )
 mapping_overview_df.to_csv(snakemake.output[9], sep="\t", index=False)
 
-_, fig = plot_barcode_prefix_matching(reads, df_barcode_library)
+# Plot barcode prefix matching - handle multi-mode differently
+if snakemake.params.barcode_type == "multi":
+    _, fig = plot_barcode_prefix_matching(
+        reads,
+        df_barcode_library,
+        library_col=snakemake.params.library_barcode_col,
+        library_col_recomb=snakemake.params.recomb_col,
+        sequencing_order=snakemake.params.sequencing_order,
+    )
+else:
+    _, fig = plot_barcode_prefix_matching(
+        reads,
+        df_barcode_library,
+        library_col=snakemake.params.library_barcode_col,
+    )
 fig.savefig(snakemake.output[10])

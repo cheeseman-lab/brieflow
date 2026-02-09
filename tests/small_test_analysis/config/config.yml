@@ -1,22 +1,18 @@
 
-# BrieFlow configuration file
+# ~BrieFlow analysis configuration file~
 
-# Defining samples:
-#   Samples must be defined in the following TSV files with columns:
-#     sbs_samples.tsv: sample_fp, well, tile, cycle
-#     phenotype_samples.tsv: sample_fp, well, tile
-
-# Paths:
-#   Paths are resolved relative to the directory the workflow is run from
+# All paths are resolved relative to the directory the workflow is run from.
 
 # Parameters:
 all:
   root_fp: brieflow_output/
 preprocess:
-  sbs_data_format: "nd2"
-  sbs_data_organization: "tile"    
-  phenotype_data_format: "nd2" 
-  phenotype_data_organization: "tile"
+  sbs_data_format: nd2
+  sbs_data_organization: tile
+  sbs_n_z_planes: null
+  phenotype_data_format: nd2
+  phenotype_data_organization: tile
+  phenotype_n_z_planes: null
   phenotype_channel_order: null
   phenotype_channel_order_flip: true
   phenotype_combo_fp: config/phenotype_combo.tsv
@@ -28,6 +24,7 @@ preprocess:
   sbs_combo_fp: config/sbs_combo.tsv
   sbs_samples_fp: config/sbs_samples.tsv
 sbs:
+  heatmap_shape: square
   alignment_method: null
   channel_names:
   - DAPI
@@ -36,6 +33,7 @@ sbs:
   - A
   - C
   upsample_factor: 2
+  window: 2
   skip_cycles_indices: null
   manual_background_cycle_index: null
   manual_channel_mapping: null
@@ -44,6 +42,7 @@ sbs:
   max_filter_width: 3
   spot_detection_method: standard
   dapi_cycle: 1
+  dapi_cycle_index: 0
   cyto_cycle: 11
   cyto_cycle_index: 10
   dapi_index: 0
@@ -76,8 +75,11 @@ sbs:
   cell_flow_threshold: 1
   cell_cellprob_threshold: 0
   cyto_model: cyto3
+  heatmap_plate: 6W
 phenotype:
+  heatmap_shape: square
   align: false
+  segment_cells: true
   cell_diameter: 53.075815293046055
   cellprob_threshold: 0
   channel_names:
@@ -85,9 +87,9 @@ phenotype:
   - COXIV
   - CENPA
   - WGA
-  cp_method: 
+  cp_method: cp_emulator
   cyto_index: 1
-  cyto_model: cyto3
+  cellpose_model: cyto3
   dapi_index: 0
   flow_threshold: 0.4
   foci_channel_index: 2
@@ -96,33 +98,58 @@ phenotype:
   mode: null
   nuclei_diameter: 41.97813156768016
   reconcile: contained_in_cells
+  heatmap_plate: 6W
 merge:
-  det_range:
-  - 0.06
-  - 0.065
-  initial_sites:
-  - - 5
-    - 0
-  - - 141
-    - 32
+  approach: fast
   merge_combo_fp: config/merge_combo.tsv
-  ph_metadata_channel: null
-  sbs_metadata_channel: null
+  phenotype_dimensions:
+  - 2400
+  - 2400
+  sbs_dimensions:
+  - 1200
+  - 1200
   sbs_metadata_cycle: 1
   score: 0.1
   threshold: 2
+  sbs_metadata_channel: null
+  ph_metadata_channel: null
+  alignment_flip_x: false
+  alignment_flip_y: false
+  alignment_rotate_90: false
   sbs_dedup_prior:
     mapped_single_gene: false
     fov_distance_1: true
   pheno_dedup_prior:
     fov_distance_0: true
+  initial_sites:
+  - - 5
+    - 0
+  - - 141
+    - 32
+  det_range:
+  - 0.06
+  - 0.065
+classify:
+  classifier_path: config/multiclass_xgb_none_model.dill
+  confidence_thresholds:
+    1:
+      threshold: 0.5
+      mode: exclude
+    2:
+      threshold: 0.5
+      mode: exclude
+  metadata_cols_fp: config/cell_data_metadata_cols.tsv
+  class_title: cell_stage
+  class_mapping:
+    label_to_class:
+      1: Mitotic
+      2: Interphase
 aggregate:
   agg_method: median
   aggregate_combo_fp: config/aggregate_combo.tsv
   batch_cols:
   - plate
   - well
-  classifier_path: config/binary_xgb_robust_model.dill
   collapse_cols:
   - cell_barcode_0
   - gene_symbol_0
@@ -146,7 +173,7 @@ aggregate:
   num_sims: 100
   exclusion_string: null
   bootstrap_combinations:
-  - cell_class: interphase
+  - cell_class: Interphase
     channel_combo: DAPI_COXIV_CENPA_WGA
 cluster:
   cluster_combo_fp: config/cluster_combo.tsv
@@ -154,13 +181,11 @@ cluster:
   corum_group_benchmark_fp: config/benchmark_clusters/corum_group_benchmark.tsv
   kegg_group_benchmark_fp: config/benchmark_clusters/kegg_group_benchmark.tsv
   leiden_resolutions:
-  - 8
-  - 10
-  - 12
+  - 2
   min_cell_cutoffs:
-    all: 3
-    interphase: 3
-    mitotic: 0
+    all: 0
+    Interphase: 0
+    Mitotic: 0
   phate_distance_metric: euclidean
   string_pair_benchmark_fp: config/benchmark_clusters/string_pair_benchmark.tsv
   perturbation_auc_threshold: null

@@ -224,20 +224,20 @@ rule eval_segmentation_sbs:
         segmentation_stats_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["segment_sbs"][2],
             wildcards=wildcards,
-            expansion_values=["well", "tile"],
+            expansion_values=_sbs_tile_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         # path to combined cell data
         cells_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
     output:
         SBS_OUTPUTS_MAPPED["eval_segmentation_sbs"],
     params:
-        heatmap_plate=config["sbs"].get("heatmap_plate", "6W"),   
+        heatmap_plate=config["sbs"].get("heatmap_plate", "6W"),
         heatmap_shape=config["sbs"].get("heatmap_shape", "6W_sbs")
     script:
         "../scripts/shared/eval_segmentation.py"
@@ -248,19 +248,19 @@ rule eval_mapping:
         reads_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_reads"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         cells_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         sbs_info_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_sbs_info"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
     output:
@@ -282,7 +282,23 @@ rule eval_mapping:
         "../scripts/sbs/eval_mapping.py"
 
 
+# Write HCS plate-level metadata for zarr stores (zarr mode only)
+if SBS_IMG_FMT == "zarr":
+    rule finalize_hcs_sbs:
+        input:
+            SBS_TARGETS_ALL,
+        output:
+            touch(str(SBS_FP / ".hcs_done")),
+        params:
+            plate_zarr_dirs=[
+                str(SBS_FP / f"{p}.zarr")
+                for p in sorted(sbs_wildcard_combos["plate"].unique())
+            ],
+        script:
+            "../scripts/shared/write_hcs_metadata.py"
+
+
 # rule for all sbs processing steps
 rule all_sbs:
     input:
-        SBS_TARGETS_ALL,
+        SBS_TARGETS_ALL + ([str(SBS_FP / ".hcs_done")] if SBS_IMG_FMT == "zarr" else []),

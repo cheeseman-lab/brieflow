@@ -125,14 +125,14 @@ rule eval_segmentation_phenotype:
         segmentation_stats_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["segment_phenotype"][2],
             wildcards=wildcards,
-            expansion_values=["well", "tile"],
+            expansion_values=_phen_tile_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
         # paths to combined cell data
         cells_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["combine_phenotype_info"][0],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_phen_well_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:
@@ -150,7 +150,7 @@ rule eval_features:
         cells_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["merge_phenotype"][1],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_phen_tile_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:
@@ -162,7 +162,23 @@ rule eval_features:
         "../scripts/phenotype/eval_features.py"
 
 
+# Write HCS plate-level metadata for zarr stores (zarr mode only)
+if PHENOTYPE_IMG_FMT == "zarr":
+    rule finalize_hcs_phenotype:
+        input:
+            PHENOTYPE_TARGETS_ALL,
+        output:
+            touch(str(PHENOTYPE_FP / ".hcs_done")),
+        params:
+            plate_zarr_dirs=[
+                str(PHENOTYPE_FP / f"{p}.zarr")
+                for p in sorted(phenotype_wildcard_combos["plate"].unique())
+            ],
+        script:
+            "../scripts/shared/write_hcs_metadata.py"
+
+
 # Rule for all phenotype processing steps
 rule all_phenotype:
     input:
-        PHENOTYPE_TARGETS_ALL,
+        PHENOTYPE_TARGETS_ALL + ([str(PHENOTYPE_FP / ".hcs_done")] if PHENOTYPE_IMG_FMT == "zarr" else []),

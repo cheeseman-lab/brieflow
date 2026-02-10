@@ -3,11 +3,11 @@
 from pathlib import Path
 
 import pandas as pd
-from tifffile import imread
+from lib.shared.io import read_image
 from microfilm.microplot import Microimage
 import matplotlib.pyplot as plt
 
-from lib.shared.file_utils import parse_filename
+from lib.shared.file_utils import parse_filename, parse_nested_path
 from lib.shared.eval import plot_plate_heatmap
 from lib.shared.configuration_utils import create_micropanel
 from lib.shared.configuration_utils import image_segmentation_annotations
@@ -41,6 +41,24 @@ def segmentation_overview(segmentation_stats_paths):
         # Parse filename to get well and tile information
         segmentation_filename = Path(segmentation_stats_path).name
         data_location, _, _ = parse_filename(segmentation_filename)
+        if not data_location:
+            # Try zarr-mode 4-level path (plate/row/col/tile) first,
+            # fall back to tiff-mode 3-level path (plate/well/tile)
+            try:
+                data_location, _, _ = parse_nested_path(
+                    segmentation_stats_path, ["plate", "row", "col", "tile"]
+                )
+                # Validate: row should be alphabetic (e.g. 'A') in zarr mode
+                if str(data_location["row"]).isalpha():
+                    data_location["well"] = str(data_location["row"]) + str(
+                        data_location["col"]
+                    )
+                else:
+                    raise ValueError("Not a zarr-mode path")
+            except (ValueError, KeyError):
+                data_location, _, _ = parse_nested_path(
+                    segmentation_stats_path, ["plate", "well", "tile"]
+                )
         well = data_location["well"]
 
         # Add the well information as a column
@@ -308,11 +326,11 @@ def evaluate_segmentation_paramsearch(
         )
 
         # Create visualization
-        optimal_nuclei = imread(optimal_nuclei_path)
-        optimal_cells = imread(optimal_cells_path)
-        default_nuclei = imread(default_nuclei_path)
-        default_cells = imread(default_cells_path)
-        corrected_image_data = imread(corrected_full_path)
+        optimal_nuclei = read_image(optimal_nuclei_path)
+        optimal_cells = read_image(optimal_cells_path)
+        default_nuclei = read_image(default_nuclei_path)
+        default_cells = read_image(default_cells_path)
+        corrected_image_data = read_image(corrected_full_path)
 
         if segmentation_process == "phenotype":
             annotated_optimal = image_segmentation_annotations(

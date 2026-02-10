@@ -13,7 +13,7 @@ rule extract_metadata_sbs:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
         plate=lambda wildcards: wildcards.plate,
-        well=lambda wildcards: getattr(wildcards, 'well', None),
+        well=lambda wildcards: _get_well(wildcards),
         tile=lambda wildcards: getattr(wildcards, 'tile', None),
         cycle=lambda wildcards: getattr(wildcards, 'cycle', None),
     script:
@@ -32,7 +32,7 @@ rule combine_metadata_sbs:
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_sbs"],
     params:
-        well=lambda wildcards: wildcards.well,
+        well=lambda wildcards: _get_well(wildcards),
     script:
         "../scripts/preprocess/combine_metadata.py"
 
@@ -47,7 +47,7 @@ rule extract_metadata_phenotype:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:
         plate=lambda wildcards: wildcards.plate,
-        well=lambda wildcards: getattr(wildcards, 'well', None),
+        well=lambda wildcards: _get_well(wildcards),
         tile=lambda wildcards: getattr(wildcards, 'tile', None),
         round=lambda wildcards: getattr(wildcards, 'round', None),
     script:
@@ -66,18 +66,18 @@ rule combine_metadata_phenotype:
     output:
         PREPROCESS_OUTPUTS_MAPPED["combine_metadata_phenotype"],
     params:
-        well=lambda wildcards: wildcards.well,
+        well=lambda wildcards: _get_well(wildcards),
     script:
         "../scripts/preprocess/combine_metadata.py"
 
 
-# Convert SBS image files to TIFF
+# Convert SBS image files to the configured format
 rule convert_sbs:
     input:
         lambda wildcards: get_sample_fps(
             sbs_samples_df,
             plate=wildcards.plate,
-            well=wildcards.well,
+            well=_get_well(wildcards),
             cycle=wildcards.cycle,
             tile=wildcards.tile if include_tile_in_input("sbs", config) else None,
             channel_order=config["preprocess"]["sbs_channel_order"],
@@ -87,16 +87,15 @@ rule convert_sbs:
     params:
         tile=lambda wildcards: int(wildcards.tile),
     script:
-        "../scripts/preprocess/image_to_tiff.py"
+        "../scripts/preprocess/convert_image.py"
 
-
-# Convert phenotype image files to TIFF
+# Convert phenotype image files to the configured format
 rule convert_phenotype:
     input:
         lambda wildcards: get_sample_fps(
             phenotype_samples_df,
             plate=wildcards.plate,
-            well=wildcards.well,
+            well=_get_well(wildcards),
             tile=wildcards.tile if include_tile_in_input("phenotype", config) else None,
             round_order=config["preprocess"]["phenotype_round_order"],
             channel_order=config["preprocess"]["phenotype_channel_order"]
@@ -106,8 +105,7 @@ rule convert_phenotype:
     params:
         tile=lambda wildcards: int(wildcards.tile),
     script:
-        "../scripts/preprocess/image_to_tiff.py"
-
+        "../scripts/preprocess/convert_image.py"
 
 # Calculate illumination correction function for SBS files
 rule calculate_ic_sbs:
@@ -145,7 +143,25 @@ rule calculate_ic_phenotype:
         "../scripts/preprocess/calculate_ic_field.py"
 
 
+# Assemble HCS plate-level metadata for zarr stores (zarr mode only)
+if IMG_FMT == "zarr":
+    rule finalize_hcs_preprocess:
+        input:
+            PREPROCESS_TARGETS_ALL,
+        output:
+            touch(str(PREPROCESS_FP / ".hcs_done")),
+        params:
+            plate_zarr_dirs=(
+                [str(PREPROCESS_FP / "sbs" / f"{p}.zarr")
+                 for p in sorted(sbs_wildcard_combos["plate"].unique())]
+                + [str(PREPROCESS_FP / "phenotype" / f"{p}.zarr")
+                   for p in sorted(phenotype_wildcard_combos["plate"].unique())]
+            ),
+        script:
+            "../scripts/shared/write_hcs_metadata.py"
+
+
 # rule for all preprocessing steps
 rule all_preprocess:
     input:
-        PREPROCESS_TARGETS_ALL,
+        PREPROCESS_TARGETS_ALL + ([str(PREPROCESS_FP / ".hcs_done")] if IMG_FMT == "zarr" else []),

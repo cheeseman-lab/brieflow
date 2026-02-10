@@ -304,6 +304,120 @@ def files_to_tile_mapping(file_paths):
     return tile_mapping
 
 
+def _well_to_rowcol(location):
+    """Convert a ``{well}`` key to separate ``{row}``/``{col}`` keys for zarr HCS nesting.
+
+    Other keys are passed through unchanged.
+
+    Args:
+        location (dict): Data location dict, e.g.
+            ``{"plate": "{plate}", "well": "{well}", "tile": "{tile}"}``.
+
+    Returns:
+        dict: New dict with ``well`` replaced by ``row`` and ``col``.
+    """
+    result = {}
+    for k, v in location.items():
+        if k == "well":
+            result["row"] = "{row}"
+            result["col"] = "{col}"
+        else:
+            result[k] = v
+    return result
+
+
+def get_image_output_path(
+    data_location,
+    info_type,
+    img_fmt="tiff",
+    subdirectory=None,
+    image_subdir=None,
+):
+    """Get image output path for either TIFF or zarr format.
+
+    TIFF: ``images/[image_subdir/]P-1_W-A1_T-0__aligned.tiff``
+    zarr: ``[image_subdir/]1.zarr/A/1/0/aligned.zarr``
+
+    Args:
+        data_location (dict): Location dict with plate/well/tile keys.
+        info_type (str): Image name (e.g. 'aligned', 'nuclei').
+        img_fmt (str): ``"tiff"`` or ``"zarr"``.
+        subdirectory (str): Optional sub-level (e.g. ``"labels"``).
+        image_subdir (str): Optional category prefix (e.g. ``"sbs"``,
+            ``"phenotype"``).  For TIFF this goes under ``images/``;
+            for zarr it becomes the top-level directory.
+
+    Returns:
+        str: Relative path string.
+    """
+    if img_fmt == "zarr":
+        rowcol_loc = _well_to_rowcol(data_location)
+        inner = get_hcs_nested_path(rowcol_loc, info_type, subdirectory=subdirectory)
+        if image_subdir:
+            return str(Path(image_subdir) / inner)
+        return inner
+    prefix = Path("images")
+    if image_subdir:
+        prefix = prefix / image_subdir
+    return str(prefix / get_filename(data_location, info_type, img_fmt))
+
+
+def get_data_output_path(data_location, info_type, file_type, img_fmt="tiff"):
+    """Get non-image output path (tsvs, parquets, eval) for either format.
+
+    TIFF: ``P-1_W-A1_T-0__bases.tsv``  (flat filename)
+    zarr: ``1/A/1/0/bases.tsv``         (nested directories)
+
+    Args:
+        data_location (dict): Location dict with plate/well/tile keys.
+        info_type (str): Data name (e.g. 'bases', 'reads').
+        file_type (str): File extension (e.g. 'tsv', 'parquet').
+        img_fmt (str): ``"tiff"`` or ``"zarr"``.
+
+    Returns:
+        str: Relative path string.
+    """
+    if img_fmt == "zarr":
+        rowcol_loc = _well_to_rowcol(data_location)
+        return get_nested_path(rowcol_loc, info_type, file_type)
+    return get_filename(data_location, info_type, file_type)
+
+
+def split_well_to_cols(df):
+    """Add ``row`` and ``col`` columns derived from ``well``.
+
+    E.g. ``"A1"`` → ``row="A"``, ``col="1"``.
+
+    Args:
+        df (pd.DataFrame): DataFrame with a ``well`` column.
+
+    Returns:
+        pd.DataFrame: Copy with ``row`` and ``col`` columns added.
+    """
+    if len(df) > 0 and "well" in df.columns:
+        splits = df["well"].str.extract(r"^([A-Za-z]+)(\d+)$")
+        df = df.copy()
+        df["row"] = splits[0].values
+        df["col"] = splits[1].values
+    return df
+
+
+def get_well_from_wildcards(wildcards):
+    """Get well identifier from wildcards.
+
+    Handles both ``{well}`` (TIFF) and ``{row}/{col}`` (zarr) modes.
+
+    Args:
+        wildcards: Snakemake wildcards object.
+
+    Returns:
+        str: Well string (e.g. ``"A1"``).
+    """
+    if hasattr(wildcards, "well"):
+        return str(wildcards.well)
+    return str(wildcards.row) + str(wildcards.col)
+
+
 def validate_data_type(data_type):
     """Validate data type parameter.
 

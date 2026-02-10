@@ -1,3 +1,4 @@
+from lib.shared.file_utils import get_image_output_path, get_data_output_path
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 from snakemake.io import directory
 
@@ -12,30 +13,10 @@ segment_cells = config["phenotype"].get("segment_cells", True)
 prefix = "cell" if segment_cells else "nucleus"
 eval_features = [f"{prefix}_{channel}_min" for channel in channel_names]
 
-# --- Location dicts (canonical form with {well}) ---
-_phen_tile_loc = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
-_phen_well_loc = {"plate": "{plate}", "well": "{well}"}
-_phen_plate_loc = {"plate": "{plate}"}
-
-# --- Path helpers ---
-def _phen_img(info):
-    if PHENOTYPE_IMG_FMT == "zarr":
-        return PHENOTYPE_FP / _get_image_path(_phen_tile_loc, info)
-    return PHENOTYPE_FP / "images" / get_filename(_phen_tile_loc, info, PHENOTYPE_IMG_FMT)
-
-def _phen_label(info):
-    if PHENOTYPE_IMG_FMT == "zarr":
-        return PHENOTYPE_FP / _get_image_path(_phen_tile_loc, info, subdirectory="labels")
-    return PHENOTYPE_FP / "images" / get_filename(_phen_tile_loc, info, PHENOTYPE_IMG_FMT)
-
-def _phen_tsv(info):
-    return PHENOTYPE_FP / "tsvs" / _get_path(_phen_tile_loc, info, "tsv")
-
-def _phen_well_pq(info):
-    return PHENOTYPE_FP / "parquets" / _get_path(_phen_well_loc, info, "parquet")
-
-def _phen_plate_eval(subdir, info, ext):
-    return PHENOTYPE_FP / "eval" / subdir / _get_path(_phen_plate_loc, info, ext)
+# Location dicts (canonical form with {well}; dispatch functions handle zarr nesting)
+_tile = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
+_well = {"plate": "{plate}", "well": "{well}"}
+_plate = {"plate": "{plate}"}
 
 # Expansion helpers
 _phen_well_expand = ["row", "col"] if PHENOTYPE_IMG_FMT == "zarr" else ["well"]
@@ -43,32 +24,44 @@ _phen_tile_expand = ["row", "col", "tile"] if PHENOTYPE_IMG_FMT == "zarr" else [
 
 
 PHENOTYPE_OUTPUTS = {
-    "apply_ic_field_phenotype": [_phen_img("illumination_corrected")],
-    "align_phenotype": [_phen_img("aligned")],
-    "segment_phenotype": [
-        _phen_label("nuclei"),
-        _phen_label("cells"),
-        _phen_tsv("segmentation_stats"),
+    "apply_ic_field_phenotype": [
+        PHENOTYPE_FP / get_image_output_path(_tile, "illumination_corrected", PHENOTYPE_IMG_FMT),
     ],
-    "identify_cytoplasm": [_phen_label("identified_cytoplasms")],
-    "extract_phenotype_info": [_phen_tsv("phenotype_info")],
-    "combine_phenotype_info": [_phen_well_pq("phenotype_info")],
-    "extract_phenotype": [_phen_tsv("phenotype_cp")],
+    "align_phenotype": [
+        PHENOTYPE_FP / get_image_output_path(_tile, "aligned", PHENOTYPE_IMG_FMT),
+    ],
+    "segment_phenotype": [
+        PHENOTYPE_FP / get_image_output_path(_tile, "nuclei", PHENOTYPE_IMG_FMT, subdirectory="labels"),
+        PHENOTYPE_FP / get_image_output_path(_tile, "cells", PHENOTYPE_IMG_FMT, subdirectory="labels"),
+        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "segmentation_stats", "tsv", PHENOTYPE_IMG_FMT),
+    ],
+    "identify_cytoplasm": [
+        PHENOTYPE_FP / get_image_output_path(_tile, "identified_cytoplasms", PHENOTYPE_IMG_FMT, subdirectory="labels"),
+    ],
+    "extract_phenotype_info": [
+        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_info", "tsv", PHENOTYPE_IMG_FMT),
+    ],
+    "combine_phenotype_info": [
+        PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_info", "parquet", PHENOTYPE_IMG_FMT),
+    ],
+    "extract_phenotype": [
+        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_cp", "tsv", PHENOTYPE_IMG_FMT),
+    ],
     "merge_phenotype": [
-        _phen_well_pq("phenotype_cp"),
-        _phen_well_pq("phenotype_cp_min"),
+        PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_cp", "parquet", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_cp_min", "parquet", PHENOTYPE_IMG_FMT),
     ],
     "eval_segmentation_phenotype": [
-        _phen_plate_eval("segmentation", "segmentation_overview", "tsv"),
-        _phen_plate_eval("segmentation", "cell_density_heatmap", "tsv"),
-        _phen_plate_eval("segmentation", "cell_density_heatmap", "png"),
+        PHENOTYPE_FP / "eval" / "segmentation" / get_data_output_path(_plate, "segmentation_overview", "tsv", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / "eval" / "segmentation" / get_data_output_path(_plate, "cell_density_heatmap", "tsv", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / "eval" / "segmentation" / get_data_output_path(_plate, "cell_density_heatmap", "png", PHENOTYPE_IMG_FMT),
     ],
     # create heatmap tsv and png for each evaluated feature
     "eval_features": [
-        _phen_plate_eval("features", f"{feature}_heatmap", "tsv")
+        PHENOTYPE_FP / "eval" / "features" / get_data_output_path(_plate, f"{feature}_heatmap", "tsv", PHENOTYPE_IMG_FMT)
         for feature in eval_features
     ] + [
-        _phen_plate_eval("features", f"{feature}_heatmap", "png")
+        PHENOTYPE_FP / "eval" / "features" / get_data_output_path(_plate, f"{feature}_heatmap", "png", PHENOTYPE_IMG_FMT)
         for feature in eval_features
     ],
 }

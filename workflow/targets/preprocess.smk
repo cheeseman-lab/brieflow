@@ -1,4 +1,5 @@
 from snakemake.io import temp, directory
+from lib.shared.file_utils import get_image_output_path, get_data_output_path
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 from lib.preprocess.file_utils import get_output_pattern
 
@@ -6,34 +7,16 @@ PREPROCESS_FP = ROOT_FP / "preprocess"
 
 IC_EXT = IMG_FMT
 
-# --- Location dicts (canonical form with {well}) ---
-_pp_sbs_tile_loc = {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}
-_pp_phen_tile_loc = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
-_pp_sbs_ic_loc = {"plate": "{plate}", "well": "{well}", "cycle": "{cycle}"}
-_pp_phen_ic_loc = {"plate": "{plate}", "well": "{well}"}
-
-# --- Path helpers (dispatch via _get_path / _get_image_path) ---
-def _pp_sbs_img(info):
-    if IMG_FMT == "zarr":
-        return PREPROCESS_FP / "sbs" / _get_image_path(_pp_sbs_tile_loc, info)
-    return PREPROCESS_FP / "images" / "sbs" / get_filename(_pp_sbs_tile_loc, info, IMG_FMT)
-
-def _pp_phen_img(info):
-    if IMG_FMT == "zarr":
-        return PREPROCESS_FP / "phenotype" / _get_image_path(_pp_phen_tile_loc, info)
-    return PREPROCESS_FP / "images" / "phenotype" / get_filename(_pp_phen_tile_loc, info, IMG_FMT)
-
-def _pp_sbs_ic(info):
-    return PREPROCESS_FP / "ic_fields" / "sbs" / _get_path(_pp_sbs_ic_loc, info, IC_EXT)
-
-def _pp_phen_ic(info):
-    return PREPROCESS_FP / "ic_fields" / "phenotype" / _get_path(_pp_phen_ic_loc, info, IC_EXT)
+# Location dicts (canonical form with {well}; dispatch functions handle zarr nesting)
+_pp_sbs_tile = {"plate": "{plate}", "well": "{well}", "tile": "{tile}", "cycle": "{cycle}"}
+_pp_phen_tile = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
+_pp_sbs_ic = {"plate": "{plate}", "well": "{well}", "cycle": "{cycle}"}
+_pp_phen_ic = {"plate": "{plate}", "well": "{well}"}
 
 # Expansion helpers
 _pp_well_expand = ["row", "col"] if IMG_FMT == "zarr" else ["well"]
 
-# --- Metadata output patterns ---
-# Filter out row/col from get_output_pattern (added by _split_well_to_cols in zarr mode)
+# Metadata output patterns (filter out row/col added by split_well_to_cols in zarr mode)
 _pp_metadata_sbs_loc = {
     k: v for k, v in get_output_pattern(sbs_metadata_wildcard_combos).items()
     if k not in ("row", "col")
@@ -46,30 +29,37 @@ _pp_combine_metadata_loc = {"plate": "{plate}", "well": "{well}"}
 
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
-        PREPROCESS_FP / "metadata" / "sbs" / _get_path(
-            _pp_metadata_sbs_loc, "metadata", "tsv"
+        PREPROCESS_FP / "metadata" / "sbs" / get_data_output_path(
+            _pp_metadata_sbs_loc, "metadata", "tsv", IMG_FMT
         ),
     ],
     "combine_metadata_sbs": [
-        PREPROCESS_FP / "metadata" / "sbs" / _get_path(
-            _pp_combine_metadata_loc, "combined_metadata", "parquet"
+        PREPROCESS_FP / "metadata" / "sbs" / get_data_output_path(
+            _pp_combine_metadata_loc, "combined_metadata", "parquet", IMG_FMT
         ),
     ],
     "extract_metadata_phenotype": [
-        PREPROCESS_FP / "metadata" / "phenotype" / _get_path(
-            _pp_metadata_phen_loc, "metadata", "tsv"
+        PREPROCESS_FP / "metadata" / "phenotype" / get_data_output_path(
+            _pp_metadata_phen_loc, "metadata", "tsv", IMG_FMT
         ),
     ],
     "combine_metadata_phenotype": [
-        PREPROCESS_FP / "metadata" / "phenotype" / _get_path(
-            _pp_combine_metadata_loc, "combined_metadata", "parquet"
+        PREPROCESS_FP / "metadata" / "phenotype" / get_data_output_path(
+            _pp_combine_metadata_loc, "combined_metadata", "parquet", IMG_FMT
         ),
     ],
-    # Image and IC rules use conditional paths
-    "convert_sbs": [_pp_sbs_img("image")],
-    "convert_phenotype": [_pp_phen_img("image")],
-    "calculate_ic_sbs": [_pp_sbs_ic("ic_field")],
-    "calculate_ic_phenotype": [_pp_phen_ic("ic_field")],
+    "convert_sbs": [
+        PREPROCESS_FP / get_image_output_path(_pp_sbs_tile, "image", IMG_FMT, image_subdir="sbs"),
+    ],
+    "convert_phenotype": [
+        PREPROCESS_FP / get_image_output_path(_pp_phen_tile, "image", IMG_FMT, image_subdir="phenotype"),
+    ],
+    "calculate_ic_sbs": [
+        PREPROCESS_FP / "ic_fields" / "sbs" / get_data_output_path(_pp_sbs_ic, "ic_field", IC_EXT, IMG_FMT),
+    ],
+    "calculate_ic_phenotype": [
+        PREPROCESS_FP / "ic_fields" / "phenotype" / get_data_output_path(_pp_phen_ic, "ic_field", IC_EXT, IMG_FMT),
+    ],
 }
 
 # Define output mappings FIRST (before filtering)

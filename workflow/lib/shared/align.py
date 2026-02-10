@@ -118,7 +118,7 @@ def calculate_offsets(
 
             # Calculate the offset between the current frame and the target frame
             offset, _, _ = skimage.registration.phase_cross_correlation(
-                src, target, upsample_factor=upsample_factor
+                src, target, upsample_factor=upsample_factor, normalization=None
             )
             # Add the offset to the list
             offsets += [offset]

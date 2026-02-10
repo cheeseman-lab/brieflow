@@ -32,7 +32,7 @@ If you use our code please cite this manuscript:
 
 ```
 @ARTICLE
-author={Di Bernardo, Matteo and Kern, Roshan S. and Mallar, Apratim and Nutter-Upham, Adrienne and Blainey, Paul C. and Cheeseman, Iain},
+author={Di Bernardo, Matteo and Kern, Roshan S. and Mallar, Alexa and Nutter-Upham, Andy and Blainey, Paul C. and Cheeseman, Iain},
 title={Brieflow: An Integrated Computational Pipeline for High-Throughput Analysis of Optical Pooled Screening Data},
 year={2025},
 DOI={10.1101/2025.05.26.656231}

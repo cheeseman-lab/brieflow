@@ -18,9 +18,6 @@ def align_phenotype_channels(
     upsample_factor=2,
     window=2,
     remove_channel=False,
-    normalize_percentile=False,
-    lower_percentile=1,
-    upper_percentile=99,
     verbose=False,
 ):
     """Rigid alignment of phenotype channels based on target and source channels.
@@ -38,10 +35,6 @@ def align_phenotype_channels(
             Defaults to 2.
         remove_channel (str or bool, optional): Specifies whether to remove channels after alignment.
             Options are {'target', 'source', False}. Defaults to False.
-        normalize_percentile (bool, optional): If True, apply percentile normalization before
-            cross-correlation. Improves alignment when intensity varies across cycles. Defaults to False.
-        lower_percentile (float, optional): Lower percentile for normalization. Defaults to 1.
-        upper_percentile (float, optional): Upper percentile for normalization. Defaults to 99.
         verbose (bool, optional): If True, print detailed alignment information including
             calculated offsets for source and rider channels. Useful for debugging alignment issues.
             Defaults to False.
@@ -59,13 +52,7 @@ def align_phenotype_channels(
 
     # Calculate alignment offsets
     windowed = apply_window(data_[[target, source]], window)
-    offsets = calculate_offsets(
-        windowed,
-        upsample_factor=upsample_factor,
-        normalize=normalize_percentile,
-        lower_percentile=lower_percentile,
-        upper_percentile=upper_percentile,
-    )
+    offsets = calculate_offsets(windowed, upsample_factor=upsample_factor)
 
     # Handle riders and create full offsets array
     if not isinstance(riders, list):
@@ -75,8 +62,6 @@ def align_phenotype_channels(
 
     if verbose:
         print("\n=== Phenotype Channel Alignment Offsets ===")
-        if normalize_percentile:
-            print(f"  Percentile normalization: [{lower_percentile}, {upper_percentile}]")
         print(f"  Target channel (index {target}): no shift (reference)")
         print(f"  Source channel (index {source}): shift = {offsets[1]} pixels (y, x)")
         if riders:

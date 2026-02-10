@@ -204,32 +204,3 @@ def validate_data_type(data_type):
     if data_type not in valid_types:
         raise ValueError(f"data_type must be one of {valid_types}, got '{data_type}'")
     return data_type
-
-
-def read_tsv_safe(filepath, return_empty_on_error=True):
-    """Read a TSV file safely with error handling.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to the TSV file to read
-    return_empty_on_error : bool, optional
-        If True, return empty DataFrame on EmptyDataError.
-        If False, return None on EmptyDataError.
-        Default: True
-
-    Returns:
-    -------
-    pd.DataFrame or None
-        DataFrame if file read successfully or is empty (when return_empty_on_error=True).
-        None if file is empty and return_empty_on_error=False.
-
-    Examples:
-    --------
-    >>> df = read_tsv_safe('data.tsv')
-    >>> df = read_tsv_safe('data.tsv', return_empty_on_error=False)
-    """
-    try:
-        return pd.read_csv(filepath, sep="\t")
-    except pd.errors.EmptyDataError:
-        return pd.DataFrame() if return_empty_on_error else None

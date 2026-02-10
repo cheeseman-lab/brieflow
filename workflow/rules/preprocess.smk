@@ -13,7 +13,7 @@ rule extract_metadata_sbs:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
     params:
         plate=lambda wildcards: wildcards.plate,
-        well=lambda wildcards: getattr(wildcards, 'well', None),
+        well=lambda wildcards: _get_well(wildcards),
         tile=lambda wildcards: getattr(wildcards, 'tile', None),
         cycle=lambda wildcards: getattr(wildcards, 'cycle', None),
     script:
@@ -47,7 +47,7 @@ rule extract_metadata_phenotype:
         PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
     params:
         plate=lambda wildcards: wildcards.plate,
-        well=lambda wildcards: getattr(wildcards, 'well', None),
+        well=lambda wildcards: _get_well(wildcards),
         tile=lambda wildcards: getattr(wildcards, 'tile', None),
         round=lambda wildcards: getattr(wildcards, 'round', None),
     script:

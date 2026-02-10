@@ -1,4 +1,3 @@
-from lib.shared.file_utils import get_nested_path
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 from snakemake.io import directory
 
@@ -13,53 +12,34 @@ segment_cells = config["phenotype"].get("segment_cells", True)
 prefix = "cell" if segment_cells else "nucleus"
 eval_features = [f"{prefix}_{channel}_min" for channel in channel_names]
 
-# --- Conditional path helpers based on image format ---
-if PHENOTYPE_IMG_FMT == "zarr":
-    from lib.shared.file_utils import get_hcs_nested_path
+# --- Location dicts (canonical form with {well}) ---
+_phen_tile_loc = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
+_phen_well_loc = {"plate": "{plate}", "well": "{well}"}
+_phen_plate_loc = {"plate": "{plate}"}
 
-    _phen_tile_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}", "tile": "{tile}"}
-    _phen_well_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}"}
-    _phen_plate_loc = {"plate": "{plate}"}
+# --- Path helpers ---
+def _phen_img(info):
+    if PHENOTYPE_IMG_FMT == "zarr":
+        return PHENOTYPE_FP / _get_image_path(_phen_tile_loc, info)
+    return PHENOTYPE_FP / "images" / get_filename(_phen_tile_loc, info, PHENOTYPE_IMG_FMT)
 
-    def _phen_img(info):
-        return PHENOTYPE_FP / get_hcs_nested_path(_phen_tile_loc, info)
+def _phen_label(info):
+    if PHENOTYPE_IMG_FMT == "zarr":
+        return PHENOTYPE_FP / _get_image_path(_phen_tile_loc, info, subdirectory="labels")
+    return PHENOTYPE_FP / "images" / get_filename(_phen_tile_loc, info, PHENOTYPE_IMG_FMT)
 
-    def _phen_label(info):
-        return PHENOTYPE_FP / get_hcs_nested_path(_phen_tile_loc, info, subdirectory="labels")
+def _phen_tsv(info):
+    return PHENOTYPE_FP / "tsvs" / _get_path(_phen_tile_loc, info, "tsv")
 
-    def _phen_tsv(info):
-        return PHENOTYPE_FP / "tsvs" / get_nested_path(_phen_tile_loc, info, "tsv")
+def _phen_well_pq(info):
+    return PHENOTYPE_FP / "parquets" / _get_path(_phen_well_loc, info, "parquet")
 
-    def _phen_well_pq(info):
-        return PHENOTYPE_FP / "parquets" / get_nested_path(_phen_well_loc, info, "parquet")
+def _phen_plate_eval(subdir, info, ext):
+    return PHENOTYPE_FP / "eval" / subdir / _get_path(_phen_plate_loc, info, ext)
 
-    def _phen_plate_eval(subdir, info, ext):
-        return PHENOTYPE_FP / "eval" / subdir / get_nested_path(_phen_plate_loc, info, ext)
-
-    # Expansion helpers for rules
-    _phen_well_expand = ["row", "col"]
-    _phen_tile_expand = ["row", "col", "tile"]
-else:
-    _phen_tile_loc = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
-    _phen_well_loc = {"plate": "{plate}", "well": "{well}"}
-    _phen_plate_loc = {"plate": "{plate}"}
-
-    def _phen_img(info):
-        return PHENOTYPE_FP / "images" / get_nested_path(_phen_tile_loc, info, PHENOTYPE_IMG_FMT)
-
-    _phen_label = _phen_img  # No labels/ nesting for TIFF
-
-    def _phen_tsv(info):
-        return PHENOTYPE_FP / "tsvs" / get_nested_path(_phen_tile_loc, info, "tsv")
-
-    def _phen_well_pq(info):
-        return PHENOTYPE_FP / "parquets" / get_nested_path(_phen_well_loc, info, "parquet")
-
-    def _phen_plate_eval(subdir, info, ext):
-        return PHENOTYPE_FP / "eval" / subdir / get_nested_path(_phen_plate_loc, info, ext)
-
-    _phen_well_expand = ["well"]
-    _phen_tile_expand = ["well", "tile"]
+# Expansion helpers
+_phen_well_expand = ["row", "col"] if PHENOTYPE_IMG_FMT == "zarr" else ["well"]
+_phen_tile_expand = ["row", "col", "tile"] if PHENOTYPE_IMG_FMT == "zarr" else ["well", "tile"]
 
 
 PHENOTYPE_OUTPUTS = {

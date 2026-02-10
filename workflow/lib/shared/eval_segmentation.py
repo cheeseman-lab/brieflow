@@ -42,9 +42,23 @@ def segmentation_overview(segmentation_stats_paths):
         segmentation_filename = Path(segmentation_stats_path).name
         data_location, _, _ = parse_filename(segmentation_filename)
         if not data_location:
-            data_location, _, _ = parse_nested_path(
-                segmentation_stats_path, ["plate", "well", "tile"]
-            )
+            # Try zarr-mode 4-level path (plate/row/col/tile) first,
+            # fall back to tiff-mode 3-level path (plate/well/tile)
+            try:
+                data_location, _, _ = parse_nested_path(
+                    segmentation_stats_path, ["plate", "row", "col", "tile"]
+                )
+                # Validate: row should be alphabetic (e.g. 'A') in zarr mode
+                if str(data_location["row"]).isalpha():
+                    data_location["well"] = str(data_location["row"]) + str(
+                        data_location["col"]
+                    )
+                else:
+                    raise ValueError("Not a zarr-mode path")
+            except (ValueError, KeyError):
+                data_location, _, _ = parse_nested_path(
+                    segmentation_stats_path, ["plate", "well", "tile"]
+                )
         well = data_location["well"]
 
         # Add the well information as a column

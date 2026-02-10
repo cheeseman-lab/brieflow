@@ -1,4 +1,3 @@
-from lib.shared.file_utils import get_nested_path
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 from snakemake.io import directory
 
@@ -7,53 +6,34 @@ SBS_FP = ROOT_FP / "sbs"
 
 SBS_IMG_FMT = IMG_FMT
 
-# --- Conditional path helpers based on image format ---
-if SBS_IMG_FMT == "zarr":
-    from lib.shared.file_utils import get_hcs_nested_path
+# --- Location dicts (canonical form with {well}) ---
+_sbs_tile_loc = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
+_sbs_well_loc = {"plate": "{plate}", "well": "{well}"}
+_sbs_plate_loc = {"plate": "{plate}"}
 
-    _sbs_tile_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}", "tile": "{tile}"}
-    _sbs_well_loc = {"plate": "{plate}", "row": "{row}", "col": "{col}"}
-    _sbs_plate_loc = {"plate": "{plate}"}
+# --- Path helpers ---
+def _sbs_img(info):
+    if SBS_IMG_FMT == "zarr":
+        return SBS_FP / _get_image_path(_sbs_tile_loc, info)
+    return SBS_FP / "images" / get_filename(_sbs_tile_loc, info, SBS_IMG_FMT)
 
-    def _sbs_img(info):
-        return SBS_FP / get_hcs_nested_path(_sbs_tile_loc, info)
+def _sbs_label(info):
+    if SBS_IMG_FMT == "zarr":
+        return SBS_FP / _get_image_path(_sbs_tile_loc, info, subdirectory="labels")
+    return SBS_FP / "images" / get_filename(_sbs_tile_loc, info, SBS_IMG_FMT)
 
-    def _sbs_label(info):
-        return SBS_FP / get_hcs_nested_path(_sbs_tile_loc, info, subdirectory="labels")
+def _sbs_tsv(info):
+    return SBS_FP / "tsvs" / _get_path(_sbs_tile_loc, info, "tsv")
 
-    def _sbs_tsv(info):
-        return SBS_FP / "tsvs" / get_nested_path(_sbs_tile_loc, info, "tsv")
+def _sbs_well_pq(info):
+    return SBS_FP / "parquets" / _get_path(_sbs_well_loc, info, "parquet")
 
-    def _sbs_well_pq(info):
-        return SBS_FP / "parquets" / get_nested_path(_sbs_well_loc, info, "parquet")
+def _sbs_plate_eval(subdir, info, ext):
+    return SBS_FP / "eval" / subdir / _get_path(_sbs_plate_loc, info, ext)
 
-    def _sbs_plate_eval(subdir, info, ext):
-        return SBS_FP / "eval" / subdir / get_nested_path(_sbs_plate_loc, info, ext)
-
-    # Expansion helpers for rules
-    _sbs_well_expand = ["row", "col"]
-    _sbs_tile_expand = ["row", "col", "tile"]
-else:
-    _sbs_tile_loc = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
-    _sbs_well_loc = {"plate": "{plate}", "well": "{well}"}
-    _sbs_plate_loc = {"plate": "{plate}"}
-
-    def _sbs_img(info):
-        return SBS_FP / "images" / get_nested_path(_sbs_tile_loc, info, SBS_IMG_FMT)
-
-    _sbs_label = _sbs_img  # No labels/ nesting for TIFF
-
-    def _sbs_tsv(info):
-        return SBS_FP / "tsvs" / get_nested_path(_sbs_tile_loc, info, "tsv")
-
-    def _sbs_well_pq(info):
-        return SBS_FP / "parquets" / get_nested_path(_sbs_well_loc, info, "parquet")
-
-    def _sbs_plate_eval(subdir, info, ext):
-        return SBS_FP / "eval" / subdir / get_nested_path(_sbs_plate_loc, info, ext)
-
-    _sbs_well_expand = ["well"]
-    _sbs_tile_expand = ["well", "tile"]
+# Expansion helpers
+_sbs_well_expand = ["row", "col"] if SBS_IMG_FMT == "zarr" else ["well"]
+_sbs_tile_expand = ["row", "col", "tile"] if SBS_IMG_FMT == "zarr" else ["well", "tile"]
 
 
 SBS_OUTPUTS = {

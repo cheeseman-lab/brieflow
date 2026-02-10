@@ -3,10 +3,42 @@ from pathlib import Path
 import pandas as pd
 
 from lib.preprocess.file_utils import get_metadata_wildcard_combos
+from lib.shared.file_utils import get_filename, get_nested_path
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
 IMG_FMT = config.get("all", {}).get("image_format", "tiff")
+
+wildcard_constraints:
+    row="[A-Za-z]+",
+    col="[0-9]+",
+
+# --- Path dispatchers: flat filenames (TIFF) vs nested directories (zarr) ---
+if IMG_FMT == "zarr":
+    from lib.shared.file_utils import get_hcs_nested_path
+
+def _well_to_rowcol(location):
+    """Convert a {well} key to separate {row}/{col} keys for zarr nesting."""
+    result = {}
+    for k, v in location.items():
+        if k == "well":
+            result["row"] = "{row}"
+            result["col"] = "{col}"
+        else:
+            result[k] = v
+    return result
+
+def _get_path(location, info_type, file_type):
+    """Flat filename (TIFF) or nested directory path (zarr)."""
+    if IMG_FMT == "zarr":
+        return get_nested_path(_well_to_rowcol(location), info_type, file_type)
+    return get_filename(location, info_type, file_type)
+
+def _get_image_path(location, info_type, subdirectory=None):
+    """Flat image filename under images/ (TIFF) or HCS nested path (zarr)."""
+    if IMG_FMT == "zarr":
+        return get_hcs_nested_path(_well_to_rowcol(location), info_type, subdirectory=subdirectory)
+    return str(Path("images") / get_filename(location, info_type, "tiff"))
 
 # Get paths to the sample and combo files dfs
 SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])
@@ -148,7 +180,8 @@ if IMG_FMT == "zarr":
 
     sbs_wildcard_combos = _split_well_to_cols(sbs_wildcard_combos)
     phenotype_wildcard_combos = _split_well_to_cols(phenotype_wildcard_combos)
-    # Note: metadata combos intentionally NOT split — metadata rules keep {well} wildcards
+    sbs_metadata_wildcard_combos = _split_well_to_cols(sbs_metadata_wildcard_combos)
+    phenotype_metadata_wildcard_combos = _split_well_to_cols(phenotype_metadata_wildcard_combos)
 
 
 include: "targets/preprocess.smk"
@@ -172,6 +205,8 @@ if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
 if "merge" in config:
     MERGE_COMBO_FP = Path(config["merge"]["merge_combo_fp"])
     merge_wildcard_combos = pd.read_csv(MERGE_COMBO_FP, sep="\t")
+    if IMG_FMT == "zarr":
+        merge_wildcard_combos = _split_well_to_cols(merge_wildcard_combos)
 
     # Include target and rule files
     include: "targets/merge.smk"

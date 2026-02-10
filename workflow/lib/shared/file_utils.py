@@ -11,6 +11,8 @@ import numpy as np
 FILENAME_METADATA_MAPPING = {
     "plate": ["P-", str],
     "well": ["W-", str],
+    "row": ["Ro-", str],
+    "col": ["Co-", str],
     "tile": ["T-", int],
     "cycle": ["C-", int],
     "round": ["R-", str],

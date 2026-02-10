@@ -54,8 +54,8 @@ except (AttributeError, ValueError):
 CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
 
 
-def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
-    """Create a CellposeModel with version-aware initialization.
+def initialize_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
+    """Initialize a CellposeModel with version-aware configuration.
 
     Handles differences between Cellpose 3.x and 4.x APIs and validates
     model compatibility with the installed Cellpose version.
@@ -65,7 +65,7 @@ def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
             or a path to a custom trained model (e.g., 'models/my_custom_model').
             - Cellpose 3.x: Supports 'cyto3', 'nuclei', 'cyto2'
             - Cellpose 4.x: Only supports 'cpsam'
-            - Custom model paths (containing '/' or '\\') are supported in both versions
+            - Custom model paths (containing path separators) are supported in both versions
         gpu (bool, optional): Whether to use GPU for inference. Default is False.
 
     Returns:
@@ -75,7 +75,9 @@ def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
         ValueError: If model_type is incompatible with installed Cellpose version.
     """
     # Check if model_type is a custom model path (contains path separators)
-    is_custom_model = model_type is not None and ("/" in model_type or "\\" in model_type)
+    is_custom_model = model_type is not None and (
+        "/" in model_type or "\\" in model_type
+    )
 
     # Validate compatibility
     # Custom model paths are allowed with any Cellpose version
@@ -432,8 +434,8 @@ def segment_cellpose_rgb(
     # Create Cellpose models using version-aware helper
     # Nuclei model: "cpsam" for 4.x, "nuclei" for 3.x
     nuclei_model_type = "cpsam" if CELLPOSE_4X else "nuclei"
-    model_dapi = create_cellpose_model(nuclei_model_type, gpu=gpu)
-    model_cyto = create_cellpose_model(cellpose_model, gpu=gpu)
+    model_dapi = initialize_cellpose_model(nuclei_model_type, gpu=gpu)
+    model_cyto = initialize_cellpose_model(cellpose_model, gpu=gpu)
 
     # Set default kwargs if not provided
     if nuclei_kwargs is None:
@@ -531,7 +533,7 @@ def segment_cellpose_nuclei_rgb(
         numpy.ndarray: Labeled segmentation mask of nuclei.
     """
     # Create Cellpose model using version-aware helper
-    model = create_cellpose_model(cellpose_model, gpu=gpu)
+    model = initialize_cellpose_model(cellpose_model, gpu=gpu)
 
     # Segment nuclei using CellposeModel from the RGB image
     # Pass only blue channel (DAPI) for nuclei segmentation

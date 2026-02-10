@@ -34,7 +34,8 @@ Brieflow is a community-driven project, and we welcome contributions from anyone
 1.before_you_screen.md
 2.installation_analysis_setup.md
 3.running_modules.md
-4.development.md
+4.visualization.md
+5.development.md
 example_analyses.md
 config_glossary.md
 ```

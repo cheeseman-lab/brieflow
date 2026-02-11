@@ -18,7 +18,8 @@ rule align_phenotype:
     input:
         PHENOTYPE_OUTPUTS["apply_ic_field_phenotype"],
     output:
-        PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"],
+        PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"][0],  # aligned image
+        PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"][1],  # alignment metrics TSV
     params:
         config=lambda wildcards: get_alignment_params(wildcards, config),
     script:
@@ -28,7 +29,7 @@ rule align_phenotype:
 # Segments cells and nuclei using pre-defined methods
 rule segment_phenotype:
     input:
-        PHENOTYPE_OUTPUTS["align_phenotype"],
+        PHENOTYPE_OUTPUTS["align_phenotype"][0],
     output:
         PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"],
     params:
@@ -57,6 +58,8 @@ rule extract_phenotype_info:
     input:
         # nuclei segmentation map
         PHENOTYPE_OUTPUTS["segment_phenotype"][0],
+        # alignment metrics TSV
+        PHENOTYPE_OUTPUTS["align_phenotype"][1],
     output:
         PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_info"],
     script:
@@ -83,7 +86,7 @@ if config["phenotype"].get("second_obj_detection", True):
     rule identify_second_objs:
         input:
             # aligned phenotype image
-            PHENOTYPE_OUTPUTS["align_phenotype"],
+            PHENOTYPE_OUTPUTS["align_phenotype"][0],
             # cell segmentation map
             PHENOTYPE_OUTPUTS["segment_phenotype"][1],
             # cytoplasm mask
@@ -108,7 +111,7 @@ if config["phenotype"].get("second_obj_detection", True):
     rule extract_phenotype_second_objs:
         input:
             # aligned phenotype image
-            PHENOTYPE_OUTPUTS["align_phenotype"],
+            PHENOTYPE_OUTPUTS["align_phenotype"][0],
             # secondary object mask
             PHENOTYPE_OUTPUTS["identify_second_objs"][0],
             # cell secondary object table

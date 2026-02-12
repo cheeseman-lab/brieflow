@@ -1,8 +1,6 @@
 """Shared functions for aligning images.
 
-Uses NumPy and scikit-image to provide image
-alignment between sequencing cycles, apply percentile-based filtering, fill masked
-areas with noise, and perform various transformations to enhance image data quality.
+Uses NumPy and scikit-image to provide image alignment between sequencing cycles.
 """
 
 import numpy as np
@@ -65,26 +63,31 @@ def calculate_offsets(data_, upsample_factor):
         upsample_factor (int): Upsampling factor for cross-correlation.
 
     Returns:
-        np.ndarray: Offset values between images.
+        tuple: (offsets, errors) where offsets is np.ndarray of offset values
+            and errors is np.ndarray of correlation errors (0 = perfect correlation).
     """
     # Set the target frame as the first frame in the data
     target = data_[0]
-    # Initialize an empty list to store offsets
+
+    # Initialize empty lists to store offsets and errors
     offsets = []
+    errors = []
     # Iterate through each frame in the data
     for i, src in enumerate(data_):
-        # If it's the first frame, add a zero offset
+        # If it's the first frame, add a zero offset and zero error
         if i == 0:
             offsets += [(0, 0)]
+            errors += [0.0]
         else:
             # Calculate the offset between the current frame and the target frame
-            offset, _, _ = skimage.registration.phase_cross_correlation(
-                src, target, upsample_factor=upsample_factor
+            offset, error, _ = skimage.registration.phase_cross_correlation(
+                src, target, upsample_factor=upsample_factor, normalization=None
             )
-            # Add the offset to the list
+            # Add the offset and error to the lists
             offsets += [offset]
-    # Convert the list of offsets to a numpy array and return
-    return np.array(offsets)
+            errors += [error]
+    # Convert the lists to numpy arrays and return
+    return np.array(offsets), np.array(errors)
 
 
 @applyIJ

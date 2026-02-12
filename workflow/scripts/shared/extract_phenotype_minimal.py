@@ -18,7 +18,9 @@ phenotype_minimal = extract_phenotype_minimal(
 
 # Add all alignment metrics columns (same value for all cells in tile)
 # Excludes plate/well/tile as those are already in phenotype_minimal
-metrics_cols = [c for c in alignment_metrics.columns if c not in ["plate", "well", "tile"]]
+metrics_cols = [
+    c for c in alignment_metrics.columns if c not in ["plate", "well", "tile"]
+]
 for col in metrics_cols:
     phenotype_minimal[col] = alignment_metrics[col].iloc[0]
 

@@ -1,5 +1,4 @@
-"""
-Cellpose Fine-Tuning Utilities
+"""Cellpose Fine-Tuning Utilities
 
 Functions for loading training data, augmentation, training, evaluation,
 and visualization of Cellpose models for secondary object segmentation.
@@ -30,8 +29,7 @@ def load_training_data(
     helper_index: Optional[int] = None,
     logscale: bool = True,
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-    """
-    Load paired images and masks for Cellpose training.
+    """Load paired images and masks for Cellpose training.
 
     Supports different preprocessing modes to match deployment functions:
     - "secondary_obj": For segment_second_objs_ml (single channel, log scaling)
@@ -61,7 +59,7 @@ def load_training_data(
     logscale : bool
         Apply log scaling preprocessing. Default True.
 
-    Returns
+    Returns:
     -------
     images : List[np.ndarray]
         List of preprocessed image arrays (uint8).
@@ -70,7 +68,7 @@ def load_training_data(
     masks : List[np.ndarray]
         List of 2D labeled mask arrays (int32).
 
-    Raises
+    Raises:
     ------
     ValueError
         If number of images and masks don't match, required indices not provided,
@@ -88,9 +86,7 @@ def load_training_data(
             raise ValueError("channel_index is required for mode='secondary_obj'")
     elif mode == "cells":
         if dapi_index is None or cyto_index is None:
-            raise ValueError(
-                "dapi_index and cyto_index are required for mode='cells'"
-            )
+            raise ValueError("dapi_index and cyto_index are required for mode='cells'")
     elif mode == "nuclei":
         if dapi_index is None:
             raise ValueError("dapi_index is required for mode='nuclei'")
@@ -113,7 +109,7 @@ def load_training_data(
             rgb = prepare_cellpose(
                 img,
                 dapi_index=channel_index,  # Dummy - will use cyto
-                cyto_index=channel_index,   # Target channel
+                cyto_index=channel_index,  # Target channel
                 helper_index=None,
                 logscale=logscale,
             )
@@ -142,7 +138,7 @@ def load_training_data(
 
         # Load mask (support both .npy and .tif/.tiff formats)
         mask_path_str = str(mask_path)
-        if mask_path_str.endswith('.npy'):
+        if mask_path_str.endswith(".npy"):
             mask = np.load(mask_path_str)
         else:
             mask = imread(mask_path_str)
@@ -150,7 +146,9 @@ def load_training_data(
             raise ValueError(f"Mask at {mask_path} should be 2D, got {mask.ndim}D")
 
         # Validate dimensions match (compare 2D shapes)
-        img_shape_2d = processed_img.shape[-2:] if processed_img.ndim > 2 else processed_img.shape
+        img_shape_2d = (
+            processed_img.shape[-2:] if processed_img.ndim > 2 else processed_img.shape
+        )
         if img_shape_2d != mask.shape:
             raise ValueError(
                 f"Image shape {img_shape_2d} doesn't match mask shape {mask.shape} "
@@ -174,8 +172,7 @@ def augment_training_data(
     noise: bool = False,
     noise_std: float = 0.02,
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-    """
-    Apply data augmentation to expand small training datasets.
+    """Apply data augmentation to expand small training datasets.
 
     For a dataset of N images, this can produce up to 8N augmented samples
     (4 rotations x 2 flip states).
@@ -199,7 +196,7 @@ def augment_training_data(
     noise_std : float
         Standard deviation of Gaussian noise.
 
-    Returns
+    Returns:
     -------
     aug_images : List[np.ndarray]
         Augmented images (includes originals).
@@ -264,8 +261,7 @@ def prepare_cellpose_training(
     test_fraction: float = 0.1,
     seed: int = 42,
 ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
-    """
-    Split data into training and test sets for Cellpose.
+    """Split data into training and test sets for Cellpose.
 
     Parameters
     ----------
@@ -278,7 +274,7 @@ def prepare_cellpose_training(
     seed : int
         Random seed for reproducibility.
 
-    Returns
+    Returns:
     -------
     train_images : List[np.ndarray]
     train_masks : List[np.ndarray]
@@ -319,8 +315,7 @@ def train_cellpose(
     gpu: bool = True,
     channels: List[int] = None,
 ) -> models.CellposeModel:
-    """
-    Fine-tune a Cellpose model on custom training data.
+    """Fine-tune a Cellpose model on custom training data.
 
     Parameters
     ----------
@@ -351,7 +346,7 @@ def train_cellpose(
     channels : List[int], optional
         Channel configuration for Cellpose. Default [0, 0] for grayscale.
 
-    Returns
+    Returns:
     -------
     model : CellposeModel
         Trained Cellpose model.
@@ -366,7 +361,9 @@ def train_cellpose(
     io.logger_setup()
 
     print(f"Initializing model from base: {base_model}")
-    print(f"Training parameters: epochs={n_epochs}, lr={learning_rate}, batch={batch_size}")
+    print(
+        f"Training parameters: epochs={n_epochs}, lr={learning_rate}, batch={batch_size}"
+    )
 
     # Initialize model with version-aware helper (validates model compatibility)
     model = create_cellpose_model(base_model, gpu=gpu)
@@ -400,8 +397,7 @@ def load_trained_model(
     model_path: Union[str, Path],
     gpu: bool = True,
 ) -> models.CellposeModel:
-    """
-    Load a fine-tuned Cellpose model.
+    """Load a fine-tuned Cellpose model.
 
     Parameters
     ----------
@@ -410,7 +406,7 @@ def load_trained_model(
     gpu : bool
         Use GPU acceleration.
 
-    Returns
+    Returns:
     -------
     model : CellposeModel
         Loaded Cellpose model ready for inference.
@@ -428,8 +424,7 @@ def predict_masks(
     cellprob_threshold: float = 0.0,
     channels: List[int] = None,
 ) -> List[np.ndarray]:
-    """
-    Run inference on images using a Cellpose model.
+    """Run inference on images using a Cellpose model.
 
     Parameters
     ----------
@@ -446,7 +441,7 @@ def predict_masks(
     channels : List[int], optional
         Channel configuration. Default [0, 0] for grayscale.
 
-    Returns
+    Returns:
     -------
     masks : List[np.ndarray]
         Predicted segmentation masks.
@@ -466,8 +461,7 @@ def predict_masks(
 
 
 def calculate_iou(pred_mask: np.ndarray, gt_mask: np.ndarray) -> float:
-    """
-    Calculate Intersection over Union between predicted and ground truth masks.
+    """Calculate Intersection over Union between predicted and ground truth masks.
 
     This computes the average IoU across all objects.
 
@@ -478,7 +472,7 @@ def calculate_iou(pred_mask: np.ndarray, gt_mask: np.ndarray) -> float:
     gt_mask : np.ndarray
         Ground truth labeled mask.
 
-    Returns
+    Returns:
     -------
     iou : float
         Mean IoU score (0 to 1).
@@ -500,8 +494,7 @@ def calculate_object_metrics(
     gt_mask: np.ndarray,
     iou_threshold: float = 0.5,
 ) -> Dict[str, float]:
-    """
-    Calculate object-level metrics (precision, recall, F1).
+    """Calculate object-level metrics (precision, recall, F1).
 
     An object is considered a true positive if it overlaps with a ground truth
     object with IoU >= threshold.
@@ -515,7 +508,7 @@ def calculate_object_metrics(
     iou_threshold : float
         IoU threshold for matching objects.
 
-    Returns
+    Returns:
     -------
     metrics : dict
         Dictionary with 'precision', 'recall', 'f1', 'n_pred', 'n_gt', 'n_tp'.
@@ -584,7 +577,9 @@ def calculate_object_metrics(
 
     precision = tp / n_pred if n_pred > 0 else 0
     recall = tp / n_gt if n_gt > 0 else 0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    f1 = (
+        2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    )
 
     return {
         "precision": precision,
@@ -605,8 +600,7 @@ def evaluate_segmentation(
     cellprob_threshold: float = 0.0,
     iou_threshold: float = 0.5,
 ) -> Dict[str, float]:
-    """
-    Evaluate model performance on a test set.
+    """Evaluate model performance on a test set.
 
     Parameters
     ----------
@@ -625,7 +619,7 @@ def evaluate_segmentation(
     iou_threshold : float
         IoU threshold for object matching.
 
-    Returns
+    Returns:
     -------
     metrics : dict
         Aggregated metrics: mean_iou, mean_precision, mean_recall, mean_f1.
@@ -679,8 +673,7 @@ def visualize_comparison(
     title: str = "",
     figsize: Tuple[int, int] = (15, 5),
 ) -> plt.Figure:
-    """
-    Visualize side-by-side comparison of prediction vs ground truth.
+    """Visualize side-by-side comparison of prediction vs ground truth.
 
     Parameters
     ----------
@@ -695,7 +688,7 @@ def visualize_comparison(
     figsize : Tuple[int, int]
         Figure size.
 
-    Returns
+    Returns:
     -------
     fig : plt.Figure
         Matplotlib figure.
@@ -747,8 +740,7 @@ def visualize_training_sample(
     title: str = "",
     figsize: Tuple[int, int] = (10, 5),
 ) -> plt.Figure:
-    """
-    Visualize a single training sample (image + mask).
+    """Visualize a single training sample (image + mask).
 
     Parameters
     ----------
@@ -761,7 +753,7 @@ def visualize_training_sample(
     figsize : Tuple[int, int]
         Figure size.
 
-    Returns
+    Returns:
     -------
     fig : plt.Figure
         Matplotlib figure.

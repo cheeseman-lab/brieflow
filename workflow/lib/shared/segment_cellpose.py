@@ -75,7 +75,9 @@ def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
         ValueError: If model_type is incompatible with installed Cellpose version.
     """
     # Check if model_type is a custom model path (contains path separators)
-    is_custom_model = model_type is not None and ("/" in model_type or "\\" in model_type)
+    is_custom_model = model_type is not None and (
+        "/" in model_type or "\\" in model_type
+    )
 
     # Validate compatibility
     # Custom model paths are allowed with any Cellpose version

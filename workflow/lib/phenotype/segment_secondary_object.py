@@ -54,6 +54,7 @@ import cv2
 # Check if Cellpose is available (for error messaging)
 try:
     import cellpose
+
     CELLPOSE_AVAILABLE = True
 except ImportError:
     CELLPOSE_AVAILABLE = False

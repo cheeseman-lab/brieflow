@@ -1,13 +1,15 @@
 """Module for aligning channels in phenotype.
 
-Uses NumPy and scikit-image to provide image
-alignment between sequencing cycles, apply percentile-based filtering, fill masked
-areas with noise, and perform various transformations to enhance image data quality.
+Uses NumPy and scikit-image to provide image alignment between sequencing cycles.
 """
 
 import numpy as np
 from lib.shared.image_utils import remove_channels
-from lib.shared.align import apply_window, calculate_offsets, apply_offsets
+from lib.shared.align import (
+    apply_window,
+    calculate_offsets,
+    apply_offsets,
+)
 
 
 def align_phenotype_channels(
@@ -18,10 +20,8 @@ def align_phenotype_channels(
     upsample_factor=2,
     window=2,
     remove_channel=False,
-    normalize_percentile=False,
-    lower_percentile=1,
-    upper_percentile=99,
     verbose=False,
+    return_metrics=False,
 ):
     """Rigid alignment of phenotype channels based on target and source channels.
 
@@ -38,16 +38,18 @@ def align_phenotype_channels(
             Defaults to 2.
         remove_channel (str or bool, optional): Specifies whether to remove channels after alignment.
             Options are {'target', 'source', False}. Defaults to False.
-        normalize_percentile (bool, optional): If True, apply percentile normalization before
-            cross-correlation. Improves alignment when intensity varies across cycles. Defaults to False.
-        lower_percentile (float, optional): Lower percentile for normalization. Defaults to 1.
-        upper_percentile (float, optional): Upper percentile for normalization. Defaults to 99.
         verbose (bool, optional): If True, print detailed alignment information including
             calculated offsets for source and rider channels. Useful for debugging alignment issues.
             Defaults to False.
+        return_metrics (bool, optional): If True, return alignment quality metrics in addition
+            to aligned data. Defaults to False.
 
     Returns:
         np.ndarray: Phenotype data aligned across specified channels.
+            If return_metrics=True, returns tuple of (aligned_data, metrics_dict) where
+            metrics_dict contains:
+            - 'align_confidence': float, alignment quality from phase cross-correlation (0-1 scale)
+            - 'offset': list, the [y, x] offset that was applied
     """
     # Handle stacked vs unstacked data
     if image_data.ndim == 4:
@@ -57,32 +59,31 @@ def align_phenotype_channels(
         data_ = image_data.copy()
         stack = False
 
-    # Calculate alignment offsets
+    # Calculate alignment offsets using phase cross-correlation
     windowed = apply_window(data_[[target, source]], window)
-    offsets = calculate_offsets(
-        windowed,
-        upsample_factor=upsample_factor,
-        normalize=normalize_percentile,
-        lower_percentile=lower_percentile,
-        upper_percentile=upper_percentile,
-    )
+    offsets, errors = calculate_offsets(windowed, upsample_factor=upsample_factor)
+
+    # Convert error to confidence (error=0 means perfect, error approaching 1 means poor)
+    align_confidence = 1.0 - errors[1]
+    final_offset = offsets[1]
 
     # Handle riders and create full offsets array
     if not isinstance(riders, list):
         riders = [riders]
     full_offsets = np.zeros((data_.shape[0], 2))
-    full_offsets[[source] + riders] = offsets[1]
+    full_offsets[[source] + riders] = final_offset
 
     if verbose:
         print("\n=== Phenotype Channel Alignment Offsets ===")
-        if normalize_percentile:
-            print(f"  Percentile normalization: [{lower_percentile}, {upper_percentile}]")
+        print(f"  Alignment confidence: {align_confidence:.3f}")
         print(f"  Target channel (index {target}): no shift (reference)")
-        print(f"  Source channel (index {source}): shift = {offsets[1]} pixels (y, x)")
+        print(
+            f"  Source channel (index {source}): shift = {final_offset} pixels (y, x)"
+        )
         if riders:
             for rider_idx in riders:
                 print(
-                    f"  Rider channel (index {rider_idx}): shift = {offsets[1]} pixels (y, x)"
+                    f"  Rider channel (index {rider_idx}): shift = {final_offset} pixels (y, x)"
                 )
 
     # Apply alignment
@@ -102,6 +103,16 @@ def align_phenotype_channels(
         aligned = remove_channels(aligned, target)
     elif remove_channel == "source":
         aligned = remove_channels(aligned, source)
+
+    # Return with metrics if requested
+    if return_metrics:
+        metrics_dict = {
+            "align_confidence": float(align_confidence),
+            "offset": final_offset.tolist()
+            if hasattr(final_offset, "tolist")
+            else list(final_offset),
+        }
+        return aligned, metrics_dict
 
     return aligned
 

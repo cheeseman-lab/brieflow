@@ -294,6 +294,7 @@ if SBS_IMG_FMT == "zarr":
                 str(SBS_FP / f"{p}.zarr")
                 for p in sorted(sbs_wildcard_combos["plate"].unique())
             ],
+            channels_metadata=config["preprocess"].get("sbs_channels_metadata", None),
         script:
             "../scripts/shared/write_hcs_metadata.py"
 

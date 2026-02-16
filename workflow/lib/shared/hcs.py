@@ -17,15 +17,16 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 
-def write_hcs_metadata(plate_zarr_path):
-    """Write OME-NGFF HCS metadata for an existing plate zarr directory.
+def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
 
-    Walks the plate zarr to discover rows, columns, fields, and image/label
-    types, then writes zarr.json metadata at each level of the hierarchy.
+    """Write OME-NGFF HCS metadata for an existing plate zarr directory.
 
     Args:
         plate_zarr_path: Path to the plate zarr directory (e.g., sbs/1.zarr).
-    """
+        channels_metadata: Optional list[dict] to embed at plate root under
+        attributes["channels_metadata"].
+    """ 
+
     plate_path = Path(plate_zarr_path)
     if not plate_path.exists():
         raise FileNotFoundError(f"Plate zarr directory not found: {plate_path}")
@@ -39,8 +40,13 @@ def write_hcs_metadata(plate_zarr_path):
     for row, col, _tile in structure:
         wells_by_row_col[(row, col)] = True  # deduplicate
 
-    # Write plate-level metadata
-    _write_plate_metadata(plate_path, wells_by_row_col)
+
+    if channels_metadata is not None:
+        print("hcs.write_hcs_metadata received channels_metadata:")
+        print(json.dumps(channels_metadata, indent=2))
+
+    _write_plate_metadata(plate_path, wells_by_row_col, channels_metadata=channels_metadata)
+
 
     # Write row-level group metadata
     for row in sorted(set(rc[0] for rc in wells_by_row_col)):
@@ -106,6 +112,42 @@ def discover_plate_structure(plate_zarr_path):
 # Helpers — well parsing
 # ---------------------------------------------------------------------------
 
+def _normalize_channels_metadata(channels_metadata):
+    """Normalize channels_metadata for root zarr.json."""
+    if not channels_metadata:
+        return []
+
+    out = []
+    for ch in channels_metadata:
+        if not isinstance(ch, dict):
+            continue
+
+        entry = dict(ch)
+
+        # Ensure required fields exist
+        name = (entry.get("name") or "").strip()
+        if not name:
+            raise ValueError("channels_metadata entry is missing a non-empty 'name'")
+        entry["name"] = name
+
+        entry.setdefault("description", "")
+        entry["channel_type"] = "fluorescent"  # since we only have fluorescent channels
+
+        # Ensure biological_annotation exists
+        bio = entry.get("biological_annotation") or {}
+        if not isinstance(bio, dict):
+            bio = {}
+        for k in ("organelle", "marker", "marker_type", "full_label"):
+            bio.setdefault(k, "")
+        entry["biological_annotation"] = bio
+
+        out.append(entry)
+
+    for i, entry in enumerate(out):
+        entry.setdefault("index", i)
+
+    return out
+
 
 def _split_well(well_str):
     """Split a well identifier like 'A1' into (row, col) -> ('A', '1')."""
@@ -167,7 +209,7 @@ def _write_zarr_v3_group_metadata(path):
         json.dump(metadata, f, indent=2)
 
 
-def _write_plate_metadata(plate_zarr_path, wells_by_row_col):
+def _write_plate_metadata(plate_zarr_path, wells_by_row_col, channels_metadata=None):
     """Write HCS plate-level zarr.json with OME-NGFF plate metadata."""
     plate_path = Path(plate_zarr_path)
     plate_path.mkdir(parents=True, exist_ok=True)
@@ -182,7 +224,8 @@ def _write_plate_metadata(plate_zarr_path, wells_by_row_col):
             "ome": {
                 "version": "0.5",
                 "plate": {
-                    "acquisitions": [{"id": 0, "name": "default"}],
+                    "version": "0.5",
+                    "acquisitions": [{"id": 0}],
                     "columns": [{"name": c} for c in cols],
                     "rows": [{"name": r} for r in rows],
                     "wells": [
@@ -197,6 +240,11 @@ def _write_plate_metadata(plate_zarr_path, wells_by_row_col):
             }
         },
     }
+
+    norm = _normalize_channels_metadata(channels_metadata)
+    if norm: # embed into zarr.json if metadata is not empty
+        plate_metadata["attributes"]["channels_metadata"] = norm
+
 
     with open(plate_path / "zarr.json", "w") as f:
         json.dump(plate_metadata, f, indent=2)

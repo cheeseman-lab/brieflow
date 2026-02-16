@@ -145,18 +145,29 @@ rule calculate_ic_phenotype:
 
 # Assemble HCS plate-level metadata for zarr stores (zarr mode only)
 if IMG_FMT == "zarr":
-    rule finalize_hcs_preprocess:
+
+    rule finalize_hcs_preprocess_sbs:
         input:
             PREPROCESS_TARGETS_ALL,
         output:
-            touch(str(PREPROCESS_FP / ".hcs_done")),
+            touch(str(PREPROCESS_FP / ".hcs_done_sbs")),
         params:
-            plate_zarr_dirs=(
-                [str(PREPROCESS_FP / "sbs" / f"{p}.zarr")
-                 for p in sorted(sbs_wildcard_combos["plate"].unique())]
-                + [str(PREPROCESS_FP / "phenotype" / f"{p}.zarr")
-                   for p in sorted(phenotype_wildcard_combos["plate"].unique())]
-            ),
+            plate_zarr_dirs=[str(PREPROCESS_FP / "sbs" / f"{p}.zarr")
+                             for p in sorted(sbs_wildcard_combos["plate"].unique())],
+            channels_metadata=lambda wildcards: config["preprocess"].get("sbs_channels_metadata", None),
+        script:
+            "../scripts/shared/write_hcs_metadata.py"
+
+
+    rule finalize_hcs_preprocess_phenotype:
+        input:
+            PREPROCESS_TARGETS_ALL,
+        output:
+            touch(str(PREPROCESS_FP / ".hcs_done_phenotype")),
+        params:
+            plate_zarr_dirs=[str(PREPROCESS_FP / "phenotype" / f"{p}.zarr") # creates list like 1.zarr, 2.zarr, etc
+                             for p in sorted(phenotype_wildcard_combos["plate"].unique())], # finding which plates exist
+            channels_metadata=lambda wildcards: config["preprocess"].get("phenotype_channels_metadata", None),
         script:
             "../scripts/shared/write_hcs_metadata.py"
 
@@ -164,4 +175,8 @@ if IMG_FMT == "zarr":
 # rule for all preprocessing steps
 rule all_preprocess:
     input:
-        PREPROCESS_TARGETS_ALL + ([str(PREPROCESS_FP / ".hcs_done")] if IMG_FMT == "zarr" else []),
+        PREPROCESS_TARGETS_ALL + (
+            [str(PREPROCESS_FP / ".hcs_done_sbs"),
+             str(PREPROCESS_FP / ".hcs_done_phenotype")] if IMG_FMT == "zarr" else []
+        )
+

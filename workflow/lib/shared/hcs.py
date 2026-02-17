@@ -38,10 +38,6 @@ def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
     for row, col, _tile in structure:
         wells_by_row_col[(row, col)] = True  # deduplicate
 
-    if channels_metadata is not None:
-        print("hcs.write_hcs_metadata received channels_metadata:")
-        print(json.dumps(channels_metadata, indent=2))
-
     _write_plate_metadata(
         plate_path, wells_by_row_col, channels_metadata=channels_metadata
     )
@@ -130,15 +126,27 @@ def _normalize_channels_metadata(channels_metadata):
         entry["name"] = name
 
         entry.setdefault("description", "")
-        entry["channel_type"] = "fluorescent"  # since we only have fluorescent channels
+        entry.setdefault("channel_type", "fluorescent")
 
-        # Ensure biological_annotation exists
-        bio = entry.get("biological_annotation") or {}
-        if not isinstance(bio, dict):
-            bio = {}
-        for k in ("organelle", "marker", "marker_type", "full_label"):
-            bio.setdefault(k, "")
-        entry["biological_annotation"] = bio
+        # Keep biological_annotation only if it has real (non-empty) values, and keep ONLY the keys the user actually filled in
+        bio = entry.get("biological_annotation", None)
+
+        if isinstance(bio, dict):
+            cleaned = {}
+            for k in ("organelle", "marker", "marker_type", "full_label"):
+                v = bio.get(k, None)
+                if v is None:
+                    continue
+                v = str(v).strip()
+                if v:  # keep only non empty values
+                    cleaned[k] = v
+
+            if cleaned:
+                entry["biological_annotation"] = cleaned
+            else:
+                entry.pop("biological_annotation", None)
+        else:
+            entry.pop("biological_annotation", None)
 
         out.append(entry)
 

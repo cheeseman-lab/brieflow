@@ -18,15 +18,13 @@ from pathlib import Path
 
 
 def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
-
     """Write OME-NGFF HCS metadata for an existing plate zarr directory.
 
     Args:
         plate_zarr_path: Path to the plate zarr directory (e.g., sbs/1.zarr).
         channels_metadata: Optional list[dict] to embed at plate root under
         attributes["channels_metadata"].
-    """ 
-
+    """
     plate_path = Path(plate_zarr_path)
     if not plate_path.exists():
         raise FileNotFoundError(f"Plate zarr directory not found: {plate_path}")
@@ -40,13 +38,13 @@ def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
     for row, col, _tile in structure:
         wells_by_row_col[(row, col)] = True  # deduplicate
 
-
     if channels_metadata is not None:
         print("hcs.write_hcs_metadata received channels_metadata:")
         print(json.dumps(channels_metadata, indent=2))
 
-    _write_plate_metadata(plate_path, wells_by_row_col, channels_metadata=channels_metadata)
-
+    _write_plate_metadata(
+        plate_path, wells_by_row_col, channels_metadata=channels_metadata
+    )
 
     # Write row-level group metadata
     for row in sorted(set(rc[0] for rc in wells_by_row_col)):
@@ -111,6 +109,7 @@ def discover_plate_structure(plate_zarr_path):
 # ---------------------------------------------------------------------------
 # Helpers — well parsing
 # ---------------------------------------------------------------------------
+
 
 def _normalize_channels_metadata(channels_metadata):
     """Normalize channels_metadata for root zarr.json."""
@@ -242,9 +241,8 @@ def _write_plate_metadata(plate_zarr_path, wells_by_row_col, channels_metadata=N
     }
 
     norm = _normalize_channels_metadata(channels_metadata)
-    if norm: # embed into zarr.json if metadata is not empty
+    if norm:  # embed into zarr.json if metadata is not empty
         plate_metadata["attributes"]["channels_metadata"] = norm
-
 
     with open(plate_path / "zarr.json", "w") as f:
         json.dump(plate_metadata, f, indent=2)

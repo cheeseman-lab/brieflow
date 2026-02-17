@@ -15,7 +15,9 @@ channels_metadata = getattr(snakemake.params, "channels_metadata", None)
 
 print(
     "channels_metadata passed into write_hcs_metadata.py:\n"
-    + (json.dumps(channels_metadata, indent=2) if channels_metadata else "None") # Prints the list passing through for debugging
+    + (
+        json.dumps(channels_metadata, indent=2) if channels_metadata else "None"
+    )  # Prints the list passing through for debugging
 )
 
 total = 0

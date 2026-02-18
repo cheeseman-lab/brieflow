@@ -45,7 +45,7 @@ merge_feature_cols = [
 ]                                                     
 if len(merge_feature_cols) == 0:
     merge_feature_cols = [
-        col for col in merge_data.columns if ("nuclear_" in col and col.endswith("_mean"))
+        col for col in merge_data.columns if ("nucleus_" in col and col.endswith("_mean"))
     ]
 pc_cols = [col for col in aligned_data.columns if col.startswith("PC_")]
 aligned_feature_cols = random.sample(

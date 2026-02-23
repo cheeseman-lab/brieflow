@@ -97,17 +97,19 @@ def parse_filename(file_path: str) -> tuple:
     return metadata, info_type, file_type
 
 
-def load_parquet_subset(full_df_fp, n_rows=50000):
+def load_parquet_subset(full_df_fp, n_rows=50000, verbose=False):
     """Load a fixed number of rows from an parquet file without loading entire file into memory.
 
     Args:
         full_df_fp (str): Path to parquet file.
         n_rows (int): Number of rows to get.
+        verbose (bool): Whether to print file loading info.
 
     Returns:
         pd.DataFrame: Subset of the data with combined blocks.
     """
-    print(f"Reading first {n_rows:,} rows from {full_df_fp}")
+    if verbose:
+        print(f"Reading first {n_rows:,} rows from {full_df_fp}")
 
     # read the first n_rows of the file path
     df = ParquetFile(full_df_fp)

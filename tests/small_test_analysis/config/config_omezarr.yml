@@ -19,11 +19,58 @@ preprocess:
   phenotype_combo_fp: config/phenotype_combo.tsv
   phenotype_round_order: null
   phenotype_samples_fp: config/phenotype_samples.tsv
+  phenotype_channels_metadata:
+  - name: DAPI
+    index: 0
+    channel_type: fluorescent
+    description: "Nuclear stain"
+    biological_annotation: {}
+  - name: COXIV
+    index: 1
+    channel_type: fluorescent
+    description: "Mitochondria marker"
+    biological_annotation: {}
+  - name: CENPA
+    index: 2
+    channel_type: fluorescent
+    description: "Centromere marker"
+    biological_annotation: {}
+  - name: WGA
+    index: 3
+    channel_type: fluorescent
+    description: "Membrane stain"
+    biological_annotation: {}
   sample_fraction: 1
   sbs_channel_order: null
   sbs_channel_order_flip: true
   sbs_combo_fp: config/sbs_combo.tsv
   sbs_samples_fp: config/sbs_samples.tsv
+  sbs_channels_metadata:
+  - name: DAPI
+    index: 0
+    channel_type: fluorescent
+    description: "DAPI channel"
+    biological_annotation: {}
+  - name: G
+    index: 1
+    channel_type: fluorescent
+    description: "SBS base channel G"
+    biological_annotation: {}
+  - name: T
+    index: 2
+    channel_type: fluorescent
+    description: "SBS base channel T"
+    biological_annotation: {}
+  - name: A
+    index: 3
+    channel_type: fluorescent
+    description: "SBS base channel A"
+    biological_annotation: {}
+  - name: C
+    index: 4
+    channel_type: fluorescent
+    description: "SBS base channel C"
+    biological_annotation: {}
 sbs:
   heatmap_shape: square
   alignment_method: null

@@ -13,6 +13,19 @@ from lib.cluster.scrape_benchmarks import (
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
 phate_leiden_clustering = pd.read_csv(snakemake.input[1], sep="\t")
 
+if snakemake.params.perturbation_auc_threshold is not None:
+    aggregated_data = aggregated_data[
+        (
+            aggregated_data[snakemake.params.perturbation_name_col].str.startswith(
+                snakemake.params.control_key
+            )
+        )
+        | (
+            aggregated_data["perturbation_auc"]
+            > snakemake.params.perturbation_auc_threshold
+        )
+    ]
+
 # create baseline data by shuffling columns independently
 shuffled_aggregated_data = aggregated_data.copy()
 feature_start_idx = shuffled_aggregated_data.columns.get_loc("PC_0")

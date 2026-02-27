@@ -106,17 +106,21 @@ def load_parquet_subset(full_df_fp, n_rows=50000, verbose=False):
         verbose (bool): Whether to print file loading info.
 
     Returns:
-        pd.DataFrame: Subset of the data with combined blocks.
+        pd.DataFrame: Random subset of the data.
     """
     if verbose:
         print(f"Reading first {n_rows:,} rows from {full_df_fp}")
 
-    # read the first n_rows of the file path
-    df = ParquetFile(full_df_fp)
-    row_subset = next(df.iter_batches(batch_size=n_rows))
-    df = pa.Table.from_batches([row_subset]).to_pandas()
+    rng = np.random.default_rng(seed)
+    indices = np.sort(rng.choice(total_rows, size=n_rows, replace=False))
 
-    return df
+    print(f"Reading {n_rows:,} random rows from {full_df_fp} ({total_rows:,} total)")
+
+    table = pf.read_row_groups(
+        list(range(pf.metadata.num_row_groups))
+    ).take(pa.array(indices))
+
+    return table.to_pandas()
 
 
 def validate_dtypes(df):

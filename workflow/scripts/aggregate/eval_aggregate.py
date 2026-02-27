@@ -39,9 +39,14 @@ aligned_data = aligned_data.to_pandas(use_threads=True, memory_pool=None)
 
 # determine original and aligned columns
 random.seed(42)
-merge_feature_cols = [
-    col for col in merge_data.columns if ("cell_" in col and col.endswith("_mean"))
-]
+# Prefer cell-level features, fall back to nuclear if none found                                                                                                                                            
+merge_feature_cols = [                                
+    col for col in merge_data.columns if ("cell_" in col and col.endswith("_mean"))                                                                                                                         
+]                                                     
+if len(merge_feature_cols) == 0:
+    merge_feature_cols = [
+        col for col in merge_data.columns if ("nucleus_" in col and col.endswith("_mean"))
+    ]
 pc_cols = [col for col in aligned_data.columns if col.startswith("PC_")]
 aligned_feature_cols = random.sample(
     pc_cols, k=min(len(merge_feature_cols), len(pc_cols))

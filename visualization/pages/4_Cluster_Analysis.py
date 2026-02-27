@@ -629,6 +629,25 @@ def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
             )
 
 
+def get_available_llm_combinations(channel_combo: str) -> list:
+    """Find all cell_class/resolution combinations that have LLM data."""
+    available = []
+    channel_dir = os.path.join(CLUSTER_ROOT, channel_combo)
+    if not os.path.exists(channel_dir):
+        return available
+    for cell_class in os.listdir(channel_dir):
+        cell_class_dir = os.path.join(channel_dir, cell_class)
+        if not os.path.isdir(cell_class_dir):
+            continue
+        for leiden_res in os.listdir(cell_class_dir):
+            mozzarellm_clusters = os.path.join(
+                cell_class_dir, leiden_res, "mozzarellm", "clusters"
+            )
+            if os.path.exists(mozzarellm_clusters) and os.listdir(mozzarellm_clusters):
+                available.append((cell_class, leiden_res))
+    return available
+
+
 def display_cluster_json(cluster_data, container=st.container()):
     if (
         "selected_item" in st.session_state
@@ -644,8 +663,10 @@ def display_cluster_json(cluster_data, container=st.container()):
             mozzarellm_clusters_dir, f"cluster_{cluster_id}.json"
         )
 
+        # Always show the section header
+        st.markdown("### LLM Cluster Analysis")
+
         if os.path.exists(cluster_json_path):
-            st.markdown("### LLM Cluster Analysis")
             with open(cluster_json_path, "r") as f:
                 c = json.load(f)
             # Card layout using markdown and Streamlit elements
@@ -702,6 +723,52 @@ def display_cluster_json(cluster_data, container=st.container()):
                         ]
                     )
                 }</ul>
+                    </div>
+                </div>
+            """,
+                unsafe_allow_html=True,
+            )
+        else:
+            # Show placeholder card when LLM data is not available
+            current_cell_class = st.session_state.get("cell_class", "unknown")
+            current_resolution = st.session_state.get("leiden_resolution", "unknown")
+            channel_combo = st.session_state.get("channel_combo", "")
+
+            # Find which combinations have LLM data
+            available = get_available_llm_combinations(channel_combo)
+
+            # Smart context: tailor message based on what's wrong
+            if not available:
+                available_text = "No LLM analysis available for this dataset."
+            else:
+                # Check if current cell class has any LLM data
+                cell_classes_with_llm = set(cc for cc, res in available)
+                resolutions_for_current_class = [
+                    res for cc, res in available if cc == current_cell_class
+                ]
+
+                if current_cell_class in cell_classes_with_llm:
+                    # Right cell class, wrong resolution
+                    res_list = ", ".join(sorted(resolutions_for_current_class, key=int))
+                    available_text = (
+                        f"Available for {current_cell_class} at resolution: {res_list}"
+                    )
+                else:
+                    # Wrong cell class
+                    available_text = (
+                        f"Available for: {', '.join(sorted(cell_classes_with_llm))}"
+                    )
+
+            st.markdown(
+                f"""
+                <div style='background-color:#1e1e1e; border-radius:10px; padding:20px; margin-bottom:20px; box-shadow:0 2px 8px #00000040; border: 1px solid #374151;'>
+                    <div style='color:#9ca3af; font-size:1.1em;'>
+                        <span style='font-size:1.2em;'>ℹ️</span>
+                        LLM analysis is not available for <strong>{current_cell_class}</strong> cells
+                        at resolution <strong>{current_resolution}</strong>.
+                    </div>
+                    <div style='margin-top:12px; color:#6b7280; font-size:0.95em;'>
+                        {available_text}
                     </div>
                 </div>
             """,

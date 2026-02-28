@@ -6,4 +6,4 @@ snakemake --use-conda --cores all \
     --configfile "config/config_omezarr.yml" \
     --rerun-triggers mtime \
     --forceall \
-    --until all_preprocess all_sbs all_phenotype
+    --until all_preprocess all_sbs all_phenotype -n

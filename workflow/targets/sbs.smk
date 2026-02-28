@@ -2,6 +2,8 @@ from lib.shared.file_utils import get_image_output_path, get_data_output_path
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 from snakemake.io import directory
 
+from pathlib import Path
+
 
 SBS_FP = ROOT_FP / "sbs"
 
@@ -18,8 +20,13 @@ _sbs_tile_expand = ["row", "col", "tile"] if SBS_IMG_FMT == "zarr" else ["well",
 
 
 SBS_OUTPUTS = {
+    # "align_sbs": [
+    #     SBS_FP / get_image_output_path(_tile, "aligned", SBS_IMG_FMT),
+    # ],
     "align_sbs": [
-        SBS_FP / get_image_output_path(_tile, "aligned", SBS_IMG_FMT),
+        (SBS_FP / Path(get_image_output_path(_tile, "aligned", SBS_IMG_FMT)) / "zarr.json")
+        if SBS_IMG_FMT == "zarr"
+        else (SBS_FP / get_image_output_path(_tile, "aligned", SBS_IMG_FMT)),
     ],
     "log_filter": [
         SBS_FP / get_image_output_path(_tile, "log_filtered", SBS_IMG_FMT),
@@ -88,8 +95,11 @@ SBS_OUTPUTS = {
 _sbs_img_temp = directory if SBS_IMG_FMT == "zarr" else temp
 _sbs_img_keep = directory if SBS_IMG_FMT == "zarr" else None
 
+_align_sbs_mapping = None if SBS_IMG_FMT == "zarr" else _sbs_img_temp
+
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": _sbs_img_temp,
+    # "align_sbs": _sbs_img_temp,
+    "align_sbs": _align_sbs_mapping,
     "log_filter": _sbs_img_temp,
     "compute_standard_deviation": _sbs_img_temp,
     "find_peaks": _sbs_img_temp,
@@ -108,6 +118,7 @@ SBS_OUTPUT_MAPPINGS = {
 }
 
 SBS_OUTPUTS_MAPPED = map_outputs(SBS_OUTPUTS, SBS_OUTPUT_MAPPINGS)
+print(SBS_OUTPUTS_MAPPED["align_sbs"])
 
 SBS_TARGETS_ALL = outputs_to_targets(
     SBS_OUTPUTS, sbs_wildcard_combos, SBS_OUTPUT_MAPPINGS

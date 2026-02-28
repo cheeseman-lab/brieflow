@@ -57,46 +57,127 @@ def get_filename(data_location: dict, info_type: str, file_type: str) -> str:
     return filename
 
 
+# def get_hcs_nested_path(
+#     data_location: dict,
+#     info_type: str,
+#     file_type: str = "zarr",
+#     subdirectory: str = None,
+# ) -> str:
+#     """Generate an HCS-layout nested path for zarr stores within a plate zarr.
+
+#     Produces paths like:
+#         1.zarr/A/1/0/aligned.zarr
+#         1.zarr/A/1/0/3/image.zarr  (with cycle)
+#         1.zarr/A/1/0/labels/nuclei.zarr  (with subdirectory)
+
+#     The plate value gets a ``.zarr`` suffix, row and col become directory
+#     levels (matching HCS row/column convention), and the info_type file
+#     also gets a ``.zarr`` extension by default.
+
+#     Args:
+#         data_location (dict): Must contain 'plate', 'row', 'col', 'tile'.
+#             May optionally contain 'cycle'.
+#         info_type (str): Type of information (e.g., 'aligned', 'nuclei').
+#         file_type (str): File extension (default 'zarr').
+#         subdirectory (str): Optional subdirectory to insert before the store
+#             name (e.g., 'labels' for OME-NGFF label stores).
+
+#     Returns:
+#         str: HCS nested path string.
+#     """
+#     plate = data_location["plate"]
+#     parts = [
+#         f"{plate}.zarr",
+#         data_location["row"],
+#         data_location["col"],
+#         data_location["tile"],
+#     ]
+#     if "cycle" in data_location:
+#         parts.append(str(data_location["cycle"]))
+#     if subdirectory:
+#         parts.append(subdirectory)
+#     parts.append(f"{info_type}.{file_type}")
+#     return str(Path(*parts))
+
+# def get_hcs_nested_path(
+#     data_location: dict,
+#     info_type: str,
+#     file_type: str = "zarr",
+#     subdirectory: str = None,
+# ) -> str:
+    
+#     """Generate an HCS-layout nested path for zarr outputs.
+
+#     Produces paths like:
+#         aligned.zarr/A/1/0
+#         aligned.zarr/A/1/0/3                  (with cycle)
+#         aligned.zarr/A/1/0/labels/nuclei.zarr  (with subdirectory)
+
+#     The image store name (e.g., ``aligned`` or ``illumination_corrected``) gets a
+#     ``.zarr`` suffix and is placed at the module root, with row and col as
+#     directory levels (matching HCS row/column convention). For label stores, the
+#     store is nested under ``aligned.zarr/.../labels/`` and retains a ``.zarr``
+#     extension.
+
+#     Args:
+#         data_location (dict): Must contain 'row', 'col', 'tile'.
+#             May optionally contain 'cycle'. (Plate is not used for Option D image paths.)
+#         info_type (str): Type of information (e.g., 'aligned', 'illumination_corrected',
+#             or a label store name like 'nuclei' when ``subdirectory="labels"``).
+#         file_type (str): File extension (default 'zarr').
+#         subdirectory (str): Optional subdirectory to insert before the store
+#             name (e.g., 'labels' for OME-NGFF label stores).
+
+#     Returns:
+#         str: HCS nested path string.
+#     """
+#     plate = str(data_location["plate"])
+#     row = str(data_location["row"])
+#     col = str(data_location["col"])
+#     tile = str(data_location["tile"])
+
+#     # if subdirectory:
+#     #     parts = [f"aligned_{plate}.{file_type}", row, col, tile] # label stores are under the primary image store (aligned.zarr)
+#     #     if "cycle" in data_location:
+#     #         parts.append(str(data_location["cycle"]))
+#     #     parts.append(subdirectory)  # ex "labels"
+#     #     parts.append(f"{info_type}.{file_type}")  # ex "nuclei.zarr"
+#     #     return str(Path(*parts))
+
+#     # image store sits at module root
+#     parts = [f"{info_type}_{plate}.{file_type}", row, col, tile]
+#     if "cycle" in data_location:
+#         parts.append(str(data_location["cycle"]))
+#     return str(Path(*parts))
+
 def get_hcs_nested_path(
     data_location: dict,
     info_type: str,
     file_type: str = "zarr",
     subdirectory: str = None,
 ) -> str:
-    """Generate an HCS-layout nested path for zarr stores within a plate zarr.
 
-    Produces paths like:
-        1.zarr/A/1/0/aligned.zarr
-        1.zarr/A/1/0/3/image.zarr  (with cycle)
-        1.zarr/A/1/0/labels/nuclei.zarr  (with subdirectory)
+    plate = str(data_location["plate"])
+    row = str(data_location["row"])
+    col = str(data_location["col"])
+    tile = str(data_location["tile"])
 
-    The plate value gets a ``.zarr`` suffix, row and col become directory
-    levels (matching HCS row/column convention), and the info_type file
-    also gets a ``.zarr`` extension by default.
+    # labels under aligned_{plate}.zarr
+    if subdirectory:
+        parts = [
+            f"aligned_{plate}.{file_type}",
+            row,
+            col,
+            tile,
+            subdirectory,
+            f"{info_type}.{file_type}",
+        ]
+        return str(Path(*parts))
 
-    Args:
-        data_location (dict): Must contain 'plate', 'row', 'col', 'tile'.
-            May optionally contain 'cycle'.
-        info_type (str): Type of information (e.g., 'aligned', 'nuclei').
-        file_type (str): File extension (default 'zarr').
-        subdirectory (str): Optional subdirectory to insert before the store
-            name (e.g., 'labels' for OME-NGFF label stores).
-
-    Returns:
-        str: HCS nested path string.
-    """
-    plate = data_location["plate"]
-    parts = [
-        f"{plate}.zarr",
-        data_location["row"],
-        data_location["col"],
-        data_location["tile"],
-    ]
+    # image stores
+    parts = [f"{info_type}_{plate}.{file_type}", row, col, tile]
     if "cycle" in data_location:
         parts.append(str(data_location["cycle"]))
-    if subdirectory:
-        parts.append(subdirectory)
-    parts.append(f"{info_type}.{file_type}")
     return str(Path(*parts))
 
 
@@ -336,7 +417,7 @@ def get_image_output_path(
     """Get image output path for either TIFF or zarr format.
 
     TIFF: ``images/[image_subdir/]P-1_W-A1_T-0__aligned.tiff``
-    zarr: ``[image_subdir/]1.zarr/A/1/0/aligned.zarr``
+    zarr: ``[image_subdir/]aligned.zarr/A/1/0``
 
     Args:
         data_location (dict): Location dict with plate/well/tile keys.

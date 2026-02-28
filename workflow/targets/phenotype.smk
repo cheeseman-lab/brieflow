@@ -2,6 +2,8 @@ from lib.shared.file_utils import get_image_output_path, get_data_output_path
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 from snakemake.io import directory
 
+from pathlib import Path
+
 
 PHENOTYPE_FP = ROOT_FP / "phenotype"
 
@@ -27,8 +29,13 @@ PHENOTYPE_OUTPUTS = {
     "apply_ic_field_phenotype": [
         PHENOTYPE_FP / get_image_output_path(_tile, "illumination_corrected", PHENOTYPE_IMG_FMT),
     ],
+    # "align_phenotype": [
+    #     PHENOTYPE_FP / get_image_output_path(_tile, "aligned", PHENOTYPE_IMG_FMT),
+    # ],
     "align_phenotype": [
-        PHENOTYPE_FP / get_image_output_path(_tile, "aligned", PHENOTYPE_IMG_FMT),
+        (PHENOTYPE_FP / Path(get_image_output_path(_tile, "aligned", PHENOTYPE_IMG_FMT)) / "zarr.json")
+        if PHENOTYPE_IMG_FMT == "zarr"
+        else (PHENOTYPE_FP / get_image_output_path(_tile, "aligned", PHENOTYPE_IMG_FMT)),
     ],
     "segment_phenotype": [
         PHENOTYPE_FP / get_image_output_path(_tile, "nuclei", PHENOTYPE_IMG_FMT, subdirectory="labels"),
@@ -72,9 +79,12 @@ PHENOTYPE_OUTPUTS = {
 _phenotype_img_temp = directory if PHENOTYPE_IMG_FMT == "zarr" else temp
 _phenotype_img_keep = directory if PHENOTYPE_IMG_FMT == "zarr" else None
 
+_align_phenotype_mapping = None if PHENOTYPE_IMG_FMT == "zarr" else _phenotype_img_keep
+
 PHENOTYPE_OUTPUT_MAPPINGS = {
     "apply_ic_field_phenotype": _phenotype_img_temp,
-    "align_phenotype": _phenotype_img_keep,
+    # "align_phenotype": _phenotype_img_keep,
+    "align_phenotype": _align_phenotype_mapping,
     "segment_phenotype": [_phenotype_img_keep, _phenotype_img_keep, None],
     "identify_cytoplasm": _phenotype_img_temp,
     "extract_phenotype_info": temp,

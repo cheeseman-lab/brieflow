@@ -68,8 +68,8 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "combine_metadata_sbs": None,
     "extract_metadata_phenotype": temp,
     "combine_metadata_phenotype": None,
-    "convert_sbs": directory if IMG_FMT == "zarr" else None,
-    "convert_phenotype": directory if IMG_FMT == "zarr" else None,
+    "convert_sbs": None,
+    "convert_phenotype": None,
     "calculate_ic_sbs": directory if IC_EXT == "zarr" else None,
     "calculate_ic_phenotype": directory if IC_EXT == "zarr" else None,
 }

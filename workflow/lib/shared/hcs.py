@@ -1,7 +1,7 @@
 """HCS (High Content Screening) OME-NGFF metadata-only fusion utilities.
 
 After Snakemake jobs write zarr stores directly into the HCS plate hierarchy
-(e.g., {plate}.zarr/{row}/{col}/{tile}/{image_type}.zarr), these functions
+(e.g., aligned_{plate}.zarr/{row}/{col}/{tile}/zarr.json), these functions
 discover what was written and layer the OME-NGFF metadata on top.
 
 No symlinks or data copies — only zarr.json metadata files.
@@ -66,7 +66,9 @@ def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
 def discover_plate_structure(plate_zarr_path):
     """Walk a plate zarr directory to discover the row/col/tile structure.
 
-    Expected layout: plate.zarr/{row}/{col}/{tile}/{image_type}.zarr/
+    Finds zarr.json files at depth >= 3, meaning the containing directory is
+    a zarr store at the tile level. Works for both 3-level (row/col/tile) and
+    4-level (row/col/tile/cycle) paths.
 
     Args:
         plate_zarr_path: Path to the plate zarr directory.
@@ -78,26 +80,14 @@ def discover_plate_structure(plate_zarr_path):
     results = []
     seen = set()
 
-    for zarr_dir in sorted(plate_path.rglob("*.zarr")):
-        if not zarr_dir.is_dir():
-            continue
-        # Skip the plate zarr itself if it matches *.zarr
-        if zarr_dir == plate_path:
-            continue
-
-        rel = zarr_dir.relative_to(plate_path)
-        parts = list(rel.parts)
-
-        # Expected: {row}/{col}/{tile}/[{cycle}/]{image_type}.zarr
-        # or inside labels/: {row}/{col}/{tile}/labels/{label_type}.zarr
-        if len(parts) < 4:
-            continue
-
-        row, col, tile = parts[0], parts[1], parts[2]
-        key = (row, col, tile)
-        if key not in seen:
-            seen.add(key)
-            results.append(key)
+    for zarr_json in sorted(plate_path.rglob("zarr.json")):
+        rel = zarr_json.relative_to(plate_path)
+        parts = list(rel.parent.parts)
+        if len(parts) >= 3:
+            key = (parts[0], parts[1], parts[2])
+            if key not in seen:
+                seen.add(key)
+                results.append(key)
 
     return results
 

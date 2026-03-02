@@ -152,7 +152,7 @@ if IMG_FMT == "zarr":
         output:
             touch(str(PREPROCESS_FP / ".hcs_done_sbs")),
         params:
-            plate_zarr_dirs=[str(PREPROCESS_FP / "sbs" / f"{p}.zarr")
+            plate_zarr_dirs=[str(PREPROCESS_FP / "sbs" / f"image_{p}.zarr")
                              for p in sorted(sbs_wildcard_combos["plate"].unique())],
             channels_metadata=config["preprocess"].get("sbs_channels_metadata", None),
         script:
@@ -165,8 +165,8 @@ if IMG_FMT == "zarr":
         output:
             touch(str(PREPROCESS_FP / ".hcs_done_phenotype")),
         params:
-            plate_zarr_dirs=[str(PREPROCESS_FP / "phenotype" / f"{p}.zarr") # creates list like 1.zarr, 2.zarr, etc
-                             for p in sorted(phenotype_wildcard_combos["plate"].unique())], # finding which plates exist
+            plate_zarr_dirs=[str(PREPROCESS_FP / "phenotype" / f"image_{p}.zarr")
+                             for p in sorted(phenotype_wildcard_combos["plate"].unique())],
             channels_metadata=config["preprocess"].get("phenotype_channels_metadata", None),
         script:
             "../scripts/shared/write_hcs_metadata.py"

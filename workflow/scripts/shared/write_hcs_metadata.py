@@ -8,17 +8,9 @@ metadata files at plate, row, well, and labels levels.
 from pathlib import Path
 
 from lib.shared.hcs import write_hcs_metadata
-import json
 
 plate_zarr_dirs = snakemake.params.plate_zarr_dirs
 channels_metadata = getattr(snakemake.params, "channels_metadata", None)
-
-print(
-    "channels_metadata passed into write_hcs_metadata.py:\n"
-    + (
-        json.dumps(channels_metadata, indent=2) if channels_metadata else "None"
-    )  # Prints the list passing through for debugging
-)
 
 total = 0
 for plate_zarr in plate_zarr_dirs:

@@ -116,9 +116,9 @@ def load_parquet_subset(full_df_fp, n_rows=50000, verbose=False):
 
     print(f"Reading {n_rows:,} random rows from {full_df_fp} ({total_rows:,} total)")
 
-    table = pf.read_row_groups(
-        list(range(pf.metadata.num_row_groups))
-    ).take(pa.array(indices))
+    table = pf.read_row_groups(list(range(pf.metadata.num_row_groups))).take(
+        pa.array(indices)
+    )
 
     return table.to_pandas()
 

@@ -1,4 +1,12 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Nimbus Sans", "Liberation Sans", "Arial", "DejaVu Sans"],
+    }
+)
 
 from lib.phenotype.eval_features import plot_feature_heatmap
 
@@ -34,4 +42,4 @@ for feature_name in min_feature_names:
 
     # Save df summary and figure
     df_summary_one.to_csv(tsv_path, index=False, sep="\t")
-    fig.savefig(png_path)
+    fig.savefig(png_path, dpi=300, bbox_inches="tight", transparent=True)

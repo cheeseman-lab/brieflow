@@ -5,7 +5,15 @@ phenotype matching rates and generating summary statistics and plots.
 """
 
 import pandas as pd
+import matplotlib.pyplot as plt
 from pathlib import Path
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Nimbus Sans", "Liberation Sans", "Arial", "DejaVu Sans"],
+    }
+)
 
 from lib.shared.file_utils import validate_dtypes
 from lib.merge.format_merge import identify_single_gene_mappings
@@ -162,7 +170,12 @@ sbs_summary, fig = plot_sbs_ph_matching_heatmap(
     return_summary=True,
 )
 sbs_summary.to_csv(snakemake.output.sbs_to_ph_matching_rates_tsv, sep="\t", index=False)
-fig.savefig(snakemake.output.sbs_to_ph_matching_rates_png)
+fig.savefig(
+    snakemake.output.sbs_to_ph_matching_rates_png,
+    dpi=300,
+    bbox_inches="tight",
+    transparent=True,
+)
 
 # Eval phenotype matching rates (use phenotype_info - all segmented cells that went into merge)
 ph_summary, fig = plot_sbs_ph_matching_heatmap(
@@ -176,17 +189,32 @@ ph_summary, fig = plot_sbs_ph_matching_heatmap(
     return_summary=True,
 )
 ph_summary.to_csv(snakemake.output.ph_to_sbs_matching_rates_tsv, sep="\t", index=False)
-fig.savefig(snakemake.output.ph_to_sbs_matching_rates_png)
+fig.savefig(
+    snakemake.output.ph_to_sbs_matching_rates_png,
+    dpi=300,
+    bbox_inches="tight",
+    transparent=True,
+)
 
 # Evaluate all formatted merge data
 fig = plot_cell_positions(merge_deduplicated, title="All Cells by Channel Min")
-fig.savefig(snakemake.output.all_cells_by_channel_min)
+fig.savefig(
+    snakemake.output.all_cells_by_channel_min,
+    dpi=300,
+    bbox_inches="tight",
+    transparent=True,
+)
 fig = plot_cell_positions(
     merge_deduplicated.query("channels_min==0"),
     title="Cells with Channel Min = 0",
     color="red",
 )
-fig.savefig(snakemake.output.cells_with_channel_min_0)
+fig.savefig(
+    snakemake.output.cells_with_channel_min_0,
+    dpi=300,
+    bbox_inches="tight",
+    transparent=True,
+)
 
 # Aggregate dedup stats across all wells (already loaded above)
 dedup_dfs = []

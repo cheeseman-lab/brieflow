@@ -1,4 +1,12 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Nimbus Sans", "Liberation Sans", "Arial", "DejaVu Sans"],
+    }
+)
 
 from lib.shared.eval_segmentation import (
     segmentation_overview,
@@ -25,4 +33,4 @@ cell_density_summary, fig = plot_cell_density_heatmap(
     cells, shape=snakemake.params.heatmap_shape, plate=snakemake.params.heatmap_plate
 )
 cell_density_summary.to_csv(snakemake.output[1], index=False, sep="\t")
-fig.savefig(snakemake.output[2])
+fig.savefig(snakemake.output[2], dpi=300, bbox_inches="tight", transparent=True)

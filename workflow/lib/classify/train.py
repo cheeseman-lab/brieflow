@@ -54,11 +54,10 @@ def setup_publication_plot_style():
         {
             "font.family": "sans-serif",
             "font.sans-serif": [
+                "Nimbus Sans",
+                "Liberation Sans",
                 "Arial",
                 "DejaVu Sans",
-                "Liberation Sans",
-                "Bitstream Vera Sans",
-                "sans-serif",
             ],
             "font.size": 10,
             "axes.labelsize": 12,
@@ -554,6 +553,7 @@ def plot_distribution_statistics(
             os.path.join(output_dir, f"{prefix}{target_col}_by_{split_col}.png"),
             dpi=dpi,
             bbox_inches="tight",
+            transparent=True,
         )
         plt.close()
 
@@ -601,6 +601,7 @@ def plot_distribution_statistics(
             os.path.join(output_dir, f"{prefix}{target_col}_counts_by_{split_col}.png"),
             dpi=dpi,
             bbox_inches="tight",
+            transparent=True,
         )
         plt.close()
 
@@ -727,6 +728,7 @@ def enhance_feature_selection(
                 os.path.join(output_dir, f"{prefix}_correlation_matrix.png"),
                 dpi=300,
                 bbox_inches="tight",
+                transparent=True,
             )
             plt.close()
 
@@ -793,6 +795,7 @@ def enhance_feature_selection(
                 os.path.join(output_dir, f"{prefix}_top_features.png"),
                 dpi=300,
                 bbox_inches="tight",
+                transparent=True,
             )
             plt.close()
 
@@ -1385,6 +1388,7 @@ class SciKitCellClassifier(CellClassifier):
             os.path.join(output_dir, f"{prefix}_confusion_matrix.png"),
             dpi=300,
             bbox_inches="tight",
+            transparent=True,
         )
         plt.close()
 
@@ -1442,6 +1446,7 @@ class SciKitCellClassifier(CellClassifier):
             os.path.join(output_dir, f"{prefix}_roc_curve.png"),
             dpi=300,
             bbox_inches="tight",
+            transparent=True,
         )
         plt.close()
 
@@ -1543,6 +1548,7 @@ class SciKitCellClassifier(CellClassifier):
             os.path.join(output_dir, f"{prefix}_feature_importance.png"),
             dpi=300,
             bbox_inches="tight",
+            transparent=True,
         )
 
         # Also save a CSV with the full feature importance ranking
@@ -1907,7 +1913,7 @@ def train_classifier_pipeline(
                 out_fp = os.path.join(
                     plots_dir, f"{training_name}_accuracy_comparison.png"
                 )
-                plt.savefig(out_fp, dpi=300, bbox_inches="tight")
+                plt.savefig(out_fp, dpi=300, bbox_inches="tight", transparent=True)
                 plt.close()
 
         # F1 heatmap
@@ -1946,7 +1952,7 @@ def train_classifier_pipeline(
                 )
                 plt.tight_layout()
                 out_fp = os.path.join(plots_dir, f"{training_name}_f1_heatmap.png")
-                plt.savefig(out_fp, dpi=300, bbox_inches="tight")
+                plt.savefig(out_fp, dpi=300, bbox_inches="tight", transparent=True)
                 plt.close()
                 if verbose:
                     print(f"[pipeline] Saved plot: {out_fp}")

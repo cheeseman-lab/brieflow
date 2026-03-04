@@ -19,6 +19,12 @@ warnings.filterwarnings("ignore")
 
 # Set up plotting
 plt.style.use("default")
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Nimbus Sans", "Liberation Sans", "Arial", "DejaVu Sans"],
+    }
+)
 
 
 def create_tile_arrangement_qc_plot(
@@ -76,7 +82,7 @@ def create_tile_arrangement_qc_plot(
             )
             ax.set_title(f"{data_type.title()} Tile Arrangement QC - No Data")
             plt.tight_layout()
-            plt.savefig(output_path, dpi=150, bbox_inches="tight")
+            plt.savefig(output_path, dpi=300, transparent=True, bbox_inches="tight")
             plt.close()
             return None
 
@@ -114,7 +120,7 @@ def create_tile_arrangement_qc_plot(
             )
             ax.set_title(f"{data_type.title()} Tile Arrangement QC - No Data")
             plt.tight_layout()
-            plt.savefig(output_path, dpi=150, bbox_inches="tight")
+            plt.savefig(output_path, dpi=300, transparent=True, bbox_inches="tight")
             plt.close()
             return None
 
@@ -203,7 +209,7 @@ def create_tile_arrangement_qc_plot(
         )
 
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.savefig(output_path, dpi=300, transparent=True, bbox_inches="tight")
         plt.close()
 
         print(f"QC plot saved: {output_path}")
@@ -263,7 +269,7 @@ def create_tile_arrangement_qc_plot(
         )
         ax.set_title(" - ".join(title_parts))
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.savefig(output_path, dpi=300, transparent=True, bbox_inches="tight")
         plt.close()
         return None
 
@@ -462,7 +468,7 @@ def create_tile_arrangement_qc_plot(
         )
 
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.savefig(output_path, dpi=300, transparent=True, bbox_inches="tight")
         plt.close()
 
         print(f"QC plot saved: {output_path}")
@@ -486,7 +492,7 @@ def create_tile_arrangement_qc_plot(
         )
         ax.set_title(" - ".join(title_parts))
         plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.savefig(output_path, dpi=300, transparent=True, bbox_inches="tight")
         plt.close()
         return None
 
@@ -507,5 +513,5 @@ def create_empty_qc_plot(output_path, data_type, well):
     )
     ax.set_title(f"{data_type.title()} Well {well} - No Cells Detected")
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.savefig(output_path, dpi=300, transparent=True, bbox_inches="tight")
     plt.close()

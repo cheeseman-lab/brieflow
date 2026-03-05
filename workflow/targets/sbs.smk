@@ -82,11 +82,11 @@ SBS_OUTPUTS = {
     ],
 }
 
-# When outputting zarr, image outputs need directory() mapping and should not be temp
-# (Snakemake can't reliably temp() a directory output)
-# When outputting tiff, intermediate images can be temp() for cleanup
-_sbs_img_temp = directory if SBS_IMG_FMT == "zarr" else temp
-_sbs_img_keep = directory if SBS_IMG_FMT == "zarr" else None
+# zarr image stores tracked by zarr.json (a file) — no directory() wrapper needed.
+# For TIFF, intermediates are temp() for cleanup.
+_sbs_img_temp = None if SBS_IMG_FMT == "zarr" else temp
+# zarr label stores ARE directories; tiff labels need no wrapper.
+_sbs_label_keep = directory if SBS_IMG_FMT == "zarr" else None
 
 SBS_OUTPUT_MAPPINGS = {
     "align_sbs": _sbs_img_temp,
@@ -95,7 +95,7 @@ SBS_OUTPUT_MAPPINGS = {
     "find_peaks": _sbs_img_temp,
     "max_filter": _sbs_img_temp,
     "apply_ic_field_sbs": _sbs_img_temp,
-    "segment_sbs": [_sbs_img_keep, _sbs_img_keep, None],
+    "segment_sbs": [_sbs_label_keep, _sbs_label_keep, None],
     "extract_bases": temp,
     "call_reads": temp,
     "call_cells": temp,

@@ -66,17 +66,14 @@ PHENOTYPE_OUTPUTS = {
     ],
 }
 
-# When outputting zarr, image outputs need directory() mapping and should not be temp
-# (Snakemake can't reliably temp() a directory output)
-# When outputting tiff, intermediate images can be temp() for cleanup
-_phenotype_img_temp = directory if PHENOTYPE_IMG_FMT == "zarr" else temp
-_phenotype_img_keep = directory if PHENOTYPE_IMG_FMT == "zarr" else None
+_phenotype_img_temp = None if PHENOTYPE_IMG_FMT == "zarr" else temp
+_phenotype_label_keep = directory if PHENOTYPE_IMG_FMT == "zarr" else None
 
 PHENOTYPE_OUTPUT_MAPPINGS = {
     "apply_ic_field_phenotype": _phenotype_img_temp,
-    "align_phenotype": _phenotype_img_keep,
-    "segment_phenotype": [_phenotype_img_keep, _phenotype_img_keep, None],
-    "identify_cytoplasm": _phenotype_img_temp,
+    "align_phenotype": None,
+    "segment_phenotype": [_phenotype_label_keep, _phenotype_label_keep, None],
+    "identify_cytoplasm": _phenotype_label_keep,
     "extract_phenotype_info": temp,
     "combine_phenotype_info": None,
     "extract_phenotype": temp,

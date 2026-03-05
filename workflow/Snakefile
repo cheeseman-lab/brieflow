@@ -15,9 +15,14 @@ from lib.shared.file_utils import (
 ROOT_FP = Path(config["all"]["root_fp"])
 IMG_FMT = config.get("all", {}).get("image_format", "tiff")
 
+# wildcard_constraints:
+#     row="[A-Za-z]+",
+#     col="[0-9]+",
 wildcard_constraints:
-    row="[A-Za-z]+",
-    col="[0-9]+",
+    row=r"[A-Za-z]+",
+    col=r"[0-9]+",
+    tile=r"[0-9]+",
+    plate=r"[0-9]+",
 
 # Get paths to the sample and combo files dfs
 SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])

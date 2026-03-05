@@ -36,6 +36,10 @@ def read_image(path: PathLike) -> np.ndarray:
     if not p.exists():
         raise FileNotFoundError(p)
 
+    # zarr.json sentinel path (HCS): open the parent directory as zarr store
+    if p.name == "zarr.json":
+        p = p.parent
+
     if p.suffix.lower() in {".tif", ".tiff"}:
         return tiff_imread(str(p))
 
@@ -79,7 +83,20 @@ def save_image(
         tiff_imwrite(str(out), image)
         return
 
-    if suffix == ".zarr" or suffix.endswith(".ome.zarr") or out.name.endswith(".zarr"):
+    # zarr.json sentinel path (HCS): write zarr store to parent directory.
+    # zarr v3 automatically creates zarr.json in the store root, satisfying Snakemake.
+    if out.name == "zarr.json":
+        out = out.parent
+
+    # Detect zarr: explicit .zarr suffix, or any ancestor directory ends in .zarr
+    # (handles HCS paths like aligned_1.zarr/A/1/0 where the terminal
+    # component is an integer tile/cycle directory with no extension)
+    _is_zarr = (
+        suffix == ".zarr"
+        or out.name.endswith(".zarr")
+        or any(part.endswith(".zarr") for part in out.parts)
+    )
+    if _is_zarr:
         axes: str
         data = image
         if image.ndim == 2:

@@ -1,6 +1,7 @@
 """Utility functions for handling and filtering sample file paths in the BrieFlow pipeline."""
 
 from pathlib import Path
+from typing import Optional
 
 from pyarrow.parquet import ParquetFile
 import pyarrow as pa
@@ -61,42 +62,45 @@ def get_hcs_nested_path(
     data_location: dict,
     info_type: str,
     file_type: str = "zarr",
-    subdirectory: str = None,
+    subdirectory: Optional[str] = None,
 ) -> str:
-    """Generate an HCS-layout nested path for zarr stores within a plate zarr.
+    """Generate an HCS nested path with zarr.json sentinel tracking.
 
-    Produces paths like:
-        1.zarr/A/1/0/aligned.zarr
-        1.zarr/A/1/0/3/image.zarr  (with cycle)
-        1.zarr/A/1/0/labels/nuclei.zarr  (with subdirectory)
-
-    The plate value gets a ``.zarr`` suffix, row and col become directory
-    levels (matching HCS row/column convention), and the info_type file
-    also gets a ``.zarr`` extension by default.
+    Image stores:  ``{info_type}_{plate}.zarr/{row}/{col}/{tile}/zarr.json``
+    Label stores:  ``aligned_{plate}.zarr/{row}/{col}/{tile}/{subdirectory}/{info_type}.zarr``
 
     Args:
-        data_location (dict): Must contain 'plate', 'row', 'col', 'tile'.
-            May optionally contain 'cycle'.
-        info_type (str): Type of information (e.g., 'aligned', 'nuclei').
-        file_type (str): File extension (default 'zarr').
-        subdirectory (str): Optional subdirectory to insert before the store
-            name (e.g., 'labels' for OME-NGFF label stores).
+        data_location: Dict with ``plate``, ``row``, ``col``, ``tile``
+            (and optionally ``cycle``) keys.
+        info_type: Image name (e.g. ``"aligned"``, ``"nuclei"``).
+        file_type: File extension (default ``"zarr"``).
+        subdirectory: If set (e.g. ``"labels"``), nests inside the aligned
+            image store instead of creating a standalone plate zarr.
 
     Returns:
-        str: HCS nested path string.
+        Relative path string.
     """
-    plate = data_location["plate"]
-    parts = [
-        f"{plate}.zarr",
-        data_location["row"],
-        data_location["col"],
-        data_location["tile"],
-    ]
+    plate = str(data_location["plate"])
+    row = str(data_location["row"])
+    col = str(data_location["col"])
+    tile = str(data_location["tile"])
+
+    if subdirectory:
+        # Label stores nest inside the aligned image store (OME-NGFF compliant).
+        # e.g. aligned_1.zarr/A/1/0/labels/nuclei.zarr
+        parts = [f"aligned_{plate}.{file_type}", row, col, tile]
+        if "cycle" in data_location:
+            parts.append(str(data_location["cycle"]))
+        parts.extend([subdirectory, f"{info_type}.{file_type}"])
+        return str(Path(*parts))
+
+    # Image stores: track by zarr.json sentinel so labels can nest inside without
+    # triggering Snakemake ChildIOException.
+    # e.g. aligned_1.zarr/A/1/0/zarr.json
+    parts = [f"{info_type}_{plate}.{file_type}", row, col, tile]
     if "cycle" in data_location:
         parts.append(str(data_location["cycle"]))
-    if subdirectory:
-        parts.append(subdirectory)
-    parts.append(f"{info_type}.{file_type}")
+    parts.append("zarr.json")
     return str(Path(*parts))
 
 
@@ -336,7 +340,7 @@ def get_image_output_path(
     """Get image output path for either TIFF or zarr format.
 
     TIFF: ``images/[image_subdir/]P-1_W-A1_T-0__aligned.tiff``
-    zarr: ``[image_subdir/]1.zarr/A/1/0/aligned.zarr``
+    zarr: ``[image_subdir/]aligned.zarr/A/1/0``
 
     Args:
         data_location (dict): Location dict with plate/well/tile keys.

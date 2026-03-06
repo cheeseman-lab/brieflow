@@ -54,9 +54,9 @@ def setup_publication_plot_style():
         {
             "font.family": "sans-serif",
             "font.sans-serif": [
+                "Arial",
                 "Nimbus Sans",
                 "Liberation Sans",
-                "Arial",
                 "DejaVu Sans",
             ],
             "font.size": 10,

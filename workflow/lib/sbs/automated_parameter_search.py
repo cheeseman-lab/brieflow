@@ -14,7 +14,7 @@ import warnings
 plt.rcParams.update(
     {
         "font.family": "sans-serif",
-        "font.sans-serif": ["Nimbus Sans", "Liberation Sans", "Arial", "DejaVu Sans"],
+        "font.sans-serif": ["Arial", "Nimbus Sans", "Liberation Sans", "DejaVu Sans"],
     }
 )
 from itertools import product

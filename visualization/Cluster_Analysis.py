@@ -1084,7 +1084,6 @@ with col1:
         if st.session_state.selected_gene in all_genes
         else gene_placeholder
     )
-    st.session_state.selected_gene_global = gene_val
     selected_gene = st.selectbox(
         "Gene Search",
         options=gene_options,
@@ -1104,7 +1103,6 @@ with col2:
         if st.session_state.selected_item in all_clusters
         else "Select a cluster..."
     )
-    st.session_state.cluster_dropdown = cluster_val
     st.selectbox(
         "Cluster Search",
         options=cluster_options,
@@ -1193,7 +1191,6 @@ else:
                     if st.session_state.selected_gene in cluster_genes
                     else cluster_genes[0]
                 )
-                st.session_state.selected_gene_cluster = gene_val
                 st.selectbox(
                     "Select a gene to view (within this cluster)",
                     options=cluster_genes,

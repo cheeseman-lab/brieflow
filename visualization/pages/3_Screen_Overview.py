@@ -12,6 +12,7 @@ st.set_page_config(page_title="Screen Overview - Brieflow Analysis", layout="wid
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def load_raw_yaml(file_path):
     with open(file_path, "r") as file:
         return file.read()
@@ -31,9 +32,7 @@ def resolve_path(path):
     if os.path.isfile(path):
         return path
     if not os.path.isabs(path):
-        data_loc = (
-            yaml.safe_load(open(SCREEN_PATH)).get("data", {}).get("location", "")
-        )
+        data_loc = yaml.safe_load(open(SCREEN_PATH)).get("data", {}).get("location", "")
         alt = os.path.join(data_loc, "analysis", path)
         if os.path.isfile(alt):
             return alt
@@ -64,9 +63,7 @@ with tab_library:
     st.header("Perturbation Library")
 
     # --- Processed barcode library (from config) ---
-    barcode_path = resolve_path(
-        config.get("sbs", {}).get("df_barcode_library_fp", "")
-    )
+    barcode_path = resolve_path(config.get("sbs", {}).get("df_barcode_library_fp", ""))
 
     if barcode_path:
         st.subheader("Barcode Library")
@@ -77,7 +74,9 @@ with tab_library:
         n_genes = df_lib[gene_col].nunique() if gene_col else "N/A"
 
         col1, col2 = st.columns(2)
-        col1.metric("Unique Genes", f"{n_genes:,}" if isinstance(n_genes, int) else n_genes)
+        col1.metric(
+            "Unique Genes", f"{n_genes:,}" if isinstance(n_genes, int) else n_genes
+        )
         col2.metric("Total Guides", f"{n_guides:,}")
 
         st.download_button(
@@ -93,16 +92,16 @@ with tab_library:
         st.info("Barcode library not found in config.")
 
     # --- Raw perturbation library design file (optional) ---
-    raw_lib_path = resolve_path(
-        os.environ.get("PERTURBATION_LIBRARY_PATH", "")
-    )
+    raw_lib_path = resolve_path(os.environ.get("PERTURBATION_LIBRARY_PATH", ""))
 
     if raw_lib_path:
         st.divider()
         st.subheader("Raw Perturbation Library Design")
         df_raw = read_tabular(raw_lib_path)
 
-        st.markdown(f"**Source:** `{raw_lib_path}` ({len(df_raw):,} rows, {len(df_raw.columns)} columns)")
+        st.markdown(
+            f"**Source:** `{raw_lib_path}` ({len(df_raw):,} rows, {len(df_raw.columns)} columns)"
+        )
 
         st.download_button(
             label="Download raw library design",
@@ -137,7 +136,11 @@ with tab_features:
 
         summary_rows = []
         for fname in feature_files:
-            cols = list(pd.read_csv(os.path.join(agg_tsvs_dir, fname), sep="\t", nrows=0).columns)
+            cols = list(
+                pd.read_csv(
+                    os.path.join(agg_tsvs_dir, fname), sep="\t", nrows=0
+                ).columns
+            )
             feat_cols = [c for c in cols if not c.startswith(METADATA_PREFIXES)]
             summary_rows.append(
                 {
@@ -147,7 +150,9 @@ with tab_features:
                 }
             )
 
-        st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+        st.dataframe(
+            pd.DataFrame(summary_rows), use_container_width=True, hide_index=True
+        )
 
         # Download button for selected feature set
         selected_file = st.selectbox("Select feature set to download", feature_files)
@@ -181,14 +186,20 @@ with tab_features:
         _vis_dir = os.path.dirname(os.path.dirname(__file__))
         _brieflow_dir = os.path.dirname(_vis_dir)
         feature_doc_path = os.path.join(
-            _brieflow_dir, "workflow", "lib", "external", "CP_EMULATOR_FEATURES.md",
+            _brieflow_dir,
+            "workflow",
+            "lib",
+            "external",
+            "CP_EMULATOR_FEATURES.md",
         )
 
     if os.path.isfile(feature_doc_path):
         with open(feature_doc_path, "r") as f:
             feature_doc = f.read()
 
-        with st.expander("View CellProfiler Emulator Feature Documentation", expanded=False):
+        with st.expander(
+            "View CellProfiler Emulator Feature Documentation", expanded=False
+        ):
             st.markdown(feature_doc)
 
         st.download_button(

@@ -15,7 +15,9 @@ st.set_page_config(
 stats_files = glob.glob(os.path.join(BRIEFLOW_OUTPUT_PATH, "*_stats.txt"))
 
 if not stats_files:
-    st.info("No pipeline stats file found. Run the stats collection step to generate one.")
+    st.info(
+        "No pipeline stats file found. Run the stats collection step to generate one."
+    )
     st.stop()
 
 stats_path = stats_files[0]
@@ -46,7 +48,11 @@ def parse_sections(text):
             current_lines = []
             continue
         # Skip progress lines like "[1/6] Gathering..."  and separator lines
-        if re.match(r"^\[[\d/]+\]", line.strip()) or "====" in line or "REPORT COMPLETE" in line:
+        if (
+            re.match(r"^\[[\d/]+\]", line.strip())
+            or "====" in line
+            or "REPORT COMPLETE" in line
+        ):
             continue
         if current_header is not None:
             current_lines.append(line)

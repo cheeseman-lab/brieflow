@@ -56,7 +56,17 @@ def read_image(path: PathLike) -> np.ndarray:
         if ds_path is None:
             raise ValueError("Could not find image data in OME-Zarr")
         arr = root[ds_path][:]
-        # Squeeze singleton leading dimension added by save_image() for OME-Zarr
+        # Squeeze singleton dimensions added for 5D TCZYX OME-Zarr storage.
+        # 5D TCZYX: squeeze T (always singleton), squeeze Z if singleton.
+        if arr.ndim == 5:
+            arr = arr[0]  # squeeze T → CZYX
+            if arr.shape[1] == 1:  # Z is singleton
+                arr = arr[:, 0, :, :]  # → CYX
+        elif arr.ndim == 4:
+            # Legacy CZYX: squeeze Z if singleton
+            if arr.shape[1] == 1:
+                arr = arr[:, 0, :, :]
+        # Squeeze singleton channel dim (from 2D input expanded to CYX)
         if arr.ndim > 2 and arr.shape[0] == 1:
             arr = arr[0]
         return arr
@@ -100,12 +110,17 @@ def save_image(
         axes: str
         data = image
         if image.ndim == 2:
-            data = image[np.newaxis, ...]
-            axes = "cyx"
+            # (Y, X) → (1, 1, 1, Y, X)  TCZYX
+            data = image[np.newaxis, np.newaxis, np.newaxis, ...]
+            axes = "tczyx"
         elif image.ndim == 3:
-            axes = "cyx"
+            # (C, Y, X) → (1, C, 1, Y, X)  TCZYX
+            data = image[np.newaxis, :, np.newaxis, ...]
+            axes = "tczyx"
         elif image.ndim == 4:
-            axes = "czyx"
+            # (C, Z, Y, X) → (1, C, Z, Y, X)  TCZYX
+            data = image[np.newaxis, ...]
+            axes = "tczyx"
         else:
             raise ValueError(f"Unsupported image.ndim={image.ndim} for OME-Zarr export")
 
@@ -138,7 +153,7 @@ def write_image_omezarr(
     image_data: Union[np.ndarray, da.Array],
     out_path: str,
     channel_names: Optional[List[str]] = None,
-    axes: str = "cyx",
+    axes: str = "tczyx",
     pixel_size_um: Optional[Union[float, Tuple[float, ...], Dict[str, float]]] = None,
     coarsening_factor: int = 2,
     max_levels: int = 4,

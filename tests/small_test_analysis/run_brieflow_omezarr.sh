@@ -4,6 +4,5 @@
 snakemake --use-conda --cores all \
     --snakefile "../../workflow/Snakefile" \
     --configfile "config/config_omezarr.yml" \
-    --rerun-triggers mtime \
-    --forceall \
-    --until all_preprocess all_sbs all_phenotype
+    -R finalize_hcs_sbs finalize_hcs_phenotype
+    # --until all_sbs all_phenotype

@@ -63,31 +63,83 @@ def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
             _maybe_write_labels_metadata(field_dir)
 
 
+# def discover_plate_structure(plate_zarr_path):
+#     """Walk a plate zarr directory to discover the row/col/tile structure.
+
+#     Finds zarr.json files at depth >= 3, meaning the containing directory is
+#     a zarr store at the tile level. Works for both 3-level (row/col/tile) and
+#     4-level (row/col/tile/cycle) paths.
+
+#     Args:
+#         plate_zarr_path: Path to the plate zarr directory.
+
+#     Returns:
+#         list of (row, col, tile) tuples found in the directory.
+#     """
+#     plate_path = Path(plate_zarr_path)
+#     results = []
+#     seen = set()
+
+#     for zarr_json in sorted(plate_path.rglob("zarr.json")):
+#         rel = zarr_json.relative_to(plate_path)
+#         parts = list(rel.parent.parts)
+#         if len(parts) >= 3:
+#             key = (parts[0], parts[1], parts[2])
+#             if key not in seen:
+#                 seen.add(key)
+#                 results.append(key)
+
+#     return results
+
 def discover_plate_structure(plate_zarr_path):
-    """Walk a plate zarr directory to discover the row/col/tile structure.
+    """Discover (row, col, tile) by locating tile-level zarr.json files.
 
-    Finds zarr.json files at depth >= 3, meaning the containing directory is
-    a zarr store at the tile level. Works for both 3-level (row/col/tile) and
-    4-level (row/col/tile/cycle) paths.
-
-    Args:
-        plate_zarr_path: Path to the plate zarr directory.
-
-    Returns:
-        list of (row, col, tile) tuples found in the directory.
+    Pass 1 (Option D): plate.zarr/{row}/{col}/{tile}/zarr.json
+    Pass 2 (fallback): any deeper zarr.json (e.g. preprocess cycle level)
+                       plate.zarr/{row}/{col}/{tile}/.../zarr.json
     """
     plate_path = Path(plate_zarr_path)
     results = []
     seen = set()
 
-    for zarr_json in sorted(plate_path.rglob("zarr.json")):
-        rel = zarr_json.relative_to(plate_path)
-        parts = list(rel.parent.parts)
-        if len(parts) >= 3:
-            key = (parts[0], parts[1], parts[2])
-            if key not in seen:
-                seen.add(key)
-                results.append(key)
+    # ---- Pass 1: strict Option D tile marker ----
+    for zjson in sorted(plate_path.rglob("zarr.json")):
+        rel = zjson.relative_to(plate_path)
+        parts = rel.parts
+        if len(parts) != 4 or parts[-1] != "zarr.json":
+            continue
+
+        row, col, tile = parts[0], parts[1], parts[2]
+        if not re.match(r"^[A-Za-z]+$", str(row)):
+            continue
+        if not str(col).isdigit() or not str(tile).isdigit():
+            continue
+
+        key = (row, col, tile)
+        if key not in seen:
+            seen.add(key)
+            results.append(key)
+
+    if results:
+        return results
+
+    # ---- Pass 2: fallback for preprocess-style extra nesting ----
+    for zjson in sorted(plate_path.rglob("zarr.json")):
+        rel = zjson.relative_to(plate_path)
+        parts = rel.parts
+        if len(parts) < 4 or parts[-1] != "zarr.json":
+            continue
+
+        row, col, tile = parts[0], parts[1], parts[2]
+        if not re.match(r"^[A-Za-z]+$", str(row)):
+            continue
+        if not str(col).isdigit() or not str(tile).isdigit():
+            continue
+
+        key = (row, col, tile)
+        if key not in seen:
+            seen.add(key)
+            results.append(key)
 
     return results
 

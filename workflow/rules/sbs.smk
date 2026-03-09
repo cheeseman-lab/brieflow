@@ -291,8 +291,16 @@ if SBS_IMG_FMT == "zarr":
             touch(str(SBS_FP / ".hcs_done")),
         params:
             plate_zarr_dirs=[
-                str(SBS_FP / f"aligned_{p}.zarr")
+                str(SBS_FP / f"{store}_{p}.zarr")
                 for p in sorted(sbs_wildcard_combos["plate"].unique())
+                for store in [
+                    "aligned",
+                    "illumination_corrected",
+                    "log_filtered",
+                    "max_filtered",
+                    "peaks",
+                    "standard_deviation",
+                ]
             ],
             channels_metadata=config["preprocess"].get("sbs_channels_metadata", None),
         script:

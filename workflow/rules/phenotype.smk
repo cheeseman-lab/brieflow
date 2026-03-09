@@ -171,8 +171,9 @@ if PHENOTYPE_IMG_FMT == "zarr":
             touch(str(PHENOTYPE_FP / ".hcs_done")),
         params:
             plate_zarr_dirs=[
-                str(PHENOTYPE_FP / f"aligned_{p}.zarr")
+                str(PHENOTYPE_FP / f"{store}_{p}.zarr")
                 for p in sorted(phenotype_wildcard_combos["plate"].unique())
+                for store in ["aligned", "illumination_corrected"]
             ],
             channels_metadata=config["preprocess"].get("phenotype_channels_metadata", None),
         script:

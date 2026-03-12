@@ -61,13 +61,10 @@ def display_requirements():
 
 st.title("Analysis Overview")
 
-# tabs for: config, git, dependencies
-tab1, tab2, tab3 = st.tabs(["Config", "Git", "Dependencies"])
+# tabs for: config, git
+tab1, tab2 = st.tabs(["Config", "Git"])
 with tab1:
     display_yaml(CONFIG_PATH)
 
 with tab2:
     display_git_info()
-
-with tab3:
-    display_requirements()

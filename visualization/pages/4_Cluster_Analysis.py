@@ -56,17 +56,17 @@ def load_cluster_data():
         df["source_full_path"] = file_path
         df["source"] = base_name
         parts = dirname.split(os.sep)
-        for i, part in enumerate(parts):
-            df[f"dir_level_{i}"] = part
 
-        df.rename(
-            columns={
-                "dir_level_0": "channel_combo",
-                "dir_level_1": "cell_class",
-                "dir_level_2": "leiden_resolution",
-            },
-            inplace=True,
-        )
+        # Handle both 3-level (combo/class/resolution) and
+        # 4-level (combo/class/filtered/resolution) paths
+        df["channel_combo"] = parts[0] if len(parts) > 0 else ""
+        df["cell_class"] = parts[1] if len(parts) > 1 else ""
+        if len(parts) == 4 and parts[2] == "filtered":
+            df["data_filter"] = "filtered"
+            df["leiden_resolution"] = parts[3]
+        else:
+            df["data_filter"] = "unfiltered"
+            df["leiden_resolution"] = parts[2] if len(parts) > 2 else ""
 
         dfs.append(df)
 
@@ -519,7 +519,7 @@ def feature_table(cell_class, channel_combo):
         BRIEFLOW_OUTPUT_PATH,
         "aggregate",
         "tsvs",
-        f"CeCl-{cell_class}_ChCo-{channel_combo}__feature_table.tsv",
+        f"CeCl-{cell_class}_ChCo-{channel_combo}__features_genes.tsv",
     )
     # Load and display the feature table if it exists
     if os.path.exists(feature_table_path):
@@ -594,14 +594,14 @@ def display_cluster_json(cluster_data, container=st.container()):
         # Because the interphase folder has mixed case
         cluster_dir = os.path.dirname(cluster_data["source_full_path"].unique()[0])
 
-        # Build the path to the clusters.json file in mozzarellm_analysis dir
-        mozzarellm_dir = os.path.join(cluster_dir, "mozzarellm_analysis")
+        # Build the path to the results JSON file in mozzarellm dir
+        mozzarellm_dir = os.path.join(cluster_dir, "mozzarellm")
         cluster_json_path = ""
 
         if os.path.exists(mozzarellm_dir):
-            # Find the first file that ends with _clusters.json
+            # Find the first file that ends with _results.json
             json_files = [
-                f for f in os.listdir(mozzarellm_dir) if f.endswith("_clusters.json")
+                f for f in os.listdir(mozzarellm_dir) if f.endswith("_results.json")
             ]
             if json_files:
                 cluster_json_path = os.path.join(mozzarellm_dir, json_files[0])
@@ -611,10 +611,15 @@ def display_cluster_json(cluster_data, container=st.container()):
             with open(cluster_json_path, "r") as f:
                 cluster_json = json.load(f)
             cluster_id = str(st.session_state.selected_item)
-            clusters = cluster_json.get("clusters", {})
+            clusters_list = cluster_json.get("clusters", [])
 
-            if cluster_id in clusters:
-                c = clusters[cluster_id]
+            # clusters is a list of dicts; find the one matching cluster_id
+            c = next(
+                (item for item in clusters_list if str(item.get("cluster_id")) == cluster_id),
+                None,
+            )
+
+            if c is not None:
                 # Card layout using markdown and Streamlit elements
                 st.markdown(
                     f"""
@@ -675,8 +680,9 @@ def display_cluster_json(cluster_data, container=st.container()):
                     unsafe_allow_html=True,
                 )
             else:
+                available_ids = [str(item.get("cluster_id")) for item in clusters_list]
                 st.error(
-                    f"Cluster {cluster_id} not found in the analysis. Available clusters are: {', '.join(clusters.keys())}"
+                    f"Cluster {cluster_id} not found in the analysis. Available clusters are: {', '.join(available_ids)}"
                 )
                 st.info(
                     "This might indicate that the cluster analysis was run with different parameters or the JSON file is from a different analysis run."
@@ -834,6 +840,15 @@ def on_cell_class_change():
     st.session_state.selected_gene_cluster = None
 
 
+def on_data_filter_change():
+    """Callback function for data filter selection."""
+    st.session_state.data_filter = st.session_state.data_filter_radio_main
+    # Reset gene selections when filter changes
+    st.session_state.selected_gene = None
+    st.session_state.selected_gene_global = None
+    st.session_state.selected_gene_cluster = None
+
+
 def on_leiden_resolution_change():
     """Callback function for leiden resolution selection."""
     st.session_state.leiden_resolution = st.session_state.leiden_resolution_radio_main
@@ -867,7 +882,7 @@ def apply_all_filters(data):
     data = apply_filter(data, "channel_combo", selected_channel_combo)
 
     # Cell Class filter - handle directly
-    cell_class_options = ["all", "Mitotic", "Interphase"]
+    cell_class_options = sorted(data["cell_class"].unique().tolist())
     # Initialize cell class in session state if needed
     if "cell_class" not in st.session_state:
         st.session_state.cell_class = "all"
@@ -881,6 +896,24 @@ def apply_all_filters(data):
         on_change=on_cell_class_change,
     )
     data = apply_filter(data, "cell_class", selected_cell_class)
+
+    # Data Filter (filtered/unfiltered) - handle directly
+    data_filter_options = sorted(data["data_filter"].unique().tolist())
+    if "data_filter" not in st.session_state:
+        st.session_state.data_filter = (
+            data_filter_options[0] if data_filter_options else None
+        )
+
+    selected_data_filter = st.sidebar.radio(
+        "**Data Filter** - *Whether cells were pre-filtered before clustering*",
+        data_filter_options,
+        index=data_filter_options.index(st.session_state.data_filter)
+        if st.session_state.data_filter in data_filter_options
+        else 0,
+        key="data_filter_radio_main",
+        on_change=on_data_filter_change,
+    )
+    data = apply_filter(data, "data_filter", selected_data_filter)
 
     # Leiden Resolution filter - handle directly
     leiden_options = sorted(
@@ -941,6 +974,10 @@ cluster_genes = get_cluster_genes(cluster_data, st.session_state.selected_item)
 st.title("Cluster Analysis")
 st.markdown(
     "*Click a cluster to see details, panning and zooming is easily done through the top right of the cluster panel*"
+)
+st.markdown(
+    ":violet[**LLM cluster annotations (MozzareLLM)** are available for: "
+    "Hoescht_COX4_AGP_ConA · all · filtered · resolution 10]"
 )
 
 # Add filters section in sidebar FIRST

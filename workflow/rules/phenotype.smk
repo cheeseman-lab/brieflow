@@ -176,6 +176,7 @@ if PHENOTYPE_IMG_FMT == "zarr":
                 for store in ["aligned", "illumination_corrected"]
             ],
             channels_metadata=config["preprocess"].get("phenotype_channels_metadata", None),
+            channel_names=config["phenotype"].get("channel_names", None),
         script:
             "../scripts/shared/write_hcs_metadata.py"
 

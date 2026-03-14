@@ -2,36 +2,57 @@
 
 This script discovers the structure of plate zarr directories that were
 populated directly by Snakemake jobs and writes the necessary zarr.json
-metadata files at plate, row, well, and labels levels.
+metadata files at plate, row, well, and labels levels.  It then uses
+iohub to enrich tile-level metadata (pixel sizes, axis units, OMERO
+rendering defaults, channel names/colors).
 """
 
+import json
+import re
 from pathlib import Path
+
+import pandas as pd
+from iohub.ngff import open_ome_zarr
+from iohub.ngff.display import channel_display_settings
+from iohub.ngff.models import OMEROMeta, RDefsMeta, TransformationMeta
 
 from lib.shared.hcs import write_hcs_metadata
 
-from iohub.ngff import open_ome_zarr
-import re
-import pandas as pd
+
+# ---------------------------------------------------------------------------
+# Helpers — store name parsing
+# ---------------------------------------------------------------------------
+
 
 def _parse_plate_from_store_name(store_path: Path) -> str:
-    """
-    aligned_1.zarr -> "1"
-    illumination_corrected_12.zarr -> "12"
-    """
+    """aligned_1.zarr -> "1", illumination_corrected_12.zarr -> "12"."""
     m = re.search(r"_(\d+)\.zarr$", store_path.name)
     if not m:
         raise ValueError(f"Could not parse plate from store name: {store_path.name}")
     return m.group(1)
 
 
+def _parse_store_type(store_path: Path) -> str:
+    """aligned_1.zarr -> "aligned", peaks_1.zarr -> "peaks"."""
+    name = store_path.name  # e.g. "illumination_corrected_1.zarr"
+    m = re.match(r"^(.+?)_\d+\.zarr$", name)
+    if not m:
+        return name.replace(".zarr", "")
+    return m.group(1)
+
+
 def _infer_modality_from_store_path(store_path: Path) -> str:
-    # expects .../sbs/<store>.zarr or .../phenotype/<store>.zarr
     parts = store_path.parts
     if "sbs" in parts:
         return "sbs"
     if "phenotype" in parts:
         return "phenotype"
     raise ValueError(f"Could not infer modality from path: {store_path}")
+
+
+# ---------------------------------------------------------------------------
+# Helpers — pixel size loading
+# ---------------------------------------------------------------------------
 
 
 def _load_pixel_size_map(
@@ -56,12 +77,13 @@ def _load_pixel_size_map(
         df = pd.read_parquet(fp)
 
         if "tile" not in df.columns:
-            # fallback: constant per well
             if "pixel_size_x" in df.columns and "pixel_size_y" in df.columns and len(df) > 0:
-                pixel_map[(row, col, "*")] = (float(df["pixel_size_x"].iloc[0]), float(df["pixel_size_y"].iloc[0]))
+                pixel_map[(row, col, "*")] = (
+                    float(df["pixel_size_x"].iloc[0]),
+                    float(df["pixel_size_y"].iloc[0]),
+                )
             continue
 
-        # per-tile mapping
         for _, r in df.iterrows():
             tile = str(r["tile"])
             if pd.isna(r.get("pixel_size_x")) or pd.isna(r.get("pixel_size_y")):
@@ -71,11 +93,52 @@ def _load_pixel_size_map(
     return pixel_map
 
 
-def _ensure_axes_units_micrometer(pos) -> None:
+# ---------------------------------------------------------------------------
+# Helpers — per-store channel name resolution
+# ---------------------------------------------------------------------------
+
+# Single-channel stores whose channel name is the store type itself.
+_SINGLE_CHANNEL_STORES = {"peaks", "standard_deviation"}
+
+
+def _resolve_channel_names_for_store(
+    pos, config_channel_names: list[str] | None, store_type: str
+) -> list[str]:
+    """Determine the real channel names for a position in a given store.
+
+    Rules:
+      - Single-channel stores (peaks, standard_deviation) → [store_type]
+      - Multi-channel stores: if config_channel_names count matches the
+        position's channel count, use config names; otherwise keep current.
     """
-    Ensures spatial axes (x, y, z) have unit="micrometer" on the iohub
-    metadata model.  Must modify pos.metadata (not pos.zattrs) so that
-    changes survive pos.dump_meta().
+    try:
+        n_channels = len(list(pos.channel_names))
+    except Exception:
+        return []
+
+    if store_type in _SINGLE_CHANNEL_STORES:
+        return [store_type]
+
+    if config_channel_names and len(config_channel_names) == n_channels:
+        return list(config_channel_names)
+
+    # Fallback: keep whatever names the store already has.
+    # iohub may return ints when OMERO metadata is missing — always stringify.
+    try:
+        return [str(n) for n in pos.channel_names]
+    except Exception:
+        return [f"c{i}" for i in range(n_channels)]
+
+
+# ---------------------------------------------------------------------------
+# Metadata patching functions
+# ---------------------------------------------------------------------------
+
+
+def _ensure_axes_units_micrometer(pos) -> None:
+    """Set unit='micrometer' on spatial axes via the iohub metadata model.
+
+    Must modify pos.metadata (not pos.zattrs) so changes survive dump_meta().
     """
     if not pos.metadata.multiscales:
         return
@@ -84,44 +147,129 @@ def _ensure_axes_units_micrometer(pos) -> None:
             ax.unit = "micrometer"
 
 
-def _maybe_rename_channels(pos, channel_names: list[str]) -> None:
+def _set_per_dataset_scales(pos, px_x: float, px_y: float) -> None:
+    """Set absolute physical pixel scale at each pyramid level.
+
+    For each dataset (pyramid level), the scale is the base pixel size
+    multiplied by the downsampling factor inferred from the array shapes.
+    Clears any FOV-level coordinateTransformations so that the per-dataset
+    transforms are the single source of truth.
     """
-    Renames channels if the current channel list matches c0,c1,... pattern.
-    Only renames up to min(n_channels, len(channel_names)).
-    """
+    ms = pos.metadata.multiscales[0]
+    n_axes = len(ms.axes)
+    y_idx = pos.get_axis_index("y")
+    x_idx = pos.get_axis_index("x")
+
+    base_shape = pos["0"].shape
+
+    for ds_meta in ms.datasets:
+        level_shape = pos[ds_meta.path].shape
+        factor_y = base_shape[y_idx] / level_shape[y_idx] if level_shape[y_idx] > 0 else 1.0
+        factor_x = base_shape[x_idx] / level_shape[x_idx] if level_shape[x_idx] > 0 else 1.0
+
+        scale = [1.0] * n_axes
+        scale[y_idx] = px_y * factor_y
+        scale[x_idx] = px_x * factor_x
+
+        ds_meta.coordinate_transformations = [
+            TransformationMeta(type="scale", scale=scale)
+        ]
+
+    # Clear FOV-level transform — pixel size now lives per-dataset.
+    ms.coordinate_transformations = None
+
+
+def _rename_channels(pos, target_names: list[str]) -> None:
+    """Rename channels to *target_names* if they differ from current names."""
     try:
         current = list(pos.channel_names)
     except Exception:
         return
 
-    n = min(len(current), len(channel_names))
+    n = min(len(current), len(target_names))
     for i in range(n):
-        old = current[i]
-        new = channel_names[i]
+        old, new = current[i], target_names[i]
         if old != new:
             try:
                 pos.rename_channel(old, new)
             except Exception:
-                # fallback: do nothing if rename fails
                 pass
-    
-def patch_store_metadata_with_iohub(store_path: Path, preprocess_root: Path, channel_names: list[str] | None = None):
+
+
+def _build_and_set_omero(pos, resolved_names: list[str]) -> None:
+    """Create OMERO rendering metadata (channels + rdefs) on the position.
+
+    Uses iohub's ``channel_display_settings`` to auto-assign colors based
+    on channel name keywords (DAPI→blue, GFP→lime, Cy3→yellow, Cy5→orange,
+    etc.) and default contrast limits.
     """
-    Opens store in r+ and patches:
-      - x/y scale using combined_metadata.parquet
-      - axis units to micrometer
-      - optional channel renames
+    if not resolved_names:
+        return
+
+    channels = []
+    for i, name in enumerate(resolved_names):
+        ch_meta = channel_display_settings(name, clim=None, first_chan=(i == 0))
+        channels.append(ch_meta)
+
+    pos.metadata.omero = OMEROMeta(
+        version="0.5",
+        channels=channels,
+        rdefs=RDefsMeta(default_t=0, default_z=0),
+    )
+
+
+def _patch_label_versions(store_path: Path) -> None:
+    """Walk label stores inside a plate zarr and set image-label.version.
+
+    Label stores live at  <store>.zarr/{row}/{col}/{tile}/labels/{name}.zarr/.
+    Their zarr.json should have ``"image-label": {"version": "0.5"}``.
+    This uses direct JSON patching (iohub doesn't iterate labels).
     """
+    for zj in sorted(store_path.rglob("labels/*/zarr.json")):
+        try:
+            meta = json.loads(zj.read_text())
+        except Exception:
+            continue
+        attrs = meta.get("attributes", meta)
+        il = attrs.get("image-label")
+        if il is None:
+            continue
+        if il.get("version") != "0.5":
+            il["version"] = "0.5"
+            zj.write_text(json.dumps(meta, indent=2))
+            print(f"[patch] label version set: {zj.parent.name}")
+
+
+# ---------------------------------------------------------------------------
+# Main patching entry point
+# ---------------------------------------------------------------------------
+
+
+def patch_store_metadata_with_iohub(
+    store_path: Path,
+    preprocess_root: Path,
+    config_channel_names: list[str] | None = None,
+):
+    """Open a plate zarr store in r+ mode and enrich tile-level metadata.
+
+    Patches:
+      - Pixel scale (x/y) from combined_metadata.parquet
+      - Spatial axis units → micrometer
+      - Channel names (rename from c0/c1/… to real names)
+      - OMERO rendering defaults (colors, rdefs, contrast limits)
+      - image-label version on nested label stores
+    """
+    store_type = _parse_store_type(store_path)
     plate = _parse_plate_from_store_name(store_path)
     modality = _infer_modality_from_store_path(store_path)
     pixel_map = _load_pixel_size_map(preprocess_root, modality, plate)
 
-    print(f"[patch] store={store_path}")
+    print(f"[patch] store={store_path}  type={store_type}")
     print(f"[patch] pixel_map entries={len(pixel_map)}")
 
     ds = open_ome_zarr(str(store_path), layout="hcs", mode="r+", version="0.5")
     pos_list = list(ds.positions())
-    print(f"[patch] positions={len(pos_list)}, first={pos_list[0][0] if pos_list else None}")
+    print(f"[patch] positions={len(pos_list)}")
 
     for pos_path, pos in pos_list:
         parts = pos_path.split("/")
@@ -133,36 +281,46 @@ def patch_store_metadata_with_iohub(store_path: Path, preprocess_root: Path, cha
         key = (str(row), str(col), str(tile))
         fallback = (str(row), str(col), "*")
 
+        # --- pixel scale (per-dataset, with downsampling factors) ---
+        px_x = px_y = None
         if key in pixel_map:
             px_x, px_y = pixel_map[key]
         elif fallback in pixel_map:
             px_x, px_y = pixel_map[fallback]
-        else:
-            px_x = px_y = None
-
-        print(f"[patch] pos={pos_path} key={key} px=({px_x}, {px_y})")
 
         if px_x is not None:
-            pos.set_scale("*", "x", px_x)
-            pos.set_scale("*", "y", px_y)
+            _set_per_dataset_scales(pos, px_x, px_y)
 
-        if channel_names:
-            _maybe_rename_channels(pos, channel_names)
+        # --- channel names ---
+        resolved = _resolve_channel_names_for_store(pos, config_channel_names, store_type)
+        _rename_channels(pos, resolved)
 
+        # --- OMERO rendering defaults (colors, rdefs, contrast limits) ---
+        _build_and_set_omero(pos, resolved)
+
+        # --- axis units ---
         _ensure_axes_units_micrometer(pos)
+
         pos.dump_meta()
 
     ds.dump_meta()
     ds.close()
 
+    # --- image-label version on nested label stores ---
+    _patch_label_versions(store_path)
+
+
+# ===================================================================
+# Script entry point (called by Snakemake)
+# ===================================================================
 
 plate_zarr_dirs = snakemake.params.plate_zarr_dirs
 channels_metadata = getattr(snakemake.params, "channels_metadata", None)
+config_channel_names = getattr(snakemake.params, "channel_names", None)
 
-# robust preprocess_root (based on config root_fp)
+# Preprocess root for pixel-size lookup
 root_fp = Path(snakemake.config["all"]["root_fp"])
 preprocess_root = root_fp / "preprocess"
-
 
 total = 0
 for plate_zarr in plate_zarr_dirs:
@@ -171,14 +329,12 @@ for plate_zarr in plate_zarr_dirs:
         print(f"Writing HCS metadata for: {plate_path}")
         write_hcs_metadata(plate_path, channels_metadata=channels_metadata)
         total += 1
-        # decide channel_names for this store
-        channel_names = getattr(snakemake.params, "channel_names", None)
-        # skip preprocess stores for iohub patching (preprocess has extra cycle level)
+        # Skip preprocess stores for iohub patching (extra cycle nesting)
         if "preprocess" not in plate_path.parts:
             patch_store_metadata_with_iohub(
                 plate_path,
                 preprocess_root,
-                channel_names=channel_names,
+                config_channel_names=config_channel_names,
             )
     else:
         print(f"Plate zarr not found, skipping: {plate_path}")
@@ -187,4 +343,3 @@ if total > 0:
     print(f"\nHCS metadata written for {total} plate zarr(s).")
 else:
     print("No plate zarr directories found. Skipping HCS metadata.")
-

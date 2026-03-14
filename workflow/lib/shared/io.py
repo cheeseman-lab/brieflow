@@ -234,7 +234,7 @@ def write_image_omezarr(
     if omero:
         metadata["omero"] = omero
     if is_label:
-        metadata["image-label"] = {}
+        metadata["image-label"] = {"version": "0.5"}
 
     write_image(
         image=image_data,
@@ -250,8 +250,15 @@ def write_image_omezarr(
         **metadata,
     )
 
-    for k, v in metadata.items():
-        root.attrs[k] = v
+    # Merge our metadata (omero, image-label) into the ``ome`` namespace
+    # that ome_zarr.writer already created for multiscales.  This ensures
+    # iohub (and any OME-NGFF v0.5 reader) finds them at
+    # attributes.ome.omero / attributes.ome.image-label.
+    if metadata:
+        ome_attrs = dict(root.attrs.get("ome", {}))
+        for k, v in metadata.items():
+            ome_attrs[k] = v
+        root.attrs["ome"] = ome_attrs
 
 
 # ---------------------------------------------------------------------------

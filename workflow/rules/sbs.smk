@@ -303,6 +303,7 @@ if SBS_IMG_FMT == "zarr":
                 ]
             ],
             channels_metadata=config["preprocess"].get("sbs_channels_metadata", None),
+            channel_names=config["sbs"].get("channel_names", None),
         script:
             "../scripts/shared/write_hcs_metadata.py"
 

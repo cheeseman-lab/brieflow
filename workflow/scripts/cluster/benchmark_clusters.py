@@ -1,5 +1,13 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "Nimbus Sans", "Liberation Sans", "DejaVu Sans"],
+    }
+)
 
 from lib.cluster.phate_leiden_clustering import phate_leiden_pipeline
 from lib.cluster.benchmark_clusters import (
@@ -12,6 +20,19 @@ from lib.cluster.scrape_benchmarks import (
 
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
 phate_leiden_clustering = pd.read_csv(snakemake.input[1], sep="\t")
+
+if snakemake.params.perturbation_auc_threshold is not None:
+    aggregated_data = aggregated_data[
+        (
+            aggregated_data[snakemake.params.perturbation_name_col].str.startswith(
+                snakemake.params.control_key
+            )
+        )
+        | (
+            aggregated_data["perturbation_auc"]
+            > snakemake.params.perturbation_auc_threshold
+        )
+    ]
 
 # create baseline data by shuffling columns independently
 shuffled_aggregated_data = aggregated_data.copy()
@@ -77,7 +98,15 @@ combined_tables["Real"].to_csv(snakemake.output[2], sep="\t", index=False)
 combined_tables["Shuffled"].to_csv(snakemake.output[3], sep="\t", index=False)
 save_json_results(global_metrics["Real"], snakemake.output[4])
 save_json_results(global_metrics["Shuffled"], snakemake.output[5])
-enrichment_pie_charts["Real"].savefig(snakemake.output[6])
-enrichment_pie_charts["Shuffled"].savefig(snakemake.output[7])
-enrichment_bar_charts["Real"].savefig(snakemake.output[8])
-enrichment_bar_charts["Shuffled"].savefig(snakemake.output[9])
+enrichment_pie_charts["Real"].savefig(
+    snakemake.output[6], dpi=300, bbox_inches="tight", transparent=True
+)
+enrichment_pie_charts["Shuffled"].savefig(
+    snakemake.output[7], dpi=300, bbox_inches="tight", transparent=True
+)
+enrichment_bar_charts["Real"].savefig(
+    snakemake.output[8], dpi=300, bbox_inches="tight", transparent=True
+)
+enrichment_bar_charts["Shuffled"].savefig(
+    snakemake.output[9], dpi=300, bbox_inches="tight", transparent=True
+)

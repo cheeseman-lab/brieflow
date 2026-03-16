@@ -1,4 +1,12 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "Nimbus Sans", "Liberation Sans", "DejaVu Sans"],
+    }
+)
 
 from lib.cluster.cluster_eval import plot_cluster_sizes
 from lib.cluster.phate_leiden_clustering import (
@@ -78,7 +86,9 @@ phate_leiden_clustering.to_csv(snakemake.output[0], sep="\t", index=False)
 
 # plot cluster sizes
 cluster_size_fig = plot_cluster_sizes(phate_leiden_clustering)
-cluster_size_fig.savefig(snakemake.output[1])
+cluster_size_fig.savefig(
+    snakemake.output[1], dpi=300, bbox_inches="tight", transparent=True
+)
 
 # plot clusters
 clusters_fig = plot_phate_leiden_clusters(
@@ -86,4 +96,6 @@ clusters_fig = plot_phate_leiden_clusters(
     snakemake.params.perturbation_name_col,
     snakemake.params.control_key,
 )
-clusters_fig.savefig(snakemake.output[2])
+clusters_fig.savefig(
+    snakemake.output[2], dpi=300, bbox_inches="tight", transparent=True
+)

@@ -30,22 +30,22 @@ sbs_cells["mapped_single_gene"] = sbs_cells.apply(
     lambda x: identify_single_gene_mappings(x), axis=1
 )
 # Merge cell information from sbs
-sbs_merge_cols = [
-    "plate",
-    "well",
-    "tile",
-    "cell",
-    "cell_barcode_0",
-    "gene_symbol_0",
-    "cell_barcode_1",
-    "gene_symbol_1",
-    "mapped_single_gene",
-]
-for col in ["no_recomb_0", "no_recomb_1"]:
-    if col in sbs_cells.columns and sbs_cells[col].notna().any():
-        sbs_merge_cols.append(col)
 merge_formatted = merge_formatted.merge(
-    sbs_cells[sbs_merge_cols].rename({"tile": "site", "cell": "cell_1"}, axis=1),
+    sbs_cells[
+        [
+            "plate",
+            "well",
+            "tile",
+            "cell",
+            "cell_barcode_0",
+            "gene_symbol_0",
+            "cell_barcode_1",
+            "gene_symbol_1",
+            "no_recomb_0",
+            "no_recomb_1",
+            "mapped_single_gene",
+        ]
+    ].rename({"tile": "site", "cell": "cell_1"}, axis=1),
     how="left",
     on=["plate", "well", "site", "cell_1"],
 )

@@ -17,6 +17,7 @@ pert_col = snakemake.params.perturbation_name_col
 pert_id_col = snakemake.params.perturbation_id_col
 control_key = snakemake.params.control_key
 num_batches = snakemake.params.get("num_align_batches", 1)
+construct_id_col = pert_id_col if pert_id_col is not None else pert_col
 
 # Load cell data using PyArrow dataset (lazy - no data loaded yet)
 print("Loading cell data as PyArrow dataset...")
@@ -126,8 +127,8 @@ for batch_idx, indices in enumerate(subset_indices):
 
     # Accumulate construct-level data for median computation
     print(f"Accumulating construct statistics for batch {batch_idx + 1}...")
-    for construct_id in metadata[pert_id_col].unique():
-        mask = metadata[pert_id_col].values == construct_id
+    for construct_id in metadata[construct_id_col].unique():
+        mask = metadata[construct_id_col].values == construct_id
         construct_features = features[mask]
         gene_name = metadata.loc[mask, pert_col].iloc[0]
 
@@ -159,7 +160,7 @@ for construct_id in construct_cell_counts.keys():
     median_features = np.median(all_features, axis=0)
 
     row = {
-        pert_id_col: construct_id,
+        construct_id_col: construct_id,
         pert_col: construct_gene_map[construct_id],
         "cell_count": construct_cell_counts[construct_id],
     }
@@ -174,7 +175,10 @@ gc.collect()
 construct_table = pd.DataFrame(construct_rows)
 
 # Reorder columns: sgRNA, gene, cell_count, features
-construct_columns = [pert_id_col, pert_col, "cell_count"] + feature_cols
+if construct_id_col == pert_col:
+    construct_columns = [pert_col, "cell_count"] + feature_cols
+else:
+    construct_columns = [construct_id_col, pert_col, "cell_count"] + feature_cols
 construct_table = construct_table[construct_columns]
 
 print(f"Construct table shape: {construct_table.shape}")
@@ -242,10 +246,10 @@ if pseudogene_patterns:
         print(f"  Creating gene table entry for: {pseudogene_id}")
 
         # Get construct IDs from this pseudo-gene group
-        construct_ids_in_group = [c[pert_id_col] for c in constructs]
+        construct_ids_in_group = [c[construct_id_col] for c in constructs]
 
         # Find matching rows in construct_table
-        group_mask = construct_table[pert_id_col].isin(construct_ids_in_group)
+        group_mask = construct_table[construct_id_col].isin(construct_ids_in_group)
         group_constructs = construct_table[group_mask]
 
         if len(group_constructs) == 0:
@@ -293,10 +297,10 @@ if pseudogene_patterns:
     for pseudogene_group in pseudogene_groups:
         pseudogene_id = pseudogene_group["pseudogene_id"]
         for construct in pseudogene_group["constructs"]:
-            construct_id = construct[pert_id_col]
+            construct_id = construct[construct_id_col]
 
             # Find the original construct in construct_table
-            construct_mask = construct_table[pert_id_col] == construct_id
+            construct_mask = construct_table[construct_id_col] == construct_id
             original_construct = construct_table[construct_mask]
 
             if len(original_construct) > 0:
@@ -309,7 +313,7 @@ if pseudogene_patterns:
     if pseudogene_construct_rows:
         # Remove original constructs that are now part of pseudo-genes
         construct_table = construct_table[
-            ~construct_table[pert_id_col].isin(original_construct_ids_to_remove)
+            ~construct_table[construct_id_col].isin(original_construct_ids_to_remove)
         ]
 
         # Add pseudo-gene constructs

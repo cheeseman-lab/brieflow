@@ -5,6 +5,7 @@ Available filters:
 - perturbation_filter: Remove cells without perturbation assignments
 - missing_values_filter: Handle missing values through dropping or imputation
 - intensity_filter: Remove outliers based on channel intensities using LocalOutlierFactor
+- write_empty_and_exit: Write empty output and exit when no cells remain after filtering
 """
 
 import pandas as pd
@@ -184,6 +185,26 @@ def missing_values_filter(
     return metadata, features
 
 
+def write_empty_and_exit(metadata, features, output_path, stage):
+    """Write empty parquet output and exit if no cells remain after a filtering stage.
+
+    This is a safety valve for edge cases where an entire well or cell class is
+    filtered out (e.g., rare cell types with 0 cells). Without this guard,
+    downstream steps would crash on empty DataFrames.
+
+    Args:
+        metadata (pd.DataFrame): Metadata DataFrame (may be empty).
+        features (pd.DataFrame): Features DataFrame (may be empty).
+        output_path (str): Path to write the parquet file.
+        stage (str): Name of the filtering stage that produced this data,
+            used in the warning message.
+    """
+    if len(metadata) == 0:
+        print(f"WARNING: No cells after {stage}, writing empty output")
+        pd.concat([metadata, features], axis=1).to_parquet(output_path, index=False)
+        exit(0)
+
+
 def intensity_filter(
     metadata, features, channel_names=None, contamination=0.01
 ) -> pd.DataFrame:
@@ -208,6 +229,10 @@ def intensity_filter(
 
     if contamination == 0:
         print("Contamination is 0, skipping intensity filtering")
+        return metadata, features
+
+    if len(features) == 0:
+        print("No cells to filter, returning empty data")
         return metadata, features
 
     # Identify feature cols

@@ -173,9 +173,20 @@ def tvn_on_controls(
             batch_control_ind = (
                 batch_ind & (metadata[pert_col].str.startswith(control_key)).to_list()
             )
+            n_controls = batch_control_ind.sum()
+            if n_controls < 2:
+                print(
+                    f"Batch {batch}: only {n_controls} control(s), skipping CORAL alignment"
+                )
+                continue
             source_cov = np.cov(
                 embeddings[batch_control_ind], rowvar=False, ddof=1
             ) + 0.5 * np.eye(embeddings.shape[1])
+            if not np.all(np.isfinite(source_cov)) or np.linalg.cond(source_cov) > 1e12:
+                print(
+                    f"Batch {batch}: source covariance is ill-conditioned, skipping CORAL alignment"
+                )
+                continue
             embeddings[batch_ind] = np.matmul(
                 embeddings[batch_ind], linalg.fractional_matrix_power(source_cov, -0.5)
             )

@@ -18,6 +18,9 @@ perturbation_col = snakemake.params.perturbation_name_col
 perturbation_id_col = snakemake.params.perturbation_id_col
 control_key = snakemake.params.control_key
 exclusion_string = snakemake.params.exclusion_string
+construct_id_col = (
+    perturbation_id_col if perturbation_id_col is not None else perturbation_col
+)
 metadata_cols_fp = snakemake.params.metadata_cols_fp
 bootstrap_features_fp = snakemake.params.get("bootstrap_features_fp", None)
 
@@ -50,7 +53,7 @@ controls_metadata, controls_features = split_cell_data(control_cells, metadata_c
 all_features = [
     col
     for col in construct_table.columns
-    if col not in [perturbation_id_col, perturbation_col, "cell_count"]
+    if col not in [construct_id_col, perturbation_col, "cell_count"]
 ]
 
 # Filter features for bootstrap analysis
@@ -99,11 +102,11 @@ if exclusion_string is not None:
 construct_features_df = construct_table[construct_mask]
 
 # Create construct features array (sgRNA_ID + features)
-construct_data_cols = [perturbation_id_col] + available_features
+construct_data_cols = [construct_id_col] + available_features
 construct_features_arr = construct_features_df[construct_data_cols].values
 
 # Create sample sizes dataframe (sgRNA_ID + cell_count)
-sample_sizes_df = construct_features_df[[perturbation_id_col, "cell_count"]].copy()
+sample_sizes_df = construct_features_df[[construct_id_col, "cell_count"]].copy()
 
 print(f"Controls array shape: {controls_arr.shape}")
 print(f"Construct features array shape: {construct_features_arr.shape}")
@@ -116,7 +119,7 @@ controls_df.columns = [perturbation_col] + available_features
 controls_df.to_csv(snakemake.output.controls_arr, sep="\t", index=False)
 
 construct_features_df_export = pd.DataFrame(construct_features_arr)
-construct_features_df_export.columns = [perturbation_id_col] + available_features
+construct_features_df_export.columns = [construct_id_col] + available_features
 construct_features_df_export.to_csv(
     snakemake.output.construct_features_arr, sep="\t", index=False
 )
@@ -137,7 +140,7 @@ for construct_id in construct_ids:
         construct_id,
         construct_features_df,
         perturbation_col,
-        perturbation_id_col,
+        construct_id_col,
         output_dir,
     )
 

@@ -6,7 +6,9 @@ from lib.aggregate.filter import (
     perturbation_filter,
     missing_values_filter,
     intensity_filter,
+    write_empty_and_exit,
 )
+
 
 # Load cell data
 cell_data = pd.read_parquet(snakemake.input[0])
@@ -16,6 +18,7 @@ metadata_cols = load_metadata_cols(
     include_classification_cols=use_classifier,
 )
 metadata, features = split_cell_data(cell_data, metadata_cols)
+output_path = snakemake.output[0]
 
 # Filter
 metadata, features = query_filter(
@@ -23,11 +26,15 @@ metadata, features = query_filter(
     features,
     snakemake.params.filter_queries,
 )
+write_empty_and_exit(metadata, features, output_path, "split_cell_data")
+
 metadata, features = perturbation_filter(
     metadata,
     features,
     snakemake.params.perturbation_name_col,
 )
+write_empty_and_exit(metadata, features, output_path, "perturbation_filter")
+
 metadata, features = missing_values_filter(
     metadata,
     features,
@@ -35,6 +42,8 @@ metadata, features = missing_values_filter(
     drop_rows_threshold=snakemake.params.drop_rows_threshold,
     impute=snakemake.params.impute,
 )
+write_empty_and_exit(metadata, features, output_path, "missing_values_filter")
+
 metadata, features = intensity_filter(
     metadata,
     features,
@@ -44,4 +53,4 @@ metadata, features = intensity_filter(
 
 # Save filtered data
 cell_data = pd.concat([metadata, features], axis=1)
-cell_data.to_parquet(snakemake.output[0], index=False)
+cell_data.to_parquet(output_path, index=False)

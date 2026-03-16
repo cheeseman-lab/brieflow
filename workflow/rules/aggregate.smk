@@ -7,6 +7,7 @@ rule split_datasets:
     input:
         # final merge data
         ancient(MERGE_OUTPUTS["final_merge"]),
+    priority: 100
     output:
         map_wildcard_outputs(
             aggregate_wildcard_combos,
@@ -29,6 +30,7 @@ rule split_datasets:
 rule filter:
     input:
         AGGREGATE_OUTPUTS_MAPPED["split_datasets"],
+    priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["filter"],
     params:
@@ -56,6 +58,7 @@ rule generate_feature_table:
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
         ),
+    priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["generate_feature_table"],
     params:
@@ -83,6 +86,7 @@ rule align:
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
         ),
+    priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["align"],
     params:
@@ -102,6 +106,7 @@ rule align:
 rule aggregate:
     input:
         AGGREGATE_OUTPUTS_MAPPED["align"],
+    priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
     params:
@@ -129,6 +134,7 @@ rule eval_aggregate:
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
         ),
+    priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
     script:
@@ -155,7 +161,8 @@ checkpoint prepare_montage_data:
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
-        ),
+        )
+    priority: 50
     output:
         directory(MONTAGE_OUTPUTS["montage_data_dir"]),
     params:
@@ -168,6 +175,7 @@ checkpoint prepare_montage_data:
 rule generate_montage:
     input:
         MONTAGE_OUTPUTS["montage_data"],
+    priority: 50
     output:
         expand(
             str(MONTAGE_OUTPUTS["montage"]),
@@ -198,6 +206,7 @@ rule initiate_montage:
             config["phenotype"]["channel_names"],
             wildcards.cell_class,
         ),
+    priority: 50
     output:
         touch(MONTAGE_OUTPUTS["montage_flag"]),
 

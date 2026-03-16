@@ -4,6 +4,8 @@ import pandas as pd
 from pathlib import Path
 import numpy as np
 import json
+import sys
+import io
 from scipy import stats
 import pyarrow.parquet as pq
 import pyarrow.dataset as ds
@@ -12,11 +14,15 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-def get_preprocess_stats(config):
+def get_preprocess_stats(config, sbs_tiff_dirs=None, phenotype_tiff_dirs=None):
     """Get preprocessing statistics including tile counts.
 
     Args:
         config: Configuration dictionary
+        sbs_tiff_dirs: Optional list of directories to count SBS TIFF files from.
+            If None, uses the default root_fp/preprocess/images/sbs.
+        phenotype_tiff_dirs: Optional list of directories to count phenotype TIFF files from.
+            If None, uses the default root_fp/preprocess/images/phenotype.
 
     Returns:
         dict: Statistics including sbs_tiles, phenotype_tiles, nd2_files
@@ -33,20 +39,30 @@ def get_preprocess_stats(config):
     sbs_input_count = len(sbs_samples)
     phenotype_input_count = len(phenotype_samples)
 
-    # Count output TIFF files in the respective directories
+    # Build list of SBS tiff directories
     root_fp = Path(config["all"]["root_fp"])
-    sbs_tiff_dir = root_fp / "preprocess" / "images" / "sbs"
-    phenotype_tiff_dir = root_fp / "preprocess" / "images" / "phenotype"
+    if sbs_tiff_dirs is None:
+        sbs_tiff_dirs = [root_fp / "preprocess" / "images" / "sbs"]
+    else:
+        sbs_tiff_dirs = [Path(d) for d in sbs_tiff_dirs]
 
-    # Count TIFF files in the SBS directory
+    # Build list of phenotype tiff directories
+    if phenotype_tiff_dirs is None:
+        phenotype_tiff_dirs = [root_fp / "preprocess" / "images" / "phenotype"]
+    else:
+        phenotype_tiff_dirs = [Path(d) for d in phenotype_tiff_dirs]
+
+    # Count TIFF files across all SBS directories
     sbs_tiff_count = 0
-    if sbs_tiff_dir.exists():
-        sbs_tiff_count = len(list(sbs_tiff_dir.glob("**/*.tiff")))
+    for d in sbs_tiff_dirs:
+        if d.exists():
+            sbs_tiff_count += len(list(d.glob("**/*.tiff")))
 
-    # Count TIFF files in the phenotype directory
+    # Count TIFF files across all phenotype directories
     phenotype_tiff_count = 0
-    if phenotype_tiff_dir.exists():
-        phenotype_tiff_count = len(list(phenotype_tiff_dir.glob("**/*.tiff")))
+    for d in phenotype_tiff_dirs:
+        if d.exists():
+            phenotype_tiff_count += len(list(d.glob("**/*.tiff")))
 
     return {
         "sbs_tiles": sbs_tiff_count,
@@ -273,7 +289,7 @@ def get_merge_stats(config):
     }
 
 
-def get_aggregate_stats(config, n_rows=500, include_batch_effects=False):
+def get_aggregate_stats(config, n_rows=10000, include_batch_effects=False):
     """Get aggregation statistics including perturbation counts.
 
     Args:
@@ -428,17 +444,23 @@ def _calculate_batch_effects(
         filtered_dir.glob(f"*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet")
     )
 
-    # Load filtered data (sample aggressively for speed)
-    # Use smaller sample size for batch effects calculation
-    sample_rows = min(n_rows, 500) if n_rows else 500
+    # Load filtered data - sample from a subset of files to avoid
+    # opening many files for a tiny number of rows each
+    sample_rows = n_rows if n_rows else 5000
+    max_files = 10
+    rows_per_file = max(100, sample_rows // max_files)
 
     if len(filtered_paths) == 1:
         filtered = load_parquet_subset(filtered_paths[0], sample_rows)
+    elif len(filtered_paths) <= max_files:
+        per_file = max(100, sample_rows // len(filtered_paths))
+        filtered_dfs = [load_parquet_subset(path, per_file) for path in filtered_paths]
+        filtered = pd.concat(filtered_dfs, ignore_index=True)
     else:
-        # Sample evenly across files
-        rows_per_file = max(1, sample_rows // len(filtered_paths))
+        # Sample a subset of files instead of reading tiny amounts from all
+        sampled_paths = np.random.choice(filtered_paths, size=max_files, replace=False)
         filtered_dfs = [
-            load_parquet_subset(path, rows_per_file) for path in filtered_paths
+            load_parquet_subset(path, rows_per_file) for path in sampled_paths
         ]
         filtered = pd.concat(filtered_dfs, ignore_index=True)
 
@@ -654,16 +676,31 @@ def get_cluster_stats(config):
     }
 
 
-def get_all_stats(config, include_batch_effects=False):
+def get_all_stats(
+    config,
+    include_batch_effects=False,
+    sbs_tiff_dirs=None,
+    phenotype_tiff_dirs=None,
+    output_fp=None,
+):
     """Convenience function to get all pipeline statistics at once with formatted output.
 
     Args:
         config: Loaded configuration file
         include_batch_effects: Whether to calculate batch effect metrics (slow)
+        sbs_tiff_dirs: Optional list of directories to count SBS TIFF files from.
+        phenotype_tiff_dirs: Optional list of directories to count phenotype TIFF files from.
+        output_fp: Optional file path to save the printed report to.
 
     Returns:
         dict: Dictionary containing all statistics from different pipeline stages
     """
+    # Capture stdout if saving to file
+    if output_fp:
+        _buffer = io.StringIO()
+        _original_stdout = sys.stdout
+        sys.stdout = _buffer
+
     print("=" * 80)
     print("PIPELINE STATISTICS REPORT")
     print("=" * 80)
@@ -672,7 +709,9 @@ def get_all_stats(config, include_batch_effects=False):
 
     # Preprocessing Statistics
     print("\n[1/6] Gathering preprocessing statistics...")
-    stats["preprocess"] = get_preprocess_stats(config)
+    stats["preprocess"] = get_preprocess_stats(
+        config, sbs_tiff_dirs=sbs_tiff_dirs, phenotype_tiff_dirs=phenotype_tiff_dirs
+    )
     print("\n PREPROCESSING STATISTICS:")
     print(f"   - ND2 input files: {stats['preprocess']['nd2_files']:,}")
     print(f"   - SBS tiles generated: {stats['preprocess']['sbs_tiles']:,}")
@@ -705,18 +744,28 @@ def get_all_stats(config, include_batch_effects=False):
     print("\n MERGE STATISTICS:")
     if "error" not in stats["merge"]:
         merge = stats["merge"]
-        print(f"   - Phenotype cells (original): {merge.get('phenotype_cells', 0):,}")
-        print(f"   - SBS cells (original): {merge.get('sbs_cells', 0):,}")
-        print(f"   - Phenotype cells in merge: {merge.get('unique_ph_in_merge', 0):,}")
-        print(f"   - SBS cells in merge: {merge.get('unique_sbs_in_merge', 0):,}")
+        ph_cells = merge.get("phenotype_cells", 0)
+        sbs_cells = merge.get("sbs_cells", 0)
+        match_pairs = merge.get("total_match_pairs", 0)
+        with_barcode = merge.get("cells_with_barcode", 0)
+        single_gene = merge.get("cells_with_single_gene", 0)
+        print(f"   - Phenotype cells segmented: {ph_cells:,}")
+        print(f"   - SBS cells segmented: {sbs_cells:,}")
+        print(f"   - Total matched cell pairs: {match_pairs:,}")
         print(
-            f"   - Phenotype recovery rate: {merge.get('phenotype_recovery_rate', 0):.1%}"
+            f"   - Phenotype recovery: {merge.get('phenotype_recovery_rate', 0):.1%} ({merge.get('unique_ph_in_merge', 0):,} unique phenotype cells in merge)"
         )
-        print(f"   - SBS recovery rate: {merge.get('sbs_recovery_rate', 0):.1%}")
-        print(f"   - Total match pairs: {merge.get('total_match_pairs', 0):,}")
-        if "cells_with_single_gene" in merge:
+        print(
+            f"   - SBS recovery: {merge.get('sbs_recovery_rate', 0):.1%} ({merge.get('unique_sbs_in_merge', 0):,} unique SBS cells in merge)"
+        )
+        if with_barcode > 0:
+            barcode_rate = with_barcode / match_pairs if match_pairs > 0 else 0
             print(
-                f"   - Cells with single gene: {merge['cells_with_single_gene']:,} ({merge.get('single_gene_rate', 0):.1%})"
+                f"   - Cells with barcode: {with_barcode:,} ({barcode_rate:.1%} of matched pairs)"
+            )
+        if single_gene > 0:
+            print(
+                f"   - Cells with single gene: {single_gene:,} ({merge.get('single_gene_rate', 0):.1%} of cells with barcode)"
             )
     else:
         print(f"   [!] {stats['merge']['error']}")
@@ -782,5 +831,16 @@ def get_all_stats(config, include_batch_effects=False):
     print("\n" + "=" * 80)
     print("REPORT COMPLETE")
     print("=" * 80)
+
+    # Save report to file if requested
+    if output_fp:
+        report_text = _buffer.getvalue()
+        sys.stdout = _original_stdout
+        # Print to console as well
+        print(report_text)
+        Path(output_fp).parent.mkdir(parents=True, exist_ok=True)
+        with open(output_fp, "w") as f:
+            f.write(report_text)
+        print(f"Report saved to {output_fp}")
 
     return stats

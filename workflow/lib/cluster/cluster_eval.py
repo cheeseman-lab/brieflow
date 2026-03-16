@@ -231,10 +231,9 @@ def find_optimal_resolution(
         lambda x: cluster_size_utility(x, ideal_size_range[0], ideal_size_range[1])
     )
 
-    # Balanced score: 40% enrichment quality, 60% cluster size utility
-    # STRONGLY favor proper cluster granularity over enrichment metrics
+    # Balanced score: 50% enrichment quality, 50% cluster size utility
     results_df["balanced"] = (
-        0.4 * results_df["combined"] + 0.6 * results_df["cluster_size_utility"]
+        0.5 * results_df["combined"] + 0.5 * results_df["cluster_size_utility"]
     )
 
     # Find optimal based on metric

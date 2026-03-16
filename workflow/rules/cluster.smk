@@ -40,6 +40,7 @@ rule benchmark_clusters:
         phate_distance_metric=config["cluster"]["phate_distance_metric"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         control_key=config["aggregate"]["control_key"],
+        perturbation_auc_threshold=config["cluster"]["perturbation_auc_threshold"],
         string_pair_benchmark_fp=config["cluster"]["string_pair_benchmark_fp"],
         corum_group_benchmark_fp=config["cluster"]["corum_group_benchmark_fp"],
         kegg_group_benchmark_fp=config["cluster"]["kegg_group_benchmark_fp"],

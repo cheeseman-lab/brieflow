@@ -38,36 +38,26 @@ def display_git_info():
 
 
 def display_requirements():
-    # Read and display conda environment file
-    st.header("Conda Environment Configuration")
-    st.write("""
-    **brieflow_main_env.yml** contains the conda environment configuration for the project. 
-    We use **conda** to manage dependencies:
-    - The environment is defined in brieflow_main_env.yml
-    - Run `conda env create -f brieflow_main_env.yml` to create the environment
-    - Run `conda activate brieflow_main_env` to activate the environment
-    """)
+    st.header("Dependencies")
     try:
-        env_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "../brieflow_main_env.yml"
-        )
-        with open(env_path, "r") as file:
-            env_content = file.read()
-
-        st.code(env_content, language="yaml")
+        _vis_dir = os.path.dirname(os.path.dirname(__file__))
+        pyproject_path = os.path.join(os.path.dirname(_vis_dir), "pyproject.toml")
+        with open(pyproject_path, "r") as file:
+            content = file.read()
+        st.code(content, language="toml")
     except Exception as e:
-        st.error(f"Error reading conda environment file: {str(e)}")
+        st.error(f"Error reading pyproject.toml: {str(e)}")
 
 
 st.title("Analysis Overview")
 
-# tabs for: config, git, dependencies
-tab1, tab2, tab3 = st.tabs(["Config", "Git", "Dependencies"])
+# tabs for: config, dependencies, git
+tab1, tab2, tab3 = st.tabs(["Config", "Dependencies", "Git"])
 with tab1:
     display_yaml(CONFIG_PATH)
 
 with tab2:
-    display_git_info()
+    display_requirements()
 
 with tab3:
-    display_requirements()
+    display_git_info()

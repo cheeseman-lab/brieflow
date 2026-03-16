@@ -16,6 +16,7 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
+from src.config import load_config
 from src.filesystem import FileSystem
 from src.filtering import create_filter_radio, apply_filter
 from src.config import BRIEFLOW_OUTPUT_PATH, STATIC_ASSET_URL_ROOT, STATIC_ASSET_PATH
@@ -562,7 +563,7 @@ def feature_table(cell_class, channel_combo):
         BRIEFLOW_OUTPUT_PATH,
         "aggregate",
         "tsvs",
-        f"CeCl-{cell_class}_ChCo-{channel_combo}__feature_table.tsv",
+        f"CeCl-{cell_class}_ChCo-{channel_combo}__features_genes.tsv",
     )
     # Load and display the feature table if it exists
     if os.path.exists(feature_table_path):
@@ -1030,6 +1031,24 @@ def get_cluster_genes(data, cluster_id):
 
 # Call initialize_session_state at the start of the script
 initialize_session_state()
+
+# Apply config defaults on first load
+if not st.session_state.get("config_defaults_applied", False):
+    try:
+        _config = load_config()
+        _mozzarellm = _config.get("mozzarellm", {})
+        if _mozzarellm:
+            if "cell_class" in _mozzarellm:
+                st.session_state.cell_class = _mozzarellm["cell_class"]
+            if "channel_combo" in _mozzarellm:
+                st.session_state.channel_combo = _mozzarellm["channel_combo"]
+            if "leiden_resolution" in _mozzarellm:
+                st.session_state.leiden_resolution = str(
+                    int(_mozzarellm["leiden_resolution"])
+                )
+    except Exception:
+        pass  # If config loading fails, fall back to existing defaults
+    st.session_state.config_defaults_applied = True
 
 # Load and filter cluster data
 cluster_data = load_cluster_data()

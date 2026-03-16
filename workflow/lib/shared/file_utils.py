@@ -97,30 +97,31 @@ def parse_filename(file_path: str) -> tuple:
     return metadata, info_type, file_type
 
 
-def load_parquet_subset(full_df_fp, n_rows=50000, verbose=False):
-    """Load a fixed number of rows from an parquet file without loading entire file into memory.
+def load_parquet_subset(full_df_fp, n_rows=50000, seed=42):
+     """Load a random subset of rows from a parquet file without loading entire file into memory.
 
-    Args:
-        full_df_fp (str): Path to parquet file.
-        n_rows (int): Number of rows to get.
-        verbose (bool): Whether to print file loading info.
+     Args:
+         full_df_fp (str): Path to parquet file.
+         n_rows (int): Number of rows to get.
+         seed (int): Random seed for reproducibility.
 
-    Returns:
-        pd.DataFrame: Random subset of the data.
-    """
-    if verbose:
-        print(f"Reading first {n_rows:,} rows from {full_df_fp}")
+     Returns:
+         pd.DataFrame: Random subset of the data.
+     """
+     pf = ParquetFile(full_df_fp)
+     total_rows = pf.metadata.num_rows
+     n_rows = min(n_rows, total_rows)
 
-    rng = np.random.default_rng(seed)
-    indices = np.sort(rng.choice(total_rows, size=n_rows, replace=False))
+     rng = np.random.default_rng(seed)
+     indices = np.sort(rng.choice(total_rows, size=n_rows, replace=False))
 
-    print(f"Reading {n_rows:,} random rows from {full_df_fp} ({total_rows:,} total)")
+     print(f"Reading {n_rows:,} random rows from {full_df_fp} ({total_rows:,} total)")
 
-    table = pf.read_row_groups(
-        list(range(pf.metadata.num_row_groups))
-    ).take(pa.array(indices))
+     table = pf.read_row_groups(
+         list(range(pf.metadata.num_row_groups))
+     ).take(pa.array(indices))
 
-    return table.to_pandas()
+     return table.to_pandas()
 
 
 def validate_dtypes(df):

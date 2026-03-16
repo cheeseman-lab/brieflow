@@ -18,8 +18,6 @@ DEFAULT_METADATA_COLS = [
     "gene_symbol_0",
     "cell_barcode_1",
     "gene_symbol_1",
-    "no_recomb_0",
-    "no_recomb_1",
     "mapped_single_gene",
     "channels_min",
     "nucleus_i",

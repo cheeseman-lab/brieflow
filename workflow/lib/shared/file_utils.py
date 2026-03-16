@@ -98,30 +98,61 @@ def parse_filename(file_path: str) -> tuple:
 
 
 def load_parquet_subset(full_df_fp, n_rows=50000, seed=42):
-     """Load a random subset of rows from a parquet file without loading entire file into memory.
+    """Load a random subset of rows from a parquet file without loading entire file into memory.
 
-     Args:
-         full_df_fp (str): Path to parquet file.
-         n_rows (int): Number of rows to get.
-         seed (int): Random seed for reproducibility.
+    Args:
+        full_df_fp (str): Path to parquet file.
+        n_rows (int): Number of rows to get.
+        seed (int): Random seed for reproducibility.
 
-     Returns:
-         pd.DataFrame: Random subset of the data.
-     """
-     pf = ParquetFile(full_df_fp)
-     total_rows = pf.metadata.num_rows
-     n_rows = min(n_rows, total_rows)
+    Returns:
+        pd.DataFrame: Random subset of the data.
+    """
+    pf = ParquetFile(full_df_fp)
+    total_rows = pf.metadata.num_rows
+    n_rows = min(n_rows, total_rows)
 
-     rng = np.random.default_rng(seed)
-     indices = np.sort(rng.choice(total_rows, size=n_rows, replace=False))
+    # Pick random row indices across the entire file
+    rng = np.random.default_rng(seed)
+    indices = np.sort(rng.choice(total_rows, size=n_rows, replace=False))
 
-     print(f"Reading {n_rows:,} random rows from {full_df_fp} ({total_rows:,} total)")
+    print(f"Reading {n_rows:,} random rows from {full_df_fp} ({total_rows:,} total)")
 
-    table = pf.read_row_groups(list(range(pf.metadata.num_row_groups))).take(
-        pa.array(indices)
-    )
+    # Build row group offset table
+    row_group_offsets = []
+    offset = 0
+    for i in range(pf.metadata.num_row_groups):
+        rg_rows = pf.metadata.row_group(i).num_rows
+        row_group_offsets.append((offset, offset + rg_rows))
+        offset += rg_rows
 
-     return table.to_pandas()
+    # Find which row groups contain selected indices (read only those)
+    needed_groups = set()
+    for idx in indices:
+        for g, (start, end) in enumerate(row_group_offsets):
+            if start <= idx < end:
+                needed_groups.add(g)
+                break
+
+    sorted_groups = sorted(needed_groups)
+    table = pf.read_row_groups(sorted_groups)
+
+    # Remap global indices to local indices within the loaded subset
+    loaded_offsets = []
+    local_offset = 0
+    for g in sorted_groups:
+        start, end = row_group_offsets[g]
+        loaded_offsets.append((start, local_offset, end - start))
+        local_offset += end - start
+
+    local_indices = []
+    for idx in indices:
+        for global_start, local_start, length in loaded_offsets:
+            if global_start <= idx < global_start + length:
+                local_indices.append(local_start + (idx - global_start))
+                break
+
+    return table.take(pa.array(local_indices)).to_pandas()
 
 
 def validate_dtypes(df):

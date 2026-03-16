@@ -1,4 +1,12 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "Nimbus Sans", "Liberation Sans", "DejaVu Sans"],
+    }
+)
 
 from lib.sbs.standardize_barcode_design import get_barcode_list
 from lib.sbs.eval_mapping import (
@@ -32,10 +40,10 @@ sbs_info = pd.concat(
 )
 
 _, fig = plot_mapping_vs_threshold(reads, barcodes, "peak", num_thresholds=10)
-fig.savefig(snakemake.output[0])
+fig.savefig(snakemake.output[0], dpi=300, bbox_inches="tight", transparent=True)
 
 _, fig = plot_mapping_vs_threshold(reads, barcodes, "Q_min", num_thresholds=10)
-fig.savefig(snakemake.output[1])
+fig.savefig(snakemake.output[1], dpi=300, bbox_inches="tight", transparent=True)
 
 fig = plot_read_mapping_heatmap(
     reads,
@@ -43,7 +51,7 @@ fig = plot_read_mapping_heatmap(
     plate=snakemake.params.heatmap_plate,
     shape=snakemake.params.heatmap_shape,
 )
-fig.savefig(snakemake.output[2])
+fig.savefig(snakemake.output[2], dpi=300, bbox_inches="tight", transparent=True)
 
 df_summary_one, fig = plot_cell_mapping_heatmap(
     cells,
@@ -56,7 +64,7 @@ df_summary_one, fig = plot_cell_mapping_heatmap(
     return_summary=True,
 )
 df_summary_one.to_csv(snakemake.output[3], index=False, sep="\t")
-fig.savefig(snakemake.output[4])
+fig.savefig(snakemake.output[4], dpi=300, bbox_inches="tight", transparent=True)
 
 df_summary_any, fig = plot_cell_mapping_heatmap(
     cells,
@@ -69,13 +77,13 @@ df_summary_any, fig = plot_cell_mapping_heatmap(
     return_summary=True,
 )
 df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")
-fig.savefig(snakemake.output[6])
+fig.savefig(snakemake.output[6], dpi=300, bbox_inches="tight", transparent=True)
 
 _, fig = plot_cell_metric_histogram(cells, sort_by=snakemake.params.sort_by)
-fig.savefig(snakemake.output[7])
+fig.savefig(snakemake.output[7], dpi=300, bbox_inches="tight", transparent=True)
 
 _, fig = plot_gene_symbol_histogram(cells)
-fig.savefig(snakemake.output[8])
+fig.savefig(snakemake.output[8], dpi=300, bbox_inches="tight", transparent=True)
 
 mapping_overview_df = mapping_overview(
     sbs_info, cells, sort_by=snakemake.params.sort_by
@@ -97,4 +105,4 @@ else:
         df_barcode_library,
         library_col=snakemake.params.library_barcode_col,
     )
-fig.savefig(snakemake.output[10])
+fig.savefig(snakemake.output[10], dpi=300, bbox_inches="tight", transparent=True)

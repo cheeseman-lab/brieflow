@@ -1,7 +1,15 @@
 import random
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pyarrow.dataset as ds
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "Nimbus Sans", "Liberation Sans", "DejaVu Sans"],
+    }
+)
 
 from lib.aggregate.eval_aggregate import (
     nas_summary,
@@ -24,7 +32,7 @@ merge_data = merge_data.to_pandas(use_threads=True, memory_pool=None)
 # Evaluate missing values
 nas_df, nas_fig = nas_summary(merge_data, vis_subsample=50000)
 nas_df.to_csv(snakemake.output[0], sep="\t", index=False)
-nas_fig.savefig(snakemake.output[1])
+nas_fig.savefig(snakemake.output[1], dpi=300, bbox_inches="tight", transparent=True)
 
 # Get aligned dataset
 aligned_data = ds.dataset(snakemake.input[0], format="parquet")
@@ -39,13 +47,15 @@ aligned_data = aligned_data.to_pandas(use_threads=True, memory_pool=None)
 
 # determine original and aligned columns
 random.seed(42)
-# Prefer cell-level features, fall back to nuclear if none found                                                                                                                                            
-merge_feature_cols = [                                
-    col for col in merge_data.columns if ("cell_" in col and col.endswith("_mean"))                                                                                                                         
-]                                                     
+# Prefer cell-level features, fall back to nuclear if none found
+merge_feature_cols = [
+    col for col in merge_data.columns if ("cell_" in col and col.endswith("_mean"))
+]
 if len(merge_feature_cols) == 0:
     merge_feature_cols = [
-        col for col in merge_data.columns if ("nucleus_" in col and col.endswith("_mean"))
+        col
+        for col in merge_data.columns
+        if ("nucleus_" in col and col.endswith("_mean"))
     ]
 pc_cols = [col for col in aligned_data.columns if col.startswith("PC_")]
 aligned_feature_cols = random.sample(
@@ -59,4 +69,6 @@ feature_distributions_fig = plot_feature_distributions(
     aligned_feature_cols,
     aligned_data,
 )
-feature_distributions_fig.savefig(snakemake.output[2])
+feature_distributions_fig.savefig(
+    snakemake.output[2], dpi=300, bbox_inches="tight", transparent=True
+)

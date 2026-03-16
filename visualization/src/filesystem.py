@@ -1,8 +1,78 @@
 import glob
+import logging
 import os
 import re
 import pandas as pd
 import streamlit as st
+
+logger = logging.getLogger(__name__)
+
+MANIFEST_FILENAME = ".file_manifest"
+
+# Module-level cache so the manifest is read at most once per process.
+_manifest_cache: dict[str, list[str]] = {}
+
+
+def _load_manifest(data_root: str) -> list[str] | None:
+    """Load a pre-built file manifest if one exists at data_root/.file_manifest.
+
+    The manifest is a newline-delimited list of paths relative to data_root.
+    Generate it at build/deploy time with:
+        find <data_root> -type f | sed 's|^<data_root>/||' > <data_root>/.file_manifest
+    """
+    if data_root in _manifest_cache:
+        return _manifest_cache[data_root]
+
+    manifest_path = os.path.join(data_root, MANIFEST_FILENAME)
+    if not os.path.isfile(manifest_path):
+        return None
+
+    with open(manifest_path) as f:
+        paths = [line.strip() for line in f if line.strip()]
+    _manifest_cache[data_root] = paths
+    logger.info("Loaded manifest with %d entries from %s", len(paths), manifest_path)
+    return paths
+
+
+def _find_data_root(root_dir: str) -> tuple[str, str] | None:
+    """Walk up from root_dir looking for a .file_manifest.
+
+    Returns (data_root, prefix) where prefix is the relative path from
+    data_root to root_dir, or None if no manifest found.
+    """
+    candidate = os.path.normpath(root_dir)
+    while True:
+        if os.path.isfile(os.path.join(candidate, MANIFEST_FILENAME)):
+            prefix = os.path.relpath(root_dir, candidate)
+            if prefix == ".":
+                prefix = ""
+            return candidate, prefix
+        parent = os.path.dirname(candidate)
+        if parent == candidate:
+            return None
+        candidate = parent
+
+
+def _apply_path_filters(files, include_any=None, include_all=None):
+    """Apply include_any / include_all directory-component filters."""
+    filtered = files
+    if include_any and len(include_any) > 0:
+        filtered = [
+            f
+            for f in filtered
+            if any(
+                item in os.path.normpath(f).split(os.sep) for item in include_any
+            )
+        ]
+    if include_all and len(include_all) > 0:
+        filtered = [
+            f
+            for f in filtered
+            if all(
+                item in os.path.normpath(f).split(os.sep) for item in include_all
+            )
+        ]
+    return filtered
 
 
 class FileSystem:
@@ -16,6 +86,10 @@ class FileSystem:
         """
         Find all files with specified extensions in the directory tree with optional path filtering.
 
+        If a .file_manifest file exists at or above root_dir, uses it instead of
+        walking the filesystem. This avoids expensive os.walk/glob over slow
+        filesystems like gcsfuse (245k+ files = 300k+ HTTP GCS API calls).
+
         Args:
             root_dir: The root directory to search in
             includes_any: List of strings where if the path includes any of the values, it is included
@@ -25,41 +99,33 @@ class FileSystem:
         Returns:
             A list of file paths that match the filtering criteria
         """
-        # Use default extensions if none provided
         if extensions is None:
             extensions = ["png", "tsv"]
 
-        # Find all files with specified extensions
+        ext_set = set(extensions)
+
+        # Try manifest-based lookup (no filesystem walk needed)
+        result = _find_data_root(root_dir)
+        if result is not None:
+            data_root, prefix = result
+            manifest = _load_manifest(data_root)
+            if manifest is not None:
+                all_files = []
+                for rel in manifest:
+                    if prefix and not rel.startswith(prefix + "/"):
+                        continue
+                    ext = rel.rsplit(".", 1)[-1] if "." in rel else ""
+                    if ext in ext_set:
+                        all_files.append(os.path.join(data_root, rel))
+                return _apply_path_filters(all_files, include_any, include_all)
+
+        # Fallback: glob the filesystem
         all_files = []
         for ext in extensions:
             files = glob.glob(f"{root_dir}/**/*.{ext}", recursive=True)
             all_files.extend(files)
 
-        # Apply filtering if specified
-        filtered_files = all_files
-
-        # Filter for paths that include any of the specified strings
-        if include_any and len(include_any) > 0:
-            filtered_files = [
-                f
-                for f in filtered_files
-                if any(
-                    item in os.path.normpath(f).split(os.sep) for item in include_any
-                )
-            ]
-
-        # Filter for paths that include all of the specified strings
-        if include_all and len(include_all) > 0:
-            filtered_files = [
-                f
-                for f in filtered_files
-                if all(
-                    item in os.path.normpath(f).split(os.sep) for item in include_all
-                )
-            ]
-
-        # Return the array of matching file paths
-        return filtered_files
+        return _apply_path_filters(all_files, include_any, include_all)
 
     @staticmethod
     def extract_well_id(file_path):

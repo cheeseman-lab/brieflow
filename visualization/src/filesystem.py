@@ -60,17 +60,13 @@ def _apply_path_filters(files, include_any=None, include_all=None):
         filtered = [
             f
             for f in filtered
-            if any(
-                item in os.path.normpath(f).split(os.sep) for item in include_any
-            )
+            if any(item in os.path.normpath(f).split(os.sep) for item in include_any)
         ]
     if include_all and len(include_all) > 0:
         filtered = [
             f
             for f in filtered
-            if all(
-                item in os.path.normpath(f).split(os.sep) for item in include_all
-            )
+            if all(item in os.path.normpath(f).split(os.sep) for item in include_all)
         ]
     return filtered
 

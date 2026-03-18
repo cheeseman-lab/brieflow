@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 import yaml
 
-from src.config import CONFIG_PATH, SCREEN_PATH, load_config
+from src.config import BRIEFLOW_OUTPUT_PATH, CONFIG_PATH, SCREEN_PATH, load_config
 
 st.set_page_config(page_title="Screen Overview - Brieflow Analysis", layout="wide")
 

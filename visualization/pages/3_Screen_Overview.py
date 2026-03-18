@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 import yaml
 
-from src.config import BRIEFLOW_OUTPUT_PATH, SCREEN_PATH, load_config
+from src.config import CONFIG_PATH, SCREEN_PATH, load_config
 
 st.set_page_config(page_title="Screen Overview - Brieflow Analysis", layout="wide")
 
@@ -26,12 +26,17 @@ def read_tabular(path):
 
 
 def resolve_path(path):
-    """Return the path if it exists, trying a fallback relative to data location."""
+    """Return the path if it exists, trying fallbacks relative to config and data locations."""
     if not path:
         return None
     if os.path.isfile(path):
         return path
     if not os.path.isabs(path):
+        # Try relative to the config file directory (deployment layout)
+        alt = os.path.join(os.path.dirname(CONFIG_PATH), path)
+        if os.path.isfile(alt):
+            return alt
+        # Try relative to the original analysis data location
         data_loc = yaml.safe_load(open(SCREEN_PATH)).get("data", {}).get("location", "")
         alt = os.path.join(data_loc, "analysis", path)
         if os.path.isfile(alt):

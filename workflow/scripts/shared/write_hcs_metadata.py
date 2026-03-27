@@ -58,9 +58,9 @@ def _infer_modality_from_store_path(store_path: Path) -> str:
 def _load_pixel_size_map(
     preprocess_root: Path, modality: str, plate: str
 ) -> dict[tuple[str, str, str], tuple[float, float]]:
-    """
-    Returns (row, col, tile) -> (px_x, px_y) in micrometers.
-    Reads preprocess/metadata/{modality}/{plate}/{row}/{col}/combined_metadata.parquet
+    """Return (row, col, tile) -> (px_x, px_y) in micrometers.
+
+    Reads preprocess/metadata/{modality}/{plate}/{row}/{col}/combined_metadata.parquet.
     """
     meta_root = preprocess_root / "metadata" / modality / plate
     pixel_map: dict[tuple[str, str, str], tuple[float, float]] = {}
@@ -77,7 +77,11 @@ def _load_pixel_size_map(
         df = pd.read_parquet(fp)
 
         if "tile" not in df.columns:
-            if "pixel_size_x" in df.columns and "pixel_size_y" in df.columns and len(df) > 0:
+            if (
+                "pixel_size_x" in df.columns
+                and "pixel_size_y" in df.columns
+                and len(df) > 0
+            ):
                 pixel_map[(row, col, "*")] = (
                     float(df["pixel_size_x"].iloc[0]),
                     float(df["pixel_size_y"].iloc[0]),
@@ -88,7 +92,10 @@ def _load_pixel_size_map(
             tile = str(r["tile"])
             if pd.isna(r.get("pixel_size_x")) or pd.isna(r.get("pixel_size_y")):
                 continue
-            pixel_map[(row, col, tile)] = (float(r["pixel_size_x"]), float(r["pixel_size_y"]))
+            pixel_map[(row, col, tile)] = (
+                float(r["pixel_size_x"]),
+                float(r["pixel_size_y"]),
+            )
 
     return pixel_map
 
@@ -164,8 +171,12 @@ def _set_per_dataset_scales(pos, px_x: float, px_y: float) -> None:
 
     for ds_meta in ms.datasets:
         level_shape = pos[ds_meta.path].shape
-        factor_y = base_shape[y_idx] / level_shape[y_idx] if level_shape[y_idx] > 0 else 1.0
-        factor_x = base_shape[x_idx] / level_shape[x_idx] if level_shape[x_idx] > 0 else 1.0
+        factor_y = (
+            base_shape[y_idx] / level_shape[y_idx] if level_shape[y_idx] > 0 else 1.0
+        )
+        factor_x = (
+            base_shape[x_idx] / level_shape[x_idx] if level_shape[x_idx] > 0 else 1.0
+        )
 
         scale = [1.0] * n_axes
         scale[y_idx] = px_y * factor_y
@@ -292,7 +303,9 @@ def patch_store_metadata_with_iohub(
             _set_per_dataset_scales(pos, px_x, px_y)
 
         # --- channel names ---
-        resolved = _resolve_channel_names_for_store(pos, config_channel_names, store_type)
+        resolved = _resolve_channel_names_for_store(
+            pos, config_channel_names, store_type
+        )
         _rename_channels(pos, resolved)
 
         # --- OMERO rendering defaults (colors, rdefs, contrast limits) ---

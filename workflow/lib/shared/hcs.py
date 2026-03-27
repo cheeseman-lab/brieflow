@@ -95,6 +95,7 @@ def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
 
 #     return results
 
+
 def discover_plate_structure(plate_zarr_path):
     """Discover (row, col, tile) by locating tile-level zarr.json files.
 

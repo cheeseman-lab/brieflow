@@ -19,5 +19,8 @@ else:
     # write blank array when cell segmentation is disabled
     cytoplasms = np.zeros_like(nuclei, dtype=np.int32)
 
+# Ensure label array is uint32 (supports >65535 labels; spec-compliant)
+cytoplasms = cytoplasms.astype(np.uint32)
+
 # Save cytoplasms data
 save_image(cytoplasms, snakemake.output[0], is_label=True)

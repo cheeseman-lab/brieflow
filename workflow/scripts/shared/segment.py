@@ -138,6 +138,10 @@ else:
         f"Unknown segmentation method: {method}. Choose one of: cellpose, stardist, watershed"
     )
 
+# Ensure label arrays are uint32 (supports >65535 labels; spec-compliant)
+nuclei_data = nuclei_data.astype(np.uint32)
+cells_data = cells_data.astype(np.uint32)
+
 # Save segmented nuclei data
 save_image(nuclei_data, snakemake.output[0], is_label=True)
 # Save segmented cells data

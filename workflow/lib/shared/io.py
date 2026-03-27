@@ -249,7 +249,7 @@ def write_image_omezarr(
         axes=axes_dicts,
         coordinate_transformations=coordinate_transformations,
         scaler=Scaler(
-            method="nearest",
+            method="nearest" if is_label else "gaussian",
             downscale=coarsening_factor,
             max_layer=max_levels - 1,
             labeled=is_label,

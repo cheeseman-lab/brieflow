@@ -177,6 +177,7 @@ if PHENOTYPE_IMG_FMT == "zarr":
             ],
             channels_metadata=config["preprocess"].get("phenotype_channels_metadata", None),
             channel_names=config["phenotype"].get("channel_names", None),
+            modality="phenotype",
         script:
             "../scripts/shared/write_hcs_metadata.py"
 

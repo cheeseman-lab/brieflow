@@ -112,21 +112,21 @@ def save_image(
         if image.ndim == 2:
             # (Y, X) → (1, 1, 1, Y, X)  TCZYX
             data = image[np.newaxis, np.newaxis, np.newaxis, ...]
-            axes = "tczyx"
+            axes = "TCZYX"
         elif image.ndim == 3:
             # (C, Y, X) → (1, C, 1, Y, X)  TCZYX
             data = image[np.newaxis, :, np.newaxis, ...]
-            axes = "tczyx"
+            axes = "TCZYX"
         elif image.ndim == 4:
             # (C, Z, Y, X) → (1, C, Z, Y, X)  TCZYX
             data = image[np.newaxis, ...]
-            axes = "tczyx"
+            axes = "TCZYX"
         else:
             raise ValueError(f"Unsupported image.ndim={image.ndim} for OME-Zarr export")
 
         ch_names = list(channel_names) if channel_names is not None else None
-        if ch_names is None and "c" in axes:
-            c_len = int(data.shape[axes.index("c")])
+        if ch_names is None and "C" in axes:
+            c_len = int(data.shape[axes.index("C")])
             ch_names = [f"c{i}" for i in range(c_len)]
 
         write_image_omezarr(
@@ -153,7 +153,7 @@ def write_image_omezarr(
     image_data: Union[np.ndarray, da.Array],
     out_path: str,
     channel_names: Optional[List[str]] = None,
-    axes: str = "tczyx",
+    axes: str = "TCZYX",
     pixel_size_um: Optional[Union[float, Tuple[float, ...], Dict[str, float]]] = None,
     coarsening_factor: int = 2,
     max_levels: int = 4,
@@ -167,7 +167,7 @@ def write_image_omezarr(
         image_data: Numpy or Dask array containing image data.
         out_path: Path to the output .zarr directory.
         channel_names: List of channel names. Length must match channel dimension.
-        axes: String describing axes, e.g., "cyx", "tcyx".
+        axes: String describing axes, e.g., "CYX", "TCZYX". Normalized to uppercase.
         pixel_size_um: Pixel size in microns.
             - float: applied to X and Y
             - tuple: (y, x) or (z, y, x) depending on available axes
@@ -178,6 +178,9 @@ def write_image_omezarr(
         chunk_size: Tuple for chunking (optional).
         storage_options: Options for storage backend (optional).
     """
+    # Normalize axis names to uppercase (OPS schema convention).
+    axes = axes.upper()
+
     os.makedirs(out_path, exist_ok=True)
     root = zarr.open_group(out_path, mode="w", zarr_format=ZARR_FORMAT)
 
@@ -190,9 +193,9 @@ def write_image_omezarr(
         if chunk_size is None:
             shape = image_data.shape
             chunks = list(shape)
-            if "y" in axes and "x" in axes:
-                y_idx = axes.find("y")
-                x_idx = axes.find("x")
+            if "Y" in axes and "X" in axes:
+                y_idx = axes.find("Y")
+                x_idx = axes.find("X")
                 chunks[y_idx] = min(shape[y_idx], 1024)
                 chunks[x_idx] = min(shape[x_idx], 1024)
             chunk_size = tuple(chunks)
@@ -209,12 +212,12 @@ def write_image_omezarr(
     coordinate_transformations = []
     for i in range(max_levels):
         scale_transform = [1.0] * len(axes)
-        if "z" in axes and ps.get("z") is not None:
-            scale_transform[axes.find("z")] = ps["z"]
-        if "y" in axes and ps.get("y") is not None:
-            scale_transform[axes.find("y")] = ps["y"] * (coarsening_factor**i)
-        if "x" in axes and ps.get("x") is not None:
-            scale_transform[axes.find("x")] = ps["x"] * (coarsening_factor**i)
+        if "Z" in axes and ps.get("z") is not None:
+            scale_transform[axes.find("Z")] = ps["z"]
+        if "Y" in axes and ps.get("y") is not None:
+            scale_transform[axes.find("Y")] = ps["y"] * (coarsening_factor**i)
+        if "X" in axes and ps.get("x") is not None:
+            scale_transform[axes.find("X")] = ps["x"] * (coarsening_factor**i)
         coordinate_transformations.append([{"scale": scale_transform, "type": "scale"}])
 
     metadata: Dict[str, Any] = {}
@@ -236,10 +239,14 @@ def write_image_omezarr(
     if is_label:
         metadata["image-label"] = {"version": "0.5"}
 
+    # ome_zarr only recognises lowercase axis names for type inference;
+    # pass explicit dicts so uppercase names work without validation errors.
+    axes_dicts = _axes_str_to_dicts(axes)
+
     write_image(
         image=image_data,
         group=root,
-        axes=axes,
+        axes=axes_dicts,
         coordinate_transformations=coordinate_transformations,
         scaler=Scaler(
             method="nearest",
@@ -254,16 +261,47 @@ def write_image_omezarr(
     # that ome_zarr.writer already created for multiscales.  This ensures
     # iohub (and any OME-NGFF v0.5 reader) finds them at
     # attributes.ome.omero / attributes.ome.image-label.
+    ome_attrs = dict(root.attrs.get("ome", {}))
     if metadata:
-        ome_attrs = dict(root.attrs.get("ome", {}))
         for k, v in metadata.items():
             ome_attrs[k] = v
-        root.attrs["ome"] = ome_attrs
+
+    # Record downsamplingMethod on multiscales (OPS schema RECOMMENDED).
+    ms = ome_attrs.get("multiscales", [])
+    if ms:
+        ms[0]["downsamplingMethod"] = "nearest"
+
+    root.attrs["ome"] = ome_attrs
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+# Maps uppercase axis character → OME-NGFF axis type.
+_AXIS_TYPES: Dict[str, str] = {
+    "T": "time",
+    "C": "channel",
+    "Z": "space",
+    "Y": "space",
+    "X": "space",
+}
+
+
+def _axes_str_to_dicts(axes: str) -> List[Dict[str, str]]:
+    """Convert an uppercase axes string to a list of axis dicts for ome_zarr.
+
+    ome_zarr.writer only recognises lowercase axis names for type inference.
+    Passing a list of dicts with explicit ``type`` values lets us store
+    uppercase names while still satisfying the validator.
+    """
+    result = []
+    for ch in axes.upper():
+        d: Dict[str, str] = {"name": ch}
+        if ch in _AXIS_TYPES:
+            d["type"] = _AXIS_TYPES[ch]
+        result.append(d)
+    return result
 
 
 def _parse_pixel_sizes(

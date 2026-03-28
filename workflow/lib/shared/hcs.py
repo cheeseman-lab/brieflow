@@ -38,18 +38,22 @@ def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
     for row, col, _tile in structure:
         wells_by_row_col[(row, col)] = True  # deduplicate
 
+    # Compute field_count = max number of tiles in any well
+    fields_by_well = {}
+    for row, col, tile in structure:
+        fields_by_well.setdefault((row, col), []).append(tile)
+    field_count = max(len(tiles) for tiles in fields_by_well.values())
+
     _write_plate_metadata(
-        plate_path, wells_by_row_col, channels_metadata=channels_metadata
+        plate_path,
+        wells_by_row_col,
+        channels_metadata=channels_metadata,
+        field_count=field_count,
     )
 
     # Write row-level group metadata
     for row in sorted(set(rc[0] for rc in wells_by_row_col)):
         _write_zarr_v3_group_metadata(plate_path / row)
-
-    # Group fields by well
-    fields_by_well = {}
-    for row, col, tile in structure:
-        fields_by_well.setdefault((row, col), []).append(tile)
 
     # Write well-level and field-level metadata
     for (row, col), tiles in sorted(fields_by_well.items()):
@@ -168,14 +172,14 @@ def _normalize_channels_metadata(channels_metadata):
         entry["name"] = name
 
         entry.setdefault("description", "")
-        entry.setdefault("channel_type", "fluorescent")
+        entry.setdefault("channel_type", "fluorescence")
 
         # Keep biological_annotation only if it has real (non-empty) values, and keep ONLY the keys the user actually filled in
         bio = entry.get("biological_annotation", None)
 
         if isinstance(bio, dict):
             cleaned = {}
-            for k in ("organelle", "marker", "marker_type", "full_label"):
+            for k in ("biological_target", "marker", "marker_type", "full_label"):
                 v = bio.get(k, None)
                 if v is None:
                     continue
@@ -258,13 +262,17 @@ def _write_zarr_v3_group_metadata(path):
         json.dump(metadata, f, indent=2)
 
 
-def _write_plate_metadata(plate_zarr_path, wells_by_row_col, channels_metadata=None):
+def _write_plate_metadata(
+    plate_zarr_path, wells_by_row_col, channels_metadata=None, field_count=1
+):
     """Write HCS plate-level zarr.json with OME-NGFF plate metadata."""
     plate_path = Path(plate_zarr_path)
     plate_path.mkdir(parents=True, exist_ok=True)
 
     rows = sorted(set(rc[0] for rc in wells_by_row_col.keys()))
     cols = sorted(set(rc[1] for rc in wells_by_row_col.keys()), key=lambda x: int(x))
+
+    plate_name = plate_path.stem  # e.g. "aligned_1"
 
     plate_metadata = {
         "zarr_format": 3,
@@ -274,6 +282,8 @@ def _write_plate_metadata(plate_zarr_path, wells_by_row_col, channels_metadata=N
                 "version": "0.5",
                 "plate": {
                     "version": "0.5",
+                    "name": plate_name,
+                    "field_count": field_count,
                     "acquisitions": [{"id": 0}],
                     "columns": [{"name": c} for c in cols],
                     "rows": [{"name": r} for r in rows],
@@ -310,6 +320,7 @@ def _write_well_metadata(well_path, field_indices):
             "ome": {
                 "version": "0.5",
                 "well": {
+                    "version": "0.5",
                     "images": [
                         {"path": str(idx), "acquisition": 0} for idx in field_indices
                     ],

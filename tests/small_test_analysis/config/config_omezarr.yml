@@ -22,24 +22,40 @@ preprocess:
   phenotype_channels_metadata:
   - name: DAPI
     index: 0
-    channel_type: fluorescent
+    channel_type: fluorescence
     description: "Nuclear stain"
-    biological_annotation: {}
+    biological_annotation:
+      biological_target: "nucleus"
+      marker: "DAPI"
+      marker_type: "dye"
+      full_label: "nucleus, DAPI"
   - name: COXIV
     index: 1
-    channel_type: fluorescent
+    channel_type: fluorescence
     description: "Mitochondria marker"
-    biological_annotation: {}
+    biological_annotation:
+      biological_target: "mitochondria"
+      marker: "COXIV"
+      marker_type: "antibody"
+      full_label: "mitochondria, COXIV"
   - name: CENPA
     index: 2
-    channel_type: fluorescent
+    channel_type: fluorescence
     description: "Centromere marker"
-    biological_annotation: {}
+    biological_annotation:
+      biological_target: "centromere"
+      marker: "CENPA"
+      marker_type: "antibody"
+      full_label: "centromere, CENPA"
   - name: WGA
     index: 3
-    channel_type: fluorescent
+    channel_type: fluorescence
     description: "Membrane stain"
-    biological_annotation: {}
+    biological_annotation:
+      biological_target: "cell_membrane"
+      marker: "WGA"
+      marker_type: "lectin"
+      full_label: "cell membrane, WGA"
   sample_fraction: 1
   sbs_channel_order: null
   sbs_channel_order_flip: true
@@ -48,29 +64,49 @@ preprocess:
   sbs_channels_metadata:
   - name: DAPI
     index: 0
-    channel_type: fluorescent
-    description: "DAPI channel"
-    biological_annotation: {}
+    channel_type: fluorescence
+    description: "Nuclear stain for SBS"
+    biological_annotation:
+      biological_target: "nucleus"
+      marker: "DAPI"
+      marker_type: "dye"
+      full_label: "nucleus, DAPI"
   - name: G
     index: 1
-    channel_type: fluorescent
+    channel_type: fluorescence
     description: "SBS base channel G"
-    biological_annotation: {}
+    biological_annotation:
+      biological_target: "in_situ_sequencing"
+      marker: "SBS_G"
+      marker_type: "sequencing_chemistry"
+      full_label: "SBS base G"
   - name: T
     index: 2
-    channel_type: fluorescent
+    channel_type: fluorescence
     description: "SBS base channel T"
-    biological_annotation: {}
+    biological_annotation:
+      biological_target: "in_situ_sequencing"
+      marker: "SBS_T"
+      marker_type: "sequencing_chemistry"
+      full_label: "SBS base T"
   - name: A
     index: 3
-    channel_type: fluorescent
+    channel_type: fluorescence
     description: "SBS base channel A"
-    biological_annotation: {}
+    biological_annotation:
+      biological_target: "in_situ_sequencing"
+      marker: "SBS_A"
+      marker_type: "sequencing_chemistry"
+      full_label: "SBS base A"
   - name: C
     index: 4
-    channel_type: fluorescent
+    channel_type: fluorescence
     description: "SBS base channel C"
-    biological_annotation: {}
+    biological_annotation:
+      biological_target: "in_situ_sequencing"
+      marker: "SBS_C"
+      marker_type: "sequencing_chemistry"
+      full_label: "SBS base C"
 sbs:
   heatmap_shape: square
   alignment_method: null

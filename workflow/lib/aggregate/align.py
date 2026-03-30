@@ -173,11 +173,25 @@ def tvn_on_controls(
             batch_control_ind = (
                 batch_ind & (metadata[pert_col].str.startswith(control_key)).to_list()
             )
+            n_controls = np.sum(batch_control_ind)
+            if n_controls < embeddings.shape[1]:
+                print(
+                    f"Warning: batch {batch} has {n_controls} control cells "
+                    f"(< {embeddings.shape[1]} features), skipping CORAL for this batch"
+                )
+                continue
             source_cov = np.cov(
                 embeddings[batch_control_ind], rowvar=False, ddof=1
             ) + 0.5 * np.eye(embeddings.shape[1])
+            source_cov_inv_sqrt = linalg.fractional_matrix_power(source_cov, -0.5)
+            if not np.all(np.isfinite(source_cov_inv_sqrt)):
+                print(
+                    f"Warning: batch {batch} has singular covariance matrix, "
+                    f"skipping CORAL for this batch"
+                )
+                continue
             embeddings[batch_ind] = np.matmul(
-                embeddings[batch_ind], linalg.fractional_matrix_power(source_cov, -0.5)
+                embeddings[batch_ind], source_cov_inv_sqrt
             )
             embeddings[batch_ind] = np.matmul(
                 embeddings[batch_ind], linalg.fractional_matrix_power(target_cov, 0.5)

@@ -14,7 +14,7 @@ from lib.aggregate.bootstrap import create_pseudogene_groups
 
 # get snakemake parameters
 pert_col = snakemake.params.perturbation_name_col
-pert_id_col = snakemake.params.perturbation_id_col
+pert_id_col = snakemake.params.perturbation_id_col or pert_col
 control_key = snakemake.params.control_key
 num_batches = snakemake.params.get("num_align_batches", 1)
 

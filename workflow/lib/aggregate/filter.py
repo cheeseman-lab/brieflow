@@ -210,6 +210,10 @@ def intensity_filter(
         print("Contamination is 0, skipping intensity filtering")
         return metadata, features
 
+    if len(metadata) == 0:
+        print("No cells to filter, skipping intensity filtering")
+        return metadata, features
+
     # Identify feature cols
     feature_cols = features.columns.tolist()
 

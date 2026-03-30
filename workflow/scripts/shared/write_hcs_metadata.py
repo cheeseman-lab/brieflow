@@ -11,6 +11,7 @@ import json
 import re
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from iohub.ngff import open_ome_zarr
 from iohub.ngff.display import channel_display_settings
@@ -241,11 +242,47 @@ def _build_and_set_omero(pos, resolved_names: list[str]) -> None:
     )
 
 
+def _patch_label_axis_units(store_path: Path) -> None:
+    """Set units on all axes in label store multiscales metadata.
+
+    Always runs regardless of pixel size availability — axis units and
+    pixel scales are independent concerns.
+    """
+    _AXIS_UNITS = {
+        "X": "micrometer",
+        "Y": "micrometer",
+        "Z": "micrometer",
+        "T": "second",
+    }
+    for zj in sorted(store_path.rglob("labels/*/zarr.json")):
+        try:
+            meta = json.loads(zj.read_text())
+        except Exception:
+            continue
+
+        attrs = meta.get("attributes", meta)
+        ome = attrs.get("ome", {})
+        ms_list = ome.get("multiscales", attrs.get("multiscales", []))
+        if not ms_list:
+            continue
+
+        changed = False
+        for ax in ms_list[0].get("axes", []):
+            name = ax.get("name", "").upper()
+            if name in _AXIS_UNITS and ax.get("unit") != _AXIS_UNITS[name]:
+                ax["unit"] = _AXIS_UNITS[name]
+                changed = True
+
+        if changed:
+            zj.write_text(json.dumps(meta, indent=2))
+            print(f"[patch] label axis units set: {zj.parent.name}")
+
+
 def _patch_label_scales(
     store_path: Path,
     pixel_map: dict[tuple[str, str, str], tuple[float, float]],
 ) -> None:
-    """Apply coordinate scales and axis units to label stores.
+    """Apply coordinate scales to label stores.
 
     Labels share the same physical pixel size as their parent image.
     Uses direct JSON patching (iohub doesn't iterate labels).
@@ -293,9 +330,6 @@ def _patch_label_scales(
                 y_idx = i
             elif name == "X":
                 x_idx = i
-            # Set micrometer unit on spatial axes
-            if name in ("X", "Y", "Z"):
-                ax["unit"] = "micrometer"
         if y_idx is None or x_idx is None:
             continue
 
@@ -327,8 +361,16 @@ def _patch_label_scales(
                     pass
 
             scale = [1.0] * len(axes)
-            fy = base_shape[y_idx] / level_shape[y_idx] if level_shape[y_idx] > 0 else 1.0
-            fx = base_shape[x_idx] / level_shape[x_idx] if level_shape[x_idx] > 0 else 1.0
+            fy = (
+                base_shape[y_idx] / level_shape[y_idx]
+                if level_shape[y_idx] > 0
+                else 1.0
+            )
+            fx = (
+                base_shape[x_idx] / level_shape[x_idx]
+                if level_shape[x_idx] > 0
+                else 1.0
+            )
             scale[y_idx] = px_y * fy
             scale[x_idx] = px_x * fx
             ds["coordinateTransformations"] = [{"type": "scale", "scale": scale}]
@@ -382,7 +424,12 @@ def _build_segmentation_meta_for_label(
     if info is None:
         return None
 
-    seg_method = modality_config.get("segmentation_method", "cellpose")
+    # Build method string as "method.model" (e.g. "cellpose.cyto3")
+    seg_method_base = modality_config.get("segmentation_method", "cellpose")
+    seg_model = modality_config.get("cellpose_model") or modality_config.get(
+        "stardist_model"
+    )
+    seg_method = f"{seg_method_base}.{seg_model}" if seg_model else seg_method_base
     source_idx = modality_config.get(info["source_channel_key"])
     if source_idx is None:
         source_idx = 0
@@ -435,8 +482,7 @@ def _build_segmentation_meta_for_label(
         "biological_annotation": bio,
         "segmentation": {
             "method": seg_method,
-            "version": "",
-            "stitching": False,
+            "stitching": "none",
             "parameters": params,
         },
         "description": f"{info['annotation_type']} segmentation via {seg_method}",
@@ -468,6 +514,20 @@ def _patch_segmentation_metadata(
             meta = json.loads(zj.read_text())
         except Exception:
             continue
+
+        # Count labeled objects from the full-resolution array
+        n_cells = None
+        arr_zj = label_dir / "0" / "zarr.json"
+        if arr_zj.exists():
+            try:
+                import zarr
+
+                arr = zarr.open(str(label_dir / "0"), mode="r")
+                n_cells = int(len(np.unique(arr[:])) - 1)  # exclude background (0)
+            except Exception:
+                pass
+        if n_cells is not None:
+            seg_meta["statistics"] = {"n_cells": n_cells}
 
         attrs = meta.setdefault("attributes", {})
         attrs["segmentation_metadata"] = seg_meta
@@ -572,8 +632,25 @@ def patch_store_metadata_with_iohub(
     ds.dump_meta()
     ds.close()
 
+    # --- Re-inject downsamplingMethod (iohub dump_meta strips it) ---
+    for zj in sorted(store_path.rglob("*/zarr.json")):
+        # Only patch image-group level (has multiscales but not inside labels/)
+        if "labels" in zj.parts:
+            continue
+        try:
+            meta = json.loads(zj.read_text())
+        except Exception:
+            continue
+        attrs = meta.get("attributes", {})
+        ome = attrs.get("ome", {})
+        ms_list = ome.get("multiscales", [])
+        if ms_list and "downsamplingMethod" not in ms_list[0]:
+            ms_list[0]["downsamplingMethod"] = "gaussian"
+            zj.write_text(json.dumps(meta, indent=2))
+
     # --- Direct JSON patching for label stores (iohub doesn't expose these) ---
     _patch_label_versions(store_path)
+    _patch_label_axis_units(store_path)
     _patch_label_scales(store_path, pixel_map)
 
     if modality_config:

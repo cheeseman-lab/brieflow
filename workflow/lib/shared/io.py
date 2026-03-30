@@ -295,11 +295,20 @@ def _axes_str_to_dicts(axes: str) -> List[Dict[str, str]]:
     Passing a list of dicts with explicit ``type`` values lets us store
     uppercase names while still satisfying the validator.
     """
+    # Units for axes that have a physical dimension.
+    _AXIS_UNITS: Dict[str, str] = {
+        "T": "second",
+        "Z": "micrometer",
+        "Y": "micrometer",
+        "X": "micrometer",
+    }
     result = []
     for ch in axes.upper():
         d: Dict[str, str] = {"name": ch}
         if ch in _AXIS_TYPES:
             d["type"] = _AXIS_TYPES[ch]
+        if ch in _AXIS_UNITS:
+            d["unit"] = _AXIS_UNITS[ch]
         result.append(d)
     return result
 

@@ -269,7 +269,7 @@ def write_image_omezarr(
     # Record downsamplingMethod on multiscales (OPS schema RECOMMENDED).
     ms = ome_attrs.get("multiscales", [])
     if ms:
-        ms[0]["downsamplingMethod"] = "nearest"
+        ms[0]["downsamplingMethod"] = "nearest" if is_label else "gaussian"
 
     root.attrs["ome"] = ome_attrs
 

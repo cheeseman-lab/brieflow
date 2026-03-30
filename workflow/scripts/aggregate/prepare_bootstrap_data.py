@@ -15,7 +15,7 @@ from lib.aggregate.bootstrap import write_construct_data
 
 # Get parameters
 perturbation_col = snakemake.params.perturbation_name_col
-perturbation_id_col = snakemake.params.perturbation_id_col
+perturbation_id_col = snakemake.params.perturbation_id_col or perturbation_col
 control_key = snakemake.params.control_key
 exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp

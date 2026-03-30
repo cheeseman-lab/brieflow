@@ -157,8 +157,12 @@ def tvn_on_controls(
     Returns:
         np.ndarray: The normalized embeddings.
     """
-    embeddings = centerscale_on_controls(embeddings, metadata, pert_col, control_key)
     ctrl_ind = metadata[pert_col].str.startswith(control_key).to_list()
+    n_controls = sum(ctrl_ind)
+    if n_controls == 0:
+        print("Warning: no control cells found, skipping TVN normalization")
+        return embeddings
+    embeddings = centerscale_on_controls(embeddings, metadata, pert_col, control_key)
     embeddings = PCA().fit(embeddings[ctrl_ind]).transform(embeddings)
     embeddings = centerscale_on_controls(
         embeddings, metadata, pert_col, control_key, batch_col

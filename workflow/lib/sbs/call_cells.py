@@ -512,10 +512,16 @@ def _call_cells_mapping(
     if enable_recomb and recomb_col is not None:
         # Create mapping of expected recombination values
         recomb_map = df_barcode_library.set_index(library_key)[recomb_col].to_dict()
-        # Flag sequences where actual matches expected
-        df_mapped["no_recomb"] = (df_mapped[barcode_column].map(recomb_map)) == (
-            df_mapped[recomb_col]
+        # Look up expected recomb value for each barcode
+        expected_recomb = df_mapped[barcode_column].map(recomb_map)
+        actual_recomb = df_mapped[recomb_col]
+        # Compare only where both values are non-null; NaN where lookup failed
+        both_valid = expected_recomb.notna() & actual_recomb.notna()
+        no_recomb = pd.array([np.nan] * len(df_mapped), dtype="boolean")
+        no_recomb[both_valid] = (
+            expected_recomb[both_valid].values == actual_recomb[both_valid].values
         )
+        df_mapped["no_recomb"] = no_recomb
         # Unmapped cells have undetermined recombination status
         df_mapped.loc[~df_mapped.mapped, "no_recomb"] = np.nan
         # Drop the recomb barcode column (we only need the boolean)
@@ -708,10 +714,13 @@ def _call_cells_mapping(
         df_cells[BARCODE_COUNT] = np.nan
 
     # Clean up temporary columns and filter to cells only
+    # Sort before dedup so Q columns come from the read matching cell_barcode_0
+    df_cells["_barcode_match"] = df_cells[barcode_column] == df_cells[BARCODE_0]
     df_cells = (
-        df_cells.drop_duplicates(cols)  # Keep one row per cell
+        df_cells.sort_values(["_barcode_match", "Q_min"], ascending=[False, False])
+        .drop_duplicates(cols)  # Keep one row per cell (now the winning read)
         .drop(
-            [READ, BARCODE, barcode_column], axis=1, errors="ignore"
+            ["_barcode_match", READ, BARCODE, barcode_column], axis=1, errors="ignore"
         )  # Remove read-level columns
         .drop(
             [POSITION_I, POSITION_J], axis=1, errors="ignore"

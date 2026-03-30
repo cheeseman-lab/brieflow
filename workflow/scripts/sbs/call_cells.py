@@ -5,7 +5,7 @@ Supports both single-barcode and multi-barcode protocols.
 
 import pandas as pd
 
-from lib.sbs.call_cells import call_cells, prep_multi_reads
+from lib.sbs.call_cells import call_cells
 
 # Get configuration from params
 params = snakemake.params.config
@@ -20,19 +20,9 @@ df_barcode_library = pd.read_csv(params["df_barcode_library_fp"], sep="\t")
 barcode_type = params.get("barcode_type", "simple")
 
 if barcode_type == "multi":
-    # Multi-barcode mode: prep reads first, then call cells
-    df_reads = prep_multi_reads(
-        reads_data,
-        map_start=params["map_start"],
-        map_end=params["map_end"],
-        recomb_start=params["recomb_start"],
-        recomb_end=params["recomb_end"],
-        map_col=params["map_col"],
-        recomb_col=params["recomb_col"],
-    )
-
+    # Multi-barcode mode: call_cells handles prep_multi_reads internally
     cells_data = call_cells(
-        reads_data=df_reads,
+        reads_data=reads_data,
         df_barcode_library=df_barcode_library,
         q_min=params["q_min"],
         map_start=params["map_start"],

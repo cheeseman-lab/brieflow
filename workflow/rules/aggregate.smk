@@ -37,7 +37,7 @@ rule filter:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         filter_queries=lambda wildcards: (
-            config["aggregate"]["filter_queries"]
+            (config["aggregate"]["filter_queries"] or [])
             + config["aggregate"]
             .get("filter_queries_by_class", {})
             .get(wildcards.cell_class, [])

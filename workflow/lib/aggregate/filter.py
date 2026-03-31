@@ -144,6 +144,11 @@ def missing_values_filter(
                 f"Imputing {len(remaining_cols_with_na)} columns with remaining missing values using batched KNN"
             )
 
+            # Cast integer columns to float64 before imputation (KNNImputer returns float64)
+            for col in remaining_cols_with_na:
+                if pd.api.types.is_integer_dtype(features[col]):
+                    features[col] = features[col].astype("float64")
+
             # Identify rows with any NAs in the remaining columns
             has_na_mask = features[remaining_cols_with_na].isna().any(axis=1)
             na_rows_idx = features.index[has_na_mask]
@@ -208,6 +213,10 @@ def intensity_filter(
 
     if contamination == 0:
         print("Contamination is 0, skipping intensity filtering")
+        return metadata, features
+
+    if len(metadata) == 0:
+        print("No cells to filter, skipping intensity filtering")
         return metadata, features
 
     # Identify feature cols

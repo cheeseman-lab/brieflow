@@ -2,6 +2,7 @@ import random
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pyarrow.parquet as pq
 import pyarrow.dataset as ds
 
 plt.rcParams.update(
@@ -18,10 +19,26 @@ from lib.aggregate.eval_aggregate import (
 
 SUBSET_SIZE = 100000
 
-# Get merge dataset
-merge_data = ds.dataset(snakemake.input.split_datasets_paths, format="parquet")
-# Choose random row indices
+# Get merge dataset — filter out empty parquets to avoid schema conflicts
+non_empty_split = [
+    p for p in snakemake.input.split_datasets_paths if pq.read_metadata(p).num_rows > 0
+]
+
+if len(non_empty_split) == 0:
+    print("WARNING: No cells in input, writing empty eval outputs")
+    import pandas as pd
+
+    pd.DataFrame().to_csv(snakemake.output[0], sep="\t", index=False)
+    fig, ax = plt.subplots()
+    ax.text(0.5, 0.5, "No data", ha="center", va="center")
+    fig.savefig(snakemake.output[1], dpi=300, bbox_inches="tight")
+    fig.savefig(snakemake.output[2], dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    exit(0)
+
+merge_data = ds.dataset(non_empty_split, format="parquet")
 total_rows = merge_data.count_rows()
+# Choose random row indices
 n_sample = min(SUBSET_SIZE, total_rows)
 random_indices = np.random.choice(total_rows, size=n_sample, replace=False)
 random_indices.sort()

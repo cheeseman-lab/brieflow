@@ -10,7 +10,12 @@ from lib.aggregate.montage_utils import create_cell_montage
 montage_data = pd.read_csv(snakemake.input[0], sep="\t")
 
 # create cell montage
-montage = create_cell_montage(montage_data, snakemake.params.channels)
+montage = create_cell_montage(
+    montage_data,
+    snakemake.params.channels,
+    cell_size=snakemake.params.get("montage_cell_size", 40),
+    shape=tuple(snakemake.params.get("montage_shape", (3, 10))),
+)
 
 # save montages
 overlay = []

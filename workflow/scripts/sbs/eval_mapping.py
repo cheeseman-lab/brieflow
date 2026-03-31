@@ -39,6 +39,11 @@ sbs_info = pd.concat(
     [pd.read_parquet(p) for p in snakemake.input.sbs_info_paths], ignore_index=True
 )
 
+# Load metadata for spatial heatmap plotting
+metadata = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.metadata_paths], ignore_index=True
+).drop_duplicates(subset=["well", "tile"])
+
 _, fig = plot_mapping_vs_threshold(reads, barcodes, "peak", num_thresholds=10)
 fig.savefig(snakemake.output[0], dpi=300, bbox_inches="tight", transparent=True)
 
@@ -48,8 +53,7 @@ fig.savefig(snakemake.output[1], dpi=300, bbox_inches="tight", transparent=True)
 fig = plot_read_mapping_heatmap(
     reads,
     barcodes,
-    plate=snakemake.params.heatmap_plate,
-    shape=snakemake.params.heatmap_shape,
+    metadata=metadata,
 )
 fig.savefig(snakemake.output[2], dpi=300, bbox_inches="tight", transparent=True)
 
@@ -59,8 +63,7 @@ df_summary_one, fig = plot_cell_mapping_heatmap(
     barcodes,
     mapping_to="one",
     mapping_strategy="gene symbols",
-    shape=snakemake.params.heatmap_shape,
-    plate=snakemake.params.heatmap_plate,
+    metadata=metadata,
     return_summary=True,
 )
 df_summary_one.to_csv(snakemake.output[3], index=False, sep="\t")
@@ -72,8 +75,7 @@ df_summary_any, fig = plot_cell_mapping_heatmap(
     barcodes,
     mapping_to="any",
     mapping_strategy="gene symbols",
-    shape=snakemake.params.heatmap_shape,
-    plate=snakemake.params.heatmap_plate,
+    metadata=metadata,
     return_summary=True,
 )
 df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")

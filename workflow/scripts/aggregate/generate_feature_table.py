@@ -20,15 +20,19 @@ num_batches = snakemake.params.get("num_align_batches", 1)
 
 # Load cell data using PyArrow dataset (lazy - no data loaded yet)
 print("Loading cell data as PyArrow dataset...")
-cell_dataset = ds.dataset(snakemake.input.filtered_paths, format="parquet")
+# Filter out empty parquet files to avoid schema conflicts
+non_empty_paths = [
+    p for p in snakemake.input.filtered_paths if pq.read_metadata(p).num_rows > 0
+]
 
-# Handle empty input gracefully
-if cell_dataset.count_rows() == 0:
+if len(non_empty_paths) == 0:
     print("WARNING: No cells in input, writing empty outputs")
     pd.DataFrame().to_parquet(snakemake.output[0], index=False)
     pd.DataFrame().to_csv(snakemake.output[1], sep="\t", index=False)
     pd.DataFrame().to_csv(snakemake.output[2], sep="\t", index=False)
     exit(0)
+
+cell_dataset = ds.dataset(non_empty_paths, format="parquet")
 
 # Determine columns
 cell_data_cols = cell_dataset.schema.names

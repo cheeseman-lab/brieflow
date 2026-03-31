@@ -132,6 +132,7 @@ for i, indices in enumerate(subset_indices):
         snakemake.params.perturbation_name_col,
         snakemake.params.control_key,
         "batch_values",
+        control_col=snakemake.params.get("control_name_col"),
     )
 
     feature_columns = [f"PC_{j}" for j in range(features.shape[1])]

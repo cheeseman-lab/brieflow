@@ -24,7 +24,6 @@ preprocess:
   sbs_combo_fp: config/sbs_combo.tsv
   sbs_samples_fp: config/sbs_samples.tsv
 sbs:
-  heatmap_shape: square
   alignment_method: null
   channel_names:
   - DAPI
@@ -75,9 +74,7 @@ sbs:
   cell_flow_threshold: 1
   cell_cellprob_threshold: 0
   cyto_model: cyto3
-  heatmap_plate: 6W
 phenotype:
-  heatmap_shape: square
   align: false
   segment_cells: true
   cell_diameter: 53.075815293046055
@@ -98,7 +95,6 @@ phenotype:
   mode: null
   nuclei_diameter: 41.97813156768016
   reconcile: contained_in_cells
-  heatmap_plate: 6W
 merge:
   approach: fast
   merge_combo_fp: config/merge_combo.tsv

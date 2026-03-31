@@ -15,8 +15,7 @@ def plot_sbs_ph_matching_heatmap(
     df_merge,
     df_info,
     target="sbs",
-    shape="square",
-    plate="6W",
+    metadata=None,
     return_plot=True,
     return_summary=False,
     **kwargs,
@@ -30,6 +29,7 @@ def plot_sbs_ph_matching_heatmap(
         df_info: DataFrame of all cells segmented from either phenotype or SBS images, e.g., concatenated outputs for all tiles
             and wells of extract_phenotype_minimal(data_phenotype=nulcei, nuclei=nuclei), often used as `sbs_cell_info`
             rule in Snakemake.
+        metadata: Optional metadata DataFrame with x_pos/y_pos for spatial plotting.
         target: Which dataset to use as the target, e.g., if target='sbs', plots the fraction of cells in each SBS tile
             that match to a phenotype cell. Should match the information stored in df_info; if df_info is a table of all
             segmented cells from SBS tiles, then target should be set as 'sbs'.
@@ -83,11 +83,11 @@ def plot_sbs_ph_matching_heatmap(
 
     if return_summary and return_plot:
         # Plot heatmap
-        axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        axes = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
         return df_summary, axes[0]
     elif return_plot:
         # Plot heatmap
-        axes = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        axes = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
         return axes[0]
     elif return_summary:
         return df_summary

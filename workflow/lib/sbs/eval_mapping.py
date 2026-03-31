@@ -181,8 +181,7 @@ def plot_mapping_vs_threshold(
 def plot_read_mapping_heatmap(
     df_reads,
     barcodes,
-    shape="square",
-    plate="6W",
+    metadata=None,
     return_plot=True,
     return_summary=False,
     **kwargs,
@@ -191,16 +190,13 @@ def plot_read_mapping_heatmap(
 
     Args:
         df_reads (pandas.DataFrame):
-            DataFrame of all reads output from sbs mapping pipeline, e.g., concatenated outputs for all tiles
-            and wells of call_reads.
+            DataFrame of all reads output from sbs mapping pipeline.
         barcodes (list or set of str):
             Expected barcodes from the pool library design.
-        shape (str, optional):
-            Shape of subplot for each well used in plot_plate_heatmap. Defaults to 'square'.
-        plate (str):
-            Plate type for plot_plate_heatmap. Options are {'6W', '24W', '96W'}.
+        metadata (pandas.DataFrame, optional):
+            Metadata with x_pos/y_pos for spatial plotting. Defaults to None.
         return_plot (bool, optional):
-            If true, returns df_summary. Defaults to True.
+            If true, returns figure. Defaults to True.
         return_summary (bool, optional):
             If true, returns df_summary. Defaults to False.
         **kwargs:
@@ -225,12 +221,10 @@ def plot_read_mapping_heatmap(
     )
 
     if return_summary and return_plot:
-        # Plot heatmap
-        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        fig, _ = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
         return df_summary, fig
     elif return_plot:
-        # Plot heatmap
-        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        fig, _ = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
         return fig
     elif return_summary:
         return df_summary
@@ -244,8 +238,7 @@ def plot_cell_mapping_heatmap(
     barcodes,
     mapping_to="one",
     mapping_strategy="barcodes",
-    shape="square",
-    plate="6W",
+    metadata=None,
     return_plot=True,
     return_summary=False,
     **kwargs,
@@ -254,24 +247,17 @@ def plot_cell_mapping_heatmap(
 
     Args:
         df_cells (pandas.DataFrame):
-            DataFrame of all cells output from sbs mapping pipeline, e.g., concatenated outputs for all tiles and wells
-            of call_cells.
+            DataFrame of all cells output from sbs mapping pipeline.
         df_sbs_info (pandas.DataFrame):
-            DataFrame of all cells segmented from sbs images, e.g., concatenated outputs for all tiles and wells of
-            extract_phenotype_minimal(data_phenotype=nuclei, nuclei=nuclei), often used as sbs_cell_info rule in
-            Snakemake.
+            DataFrame of all cells segmented from sbs images.
         barcodes (list or set of str):
             Expected barcodes from the pool library design.
         mapping_to (str):
-            Cells to include as 'mapped'. 'one' only includes cells mapping to a single barcode, 'any' includes cells
-            mapping to at least 1 barcode. Options are {'one', 'any'}.
+            Cells to include as 'mapped'. Options are {'one', 'any'}.
         mapping_strategy (str): Strategy to use for mapping cells. Options are {'barcodes', 'gene symbols'}.
-        shape (str, optional):
-            Shape of subplot for each well used in plot_plate_heatmap. Defaults to 'square'.
-        plate (str):
-            Plate type for plot_plate_heatmap. Options are {'6W', '24W', '96W'}.
+        metadata (pandas.DataFrame, optional): Metadata with x_pos/y_pos for spatial plotting.
         return_plot (bool, optional):
-            If true, returns df_summary. Defaults to True.
+            If true, returns figure. Defaults to True.
         return_summary (bool, optional):
             If true, returns df_summary. Defaults to False.
         **kwargs:
@@ -324,11 +310,10 @@ def plot_cell_mapping_heatmap(
 
     if return_summary and return_plot:
         # Plot heatmap
-        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        fig, _ = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
         return df_summary, fig
     elif return_plot:
-        # Plot heatmap
-        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        fig, _ = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
         return fig
     elif return_summary:
         return df_summary

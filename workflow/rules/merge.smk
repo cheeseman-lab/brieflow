@@ -3,13 +3,36 @@ from lib.shared.target_utils import output_to_input
 # Get merge approach to determine which rules to include
 merge_approach = config.get("merge", {}).get("approach", "fast")
 
+_merge_well_expand = ["row", "col"] if IMG_FMT == "zarr" else []
+_merge_well_expand_all = ["row", "col"] if IMG_FMT == "zarr" else ["well"]
+
 if merge_approach == "fast":
     rule fast_alignment:
         input:
-            ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
-            ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
-            ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
-            ancient(SBS_OUTPUTS["combine_sbs_info"]),
+            ancient(lambda wildcards: output_to_input(
+                PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+            ancient(lambda wildcards: output_to_input(
+                PREPROCESS_OUTPUTS["combine_metadata_sbs"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+            ancient(lambda wildcards: output_to_input(
+                PHENOTYPE_OUTPUTS["combine_phenotype_info"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+            ancient(lambda wildcards: output_to_input(
+                SBS_OUTPUTS["combine_sbs_info"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
         output:
             MERGE_OUTPUTS_MAPPED["fast_alignment"][0],
         params:
@@ -30,8 +53,18 @@ if merge_approach == "fast":
 
     rule fast_merge:
         input:
-            ancient(PHENOTYPE_OUTPUTS["combine_phenotype_info"]),
-            ancient(SBS_OUTPUTS["combine_sbs_info"]),
+            ancient(lambda wildcards: output_to_input(
+                PHENOTYPE_OUTPUTS["combine_phenotype_info"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+            ancient(lambda wildcards: output_to_input(
+                SBS_OUTPUTS["combine_sbs_info"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
             MERGE_OUTPUTS["fast_alignment"][0],
         output:
             MERGE_OUTPUTS_MAPPED["fast_merge"][0],
@@ -230,8 +263,18 @@ rule format_merge:
             if config.get("merge", {}).get("approach", "fast") == "stitch" 
             else MERGE_OUTPUTS["fast_merge"][0]
         ),
-        ancient(SBS_OUTPUTS["combine_cells"]),
-        ancient(PHENOTYPE_OUTPUTS["merge_phenotype"][1]),
+        ancient(lambda wildcards: output_to_input(
+            SBS_OUTPUTS["combine_cells"],
+            wildcards={"plate": wildcards.plate, "well": wildcards.well},
+            expansion_values=_merge_well_expand,
+            metadata_combos=merge_wildcard_combos,
+        )),
+        ancient(lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["merge_phenotype"][1],
+            wildcards={"plate": wildcards.plate, "well": wildcards.well},
+            expansion_values=_merge_well_expand,
+            metadata_combos=merge_wildcard_combos,
+        )),
     output:
         MERGE_OUTPUTS_MAPPED["format_merge"][0],
     params:
@@ -245,8 +288,18 @@ rule format_merge:
 rule deduplicate_merge:
     input:
         MERGE_OUTPUTS["format_merge"][0],
-        ancient(SBS_OUTPUTS["combine_cells"]),
-        ancient(PHENOTYPE_OUTPUTS["merge_phenotype"][1]),
+        ancient(lambda wildcards: output_to_input(
+            SBS_OUTPUTS["combine_cells"],
+            wildcards={"plate": wildcards.plate, "well": wildcards.well},
+            expansion_values=_merge_well_expand,
+            metadata_combos=merge_wildcard_combos,
+        )),
+        ancient(lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["merge_phenotype"][1],
+            wildcards={"plate": wildcards.plate, "well": wildcards.well},
+            expansion_values=_merge_well_expand,
+            metadata_combos=merge_wildcard_combos,
+        )),
     output:
         deduplication_stats=MERGE_OUTPUTS_MAPPED["deduplicate_merge"][0],
         deduplicated_data=MERGE_OUTPUTS_MAPPED["deduplicate_merge"][1],
@@ -263,7 +316,12 @@ rule deduplicate_merge:
 rule final_merge:
     input:
         MERGE_OUTPUTS["deduplicate_merge"][1],
-        ancient(PHENOTYPE_OUTPUTS["merge_phenotype"][0]),
+        ancient(lambda wildcards: output_to_input(
+            PHENOTYPE_OUTPUTS["merge_phenotype"][0],
+            wildcards={"plate": wildcards.plate, "well": wildcards.well},
+            expansion_values=_merge_well_expand,
+            metadata_combos=merge_wildcard_combos,
+        )),
     output:
         MERGE_OUTPUTS_MAPPED["final_merge"][0],
     params:
@@ -283,14 +341,14 @@ rule eval_merge:
         combine_cells_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_merge_well_expand_all,
             metadata_combos=sbs_wildcard_combos,
             ancient_output=True,
         ),
         min_phenotype_cp_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["merge_phenotype"][1],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_merge_well_expand_all,
             metadata_combos=phenotype_wildcard_combos,
             ancient_output=True,
         ),
@@ -309,14 +367,14 @@ rule eval_merge:
         sbs_info_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_sbs_info"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_merge_well_expand_all,
             metadata_combos=sbs_wildcard_combos,
             ancient_output=True,
         ),
         phenotype_info_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["combine_phenotype_info"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_merge_well_expand_all,
             metadata_combos=phenotype_wildcard_combos,
             ancient_output=True,
         ),

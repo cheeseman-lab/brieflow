@@ -7,6 +7,13 @@ from lib.aggregate.aggregate import aggregate
 # Load cell data using PyArrow dataset
 print("Loading cell data")
 cell_data = ds.dataset(snakemake.input[0], format="parquet")
+
+# Handle empty input gracefully
+if cell_data.count_rows() == 0:
+    print("WARNING: No cells in input, writing empty output")
+    pd.DataFrame().to_csv(snakemake.output[0], sep="\t", index=False)
+    exit(0)
+
 cell_data = cell_data.to_table(use_threads=True, memory_pool=None).to_pandas()
 print(f"Shape of input data: {cell_data.shape}")
 

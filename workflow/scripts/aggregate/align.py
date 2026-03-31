@@ -36,6 +36,14 @@ print(f"Number of rows across all parquet files: {cell_dataset.count_rows()}")
 # Count total rows across all Parquet files
 total_rows = cell_dataset.count_rows()
 
+# Handle empty input gracefully
+if total_rows == 0:
+    print("WARNING: No cells in input, writing empty output")
+    import pyarrow.parquet as pq_empty
+
+    pq_empty.write_table(pa.table({}), snakemake.output[0])
+    exit(0)
+
 # Choose random row indices
 n_sample = min(PCA_SUBSET, total_rows)
 random_indices = np.random.choice(total_rows, size=n_sample, replace=False)

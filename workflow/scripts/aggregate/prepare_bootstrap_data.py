@@ -25,6 +25,17 @@ print("Loading single-cell features data...")
 all_features_cells = pd.read_parquet(snakemake.input.features_singlecell)
 print(f"Features data shape: {all_features_cells.shape}")
 
+# Handle empty input gracefully
+if len(all_features_cells) == 0:
+    print("WARNING: No cells in input, writing empty bootstrap outputs")
+    pd.DataFrame().to_csv(snakemake.output.controls_arr, sep="\t", index=False)
+    pd.DataFrame().to_csv(
+        snakemake.output.construct_features_arr, sep="\t", index=False
+    )
+    pd.DataFrame().to_csv(snakemake.output.sample_sizes, sep="\t", index=False)
+    Path(snakemake.output[0]).mkdir(parents=True, exist_ok=True)
+    exit(0)
+
 print("Loading construct and gene tables...")
 construct_table = pd.read_csv(snakemake.input.construct_table, sep="\t")
 gene_table = pd.read_csv(snakemake.input.gene_table, sep="\t")

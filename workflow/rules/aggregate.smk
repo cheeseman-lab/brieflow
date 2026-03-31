@@ -191,6 +191,8 @@ rule generate_montage:
         ],
     params:
         channels=config["phenotype"]["channel_names"],
+        montage_cell_size=config["aggregate"].get("montage_cell_size", 40),
+        montage_shape=config["aggregate"].get("montage_shape", [3, 10]),
     script:
         "../scripts/aggregate/generate_montage.py"
 

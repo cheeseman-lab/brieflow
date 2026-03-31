@@ -33,30 +33,21 @@ def plot_sbs_ph_matching_heatmap(
         target: Which dataset to use as the target, e.g., if target='sbs', plots the fraction of cells in each SBS tile
             that match to a phenotype cell. Should match the information stored in df_info; if df_info is a table of all
             segmented cells from SBS tiles, then target should be set as 'sbs'.
-        shape: Shape of subplot for each well used in `plot_plate_heatmap`. Defaults to 'square' and infers shape based on
-            the value of `target`.
-        plate: Plate type for `plot_plate_heatmap`, options are {'6W', '24W', '96W'}.
-        return_plot: If True, returns `df_summary`.
+        return_plot: If True, returns figure.
         return_summary: If True, returns `df_summary`.
         **kwargs: Additional keyword arguments passed to `plot_plate_heatmap()`.
 
     Returns:
         df_summary: DataFrame used for plotting, returned if `return_summary=True`.
-        axes: Numpy array of matplotlib Axes objects.
+        matplotlib.figure.Figure: The figure object.
     """
     # Determine the merge columns and source based on the target
     if target == "sbs":
         merge_cols = ["site", "cell_1"]
         source = "phenotype"
-        # Determine the default shape if not provided
-        if not shape:
-            shape = "6W_sbs"
     elif target == "phenotype":
         merge_cols = ["tile", "cell_0"]
         source = "sbs"
-        # Determine the default shape if not provided
-        if not shape:
-            shape = "6W_ph"
     else:
         raise ValueError("target = {} not implemented".format(target))
 

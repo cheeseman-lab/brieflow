@@ -31,6 +31,7 @@ def standardize_barcode_design(
     nontargeting_format: str = "nontargeting_{prefix}",
     nontargeting_pattern_map: Optional[dict] = None,
     uniprot_data_path: str = None,
+    ensembl_mapping_path: Optional[str] = None,
     verbose: bool = True,
 ) -> pd.DataFrame:
     """Standardize a barcode design table for use with SBS analysis.
@@ -79,6 +80,9 @@ def standardize_barcode_design(
             }
             If None, uses default nontargeting_format for all patterns
         uniprot_data_path (str): Path to UniProt annotation file (REQUIRED for gene validation)
+        ensembl_mapping_path (str, optional): Path to TSV file mapping Entrez IDs to Ensembl IDs
+            (columns: entrez_id, ensembl_gene_id). If provided, adds ensembl_gene_id column.
+            If None and gene_id_col is set, uses Ensembl REST API for lookup.
         verbose (bool): Whether to print processing information (default: True)
 
     Returns:
@@ -294,6 +298,15 @@ def standardize_barcode_design(
                 f"Consider reviewing gene symbols or removing these entries."
             )
 
+    # Add Ensembl gene IDs if gene_id column exists
+    if "gene_id" in df.columns and ensembl_mapping_path is not None:
+        df = add_ensembl_ids(
+            df,
+            entrez_col="gene_id",
+            ensembl_mapping_path=ensembl_mapping_path,
+            verbose=verbose,
+        )
+
     # Organize columns based on mode
     if "prefix_recomb" in df.columns:
         # Multi mode: keep prefix_map and prefix_recomb
@@ -304,6 +317,10 @@ def standardize_barcode_design(
 
     if "gene_id" in df.columns:
         required_cols.insert(2, "gene_id")
+
+    if "ensembl_gene_id" in df.columns:
+        idx = required_cols.index("gene_id") + 1 if "gene_id" in required_cols else 2
+        required_cols.insert(idx, "ensembl_gene_id")
 
     if keep_extra_cols:
         # Keep additional columns that might be useful
@@ -459,6 +476,106 @@ def load_and_process_uniprot_data(
         raise ValueError(
             f"Error processing UniProt data from {uniprot_data_path}: {str(e)}"
         )
+
+
+def add_ensembl_ids(
+    df: pd.DataFrame,
+    entrez_col: str = "gene_id",
+    ensembl_mapping_path: Optional[str] = None,
+    organism: str = "human",
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Add Ensembl gene IDs by mapping from Entrez gene IDs.
+
+    Uses a TSV mapping file with columns 'entrez_id' and 'ensembl_gene_id'.
+    If no mapping file is provided, attempts to fetch from Ensembl BioMart.
+
+    Args:
+        df: DataFrame with an Entrez gene ID column.
+        entrez_col: Name of the column containing Entrez gene IDs.
+        ensembl_mapping_path: Path to a TSV file with 'entrez_id' and
+            'ensembl_gene_id' columns. If None, uses Ensembl REST API.
+        organism: Organism name for API queries (default: "human").
+        verbose: Whether to print progress information.
+
+    Returns:
+        DataFrame with an added 'ensembl_gene_id' column.
+    """
+    if entrez_col not in df.columns:
+        if verbose:
+            print(f"Column '{entrez_col}' not found. Skipping Ensembl ID mapping.")
+        return df
+
+    result = df.copy()
+    entrez_ids = result[entrez_col].dropna().unique()
+
+    if ensembl_mapping_path is not None:
+        # Use static mapping file
+        mapping_df = pd.read_csv(ensembl_mapping_path, sep="\t", dtype=str)
+        if (
+            "entrez_id" not in mapping_df.columns
+            or "ensembl_gene_id" not in mapping_df.columns
+        ):
+            raise ValueError(
+                f"Mapping file must have 'entrez_id' and 'ensembl_gene_id' columns. "
+                f"Got: {list(mapping_df.columns)}"
+            )
+        entrez_to_ensembl = dict(
+            zip(mapping_df["entrez_id"], mapping_df["ensembl_gene_id"])
+        )
+    else:
+        # Fetch from Ensembl REST API in batches
+        import json
+        import urllib.request
+
+        if verbose:
+            print(
+                f"Fetching Ensembl IDs for {len(entrez_ids)} Entrez IDs via REST API..."
+            )
+
+        entrez_to_ensembl = {}
+        # Filter to numeric IDs only (skip nontargeting labels)
+        numeric_ids = [str(eid) for eid in entrez_ids if str(eid).isdigit()]
+
+        for i in range(0, len(numeric_ids), 200):
+            batch = numeric_ids[i : i + 200]
+            url = "https://rest.ensembl.org/lookup/id"
+            # Use xrefs to go from Entrez → Ensembl
+            for eid in batch:
+                try:
+                    xref_url = (
+                        f"https://rest.ensembl.org/xrefs/name/{organism}/{eid}"
+                        f"?external_db=EntrezGene&content-type=application/json"
+                    )
+                    req = urllib.request.Request(xref_url)
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        data = json.loads(resp.read())
+                    for entry in data:
+                        if entry.get("type") == "gene":
+                            entrez_to_ensembl[str(eid)] = entry["id"]
+                            break
+                except Exception:
+                    pass
+
+    # Map Entrez → Ensembl
+    result["ensembl_gene_id"] = result[entrez_col].astype(str).map(entrez_to_ensembl)
+
+    # Non-targeting controls get "non-targeting"
+    nontargeting_mask = result["gene_symbol"].str.startswith("nontargeting_", na=False)
+    result.loc[nontargeting_mask, "ensembl_gene_id"] = "non-targeting"
+
+    if verbose:
+        mapped = result["ensembl_gene_id"].notna().sum()
+        total = len(result)
+        print(f"Ensembl ID mapping: {mapped}/{total} entries mapped")
+        unmapped = result[result["ensembl_gene_id"].isna() & ~nontargeting_mask]
+        if len(unmapped) > 0:
+            print(
+                f"  {len(unmapped)} entries could not be mapped: "
+                f"{list(unmapped[entrez_col].unique()[:5])}"
+            )
+
+    return result
 
 
 def standardize_nontargeting_controls(

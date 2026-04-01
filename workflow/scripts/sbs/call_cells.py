@@ -20,7 +20,6 @@ df_barcode_library = pd.read_csv(params["df_barcode_library_fp"], sep="\t")
 barcode_type = params.get("barcode_type", "simple")
 
 if barcode_type == "multi":
-    # Multi-barcode mode: call_cells handles prep_multi_reads internally
     cells_data = call_cells(
         reads_data=reads_data,
         df_barcode_library=df_barcode_library,
@@ -36,10 +35,10 @@ if barcode_type == "multi":
         error_correct=params["error_correct"],
         sort_calls=params["sort_calls"],
         max_distance=params["max_distance"],
+        n_barcodes=params["n_barcodes"],
         barcode_info_cols=params["barcode_info_cols"],
     )
 else:
-    # Simple barcode mode: call cells directly
     cells_data = call_cells(
         reads_data=reads_data,
         df_barcode_library=df_barcode_library,
@@ -49,6 +48,7 @@ else:
         error_correct=params["error_correct"],
         sort_calls=params["sort_calls"],
         max_distance=params["max_distance"],
+        n_barcodes=params["n_barcodes"],
     )
 
 # Save cells data

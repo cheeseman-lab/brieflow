@@ -29,23 +29,27 @@ merge_formatted = merge_formatted.pipe(
 sbs_cells["mapped_single_gene"] = sbs_cells.apply(
     lambda x: identify_single_gene_mappings(x), axis=1
 )
-# Merge cell information from sbs
-merge_formatted = merge_formatted.merge(
-    sbs_cells[
-        [
-            "plate",
-            "well",
-            "tile",
-            "cell",
-            "cell_barcode_0",
-            "gene_symbol_0",
-            "cell_barcode_1",
-            "gene_symbol_1",
-            "no_recomb_0",
-            "no_recomb_1",
-            "mapped_single_gene",
+# Merge cell information from sbs — dynamically select per-barcode columns
+sbs_merge_cols = ["plate", "well", "tile", "cell", "mapped_single_gene"]
+for col in sbs_cells.columns:
+    if any(
+        col.startswith(prefix)
+        for prefix in [
+            "cell_barcode_",
+            "gene_symbol_",
+            "gene_id_",
+            "no_recomb_",
+            "Q_min_",
+            "Q_recomb_",
+            "barcode_peak_",
         ]
-    ].rename({"tile": "site", "cell": "cell_1"}, axis=1),
+    ):
+        sbs_merge_cols.append(col)
+# Only keep columns that exist
+sbs_merge_cols = [c for c in sbs_merge_cols if c in sbs_cells.columns]
+
+merge_formatted = merge_formatted.merge(
+    sbs_cells[sbs_merge_cols].rename({"tile": "site", "cell": "cell_1"}, axis=1),
     how="left",
     on=["plate", "well", "site", "cell_1"],
 )

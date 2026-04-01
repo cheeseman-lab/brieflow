@@ -526,12 +526,12 @@ def plot_barcode_prefix_matching(
     match_rates = []
     random_rates = []
     for i in range(1, barcode_length + 1):
-        # Get prefix matches
         read_prefixes = df_reads[barcode_col].str[:i]
         library_prefixes = set(library_barcodes.str[:i])
         match_rate = read_prefixes.isin(library_prefixes).mean()
         match_rates.append(round(match_rate, 4))
-        random_rates.append(1 / (4**i))
+        # Random expectation: fraction of possible prefixes covered by library
+        random_rates.append(len(library_prefixes) / (4**i))
 
     # Create summary DataFrame
     df_summary = pd.DataFrame(

@@ -5,9 +5,11 @@ into the format expected by the SBS pipeline. Includes gene validation and annot
 functions for quality control.
 """
 
-import pandas as pd
+import io
 import warnings
-from typing import Optional, List, Callable
+from typing import Callable, List, Optional
+
+import pandas as pd
 
 
 def standardize_barcode_design(
@@ -31,7 +33,7 @@ def standardize_barcode_design(
     nontargeting_format: str = "nontargeting_{prefix}",
     nontargeting_pattern_map: Optional[dict] = None,
     uniprot_data_path: str = None,
-    ensembl_mapping_path: Optional[str] = None,
+    gene_mapping_path: Optional[str] = None,
     verbose: bool = True,
 ) -> pd.DataFrame:
     """Standardize a barcode design table for use with SBS analysis.
@@ -80,9 +82,8 @@ def standardize_barcode_design(
             }
             If None, uses default nontargeting_format for all patterns
         uniprot_data_path (str): Path to UniProt annotation file (REQUIRED for gene validation)
-        ensembl_mapping_path (str, optional): Path to TSV file mapping Entrez IDs to Ensembl IDs
-            (columns: entrez_id, ensembl_gene_id). If provided, adds ensembl_gene_id column.
-            If None and gene_id_col is set, uses Ensembl REST API for lookup.
+        gene_mapping_path (str, optional): Path to TSV file with gene_symbol, entrez_id,
+            and ensembl_gene_id columns. If provided, fills in missing gene identifiers.
         verbose (bool): Whether to print processing information (default: True)
 
     Returns:
@@ -298,12 +299,11 @@ def standardize_barcode_design(
                 f"Consider reviewing gene symbols or removing these entries."
             )
 
-    # Add Ensembl gene IDs if gene_id column exists
-    if "gene_id" in df.columns and ensembl_mapping_path is not None:
-        df = add_ensembl_ids(
+    # Resolve gene identifiers (fill in missing Ensembl/Entrez IDs)
+    if gene_mapping_path is not None:
+        df = resolve_gene_ids(
             df,
-            entrez_col="gene_id",
-            ensembl_mapping_path=ensembl_mapping_path,
+            gene_mapping_path=gene_mapping_path,
             verbose=verbose,
         )
 
@@ -478,102 +478,180 @@ def load_and_process_uniprot_data(
         )
 
 
-def add_ensembl_ids(
-    df: pd.DataFrame,
-    entrez_col: str = "gene_id",
-    ensembl_mapping_path: Optional[str] = None,
-    organism: str = "human",
+def get_gene_mapping(
+    species: str = "hsapiens",
     verbose: bool = True,
 ) -> pd.DataFrame:
-    """Add Ensembl gene IDs by mapping from Entrez gene IDs.
+    """Download gene ID mapping table from Ensembl BioMart.
 
-    Uses a TSV mapping file with columns 'entrez_id' and 'ensembl_gene_id'.
-    If no mapping file is provided, attempts to fetch from Ensembl BioMart.
+    Fetches gene_symbol, entrez_id, and ensembl_gene_id for all protein-coding
+    genes of the specified species. Used by resolve_gene_ids() to fill in
+    missing identifiers in barcode libraries.
 
     Args:
-        df: DataFrame with an Entrez gene ID column.
-        entrez_col: Name of the column containing Entrez gene IDs.
-        ensembl_mapping_path: Path to a TSV file with 'entrez_id' and
-            'ensembl_gene_id' columns. If None, uses Ensembl REST API.
-        organism: Organism name for API queries (default: "human").
+        species: Ensembl species name (default: "hsapiens").
+            Common values: "hsapiens", "mmusculus", "drerio".
         verbose: Whether to print progress information.
 
     Returns:
-        DataFrame with an added 'ensembl_gene_id' column.
+        DataFrame with columns: gene_symbol, entrez_id, ensembl_gene_id.
     """
-    if entrez_col not in df.columns:
-        if verbose:
-            print(f"Column '{entrez_col}' not found. Skipping Ensembl ID mapping.")
-        return df
+    import urllib.request
 
-    result = df.copy()
-    entrez_ids = result[entrez_col].dropna().unique()
-
-    if ensembl_mapping_path is not None:
-        # Use static mapping file
-        mapping_df = pd.read_csv(ensembl_mapping_path, sep="\t", dtype=str)
-        if (
-            "entrez_id" not in mapping_df.columns
-            or "ensembl_gene_id" not in mapping_df.columns
-        ):
-            raise ValueError(
-                f"Mapping file must have 'entrez_id' and 'ensembl_gene_id' columns. "
-                f"Got: {list(mapping_df.columns)}"
-            )
-        entrez_to_ensembl = dict(
-            zip(mapping_df["entrez_id"], mapping_df["ensembl_gene_id"])
-        )
-    else:
-        # Fetch from Ensembl REST API in batches
-        import json
-        import urllib.request
-
-        if verbose:
-            print(
-                f"Fetching Ensembl IDs for {len(entrez_ids)} Entrez IDs via REST API..."
-            )
-
-        entrez_to_ensembl = {}
-        # Filter to numeric IDs only (skip nontargeting labels)
-        numeric_ids = [str(eid) for eid in entrez_ids if str(eid).isdigit()]
-
-        for i in range(0, len(numeric_ids), 200):
-            batch = numeric_ids[i : i + 200]
-            url = "https://rest.ensembl.org/lookup/id"
-            # Use xrefs to go from Entrez → Ensembl
-            for eid in batch:
-                try:
-                    xref_url = (
-                        f"https://rest.ensembl.org/xrefs/name/{organism}/{eid}"
-                        f"?external_db=EntrezGene&content-type=application/json"
-                    )
-                    req = urllib.request.Request(xref_url)
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        data = json.loads(resp.read())
-                    for entry in data:
-                        if entry.get("type") == "gene":
-                            entrez_to_ensembl[str(eid)] = entry["id"]
-                            break
-                except Exception:
-                    pass
-
-    # Map Entrez → Ensembl
-    result["ensembl_gene_id"] = result[entrez_col].astype(str).map(entrez_to_ensembl)
-
-    # Non-targeting controls get "non-targeting"
-    nontargeting_mask = result["gene_symbol"].str.startswith("nontargeting_", na=False)
-    result.loc[nontargeting_mask, "ensembl_gene_id"] = "non-targeting"
+    dataset = f"{species}_gene_ensembl"
+    url = (
+        f"https://www.ensembl.org/biomart/martservice?"
+        f'query=<?xml version="1.0" encoding="UTF-8"?>'
+        f"<!DOCTYPE Query>"
+        f'<Query virtualSchemaName="default" formatter="TSV" header="1" '
+        f'uniqueRows="1" count="" datasetConfigVersion="0.6">'
+        f'<Dataset name="{dataset}" interface="default">'
+        f'<Filter name="biotype" value="protein_coding"/>'
+        f'<Attribute name="hgnc_symbol"/>'
+        f'<Attribute name="entrezgene_id"/>'
+        f'<Attribute name="ensembl_gene_id"/>'
+        f"</Dataset></Query>"
+    )
 
     if verbose:
-        mapped = result["ensembl_gene_id"].notna().sum()
+        print(f"Fetching gene mapping from Ensembl BioMart ({species})...")
+
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = resp.read().decode("utf-8")
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to fetch gene mapping from Ensembl BioMart: {e}. "
+            f"You can provide a pre-downloaded TSV file instead."
+        )
+
+    df = pd.read_csv(io.StringIO(data), sep="\t", dtype=str)
+
+    # Rename columns to our standard names
+    col_map = {
+        "HGNC symbol": "gene_symbol",
+        "NCBI gene (formerly Entrezgene) ID": "entrez_id",
+        "Gene stable ID": "ensembl_gene_id",
+    }
+    df = df.rename(columns=col_map)
+
+    # If column names didn't match (BioMart header can vary), try positional
+    if "gene_symbol" not in df.columns:
+        df.columns = ["gene_symbol", "entrez_id", "ensembl_gene_id"]
+
+    # Drop rows with missing gene symbol or ensembl ID
+    df = df.dropna(subset=["gene_symbol", "ensembl_gene_id"])
+    df = df[df["gene_symbol"] != ""]
+
+    # Deduplicate: keep first mapping per gene_symbol
+    df = df.drop_duplicates(subset=["gene_symbol"], keep="first")
+
+    if verbose:
+        print(
+            f"Gene mapping: {len(df)} genes with Ensembl IDs, "
+            f"{df['entrez_id'].notna().sum()} with Entrez IDs"
+        )
+
+    return df
+
+
+def resolve_gene_ids(
+    df: pd.DataFrame,
+    gene_mapping_path: str,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Fill in missing gene identifiers from a reference mapping file.
+
+    The barcode library may arrive with any combination of gene_symbol,
+    gene_id (Entrez), and ensembl_gene_id. This function loads a reference
+    mapping and fills in whichever columns are missing.
+
+    The reference file must be a TSV with columns:
+        gene_symbol, entrez_id, ensembl_gene_id
+
+    Logic:
+        - If ensembl_gene_id is already present and starts with ENSG, keep it
+        - If gene_id (Entrez) is present, look up ensembl_gene_id
+        - If only gene_symbol is present, look up both IDs
+        - Non-targeting controls get "non-targeting" for all ID fields
+
+    Args:
+        df: DataFrame with at least a gene_symbol column.
+        gene_mapping_path: Path to a TSV with gene_symbol, entrez_id,
+            and ensembl_gene_id columns.
+        verbose: Whether to print progress information.
+
+    Returns:
+        DataFrame with ensembl_gene_id and gene_id columns added/filled.
+    """
+    result = df.copy()
+
+    # Load reference mapping
+    ref = pd.read_csv(gene_mapping_path, sep="\t", dtype=str)
+    required = {"gene_symbol", "entrez_id", "ensembl_gene_id"}
+    missing = required - set(ref.columns)
+    if missing:
+        raise ValueError(
+            f"Gene mapping file must have columns {sorted(required)}. "
+            f"Missing: {sorted(missing)}"
+        )
+
+    # Build lookup dicts
+    symbol_to_ensembl = dict(zip(ref["gene_symbol"], ref["ensembl_gene_id"]))
+    symbol_to_entrez = dict(zip(ref["gene_symbol"], ref["entrez_id"]))
+    entrez_to_ensembl = dict(zip(ref["entrez_id"], ref["ensembl_gene_id"]))
+
+    # Detect non-targeting controls
+    nontargeting_mask = result["gene_symbol"].str.contains(
+        "nontargeting|non-targeting|sg_nt", case=False, na=False
+    )
+
+    # --- Ensure ensembl_gene_id column exists ---
+    if "ensembl_gene_id" not in result.columns:
+        result["ensembl_gene_id"] = None
+
+    # --- Fill ensembl_gene_id from gene_id (Entrez) where missing ---
+    needs_ensembl = result["ensembl_gene_id"].isna() & ~nontargeting_mask
+    if "gene_id" in result.columns and needs_ensembl.any():
+        entrez_mapped = (
+            result.loc[needs_ensembl, "gene_id"].astype(str).map(entrez_to_ensembl)
+        )
+        result.loc[needs_ensembl, "ensembl_gene_id"] = entrez_mapped
+
+    # --- Fill ensembl_gene_id from gene_symbol where still missing ---
+    still_needs = result["ensembl_gene_id"].isna() & ~nontargeting_mask
+    if still_needs.any():
+        symbol_mapped = result.loc[still_needs, "gene_symbol"].map(symbol_to_ensembl)
+        result.loc[still_needs, "ensembl_gene_id"] = symbol_mapped
+
+    # --- Fill gene_id (Entrez) from gene_symbol where missing ---
+    if "gene_id" not in result.columns:
+        result["gene_id"] = None
+    needs_entrez = result["gene_id"].isna() & ~nontargeting_mask
+    if needs_entrez.any():
+        result.loc[needs_entrez, "gene_id"] = result.loc[
+            needs_entrez, "gene_symbol"
+        ].map(symbol_to_entrez)
+
+    # --- Non-targeting controls ---
+    result.loc[nontargeting_mask, "ensembl_gene_id"] = "non-targeting"
+    result.loc[nontargeting_mask, "gene_id"] = result.loc[
+        nontargeting_mask, "gene_id"
+    ].fillna("non-targeting")
+
+    if verbose:
         total = len(result)
-        print(f"Ensembl ID mapping: {mapped}/{total} entries mapped")
+        ensembl_mapped = result["ensembl_gene_id"].notna().sum()
+        entrez_mapped = result["gene_id"].notna().sum()
+        print(
+            f"Gene ID resolution: {ensembl_mapped}/{total} Ensembl, "
+            f"{entrez_mapped}/{total} Entrez"
+        )
         unmapped = result[result["ensembl_gene_id"].isna() & ~nontargeting_mask]
         if len(unmapped) > 0:
-            print(
-                f"  {len(unmapped)} entries could not be mapped: "
-                f"{list(unmapped[entrez_col].unique()[:5])}"
-            )
+            examples = list(unmapped["gene_symbol"].unique()[:5])
+            print(f"  {len(unmapped)} rows could not be mapped: {examples}")
 
     return result
 

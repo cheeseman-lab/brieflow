@@ -479,66 +479,91 @@ def load_and_process_uniprot_data(
 
 
 def get_gene_mapping(
+    gene_symbols: Optional[List[str]] = None,
     species: str = "hsapiens",
     verbose: bool = True,
 ) -> pd.DataFrame:
-    """Download gene ID mapping table from Ensembl BioMart.
+    """Fetch gene ID mapping (symbol ↔ Entrez ↔ Ensembl) via MyGene.info.
 
-    Fetches gene_symbol, entrez_id, and ensembl_gene_id for all protein-coding
-    genes of the specified species. Used by resolve_gene_ids() to fill in
+    When gene_symbols is provided, does a targeted lookup for just those genes
+    (fast, works for any library size). Used by resolve_gene_ids() to fill in
     missing identifiers in barcode libraries.
 
     Args:
-        species: Ensembl species name (default: "hsapiens").
+        gene_symbols: List of gene symbols to look up. If None, returns empty
+            DataFrame (use a pre-downloaded TSV file for full genome mapping).
+        species: Species shorthand (default: "hsapiens").
             Common values: "hsapiens", "mmusculus", "drerio".
         verbose: Whether to print progress information.
 
     Returns:
         DataFrame with columns: gene_symbol, entrez_id, ensembl_gene_id.
     """
-    import urllib.request
-
-    dataset = f"{species}_gene_ensembl"
-    url = (
-        f"https://www.ensembl.org/biomart/martservice?"
-        f'query=<?xml version="1.0" encoding="UTF-8"?>'
-        f"<!DOCTYPE Query>"
-        f'<Query virtualSchemaName="default" formatter="TSV" header="1" '
-        f'uniqueRows="1" count="" datasetConfigVersion="0.6">'
-        f'<Dataset name="{dataset}" interface="default">'
-        f'<Filter name="biotype" value="protein_coding"/>'
-        f'<Attribute name="hgnc_symbol"/>'
-        f'<Attribute name="entrezgene_id"/>'
-        f'<Attribute name="ensembl_gene_id"/>'
-        f"</Dataset></Query>"
-    )
-
-    if verbose:
-        print(f"Fetching gene mapping from Ensembl BioMart ({species})...")
-
     try:
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = resp.read().decode("utf-8")
-    except Exception as e:
-        raise RuntimeError(
-            f"Failed to fetch gene mapping from Ensembl BioMart: {e}. "
-            f"You can provide a pre-downloaded TSV file instead."
+        import mygene
+    except ImportError:
+        raise ImportError(
+            "mygene is required for gene ID mapping. Install with: "
+            "uv pip install mygene\n"
+            "Alternatively, provide a pre-downloaded TSV file with columns "
+            "gene_symbol, entrez_id, ensembl_gene_id."
         )
 
-    df = pd.read_csv(io.StringIO(data), sep="\t", dtype=str)
+    if verbose:
+        print(f"Fetching gene mapping via MyGene.info ({species})...")
 
-    # Rename columns to our standard names
-    col_map = {
-        "HGNC symbol": "gene_symbol",
-        "NCBI gene (formerly Entrezgene) ID": "entrez_id",
-        "Gene stable ID": "ensembl_gene_id",
-    }
-    df = df.rename(columns=col_map)
+    mg = mygene.MyGeneInfo()
+    query_species = {"hsapiens": "human", "mmusculus": "mouse", "drerio": "zebrafish"}
+    sp = query_species.get(species, species)
 
-    # If column names didn't match (BioMart header can vary), try positional
-    if "gene_symbol" not in df.columns:
-        df.columns = ["gene_symbol", "entrez_id", "ensembl_gene_id"]
+    # If gene_symbols provided, do a targeted lookup (fast)
+    # Otherwise return empty — caller should provide a file for full genome mapping
+    if gene_symbols is not None:
+        symbols = [
+            s for s in gene_symbols if s and not str(s).startswith("nontargeting")
+        ]
+        if not symbols:
+            return pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
+
+        results = mg.querymany(
+            symbols,
+            scopes="symbol",
+            fields="symbol,entrezgene,ensembl.gene",
+            species=sp,
+            as_dataframe=True,
+            returnall=True,
+        )
+        df_results = results["out"]
+
+        rows = []
+        for query, row in df_results.iterrows():
+            symbol = row.get("symbol", query)
+            entrez = (
+                str(int(row["entrezgene"])) if pd.notna(row.get("entrezgene")) else ""
+            )
+            ensembl = row.get("ensembl.gene", "")
+            if isinstance(ensembl, list):
+                ensembl = ensembl[0] if ensembl else ""
+            elif isinstance(ensembl, dict):
+                ensembl = ensembl.get("gene", "")
+            if pd.isna(ensembl):
+                ensembl = ""
+            rows.append(
+                {
+                    "gene_symbol": str(symbol),
+                    "entrez_id": entrez,
+                    "ensembl_gene_id": str(ensembl),
+                }
+            )
+
+        df = pd.DataFrame(rows)
+    else:
+        if verbose:
+            print(
+                "No gene symbols provided. Pass gene_symbols= for targeted lookup, "
+                "or provide a pre-downloaded TSV file."
+            )
+        df = pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
 
     # Drop rows with missing gene symbol or ensembl ID
     df = df.dropna(subset=["gene_symbol", "ensembl_gene_id"])

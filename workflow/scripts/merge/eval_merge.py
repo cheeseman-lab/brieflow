@@ -74,6 +74,15 @@ phenotype_info = validate_dtypes(
     )
 )
 
+# Load metadata for spatial heatmap plotting
+sbs_metadata = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.sbs_metadata_paths], ignore_index=True
+).drop_duplicates(subset=["well", "tile"])
+phenotype_metadata = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.phenotype_metadata_paths],
+    ignore_index=True,
+).drop_duplicates(subset=["well", "tile"])
+
 # Load dedup stats by well
 dedup_stats = {}
 for p in snakemake.input.dedup_stats_paths:
@@ -165,8 +174,7 @@ sbs_summary, fig = plot_sbs_ph_matching_heatmap(
     merge_minimal,
     sbs_info.rename(columns={"cell": "cell_1"}),  # sbs_info uses "cell" not "cell_1"
     target="sbs",
-    shape=snakemake.params.heatmap_shape_sbs,
-    plate=snakemake.params.heatmap_plate_sbs,
+    metadata=sbs_metadata,
     return_summary=True,
 )
 sbs_summary.to_csv(snakemake.output.sbs_to_ph_matching_rates_tsv, sep="\t", index=False)
@@ -184,8 +192,7 @@ ph_summary, fig = plot_sbs_ph_matching_heatmap(
         columns={"cell": "cell_0"}
     ),  # phenotype_info uses "cell" not "cell_0"
     target="phenotype",
-    shape=snakemake.params.heatmap_shape_ph,
-    plate=snakemake.params.heatmap_plate_ph,
+    metadata=phenotype_metadata,
     return_summary=True,
 )
 ph_summary.to_csv(snakemake.output.ph_to_sbs_matching_rates_tsv, sep="\t", index=False)

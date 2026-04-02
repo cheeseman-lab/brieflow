@@ -139,7 +139,7 @@ rule eval_segmentation_phenotype:
         metadata_paths=lambda wildcards: output_to_input(
             ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_phen_well_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:
@@ -161,7 +161,7 @@ rule eval_features:
         metadata_paths=lambda wildcards: output_to_input(
             ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_phen_well_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:

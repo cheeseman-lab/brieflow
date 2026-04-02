@@ -224,21 +224,21 @@ rule eval_segmentation_sbs:
         segmentation_stats_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["segment_sbs"][2],
             wildcards=wildcards,
-            expansion_values=["well", "tile"],
+            expansion_values=_sbs_tile_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         # path to combined cell data
         cells_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         # path to combined metadata for spatial plotting
         metadata_paths=lambda wildcards: output_to_input(
             ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
     output:
@@ -252,25 +252,25 @@ rule eval_mapping:
         reads_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_reads"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         cells_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         sbs_info_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_sbs_info"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         metadata_paths=lambda wildcards: output_to_input(
             ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
     output:

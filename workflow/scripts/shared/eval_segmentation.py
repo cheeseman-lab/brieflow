@@ -1,4 +1,12 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "Nimbus Sans", "Liberation Sans", "DejaVu Sans"],
+    }
+)
 
 from lib.shared.eval_segmentation import (
     segmentation_overview,
@@ -19,10 +27,15 @@ cells = pd.concat(
     [pd.read_parquet(p) for p in snakemake.input.cells_paths], ignore_index=True
 )
 
+# Load metadata for spatial heatmap plotting
+metadata = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.metadata_paths], ignore_index=True
+).drop_duplicates(subset=["well", "tile"])
 
 # plot cell density heatmap
 cell_density_summary, fig = plot_cell_density_heatmap(
-    cells, shape=snakemake.params.heatmap_shape, plate=snakemake.params.heatmap_plate
+    cells,
+    metadata=metadata,
 )
 cell_density_summary.to_csv(snakemake.output[1], index=False, sep="\t")
-fig.savefig(snakemake.output[2])
+fig.savefig(snakemake.output[2], dpi=300, bbox_inches="tight", transparent=True)

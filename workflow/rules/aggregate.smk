@@ -7,6 +7,7 @@ rule split_datasets:
     input:
         # final merge data
         ancient(MERGE_OUTPUTS["final_merge"]),
+    priority: 100
     output:
         map_wildcard_outputs(
             aggregate_wildcard_combos,
@@ -29,12 +30,18 @@ rule split_datasets:
 rule filter:
     input:
         AGGREGATE_OUTPUTS_MAPPED["split_datasets"],
+    priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["filter"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
-        filter_queries=config["aggregate"]["filter_queries"],
+        filter_queries=lambda wildcards: (
+            (config["aggregate"]["filter_queries"] or [])
+            + config["aggregate"]
+            .get("filter_queries_by_class", {})
+            .get(wildcards.cell_class, [])
+        ),
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         drop_cols_threshold=config["aggregate"]["drop_cols_threshold"],
         drop_rows_threshold=config["aggregate"]["drop_rows_threshold"],
@@ -56,6 +63,7 @@ rule generate_feature_table:
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
         ),
+    priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["generate_feature_table"],
     params:
@@ -83,6 +91,7 @@ rule align:
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
         ),
+    priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["align"],
     params:
@@ -95,6 +104,7 @@ rule align:
         control_key=config["aggregate"]["control_key"],
         num_align_batches=config["aggregate"]["num_align_batches"],
         skip_perturbation_score=config["aggregate"]["skip_perturbation_score"],
+        control_name_col=config["aggregate"].get("control_name_col"),
     script:
         "../scripts/aggregate/align.py"
 
@@ -102,6 +112,7 @@ rule align:
 rule aggregate:
     input:
         AGGREGATE_OUTPUTS_MAPPED["align"],
+    priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
     params:
@@ -129,6 +140,7 @@ rule eval_aggregate:
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
         ),
+    priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
     script:
@@ -155,7 +167,8 @@ checkpoint prepare_montage_data:
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
-        ),
+        )
+    priority: 50
     output:
         directory(MONTAGE_OUTPUTS["montage_data_dir"]),
     params:
@@ -168,6 +181,7 @@ checkpoint prepare_montage_data:
 rule generate_montage:
     input:
         MONTAGE_OUTPUTS["montage_data"],
+    priority: 50
     output:
         expand(
             str(MONTAGE_OUTPUTS["montage"]),
@@ -183,6 +197,8 @@ rule generate_montage:
         ],
     params:
         channels=config["phenotype"]["channel_names"],
+        montage_cell_size=config["aggregate"].get("montage_cell_size", 40),
+        montage_shape=config["aggregate"].get("montage_shape", [3, 10]),
     script:
         "../scripts/aggregate/generate_montage.py"
 
@@ -198,6 +214,7 @@ rule initiate_montage:
             config["phenotype"]["channel_names"],
             wildcards.cell_class,
         ),
+    priority: 50
     output:
         touch(MONTAGE_OUTPUTS["montage_flag"]),
 

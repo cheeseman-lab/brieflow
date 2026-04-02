@@ -1,12 +1,25 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "Nimbus Sans", "Liberation Sans", "DejaVu Sans"],
+    }
+)
 
 from lib.phenotype.eval_features import plot_feature_heatmap
 
 
-# Load SBS processing files
+# Load phenotype processing files
 phenotype_cp_min = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input], ignore_index=True
+    [pd.read_parquet(p) for p in snakemake.input.cells_paths], ignore_index=True
 )
+
+# Load metadata for spatial heatmap plotting
+metadata = pd.concat(
+    [pd.read_parquet(p) for p in snakemake.input.metadata_paths], ignore_index=True
+).drop_duplicates(subset=["well", "tile"])
 
 # Generate and save feature heatmaps
 min_feature_names = [col for col in phenotype_cp_min.columns if col.endswith("_min")]
@@ -15,8 +28,7 @@ for feature_name in min_feature_names:
     df_summary_one, fig = plot_feature_heatmap(
         phenotype_cp_min,
         feature=feature_name,
-        shape=snakemake.params.heatmap_shape,
-        plate=snakemake.params.heatmap_plate,
+        metadata=metadata,
         return_summary=True,
     )
 
@@ -34,4 +46,4 @@ for feature_name in min_feature_names:
 
     # Save df summary and figure
     df_summary_one.to_csv(tsv_path, index=False, sep="\t")
-    fig.savefig(png_path)
+    fig.savefig(png_path, dpi=300, bbox_inches="tight", transparent=True)

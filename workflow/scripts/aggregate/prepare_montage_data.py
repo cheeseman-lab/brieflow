@@ -12,6 +12,12 @@ from lib.shared.file_utils import get_filename
 output_dir = Path(snakemake.output[0])
 output_dir.mkdir(parents=True, exist_ok=True)
 
+# Handle empty input gracefully
+cell_check = ds.dataset(snakemake.input, format="parquet")
+if cell_check.count_rows() == 0:
+    print("WARNING: No cells in input, skipping montage data preparation")
+    exit(0)
+
 # Load cell data
 montage_columns = [
     "gene_symbol_0",

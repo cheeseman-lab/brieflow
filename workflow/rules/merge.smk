@@ -378,11 +378,18 @@ rule eval_merge:
             metadata_combos=phenotype_wildcard_combos,
             ancient_output=True,
         ),
-    params: 
-        heatmap_plate_sbs=config["sbs"].get("heatmap_plate", "6W"),  
-        heatmap_shape_sbs=config["sbs"].get("heatmap_shape", "6W_sbs"),
-        heatmap_plate_ph=config["phenotype"].get("heatmap_plate", "6W"), 
-        heatmap_shape_ph=config["phenotype"].get("heatmap_shape", "6W_ph"),
+        sbs_metadata_paths=lambda wildcards: output_to_input(
+            ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=sbs_wildcard_combos,
+        ),
+        phenotype_metadata_paths=lambda wildcards: output_to_input(
+            ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=phenotype_wildcard_combos,
+        ),
     output:
         merge_summary=MERGE_OUTPUTS_MAPPED["eval_merge"][0],
         sbs_to_ph_matching_rates_tsv=MERGE_OUTPUTS_MAPPED["eval_merge"][1],
@@ -392,9 +399,6 @@ rule eval_merge:
         all_cells_by_channel_min=MERGE_OUTPUTS_MAPPED["eval_merge"][5],
         cells_with_channel_min_0=MERGE_OUTPUTS_MAPPED["eval_merge"][6],
         dedup_summaries=MERGE_OUTPUTS_MAPPED["eval_merge"][7],
-    params:
-        sbs_heatmap_shape=config["sbs"].get("heatmap_shape", "6W_sbs"),
-        phenotype_heatmap_shape=config["phenotype"].get("heatmap_shape", "6W_ph"),
     script:
         "../scripts/merge/eval_merge.py"
 

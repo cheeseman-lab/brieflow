@@ -135,11 +135,15 @@ rule eval_segmentation_phenotype:
             expansion_values=_phen_well_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
+        # path to combined metadata for spatial plotting
+        metadata_paths=lambda wildcards: output_to_input(
+            ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=phenotype_wildcard_combos,
+        ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
-    params:
-        heatmap_shape=config["phenotype"].get("heatmap_shape", "6W_ph"),
-        heatmap_plate=config["phenotype"].get("heatmap_plate", "6W"),
     script:
         "../scripts/shared/eval_segmentation.py"
 
@@ -153,11 +157,15 @@ rule eval_features:
             expansion_values=_phen_tile_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
+        # path to combined metadata for spatial plotting
+        metadata_paths=lambda wildcards: output_to_input(
+            ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
+            wildcards=wildcards,
+            expansion_values=["well"],
+            metadata_combos=phenotype_wildcard_combos,
+        ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],
-    params:
-        heatmap_shape=config["phenotype"].get("heatmap_shape", "6W_ph"),
-        heatmap_plate=config["phenotype"].get("heatmap_plate", "6W"),
     script:
         "../scripts/phenotype/eval_features.py"
 

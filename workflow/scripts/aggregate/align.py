@@ -29,12 +29,22 @@ np.random.seed(0)
 ## Step 1: Create PCA transformation
 PCA_SUBSET = 100000
 
-# Load full dataset as logical PyArrow dataset
-cell_dataset = ds.dataset(snakemake.input.filtered_paths, format="parquet")
-print(f"Number of rows across all parquet files: {cell_dataset.count_rows()}")
+# Filter out empty parquet files to avoid schema conflicts
+non_empty_paths = [
+    p for p in snakemake.input.filtered_paths if pq.read_metadata(p).num_rows > 0
+]
 
-# Count total rows across all Parquet files
+if len(non_empty_paths) == 0:
+    print("WARNING: No cells in input, writing empty output")
+    pq.write_table(pa.table({}), snakemake.output[0])
+    exit(0)
+
+# Load full dataset as logical PyArrow dataset (only non-empty files)
+cell_dataset = ds.dataset(non_empty_paths, format="parquet")
 total_rows = cell_dataset.count_rows()
+print(
+    f"Number of rows across {len(non_empty_paths)} non-empty parquet files: {total_rows}"
+)
 
 # Choose random row indices
 n_sample = min(PCA_SUBSET, total_rows)
@@ -122,6 +132,7 @@ for i, indices in enumerate(subset_indices):
         snakemake.params.perturbation_name_col,
         snakemake.params.control_key,
         "batch_values",
+        control_col=snakemake.params.get("control_name_col"),
     )
 
     feature_columns = [f"PC_{j}" for j in range(features.shape[1])]

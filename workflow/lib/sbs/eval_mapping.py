@@ -181,8 +181,7 @@ def plot_mapping_vs_threshold(
 def plot_read_mapping_heatmap(
     df_reads,
     barcodes,
-    shape="square",
-    plate="6W",
+    metadata=None,
     return_plot=True,
     return_summary=False,
     **kwargs,
@@ -191,16 +190,13 @@ def plot_read_mapping_heatmap(
 
     Args:
         df_reads (pandas.DataFrame):
-            DataFrame of all reads output from sbs mapping pipeline, e.g., concatenated outputs for all tiles
-            and wells of call_reads.
+            DataFrame of all reads output from sbs mapping pipeline.
         barcodes (list or set of str):
             Expected barcodes from the pool library design.
-        shape (str, optional):
-            Shape of subplot for each well used in plot_plate_heatmap. Defaults to 'square'.
-        plate (str):
-            Plate type for plot_plate_heatmap. Options are {'6W', '24W', '96W'}.
+        metadata (pandas.DataFrame, optional):
+            Metadata with x_pos/y_pos for spatial plotting. Defaults to None.
         return_plot (bool, optional):
-            If true, returns df_summary. Defaults to True.
+            If true, returns figure. Defaults to True.
         return_summary (bool, optional):
             If true, returns df_summary. Defaults to False.
         **kwargs:
@@ -225,12 +221,10 @@ def plot_read_mapping_heatmap(
     )
 
     if return_summary and return_plot:
-        # Plot heatmap
-        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        fig, _ = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
         return df_summary, fig
     elif return_plot:
-        # Plot heatmap
-        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        fig, _ = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
         return fig
     elif return_summary:
         return df_summary
@@ -244,8 +238,7 @@ def plot_cell_mapping_heatmap(
     barcodes,
     mapping_to="one",
     mapping_strategy="barcodes",
-    shape="square",
-    plate="6W",
+    metadata=None,
     return_plot=True,
     return_summary=False,
     **kwargs,
@@ -254,24 +247,17 @@ def plot_cell_mapping_heatmap(
 
     Args:
         df_cells (pandas.DataFrame):
-            DataFrame of all cells output from sbs mapping pipeline, e.g., concatenated outputs for all tiles and wells
-            of call_cells.
+            DataFrame of all cells output from sbs mapping pipeline.
         df_sbs_info (pandas.DataFrame):
-            DataFrame of all cells segmented from sbs images, e.g., concatenated outputs for all tiles and wells of
-            extract_phenotype_minimal(data_phenotype=nuclei, nuclei=nuclei), often used as sbs_cell_info rule in
-            Snakemake.
+            DataFrame of all cells segmented from sbs images.
         barcodes (list or set of str):
             Expected barcodes from the pool library design.
         mapping_to (str):
-            Cells to include as 'mapped'. 'one' only includes cells mapping to a single barcode, 'any' includes cells
-            mapping to at least 1 barcode. Options are {'one', 'any'}.
+            Cells to include as 'mapped'. Options are {'one', 'any'}.
         mapping_strategy (str): Strategy to use for mapping cells. Options are {'barcodes', 'gene symbols'}.
-        shape (str, optional):
-            Shape of subplot for each well used in plot_plate_heatmap. Defaults to 'square'.
-        plate (str):
-            Plate type for plot_plate_heatmap. Options are {'6W', '24W', '96W'}.
+        metadata (pandas.DataFrame, optional): Metadata with x_pos/y_pos for spatial plotting.
         return_plot (bool, optional):
-            If true, returns df_summary. Defaults to True.
+            If true, returns figure. Defaults to True.
         return_summary (bool, optional):
             If true, returns df_summary. Defaults to False.
         **kwargs:
@@ -324,11 +310,10 @@ def plot_cell_mapping_heatmap(
 
     if return_summary and return_plot:
         # Plot heatmap
-        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        fig, _ = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
         return df_summary, fig
     elif return_plot:
-        # Plot heatmap
-        fig, _ = plot_plate_heatmap(df_summary, shape=shape, plate=plate, **kwargs)
+        fig, _ = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
         return fig
     elif return_summary:
         return df_summary
@@ -358,17 +343,17 @@ def plot_cell_metric_histogram(df, sort_by="count", x_cutoff=None):
 
     # Determine metric column and labels based on sort_by parameter
     if sort_by == "count":
-        if "barcode_count" not in df.columns:
+        if "cell_barcode_count_0" not in df.columns:
             raise ValueError(
-                "DataFrame must contain 'barcode_count' column when sort_by='count'"
+                "DataFrame must contain 'cell_barcode_count_0' column when sort_by='count'"
             )
-        metric_col = "barcode_count"
+        metric_col = "cell_barcode_count_0"
         title = "Histogram of Barcode Count"
         xlabel = "Number of ISS reads per cell"
     elif sort_by == "peak":
         # Create combined peak intensity metric
-        barcode_peak_0 = df.get("barcode_peak_0", 0).fillna(0)
-        barcode_peak_1 = df.get("barcode_peak_1", 0).fillna(0)
+        barcode_peak_0 = df.get("cell_barcode_peak_0", 0).fillna(0)
+        barcode_peak_1 = df.get("cell_barcode_peak_1", 0).fillna(0)
         df_temp = df.copy()
         df_temp["peak_intensity_total"] = barcode_peak_0 + barcode_peak_1
         metric_col = "peak_intensity_total"
@@ -541,12 +526,12 @@ def plot_barcode_prefix_matching(
     match_rates = []
     random_rates = []
     for i in range(1, barcode_length + 1):
-        # Get prefix matches
         read_prefixes = df_reads[barcode_col].str[:i]
         library_prefixes = set(library_barcodes.str[:i])
         match_rate = read_prefixes.isin(library_prefixes).mean()
         match_rates.append(round(match_rate, 4))
-        random_rates.append(1 / (4**i))
+        # Random expectation: fraction of possible prefixes covered by library
+        random_rates.append(len(library_prefixes) / (4**i))
 
     # Create summary DataFrame
     df_summary = pd.DataFrame(
@@ -650,15 +635,15 @@ def mapping_overview(sbs_info, cells, sort_by="count"):
     ) + cells_temp["has_barcode_1"].astype(int)
 
     if sort_by == "count":
-        # Use the existing barcode_count column for count mode
+        # Use the barcode count column for count mode
         one_barcode_mapping = (
-            cells[cells["barcode_count"] == 1]
+            cells[cells["cell_barcode_count_0"] == 1]
             .groupby("well")
             .size()
             .reset_index(name="1_barcode_cells__count")
         )
         multiple_barcode_mapping = (
-            cells[cells["barcode_count"] >= 1]
+            cells[cells["cell_barcode_count_0"] >= 1]
             .groupby("well")
             .size()
             .reset_index(name="1_or_more_barcodes__count")

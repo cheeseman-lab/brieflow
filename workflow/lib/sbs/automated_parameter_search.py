@@ -10,6 +10,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
+
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "Nimbus Sans", "Liberation Sans", "DejaVu Sans"],
+    }
+)
 from itertools import product
 from joblib import Parallel, delayed
 
@@ -523,7 +530,12 @@ def visualize_parameter_results(
     plt.tight_layout()
 
     if save_plots:
-        plt.savefig("parameter_search_results.png", dpi=300, bbox_inches="tight")
+        plt.savefig(
+            "parameter_search_results.png",
+            dpi=300,
+            bbox_inches="tight",
+            transparent=True,
+        )
         print("Plots saved to 'parameter_search_results.png'")
 
     plt.show()

@@ -127,6 +127,9 @@ def standardize_barcode_design(
         if verbose:
             print(f"Applied custom filter: {initial_count} → {len(df)} entries")
 
+    # Preserve full sgRNA sequence as protospacer_sequence before any truncation
+    df["protospacer_sequence"] = df[prefix_map].astype(str)
+
     # Rename barcode column to standard name "prefix_map"
     if prefix_map != "prefix_map":
         df = df.rename(columns={prefix_map: "prefix_map"})
@@ -307,20 +310,49 @@ def standardize_barcode_design(
             verbose=verbose,
         )
 
+    # Replace gene_id with Ensembl ID (spec-compliant)
+    if "ensembl_gene_id" in df.columns:
+        df["gene_id"] = df["ensembl_gene_id"]
+        df = df.drop(columns=["ensembl_gene_id"])
+
+    # Derive role and control_type from nontargeting patterns
+    nontargeting_mask = df["gene_symbol"].str.contains(
+        "nontargeting|non-targeting|sg_nt", case=False, na=False
+    )
+    df["role"] = "targeting"
+    df.loc[nontargeting_mask, "role"] = "control"
+    df["control_type"] = ""
+    df.loc[nontargeting_mask, "control_type"] = "non-targeting"
+
+    # Add PAM (constant for Cas9)
+    df["protospacer_adjacent_motif"] = "3' NGG"
+
     # Organize columns based on mode
     if "prefix_recomb" in df.columns:
-        # Multi mode: keep prefix_map and prefix_recomb
-        required_cols = ["prefix_map", "gene_symbol", "uniprot_entry", "prefix_recomb"]
+        # Multi mode
+        required_cols = [
+            "prefix_map",
+            "gene_symbol",
+            "gene_id",
+            "role",
+            "control_type",
+            "protospacer_sequence",
+            "protospacer_adjacent_motif",
+            "uniprot_entry",
+            "prefix_recomb",
+        ]
     else:
-        # Simple mode: keep prefix only
-        required_cols = ["prefix", "gene_symbol", "uniprot_entry"]
-
-    if "gene_id" in df.columns:
-        required_cols.insert(2, "gene_id")
-
-    if "ensembl_gene_id" in df.columns:
-        idx = required_cols.index("gene_id") + 1 if "gene_id" in required_cols else 2
-        required_cols.insert(idx, "ensembl_gene_id")
+        # Simple mode
+        required_cols = [
+            "prefix",
+            "gene_symbol",
+            "gene_id",
+            "role",
+            "control_type",
+            "protospacer_sequence",
+            "protospacer_adjacent_motif",
+            "uniprot_entry",
+        ]
 
     if keep_extra_cols:
         # Keep additional columns that might be useful

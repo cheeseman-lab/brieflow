@@ -328,6 +328,27 @@ rule combine_bootstrap:
         "../scripts/aggregate/combine_bootstrap.py"
 
 
+rule generate_anndata:
+    input:
+        singlecell_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["generate_feature_table"][0],
+            wildcards={"channel_combo": wildcards.channel_combo},
+            expansion_values=["cell_class"],
+            metadata_combos=aggregate_wildcard_combos,
+        ),
+    output:
+        AGGREGATE_OUTPUTS["generate_anndata"],
+    params:
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config.get("classify", {}).get("classifier_path") is not None,
+        control_key=config["aggregate"]["control_key"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        channel_names=config["phenotype"]["channel_names"],
+        channel_combo="{channel_combo}",
+    script:
+        "../scripts/aggregate/generate_anndata.py"
+
+
 # Rule for all aggregate processing steps
 rule all_aggregate:
     input:

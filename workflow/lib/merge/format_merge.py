@@ -47,26 +47,20 @@ def fov_distance(
     return df
 
 
-def identify_single_gene_mappings(
-    sbs_row: pd.Series,
-    gene_symbol_0: str = "gene_symbol_0",
-    gene_symbol_1: str = "gene_symbol_1",
-) -> bool:
-    """Determines if a row has a single mapped gene based on gene symbols.
+def identify_single_gene_mappings(sbs_row: pd.Series) -> bool:
+    """Determines if a row has a single mapped gene across all barcode ranks.
 
     Args:
-        sbs_row: Single row from an SBS dataframe containing gene symbol columns for genes mapped to each cell.
-        gene_symbol_0: Column name of the first gene symbol.
-        gene_symbol_1: Column name of the second gene symbol.
+        sbs_row: Single row containing gene_symbol_{n} columns.
 
     Returns:
-        True if only `gene_symbol_0` exists or both symbols are identical.
+        True if the cell maps to a single unique gene across all ranked barcodes.
     """
-    has_single_gene = pd.notnull(sbs_row[gene_symbol_0]) & pd.isnull(
-        sbs_row[gene_symbol_1]
-    )
-    has_matching_genes = sbs_row[gene_symbol_0] == sbs_row[gene_symbol_1]
-    return has_single_gene or has_matching_genes
+    gene_cols = [c for c in sbs_row.index if c.startswith("gene_symbol_")]
+    genes = [sbs_row[c] for c in gene_cols if pd.notnull(sbs_row[c])]
+    if len(genes) == 0:
+        return False
+    return len(set(genes)) == 1
 
 
 def calculate_channel_mins(df: pd.DataFrame) -> pd.DataFrame:

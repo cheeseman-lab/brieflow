@@ -488,6 +488,7 @@ def get_call_cells_params(config: Dict[str, Any]) -> Dict[str, Any]:
         "error_correct": sbs_config.get("error_correct", False),
         "sort_calls": sbs_config.get("sort_calls", "peak"),
         "max_distance": sbs_config.get("max_distance", 2),
+        "n_barcodes": sbs_config.get("n_barcodes", 2),
         "barcode_info_cols": sbs_config.get("barcode_info_cols", None),
     }
 

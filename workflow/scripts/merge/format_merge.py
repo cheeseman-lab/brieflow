@@ -41,7 +41,8 @@ for col in sbs_cells.columns:
             "no_recomb_",
             "Q_min_",
             "Q_recomb_",
-            "barcode_peak_",
+            "cell_barcode_peak_",
+            "cell_barcode_count_",
         ]
     ):
         sbs_merge_cols.append(col)

@@ -343,17 +343,17 @@ def plot_cell_metric_histogram(df, sort_by="count", x_cutoff=None):
 
     # Determine metric column and labels based on sort_by parameter
     if sort_by == "count":
-        if "barcode_count" not in df.columns:
+        if "cell_barcode_count_0" not in df.columns:
             raise ValueError(
-                "DataFrame must contain 'barcode_count' column when sort_by='count'"
+                "DataFrame must contain 'cell_barcode_count_0' column when sort_by='count'"
             )
-        metric_col = "barcode_count"
+        metric_col = "cell_barcode_count_0"
         title = "Histogram of Barcode Count"
         xlabel = "Number of ISS reads per cell"
     elif sort_by == "peak":
         # Create combined peak intensity metric
-        barcode_peak_0 = df.get("barcode_peak_0", 0).fillna(0)
-        barcode_peak_1 = df.get("barcode_peak_1", 0).fillna(0)
+        barcode_peak_0 = df.get("cell_barcode_peak_0", 0).fillna(0)
+        barcode_peak_1 = df.get("cell_barcode_peak_1", 0).fillna(0)
         df_temp = df.copy()
         df_temp["peak_intensity_total"] = barcode_peak_0 + barcode_peak_1
         metric_col = "peak_intensity_total"
@@ -635,15 +635,15 @@ def mapping_overview(sbs_info, cells, sort_by="count"):
     ) + cells_temp["has_barcode_1"].astype(int)
 
     if sort_by == "count":
-        # Use the existing barcode_count column for count mode
+        # Use the barcode count column for count mode
         one_barcode_mapping = (
-            cells[cells["barcode_count"] == 1]
+            cells[cells["cell_barcode_count_0"] == 1]
             .groupby("well")
             .size()
             .reset_index(name="1_barcode_cells__count")
         )
         multiple_barcode_mapping = (
-            cells[cells["barcode_count"] >= 1]
+            cells[cells["cell_barcode_count_0"] >= 1]
             .groupby("well")
             .size()
             .reset_index(name="1_or_more_barcodes__count")

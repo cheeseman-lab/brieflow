@@ -17,11 +17,7 @@ from lib.sbs.constants import (
     CELL,
     READ,
     BARCODE,
-    BARCODE_COUNT,
     BARCODE_0,
-    BARCODE_1,
-    BARCODE_COUNT_0,
-    BARCODE_COUNT_1,
     POSITION_I,
     POSITION_J,
     UMI_0,
@@ -271,7 +267,7 @@ def call_cells(
         rename = {
             barcode_column: f"cell_barcode_{rank}",
             "no_recomb": f"no_recomb_{rank}",
-            "peak": f"barcode_peak_{rank}",
+            "peak": f"cell_barcode_peak_{rank}",
         }
         for qc in q_cols:
             rename[qc] = f"{qc}_{rank}"
@@ -304,23 +300,18 @@ def call_cells(
         if len(rank_df) > 0:
             df_cells = df_cells.merge(rank_df, on=COLS, how="left")
 
-    # Count/peak placeholder columns
+    # Mode-specific columns (only output relevant metrics, no NaN placeholders)
     if sort_calls == "count":
-        df_cells = df_cells.merge(
-            total_counts.rename(BARCODE_COUNT).reset_index(), on=COLS, how="left"
-        )
         for rank in range(n_barcodes):
             count_col = f"cell_barcode_count_{rank}"
-            standard_col = f"cell_barcode_count_{rank}"
             if count_col in df_cells.columns:
                 df_cells[count_col] = df_cells[count_col].fillna(0)
             else:
-                df_cells[standard_col] = 0
-            df_cells[f"barcode_peak_{rank}"] = np.nan
-    else:
-        for rank in range(n_barcodes):
-            df_cells[f"cell_barcode_count_{rank}"] = np.nan
-        df_cells[BARCODE_COUNT] = np.nan
+                df_cells[count_col] = 0
+            # Drop peak columns (not meaningful in count mode)
+            df_cells = df_cells.drop(
+                columns=[f"cell_barcode_peak_{rank}"], errors="ignore"
+            )
 
     # Filter to valid cell IDs
     df_cells = df_cells.query("cell > 0")
@@ -368,13 +359,10 @@ def _get_empty_output():
         "well",
         "cell_barcode_0",
         "cell_barcode_1",
-        "barcode_peak_0",
-        "barcode_peak_1",
-        "barcode_count_0",
-        "barcode_count_1",
-        "barcode_count",
         "no_recomb_0",
         "no_recomb_1",
+        "Q_min_0",
+        "Q_min_1",
         "gene_symbol_0",
         "gene_symbol_1",
         "gene_id_0",

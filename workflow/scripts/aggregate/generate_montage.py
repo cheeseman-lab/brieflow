@@ -11,12 +11,13 @@ IMG_FMT = snakemake.params.get("img_fmt", "tiff")
 montage_data = pd.read_csv(snakemake.input[0], sep="\t")
 
 if IMG_FMT == "zarr":
-    import zarr
+    from lib.shared.io import save_image
 
     # Extract individual cell crops → write to examples.zarr
     examples_zarr_root = Path(snakemake.params.examples_zarr_root)
     gene = snakemake.wildcards.gene
     barcode = snakemake.wildcards.sgrna
+    channels = snakemake.params.channels
 
     cell_crops = extract_cell_crops(
         montage_data,
@@ -24,17 +25,13 @@ if IMG_FMT == "zarr":
         cell_size=snakemake.params.get("montage_cell_size", 40),
     )
 
-    # Write each crop as a zarr array under examples.zarr/{gene}/{barcode}/{idx}
-    group_path = examples_zarr_root / gene / barcode
-    group_path.mkdir(parents=True, exist_ok=True)
-
+    # Write each crop as OME-Zarr under examples.zarr/{gene}/{barcode}/{idx}
     for idx in range(len(cell_crops)):
         crop = cell_crops[idx]  # (C, H, W)
-        arr_path = group_path / str(idx)
-        z = zarr.open(str(arr_path), mode="w", shape=crop.shape, dtype=crop.dtype)
-        z[:] = crop
+        arr_path = str(examples_zarr_root / gene / barcode / f"{idx}.zarr")
+        save_image(crop, arr_path, channel_names=channels)
 
-    print(f"Wrote {len(cell_crops)} crops to {group_path}")
+    print(f"Wrote {len(cell_crops)} crops to {examples_zarr_root / gene / barcode}")
 
     # Touch output flag
     Path(snakemake.output[0]).touch()

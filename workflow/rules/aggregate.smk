@@ -188,6 +188,7 @@ if IMG_FMT == "zarr":
             touch(MONTAGE_OUTPUTS["montage_crop_flag"]),
         params:
             img_fmt="zarr",
+            channels=config["phenotype"]["channel_names"],
             examples_zarr_root=lambda wildcards: str(
                 MONTAGE_OUTPUTS["examples_zarr"]
             ).format(cell_class=wildcards.cell_class),
@@ -380,5 +381,5 @@ rule combine_bootstrap:
 rule all_aggregate:
     input:
         AGGREGATE_TARGETS_ALL,
-        # MONTAGE_TARGETS_ALL,
+        MONTAGE_TARGETS_ALL,
         # BOOTSTRAP_TARGETS_ALL,

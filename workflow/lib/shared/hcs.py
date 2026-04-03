@@ -223,7 +223,9 @@ def _is_label_store(zarr_path):
         return False
     with open(zarr_json) as f:
         meta = json.load(f)
-    return "image-label" in meta.get("attributes", {})
+    attrs = meta.get("attributes", {})
+    # image-label may be under ome namespace (v3) or top-level
+    return "image-label" in attrs or "image-label" in attrs.get("ome", {})
 
 
 def _maybe_write_labels_metadata(field_dir):

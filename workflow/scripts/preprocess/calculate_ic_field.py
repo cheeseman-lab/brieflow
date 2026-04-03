@@ -1,13 +1,12 @@
-from tifffile import imwrite
-
 from lib.shared.illumination_correction import calculate_ic_field
+from lib.shared.io import save_image
 
-# convert the ND2 file to a TIF image array
+# Calculate IC field
 ic_field = calculate_ic_field(
     snakemake.input,
     threading=snakemake.params.threading,
     sample_fraction=snakemake.params.sample_fraction,
 )
 
-# save TIF image array to the output path
-imwrite(snakemake.output[0], ic_field)
+# Save IC field (supports both TIFF and Zarr based on output path)
+save_image(ic_field, snakemake.output[0])

@@ -15,13 +15,13 @@ rule align_sbs:
     output:
         SBS_OUTPUTS_MAPPED["align_sbs"],
     params:
-        method=config["sbs"]["alignment_method"],
-        channel_names=config["sbs"]["channel_names"],
-        upsample_factor=config["sbs"]["upsample_factor"],
-        window=config["sbs"].get("window", 2),
-        skip_cycles_indices=config["sbs"]["skip_cycles_indices"],
-        manual_background_cycle_index=config["sbs"]["manual_background_cycle_index"],
-        manual_channel_mapping=config["sbs"]["manual_channel_mapping"],
+        method=config.get("sbs", {}).get("alignment_method"),
+        channel_names=config.get("sbs", {}).get("channel_names"),
+        upsample_factor=config.get("sbs", {}).get("upsample_factor", 2),
+        window=config.get("sbs", {}).get("window", 2),
+        skip_cycles_indices=config.get("sbs", {}).get("skip_cycles_indices"),
+        manual_background_cycle_index=config.get("sbs", {}).get("manual_background_cycle_index"),
+        manual_channel_mapping=config.get("sbs", {}).get("manual_channel_mapping"),
     script:
         "../scripts/sbs/align_cycles.py"
 
@@ -33,7 +33,7 @@ rule log_filter:
     output:
         SBS_OUTPUTS_MAPPED["log_filter"],
     params:
-        skip_index=config["sbs"]["extra_channel_indices"],
+        skip_index=config.get("sbs", {}).get("extra_channel_indices", []),
     script:
         "../scripts/sbs/log_filter.py"
 
@@ -45,7 +45,7 @@ rule compute_standard_deviation:
     output:
         SBS_OUTPUTS_MAPPED["compute_standard_deviation"],
     params:
-        remove_index=config["sbs"]["extra_channel_indices"],
+        remove_index=config.get("sbs", {}).get("extra_channel_indices", []),
     script:
         "../scripts/sbs/compute_standard_deviation.py"
 
@@ -53,7 +53,7 @@ rule compute_standard_deviation:
 # Find local maxima of SBS reads across cycles
 rule find_peaks:
     input:
-        SBS_OUTPUTS["compute_standard_deviation"] if config["sbs"]["spot_detection_method"] == "standard" else SBS_OUTPUTS["align_sbs"],
+        SBS_OUTPUTS["compute_standard_deviation"] if config.get("sbs", {}).get("spot_detection_method", "standard") == "standard" else SBS_OUTPUTS["align_sbs"],
     output:
         SBS_OUTPUTS_MAPPED["find_peaks"],
     params:
@@ -69,8 +69,8 @@ rule max_filter:
     output:
         SBS_OUTPUTS_MAPPED["max_filter"],
     params:
-        width=config["sbs"]["max_filter_width"],
-        remove_index=config["sbs"]["extra_channel_indices"],
+        width=config.get("sbs", {}).get("max_filter_width", 3),
+        remove_index=config.get("sbs", {}).get("extra_channel_indices", []),
     script:
         "../scripts/sbs/max_filter.py"
 
@@ -100,11 +100,11 @@ rule apply_ic_field_sbs:
     output:
         SBS_OUTPUTS_MAPPED["apply_ic_field_sbs"],
     params:
-        dapi_cycle=config["sbs"]["dapi_cycle"],
-        dapi_cycle_index=config["sbs"]["dapi_cycle_index"],
-        cyto_cycle=config["sbs"]["cyto_cycle"],
-        cyto_cycle_index=config["sbs"]["cyto_cycle_index"],
-        extra_channel_indices=config["sbs"]["extra_channel_indices"],
+        dapi_cycle=config.get("sbs", {}).get("dapi_cycle"),
+        dapi_cycle_index=config.get("sbs", {}).get("dapi_cycle_index"),
+        cyto_cycle=config.get("sbs", {}).get("cyto_cycle"),
+        cyto_cycle_index=config.get("sbs", {}).get("cyto_cycle_index"),
+        extra_channel_indices=config.get("sbs", {}).get("extra_channel_indices", []),
     script:
         "../scripts/sbs/apply_ic_field_sbs.py"
 
@@ -127,12 +127,12 @@ rule extract_bases:
         SBS_OUTPUTS["find_peaks"],
         SBS_OUTPUTS["max_filter"],
         # optionally use cell or nuclei segmentation
-        lambda wildcards: SBS_OUTPUTS["segment_sbs"][1] if config["sbs"]["segment_cells"] else SBS_OUTPUTS["segment_sbs"][0],
+        lambda wildcards: SBS_OUTPUTS["segment_sbs"][1] if config.get("sbs", {}).get("segment_cells", True) else SBS_OUTPUTS["segment_sbs"][0],
     output:
         SBS_OUTPUTS_MAPPED["extract_bases"],
     params:
-        threshold_peaks=config["sbs"]["threshold_peaks"],
-        bases=config["sbs"]["bases"],
+        threshold_peaks=config.get("sbs", {}).get("threshold_peaks"),
+        bases=config.get("sbs", {}).get("bases"),
     script:
         "../scripts/sbs/extract_bases.py"
 
@@ -145,7 +145,7 @@ rule call_reads:
     output:
         SBS_OUTPUTS_MAPPED["call_reads"],
     params:
-        call_reads_method=config["sbs"]["call_reads_method"]
+        call_reads_method=config.get("sbs", {}).get("call_reads_method", "median"),
     script:
         "../scripts/sbs/call_reads.py"
 
@@ -224,21 +224,21 @@ rule eval_segmentation_sbs:
         segmentation_stats_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["segment_sbs"][2],
             wildcards=wildcards,
-            expansion_values=["well", "tile"],
+            expansion_values=_sbs_tile_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         # path to combined cell data
         cells_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         # path to combined metadata for spatial plotting
         metadata_paths=lambda wildcards: output_to_input(
             ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
     output:
@@ -252,40 +252,40 @@ rule eval_mapping:
         reads_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_reads"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         cells_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         sbs_info_paths=lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_sbs_info"],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
         metadata_paths=lambda wildcards: output_to_input(
             ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_sbs_well_expand,
             metadata_combos=sbs_wildcard_combos,
         ),
     output:
         SBS_OUTPUTS_MAPPED["eval_mapping"],
     params:
-        df_barcode_library_fp=config["sbs"]["df_barcode_library_fp"],
-        sort_by=config["sbs"]["sort_calls"],
-        barcode_type=config["sbs"].get("barcode_type", "simple"),
-        sequencing_order=config["sbs"].get("sequencing_order", "map_recomb"),
+        df_barcode_library_fp=config.get("sbs", {}).get("df_barcode_library_fp"),
+        sort_by=config.get("sbs", {}).get("sort_calls", "count"),
+        barcode_type=config.get("sbs", {}).get("barcode_type", "simple"),
+        sequencing_order=config.get("sbs", {}).get("sequencing_order", "map_recomb"),
         library_barcode_col=(
-            config["sbs"].get("map_col") or "prefix_map"
-            if config["sbs"].get("barcode_type", "simple") == "multi"
-            else config["sbs"].get("prefix_col") or "prefix"
+            config.get("sbs", {}).get("map_col") or "prefix_map"
+            if config.get("sbs", {}).get("barcode_type", "simple") == "multi"
+            else config.get("sbs", {}).get("prefix_col") or "prefix"
         ),
-        recomb_col=config["sbs"].get("recomb_col", "prefix_recomb"),
+        recomb_col=config.get("sbs", {}).get("recomb_col", "prefix_recomb"),
     script:
         "../scripts/sbs/eval_mapping.py"
 

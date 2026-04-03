@@ -263,6 +263,14 @@ def get_inputs_for_metadata_extraction(
         if hasattr(wildcards, attr):
             filter_args[attr] = getattr(wildcards, attr)
 
+    # In zarr mode, well is split into row+col wildcards; reconstruct well for filtering
+    if (
+        "well" not in filter_args
+        and hasattr(wildcards, "row")
+        and hasattr(wildcards, "col")
+    ):
+        filter_args["well"] = str(wildcards.row) + str(wildcards.col)
+
     # Rename 'round' to 'round_order' to match get_sample_fps parameter
     if "round" in filter_args:
         filter_args["round_order"] = filter_args.pop("round")

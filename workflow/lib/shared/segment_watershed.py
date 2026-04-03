@@ -158,8 +158,7 @@ def segment_nuclei(data, threshold, area_min, area_max, smooth=1.35, radius=15):
     num_nuclei_segmented = len(np.unique(nuclei)) - 1
     print(f"Number of nuclei segmented: {num_nuclei_segmented}")
 
-    # Convert nuclei array to uint16 dtype and return
-    return nuclei.astype(np.uint16)
+    return nuclei
 
 
 def segment_cells(data, nuclei, threshold, add_nuclei=True):
@@ -249,7 +248,7 @@ def find_cells(nuclei, mask, remove_boundary_cells=True):
         # Set labels of boundary-touching cells to 0
         cells.flat[np.in1d(cells, np.unique(cut))] = 0
 
-    return cells.astype(np.uint16)
+    return cells
 
 
 def find_nuclei(
@@ -385,7 +384,7 @@ def apply_watershed(img, smooth=4):
     # Apply watershed algorithm to the distance transform
     result = watershed(-distance, markers, mask=img)
 
-    return result.astype(np.uint16)
+    return result
 
 
 def binarize(image, radius, min_size):

@@ -98,6 +98,16 @@ AGGREGATE_OUTPUTS = {
             "png",
         ),
     ],
+    # One AnnData per channel_combo, combining all cell classes
+    "generate_anndata": [
+        AGGREGATE_FP
+        / "anndata"
+        / get_filename(
+            {"channel_combo": "{channel_combo}"},
+            "singlecell",
+            "h5ad",
+        ),
+    ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
@@ -108,6 +118,7 @@ AGGREGATE_OUTPUT_MAPPINGS = {
     "aggregate": None,
     "eval_aggregate": None,
     "generate_feature_table": None,
+    "generate_anndata": None,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
@@ -127,38 +138,65 @@ AGGREGATE_TARGETS_ALL = outputs_to_targets(
 
 # Define montage outputs
 # These are special because we dynamically derive outputs
-MONTAGE_OUTPUTS = {
-    "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__montage_data",
-    "montage_data": AGGREGATE_FP
-    / "montages"
-    / "{cell_class}__montage_data"
-    / get_filename(
-        {"gene": "{gene}", "sgrna": "{sgrna}"},
-        "montage_data",
-        "tsv",
-    ),
-    "montage": AGGREGATE_FP
-    / "montages"
-    / "{cell_class}__montages"
-    / "{gene}"
-    / "{sgrna}"
-    / get_filename(
-        {"channel": "{channel}"},
-        "montage",
-        "png",
-    ),
-    "montage_overlay": AGGREGATE_FP
-    / "montages"
-    / "{cell_class}__montages"
-    / "{gene}"
-    / "{sgrna}"
-    / get_filename(
-        {},
-        "overlay_montage",
-        "tiff",
-    ),
-    "montage_flag": AGGREGATE_FP / "montages" / "{cell_class}__montages_complete.flag",
-}
+if IMG_FMT == "zarr":
+    # Zarr mode: individual crops in examples.zarr store
+    MONTAGE_OUTPUTS = {
+        "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__montage_data",
+        "montage_data": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montage_data"
+        / get_filename(
+            {"gene": "{gene}", "sgrna": "{sgrna}"},
+            "montage_data",
+            "tsv",
+        ),
+        "examples_zarr": AGGREGATE_FP / "montages" / "{cell_class}__examples.zarr",
+        "montage_crop_flag": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montages"
+        / "{gene}"
+        / "{sgrna}"
+        / ".crop_done",
+        "montage_flag": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montages_complete.flag",
+    }
+else:
+    # TIFF mode: PNG per channel + TIFF overlay
+    MONTAGE_OUTPUTS = {
+        "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__montage_data",
+        "montage_data": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montage_data"
+        / get_filename(
+            {"gene": "{gene}", "sgrna": "{sgrna}"},
+            "montage_data",
+            "tsv",
+        ),
+        "montage": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montages"
+        / "{gene}"
+        / "{sgrna}"
+        / get_filename(
+            {"channel": "{channel}"},
+            "montage",
+            "png",
+        ),
+        "montage_overlay": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montages"
+        / "{gene}"
+        / "{sgrna}"
+        / get_filename(
+            {},
+            "overlay_montage",
+            "tiff",
+        ),
+        "montage_flag": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montages_complete.flag",
+    }
 cell_classes = aggregate_wildcard_combos["cell_class"].unique()
 MONTAGE_TARGETS_ALL = [
     str(MONTAGE_OUTPUTS["montage_flag"]).format(cell_class=cell_class)

@@ -1,12 +1,13 @@
 
-# ~BrieFlow analysis configuration file~
+# ~BrieFlow analysis configuration file~ (zarr output variant)
 
 # All paths are resolved relative to the directory the workflow is run from.
 
 # Parameters:
 all:
-  root_fp: brieflow_output/
-  image_format: tiff
+  root_fp: brieflow_output_zarr/
+  image_format: zarr
+  zarr_max_levels: 1  # Number of pyramid resolution levels (1 = no downsampling)
 preprocess:
   sbs_data_format: nd2
   sbs_data_organization: tile
@@ -19,12 +20,105 @@ preprocess:
   phenotype_combo_fp: config/phenotype_combo.tsv
   phenotype_round_order: null
   phenotype_samples_fp: config/phenotype_samples.tsv
+  phenotype_channels_metadata:
+  - name: DAPI
+    index: 0
+    channel_type: fluorescence
+    color: "0000FF"
+    description: "Nuclear stain"
+    biological_annotation:
+      biological_target: "nucleus"
+      marker: "DAPI"
+      marker_type: "dye"
+      full_label: "nucleus, DAPI"
+  - name: COXIV
+    index: 1
+    channel_type: fluorescence
+    color: "00FF00"
+    description: "Mitochondria marker"
+    biological_annotation:
+      biological_target: "mitochondria"
+      marker: "COXIV"
+      marker_type: "antibody"
+      full_label: "mitochondria, COXIV"
+  - name: CENPA
+    index: 2
+    channel_type: fluorescence
+    color: "FF0000"
+    description: "Centromere marker"
+    biological_annotation:
+      biological_target: "centromere"
+      marker: "CENPA"
+      marker_type: "antibody"
+      full_label: "centromere, CENPA"
+  - name: WGA
+    index: 3
+    channel_type: fluorescence
+    color: "FF00FF"
+    description: "Membrane stain"
+    biological_annotation:
+      biological_target: "cell_membrane"
+      marker: "WGA"
+      marker_type: "lectin"
+      full_label: "cell membrane, WGA"
   sample_fraction: 1
   sbs_channel_order: null
   sbs_channel_order_flip: true
   sbs_combo_fp: config/sbs_combo.tsv
   sbs_samples_fp: config/sbs_samples.tsv
+  sbs_channels_metadata:
+  - name: DAPI
+    index: 0
+    channel_type: fluorescence
+    color: "0000FF"
+    description: "Nuclear stain for SBS"
+    biological_annotation:
+      biological_target: "nucleus"
+      marker: "DAPI"
+      marker_type: "dye"
+      full_label: "nucleus, DAPI"
+  - name: G
+    index: 1
+    channel_type: fluorescence
+    color: "00FF00"
+    description: "SBS base channel G"
+    biological_annotation:
+      biological_target: "in_situ_sequencing"
+      marker: "SBS_G"
+      marker_type: "sequencing_chemistry"
+      full_label: "SBS base G"
+  - name: T
+    index: 2
+    channel_type: fluorescence
+    color: "FF0000"
+    description: "SBS base channel T"
+    biological_annotation:
+      biological_target: "in_situ_sequencing"
+      marker: "SBS_T"
+      marker_type: "sequencing_chemistry"
+      full_label: "SBS base T"
+  - name: A
+    index: 3
+    channel_type: fluorescence
+    color: "FFFF00"
+    description: "SBS base channel A"
+    biological_annotation:
+      biological_target: "in_situ_sequencing"
+      marker: "SBS_A"
+      marker_type: "sequencing_chemistry"
+      full_label: "SBS base A"
+  - name: C
+    index: 4
+    channel_type: fluorescence
+    color: "FF00FF"
+    description: "SBS base channel C"
+    biological_annotation:
+      biological_target: "in_situ_sequencing"
+      marker: "SBS_C"
+      marker_type: "sequencing_chemistry"
+      full_label: "SBS base C"
 sbs:
+  heatmap_shape: square
   alignment_method: null
   channel_names:
   - DAPI
@@ -61,10 +155,9 @@ sbs:
   - C
   barcode_type: simple
   q_min: 0
-  barcode_col: sgRNA
-  prefix_col: null
+  barcode_col: null
+  prefix_col: prefix
   sort_calls: count
-  n_barcodes: 2
   error_correct: false
   mode: null
   peak_width: 5
@@ -76,7 +169,9 @@ sbs:
   cell_flow_threshold: 1
   cell_cellprob_threshold: 0
   cyto_model: cyto3
+  heatmap_plate: 6W
 phenotype:
+  heatmap_shape: square
   align: false
   segment_cells: true
   cell_diameter: 53.075815293046055
@@ -97,6 +192,7 @@ phenotype:
   mode: null
   nuclei_diameter: 41.97813156768016
   reconcile: contained_in_cells
+  heatmap_plate: 6W
 merge:
   approach: fast
   merge_combo_fp: config/merge_combo.tsv

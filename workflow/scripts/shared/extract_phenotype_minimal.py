@@ -1,15 +1,19 @@
-from tifffile import imread
-
 from lib.shared.extract_phenotype_minimal import extract_phenotype_minimal
+from lib.shared.io import read_image
 
-# load nuclei data
-nuclei_data = imread(snakemake.input[0])
+# Load nuclei data
+nuclei_data = read_image(snakemake.input[0])
 
-# extract minimal phenotype information
+# Build wildcards dict, synthesizing 'well' from 'row'+'col' in zarr mode
+wc = dict(snakemake.wildcards)
+if "row" in wc and "col" in wc and "well" not in wc:
+    wc["well"] = wc["row"] + wc["col"]
+
+# Extract minimal phenotype information
 phenotype_minimal = extract_phenotype_minimal(
     phenotype_data=nuclei_data,
     nuclei_data=nuclei_data,
-    wildcards=snakemake.wildcards,
+    wildcards=wc,
 )
 
 # save minimal phenotype data

@@ -1,36 +1,68 @@
 import pandas as pd
 import numpy as np
-from skimage.exposure import rescale_intensity
-from skimage.io import imsave
-import tifffile
+from pathlib import Path
 
-from lib.aggregate.montage_utils import create_cell_montage
+from lib.aggregate.montage_utils import create_cell_montage, extract_cell_crops
+
+# Read parameters
+IMG_FMT = snakemake.params.get("img_fmt", "tiff")
+
+# Validate required params
+if getattr(snakemake.params, "channels", None) is None:
+    raise ValueError("Required config parameter 'channels' is not set")
 
 # read cell data
 montage_data = pd.read_csv(snakemake.input[0], sep="\t")
 
-# create cell montage
-montage = create_cell_montage(
-    montage_data,
-    snakemake.params.channels,
-    cell_size=snakemake.params.get("montage_cell_size", 40),
-    shape=tuple(snakemake.params.get("montage_shape", (3, 10))),
-)
+if IMG_FMT == "zarr":
+    from lib.shared.io import save_image
 
-# save montages
-overlay = []
-for index, channel_montage in enumerate(montage.values()):
-    # Add channel montage to overlay
-    overlay.append(channel_montage)
+    # Extract individual cell crops → write to examples.zarr
+    examples_zarr_root = Path(snakemake.params.examples_zarr_root)
+    gene = snakemake.wildcards.gene
+    barcode = snakemake.wildcards.sgrna
+    channels = snakemake.params.channels
 
-    # Normalize to 0–255 for PNG
-    montage_uint8 = rescale_intensity(
-        channel_montage, in_range="image", out_range=(0, 255)
-    ).astype(np.uint8)
+    cell_crops = extract_cell_crops(
+        montage_data,
+        num_cells=snakemake.params.montage_num_cells,
+        cell_size=snakemake.params.montage_cell_size,
+    )
 
-    imsave(snakemake.output[index], montage_uint8)
+    # Write each crop as OME-Zarr under examples.zarr/{gene}/{barcode}/{idx}
+    for idx in range(len(cell_crops)):
+        crop = cell_crops[idx]  # (C, H, W)
+        arr_path = str(examples_zarr_root / gene / barcode / f"{idx}.zarr")
+        save_image(crop, arr_path, channel_names=channels, max_levels=1)
 
-# save overlay stack as multi-channel TIFF
-overlay_stack = np.stack(overlay, axis=0)
-overlay_index = len(snakemake.output) - 1
-tifffile.imwrite(snakemake.output[overlay_index], overlay_stack)
+    print(f"Wrote {len(cell_crops)} crops to {examples_zarr_root / gene / barcode}")
+
+    # Touch output flag
+    Path(snakemake.output[0]).touch()
+
+else:
+    from skimage.exposure import rescale_intensity
+    from skimage.io import imsave
+    import tifffile
+
+    # create cell montage (existing behavior)
+    montage = create_cell_montage(
+        montage_data,
+        snakemake.params.channels,
+        cell_size=snakemake.params.montage_cell_size,
+        shape=tuple(snakemake.params.montage_shape),
+    )
+
+    # save montages
+    overlay = []
+    for index, channel_montage in enumerate(montage.values()):
+        overlay.append(channel_montage)
+        montage_uint8 = rescale_intensity(
+            channel_montage, in_range="image", out_range=(0, 255)
+        ).astype(np.uint8)
+        imsave(snakemake.output[index], montage_uint8)
+
+    # save overlay stack as multi-channel TIFF
+    overlay_stack = np.stack(overlay, axis=0)
+    overlay_index = len(snakemake.output) - 1
+    tifffile.imwrite(snakemake.output[overlay_index], overlay_stack)

@@ -2,6 +2,11 @@ import pandas as pd
 from joblib import Parallel, delayed
 
 
+# Validate required params
+if getattr(snakemake.params, "channel_names", None) is None:
+    raise ValueError("Required config parameter 'channel_names' is not set")
+
+
 # Define function to read df tsv files
 def get_file(f):
     try:
@@ -20,7 +25,7 @@ phenotype_cp.to_parquet(snakemake.output[0])
 
 # Create subset of features
 # Use cell_ prefix if segmenting cells, otherwise nucleus_
-segment_cells = snakemake.params.get("segment_cells", True)
+segment_cells = snakemake.params.segment_cells
 prefix = "cell" if segment_cells else "nucleus"
 
 # Add bounds for each channel

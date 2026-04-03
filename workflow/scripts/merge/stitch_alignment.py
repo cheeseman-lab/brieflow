@@ -18,6 +18,10 @@ from lib.shared.file_utils import validate_dtypes
 from lib.merge.stitch_alignment import align_well_positions
 
 
+# Validate required params
+if getattr(snakemake.params, "score", None) is None:
+    raise ValueError("Required config parameter 'score' is not set")
+
 # Load inputs
 phenotype_positions = validate_dtypes(
     pd.read_parquet(snakemake.input.phenotype_positions)

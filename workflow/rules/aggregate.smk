@@ -15,8 +15,8 @@ rule split_datasets:
             ["cell_class", "channel_combo"],
         ),
     params:
-        all_channels=config["phenotype"]["channel_names"],
-        metadata_cols_fp=config.get("classify", {}).get("metadata_cols_fp") or config["aggregate"]["metadata_cols_fp"],
+        all_channels=config.get("phenotype", {}).get("channel_names"),
+        metadata_cols_fp=config.get("classify", {}).get("metadata_cols_fp") or config.get("aggregate", {}).get("metadata_cols_fp"),
         classifier_path=config.get("classify", {}).get("classifier_path"),
         confidence_thresholds=config.get("classify", {}).get("confidence_thresholds"),
         class_title=config.get("classify", {}).get("class_title"),
@@ -34,20 +34,20 @@ rule filter:
     output:
         AGGREGATE_OUTPUTS_MAPPED["filter"],
     params:
-        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        metadata_cols_fp=config.get("aggregate", {}).get("metadata_cols_fp"),
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         filter_queries=lambda wildcards: (
-            (config["aggregate"]["filter_queries"] or [])
-            + config["aggregate"]
+            (config.get("aggregate", {}).get("filter_queries") or [])
+            + config.get("aggregate", {})
             .get("filter_queries_by_class", {})
             .get(wildcards.cell_class, [])
         ),
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        drop_cols_threshold=config["aggregate"]["drop_cols_threshold"],
-        drop_rows_threshold=config["aggregate"]["drop_rows_threshold"],
-        impute=config["aggregate"]["impute"],
-        channel_names=config["phenotype"]["channel_names"],
-        contamination=config["aggregate"]["contamination"],
+        perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
+        drop_cols_threshold=config.get("aggregate", {}).get("drop_cols_threshold", 0.1),
+        drop_rows_threshold=config.get("aggregate", {}).get("drop_rows_threshold", 0.01),
+        impute=config.get("aggregate", {}).get("impute", True),
+        channel_names=config.get("phenotype", {}).get("channel_names"),
+        contamination=config.get("aggregate", {}).get("contamination", 0.01),
     script:
         "../scripts/aggregate/filter.py"
 
@@ -67,14 +67,14 @@ rule generate_feature_table:
     output:
         AGGREGATE_OUTPUTS_MAPPED["generate_feature_table"],
     params:
-        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        metadata_cols_fp=config.get("aggregate", {}).get("metadata_cols_fp"),
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        perturbation_id_col=config["aggregate"]["perturbation_id_col"],
-        control_key=config["aggregate"]["control_key"],
-        batch_cols=config["aggregate"]["batch_cols"],
-        num_align_batches=config["aggregate"]["num_align_batches"],
-        feature_normalization=config["aggregate"].get("feature_normalization", "standard"),
+        perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
+        perturbation_id_col=config.get("aggregate", {}).get("perturbation_id_col"),
+        control_key=config.get("aggregate", {}).get("control_key"),
+        batch_cols=config.get("aggregate", {}).get("batch_cols", ["plate", "well"]),
+        num_align_batches=config.get("aggregate", {}).get("num_align_batches", 1),
+        feature_normalization=config.get("aggregate", {}).get("feature_normalization", "standard"),
         pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None),
     script:
         "../scripts/aggregate/generate_feature_table.py"
@@ -95,16 +95,16 @@ rule align:
     output:
         AGGREGATE_OUTPUTS_MAPPED["align"],
     params:
-        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        metadata_cols_fp=config.get("aggregate", {}).get("metadata_cols_fp"),
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        perturbation_id_col=config["aggregate"]["perturbation_id_col"],
-        batch_cols=config["aggregate"]["batch_cols"],
-        variance_or_ncomp=config["aggregate"]["variance_or_ncomp"],
-        control_key=config["aggregate"]["control_key"],
-        num_align_batches=config["aggregate"]["num_align_batches"],
-        skip_perturbation_score=config["aggregate"]["skip_perturbation_score"],
-        control_name_col=config["aggregate"].get("control_name_col"),
+        perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
+        perturbation_id_col=config.get("aggregate", {}).get("perturbation_id_col"),
+        batch_cols=config.get("aggregate", {}).get("batch_cols", ["plate", "well"]),
+        variance_or_ncomp=config.get("aggregate", {}).get("variance_or_ncomp", 0.99),
+        control_key=config.get("aggregate", {}).get("control_key"),
+        num_align_batches=config.get("aggregate", {}).get("num_align_batches", 1),
+        skip_perturbation_score=config.get("aggregate", {}).get("skip_perturbation_score", True),
+        control_name_col=config.get("aggregate", {}).get("control_name_col"),
     script:
         "../scripts/aggregate/align.py"
 
@@ -116,12 +116,12 @@ rule aggregate:
     output:
         AGGREGATE_OUTPUTS_MAPPED["aggregate"],
     params:
-        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        metadata_cols_fp=config.get("aggregate", {}).get("metadata_cols_fp"),
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        agg_method=config["aggregate"]["agg_method"],
-        ps_probability_threshold=config["aggregate"]["ps_probability_threshold"],
-        ps_percentile_threshold=config["aggregate"]["ps_percentile_threshold"],
+        perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
+        agg_method=config.get("aggregate", {}).get("agg_method", "median"),
+        ps_probability_threshold=config.get("aggregate", {}).get("ps_probability_threshold"),
+        ps_percentile_threshold=config.get("aggregate", {}).get("ps_percentile_threshold"),
     script:
         "../scripts/aggregate/aggregate.py"
 
@@ -173,50 +173,82 @@ checkpoint prepare_montage_data:
         directory(MONTAGE_OUTPUTS["montage_data_dir"]),
     params:
         root_fp=config["all"]["root_fp"],
+        img_fmt=IMG_FMT,
     script:
         "../scripts/aggregate/prepare_montage_data.py"
 
 
-# Generate montage
-rule generate_montage:
-    input:
-        MONTAGE_OUTPUTS["montage_data"],
-    priority: 50
-    output:
-        expand(
-            str(MONTAGE_OUTPUTS["montage"]),
-            cell_class="{cell_class}",
-            gene="{gene}",
-            sgrna="{sgrna}",
-            channel=config["phenotype"]["channel_names"],
-        )
-        + [
-            str(MONTAGE_OUTPUTS["montage_overlay"]).format(
-                cell_class="{cell_class}", gene="{gene}", sgrna="{sgrna}"
+if IMG_FMT == "zarr":
+    # Zarr mode: write individual cell crops to examples.zarr
+    rule generate_montage:
+        input:
+            MONTAGE_OUTPUTS["montage_data"],
+        priority: 50
+        output:
+            touch(MONTAGE_OUTPUTS["montage_crop_flag"]),
+        params:
+            img_fmt="zarr",
+            channels=config["phenotype"]["channel_names"],
+            examples_zarr_root=lambda wildcards: str(
+                MONTAGE_OUTPUTS["examples_zarr"]
+            ).format(cell_class=wildcards.cell_class),
+            montage_cell_size=config["aggregate"].get("montage_cell_size", 40),
+            montage_num_cells=config["aggregate"].get("montage_num_cells", 30),
+        script:
+            "../scripts/aggregate/generate_montage.py"
+
+    rule initiate_montage:
+        input:
+            lambda wildcards: get_montage_inputs(
+                checkpoints.prepare_montage_data,
+                MONTAGE_OUTPUTS["montage_crop_flag"],
+                None,
+                ["_"],  # No per-channel expansion needed for zarr crops
+                wildcards.cell_class,
+            ),
+        priority: 50
+        output:
+            touch(MONTAGE_OUTPUTS["montage_flag"]),
+
+else:
+    # TIFF mode: existing PNG + TIFF montage behavior
+    rule generate_montage:
+        input:
+            MONTAGE_OUTPUTS["montage_data"],
+        priority: 50
+        output:
+            expand(
+                str(MONTAGE_OUTPUTS["montage"]),
+                cell_class="{cell_class}",
+                gene="{gene}",
+                sgrna="{sgrna}",
+                channel=config["phenotype"]["channel_names"],
             )
-        ],
-    params:
-        channels=config["phenotype"]["channel_names"],
-        montage_cell_size=config["aggregate"].get("montage_cell_size", 40),
-        montage_shape=config["aggregate"].get("montage_shape", [3, 10]),
-    script:
-        "../scripts/aggregate/generate_montage.py"
+            + [
+                str(MONTAGE_OUTPUTS["montage_overlay"]).format(
+                    cell_class="{cell_class}", gene="{gene}", sgrna="{sgrna}"
+                )
+            ],
+        params:
+            img_fmt="tiff",
+            channels=config["phenotype"]["channel_names"],
+            montage_cell_size=config["aggregate"].get("montage_cell_size", 40),
+            montage_shape=config["aggregate"].get("montage_shape", [3, 10]),
+        script:
+            "../scripts/aggregate/generate_montage.py"
 
-
-# Initiate montage creation based on checkpoint
-# Create a flag to indicate montage creation is done
-rule initiate_montage:
-    input:
-        lambda wildcards: get_montage_inputs(
-            checkpoints.prepare_montage_data,
-            MONTAGE_OUTPUTS["montage"],
-            MONTAGE_OUTPUTS["montage_overlay"],
-            config["phenotype"]["channel_names"],
-            wildcards.cell_class,
-        ),
-    priority: 50
-    output:
-        touch(MONTAGE_OUTPUTS["montage_flag"]),
+    rule initiate_montage:
+        input:
+            lambda wildcards: get_montage_inputs(
+                checkpoints.prepare_montage_data,
+                MONTAGE_OUTPUTS["montage"],
+                MONTAGE_OUTPUTS["montage_overlay"],
+                config["phenotype"]["channel_names"],
+                wildcards.cell_class,
+            ),
+        priority: 50
+        output:
+            touch(MONTAGE_OUTPUTS["montage_flag"]),
 
 
 # BOOTSTRAP STATISTICAL TESTING
@@ -245,12 +277,12 @@ checkpoint prepare_bootstrap_data:
         construct_features_arr=BOOTSTRAP_OUTPUTS["construct_features_arr"],
         sample_sizes=BOOTSTRAP_OUTPUTS["sample_sizes"],
     params:
-        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        metadata_cols_fp=config.get("aggregate", {}).get("metadata_cols_fp"),
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        perturbation_id_col=config["aggregate"]["perturbation_id_col"],
-        control_key=config["aggregate"]["control_key"],
-        exclusion_string=config.get("aggregate", {}).get("exclusion_string", None),
+        perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
+        perturbation_id_col=config.get("aggregate", {}).get("perturbation_id_col"),
+        control_key=config.get("aggregate", {}).get("control_key"),
+        exclusion_string=config.get("aggregate", {}).get("exclusion_string"),
         bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
@@ -345,9 +377,30 @@ rule combine_bootstrap:
         "../scripts/aggregate/combine_bootstrap.py"
 
 
+rule generate_anndata:
+    input:
+        singlecell_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS["generate_feature_table"][0],
+            wildcards={"channel_combo": wildcards.channel_combo},
+            expansion_values=["cell_class"],
+            metadata_combos=aggregate_wildcard_combos,
+        ),
+    output:
+        AGGREGATE_OUTPUTS["generate_anndata"],
+    params:
+        metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
+        use_classifier=config.get("classify", {}).get("classifier_path") is not None,
+        control_key=config["aggregate"]["control_key"],
+        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
+        channel_names=config["phenotype"]["channel_names"],
+        channel_combo="{channel_combo}",
+    script:
+        "../scripts/aggregate/generate_anndata.py"
+
+
 # Rule for all aggregate processing steps
 rule all_aggregate:
     input:
         AGGREGATE_TARGETS_ALL,
         MONTAGE_TARGETS_ALL,
-        BOOTSTRAP_TARGETS_ALL,
+        # BOOTSTRAP_TARGETS_ALL,

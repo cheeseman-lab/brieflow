@@ -22,7 +22,7 @@ all_dfs = Parallel(n_jobs=snakemake.threads)(
 combined_df = pd.concat([df for df in all_dfs if not df.empty], ignore_index=True)
 
 # Filter by well if well parameter is provided
-well_filter = getattr(snakemake.params, "well", None)
+well_filter = snakemake.params.well
 if well_filter and "well" in combined_df.columns:
     combined_df = combined_df[combined_df["well"].astype(str) == str(well_filter)]
     print(f"Filtered metadata to {len(combined_df)} rows for well {well_filter}")

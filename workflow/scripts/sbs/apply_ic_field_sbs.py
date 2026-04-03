@@ -1,8 +1,13 @@
-from tifffile import imread, imwrite
 from lib.shared.illumination_correction import apply_ic_field, combine_ic_images
+from lib.shared.io import read_image, save_image
+
+# Validate required params
+for _param_name in ["dapi_cycle", "dapi_cycle_index", "cyto_cycle", "cyto_cycle_index"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
 
 # Load aligned image data
-aligned_image_data = imread(snakemake.input[0])
+aligned_image_data = read_image(snakemake.input[0])
 
 # Logic based on whether DAPI and CYTO come from same or different cycles
 if snakemake.params.dapi_cycle != snakemake.params.cyto_cycle:
@@ -23,14 +28,14 @@ else:
 # Combine IC fields based on whether DAPI and CYTO come from same or different cycles
 if snakemake.params.dapi_cycle != snakemake.params.cyto_cycle:
     # Different cycles - combine IC fields
-    ic_field_dapi = imread(snakemake.input[1])  # DAPI cycle IC
-    ic_field_cyto = imread(snakemake.input[2])  # CYTO cycle IC
+    ic_field_dapi = read_image(snakemake.input[1])  # DAPI cycle IC
+    ic_field_cyto = read_image(snakemake.input[2])  # CYTO cycle IC
     ic_field = combine_ic_images(
         [ic_field_dapi, ic_field_cyto], [snakemake.params.extra_channel_indices, None]
     )
 else:
     # Same cycle - use one IC field (DAPI cycle IC)
-    ic_field = imread(snakemake.input[1])
+    ic_field = read_image(snakemake.input[1])
 
 # Apply illumination correction field
 corrected_image_data = apply_ic_field(
@@ -38,4 +43,4 @@ corrected_image_data = apply_ic_field(
 )
 
 # Save corrected image data
-imwrite(snakemake.output[0], corrected_image_data)
+save_image(corrected_image_data, snakemake.output[0])

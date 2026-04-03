@@ -4,6 +4,11 @@ import numpy as np
 from lib.shared.file_utils import validate_dtypes
 from lib.merge.fast_merge import merge_triangle_hash
 
+# Validate required params
+for _param_name in ["det_range", "score", "threshold"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # Load phenotype and sbs info with cell locations
 phenotype_info = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 sbs_info = validate_dtypes(pd.read_parquet(snakemake.input[1]))

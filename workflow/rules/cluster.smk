@@ -6,7 +6,7 @@ rule clean_aggregate:
         CLUSTER_OUTPUTS_MAPPED["clean_aggregate"],
     params:
         cell_class=lambda wildcards: wildcards.cell_class,
-        min_cell_cutoffs=config["cluster"]["min_cell_cutoffs"],
+        min_cell_cutoffs=config.get("cluster", {}).get("min_cell_cutoffs", {}),
     script:
         "../scripts/cluster/clean_aggregate.py"
 
@@ -19,11 +19,11 @@ rule phate_leiden_clustering:
         CLUSTER_OUTPUTS_MAPPED["phate_leiden_clustering"],
     params:
         leiden_resolution=lambda wildcards: wildcards.leiden_resolution,
-        phate_distance_metric=config["cluster"]["phate_distance_metric"],
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        control_key=config["aggregate"]["control_key"],
-        uniprot_data_fp=config["cluster"]["uniprot_data_fp"],
-        perturbation_auc_threshold=config["cluster"]["perturbation_auc_threshold"],
+        phate_distance_metric=config.get("cluster", {}).get("phate_distance_metric", "cosine"),
+        perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
+        control_key=config.get("aggregate", {}).get("control_key"),
+        uniprot_data_fp=config.get("cluster", {}).get("uniprot_data_fp"),
+        perturbation_auc_threshold=config.get("cluster", {}).get("perturbation_auc_threshold"),
     script:
         "../scripts/cluster/phate_leiden_clustering.py"
 
@@ -37,13 +37,13 @@ rule benchmark_clusters:
         CLUSTER_OUTPUTS_MAPPED["benchmark_clusters"],
     params:
         leiden_resolution=lambda wildcards: wildcards.leiden_resolution,
-        phate_distance_metric=config["cluster"]["phate_distance_metric"],
-        perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        control_key=config["aggregate"]["control_key"],
-        perturbation_auc_threshold=config["cluster"]["perturbation_auc_threshold"],
-        string_pair_benchmark_fp=config["cluster"]["string_pair_benchmark_fp"],
-        corum_group_benchmark_fp=config["cluster"]["corum_group_benchmark_fp"],
-        kegg_group_benchmark_fp=config["cluster"]["kegg_group_benchmark_fp"],
+        phate_distance_metric=config.get("cluster", {}).get("phate_distance_metric", "cosine"),
+        perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
+        control_key=config.get("aggregate", {}).get("control_key"),
+        perturbation_auc_threshold=config.get("cluster", {}).get("perturbation_auc_threshold"),
+        string_pair_benchmark_fp=config.get("cluster", {}).get("string_pair_benchmark_fp"),
+        corum_group_benchmark_fp=config.get("cluster", {}).get("corum_group_benchmark_fp"),
+        kegg_group_benchmark_fp=config.get("cluster", {}).get("kegg_group_benchmark_fp"),
     script:
         "../scripts/cluster/benchmark_clusters.py"
 

@@ -1,0 +1,354 @@
+"""HCS (High Content Screening) OME-NGFF metadata-only fusion utilities.
+
+After Snakemake jobs write zarr stores directly into the HCS plate hierarchy
+(e.g., aligned_{plate}.zarr/{row}/{col}/{tile}/zarr.json), these functions
+discover what was written and layer the OME-NGFF metadata on top.
+
+No symlinks or data copies — only zarr.json metadata files.
+"""
+
+import json
+import re
+from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# High-level API (used by Snakemake scripts)
+# ---------------------------------------------------------------------------
+
+
+def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
+    """Write OME-NGFF HCS metadata for an existing plate zarr directory.
+
+    Args:
+        plate_zarr_path: Path to the plate zarr directory (e.g., sbs/1.zarr).
+        channels_metadata: Optional list[dict] to embed at plate root under
+        attributes["channels_metadata"].
+    """
+    plate_path = Path(plate_zarr_path)
+    if not plate_path.exists():
+        raise FileNotFoundError(f"Plate zarr directory not found: {plate_path}")
+
+    structure = discover_plate_structure(plate_path)
+    if not structure:
+        print(f"  No fields found in {plate_path}. Skipping metadata.")
+        return
+
+    wells_by_row_col = {}
+    for row, col, _tile in structure:
+        wells_by_row_col[(row, col)] = True  # deduplicate
+
+    # Compute field_count = max number of tiles in any well
+    fields_by_well = {}
+    for row, col, tile in structure:
+        fields_by_well.setdefault((row, col), []).append(tile)
+    field_count = max(len(tiles) for tiles in fields_by_well.values())
+
+    _write_plate_metadata(
+        plate_path,
+        wells_by_row_col,
+        channels_metadata=channels_metadata,
+        field_count=field_count,
+    )
+
+    # Write row-level group metadata
+    for row in sorted(set(rc[0] for rc in wells_by_row_col)):
+        _write_zarr_v3_group_metadata(plate_path / row)
+
+    # Write well-level and field-level metadata
+    for (row, col), tiles in sorted(fields_by_well.items()):
+        well_dir = plate_path / row / col
+        field_indices = sorted(tiles)
+        _write_well_metadata(well_dir, field_indices)
+
+        # Write labels group metadata for fields that have label stores
+        for tile in field_indices:
+            field_dir = well_dir / str(tile)
+            _maybe_write_labels_metadata(field_dir)
+
+
+# def discover_plate_structure(plate_zarr_path):
+#     """Walk a plate zarr directory to discover the row/col/tile structure.
+
+#     Finds zarr.json files at depth >= 3, meaning the containing directory is
+#     a zarr store at the tile level. Works for both 3-level (row/col/tile) and
+#     4-level (row/col/tile/cycle) paths.
+
+#     Args:
+#         plate_zarr_path: Path to the plate zarr directory.
+
+#     Returns:
+#         list of (row, col, tile) tuples found in the directory.
+#     """
+#     plate_path = Path(plate_zarr_path)
+#     results = []
+#     seen = set()
+
+#     for zarr_json in sorted(plate_path.rglob("zarr.json")):
+#         rel = zarr_json.relative_to(plate_path)
+#         parts = list(rel.parent.parts)
+#         if len(parts) >= 3:
+#             key = (parts[0], parts[1], parts[2])
+#             if key not in seen:
+#                 seen.add(key)
+#                 results.append(key)
+
+#     return results
+
+
+def discover_plate_structure(plate_zarr_path):
+    """Discover (row, col, tile) by locating tile-level zarr.json files.
+
+    Pass 1 (Option D): plate.zarr/{row}/{col}/{tile}/zarr.json
+    Pass 2 (fallback): any deeper zarr.json (e.g. preprocess cycle level)
+                       plate.zarr/{row}/{col}/{tile}/.../zarr.json
+    """
+    plate_path = Path(plate_zarr_path)
+    results = []
+    seen = set()
+
+    # ---- Pass 1: strict Option D tile marker ----
+    for zjson in sorted(plate_path.rglob("zarr.json")):
+        rel = zjson.relative_to(plate_path)
+        parts = rel.parts
+        if len(parts) != 4 or parts[-1] != "zarr.json":
+            continue
+
+        row, col, tile = parts[0], parts[1], parts[2]
+        if not re.match(r"^[A-Za-z]+$", str(row)):
+            continue
+        if not str(col).isdigit() or not str(tile).isdigit():
+            continue
+
+        key = (row, col, tile)
+        if key not in seen:
+            seen.add(key)
+            results.append(key)
+
+    if results:
+        return results
+
+    # ---- Pass 2: fallback for preprocess-style extra nesting ----
+    for zjson in sorted(plate_path.rglob("zarr.json")):
+        rel = zjson.relative_to(plate_path)
+        parts = rel.parts
+        if len(parts) < 4 or parts[-1] != "zarr.json":
+            continue
+
+        row, col, tile = parts[0], parts[1], parts[2]
+        if not re.match(r"^[A-Za-z]+$", str(row)):
+            continue
+        if not str(col).isdigit() or not str(tile).isdigit():
+            continue
+
+        key = (row, col, tile)
+        if key not in seen:
+            seen.add(key)
+            results.append(key)
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Helpers — well parsing
+# ---------------------------------------------------------------------------
+
+
+def _normalize_channels_metadata(channels_metadata):
+    """Normalize channels_metadata for root zarr.json."""
+    if not channels_metadata:
+        return []
+
+    out = []
+    for ch in channels_metadata:
+        if not isinstance(ch, dict):
+            continue
+
+        entry = dict(ch)
+
+        # Ensure required fields exist
+        name = (entry.get("name") or "").strip()
+        if not name:
+            raise ValueError("channels_metadata entry is missing a non-empty 'name'")
+        entry["name"] = name
+
+        entry.setdefault("description", "")
+        entry.setdefault("channel_type", "fluorescence")
+
+        # Keep biological_annotation only if it has real (non-empty) values, and keep ONLY the keys the user actually filled in
+        bio = entry.get("biological_annotation", None)
+
+        if isinstance(bio, dict):
+            cleaned = {}
+            for k in ("biological_target", "marker", "marker_type", "full_label"):
+                v = bio.get(k, None)
+                if v is None:
+                    continue
+                v = str(v).strip()
+                if v:  # keep only non empty values
+                    cleaned[k] = v
+
+            if cleaned:
+                entry["biological_annotation"] = cleaned
+            else:
+                entry.pop("biological_annotation", None)
+        else:
+            entry.pop("biological_annotation", None)
+
+        out.append(entry)
+
+    for i, entry in enumerate(out):
+        entry.setdefault("index", i)
+
+    return out
+
+
+def _split_well(well_str):
+    """Split a well identifier like 'A1' into (row, col) -> ('A', '1')."""
+    match = re.match(r"^([A-Za-z]+)(\d+)$", str(well_str))
+    if not match:
+        raise ValueError(f"Cannot parse well identifier: '{well_str}'")
+    return match.group(1), match.group(2)
+
+
+# ---------------------------------------------------------------------------
+# Helpers — label detection
+# ---------------------------------------------------------------------------
+
+
+def _is_label_store(zarr_path):
+    """Check if a zarr store is a label image by reading its zarr.json."""
+    zarr_json = Path(zarr_path) / "zarr.json"
+    if not zarr_json.exists():
+        return False
+    with open(zarr_json) as f:
+        meta = json.load(f)
+    attrs = meta.get("attributes", {})
+    # image-label may be under ome namespace (v3) or top-level
+    return "image-label" in attrs or "image-label" in attrs.get("ome", {})
+
+
+def _maybe_write_labels_metadata(field_dir):
+    """If a field has label stores, write the labels/ group metadata."""
+    labels_dir = field_dir / "labels"
+    if not labels_dir.is_dir():
+        return
+
+    label_stores = []
+    for child in sorted(labels_dir.iterdir()):
+        if child.is_dir() and child.suffix == ".zarr":
+            label_stores.append(child.stem)
+        elif child.is_dir() and (child / "zarr.json").exists():
+            # Label stored as a named group (not .zarr suffix)
+            if _is_label_store(child):
+                label_stores.append(child.name)
+
+    if label_stores:
+        _write_labels_group_metadata(labels_dir, label_stores)
+
+
+# ---------------------------------------------------------------------------
+# Helpers — metadata writers
+# ---------------------------------------------------------------------------
+
+
+def _write_zarr_v3_group_metadata(path):
+    """Write a minimal zarr v3 group zarr.json file."""
+    metadata = {
+        "zarr_format": 3,
+        "node_type": "group",
+        "attributes": {},
+    }
+    path = Path(path)
+    path.mkdir(parents=True, exist_ok=True)
+    with open(path / "zarr.json", "w") as f:
+        json.dump(metadata, f, indent=2)
+
+
+def _write_plate_metadata(
+    plate_zarr_path, wells_by_row_col, channels_metadata=None, field_count=1
+):
+    """Write HCS plate-level zarr.json with OME-NGFF plate metadata."""
+    plate_path = Path(plate_zarr_path)
+    plate_path.mkdir(parents=True, exist_ok=True)
+
+    rows = sorted(set(rc[0] for rc in wells_by_row_col.keys()))
+    cols = sorted(set(rc[1] for rc in wells_by_row_col.keys()), key=lambda x: int(x))
+
+    plate_name = plate_path.stem  # e.g. "aligned_1"
+
+    plate_metadata = {
+        "zarr_format": 3,
+        "node_type": "group",
+        "attributes": {
+            "ome": {
+                "version": "0.5",
+                "plate": {
+                    "version": "0.5",
+                    "name": plate_name,
+                    "field_count": field_count,
+                    "acquisitions": [{"id": 0}],
+                    "columns": [{"name": c} for c in cols],
+                    "rows": [{"name": r} for r in rows],
+                    "wells": [
+                        {
+                            "path": f"{rc[0]}/{rc[1]}",
+                            "rowIndex": rows.index(rc[0]),
+                            "columnIndex": cols.index(rc[1]),
+                        }
+                        for rc in sorted(wells_by_row_col.keys())
+                    ],
+                },
+            }
+        },
+    }
+
+    norm = _normalize_channels_metadata(channels_metadata)
+    if norm:  # embed into zarr.json if metadata is not empty
+        plate_metadata["attributes"]["channels_metadata"] = norm
+
+    with open(plate_path / "zarr.json", "w") as f:
+        json.dump(plate_metadata, f, indent=2)
+
+
+def _write_well_metadata(well_path, field_indices):
+    """Write HCS well-level zarr.json listing fields (tiles)."""
+    well_dir = Path(well_path)
+    well_dir.mkdir(parents=True, exist_ok=True)
+
+    well_metadata = {
+        "zarr_format": 3,
+        "node_type": "group",
+        "attributes": {
+            "ome": {
+                "version": "0.5",
+                "well": {
+                    "version": "0.5",
+                    "images": [
+                        {"path": str(idx), "acquisition": 0} for idx in field_indices
+                    ],
+                },
+            }
+        },
+    }
+
+    with open(well_dir / "zarr.json", "w") as f:
+        json.dump(well_metadata, f, indent=2)
+
+
+def _write_labels_group_metadata(labels_dir, label_names):
+    """Write labels group zarr.json listing available labels."""
+    labels_dir = Path(labels_dir)
+    labels_dir.mkdir(parents=True, exist_ok=True)
+    metadata = {
+        "zarr_format": 3,
+        "node_type": "group",
+        "attributes": {
+            "ome": {
+                "version": "0.5",
+                "labels": label_names,
+            }
+        },
+    }
+    with open(labels_dir / "zarr.json", "w") as f:
+        json.dump(metadata, f, indent=2)

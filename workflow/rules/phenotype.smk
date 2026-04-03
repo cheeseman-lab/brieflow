@@ -47,7 +47,7 @@ rule identify_cytoplasm:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["identify_cytoplasm"],
     params:
-        segment_cells=config["phenotype"].get("segment_cells", True),
+        segment_cells=config.get("phenotype", {}).get("segment_cells", True),
     script:
         "../scripts/phenotype/identify_cytoplasm_cellpose.py"
 
@@ -92,10 +92,10 @@ rule extract_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype"],
     params:
-        foci_channel_index=config["phenotype"]["foci_channel_index"],
-        channel_names=config["phenotype"]["channel_names"],
-        cp_method=config["phenotype"]["cp_method"],
-        segment_cells=config["phenotype"].get("segment_cells", True),
+        foci_channel_index=config.get("phenotype", {}).get("foci_channel_index"),
+        channel_names=config.get("phenotype", {}).get("channel_names"),
+        cp_method=config.get("phenotype", {}).get("cp_method"),
+        segment_cells=config.get("phenotype", {}).get("segment_cells", True),
     script:
         "../scripts/phenotype/extract_phenotype.py"
 
@@ -110,8 +110,8 @@ rule merge_phenotype:
             metadata_combos=phenotype_wildcard_combos,
         ),
     params:
-        channel_names=config["phenotype"]["channel_names"],
-        segment_cells=config["phenotype"].get("segment_cells", True),
+        channel_names=config.get("phenotype", {}).get("channel_names"),
+        segment_cells=config.get("phenotype", {}).get("segment_cells", True),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype"],
     script:
@@ -125,21 +125,21 @@ rule eval_segmentation_phenotype:
         segmentation_stats_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["segment_phenotype"][2],
             wildcards=wildcards,
-            expansion_values=["well", "tile"],
+            expansion_values=_phen_tile_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
         # paths to combined cell data
         cells_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["combine_phenotype_info"][0],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_phen_well_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
         # path to combined metadata for spatial plotting
         metadata_paths=lambda wildcards: output_to_input(
             ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_phen_well_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:
@@ -154,14 +154,14 @@ rule eval_features:
         cells_paths=lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["merge_phenotype"][1],
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_phen_tile_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
         # path to combined metadata for spatial plotting
         metadata_paths=lambda wildcards: output_to_input(
             ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
             wildcards=wildcards,
-            expansion_values=["well"],
+            expansion_values=_phen_well_expand,
             metadata_combos=phenotype_wildcard_combos,
         ),
     output:
@@ -170,7 +170,27 @@ rule eval_features:
         "../scripts/phenotype/eval_features.py"
 
 
+# Write HCS plate-level metadata for zarr stores (zarr mode only)
+if PHENOTYPE_IMG_FMT == "zarr":
+    rule finalize_hcs_phenotype:
+        input:
+            PHENOTYPE_TARGETS_ALL,
+        output:
+            touch(str(PHENOTYPE_FP / ".hcs_done")),
+        params:
+            plate_zarr_dirs=[
+                str(PHENOTYPE_FP / f"{store}_{p}.zarr")
+                for p in sorted(phenotype_wildcard_combos["plate"].unique())
+                for store in ["aligned", "illumination_corrected"]
+            ],
+            channels_metadata=config["preprocess"].get("phenotype_channels_metadata", None),
+            channel_names=config["phenotype"].get("channel_names", None),
+            modality="phenotype",
+        script:
+            "../scripts/shared/write_hcs_metadata.py"
+
+
 # Rule for all phenotype processing steps
 rule all_phenotype:
     input:
-        PHENOTYPE_TARGETS_ALL,
+        PHENOTYPE_TARGETS_ALL + ([str(PHENOTYPE_FP / ".hcs_done")] if PHENOTYPE_IMG_FMT == "zarr" else []),

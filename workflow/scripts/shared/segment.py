@@ -1,9 +1,10 @@
-from tifffile import imread, imwrite
 import numpy as np
 import pandas as pd
 
+from lib.shared.io import read_image, save_image
+
 # Load illumination corrected data
-aligned_data = imread(snakemake.input[0])
+aligned_data = read_image(snakemake.input[0])
 
 # Get configuration from params
 params = snakemake.params.config
@@ -137,9 +138,13 @@ else:
         f"Unknown segmentation method: {method}. Choose one of: cellpose, stardist, watershed"
     )
 
+# Ensure label arrays are uint32 (supports >65535 labels; spec-compliant)
+nuclei_data = nuclei_data.astype(np.uint32)
+cells_data = cells_data.astype(np.uint32)
+
 # Save segmented nuclei data
-imwrite(snakemake.output[0], nuclei_data)
+save_image(nuclei_data, snakemake.output[0], is_label=True)
 # Save segmented cells data
-imwrite(snakemake.output[1], cells_data)
+save_image(cells_data, snakemake.output[1], is_label=True)
 # Save counts data
 counts_df.to_csv(snakemake.output[2], index=False, sep="\t")

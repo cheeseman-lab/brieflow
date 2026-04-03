@@ -18,13 +18,13 @@ Functions:
 from itertools import product
 
 import numpy as np
-from tifffile import imread
 
-from lib.shared.file_utils import get_filename
+from lib.shared.file_utils import get_filename, get_hcs_nested_path
+from lib.shared.io import read_image
 from lib.external.cp_emulator import subimage
 
 
-def add_filenames(merge_data, root_fp):
+def add_filenames(merge_data, root_fp, img_fmt="tiff"):
     """Adds an image file path column to the given DataFrame.
 
     This function generates file paths based on the 'well' and 'tile' columns
@@ -33,14 +33,24 @@ def add_filenames(merge_data, root_fp):
     Args:
         merge_data (pd.DataFrame): DataFrame containing 'well' and 'tile' columns.
         root_fp (Path): Root file path to construct the image file paths.
+        img_fmt (str): Image format, "tiff" or "zarr".
 
     Returns:
         pd.DataFrame: The updated DataFrame with an added 'image_path' column.
     """
     merge_data = merge_data.copy()
 
-    merge_data["image_path"] = merge_data.apply(
-        lambda row: str(
+    def _build_path(row):
+        if img_fmt == "zarr":
+            well = str(row["well"])
+            loc = {
+                "plate": row["plate"],
+                "row": well[0],
+                "col": well[1:],
+                "tile": row["tile"],
+            }
+            return str(root_fp / "phenotype" / get_hcs_nested_path(loc, "aligned"))
+        return str(
             root_fp
             / "phenotype"
             / "images"
@@ -49,11 +59,61 @@ def add_filenames(merge_data, root_fp):
                 "aligned",
                 "tiff",
             )
-        ),
-        axis=1,
-    )
+        )
+
+    merge_data["image_path"] = merge_data.apply(_build_path, axis=1)
 
     return merge_data
+
+
+def extract_cell_crops(
+    cell_data,
+    num_cells=30,
+    cell_size=40,
+    selection_params=None,
+    coordinate_cols=None,
+):
+    """Extract individual cell crops from imaging data.
+
+    Same cell selection and extraction as create_cell_montage but returns
+    the raw per-cell arrays instead of tiling them into a grid.
+
+    Args:
+        cell_data (pd.DataFrame): DataFrame with cell data including 'image_path'.
+        num_cells (int): Max number of cells to extract.
+        cell_size (int): Half-width of crop bounding box.
+        selection_params (dict): Cell selection method (head/random/sorted).
+        coordinate_cols (list): Coordinate column names, defaults to ['i_0', 'j_0'].
+
+    Returns:
+        np.ndarray: Array of shape (N, C, H, W) — individual cell crops.
+    """
+    if coordinate_cols is None:
+        coordinate_cols = ["i_0", "j_0"]
+    if selection_params is None:
+        selection_params = {"method": "head"}
+
+    cell_data_subset = cell_data.copy()
+    if selection_params["method"] == "head":
+        cell_data_subset = cell_data_subset.head(num_cells)
+    elif selection_params["method"] == "random":
+        n = min(num_cells, len(cell_data_subset))
+        cell_data_subset = cell_data_subset.sample(n=n, random_state=0)
+    elif selection_params["method"] == "sorted":
+        cell_data_subset = cell_data_subset.sort_values(
+            selection_params["sort_by"],
+            ascending=selection_params.get("ascending", True),
+        ).head(num_cells)
+
+    cell_data_subset = cell_data_subset.pipe(
+        add_rect_bounds, width=cell_size, ij=coordinate_cols, bounds_col="bounds"
+    )
+
+    return grid_view(
+        filenames=cell_data_subset["image_path"].tolist(),
+        bounds=cell_data_subset["bounds"].tolist(),
+        padding=0,
+    )
 
 
 def create_cell_montage(
@@ -232,11 +292,8 @@ def grid_view(filenames, bounds, padding=40):
     image_cells = []
 
     for filename, bound_set in zip(filenames, bounds):
-        image = imread(filename)
-        # Apply padding to the bounding box
-
+        image = read_image(filename)
         # Extract sub-image with padding
-        # image_cell = image[0, i_min:i_max, j_min:j_max].copy()
         image_cell = subimage(image, bound_set, pad=padding)
         image_cells.append(image_cell)
 

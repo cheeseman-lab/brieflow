@@ -6,7 +6,7 @@ from lib.shared.file_utils import validate_dtypes
 merge_deduplicated = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 
 # Extract configuration parameters
-approach = getattr(snakemake.params, "approach", "fast")
+approach = snakemake.params.approach
 
 # Load full feature data
 cp_phenotype = validate_dtypes(pd.read_parquet(snakemake.input[1]))

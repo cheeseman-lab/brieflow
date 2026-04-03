@@ -1,18 +1,28 @@
-from tifffile import imread
+from lib.shared.io import read_image
 
-# load inputs
-data_phenotype = imread(snakemake.input[0])
-nuclei = imread(snakemake.input[1])
-cells = imread(snakemake.input[2])
-cytoplasms = imread(snakemake.input[3])
+# Validate required params
+for _param_name in ["cp_method", "channel_names", "foci_channel_index"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
+# Load inputs
+data_phenotype = read_image(snakemake.input[0])
+nuclei = read_image(snakemake.input[1])
+cells = read_image(snakemake.input[2])
+cytoplasms = read_image(snakemake.input[3])
 
 # Check if cell segmentation is enabled - if not, pass None to skip cell/cytoplasm features
-segment_cells = snakemake.params.get("segment_cells", True)
+segment_cells = snakemake.params.segment_cells
 if not segment_cells:
     cells = None
     cytoplasms = None
 
 cp_method = snakemake.params.cp_method
+
+# Build wildcards dict, synthesizing 'well' from 'row'+'col' in zarr mode
+wc = dict(snakemake.wildcards)
+if "row" in wc and "col" in wc and "well" not in wc:
+    wc["well"] = wc["row"] + wc["col"]
 
 if cp_method == "cp_measure":
     from lib.phenotype.extract_phenotype_cp_measure import (
@@ -40,12 +50,12 @@ elif cp_method == "cp_emulator":
         cytoplasms=cytoplasms,
         foci_channel=snakemake.params.foci_channel_index,
         channel_names=snakemake.params.channel_names,
-        wildcards=snakemake.wildcards,
+        wildcards=wc,
     )
 else:
     raise ValueError(
         f"Unknown cp_method: {cp_method}. Choose 'cp_measure' or 'cp_emulator'."
     )
 
-# save phenotype cp
+# Save phenotype cp
 phenotype_cp.to_csv(snakemake.output[0], index=False, sep="\t")

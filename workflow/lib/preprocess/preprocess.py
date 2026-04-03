@@ -9,10 +9,12 @@ for downstream processing in the pipeline. This ensures consistent data structur
 regardless of the input format.
 """
 
+import re
+
 import pandas as pd
 import numpy as np
 import nd2
-from typing import Union, List, Dict, Any, Optional, Tuple
+from typing import Union, List, Dict, Any, Optional, Tuple, Sequence
 from pathlib import Path
 import warnings
 import gc
@@ -57,6 +59,9 @@ def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, Any]:
         ),
         "n_z_planes": base_config.get(f"{image_type}_n_z_planes", None),
     }
+
+
+# TODO add direct nd2 to zarr conversion - bypass tiffs
 
 
 def extract_metadata_tile_nd2(
@@ -132,22 +137,24 @@ def extract_metadata_tile_nd2(
         if round is not None:
             metadata["round"] = round
 
-        # Get pixel size from first channel's volume information
-        if frame_meta.channels and hasattr(frame_meta.channels[0], "volume"):
-            x_cal, y_cal, _ = frame_meta.channels[0].volume.axesCalibration
-            metadata.update(
-                {
-                    "pixel_size_x": x_cal,
-                    "pixel_size_y": y_cal,
-                }
-            )
-        else:
-            metadata.update(
-                {
-                    "pixel_size_x": None,
-                    "pixel_size_y": None,
-                }
-            )
+        pixel_size_x, pixel_size_y, pixel_size_z, objective_mag, zoom_mag = (
+            _extract_pixel_calibration(frame_meta, file_path)
+        )
+        binning_xy = _parse_binning_from_nd2(file_path)
+        _validate_camera_pixel_size(
+            pixel_size_x, objective_mag, zoom_mag, binning_xy, file_path
+        )
+
+        metadata.update(
+            {
+                "pixel_size_x": pixel_size_x,
+                "pixel_size_y": pixel_size_y,
+                "pixel_size_z": pixel_size_z,
+                "objective_magnification": objective_mag,
+                "zoom_magnification": zoom_mag,
+                "binning_xy": binning_xy,
+            }
+        )
 
         df = pd.DataFrame([metadata])
 
@@ -198,6 +205,8 @@ def extract_metadata_well_nd2(
             print(f"Number of positions: {num_positions}")
             print(f"Number of Z planes: {z_planes}")
 
+        binning_xy = _parse_binning_from_nd2(file_path)
+
         # Only process one frame per unique XY position
         for pos_idx in range(0, num_positions * z_planes, z_planes):
             frame_meta = images.frame_metadata(pos_idx)
@@ -236,22 +245,28 @@ def extract_metadata_well_nd2(
             if round is not None:
                 metadata["round"] = round
 
-            # Get pixel calibration if available
-            if frame_meta.channels and hasattr(frame_meta.channels[0], "volume"):
-                x_cal, y_cal, *_ = frame_meta.channels[0].volume.axesCalibration
-                metadata.update(
-                    {
-                        "pixel_size_x": x_cal,
-                        "pixel_size_y": y_cal,
-                    }
-                )
-            else:
-                metadata.update(
-                    {
-                        "pixel_size_x": None,
-                        "pixel_size_y": None,
-                    }
-                )
+            pixel_size_x, pixel_size_y, pixel_size_z, objective_mag, zoom_mag = (
+                _extract_pixel_calibration(frame_meta, file_path, pos_idx=pos_idx)
+            )
+            _validate_camera_pixel_size(
+                pixel_size_x,
+                objective_mag,
+                zoom_mag,
+                binning_xy,
+                file_path,
+                pos_idx=pos_idx,
+            )
+
+            metadata.update(
+                {
+                    "pixel_size_x": pixel_size_x,
+                    "pixel_size_y": pixel_size_y,
+                    "pixel_size_z": pixel_size_z,
+                    "objective_magnification": objective_mag,
+                    "zoom_magnification": zoom_mag,
+                    "binning_xy": binning_xy,
+                }
+            )
 
             metadata_rows.append(metadata)
 
@@ -532,12 +547,13 @@ def convert_nd2_to_array_tile(
     channel_order_flip: bool = False,
     verbose: bool = False,
     n_z_planes: int = None,
+    preserve_z: bool = False,
 ) -> np.ndarray:
-    """Convert tile-based ND2 files to numpy array in CYX format.
+    """Convert tile-based ND2 files to numpy array in CYX or CZYX format.
 
     Processes one or more ND2 files where each file contains a single FOV.
     If multiple files are provided, they are concatenated along the channel axis.
-    Z-stacks are handled by maximum intensity projection.
+    Z-stacks are handled by maximum intensity projection unless preserve_z is True.
 
     Note: n_z_planes parameter is accepted for API compatibility but not used,
     as Z-stack handling is automatic via maximum intensity projection.
@@ -547,18 +563,10 @@ def convert_nd2_to_array_tile(
         channel_order_flip: Reverse the order of channels
         verbose: Print debug information
         n_z_planes: Accepted for API compatibility but not used (Z-stack handled automatically)
+        preserve_z: If True, preserves Z dimension (returning CZYX).
 
     Returns:
-        numpy array in CYX format (Channel, Y, X) with dtype uint16
-
-    Example:
-        >>> # Single 4-channel image
-        >>> img = convert_nd2_to_array_tile("image.nd2")
-        >>> img.shape  # (4, 2048, 2048)
-
-        >>> # Multiple files concatenated
-        >>> img = convert_nd2_to_array_tile(["cyc1.nd2", "cyc2.nd2"])
-        >>> img.shape  # (8, 2048, 2048) if each has 4 channels
+        numpy array in CYX or CZYX format with dtype uint16
     """
     # Convert input to list of Path objects
     if isinstance(files, (str, Path)):
@@ -579,20 +587,31 @@ def convert_nd2_to_array_tile(
 
         # Handle Z-stack if present
         if "Z" in image.dims:
-            image = image.max(dim="Z")
+            if not preserve_z:
+                image = image.max(dim="Z")
+        elif preserve_z:
+            image = image.expand_dims("Z")
 
         # Convert to numpy array based on dimensions present
         if "C" in image.dims:
-            # If C dimension exists, ensure CYX order
-            img_array = image.transpose("C", "Y", "X").values
+            if preserve_z:
+                if "Z" not in image.dims:
+                    image = image.expand_dims("Z")
+                img_array = image.transpose("C", "Z", "Y", "X").values
+            else:
+                img_array = image.transpose("C", "Y", "X").values
 
             # Flip channel order if needed
             if channel_order_flip:
                 img_array = np.flip(img_array, axis=0)
         else:
             # If no C dimension, assume YX and add channel dimension
-            img_array = image.transpose("Y", "X").values
-            img_array = np.expand_dims(img_array, axis=0)  # Add channel dimension
+            if preserve_z:
+                img_array = image.transpose("Z", "Y", "X").values
+                img_array = np.expand_dims(img_array, axis=0)
+            else:
+                img_array = image.transpose("Y", "X").values
+                img_array = np.expand_dims(img_array, axis=0)  # Add channel dimension
 
         if verbose:
             print(f"Array shape after processing: {img_array.shape}")
@@ -609,7 +628,8 @@ def convert_nd2_to_array_tile(
     result = np.concatenate(image_arrays, axis=0)
 
     if verbose:
-        print(f"Final dimensions (CYX): {result.shape}")
+        suffix = "CZYX" if preserve_z else "CYX"
+        print(f"Final dimensions ({suffix}): {result.shape}")
 
     return result.astype(np.uint16)
 
@@ -1007,14 +1027,16 @@ def convert_to_array(
     data_organization: str = "tile",
     position: int = None,
     channel_order_flip: bool = False,
+    preserve_z: bool = False,
     verbose: bool = False,
     **kwargs,
 ) -> np.ndarray:
-    """Convert microscopy image files to numpy array in CYX format.
+    """Convert microscopy image files to numpy array in CYX or CZYX format.
 
     Main entry point for image conversion that dispatches to appropriate
     implementation based on data format and organization. The output is always
-    a numpy array in CYX format (Channel, Y, X) for consistent downstream processing.
+    a numpy array in CYX format (Channel, Y, X) for consistent downstream processing,
+    unless preserve_z=True (tile-based ND2 only) in which case CZYX is returned.
 
     Args:
         files: Path(s) to image file(s)
@@ -1022,6 +1044,7 @@ def convert_to_array(
         data_organization: 'tile' (one FOV per file) or 'well' (multiple FOVs per file)
         position: Position/tile to extract (required for well organization)
         channel_order_flip: Reverse the order of channels
+        preserve_z: If True (tile-based ND2), preserve Z planes (returning CZYX)
         verbose: Print debug information
         **kwargs: Additional arguments passed to specific converters
 
@@ -1048,7 +1071,12 @@ def convert_to_array(
 
     if data_format == "nd2":
         if data_organization == "tile":
-            return convert_nd2_to_array_tile(files, channel_order_flip, verbose)
+            return convert_nd2_to_array_tile(
+                files,
+                channel_order_flip=channel_order_flip,
+                verbose=verbose,
+                preserve_z=preserve_z,
+            )
         elif data_organization == "well":
             if position is None:
                 raise ValueError("Position must be specified for well organization")
@@ -1101,8 +1129,8 @@ def get_expansion_values(
         metadata_columns = list(metadata_wildcard_combos.columns)
 
         # Add any columns that exist in metadata but not in base expansion
-        # Exclude 'plate' and 'well' as these are typically not expanded
-        exclude_columns = {"plate", "well"}
+        # Exclude 'plate', 'well', 'row', 'col' as these are fixed wildcards, not expanded
+        exclude_columns = {"plate", "well", "row", "col"}
         additional_columns = [
             col
             for col in metadata_columns
@@ -1172,3 +1200,122 @@ def update_config_for_unified_processing(config: dict) -> dict:
 
     config["preprocess"] = preprocess_config
     return config
+
+
+# --- Private helpers (deduplicated from extract_metadata_*_nd2) ---
+
+
+def _parse_binning_from_nd2(file_path: str) -> Optional[str]:
+    """Parse camera binning from ND2 text_info metadata (best-effort).
+
+    Args:
+        file_path: Path to the ND2 file.
+
+    Returns:
+        Binning string like '2x2', or None if not found.
+    """
+    try:
+        img = nd2.imread(str(file_path), xarray=True)
+        md = img.attrs.get("metadata", {})
+        text_info = md.get("text_info", {})
+        desc = text_info.get("description", "") if isinstance(text_info, dict) else ""
+        m = re.search(r"Binning:\\s*(\\d+)x(\\d+)", desc)
+        if m:
+            return f"{m.group(1)}x{m.group(2)}"
+    except Exception:
+        pass
+    return None
+
+
+def _extract_pixel_calibration(
+    frame_meta, file_path: str, *, pos_idx: Optional[int] = None
+) -> Tuple[
+    Optional[float], Optional[float], Optional[float], Optional[float], Optional[float]
+]:
+    """Extract pixel calibration and optics metadata from an ND2 frame.
+
+    Args:
+        frame_meta: Frame metadata object from ``ND2File.frame_metadata()``.
+        file_path: Path to the ND2 file (used in warning messages).
+        pos_idx: Optional position index (used in warning messages for well files).
+
+    Returns:
+        Tuple of (pixel_size_x, pixel_size_y, pixel_size_z,
+                  objective_magnification, zoom_magnification).
+        Any value may be None if not available.
+    """
+    pixel_size_x = pixel_size_y = pixel_size_z = None
+    objective_mag = zoom_mag = None
+
+    if not frame_meta.channels:
+        return pixel_size_x, pixel_size_y, pixel_size_z, objective_mag, zoom_mag
+
+    ch0 = frame_meta.channels[0]
+
+    if hasattr(ch0, "volume") and getattr(ch0.volume, "axesCalibration", None):
+        x_cal, y_cal, z_cal = ch0.volume.axesCalibration
+        pixel_size_x = x_cal
+        pixel_size_y = y_cal
+        pixel_size_z = z_cal
+
+        try:
+            if (
+                pixel_size_x is not None
+                and pixel_size_y is not None
+                and abs(float(pixel_size_x) - float(pixel_size_y)) > 1e-6
+            ):
+                pos_suffix = f" pos {pos_idx}" if pos_idx is not None else ""
+                warnings.warn(
+                    f"pixel_size_x ({pixel_size_x}) != pixel_size_y ({pixel_size_y}) "
+                    f"for {file_path}{pos_suffix}"
+                )
+        except Exception:
+            pass
+
+    if hasattr(ch0, "microscope") and ch0.microscope is not None:
+        objective_mag = getattr(ch0.microscope, "objectiveMagnification", None)
+        zoom_mag = getattr(ch0.microscope, "zoomMagnification", None)
+
+    return pixel_size_x, pixel_size_y, pixel_size_z, objective_mag, zoom_mag
+
+
+def _validate_camera_pixel_size(
+    pixel_size_x: Optional[float],
+    objective_mag: Optional[float],
+    zoom_mag: Optional[float],
+    binning_xy: Optional[str],
+    file_path: str,
+    *,
+    pos_idx: Optional[int] = None,
+) -> None:
+    """Warn if the estimated camera pixel size is implausible.
+
+    Typical scientific camera pixel sizes are ~4.5–11 µm.
+
+    Args:
+        pixel_size_x: Calibrated pixel size in X (µm).
+        objective_mag: Objective magnification.
+        zoom_mag: Zoom magnification.
+        binning_xy: Binning string (e.g. '2x2').
+        file_path: Path to ND2 file (for warning message).
+        pos_idx: Optional position index (for warning message).
+    """
+    try:
+        if pixel_size_x is not None and objective_mag and zoom_mag and binning_xy:
+            bx, by = binning_xy.split("x")
+            bx = float(bx)
+            by = float(by)
+            if abs(bx - by) < 1e-6 and bx > 0:
+                camera_px_um_est = (
+                    float(pixel_size_x) * float(objective_mag) * float(zoom_mag) * bx
+                )
+                if camera_px_um_est < 3.0 or camera_px_um_est > 15.0:
+                    pos_suffix = f" pos {pos_idx}" if pos_idx is not None else ""
+                    warnings.warn(
+                        f"Implausible camera pixel estimate {camera_px_um_est:.3f} µm "
+                        f"(pixel_size_x={pixel_size_x}, objective={objective_mag}, "
+                        f"zoom={zoom_mag}, binning={binning_xy}) "
+                        f"for {file_path}{pos_suffix}"
+                    )
+    except Exception:
+        pass

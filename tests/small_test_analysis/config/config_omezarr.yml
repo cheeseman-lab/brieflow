@@ -23,6 +23,7 @@ preprocess:
   - name: DAPI
     index: 0
     channel_type: fluorescence
+    color: "0000FF"
     description: "Nuclear stain"
     biological_annotation:
       biological_target: "nucleus"
@@ -32,6 +33,7 @@ preprocess:
   - name: COXIV
     index: 1
     channel_type: fluorescence
+    color: "00FF00"
     description: "Mitochondria marker"
     biological_annotation:
       biological_target: "mitochondria"
@@ -41,6 +43,7 @@ preprocess:
   - name: CENPA
     index: 2
     channel_type: fluorescence
+    color: "FF0000"
     description: "Centromere marker"
     biological_annotation:
       biological_target: "centromere"
@@ -50,6 +53,7 @@ preprocess:
   - name: WGA
     index: 3
     channel_type: fluorescence
+    color: "FF00FF"
     description: "Membrane stain"
     biological_annotation:
       biological_target: "cell_membrane"
@@ -65,6 +69,7 @@ preprocess:
   - name: DAPI
     index: 0
     channel_type: fluorescence
+    color: "0000FF"
     description: "Nuclear stain for SBS"
     biological_annotation:
       biological_target: "nucleus"
@@ -74,6 +79,7 @@ preprocess:
   - name: G
     index: 1
     channel_type: fluorescence
+    color: "00FF00"
     description: "SBS base channel G"
     biological_annotation:
       biological_target: "in_situ_sequencing"
@@ -83,6 +89,7 @@ preprocess:
   - name: T
     index: 2
     channel_type: fluorescence
+    color: "FF0000"
     description: "SBS base channel T"
     biological_annotation:
       biological_target: "in_situ_sequencing"
@@ -92,6 +99,7 @@ preprocess:
   - name: A
     index: 3
     channel_type: fluorescence
+    color: "FFFF00"
     description: "SBS base channel A"
     biological_annotation:
       biological_target: "in_situ_sequencing"
@@ -101,6 +109,7 @@ preprocess:
   - name: C
     index: 4
     channel_type: fluorescence
+    color: "FF00FF"
     description: "SBS base channel C"
     biological_annotation:
       biological_target: "in_situ_sequencing"

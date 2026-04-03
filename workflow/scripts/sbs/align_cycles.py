@@ -2,6 +2,10 @@ from tifffile import imread, imwrite
 
 from lib.sbs.align_cycles import align_cycles
 
+# Validate required params
+if getattr(snakemake.params, "channel_names", None) is None:
+    raise ValueError("Required config parameter 'channel_names' is not set")
+
 # load image data
 image_data = [imread(file_path) for file_path in snakemake.input]
 

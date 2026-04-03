@@ -17,9 +17,14 @@ def write_empty_and_exit(metadata, features, output_path, stage):
         exit(0)
 
 
+# Validate required params
+for _param_name in ["metadata_cols_fp", "perturbation_name_col", "channel_names"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # Load cell data
 cell_data = pd.read_parquet(snakemake.input[0])
-use_classifier = snakemake.params.get("use_classifier", False)
+use_classifier = snakemake.params.use_classifier
 metadata_cols = load_metadata_cols(
     snakemake.params.metadata_cols_fp,
     include_classification_cols=use_classifier,

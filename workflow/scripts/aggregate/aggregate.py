@@ -4,6 +4,11 @@ import pandas as pd
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
 from lib.aggregate.aggregate import aggregate
 
+# Validate required params
+for _param_name in ["metadata_cols_fp", "perturbation_name_col"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # Load cell data using PyArrow dataset
 print("Loading cell data")
 cell_data = ds.dataset(snakemake.input[0], format="parquet")
@@ -18,7 +23,7 @@ cell_data = cell_data.to_table(use_threads=True, memory_pool=None).to_pandas()
 print(f"Shape of input data: {cell_data.shape}")
 
 # Split aligned data into features and metadata
-use_classifier = snakemake.params.get("use_classifier", False)
+use_classifier = snakemake.params.use_classifier
 metadata_cols = load_metadata_cols(
     snakemake.params.metadata_cols_fp, include_classification_cols=use_classifier
 ) + ["perturbation_score", "perturbation_auc", "batch_values"]

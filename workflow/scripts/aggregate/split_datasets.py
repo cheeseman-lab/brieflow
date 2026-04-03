@@ -98,6 +98,11 @@ def apply_confidence_thresholds(metadata, features, thresholds, class_col="class
     return metadata, features
 
 
+# Validate required params
+for _param_name in ["all_channels", "metadata_cols_fp"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # Load merge data
 cell_data = pd.read_parquet(snakemake.input[0])
 
@@ -106,11 +111,11 @@ metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp)
 metadata, features = split_cell_data(cell_data, metadata_cols)
 
 # Classify cells only if classifier path is provided
-classifier_path = snakemake.params.get("classifier_path")
-confidence_thresholds = snakemake.params.get("confidence_thresholds")
-class_title = snakemake.params.get("class_title")  # e.g., "cell_stage"
-class_mapping = snakemake.params.get(
-    "class_mapping"
+classifier_path = snakemake.params.classifier_path
+confidence_thresholds = snakemake.params.confidence_thresholds
+class_title = snakemake.params.class_title  # e.g., "cell_stage"
+class_mapping = (
+    snakemake.params.class_mapping
 )  # e.g., {"label_to_class": {1: "Mitotic", 2: "Interphase"}}
 
 if classifier_path is not None:

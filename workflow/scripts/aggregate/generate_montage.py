@@ -6,6 +6,10 @@ import tifffile
 
 from lib.aggregate.montage_utils import create_cell_montage
 
+# Validate required params
+if getattr(snakemake.params, "channels", None) is None:
+    raise ValueError("Required config parameter 'channels' is not set")
+
 # read cell data
 montage_data = pd.read_csv(snakemake.input[0], sep="\t")
 
@@ -13,8 +17,8 @@ montage_data = pd.read_csv(snakemake.input[0], sep="\t")
 montage = create_cell_montage(
     montage_data,
     snakemake.params.channels,
-    cell_size=snakemake.params.get("montage_cell_size", 40),
-    shape=tuple(snakemake.params.get("montage_shape", (3, 10))),
+    cell_size=snakemake.params.montage_cell_size,
+    shape=tuple(snakemake.params.montage_shape),
 )
 
 # save montages

@@ -13,18 +13,18 @@ if merge_approach == "fast":
         output:
             MERGE_OUTPUTS_MAPPED["fast_alignment"][0],
         params:
-            sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
-            sbs_metadata_channel=config["merge"].get("sbs_metadata_channel"),
-            ph_metadata_channel=config["merge"].get("ph_metadata_channel"),
-            det_range=config["merge"]["det_range"],
-            score=config["merge"]["score"],
-            initial_sbs_tiles=config["merge"].get("initial_sbs_tiles"),
-            initial_sites=config["merge"].get("initial_sites"),
+            sbs_metadata_cycle=config.get("merge", {}).get("sbs_metadata_cycle"),
+            sbs_metadata_channel=config.get("merge", {}).get("sbs_metadata_channel"),
+            ph_metadata_channel=config.get("merge", {}).get("ph_metadata_channel"),
+            det_range=config.get("merge", {}).get("det_range"),
+            score=config.get("merge", {}).get("score"),
+            initial_sbs_tiles=config.get("merge", {}).get("initial_sbs_tiles"),
+            initial_sites=config.get("merge", {}).get("initial_sites"),
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
-            alignment_flip_x=config["merge"].get("alignment_flip_x"),
-            alignment_flip_y=config["merge"].get("alignment_flip_y"),
-            alignment_rotate_90=config["merge"].get("alignment_rotate_90"),
+            alignment_flip_x=config.get("merge", {}).get("alignment_flip_x"),
+            alignment_flip_y=config.get("merge", {}).get("alignment_flip_y"),
+            alignment_rotate_90=config.get("merge", {}).get("alignment_rotate_90"),
         script:
             "../scripts/merge/fast_alignment.py"
 
@@ -36,9 +36,9 @@ if merge_approach == "fast":
         output:
             MERGE_OUTPUTS_MAPPED["fast_merge"][0],
         params:
-            det_range=config["merge"]["det_range"],
-            score=config["merge"]["score"],
-            threshold=config["merge"]["threshold"],
+            det_range=config.get("merge", {}).get("det_range"),
+            score=config.get("merge", {}).get("score"),
+            threshold=config.get("merge", {}).get("threshold"),
         script:
             "../scripts/merge/fast_merge.py"
 
@@ -74,12 +74,12 @@ if merge_approach == "stitch":
             fliplr=config.get("merge", {}).get("fliplr", False),
             rot90=config.get("merge", {}).get("rot90", 0),
             data_type="sbs",
-            sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
-            sbs_metadata_channel=config["merge"].get("sbs_metadata_channel"),
+            sbs_metadata_cycle=config.get("merge", {}).get("sbs_metadata_cycle"),
+            sbs_metadata_channel=config.get("merge", {}).get("sbs_metadata_channel"),
             sbs_pixel_size=config.get("merge", {}).get("sbs_pixel_size"),
-            alignment_flip_x=config["merge"].get("alignment_flip_x"),
-            alignment_flip_y=config["merge"].get("alignment_flip_y"),
-            alignment_rotate_90=config["merge"].get("alignment_rotate_90"),
+            alignment_flip_x=config.get("merge", {}).get("alignment_flip_x"),
+            alignment_flip_y=config.get("merge", {}).get("alignment_flip_y"),
+            alignment_rotate_90=config.get("merge", {}).get("alignment_rotate_90"),
         script:
             "../scripts/merge/estimate_stitch.py"
 
@@ -115,7 +115,7 @@ if merge_approach == "stitch":
             fliplr=config.get("merge", {}).get("fliplr", False),
             rot90=config.get("merge", {}).get("rot90", 0),
             stitched_image=config.get("merge", {}).get("stitched_image", True),
-            ph_metadata_channel=config["merge"].get("ph_metadata_channel"),
+            ph_metadata_channel=config.get("merge", {}).get("ph_metadata_channel"),
         script:
             "../scripts/merge/stitch.py"
 
@@ -152,8 +152,8 @@ if merge_approach == "stitch":
             rot90=config.get("merge", {}).get("rot90", 0),
             overlap_fraction=config.get("merge", {}).get("overlap_fraction"),
             stitched_image=config.get("merge", {}).get("stitched_image", True),
-            sbs_metadata_cycle=config["merge"]["sbs_metadata_cycle"],
-            sbs_metadata_channel=config["merge"].get("sbs_metadata_channel"),
+            sbs_metadata_cycle=config.get("merge", {}).get("sbs_metadata_cycle"),
+            sbs_metadata_channel=config.get("merge", {}).get("sbs_metadata_channel"),
         script:
             "../scripts/merge/stitch.py"
 
@@ -172,7 +172,7 @@ if merge_approach == "stitch":
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
-            score=config["merge"]["score"],
+            score=config.get("merge", {}).get("score"),
         script:
             "../scripts/merge/stitch_alignment.py"
 
@@ -190,8 +190,8 @@ if merge_approach == "stitch":
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
-            threshold=config["merge"]["threshold"],
-            score=config["merge"]["score"],
+            threshold=config.get("merge", {}).get("threshold"),
+            score=config.get("merge", {}).get("score"),
         script:
             "../scripts/merge/stitch_merge.py"
 

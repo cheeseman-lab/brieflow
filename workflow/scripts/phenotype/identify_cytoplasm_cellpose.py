@@ -10,7 +10,7 @@ nuclei = imread(snakemake.input[0])
 cells = imread(snakemake.input[1])
 
 # check if cell segmentation is enabled
-segment_cells = snakemake.params.get("segment_cells", True)
+segment_cells = snakemake.params.segment_cells
 
 if segment_cells:
     # identify cytoplasms with cellpose

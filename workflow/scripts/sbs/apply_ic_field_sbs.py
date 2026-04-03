@@ -1,6 +1,11 @@
 from tifffile import imread, imwrite
 from lib.shared.illumination_correction import apply_ic_field, combine_ic_images
 
+# Validate required params
+for _param_name in ["dapi_cycle", "dapi_cycle_index", "cyto_cycle", "cyto_cycle_index"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # Load aligned image data
 aligned_image_data = imread(snakemake.input[0])
 

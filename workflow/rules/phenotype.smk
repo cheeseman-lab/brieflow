@@ -47,7 +47,7 @@ rule identify_cytoplasm:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["identify_cytoplasm"],
     params:
-        segment_cells=config["phenotype"].get("segment_cells", True),
+        segment_cells=config.get("phenotype", {}).get("segment_cells", True),
     script:
         "../scripts/phenotype/identify_cytoplasm_cellpose.py"
 
@@ -92,10 +92,10 @@ rule extract_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype"],
     params:
-        foci_channel_index=config["phenotype"]["foci_channel_index"],
-        channel_names=config["phenotype"]["channel_names"],
-        cp_method=config["phenotype"]["cp_method"],
-        segment_cells=config["phenotype"].get("segment_cells", True),
+        foci_channel_index=config.get("phenotype", {}).get("foci_channel_index"),
+        channel_names=config.get("phenotype", {}).get("channel_names"),
+        cp_method=config.get("phenotype", {}).get("cp_method"),
+        segment_cells=config.get("phenotype", {}).get("segment_cells", True),
     script:
         "../scripts/phenotype/extract_phenotype.py"
 
@@ -110,8 +110,8 @@ rule merge_phenotype:
             metadata_combos=phenotype_wildcard_combos,
         ),
     params:
-        channel_names=config["phenotype"]["channel_names"],
-        segment_cells=config["phenotype"].get("segment_cells", True),
+        channel_names=config.get("phenotype", {}).get("channel_names"),
+        segment_cells=config.get("phenotype", {}).get("segment_cells", True),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype"],
     script:

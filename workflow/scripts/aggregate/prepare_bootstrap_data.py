@@ -13,13 +13,18 @@ from lib.aggregate.cell_data_utils import (
 )
 from lib.aggregate.bootstrap import write_construct_data
 
+# Validate required params
+for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # Get parameters
 perturbation_col = snakemake.params.perturbation_name_col
 perturbation_id_col = snakemake.params.perturbation_id_col or perturbation_col
 control_key = snakemake.params.control_key
 exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp
-bootstrap_features_fp = snakemake.params.get("bootstrap_features_fp", None)
+bootstrap_features_fp = snakemake.params.bootstrap_features_fp
 
 print("Loading single-cell features data...")
 all_features_cells = pd.read_parquet(snakemake.input.features_singlecell)
@@ -48,7 +53,7 @@ control_cells = all_features_cells[control_mask]
 print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 
 # Load metadata columns and split control cell data
-use_classifier = snakemake.params.get("use_classifier", False)
+use_classifier = snakemake.params.use_classifier
 metadata_cols = load_metadata_cols(
     metadata_cols_fp, include_classification_cols=use_classifier
 )

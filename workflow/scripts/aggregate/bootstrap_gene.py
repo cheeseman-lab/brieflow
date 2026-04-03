@@ -13,7 +13,7 @@ gene_id = snakemake.wildcards.gene
 cell_class = snakemake.wildcards.cell_class
 channel_combo = snakemake.wildcards.channel_combo
 num_sims = snakemake.params.num_sims
-bootstrap_features_fp = snakemake.params.get("bootstrap_features_fp", None)
+bootstrap_features_fp = snakemake.params.bootstrap_features_fp
 
 print(f"Running gene-level bootstrap aggregation for: {gene_id}")
 

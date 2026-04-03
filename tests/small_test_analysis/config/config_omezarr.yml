@@ -7,6 +7,7 @@
 all:
   root_fp: brieflow_output_zarr/
   image_format: zarr
+  zarr_max_levels: 1  # Number of pyramid resolution levels (1 = no downsampling)
 preprocess:
   sbs_data_format: nd2
   sbs_data_organization: tile

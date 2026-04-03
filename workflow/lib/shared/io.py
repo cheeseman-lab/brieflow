@@ -93,7 +93,7 @@ def save_image(
     pixel_size: Optional[Union[float, Tuple[float, ...]]] = None,
     channel_names: Optional[Sequence[str]] = None,
     coarsening_factor: int = 2,
-    max_levels: int = 5,
+    max_levels: int = 1,
     is_label: bool = False,
 ) -> None:
     """Save an image to TIFF or OME-Zarr depending on the output path suffix."""
@@ -168,7 +168,7 @@ def write_image_omezarr(
     axes: str = "TCZYX",
     pixel_size_um: Optional[Union[float, Tuple[float, ...], Dict[str, float]]] = None,
     coarsening_factor: int = 2,
-    max_levels: int = 4,
+    max_levels: int = 1,
     is_label: bool = False,
     chunk_size: Optional[Tuple[int, ...]] = None,
     storage_options: Optional[Dict[str, Any]] = None,

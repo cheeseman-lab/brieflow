@@ -220,19 +220,54 @@ def _rename_channels(pos, target_names: list[str]) -> None:
                 pass
 
 
-def _build_and_set_omero(pos, resolved_names: list[str]) -> None:
+# Default color palette for channels when iohub can't determine color.
+_DEFAULT_CHANNEL_COLORS = [
+    "0000FF",  # blue
+    "00FF00",  # green
+    "FF0000",  # red
+    "FF00FF",  # magenta
+    "FFFF00",  # yellow
+    "00FFFF",  # cyan
+    "FF8000",  # orange
+    "8000FF",  # purple
+]
+
+
+def _build_and_set_omero(
+    pos,
+    resolved_names: list[str],
+    channels_metadata: list[dict] | None = None,
+) -> None:
     """Create OMERO rendering metadata (channels + rdefs) on the position.
 
-    Uses iohub's ``channel_display_settings`` to auto-assign colors based
-    on channel name keywords (DAPI→blue, GFP→lime, Cy3→yellow, Cy5→orange,
-    etc.) and default contrast limits.
+    Uses iohub's ``channel_display_settings`` for color assignment, with
+    overrides from ``channels_metadata[].color`` config and a default
+    palette fallback for unrecognized channel names. All channels are
+    set to active.
     """
     if not resolved_names:
         return
 
+    # Build color lookup from config if available
+    config_colors = {}
+    if channels_metadata:
+        for ch in channels_metadata:
+            if isinstance(ch, dict) and "color" in ch:
+                config_colors[ch.get("name", "")] = ch["color"]
+
     channels = []
     for i, name in enumerate(resolved_names):
-        ch_meta = channel_display_settings(name, clim=None, first_chan=(i == 0))
+        ch_meta = channel_display_settings(name, clim=None, first_chan=True)
+
+        # Override color: config → iohub (if not white) → default palette
+        if name in config_colors:
+            ch_meta.color = config_colors[name]
+        elif ch_meta.color == "FFFFFF":
+            ch_meta.color = _DEFAULT_CHANNEL_COLORS[i % len(_DEFAULT_CHANNEL_COLORS)]
+
+        # All channels active
+        ch_meta.active = True
+
         channels.append(ch_meta)
 
     pos.metadata.omero = OMEROMeta(
@@ -622,7 +657,7 @@ def patch_store_metadata_with_iohub(
         _rename_channels(pos, resolved)
 
         # --- OMERO rendering defaults (colors, rdefs, contrast limits) ---
-        _build_and_set_omero(pos, resolved)
+        _build_and_set_omero(pos, resolved, channels_metadata=channels_metadata)
 
         # --- axis units ---
         _ensure_axes_units_micrometer(pos)

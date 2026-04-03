@@ -8,6 +8,10 @@ from lib.aggregate.montage_utils import add_filenames
 from lib.shared.file_utils import get_filename
 
 
+# Validate required params
+if getattr(snakemake.params, "root_fp", None) is None:
+    raise ValueError("Required config parameter 'root_fp' is not set")
+
 # Create output directory
 output_dir = Path(snakemake.output[0])
 output_dir.mkdir(parents=True, exist_ok=True)

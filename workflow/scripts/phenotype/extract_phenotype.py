@@ -1,5 +1,10 @@
 from lib.shared.io import read_image
 
+# Validate required params
+for _param_name in ["cp_method", "channel_names", "foci_channel_index"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # Load inputs
 data_phenotype = read_image(snakemake.input[0])
 nuclei = read_image(snakemake.input[1])
@@ -7,7 +12,7 @@ cells = read_image(snakemake.input[2])
 cytoplasms = read_image(snakemake.input[3])
 
 # Check if cell segmentation is enabled - if not, pass None to skip cell/cytoplasm features
-segment_cells = snakemake.params.get("segment_cells", True)
+segment_cells = snakemake.params.segment_cells
 if not segment_cells:
     cells = None
     cytoplasms = None

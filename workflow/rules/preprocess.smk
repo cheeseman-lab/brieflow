@@ -80,7 +80,7 @@ rule convert_sbs:
             well=_get_well(wildcards),
             cycle=wildcards.cycle,
             tile=wildcards.tile if include_tile_in_input("sbs", config) else None,
-            channel_order=config["preprocess"]["sbs_channel_order"],
+            channel_order=config.get("preprocess", {}).get("sbs_channel_order"),
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
@@ -97,8 +97,8 @@ rule convert_phenotype:
             plate=wildcards.plate,
             well=_get_well(wildcards),
             tile=wildcards.tile if include_tile_in_input("phenotype", config) else None,
-            round_order=config["preprocess"]["phenotype_round_order"],
-            channel_order=config["preprocess"]["phenotype_channel_order"]
+            round_order=config.get("preprocess", {}).get("phenotype_round_order"),
+            channel_order=config.get("preprocess", {}).get("phenotype_channel_order"),
         ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
@@ -120,7 +120,7 @@ rule calculate_ic_sbs:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_sbs"],
     params:
         threading=True,
-        sample_fraction=config["preprocess"]["sample_fraction"],
+        sample_fraction=config.get("preprocess", {}).get("sample_fraction", 1),
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 
@@ -138,7 +138,7 @@ rule calculate_ic_phenotype:
         PREPROCESS_OUTPUTS_MAPPED["calculate_ic_phenotype"],
     params:
         threading=True,
-        sample_fraction=config["preprocess"]["sample_fraction"],
+        sample_fraction=config.get("preprocess", {}).get("sample_fraction", 1),
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 

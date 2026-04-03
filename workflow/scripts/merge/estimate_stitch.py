@@ -26,9 +26,9 @@ data_type = snakemake.params.data_type
 # Get fallback pixel sizes from config
 fallback_pixel_size = None
 if data_type == "sbs":
-    fallback_pixel_size = snakemake.params.get("sbs_pixel_size", None)
+    fallback_pixel_size = snakemake.params.sbs_pixel_size
 elif data_type == "phenotype":
-    fallback_pixel_size = snakemake.params.get("phenotype_pixel_size", None)
+    fallback_pixel_size = snakemake.params.phenotype_pixel_size
 
 # Load metadata
 metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
@@ -36,9 +36,9 @@ metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 # Apply coordinate alignment for SBS data if transformation parameters are provided
 if data_type == "sbs":
     alignment_params = {
-        "flip_x": getattr(snakemake.params, "alignment_flip_x", False),
-        "flip_y": getattr(snakemake.params, "alignment_flip_y", False),
-        "rotate_90": getattr(snakemake.params, "alignment_rotate_90", False),
+        "flip_x": snakemake.params.alignment_flip_x,
+        "flip_y": snakemake.params.alignment_flip_y,
+        "rotate_90": snakemake.params.alignment_rotate_90,
     }
 
     # Only apply alignment if at least one transformation is requested

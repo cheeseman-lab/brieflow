@@ -20,7 +20,7 @@ from lib.merge.eval_stitch import create_tile_arrangement_qc_plot, create_empty_
 data_type = snakemake.params.data_type
 plate = snakemake.params.plate
 well = snakemake.params.well
-create_stitched_image = getattr(snakemake.params, "stitched_image", True)
+create_stitched_image = snakemake.params.stitched_image
 
 print(f"Stitching {data_type} - plate {plate}, well {well}")
 

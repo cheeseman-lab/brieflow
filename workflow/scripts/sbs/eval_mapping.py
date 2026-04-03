@@ -19,6 +19,10 @@ from lib.sbs.eval_mapping import (
     mapping_overview,
 )
 
+# Validate required params
+if getattr(snakemake.params, "df_barcode_library_fp", None) is None:
+    raise ValueError("Required config parameter 'df_barcode_library_fp' is not set")
+
 # Read barcodes
 df_barcode_library = pd.read_csv(snakemake.params.df_barcode_library_fp, sep="\t")
 if snakemake.params.barcode_type == "multi":

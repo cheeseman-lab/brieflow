@@ -12,11 +12,16 @@ from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
 from lib.aggregate.bootstrap import create_pseudogene_groups
 
+# Validate required params
+for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # get snakemake parameters
 pert_col = snakemake.params.perturbation_name_col
 pert_id_col = snakemake.params.perturbation_id_col or pert_col
 control_key = snakemake.params.control_key
-num_batches = snakemake.params.get("num_align_batches", 1)
+num_batches = snakemake.params.num_align_batches
 
 # Load cell data using PyArrow dataset (lazy - no data loaded yet)
 print("Loading cell data as PyArrow dataset...")
@@ -36,7 +41,7 @@ cell_dataset = ds.dataset(non_empty_paths, format="parquet")
 
 # Determine columns
 cell_data_cols = cell_dataset.schema.names
-use_classifier = snakemake.params.get("use_classifier", False)
+use_classifier = snakemake.params.use_classifier
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classifier)
 feature_cols = [col for col in cell_dataset.schema.names if col not in metadata_cols]
 
@@ -232,7 +237,7 @@ final_gene_table = final_gene_table[gene_columns]
 print(f"Gene table shape: {final_gene_table.shape}")
 
 # Add pseudo-gene entries if specified
-pseudogene_patterns = snakemake.params.get("pseudogene_patterns", None)
+pseudogene_patterns = snakemake.params.pseudogene_patterns
 
 if pseudogene_patterns:
     print("Adding pseudo-gene entries to gene table...")

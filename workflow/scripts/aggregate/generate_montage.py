@@ -7,6 +7,10 @@ from lib.aggregate.montage_utils import create_cell_montage, extract_cell_crops
 # Read parameters
 IMG_FMT = snakemake.params.get("img_fmt", "tiff")
 
+# Validate required params
+if getattr(snakemake.params, "channels", None) is None:
+    raise ValueError("Required config parameter 'channels' is not set")
+
 # read cell data
 montage_data = pd.read_csv(snakemake.input[0], sep="\t")
 
@@ -21,8 +25,8 @@ if IMG_FMT == "zarr":
 
     cell_crops = extract_cell_crops(
         montage_data,
-        num_cells=snakemake.params.get("montage_num_cells", 30),
-        cell_size=snakemake.params.get("montage_cell_size", 40),
+        num_cells=snakemake.params.montage_num_cells,
+        cell_size=snakemake.params.montage_cell_size,
     )
 
     # Write each crop as OME-Zarr under examples.zarr/{gene}/{barcode}/{idx}
@@ -45,8 +49,8 @@ else:
     montage = create_cell_montage(
         montage_data,
         snakemake.params.channels,
-        cell_size=snakemake.params.get("montage_cell_size", 40),
-        shape=tuple(snakemake.params.get("montage_shape", (3, 10))),
+        cell_size=snakemake.params.montage_cell_size,
+        shape=tuple(snakemake.params.montage_shape),
     )
 
     # save montages

@@ -26,6 +26,11 @@ warnings.filterwarnings(
 )
 np.random.seed(0)
 
+# Validate required params
+for _param_name in ["metadata_cols_fp", "perturbation_name_col", "control_key"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 ## Step 1: Create PCA transformation
 PCA_SUBSET = 100000
 
@@ -56,7 +61,7 @@ sample_df = cell_dataset.scanner().take(random_indices)
 sample_df = sample_df.to_pandas(use_threads=True, memory_pool=None)
 
 # load sample df as pandas dataframe
-use_classifier = snakemake.params.get("use_classifier", False)
+use_classifier = snakemake.params.use_classifier
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classifier)
 metadata, features = split_cell_data(sample_df, metadata_cols)
 metadata, features = prepare_alignment_data(
@@ -132,7 +137,7 @@ for i, indices in enumerate(subset_indices):
         snakemake.params.perturbation_name_col,
         snakemake.params.control_key,
         "batch_values",
-        control_col=snakemake.params.get("control_name_col"),
+        control_col=snakemake.params.control_name_col,
     )
 
     feature_columns = [f"PC_{j}" for j in range(features.shape[1])]

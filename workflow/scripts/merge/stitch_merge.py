@@ -14,6 +14,10 @@ from lib.merge.stitch_merge import (
     create_merge_summary,
 )
 
+# Validate required params
+if getattr(snakemake.params, "threshold", None) is None:
+    raise ValueError("Required config parameter 'threshold' is not set")
+
 # Load all inputs
 phenotype_scaled = validate_dtypes(
     pd.read_parquet(snakemake.input.scaled_phenotype_positions)

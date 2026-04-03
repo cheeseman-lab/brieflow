@@ -8,15 +8,20 @@ from lib.merge.hash import (
 )
 from lib.merge.merge_utils import align_metadata, find_closest_tiles
 
+# Validate required params
+for _param_name in ["det_range", "score"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # Load dfs with metadata on well level
 phenotype_metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
 sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input[1]))
 
 # Apply coordinate alignment if transformation parameters are provided
 alignment_params = {
-    "flip_x": getattr(snakemake.params, "alignment_flip_x", False),
-    "flip_y": getattr(snakemake.params, "alignment_flip_y", False),
-    "rotate_90": getattr(snakemake.params, "alignment_rotate_90", False),
+    "flip_x": snakemake.params.alignment_flip_x,
+    "flip_y": snakemake.params.alignment_flip_y,
+    "rotate_90": snakemake.params.alignment_rotate_90,
 }
 
 # Only apply alignment if at least one transformation is requested
@@ -87,8 +92,8 @@ sbs_info_hash = validate_dtypes(
 )
 
 # Get initial site configuration - exactly one must be provided
-initial_sbs_tiles = getattr(snakemake.params, "initial_sbs_tiles", None)
-initial_sites_param = getattr(snakemake.params, "initial_sites", None)
+initial_sbs_tiles = snakemake.params.initial_sbs_tiles
+initial_sites_param = snakemake.params.initial_sites
 
 # Validate exactly one is provided
 if (initial_sbs_tiles is None) == (initial_sites_param is None):

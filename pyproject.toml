@@ -48,7 +48,7 @@ dependencies = [
   "widgetsnbextension==4.0.14",
   "lightgbm==4.6.0",
   "scikit-learn==1.8.0",
-  "anndata>=0.10.0",
+  "anndata==0.12.10",
   "ome-zarr==0.13.0",
   "zarr==3.1.5",
   "dask[array]==2026.1.1",

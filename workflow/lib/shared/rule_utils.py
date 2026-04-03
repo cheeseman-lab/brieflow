@@ -296,11 +296,12 @@ def get_montage_inputs(
             # Append the output file path to the list
             output_files.append(output_file)
 
-    # Add the overlay file path
-    overlay_file = str(montage_overlay_template).format(
-        gene=gene, sgrna=sgrna, cell_class=cell_class
-    )
-    output_files.append(overlay_file)
+    # Add the overlay file path (TIFF mode only)
+    if montage_overlay_template is not None:
+        overlay_file = str(montage_overlay_template).format(
+            gene=gene, sgrna=sgrna, cell_class=cell_class
+        )
+        output_files.append(overlay_file)
 
     return output_files
 

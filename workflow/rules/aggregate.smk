@@ -173,50 +173,81 @@ checkpoint prepare_montage_data:
         directory(MONTAGE_OUTPUTS["montage_data_dir"]),
     params:
         root_fp=config["all"]["root_fp"],
+        img_fmt=IMG_FMT,
     script:
         "../scripts/aggregate/prepare_montage_data.py"
 
 
-# Generate montage
-rule generate_montage:
-    input:
-        MONTAGE_OUTPUTS["montage_data"],
-    priority: 50
-    output:
-        expand(
-            str(MONTAGE_OUTPUTS["montage"]),
-            cell_class="{cell_class}",
-            gene="{gene}",
-            sgrna="{sgrna}",
-            channel=config["phenotype"]["channel_names"],
-        )
-        + [
-            str(MONTAGE_OUTPUTS["montage_overlay"]).format(
-                cell_class="{cell_class}", gene="{gene}", sgrna="{sgrna}"
+if IMG_FMT == "zarr":
+    # Zarr mode: write individual cell crops to examples.zarr
+    rule generate_montage:
+        input:
+            MONTAGE_OUTPUTS["montage_data"],
+        priority: 50
+        output:
+            touch(MONTAGE_OUTPUTS["montage_crop_flag"]),
+        params:
+            img_fmt="zarr",
+            examples_zarr_root=lambda wildcards: str(
+                MONTAGE_OUTPUTS["examples_zarr"]
+            ).format(cell_class=wildcards.cell_class),
+            montage_cell_size=config["aggregate"].get("montage_cell_size", 40),
+            montage_num_cells=config["aggregate"].get("montage_num_cells", 30),
+        script:
+            "../scripts/aggregate/generate_montage.py"
+
+    rule initiate_montage:
+        input:
+            lambda wildcards: get_montage_inputs(
+                checkpoints.prepare_montage_data,
+                MONTAGE_OUTPUTS["montage_crop_flag"],
+                None,
+                ["_"],  # No per-channel expansion needed for zarr crops
+                wildcards.cell_class,
+            ),
+        priority: 50
+        output:
+            touch(MONTAGE_OUTPUTS["montage_flag"]),
+
+else:
+    # TIFF mode: existing PNG + TIFF montage behavior
+    rule generate_montage:
+        input:
+            MONTAGE_OUTPUTS["montage_data"],
+        priority: 50
+        output:
+            expand(
+                str(MONTAGE_OUTPUTS["montage"]),
+                cell_class="{cell_class}",
+                gene="{gene}",
+                sgrna="{sgrna}",
+                channel=config["phenotype"]["channel_names"],
             )
-        ],
-    params:
-        channels=config["phenotype"]["channel_names"],
-        montage_cell_size=config["aggregate"].get("montage_cell_size", 40),
-        montage_shape=config["aggregate"].get("montage_shape", [3, 10]),
-    script:
-        "../scripts/aggregate/generate_montage.py"
+            + [
+                str(MONTAGE_OUTPUTS["montage_overlay"]).format(
+                    cell_class="{cell_class}", gene="{gene}", sgrna="{sgrna}"
+                )
+            ],
+        params:
+            img_fmt="tiff",
+            channels=config["phenotype"]["channel_names"],
+            montage_cell_size=config["aggregate"].get("montage_cell_size", 40),
+            montage_shape=config["aggregate"].get("montage_shape", [3, 10]),
+        script:
+            "../scripts/aggregate/generate_montage.py"
 
-
-# Initiate montage creation based on checkpoint
-# Create a flag to indicate montage creation is done
-rule initiate_montage:
-    input:
-        lambda wildcards: get_montage_inputs(
-            checkpoints.prepare_montage_data,
-            MONTAGE_OUTPUTS["montage"],
-            MONTAGE_OUTPUTS["montage_overlay"],
-            config["phenotype"]["channel_names"],
-            wildcards.cell_class,
-        ),
-    priority: 50
-    output:
-        touch(MONTAGE_OUTPUTS["montage_flag"]),
+    rule initiate_montage:
+        input:
+            lambda wildcards: get_montage_inputs(
+                checkpoints.prepare_montage_data,
+                MONTAGE_OUTPUTS["montage"],
+                MONTAGE_OUTPUTS["montage_overlay"],
+                config["phenotype"]["channel_names"],
+                wildcards.cell_class,
+            ),
+        priority: 50
+        output:
+            touch(MONTAGE_OUTPUTS["montage_flag"]),
 
 
 # BOOTSTRAP STATISTICAL TESTING

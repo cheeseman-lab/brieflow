@@ -34,7 +34,10 @@ cell_data = cell_data.to_table(columns=montage_columns, use_threads=True)
 cell_data = cell_data.to_pandas()
 
 # Prepare for montage
-prepared_cell_data = add_filenames(cell_data, Path(snakemake.params.root_fp))
+img_fmt = snakemake.params.get("img_fmt", "tiff")
+prepared_cell_data = add_filenames(
+    cell_data, Path(snakemake.params.root_fp), img_fmt=img_fmt
+)
 
 # Group rows by gene + cell barcode
 gene_barcode_groups = prepared_cell_data.groupby(

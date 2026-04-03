@@ -228,9 +228,23 @@ def write_image_omezarr(
                 {"label": name, "active": True} for name in channel_names
             ]
         else:
+            _palette = [
+                "0000FF",
+                "00FF00",
+                "FF0000",
+                "FF00FF",
+                "FFFF00",
+                "00FFFF",
+                "FF8000",
+                "8000FF",
+            ]
             omero["channels"] = [
-                {"label": name, "active": True, "color": "FFFFFF"}
-                for name in channel_names
+                {
+                    "label": name,
+                    "active": True,
+                    "color": _palette[i % len(_palette)],
+                }
+                for i, name in enumerate(channel_names)
             ]
     if any(v is not None for v in ps.values()):
         omero["pixel_size"] = {k: v for k, v in ps.items() if v is not None}

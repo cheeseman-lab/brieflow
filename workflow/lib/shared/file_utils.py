@@ -87,11 +87,12 @@ def get_hcs_nested_path(
 
     if subdirectory:
         # Label stores nest inside the aligned image store (OME-NGFF compliant).
-        # e.g. aligned_1.zarr/A/1/0/labels/nuclei.zarr
+        # No .zarr suffix on sub-groups — they're already inside a .zarr store.
+        # e.g. aligned_1.zarr/A/1/0/labels/nuclei
         parts = [f"aligned_{plate}.{file_type}", row, col, tile]
         if "cycle" in data_location:
             parts.append(str(data_location["cycle"]))
-        parts.extend([subdirectory, f"{info_type}.{file_type}"])
+        parts.extend([subdirectory, info_type])
         return str(Path(*parts))
 
     # Image stores: track by zarr.json sentinel so labels can nest inside without

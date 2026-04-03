@@ -19,6 +19,18 @@ from tifffile import imwrite as tiff_imwrite
 # 2 = Zarr v2 / OME-NGFF v0.4 (.zarray/.zgroup/.zattrs) for legacy compat.
 ZARR_FORMAT = 3
 
+# Default channel color palette for OME-Zarr OMERO rendering metadata.
+DEFAULT_CHANNEL_COLORS = [
+    "0000FF",  # blue
+    "00FF00",  # green
+    "FF0000",  # red
+    "FF00FF",  # magenta
+    "FFFF00",  # yellow
+    "00FFFF",  # cyan
+    "FF8000",  # orange
+    "8000FF",  # purple
+]
+
 PathLike = Union[str, Path]
 
 
@@ -228,21 +240,11 @@ def write_image_omezarr(
                 {"label": name, "active": True} for name in channel_names
             ]
         else:
-            _palette = [
-                "0000FF",
-                "00FF00",
-                "FF0000",
-                "FF00FF",
-                "FFFF00",
-                "00FFFF",
-                "FF8000",
-                "8000FF",
-            ]
             omero["channels"] = [
                 {
                     "label": name,
                     "active": True,
-                    "color": _palette[i % len(_palette)],
+                    "color": DEFAULT_CHANNEL_COLORS[i % len(DEFAULT_CHANNEL_COLORS)],
                 }
                 for i, name in enumerate(channel_names)
             ]

@@ -29,7 +29,7 @@ if IMG_FMT == "zarr":
     for idx in range(len(cell_crops)):
         crop = cell_crops[idx]  # (C, H, W)
         arr_path = str(examples_zarr_root / gene / barcode / f"{idx}.zarr")
-        save_image(crop, arr_path, channel_names=channels)
+        save_image(crop, arr_path, channel_names=channels, max_levels=1)
 
     print(f"Wrote {len(cell_crops)} crops to {examples_zarr_root / gene / barcode}")
 

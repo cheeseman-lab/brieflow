@@ -6,16 +6,6 @@ merge_approach = config.get("merge", {}).get("approach", "fast")
 _merge_well_expand = ["row", "col"] if IMG_FMT == "zarr" else []
 _merge_well_expand_all = ["row", "col"] if IMG_FMT == "zarr" else ["well"]
 
-# Preprocess metadata uses {well} paths even in zarr mode (combined per-well).
-# Synthesize well-based combos from row+col for metadata lookups.
-def _combos_with_well(combos):
-    """Add a 'well' column synthesized from row+col if in zarr mode."""
-    if IMG_FMT == "zarr" and "row" in combos and "well" not in combos:
-        result = combos.copy()
-        result["well"] = [r + c for r, c in zip(combos["row"], combos["col"])]
-        return result
-    return combos
-
 if merge_approach == "fast":
     rule fast_alignment:
         input:

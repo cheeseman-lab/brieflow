@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 from iohub.ngff import open_ome_zarr
 from iohub.ngff.display import channel_display_settings
+
+from lib.shared.io import DEFAULT_CHANNEL_COLORS
 from iohub.ngff.models import OMEROMeta, RDefsMeta, TransformationMeta
 
 from lib.shared.hcs import write_hcs_metadata
@@ -220,19 +222,6 @@ def _rename_channels(pos, target_names: list[str]) -> None:
                 pass
 
 
-# Default color palette for channels when iohub can't determine color.
-_DEFAULT_CHANNEL_COLORS = [
-    "0000FF",  # blue
-    "00FF00",  # green
-    "FF0000",  # red
-    "FF00FF",  # magenta
-    "FFFF00",  # yellow
-    "00FFFF",  # cyan
-    "FF8000",  # orange
-    "8000FF",  # purple
-]
-
-
 def _build_and_set_omero(
     pos,
     resolved_names: list[str],
@@ -263,7 +252,7 @@ def _build_and_set_omero(
         if name in config_colors:
             ch_meta.color = config_colors[name]
         elif ch_meta.color == "FFFFFF":
-            ch_meta.color = _DEFAULT_CHANNEL_COLORS[i % len(_DEFAULT_CHANNEL_COLORS)]
+            ch_meta.color = DEFAULT_CHANNEL_COLORS[i % len(DEFAULT_CHANNEL_COLORS)]
 
         # All channels active
         ch_meta.active = True

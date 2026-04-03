@@ -4,5 +4,4 @@
 snakemake --use-conda --cores all \
     --snakefile "../../workflow/Snakefile" \
     --configfile "config/config_omezarr.yml" \
-    --until all_aggregate all_cluster
-        # -R finalize_hcs_sbs finalize_hcs_phenotype
+    --until all_preprocess all_sbs all_phenotype all_merge all_aggregate all_cluster

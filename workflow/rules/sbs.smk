@@ -281,11 +281,11 @@ rule eval_mapping:
         barcode_type=config["sbs"].get("barcode_type", "simple"),
         sequencing_order=config["sbs"].get("sequencing_order", "map_recomb"),
         library_barcode_col=(
-            config["sbs"].get("map_col") or "prefix_map"
+            config["sbs"].get("prefix_map", "prefix_map")
             if config["sbs"].get("barcode_type", "simple") == "multi"
-            else config["sbs"].get("prefix_col") or "prefix"
+            else config["sbs"].get("prefix_col", "prefix")
         ),
-        recomb_col=config["sbs"].get("recomb_col", "prefix_recomb"),
+        prefix_recomb=config["sbs"].get("prefix_recomb", "prefix_recomb"),
     script:
         "../scripts/sbs/eval_mapping.py"
 

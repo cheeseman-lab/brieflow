@@ -98,7 +98,7 @@ if snakemake.params.barcode_type == "multi":
         reads,
         df_barcode_library,
         library_col=snakemake.params.library_barcode_col,
-        library_col_recomb=snakemake.params.recomb_col,
+        library_col_recomb=snakemake.params.prefix_recomb,
         sequencing_order=snakemake.params.sequencing_order,
     )
 else:

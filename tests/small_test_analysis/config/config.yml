@@ -61,8 +61,8 @@ sbs:
   - C
   barcode_type: simple
   q_min: 0
+  prefix_col: prefix
   barcode_col: sgRNA
-  prefix_col: null
   sort_calls: count
   n_barcodes: 2
   error_correct: false

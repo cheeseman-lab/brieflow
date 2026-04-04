@@ -513,10 +513,10 @@ def get_call_cells_params(config: Dict[str, Any]) -> Dict[str, Any]:
                 "prefix_col": None,  # Not used in multi mode
                 "map_start": sbs_config.get("map_start"),
                 "map_end": sbs_config.get("map_end"),
-                "map_col": sbs_config.get("map_col", "prefix_map"),
+                "prefix_map": sbs_config.get("prefix_map", "prefix_map"),
                 "recomb_start": sbs_config.get("recomb_start"),
                 "recomb_end": sbs_config.get("recomb_end"),
-                "recomb_col": sbs_config.get("recomb_col", "prefix_recomb"),
+                "prefix_recomb": sbs_config.get("prefix_recomb", "prefix_recomb"),
                 "recomb_filter_col": sbs_config.get("recomb_filter_col", None),
                 "recomb_q_thresh": sbs_config.get("recomb_q_thresh", 0.1),
             }

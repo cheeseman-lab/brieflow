@@ -48,6 +48,20 @@ rule benchmark_clusters:
         "../scripts/cluster/benchmark_clusters.py"
 
 
+# Generate spec-compliant aggregated_data.h5ad
+rule format_cluster_anndata:
+    input:
+        features_genes=AGGREGATE_OUTPUTS["generate_feature_table"][2],
+        clustering=CLUSTER_OUTPUTS["phate_leiden_clustering"][0],
+    output:
+        CLUSTER_OUTPUTS_MAPPED["format_cluster_anndata"],
+    params:
+        perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
+        channel_names=config["phenotype"]["channel_names"],
+    script:
+        "../scripts/cluster/format_cluster_anndata.py"
+
+
 # Rule for all cluster processing steps
 rule all_cluster:
     input:

@@ -20,7 +20,7 @@ Extracted from `intensity_features_multichannel`. These measure pixel intensity 
 
 | Feature | Description | Formula/Method |
 |---------|-------------|----------------|
-| `int` | Integrated intensity | Sum of all pixel intensities in the region |
+| `integrated` | Integrated intensity | Sum of all pixel intensities in the region |
 | `mean` | Mean intensity | Average pixel intensity |
 | `std` | Standard deviation | Standard deviation of pixel intensities |
 | `max` | Maximum intensity | Maximum pixel value in region |
@@ -39,7 +39,7 @@ Computed on boundary pixels only (using inner boundary with connectivity=2):
 
 | Feature | Description |
 |---------|-------------|
-| `int_edge` | Sum of edge pixel intensities |
+| `integrated_edge` | Sum of edge pixel intensities |
 | `mean_edge` | Mean of edge pixel intensities |
 | `std_edge` | Standard deviation of edge pixels |
 | `max_edge` | Maximum edge pixel intensity |

@@ -12,6 +12,16 @@ perturbation_name_col = snakemake.params.perturbation_name_col
 channel_names = snakemake.params.channel_names
 channel_combo = snakemake.params.channel_combo
 
+# Internal pipeline columns that have no meaning outside brieflow
+PIPELINE_INTERNAL_COLS = {
+    "batch_values",
+    "channels_min",
+    "site",
+    "i_0", "j_0",
+    "i_1", "j_1",
+    "fov_distance_0", "fov_distance_1",
+}
+
 # Load metadata cols from TSV + optional classifier cols
 metadata_cols = load_metadata_cols(metadata_cols_fp, use_classifier)
 
@@ -32,13 +42,26 @@ non_numeric_cols = [c for c in df.columns if not pd.api.types.is_numeric_dtype(d
 obs_cols = list(dict.fromkeys([c for c in metadata_cols if c in df.columns] + non_numeric_cols))
 feature_cols = [c for c in df.columns if c not in obs_cols]
 
-print(f"Obs columns: {len(obs_cols)} | Feature columns: {len(feature_cols)}")
-
-# Build obs
+# Build obs, dropping internal pipeline columns
 obs = df[obs_cols].reset_index(drop=True)
+cols_to_drop = [c for c in PIPELINE_INTERNAL_COLS if c in obs.columns]
+if cols_to_drop:
+    print(f"Dropping internal pipeline columns from obs: {cols_to_drop}")
+    obs = obs.drop(columns=cols_to_drop)
 
 # Add is_control boolean
 obs["is_control"] = obs[perturbation_name_col].str.contains(control_key, na=False)
+
+# Add cell_uid as a globally unique cell identifier across experiments
+# Format: {plate}_{well}_{tile}_{cell_seq_id}
+obs["cell_uid"] = (
+    obs["plate"].astype(str)
+    + "_" + obs["well"].astype(str)
+    + "_" + obs["tile"].astype(str)
+    + "_" + obs["cell_0"].astype(str)
+)
+obs = obs.set_index("cell_uid")
+print(f"Set obs index to cell_uid (e.g. {obs.index[0]})")
 
 # Build var with structured metadata parsed from feature names
 # Feature names follow the pattern: {compartment}_{channel}_{feature_type}

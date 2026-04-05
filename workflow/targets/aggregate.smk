@@ -99,7 +99,7 @@ AGGREGATE_OUTPUTS = {
         ),
     ],
     # One AnnData per channel_combo, combining all cell classes
-    "generate_anndata": [
+    "format_singlecell_anndata": [
         AGGREGATE_FP
         / "anndata"
         / get_filename(
@@ -118,7 +118,7 @@ AGGREGATE_OUTPUT_MAPPINGS = {
     "aggregate": None,
     "eval_aggregate": None,
     "generate_feature_table": None,
-    "generate_anndata": None,
+    "format_singlecell_anndata": None,
 }
 
 AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)

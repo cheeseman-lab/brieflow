@@ -6,11 +6,15 @@ from lib.cluster.format_cluster_anndata import format_cluster_anndata
 features_genes = pd.read_csv(snakemake.input.features_genes, sep="\t")
 clustering = pd.read_csv(snakemake.input.clustering, sep="\t")
 
-# Optional bootstrap results
+# Bootstrap results
 bootstrap_results = None
-bootstrap_path = snakemake.input.get("bootstrap_results", None)
-if bootstrap_path:
-    bootstrap_results = pd.read_csv(bootstrap_path, sep="\t")
+try:
+    bootstrap_path = snakemake.input.bootstrap_results
+    if bootstrap_path:
+        bootstrap_results = pd.read_csv(bootstrap_path, sep="\t")
+        print(f"Bootstrap results: {bootstrap_results.shape}")
+except AttributeError:
+    pass
 
 # Build AnnData
 adata = format_cluster_anndata(

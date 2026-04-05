@@ -48,11 +48,12 @@ rule benchmark_clusters:
         "../scripts/cluster/benchmark_clusters.py"
 
 
-# Generate spec-compliant aggregated_data.h5ad
+# Format cluster results into AnnData h5ad
 rule format_cluster_anndata:
     input:
         features_genes=AGGREGATE_OUTPUTS["generate_feature_table"][2],
         clustering=CLUSTER_OUTPUTS["phate_leiden_clustering"][0],
+        bootstrap_results=ancient(BOOTSTRAP_OUTPUTS["combined_gene_results"]),
     output:
         CLUSTER_OUTPUTS_MAPPED["format_cluster_anndata"],
     params:

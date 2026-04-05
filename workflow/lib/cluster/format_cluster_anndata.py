@@ -110,6 +110,62 @@ def split_feature_and_metadata_cols(
     return metadata_cols, feature_cols
 
 
+def _add_bootstrap_layers(
+    adata: ad.AnnData,
+    bootstrap_df: pd.DataFrame,
+    perturbation_col: str,
+    feature_cols: List[str],
+) -> None:
+    """Add p-value and FDR layers from bootstrap results.
+
+    The bootstrap TSV has columns like ``{feature}_pval``, ``{feature}_log10``,
+    ``{feature}_fdr`` for each tested feature. This reshapes them into
+    (n_perturbations × n_features) matrices aligned with adata's var index.
+
+    Args:
+        adata: AnnData to add layers to (modified in place).
+        bootstrap_df: Gene-level bootstrap results with ``gene`` column.
+        perturbation_col: Column name used as perturbation identifier.
+        feature_cols: Feature column names matching adata.var_names.
+    """
+    # Bootstrap uses "gene" as the perturbation key
+    gene_col = "gene"
+    if gene_col not in bootstrap_df.columns:
+        return
+
+    # Align bootstrap rows to adata obs order
+    bootstrap_df = bootstrap_df.set_index(gene_col)
+    common_genes = adata.obs_names.intersection(bootstrap_df.index)
+    if len(common_genes) == 0:
+        return
+
+    bootstrap_aligned = bootstrap_df.loc[adata.obs_names]
+
+    # Extract p-values and FDR for features that have bootstrap results
+    pval_matrix = np.full((adata.n_obs, adata.n_vars), np.nan, dtype=np.float32)
+    fdr_matrix = np.full((adata.n_obs, adata.n_vars), np.nan, dtype=np.float32)
+    log10_matrix = np.full((adata.n_obs, adata.n_vars), np.nan, dtype=np.float32)
+
+    for i, feat in enumerate(feature_cols):
+        pval_col = f"{feat}_pval"
+        fdr_col = f"{feat}_fdr"
+        log10_col = f"{feat}_log10"
+
+        if pval_col in bootstrap_aligned.columns:
+            pval_matrix[:, i] = bootstrap_aligned[pval_col].values.astype(np.float32)
+        if fdr_col in bootstrap_aligned.columns:
+            fdr_matrix[:, i] = bootstrap_aligned[fdr_col].values.astype(np.float32)
+        if log10_col in bootstrap_aligned.columns:
+            log10_matrix[:, i] = bootstrap_aligned[log10_col].values.astype(np.float32)
+
+    # Count how many features have bootstrap data
+    n_with_pvals = np.sum(~np.isnan(pval_matrix[0, :]))
+
+    if n_with_pvals > 0:
+        adata.layers["p_values"] = pval_matrix
+        adata.layers["neg_log10_fdr"] = log10_matrix
+
+
 def format_cluster_anndata(
     features_genes: pd.DataFrame,
     clustering: pd.DataFrame,
@@ -176,8 +232,7 @@ def format_cluster_anndata(
 
     # Bootstrap p-values (optional)
     if bootstrap_results is not None:
-        # TODO: reshape into (n_perturbations × n_features) and add as layers
-        pass
+        _add_bootstrap_layers(adata, bootstrap_results, perturbation_col, feature_cols)
 
     # uns metadata
     adata.uns["schema_version"] = "0.1.0"

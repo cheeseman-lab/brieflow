@@ -449,9 +449,10 @@ def apply_multiple_hypothesis_correction(
     for feature in feature_cols:
         ordered_cols.extend(
             [
-                f"{feature}_pval",  # Original p-value (including 0s)
-                f"{feature}_log10",  # -log10(p-value), with ceiling for p=0
-                f"{feature}_fdr",  # FDR-corrected p-value
+                f"{feature}_pval",
+                f"{feature}_neg_log10_pval",
+                f"{feature}_fdr",
+                f"{feature}_neg_log10_fdr",
             ]
         )
 

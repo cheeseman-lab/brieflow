@@ -50,4 +50,6 @@ DEFAULT_METADATA_COLS = [
     "cytoplasm_bounds_1",
     "cytoplasm_bounds_2",
     "cytoplasm_bounds_3",
+    "row",
+    "col",
 ]

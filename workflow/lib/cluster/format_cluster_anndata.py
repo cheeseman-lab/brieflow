@@ -221,9 +221,11 @@ def format_cluster_anndata(
         if col != perturbation_col and col in merged.columns:
             obs[col] = merged[col].values
 
-    # Remove generic "cluster" column (will be replaced by per-resolution columns)
-    if "cluster" in obs.columns:
-        obs = obs.drop(columns=["cluster"])
+    # Drop columns that belong elsewhere or are duplicates
+    drop_cols = {"cluster", "PHATE_0", "PHATE_1"}  # cluster → per-resolution, PHATE → obsm
+    # Drop merge-suffix duplicates (e.g. cell_count_cluster)
+    drop_cols.update(c for c in obs.columns if c.endswith("_cluster"))
+    obs = obs.drop(columns=[c for c in drop_cols if c in obs.columns])
 
     # Add cluster assignments from all resolutions
     for res, clustering_df in clusterings.items():

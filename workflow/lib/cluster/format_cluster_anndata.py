@@ -141,29 +141,32 @@ def _add_bootstrap_layers(
 
     bootstrap_aligned = bootstrap_df.loc[adata.obs_names]
 
-    # Extract p-values and FDR for features that have bootstrap results
-    pval_matrix = np.full((adata.n_obs, adata.n_vars), np.nan, dtype=np.float32)
-    fdr_matrix = np.full((adata.n_obs, adata.n_vars), np.nan, dtype=np.float32)
-    log10_matrix = np.full((adata.n_obs, adata.n_vars), np.nan, dtype=np.float32)
+    # Extract all bootstrap columns for features
+    suffixes = {
+        "p_values": "_pval",
+        "fdr": "_fdr",
+        "neg_log10_pval": "_neg_log10_pval",
+        "neg_log10_fdr": "_neg_log10_fdr",
+    }
+
+    matrices = {
+        name: np.full((adata.n_obs, adata.n_vars), np.nan, dtype=np.float32)
+        for name in suffixes
+    }
 
     for i, feat in enumerate(feature_cols):
-        pval_col = f"{feat}_pval"
-        fdr_col = f"{feat}_fdr"
-        log10_col = f"{feat}_log10"
+        for layer_name, suffix in suffixes.items():
+            col = f"{feat}{suffix}"
+            if col in bootstrap_aligned.columns:
+                matrices[layer_name][:, i] = bootstrap_aligned[col].values.astype(
+                    np.float32
+                )
 
-        if pval_col in bootstrap_aligned.columns:
-            pval_matrix[:, i] = bootstrap_aligned[pval_col].values.astype(np.float32)
-        if fdr_col in bootstrap_aligned.columns:
-            fdr_matrix[:, i] = bootstrap_aligned[fdr_col].values.astype(np.float32)
-        if log10_col in bootstrap_aligned.columns:
-            log10_matrix[:, i] = bootstrap_aligned[log10_col].values.astype(np.float32)
-
-    # Count how many features have bootstrap data
-    n_with_pvals = np.sum(~np.isnan(pval_matrix[0, :]))
-
+    # Add layers that have data
+    n_with_pvals = np.sum(~np.isnan(matrices["p_values"][0, :]))
     if n_with_pvals > 0:
-        adata.layers["p_values"] = pval_matrix
-        adata.layers["neg_log10_fdr"] = log10_matrix
+        for layer_name, matrix in matrices.items():
+            adata.layers[layer_name] = matrix
 
 
 def format_cluster_anndata(
@@ -232,9 +235,9 @@ def format_cluster_anndata(
 
     # Percentile rank layer (0–100, per feature across perturbations)
     X_df = pd.DataFrame(X, columns=feature_cols)
-    adata.layers["percentile_rank"] = (
-        X_df.rank(pct=True).values * 100
-    ).astype(np.float32)
+    adata.layers["percentile_rank"] = (X_df.rank(pct=True).values * 100).astype(
+        np.float32
+    )
 
     # Bootstrap p-values (optional)
     if bootstrap_results is not None:

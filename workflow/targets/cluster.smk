@@ -95,7 +95,7 @@ CLUSTER_OUTPUTS = {
         CLUSTER_FP
         / "{channel_combo}"
         / "{cell_class}"
-        / "{leiden_resolution}"
+        / "h5ad"
         / get_filename({}, "cluster", "h5ad"),
     ],
 }

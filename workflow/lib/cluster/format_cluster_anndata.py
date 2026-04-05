@@ -171,32 +171,38 @@ def _add_bootstrap_layers(
 
 def format_cluster_anndata(
     features_genes: pd.DataFrame,
-    clustering: pd.DataFrame,
+    clusterings: dict,
     perturbation_col: str,
     channel_names: List[str],
     cell_class: str,
     channel_combo: str,
-    leiden_resolution: str,
     bootstrap_results: Optional[pd.DataFrame] = None,
 ) -> ad.AnnData:
     """Build AnnData from perturbation-level features and cluster results.
 
+    Merges cluster assignments from all resolutions into a single h5ad.
+
     Args:
         features_genes: Perturbation-level aggregated features (one row per gene).
-        clustering: PHATE embedding + cluster assignments.
+        clusterings: Dict mapping resolution → clustering DataFrame.
+            Each has PHATE embedding + cluster assignments.
         perturbation_col: Column name for perturbation identifier.
         channel_names: List of imaging channel names.
         cell_class: Cell class label (e.g. "Interphase").
         channel_combo: Channel combination string.
-        leiden_resolution: Leiden clustering resolution.
         bootstrap_results: Optional bootstrap p-values DataFrame.
 
     Returns:
-        AnnData with obs, var, X, obsm, and uns populated.
+        AnnData with obs, var, X, obsm, layers, and uns populated.
     """
-    # Merge features with clustering
+    # Use the first resolution's clustering as the base merge
+    # (all resolutions share the same perturbations and PHATE embedding)
+    first_res = list(clusterings.keys())[0]
+    base_clustering = clusterings[first_res]
+
+    # Merge features with base clustering
     merged = features_genes.merge(
-        clustering,
+        base_clustering,
         on=perturbation_col,
         how="inner",
         suffixes=("", "_cluster"),
@@ -215,8 +221,15 @@ def format_cluster_anndata(
         if col != perturbation_col and col in merged.columns:
             obs[col] = merged[col].values
 
+    # Remove generic "cluster" column (will be replaced by per-resolution columns)
     if "cluster" in obs.columns:
-        obs[f"cluster_group_{leiden_resolution}"] = obs.pop("cluster")
+        obs = obs.drop(columns=["cluster"])
+
+    # Add cluster assignments from all resolutions
+    for res, clustering_df in clusterings.items():
+        cluster_col = f"cluster_group_{res}"
+        res_clusters = clustering_df.set_index(perturbation_col)["cluster"]
+        obs[cluster_col] = obs.index.map(res_clusters)
 
     obs["cell_cycle_phase"] = cell_class.lower()
 
@@ -229,7 +242,7 @@ def format_cluster_anndata(
     # Build AnnData
     adata = ad.AnnData(X=X, obs=obs, var=var)
 
-    # PHATE embedding
+    # PHATE embedding (same across resolutions)
     if "PHATE_0" in merged.columns and "PHATE_1" in merged.columns:
         adata.obsm["X_phate"] = merged[["PHATE_0", "PHATE_1"]].values.astype(np.float32)
 
@@ -249,7 +262,7 @@ def format_cluster_anndata(
     adata.uns["title"] = f"{cell_class} — {channel_combo}"
     adata.uns["channel_combo"] = channel_combo
     adata.uns["cell_class"] = cell_class
-    adata.uns["leiden_resolution"] = leiden_resolution
+    adata.uns["leiden_resolutions"] = list(clusterings.keys())
     adata.uns["channels"] = channel_names
 
     return adata

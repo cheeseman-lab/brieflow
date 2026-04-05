@@ -230,6 +230,12 @@ def format_cluster_anndata(
     if "PHATE_0" in merged.columns and "PHATE_1" in merged.columns:
         adata.obsm["X_phate"] = merged[["PHATE_0", "PHATE_1"]].values.astype(np.float32)
 
+    # Percentile rank layer (0–100, per feature across perturbations)
+    X_df = pd.DataFrame(X, columns=feature_cols)
+    adata.layers["percentile_rank"] = (
+        X_df.rank(pct=True).values * 100
+    ).astype(np.float32)
+
     # Bootstrap p-values (optional)
     if bootstrap_results is not None:
         _add_bootstrap_layers(adata, bootstrap_results, perturbation_col, feature_cols)

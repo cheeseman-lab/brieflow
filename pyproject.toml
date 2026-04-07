@@ -50,10 +50,10 @@ dependencies = [
   "scikit-learn==1.8.0",
   "anndata==0.12.10",
   "ome-zarr==0.13.0",
-  "zarr==3.1.5",
+  "zarr==3.1.6",
   "dask[array]==2026.1.1",
   "fsspec==2026.2.0",
-  "iohub==0.3.0a6",
+  "iohub==0.3.0",
 ]
 
 

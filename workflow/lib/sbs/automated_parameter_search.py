@@ -73,7 +73,7 @@ def automated_parameter_search(
         Dictionary of parameters that remain constant across all searches.
         Example: {'max_filter_width': 3, 'call_reads_method': 'percentile'}
         For multi-barcode mode, should include: map_start, map_end, recomb_start,
-        recomb_end, map_col, recomb_col, recomb_filter_col, recomb_q_thresh
+        recomb_end, prefix_map, prefix_recomb, recomb_filter_col, recomb_q_thresh
     barcode_type : str, default='simple'
         Type of barcode protocol: 'simple' or 'multi'
     n_jobs : int, default=-1
@@ -752,8 +752,8 @@ def _process_combination(
                 map_end=fixed_params.get("map_end"),
                 recomb_start=fixed_params.get("recomb_start"),
                 recomb_end=fixed_params.get("recomb_end"),
-                map_col=fixed_params.get("map_col", "prefix_map"),
-                recomb_col=fixed_params.get("recomb_col", "prefix_recomb"),
+                prefix_map=fixed_params.get("prefix_map", "prefix_map"),
+                prefix_recomb=fixed_params.get("prefix_recomb", "prefix_recomb"),
             )
 
             df_cells = call_cells(
@@ -762,10 +762,10 @@ def _process_combination(
                 q_min=q_min,
                 map_start=fixed_params.get("map_start"),
                 map_end=fixed_params.get("map_end"),
-                map_col=fixed_params.get("map_col", "prefix_map"),
+                prefix_map=fixed_params.get("prefix_map", "prefix_map"),
                 recomb_start=fixed_params.get("recomb_start"),
                 recomb_end=fixed_params.get("recomb_end"),
-                recomb_col=fixed_params.get("recomb_col", "prefix_recomb"),
+                prefix_recomb=fixed_params.get("prefix_recomb", "prefix_recomb"),
                 recomb_filter_col=fixed_params.get("recomb_filter_col", None),
                 recomb_q_thresh=fixed_params.get("recomb_q_thresh", 0.1),
                 error_correct=error_correct,

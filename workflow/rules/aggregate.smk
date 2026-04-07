@@ -377,7 +377,7 @@ rule combine_bootstrap:
         "../scripts/aggregate/combine_bootstrap.py"
 
 
-rule generate_anndata:
+rule format_singlecell_anndata:
     input:
         singlecell_paths=lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS["generate_feature_table"][0],
@@ -386,7 +386,7 @@ rule generate_anndata:
             metadata_combos=aggregate_wildcard_combos,
         ),
     output:
-        AGGREGATE_OUTPUTS["generate_anndata"],
+        AGGREGATE_OUTPUTS["format_singlecell_anndata"],
     params:
         metadata_cols_fp=config["aggregate"]["metadata_cols_fp"],
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
@@ -395,7 +395,7 @@ rule generate_anndata:
         channel_names=config["phenotype"]["channel_names"],
         channel_combo="{channel_combo}",
     script:
-        "../scripts/aggregate/generate_anndata.py"
+        "../scripts/aggregate/format_singlecell_anndata.py"
 
 
 # Rule for all aggregate processing steps
@@ -403,4 +403,4 @@ rule all_aggregate:
     input:
         AGGREGATE_TARGETS_ALL,
         MONTAGE_TARGETS_ALL,
-        # BOOTSTRAP_TARGETS_ALL,
+        BOOTSTRAP_TARGETS_ALL,

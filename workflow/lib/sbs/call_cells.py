@@ -38,10 +38,10 @@ def call_cells(
     prefix_col=None,
     map_start=None,
     map_end=None,
-    map_col="prefix_map",
+    prefix_map="prefix_map",
     recomb_start=None,
     recomb_end=None,
-    recomb_col="prefix_recomb",
+    prefix_recomb="prefix_recomb",
     recomb_filter_col=None,
     recomb_q_thresh=0.1,
     sort_calls="peak",
@@ -66,10 +66,10 @@ def call_cells(
         prefix_col: Library column with pre-computed prefixes (overrides barcode_col).
         map_start: Starting cycle for mapping barcode, 1-indexed (cycle-based mode).
         map_end: Ending cycle for mapping barcode, 1-indexed inclusive.
-        map_col: Column name for extracted mapping barcode.
+        prefix_map: Column name for extracted mapping barcode.
         recomb_start: Starting cycle for recombination barcode.
         recomb_end: Ending cycle for recombination barcode.
-        recomb_col: Column name for recombination barcode.
+        prefix_recomb: Column name for recombination barcode.
         recomb_filter_col: Quality column for filtering recombination calls.
         recomb_q_thresh: Minimum quality for recombination detection.
         sort_calls: "count" (by read frequency) or "peak" (by intensity).
@@ -103,12 +103,12 @@ def call_cells(
             map_end=map_end,
             recomb_start=recomb_start or map_start,
             recomb_end=recomb_end or map_end,
-            map_col=map_col,
-            recomb_col=recomb_col,
+            prefix_map=prefix_map,
+            prefix_recomb=prefix_recomb,
         )
-        barcode_column = map_col
-        enable_recomb = recomb_start is not None and recomb_col in df_reads.columns
-        library_key = map_col
+        barcode_column = prefix_map
+        enable_recomb = recomb_start is not None and prefix_recomb in df_reads.columns
+        library_key = prefix_map
     elif prefix_col is not None:
         if (
             df_barcode_library is not None
@@ -175,10 +175,10 @@ def call_cells(
 
     # === STEP 5: Recombination detection ===
 
-    if enable_recomb and recomb_col is not None and df_barcode_library is not None:
-        recomb_map = df_barcode_library.set_index(library_key)[recomb_col].to_dict()
+    if enable_recomb and prefix_recomb is not None and df_barcode_library is not None:
+        recomb_map = df_barcode_library.set_index(library_key)[prefix_recomb].to_dict()
         expected_recomb = df_mapped[barcode_column].map(recomb_map)
-        actual_recomb = df_mapped[recomb_col]
+        actual_recomb = df_mapped[prefix_recomb]
         both_valid = expected_recomb.notna() & actual_recomb.notna()
         no_recomb = pd.array([np.nan] * len(df_mapped), dtype="boolean")
         no_recomb[both_valid] = (
@@ -380,8 +380,8 @@ def prep_multi_reads(
     map_end,
     recomb_start,
     recomb_end,
-    map_col="prefix_map",
-    recomb_col="prefix_recomb",
+    prefix_map="prefix_map",
+    prefix_recomb="prefix_recomb",
 ):
     """Extract cycle-specific barcodes for multi-barcode protocols.
 
@@ -391,17 +391,17 @@ def prep_multi_reads(
         map_end: Ending cycle for mapping barcode (1-indexed, inclusive).
         recomb_start: Starting cycle for recombination barcode.
         recomb_end: Ending cycle for recombination barcode.
-        map_col: Column name for mapping barcode.
-        recomb_col: Column name for recombination barcode.
+        prefix_map: Column name for mapping barcode.
+        prefix_recomb: Column name for recombination barcode.
 
     Returns:
-        DataFrame with added map_col, recomb_col, and Q_recomb columns.
+        DataFrame with added prefix_map, prefix_recomb, and Q_recomb columns.
     """
     df = df_reads.copy()
 
     if df.empty:
-        df[map_col] = pd.Series(dtype="object")
-        df[recomb_col] = pd.Series(dtype="object")
+        df[prefix_map] = pd.Series(dtype="object")
+        df[prefix_recomb] = pd.Series(dtype="object")
         df["Q_recomb"] = pd.Series(dtype="float64")
         return df
 
@@ -417,8 +417,8 @@ def prep_multi_reads(
     print(f"Requested mapping range: cycles {map_start}-{map_end}")
     print(f"Requested recombination range: cycles {recomb_start}-{recomb_end}")
 
-    df[map_col] = df["barcode"].str.slice(map_start - 1, map_end)
-    df[recomb_col] = df["barcode"].str.slice(recomb_start - 1, recomb_end)
+    df[prefix_map] = df["barcode"].str.slice(map_start - 1, map_end)
+    df[prefix_recomb] = df["barcode"].str.slice(recomb_start - 1, recomb_end)
 
     recomb_cycles = list(range(recomb_start, recomb_end + 1))
     recomb_q_cols = [f"Q_{c - 1}" for c in recomb_cycles]

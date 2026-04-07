@@ -1,0 +1,67 @@
+# Screen Metadata — Brieflow Test Data
+# Filled-in example for the small_test_analysis dataset
+
+collection:
+  title: "Brieflow Test Collection"
+  publication_doi: null
+
+experiment:
+  screen_title: "brieflow_test"
+  organism_ontology_term_id: "NCBITaxon:9606"
+  organism: "Homo sapiens"
+  tissue_ontology_term_id: "CVCL_0030"
+  tissue: "HeLa"
+  tissue_type: "cell line"
+  disease_ontology_term_id: "PATO:0000461"
+  disease: "normal"
+  development_stage_ontology_term_id: "na"
+  development_stage: "na"
+  assay_ontology_term_id: "EFO:0022605"
+  assay: "optical pooled screening"
+  pseudobulk: []
+
+cellular:
+  growth_conditions: "DMEM + 10% FBS"
+  plate_type: "6-well glass-bottom"
+  seeding:
+    density_cells_cm2: null
+  induction:
+    duration: ""
+
+library:
+  vector: "CROPseq-puro-v2"
+  gene_selection: "Test subset"
+  positive_controls: []
+  negative_controls: ["nontargeting"]
+
+iss:
+  cycles: 11
+  objective: "10X 0.45 NA"
+  chemistry: "four color"
+  channels:
+    - name: "DAPI"
+      laser_wavelength_nm: 408
+      exposure_time_ms: 50
+    - name: "G"
+      laser_wavelength_nm: 545
+      exposure_time_ms: 200
+    - name: "T"
+      laser_wavelength_nm: 545
+      exposure_time_ms: 200
+    - name: "A"
+      laser_wavelength_nm: 635
+      exposure_time_ms: 200
+    - name: "C"
+      laser_wavelength_nm: 635
+      exposure_time_ms: 200
+
+phenotype:
+  objective: "20X 0.75 NA"
+  exposure_time_ms: [50, 200, 200, 200]
+
+microscope:
+  system: "Nikon Ti-2"
+
+pipeline:
+  github: "cheeseman-lab/brieflow"
+  version: 1.5.0

@@ -302,8 +302,9 @@ def apply_multiple_hypothesis_correction(
     Returns:
         pd.DataFrame: DataFrame with additional columns for each feature:
             - {feature}_pval: Original p-values (including 0s)
-            - {feature}_log10: -log10(p-values), with ceiling for p=0 cases
+            - {feature}_neg_log10_pval: -log10(p-values), with ceiling for p=0 cases
             - {feature}_fdr: FDR-corrected p-values using Benjamini-Hochberg method
+            - {feature}_neg_log10_fdr: -log10(FDR-corrected p-values)
     """
     print("Applying multiple hypothesis testing correction...")
 
@@ -358,8 +359,9 @@ def apply_multiple_hypothesis_correction(
 
     # Initialize output columns
     for feature in feature_cols:
-        df_corrected[f"{feature}_log10"] = np.nan
+        df_corrected[f"{feature}_neg_log10_pval"] = np.nan
         df_corrected[f"{feature}_fdr"] = np.nan
+        df_corrected[f"{feature}_neg_log10_fdr"] = np.nan
 
     # Second pass: populate corrected values
     fdr_idx = 0
@@ -375,28 +377,36 @@ def apply_multiple_hypothesis_correction(
         print(f"  Found {valid_mask.sum()} valid p-values")
 
         # Process each p-value
-        log10_pvals = np.full(len(pvals), np.nan)
+        neg_log10_pvals = np.full(len(pvals), np.nan)
         fdr_pvals = np.full(len(pvals), np.nan)
 
         for i, (pval, valid) in enumerate(zip(pvals, valid_mask)):
             if valid:
                 # Calculate -log10(p): use ceiling for p=0, otherwise normal calculation
                 if pval == 0:
-                    # Set to log10(num_sims) if available, otherwise 5.0
                     if "num_sims" in df.columns:
-                        log10_pvals[i] = np.log10(df.iloc[i]["num_sims"])
+                        neg_log10_pvals[i] = np.log10(df.iloc[i]["num_sims"])
                     else:
-                        log10_pvals[i] = 5.0
+                        neg_log10_pvals[i] = 5.0
                 else:
-                    log10_pvals[i] = -np.log10(pval)
+                    neg_log10_pvals[i] = -np.log10(pval)
 
                 # Get corresponding FDR-corrected p-value
                 fdr_pvals[i] = fdr_corrected_all[fdr_idx]
                 fdr_idx += 1
 
+        # Compute -log10(FDR)
+        neg_log10_fdr = np.full(len(fdr_pvals), np.nan)
+        for i, fdr_val in enumerate(fdr_pvals):
+            if not np.isnan(fdr_val) and fdr_val > 0:
+                neg_log10_fdr[i] = -np.log10(fdr_val)
+            elif not np.isnan(fdr_val) and fdr_val == 0:
+                neg_log10_fdr[i] = max_log10
+
         # Store results (keep original p-values unchanged)
-        df_corrected[f"{feature}_log10"] = log10_pvals
+        df_corrected[f"{feature}_neg_log10_pval"] = neg_log10_pvals
         df_corrected[f"{feature}_fdr"] = fdr_pvals
+        df_corrected[f"{feature}_neg_log10_fdr"] = neg_log10_fdr
 
         # Report zeros found
         zero_count = (df[feature].values == 0).sum()
@@ -418,7 +428,13 @@ def apply_multiple_hypothesis_correction(
     all_cols = df_corrected.columns.tolist()
     derived_cols = []
     for feature in feature_cols:
-        derived_cols.extend([f"{feature}_log10", f"{feature}_fdr"])
+        derived_cols.extend(
+            [
+                f"{feature}_neg_log10_pval",
+                f"{feature}_fdr",
+                f"{feature}_neg_log10_fdr",
+            ]
+        )
 
     metadata_cols = [
         col for col in all_cols if col not in feature_cols and col not in derived_cols
@@ -433,9 +449,10 @@ def apply_multiple_hypothesis_correction(
     for feature in feature_cols:
         ordered_cols.extend(
             [
-                f"{feature}_pval",  # Original p-value (including 0s)
-                f"{feature}_log10",  # -log10(p-value), with ceiling for p=0
-                f"{feature}_fdr",  # FDR-corrected p-value
+                f"{feature}_pval",
+                f"{feature}_neg_log10_pval",
+                f"{feature}_fdr",
+                f"{feature}_neg_log10_fdr",
             ]
         )
 

@@ -48,6 +48,29 @@ rule benchmark_clusters:
         "../scripts/cluster/benchmark_clusters.py"
 
 
+# Format cluster results into AnnData h5ad (combines all resolutions)
+rule format_cluster_anndata:
+    input:
+        features_genes=AGGREGATE_OUTPUTS["generate_feature_table"][2],
+        clustering=[
+            str(CLUSTER_OUTPUTS["phate_leiden_clustering"][0]).format(
+                channel_combo="{channel_combo}",
+                cell_class="{cell_class}",
+                leiden_resolution=res,
+            )
+            for res in cluster_wildcard_combos["leiden_resolution"].unique()
+        ],
+        bootstrap_results=ancient(BOOTSTRAP_OUTPUTS["combined_gene_results"]),
+    output:
+        CLUSTER_OUTPUTS_MAPPED["format_cluster_anndata"],
+    params:
+        perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
+        channel_names=config["phenotype"]["channel_names"],
+        leiden_resolutions=list(cluster_wildcard_combos["leiden_resolution"].unique()),
+    script:
+        "../scripts/cluster/format_cluster_anndata.py"
+
+
 # Rule for all cluster processing steps
 rule all_cluster:
     input:

@@ -513,101 +513,146 @@ def load_and_process_uniprot_data(
 def get_gene_mapping(
     gene_symbols: Optional[List[str]] = None,
     species: str = "hsapiens",
+    ensembl_release: int = 110,
     verbose: bool = True,
 ) -> pd.DataFrame:
-    """Fetch gene ID mapping (symbol ↔ Entrez ↔ Ensembl) via MyGene.info.
+    """Fetch gene ID mapping (symbol -> Entrez -> Ensembl) via Ensembl REST API.
 
-    When gene_symbols is provided, does a targeted lookup for just those genes
-    (fast, works for any library size). Used by resolve_gene_ids() to fill in
-    missing identifiers in barcode libraries.
+    Uses the Ensembl archive REST API pinned to a specific release to ensure
+    reproducible gene ID resolution. Falls back to MyGene.info if the Ensembl
+    API is unavailable.
 
     Args:
         gene_symbols: List of gene symbols to look up. If None, returns empty
             DataFrame (use a pre-downloaded TSV file for full genome mapping).
         species: Species shorthand (default: "hsapiens").
             Common values: "hsapiens", "mmusculus", "drerio".
+        ensembl_release: Ensembl release number to pin to (default: 110).
         verbose: Whether to print progress information.
 
     Returns:
         DataFrame with columns: gene_symbol, entrez_id, ensembl_gene_id.
     """
-    try:
-        import mygene
-    except ImportError:
-        raise ImportError(
-            "mygene is required for gene ID mapping. Install with: "
-            "uv pip install mygene\n"
-            "Alternatively, provide a pre-downloaded TSV file with columns "
-            "gene_symbol, entrez_id, ensembl_gene_id."
-        )
+    import requests
 
-    if verbose:
-        print(f"Fetching gene mapping via MyGene.info ({species})...")
+    # Ensembl archive URLs by release number
+    ENSEMBL_ARCHIVES = {
+        110: "jul2023",
+        109: "feb2023",
+        111: "jan2024",
+        112: "may2024",
+        113: "oct2024",
+    }
 
-    mg = mygene.MyGeneInfo()
-    query_species = {"hsapiens": "human", "mmusculus": "mouse", "drerio": "zebrafish"}
-    sp = query_species.get(species, species)
+    # Species name mapping for Ensembl REST API
+    ENSEMBL_SPECIES = {
+        "hsapiens": "homo_sapiens",
+        "mmusculus": "mus_musculus",
+        "drerio": "danio_rerio",
+    }
 
-    # If gene_symbols provided, do a targeted lookup (fast)
-    # Otherwise return empty — caller should provide a file for full genome mapping
-    if gene_symbols is not None:
-        symbols = [
-            s for s in gene_symbols if s and not str(s).startswith("nontargeting")
-        ]
-        if not symbols:
-            return pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
-
-        results = mg.querymany(
-            symbols,
-            scopes="symbol",
-            fields="symbol,entrezgene,ensembl.gene",
-            species=sp,
-            as_dataframe=True,
-            returnall=True,
-        )
-        df_results = results["out"]
-
-        rows = []
-        for query, row in df_results.iterrows():
-            symbol = row.get("symbol", query)
-            entrez = (
-                str(int(row["entrezgene"])) if pd.notna(row.get("entrezgene")) else ""
-            )
-            ensembl = row.get("ensembl.gene", "")
-            if isinstance(ensembl, list):
-                ensembl = ensembl[0] if ensembl else ""
-            elif isinstance(ensembl, dict):
-                ensembl = ensembl.get("gene", "")
-            if pd.isna(ensembl):
-                ensembl = ""
-            rows.append(
-                {
-                    "gene_symbol": str(symbol),
-                    "entrez_id": entrez,
-                    "ensembl_gene_id": str(ensembl),
-                }
-            )
-
-        df = pd.DataFrame(rows)
-    else:
+    if gene_symbols is None:
         if verbose:
             print(
                 "No gene symbols provided. Pass gene_symbols= for targeted lookup, "
                 "or provide a pre-downloaded TSV file."
             )
-        df = pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
+        return pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
+
+    symbols = [
+        s for s in gene_symbols if s and not str(s).startswith("nontargeting")
+    ]
+    if not symbols:
+        return pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
+
+    archive_tag = ENSEMBL_ARCHIVES.get(ensembl_release)
+    if archive_tag is None:
+        warnings.warn(
+            f"No archive URL for Ensembl release {ensembl_release}. "
+            f"Available: {sorted(ENSEMBL_ARCHIVES.keys())}. Using current release."
+        )
+        base_url = "https://rest.ensembl.org"
+    else:
+        base_url = f"https://{archive_tag}.rest.ensembl.org"
+
+    species_name = ENSEMBL_SPECIES.get(species, species)
+
+    if verbose:
+        print(
+            f"Fetching gene mapping via Ensembl REST API "
+            f"(release {ensembl_release}, {species_name})..."
+        )
+
+    # Bulk symbol lookup — POST endpoint works best with ~200 symbols per request
+    rows = []
+    chunk_size = 200
+    n_chunks = (len(symbols) + chunk_size - 1) // chunk_size
+    for chunk_idx, i in enumerate(range(0, len(symbols), chunk_size)):
+        chunk = symbols[i : i + chunk_size]
+        if verbose and n_chunks > 1:
+            print(f"  Chunk {chunk_idx + 1}/{n_chunks} ({len(chunk)} symbols)...")
+
+        for attempt in range(3):
+            try:
+                resp = requests.post(
+                    f"{base_url}/lookup/symbol/{species_name}",
+                    json={"symbols": chunk},
+                    headers={"Content-Type": "application/json"},
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                break
+            except (requests.RequestException, ValueError) as e:
+                if attempt < 2:
+                    import time
+                    time.sleep(2 ** attempt)
+                    continue
+                warnings.warn(
+                    f"Ensembl REST API request failed for chunk {chunk_idx + 1} "
+                    f"after 3 attempts: {e}. Skipping {len(chunk)} symbols."
+                )
+                data = {}
+
+        for symbol in chunk:
+            info = data.get(symbol)
+            if info is None or isinstance(info, str):
+                continue
+            ensembl_id = info.get("id", "")
+            rows.append(
+                {
+                    "gene_symbol": symbol,
+                    "entrez_id": "",
+                    "ensembl_gene_id": ensembl_id,
+                }
+            )
+
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=["gene_symbol", "entrez_id", "ensembl_gene_id"]
+    )
 
     # Drop rows with missing gene symbol or ensembl ID
     df = df.dropna(subset=["gene_symbol", "ensembl_gene_id"])
     df = df[df["gene_symbol"] != ""]
+    df = df[df["ensembl_gene_id"] != ""]
 
     # Deduplicate: keep first mapping per gene_symbol
     df = df.drop_duplicates(subset=["gene_symbol"], keep="first")
 
+    # Warn about unresolved symbols
+    resolved_symbols = set(df["gene_symbol"])
+    unresolved = [s for s in symbols if s not in resolved_symbols]
+    if unresolved and verbose:
+        warnings.warn(
+            f"{len(unresolved)} gene(s) could not be resolved in Ensembl "
+            f"release {ensembl_release}: {unresolved[:10]}"
+            + (f" ... and {len(unresolved) - 10} more" if len(unresolved) > 10 else "")
+        )
+
     if verbose:
         print(
             f"Gene mapping: {len(df)} genes with Ensembl IDs, "
-            f"{df['entrez_id'].notna().sum()} with Entrez IDs"
+            f"{(df['entrez_id'] != '').sum()} with Entrez IDs"
         )
 
     return df

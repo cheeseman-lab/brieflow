@@ -1,3 +1,5 @@
 cell_class	channel_combo	plate	well
 Interphase	DAPI_COXIV_CENPA_WGA	1	A1
 Interphase	DAPI_COXIV_CENPA_WGA	1	A2
+Mitotic	DAPI_COXIV_CENPA_WGA	1	A1
+Mitotic	DAPI_COXIV_CENPA_WGA	1	A2

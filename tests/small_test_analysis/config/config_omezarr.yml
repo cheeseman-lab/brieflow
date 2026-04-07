@@ -275,6 +275,7 @@ cluster:
   corum_group_benchmark_fp: config/benchmark_clusters/corum_group_benchmark.tsv
   kegg_group_benchmark_fp: config/benchmark_clusters/kegg_group_benchmark.tsv
   leiden_resolutions:
+  - 1
   - 2
   min_cell_cutoffs:
     all: 0

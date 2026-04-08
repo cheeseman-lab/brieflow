@@ -320,12 +320,12 @@ def _extract_ims_per_file_metadata(ims_file):
             {
                 "filename": Path(ims_file).name,
                 "tile": int(ims_file.split(".ims")[0].split("F")[-1]),
-                "x_position": float(
+                "x_pos": float(
                     md_dict["DataSetInfo"]["CustomData"]["@attrs"].get(
                         "XPosition", None
                     )
                 ),
-                "y_position": float(
+                "y_pos": float(
                     md_dict["DataSetInfo"]["CustomData"]["@attrs"].get(
                         "YPosition", None
                     )
@@ -359,6 +359,7 @@ def extract_metadata_ims(
     tile: Union[int, str] = None,
     cycle: Union[int, str] = None,
     round: Union[int, str] = None,
+    rescale_positions: float = 1000,
     verbose: bool = False,
     **kwargs,
 ) -> pd.DataFrame:
@@ -374,6 +375,7 @@ def extract_metadata_ims(
         tile: Tile/FOV number.
         cycle: Optional cycle number for SBS imaging.
         round: Optional round number for multiplexed imaging.
+        rescale_positions: factor to convert stage positions from mm to µm (default 1000).
         verbose: Print progress / parsed values.
         **kwargs: Additional arguments for compatibility.
 
@@ -396,6 +398,12 @@ def extract_metadata_ims(
         df_meta["effective_magnification_y"] = df_meta["lens_magnification"].fillna(
             1
         ) * df_meta["y_binning"].fillna(1)
+
+    df_meta['x_pos'] = df_meta['x_pos'].apply(lambda x: x * rescale_positions if pd.notna(rescale_positions) else x)
+    df_meta['y_pos'] = df_meta['y_pos'].apply(lambda x: x * rescale_positions if pd.notna(rescale_positions) else x)
+
+    if plate is not None:
+        df_meta['plate'] = plate
 
     return df_meta
 

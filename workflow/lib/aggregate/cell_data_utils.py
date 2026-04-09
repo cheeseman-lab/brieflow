@@ -27,6 +27,7 @@ def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
         metadata_cols += [
             "class",
             "confidence",
+            "cell_stage_confidence",
         ]
 
     return metadata_cols

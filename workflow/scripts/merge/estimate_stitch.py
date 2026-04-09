@@ -12,6 +12,7 @@ import numpy as np
 from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.io import read_parquet
 from lib.merge.estimate_stitch import (
     estimate_stitch_coordinate_based,
     convert_numpy_types,
@@ -31,7 +32,7 @@ elif data_type == "phenotype":
     fallback_pixel_size = snakemake.params.get("phenotype_pixel_size", None)
 
 # Load metadata
-metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
+metadata = validate_dtypes(read_parquet(snakemake.input[0]))
 
 # Apply coordinate alignment for SBS data if transformation parameters are provided
 if data_type == "sbs":
@@ -53,7 +54,7 @@ if data_type == "sbs":
 
         print("Loading phenotype metadata for alignment reference...")
         # Load phenotype metadata from second input
-        phenotype_metadata = validate_dtypes(pd.read_parquet(snakemake.input[1]))
+        phenotype_metadata = validate_dtypes(read_parquet(snakemake.input[1]))
 
         print("Applying coordinate alignment transformations...")
         phenotype_aligned, metadata, transformation_info = align_metadata(

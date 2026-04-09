@@ -3,6 +3,7 @@
 import pandas as pd
 from joblib import Parallel, delayed
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.io import write_parquet
 
 
 def get_file(f):
@@ -33,7 +34,7 @@ combined_df = validate_dtypes(combined_df)
 # Save the data based on file extension
 output_path = snakemake.output[0]
 if output_path.endswith(".parquet"):
-    combined_df.to_parquet(output_path, engine="pyarrow")
+    write_parquet(combined_df, output_path)
 elif output_path.endswith(".tsv"):
     combined_df.to_csv(output_path, sep="\t", index=False)
 elif output_path.endswith(".csv"):

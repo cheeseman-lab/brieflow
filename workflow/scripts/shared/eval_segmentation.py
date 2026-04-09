@@ -4,6 +4,7 @@ from lib.shared.eval_segmentation import (
     segmentation_overview,
     plot_cell_density_heatmap,
 )
+from lib.shared.io import read_parquets
 
 
 # Get the segmentation overview
@@ -15,9 +16,7 @@ segmentation_overview_df.to_csv(snakemake.output[0], sep="\t", index=False)
 
 
 # load cell data
-cells = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input.cells_paths], ignore_index=True
-)
+cells = read_parquets(snakemake.input.cells_paths)
 
 
 # plot cell density heatmap

@@ -2,6 +2,7 @@ import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.io import read_parquet, write_parquet
 from lib.merge.format_merge import (
     fov_distance,
     identify_single_gene_mappings,
@@ -9,9 +10,9 @@ from lib.merge.format_merge import (
 )
 
 # Load data for formatting merge data
-merge_data = validate_dtypes(pd.read_parquet(snakemake.input[0]))
-sbs_cells = validate_dtypes(pd.read_parquet(snakemake.input[1]))
-phenotype_min_cp = validate_dtypes(pd.read_parquet(snakemake.input[2]))
+merge_data = validate_dtypes(read_parquet(snakemake.input[0]))
+sbs_cells = validate_dtypes(read_parquet(snakemake.input[1]))
+phenotype_min_cp = validate_dtypes(read_parquet(snakemake.input[2]))
 
 # Get image dimensions from params (with defaults)
 phenotype_dimensions = tuple(snakemake.params.phenotype_dimensions or (2960, 2960))
@@ -60,4 +61,4 @@ merge_formatted = merge_formatted.merge(
 )
 
 # Save formatted merge data
-merge_formatted.to_parquet(snakemake.output[0])
+write_parquet(merge_formatted, snakemake.output[0])

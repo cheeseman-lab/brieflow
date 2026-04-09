@@ -6,6 +6,7 @@ using spatial alignment transformations.
 
 import pandas as pd
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.io import read_parquet, write_parquet
 from lib.merge.stitch_merge import (
     load_alignment_parameters,
     find_cell_matches,
@@ -16,12 +17,12 @@ from lib.merge.stitch_merge import (
 
 # Load all inputs
 phenotype_scaled = validate_dtypes(
-    pd.read_parquet(snakemake.input.scaled_phenotype_positions)
+    read_parquet(snakemake.input.scaled_phenotype_positions)
 )
-sbs_positions = validate_dtypes(pd.read_parquet(snakemake.input.sbs_positions))
-alignment_params = validate_dtypes(pd.read_parquet(snakemake.input.alignment_params))
+sbs_positions = validate_dtypes(read_parquet(snakemake.input.sbs_positions))
+alignment_params = validate_dtypes(read_parquet(snakemake.input.alignment_params))
 phenotype_transformed = validate_dtypes(
-    pd.read_parquet(snakemake.input.transformed_phenotype_positions)
+    read_parquet(snakemake.input.transformed_phenotype_positions)
 )
 
 plate = snakemake.params.plate
@@ -71,8 +72,8 @@ final_matches = build_final_matches(
 )
 
 # Save outputs
-final_matches.to_parquet(str(snakemake.output.raw_matches))
-final_matches.to_parquet(str(snakemake.output.merged_cells))
+write_parquet(final_matches, str(snakemake.output.raw_matches))
+write_parquet(final_matches, str(snakemake.output.merged_cells))
 
 # Create summary
 summary_df = create_merge_summary(

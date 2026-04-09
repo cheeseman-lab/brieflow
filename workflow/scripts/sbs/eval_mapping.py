@@ -1,5 +1,6 @@
 import pandas as pd
 
+from lib.shared.io import read_parquets
 from lib.sbs.standardize_barcode_design import get_barcode_list
 from lib.sbs.eval_mapping import (
     plot_mapping_vs_threshold,
@@ -21,15 +22,9 @@ else:
     barcodes = get_barcode_list(df_barcode_library)
 
 # Load SBS processing files
-reads = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input.reads_paths], ignore_index=True
-)
-cells = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input.cells_paths], ignore_index=True
-)
-sbs_info = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input.sbs_info_paths], ignore_index=True
-)
+reads = read_parquets(snakemake.input.reads_paths)
+cells = read_parquets(snakemake.input.cells_paths)
+sbs_info = read_parquets(snakemake.input.sbs_info_paths)
 
 _, fig = plot_mapping_vs_threshold(reads, barcodes, "peak", num_thresholds=10)
 fig.savefig(snakemake.output[0])

@@ -1,6 +1,7 @@
 import pandas as pd
 
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
+from lib.shared.io import read_parquet, write_parquet
 from lib.aggregate.filter import (
     query_filter,
     perturbation_filter,
@@ -9,7 +10,7 @@ from lib.aggregate.filter import (
 )
 
 # Load cell data
-cell_data = pd.read_parquet(snakemake.input[0])
+cell_data = read_parquet(snakemake.input[0])
 use_classifier = snakemake.params.get("use_classifier", False)
 metadata_cols = load_metadata_cols(
     snakemake.params.metadata_cols_fp,
@@ -44,4 +45,4 @@ metadata, features = intensity_filter(
 
 # Save filtered data
 cell_data = pd.concat([metadata, features], axis=1)
-cell_data.to_parquet(snakemake.output[0], index=False)
+write_parquet(cell_data, snakemake.output[0])

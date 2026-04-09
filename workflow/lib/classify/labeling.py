@@ -26,6 +26,7 @@ from lib.classify.shared import (
     well_for_filename,
 )
 from lib.shared.file_utils import get_filename
+from lib.shared.io import read_parquet, write_parquet
 
 
 def select_next_batch_from_pools(
@@ -279,14 +280,14 @@ def consolidate_manual_classifications(
                 try:
                     cols_schema = pq.ParquetFile(pq_path).schema.names
                 except Exception:
-                    cols_schema = list(pd.read_parquet(pq_path).head(0).columns)
+                    cols_schema = list(read_parquet(pq_path).columns)
                 id_col = (
                     "label"
                     if "label" in cols_schema
                     else ("labels" if "labels" in cols_schema else None)
                 )
                 if id_col is None:
-                    df_tmp = pd.read_parquet(pq_path)
+                    df_tmp = read_parquet(pq_path)
                     id_col = (
                         "label"
                         if "label" in df_tmp.columns
@@ -300,7 +301,7 @@ def consolidate_manual_classifications(
         if not pq_path.exists():
             raise FileNotFoundError(f"Missing parquet: {pq_path}")
 
-        df_pq = pd.read_parquet(pq_path)
+        df_pq = read_parquet(pq_path)
         if "tile" not in df_pq.columns or id_col not in df_pq.columns:
             raise KeyError(
                 f"Required columns not found in {pq_path.name}: 'tile' or '{id_col}'"
@@ -344,7 +345,7 @@ def consolidate_manual_classifications(
             f"{mode}_classifier_training_dataset_for_{class_title}_{timestamp}.parquet"
         )
         out_path = train_dir / out_name
-        consolidated_df.to_parquet(out_path, index=False)
+        write_parquet(consolidated_df, out_path)
         if verbose:
             print(f"Saved {len(consolidated_df)} labeled rows to: {out_path}")
     else:
@@ -420,10 +421,10 @@ def prepare_mask_dataframes(
             try:
                 cols_schema = pq.ParquetFile(pq_path).schema.names
             except Exception:
-                cols_schema = list(pd.read_parquet(pq_path).head(0).columns)
+                cols_schema = list(read_parquet(pq_path).columns)
             id_col = _id_col_for_mode(cols_schema, mode)
 
-            df = pd.read_parquet(pq_path, columns=["tile", id_col]).dropna()
+            df = read_parquet(pq_path, columns=["tile", id_col]).dropna()
             df["tile"] = pd.to_numeric(df["tile"], errors="coerce")
             df[id_col] = pd.to_numeric(df[id_col], errors="coerce")
             df = df.dropna()
@@ -681,7 +682,7 @@ def load_existing_training_data(
     Returns:
         (normalized_df, existing_keys_set)
     """
-    df_existing = pd.read_parquet(existing_training_path)
+    df_existing = read_parquet(existing_training_path)
     seeded = _normalize_keys(df_existing, mode, class_title)
     seeded["_existing"] = True
 
@@ -823,7 +824,7 @@ def load_checkpoint(
     checkpoint_path = get_checkpoint_path(classifier_output_dir, class_title)
     if checkpoint_path.exists():
         try:
-            df = pd.read_parquet(checkpoint_path)
+            df = read_parquet(checkpoint_path)
             print(
                 f"Loaded checkpoint with {len(df)} classifications from {checkpoint_path}"
             )
@@ -1078,10 +1079,10 @@ def _load_feature_index(
         try:
             cols_schema = pq.ParquetFile(pq_path).schema.names
         except Exception:
-            cols_schema = list(pd.read_parquet(pq_path).head(0).columns)
+            cols_schema = list(read_parquet(pq_path).columns)
         id_col = _id_col_for_mode(cols_schema, mode)
 
-        pq_df = pd.read_parquet(pq_path, columns=["tile", id_col, feature])
+        pq_df = read_parquet(pq_path, columns=["tile", id_col, feature])
         if feature not in pq_df.columns:
             missing_feature.append(str(pq_path))
             continue
@@ -1531,7 +1532,7 @@ def _collect_and_advance_random(
     checkpoint_path = state.get("_checkpoint_path")
     if checkpoint_path and state.get("manual_classified_df") is not None:
         try:
-            state["manual_classified_df"].to_parquet(checkpoint_path, index=False)
+            write_parquet(state["manual_classified_df"], checkpoint_path)
         except Exception as e:
             print(f"Warning: Could not save checkpoint: {e}")
 

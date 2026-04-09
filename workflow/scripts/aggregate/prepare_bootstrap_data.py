@@ -12,6 +12,7 @@ from lib.aggregate.cell_data_utils import (
     get_feature_table_cols,
 )
 from lib.aggregate.bootstrap import write_construct_data
+from lib.shared.io import read_parquet
 
 # Get parameters
 perturbation_col = snakemake.params.perturbation_name_col
@@ -22,7 +23,7 @@ metadata_cols_fp = snakemake.params.metadata_cols_fp
 bootstrap_features_fp = snakemake.params.get("bootstrap_features_fp", None)
 
 print("Loading single-cell features data...")
-all_features_cells = pd.read_parquet(snakemake.input.features_singlecell)
+all_features_cells = read_parquet(snakemake.input.features_singlecell)
 print(f"Features data shape: {all_features_cells.shape}")
 
 print("Loading construct and gene tables...")

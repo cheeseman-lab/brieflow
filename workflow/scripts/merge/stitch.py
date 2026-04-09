@@ -9,6 +9,7 @@ import numpy as np
 import yaml
 
 from lib.shared.file_utils import validate_dtypes, files_to_tile_mapping
+from lib.shared.io import read_parquet, write_parquet
 from lib.merge.stitch import (
     assemble_aligned_tiff_well,
     extract_cell_positions_from_stitched_mask,
@@ -27,7 +28,7 @@ print(f"Stitching {data_type} - plate {plate}, well {well}")
 # Load metadata
 print("Loading metadata...")
 metadata = validate_dtypes(
-    pd.read_parquet(
+    read_parquet(
         snakemake.input.phenotype_metadata
         if data_type == "phenotype"
         else snakemake.input.sbs_metadata
@@ -153,7 +154,7 @@ print("Saving outputs...")
 output_positions = getattr(
     snakemake.output, f"{data_type}_cell_positions", snakemake.output[0]
 )
-cell_positions.to_parquet(output_positions)
+write_parquet(cell_positions, output_positions)
 print(f"Cell positions saved: {output_positions} ({len(cell_positions)} cells)")
 
 # Save QC plot

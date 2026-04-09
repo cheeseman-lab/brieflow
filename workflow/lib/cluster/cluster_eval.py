@@ -14,6 +14,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 from lib.shared.file_utils import parse_filename, get_filename
+from lib.shared.io import read_parquet
 
 
 def find_optimal_resolution(
@@ -109,7 +110,7 @@ def find_optimal_resolution(
 
         if clustering_file.exists():
             clustering_df = (
-                pd.read_parquet(clustering_file)
+                read_parquet(clustering_file)
                 if clustering_file.suffix == ".parquet"
                 else pd.read_csv(clustering_file, sep="\t")
             )

@@ -126,25 +126,35 @@ if plate_filter is not None:
         )
 
 
-include: "targets/preprocess.smk"
-include: "rules/preprocess.smk"
+# ---------------------------------------------------------------------------
+# Module inclusion
+# Each module checks for an "enabled" flag in its config section.
+# Defaults to True for backward compatibility (enabled unless explicitly disabled).
+# To disable a module without removing its config, set:
+#   module_name:
+#     enabled: false
+# ---------------------------------------------------------------------------
+
+if config.get("preprocess", {}).get("enabled", True):
+    include: "targets/preprocess.smk"
+    include: "rules/preprocess.smk"
 
 
-if "sbs" in config and len(sbs_wildcard_combos) > 0:
+if config.get("sbs", {}).get("enabled", True) and "sbs" in config and len(sbs_wildcard_combos) > 0:
 
     # Include target and rule files
     include: "targets/sbs.smk"
     include: "rules/sbs.smk"
 
 
-if "phenotype" in config and len(phenotype_wildcard_combos) > 0:
+if config.get("phenotype", {}).get("enabled", True) and "phenotype" in config and len(phenotype_wildcard_combos) > 0:
 
     # Include target and rule files
     include: "targets/phenotype.smk"
     include: "rules/phenotype.smk"
 
 
-if "merge" in config:
+if config.get("merge", {}).get("enabled", True) and "merge" in config:
     MERGE_COMBO_FP = Path(config["merge"]["merge_combo_fp"])
     merge_wildcard_combos = pd.read_csv(MERGE_COMBO_FP, sep="\t")
 
@@ -153,7 +163,7 @@ if "merge" in config:
     include: "rules/merge.smk"
 
 
-if "aggregate" in config:
+if config.get("aggregate", {}).get("enabled", True) and "aggregate" in config:
     AGGREGATE_COMBO_FP = Path(config["aggregate"]["aggregate_combo_fp"])
     aggregate_wildcard_combos = pd.read_csv(AGGREGATE_COMBO_FP, sep="\t")
 
@@ -162,7 +172,7 @@ if "aggregate" in config:
     include: "rules/aggregate.smk"
 
 
-if "cluster" in config:
+if config.get("cluster", {}).get("enabled", True) and "cluster" in config:
     CLUSTER_COMBO_FP = Path(config["cluster"]["cluster_combo_fp"])
     cluster_wildcard_combos = pd.read_csv(CLUSTER_COMBO_FP, sep="\t")
 

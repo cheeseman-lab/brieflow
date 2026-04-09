@@ -129,9 +129,10 @@ def embed_by_pca(
     features = centerscale_by_batch(features, metadata, batch_col)
     if features.shape[0] > 50000:
         sample = features[:50000]
-        pca_estimate = PCA(n_components=variance_or_ncomp).fit(sample)
-        variance_or_ncomp = pca_estimate.n_components_
-    features = PCA(n_components=variance_or_ncomp).fit_transform(features)
+        pca = PCA(n_components=variance_or_ncomp).fit(sample)
+        features = pca.transform(features)
+    else:
+        features = PCA(n_components=variance_or_ncomp).fit_transform(features)
     return features
 
 
@@ -167,6 +168,8 @@ def tvn_on_controls(
         embeddings.shape[1]
     )
     if batch_col is not None:
+        # Pre-compute target matrix power once (expensive operation)
+        target_cov_sqrt = linalg.fractional_matrix_power(target_cov, 0.5)
         batches = metadata[batch_col].unique()
         for batch in batches:
             batch_ind = metadata[batch_col] == batch
@@ -176,11 +179,12 @@ def tvn_on_controls(
             source_cov = np.cov(
                 embeddings[batch_control_ind], rowvar=False, ddof=1
             ) + 0.5 * np.eye(embeddings.shape[1])
+            source_cov_inv_sqrt = linalg.fractional_matrix_power(source_cov, -0.5)
             embeddings[batch_ind] = np.matmul(
-                embeddings[batch_ind], linalg.fractional_matrix_power(source_cov, -0.5)
+                embeddings[batch_ind], source_cov_inv_sqrt
             )
             embeddings[batch_ind] = np.matmul(
-                embeddings[batch_ind], linalg.fractional_matrix_power(target_cov, 0.5)
+                embeddings[batch_ind], target_cov_sqrt
             )
     return embeddings
 

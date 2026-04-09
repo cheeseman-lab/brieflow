@@ -38,20 +38,13 @@ phate_leiden_clustering, potential_df = phate_leiden_pipeline(
 uniprot_data = pd.read_csv(snakemake.params.uniprot_data_fp, sep="\t")
 # Expand the rows of the uniprot data to deal with synonyms and homologs
 uniprot_data = uniprot_data.dropna(subset=["gene_names"])
-expanded_rows = []
-for _, row in uniprot_data.iterrows():
-    gene_names = row["gene_names"].split()
-    for position, gene in enumerate(gene_names):
-        expanded_rows.append(
-            {
-                "gene_name": gene,
-                "position": position,
-                "uniprot_entry": row["entry"],
-                "uniprot_function": row["function"],
-                "uniprot_link": row["link"],
-            }
-        )
-expanded_df = pd.DataFrame(expanded_rows)
+expanded_df = (
+    uniprot_data.assign(gene_name=uniprot_data["gene_names"].str.split())
+    .explode("gene_name")
+    .rename(columns={"entry": "uniprot_entry", "function": "uniprot_function", "link": "uniprot_link"})
+)
+expanded_df["position"] = expanded_df.groupby(level=0).cumcount()
+expanded_df = expanded_df[["gene_name", "position", "uniprot_entry", "uniprot_function", "uniprot_link"]]
 uniprot_data = expanded_df.sort_values(["gene_name", "position"]).drop_duplicates(
     "gene_name", keep="first"
 )

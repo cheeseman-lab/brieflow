@@ -15,14 +15,15 @@ import pandas as pd
 from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.io import read_parquet, write_parquet
 from lib.merge.stitch_alignment import align_well_positions
 
 
 # Load inputs
 phenotype_positions = validate_dtypes(
-    pd.read_parquet(snakemake.input.phenotype_positions)
+    read_parquet(snakemake.input.phenotype_positions)
 )
-sbs_positions = validate_dtypes(pd.read_parquet(snakemake.input.sbs_positions))
+sbs_positions = validate_dtypes(read_parquet(snakemake.input.sbs_positions))
 
 plate = snakemake.params.plate
 well = snakemake.params.well
@@ -103,19 +104,19 @@ except Exception as e:
 print("\n--- Saving Outputs ---")
 
 # Output [0]: Scaled phenotype positions
-phenotype_scaled.to_parquet(str(snakemake.output.scaled_phenotype_positions))
+write_parquet(phenotype_scaled, str(snakemake.output.scaled_phenotype_positions))
 print(f" Scaled positions: {snakemake.output.scaled_phenotype_positions}")
 
 # Output [1]: Phenotype triangles
-phenotype_triangles.to_parquet(str(snakemake.output.phenotype_triangles))
+write_parquet(phenotype_triangles, str(snakemake.output.phenotype_triangles))
 print(f" Phenotype triangles: {snakemake.output.phenotype_triangles}")
 
 # Output [2]: SBS triangles
-sbs_triangles.to_parquet(str(snakemake.output.sbs_triangles))
+write_parquet(sbs_triangles, str(snakemake.output.sbs_triangles))
 print(f" SBS triangles: {snakemake.output.sbs_triangles}")
 
 # Output [3]: Alignment parameters
-alignment_params.to_parquet(str(snakemake.output.alignment_params))
+write_parquet(alignment_params, str(snakemake.output.alignment_params))
 print(f" Alignment params: {snakemake.output.alignment_params}")
 
 # Output [4]: Summary (TSV format with plate/well columns)
@@ -130,7 +131,7 @@ summary_df.to_csv(
 print(f" Alignment summary: {snakemake.output.alignment_summary}")
 
 # Output [5]: Transformed phenotype positions
-phenotype_transformed.to_parquet(str(snakemake.output.transformed_phenotype_positions))
+write_parquet(phenotype_transformed, str(snakemake.output.transformed_phenotype_positions))
 print(f" Transformed positions: {snakemake.output.transformed_phenotype_positions}")
 
 print(f"\n Well alignment completed successfully for {plate}/{well}!")

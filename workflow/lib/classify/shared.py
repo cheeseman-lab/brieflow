@@ -21,6 +21,7 @@ from PIL import Image as PILImage
 from skimage import measure, segmentation
 
 from lib.shared.file_utils import get_filename
+from lib.shared.io import read_parquet
 
 
 def robust_norm(
@@ -345,7 +346,7 @@ def load_parquet(
 
         available_cols = set(pq_reader.ParquetFile(pq).schema.names)
         columns = [c for c in columns if c in available_cols]
-    df = pd.read_parquet(pq, columns=columns)
+    df = read_parquet(pq, columns=columns)
     if cache is not None:
         cache[key] = df
     return df

@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from lightgbm import LGBMClassifier
+
+from lib.shared.io import read_parquet
 from matplotlib.colors import LinearSegmentedColormap
 from scipy.stats import linregress
 from sklearn.base import clone
@@ -159,7 +161,7 @@ def load_cellprofiler_data(file_paths, class_title=None, metadata_cols=None):
 
     for file_path in file_paths:
         # Load data
-        data = pd.read_parquet(file_path)
+        data = read_parquet(file_path)
         all_data.append(data)
 
     # Combine all data

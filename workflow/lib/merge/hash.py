@@ -276,10 +276,9 @@ def evaluate_match(
     # Score transformation based on the triangle centers
     distances = cdist(model.predict(c_0), c_1, metric="sqeuclidean")
     threshold_region = 50  # Threshold for the region to consider
-    filt = np.sqrt(distances.min(axis=0)) < threshold_region
-    score = (
-        np.sqrt(distances.min(axis=0))[filt] < threshold_point
-    ).mean()  # Calculate score
+    min_distances = np.sqrt(distances.min(axis=0))
+    filt = min_distances < threshold_region
+    score = (min_distances[filt] < threshold_point).mean()  # Calculate score
 
     return rotation, translation, score  # Return rotation, translation, and score
 
@@ -320,13 +319,20 @@ def nearest_neighbors(V_0, V_1):
             - numpy.ndarray: Indices of the nearest neighbors in `V_1`.
             - numpy.ndarray: Distances between the nearest neighbors.
     """
-    Y = cdist(V_0, V_1, metric="sqeuclidean")  # Compute squared Euclidean distances
-    distances = np.sqrt(
-        Y.min(axis=1)
-    )  # Compute the smallest distances and take the square root
-    ix_0 = np.arange(V_0.shape[0])  # Indices of V_0
-    ix_1 = Y.argmin(axis=1)  # Indices of nearest neighbors in V_1
-    return ix_0, ix_1, distances  # Return indices and distances
+    from scipy.spatial import cKDTree
+
+    # Use KDTree for large point sets (O(n log n) vs O(n^2) for cdist)
+    if V_0.shape[0] > 500 or V_1.shape[0] > 500:
+        tree = cKDTree(V_1)
+        distances, ix_1 = tree.query(V_0, k=1)
+        ix_0 = np.arange(V_0.shape[0])
+        return ix_0, ix_1, distances
+
+    Y = cdist(V_0, V_1, metric="sqeuclidean")
+    distances = np.sqrt(Y.min(axis=1))
+    ix_0 = np.arange(V_0.shape[0])
+    ix_1 = Y.argmin(axis=1)
+    return ix_0, ix_1, distances
 
 
 def multistep_alignment(

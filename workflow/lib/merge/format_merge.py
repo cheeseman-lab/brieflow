@@ -40,10 +40,9 @@ def fov_distance(
     Returns:
         DataFrame with an additional column 'fov_distance{suffix}' containing the computed distances.
     """
-    distance = lambda x: np.sqrt(
-        (x[i] - (dimensions[0] / 2)) ** 2 + (x[j] - (dimensions[1] / 2)) ** 2
+    df[f"fov_distance{suffix}"] = np.sqrt(
+        (df[i] - (dimensions[0] / 2)) ** 2 + (df[j] - (dimensions[1] / 2)) ** 2
     )
-    df[f"fov_distance{suffix}"] = df.apply(distance, axis=1)
     return df
 
 
@@ -79,5 +78,5 @@ def calculate_channel_mins(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame with an additional 'channels_min' column.
     """
     min_cols = [col for col in df.columns if "_min" in col]
-    df["channels_min"] = df[min_cols].apply(lambda x: x.min(axis=0), axis=1)
+    df["channels_min"] = df[min_cols].min(axis=1)
     return df

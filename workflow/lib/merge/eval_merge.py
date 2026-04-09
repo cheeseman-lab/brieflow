@@ -9,6 +9,7 @@ from scipy.spatial.distance import cdist
 import yaml
 
 from lib.shared.eval import plot_plate_heatmap
+from lib.shared.io import read_parquet
 
 
 def plot_sbs_ph_matching_heatmap(
@@ -214,9 +215,9 @@ def display_matched_and_unmatched_cells_for_site(
 
     try:
         # Load all datasets
-        merged_df = pd.read_parquet(merged_cells_path)
-        phenotype_transformed = pd.read_parquet(phenotype_transformed_path)
-        sbs_positions = pd.read_parquet(sbs_positions_path)
+        merged_df = read_parquet(merged_cells_path)
+        phenotype_transformed = read_parquet(phenotype_transformed_path)
+        sbs_positions = read_parquet(sbs_positions_path)
 
         # Get available sites from merged data
         available_sites = (
@@ -635,7 +636,7 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
         merge_fp / "well_alignment" / f"P-{plate}_W-{well}__alignment.parquet"
     )
     if alignment_path.exists():
-        outputs["alignment_params"] = pd.read_parquet(alignment_path)
+        outputs["alignment_params"] = read_parquet(alignment_path)
     else:
         raise FileNotFoundError(f"Alignment parameters not found: {alignment_path}")
 
@@ -653,7 +654,7 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
         merge_fp / "parquets" / f"P-{plate}_W-{well}__phenotype_cell_positions.parquet"
     )
     if pheno_pos_path.exists():
-        outputs["phenotype_positions"] = pd.read_parquet(pheno_pos_path)
+        outputs["phenotype_positions"] = read_parquet(pheno_pos_path)
     else:
         raise FileNotFoundError(f"Phenotype positions not found: {pheno_pos_path}")
 
@@ -661,7 +662,7 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
         merge_fp / "parquets" / f"P-{plate}_W-{well}__sbs_cell_positions.parquet"
     )
     if sbs_pos_path.exists():
-        outputs["sbs_positions"] = pd.read_parquet(sbs_pos_path)
+        outputs["sbs_positions"] = read_parquet(sbs_pos_path)
     else:
         raise FileNotFoundError(f"SBS positions not found: {sbs_pos_path}")
 
@@ -670,7 +671,7 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
         merge_fp / "well_alignment" / f"P-{plate}_W-{well}__phenotype_scaled.parquet"
     )
     if scaled_path.exists():
-        outputs["phenotype_scaled"] = pd.read_parquet(scaled_path)
+        outputs["phenotype_scaled"] = read_parquet(scaled_path)
     else:
         raise FileNotFoundError(f"Scaled phenotype positions not found: {scaled_path}")
 
@@ -681,7 +682,7 @@ def load_well_alignment_outputs(root_fp, plate, well, verbose=False):
         / f"P-{plate}_W-{well}__phenotype_transformed.parquet"
     )
     if transformed_path.exists():
-        outputs["phenotype_transformed"] = pd.read_parquet(transformed_path)
+        outputs["phenotype_transformed"] = read_parquet(transformed_path)
     else:
         raise FileNotFoundError(
             f"Transformed phenotype positions not found: {transformed_path}"

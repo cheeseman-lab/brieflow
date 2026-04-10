@@ -48,11 +48,3 @@ cytoplasm_bounds_1
 cytoplasm_bounds_2
 cytoplasm_bounds_3
 cell_stage
-has_second_obj
-num_second_objs
-total_second_obj_area
-second_obj_area_ratio
-mean_second_obj_diameter
-mean_distance_to_nucleus
-second_obj_ids
-cell_area

@@ -154,6 +154,8 @@ rule extract_phenotype_cp:
         PHENOTYPE_OUTPUTS["segment_phenotype"][1],
         # cytoplasm segmentation map
         PHENOTYPE_OUTPUTS["identify_cytoplasm"][0],
+        # alignment metrics TSV (offset_y, offset_x)
+        PHENOTYPE_OUTPUTS["align_phenotype"][1],
     output:
         PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_cp"],
     params:

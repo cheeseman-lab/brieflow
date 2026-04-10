@@ -89,7 +89,7 @@ if merge_approach == "stitch":
             phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
             phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"][0],
             phenotype_tiles=lambda wildcards: output_to_input(
-                PHENOTYPE_OUTPUTS["align_phenotype"],
+                PHENOTYPE_OUTPUTS["align_phenotype"][0],
                 wildcards=wildcards,
                 expansion_values=["tile"],
                 metadata_combos=phenotype_wildcard_combos,

@@ -36,13 +36,13 @@ def aggregate_second_obj_data(
         - "all": Create numbered columns per object (feature_1, feature_2, etc.)
         - "average": Mean of numeric features across all secondary objects per cell
 
-    Returns
+    Returns:
     -------
     pd.DataFrame
         Cell-level data with secondary object features merged according to strategy.
         All cells from cells_df are always preserved.
 
-    Raises
+    Raises:
     ------
     ValueError
         If required merge keys are missing or strategy is invalid.
@@ -82,9 +82,7 @@ def _validate_merge_keys(
         raise ValueError(f"Missing merge keys {missing_keys} in {df_name} dataframe")
 
 
-def _get_feature_cols(
-    second_objs_df: pd.DataFrame, merge_keys: List[str]
-) -> List[str]:
+def _get_feature_cols(second_objs_df: pd.DataFrame, merge_keys: List[str]) -> List[str]:
     """Get secondary object feature columns (everything except merge keys and second_obj_id)."""
     exclude = set(merge_keys) | {"second_obj_id"}
     return [col for col in second_objs_df.columns if col not in exclude]
@@ -119,9 +117,7 @@ def _aggregate_single(
 
     # Count secondary objects per cell
     obj_counts = (
-        second_objs.groupby(cells_merge_keys)
-        .size()
-        .reset_index(name="_obj_count")
+        second_objs.groupby(cells_merge_keys).size().reset_index(name="_obj_count")
     )
 
     # Tag cells with their object count
@@ -142,9 +138,7 @@ def _aggregate_single(
 
     # Add NaN columns for other cells
     if feature_cols:
-        nan_df = pd.DataFrame(
-            np.nan, index=other_cells.index, columns=feature_cols
-        )
+        nan_df = pd.DataFrame(np.nan, index=other_cells.index, columns=feature_cols)
         other_cells = pd.concat([other_cells, nan_df], axis=1)
 
     return pd.concat([merged_single, other_cells], ignore_index=True)
@@ -167,9 +161,7 @@ def _aggregate_all(
     feature_cols = _get_feature_cols(second_objs_df, second_objs_merge_keys)
 
     # Number secondary objects within each cell
-    second_objs["_obj_num"] = (
-        second_objs.groupby(cells_merge_keys).cumcount() + 1
-    )
+    second_objs["_obj_num"] = second_objs.groupby(cells_merge_keys).cumcount() + 1
 
     max_objs = second_objs["_obj_num"].max() if len(second_objs) > 0 else 0
 
@@ -208,9 +200,7 @@ def _aggregate_average(
 
     # Identify numeric vs non-numeric feature columns
     numeric_cols = (
-        second_objs[feature_cols]
-        .select_dtypes(include=[np.number])
-        .columns.tolist()
+        second_objs[feature_cols].select_dtypes(include=[np.number]).columns.tolist()
     )
     non_numeric_cols = [col for col in feature_cols if col not in numeric_cols]
 
@@ -220,8 +210,6 @@ def _aggregate_average(
     for col in non_numeric_cols:
         agg_dict[col] = "first"
 
-    averaged = (
-        second_objs.groupby(cells_merge_keys).agg(agg_dict).reset_index()
-    )
+    averaged = second_objs.groupby(cells_merge_keys).agg(agg_dict).reset_index()
 
     return cells_df.merge(averaged, on=cells_merge_keys, how="left")

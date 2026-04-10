@@ -55,7 +55,7 @@ CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
 
 
 def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
-    """Create a CellposeModel with version-aware initialization.
+    r"""Create a CellposeModel with version-aware initialization.
 
     Handles differences between Cellpose 3.x and 4.x APIs and validates
     model compatibility with the installed Cellpose version.

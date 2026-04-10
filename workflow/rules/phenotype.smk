@@ -185,7 +185,9 @@ if config["phenotype"].get("second_obj_detection", True):
 rule merge_phenotype:
     input:
         lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_second_objs_phenotype_cp"],
+            PHENOTYPE_OUTPUTS["merge_second_objs_phenotype_cp"]
+            if config["phenotype"].get("second_obj_detection", True)
+            else PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
             wildcards=wildcards,
             expansion_values=["tile"],
             metadata_combos=phenotype_wildcard_combos,

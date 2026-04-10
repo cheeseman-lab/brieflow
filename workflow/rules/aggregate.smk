@@ -2,11 +2,31 @@ from lib.shared.target_utils import output_to_input, map_wildcard_outputs
 from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_bootstrap_construct_outputs
 
 
+# Aggregate secondary object features into cell-level data
+SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", True)
+
+if SECOND_OBJ_DETECTION:
+    rule aggregate_cells_second_objs:
+        input:
+            ancient(MERGE_OUTPUTS["final_merge"]),
+            ancient(PHENOTYPE_OUTPUTS["merge_phenotype_second_objs"][0]),
+        output:
+            AGGREGATE_OUTPUTS_MAPPED["aggregate_cells_second_objs"],
+        params:
+            agg_strategy=config.get("aggregate", {}).get(
+                "second_obj_agg_strategy", "none"
+            ),
+        script:
+            "../scripts/aggregate/aggregate_cells_second_objs.py"
+
+
 # Create datasets with cell classes and channel combos
 rule split_datasets:
     input:
-        # final merge data
-        ancient(MERGE_OUTPUTS["final_merge"]),
+        # cell data (with or without secondary object features)
+        ancient(AGGREGATE_OUTPUTS["aggregate_cells_second_objs"])
+        if SECOND_OBJ_DETECTION
+        else ancient(MERGE_OUTPUTS["final_merge"]),
     priority: 100
     output:
         map_wildcard_outputs(

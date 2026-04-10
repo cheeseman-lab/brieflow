@@ -26,6 +26,13 @@ PHENOTYPE_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
         ),
+        PHENOTYPE_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "alignment_metrics",
+            "tsv",
+        ),
     ],
     "segment_phenotype": [
         PHENOTYPE_FP

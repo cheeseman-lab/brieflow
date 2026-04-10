@@ -88,13 +88,13 @@ if use_ml:
         "upsample_factor",
         "window",
     }
-    
+
     # Collect ML-specific parameters only
     ml_params = {
         k: v
         for k, v in params.items()
-        if k not in common_param_keys 
-        and k not in cv_only_params 
+        if k not in common_param_keys
+        and k not in cv_only_params
         and k not in config_level_params
     }
 

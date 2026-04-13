@@ -120,7 +120,25 @@ AGGREGATE_OUTPUT_MAPPINGS = {
     "generate_feature_table": None,
 }
 
-AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPINGS)
+# Determine which outputs to include based on config
+AGGREGATE_SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", True)
+
+if not AGGREGATE_SECOND_OBJ_DETECTION:
+    # Filter out secondary object rules when disabled
+    AGGREGATE_OUTPUTS_FILTERED = {
+        k: v for k, v in AGGREGATE_OUTPUTS.items()
+        if k not in ["aggregate_cells_second_objs"]
+    }
+
+    AGGREGATE_OUTPUT_MAPPINGS_FILTERED = {
+        k: v for k, v in AGGREGATE_OUTPUT_MAPPINGS.items()
+        if k not in ["aggregate_cells_second_objs"]
+    }
+else:
+    AGGREGATE_OUTPUTS_FILTERED = AGGREGATE_OUTPUTS
+    AGGREGATE_OUTPUT_MAPPINGS_FILTERED = AGGREGATE_OUTPUT_MAPPINGS
+
+AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS_FILTERED, AGGREGATE_OUTPUT_MAPPINGS_FILTERED)
 
 # TODO: Use all combos
 # aggregate_wildcard_combos = aggregate_wildcard_combos[
@@ -131,7 +149,7 @@ AGGREGATE_OUTPUTS_MAPPED = map_outputs(AGGREGATE_OUTPUTS, AGGREGATE_OUTPUT_MAPPI
 # ]
 
 AGGREGATE_TARGETS_ALL = outputs_to_targets(
-    AGGREGATE_OUTPUTS, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS
+    AGGREGATE_OUTPUTS_FILTERED, aggregate_wildcard_combos, AGGREGATE_OUTPUT_MAPPINGS_FILTERED
 )
 
 

@@ -1,4 +1,4 @@
-"""Cellpose Fine-Tuning Utilities
+"""Cellpose Fine-Tuning Utilities.
 
 Functions for loading training data, augmentation, training, evaluation,
 and visualization of Cellpose models for secondary object segmentation.

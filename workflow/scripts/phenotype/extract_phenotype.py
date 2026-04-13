@@ -1,3 +1,4 @@
+import pandas as pd
 from tifffile import imread
 
 # load inputs
@@ -46,6 +47,12 @@ else:
     raise ValueError(
         f"Unknown cp_method: {cp_method}. Choose 'cp_measure' or 'cp_emulator'."
     )
+
+# Broadcast tile-level alignment offsets to each cell row
+alignment_metrics = pd.read_csv(snakemake.input[4], sep="\t")
+offset_cols = [c for c in alignment_metrics.columns if c.startswith("offset_")]
+for col in offset_cols:
+    phenotype_cp[col] = alignment_metrics[col].iloc[0]
 
 # save phenotype cp
 phenotype_cp.to_csv(snakemake.output[0], index=False, sep="\t")

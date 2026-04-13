@@ -96,6 +96,7 @@ phenotype:
   mode: null
   nuclei_diameter: 41.97813156768016
   reconcile: contained_in_cells
+  second_obj_detection: false
 merge:
   approach: fast
   merge_combo_fp: config/merge_combo.tsv

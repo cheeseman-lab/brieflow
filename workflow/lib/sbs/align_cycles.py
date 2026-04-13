@@ -286,7 +286,7 @@ def align_cycles(
         target = apply_window(aligned[:, sbs_channels], window=window).max(axis=1)
         normed = normalize_by_percentile(target, q_norm=q_norm)
         normed[normed > cutoff] = cutoff
-        offsets = calculate_offsets(normed, upsample_factor=upsample_factor)
+        offsets, _ = calculate_offsets(normed, upsample_factor=upsample_factor)
 
         if verbose:
             print("\n=== Cycle Alignment Offsets (sbs_mean method) ===")
@@ -333,7 +333,7 @@ def align_within_cycle(data_, upsample_factor=4, window=1, q1=0, q2=90):
     # Filter the input data based on percentiles
     filtered = filter_percentiles(apply_window(data_, window), q1=q1, q2=q2)
     # Calculate offsets using the filtered data
-    offsets = calculate_offsets(filtered, upsample_factor=upsample_factor)
+    offsets, _ = calculate_offsets(filtered, upsample_factor=upsample_factor)
     # Apply the calculated offsets to the original data and return the result
     return apply_offsets(data_, offsets)
 
@@ -356,7 +356,7 @@ def align_between_cycles(
     """
     # Calculate offsets from the target channel
     target = apply_window(data[:, channel_index], window)
-    offsets = calculate_offsets(target, upsample_factor=upsample_factor)
+    offsets, _ = calculate_offsets(target, upsample_factor=upsample_factor)
 
     # Apply the calculated offsets to all channels
     warped = []

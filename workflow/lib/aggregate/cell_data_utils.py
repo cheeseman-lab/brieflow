@@ -180,3 +180,47 @@ def get_feature_table_cols(feature_cols):
     selected_columns.extend(overlap_cols)
 
     return selected_columns
+
+
+COMPARTMENT_PREFIXES = {
+    "cell": "cell_",
+    "nucleus": "nucleus_",
+    "cytoplasm": "cytoplasm_",
+    "second_obj": "second_obj_",
+}
+
+# Per-cell summary columns added by aggregate_second_obj_data that don't carry
+# the second_obj_ prefix but are derived from second-object data.
+SECOND_OBJ_EXTRA_COLS = frozenset(
+    {
+        "total_second_obj_area",
+        "mean_second_obj_diameter",
+        "mean_distance_to_nucleus",
+    }
+)
+
+
+def compartment_combo_subset(features, compartment_combo, all_compartments):
+    """Filter features to keep only columns belonging to the requested compartments.
+
+    Args:
+        features (pd.DataFrame): Feature columns (metadata already split out).
+        compartment_combo (list[str]): Compartments to keep, e.g. ["cell", "nucleus"].
+        all_compartments (list[str]): Compartments present in the input. Used to
+            determine which prefixes to exclude.
+
+    Returns:
+        pd.DataFrame: features without columns belonging to excluded compartments.
+    """
+    excluded = [c for c in all_compartments if c not in compartment_combo]
+    excluded_prefixes = [COMPARTMENT_PREFIXES[c] for c in excluded]
+
+    cols_to_drop = [
+        col
+        for col in features.columns
+        if any(col.startswith(p) for p in excluded_prefixes)
+    ]
+    if "second_obj" in excluded:
+        cols_to_drop += [c for c in SECOND_OBJ_EXTRA_COLS if c in features.columns]
+
+    return features.drop(columns=cols_to_drop)

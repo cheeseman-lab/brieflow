@@ -77,3 +77,85 @@ def test_compartment_prefixes_constant_shape():
     assert set(COMPARTMENT_PREFIXES) == {"cell", "nucleus", "cytoplasm", "second_obj"}
     for name, prefix in COMPARTMENT_PREFIXES.items():
         assert prefix == f"{name}_"
+
+
+from lib.aggregate.cell_data_utils import resolve_aggregate_combos
+
+
+def test_resolve_defaults_4_when_detection_true():
+    out = resolve_aggregate_combos([{"channels": ["DAPI"]}], second_obj_detection=True)
+    assert out == [
+        {
+            "channels": ["DAPI"],
+            "compartments": ["cell", "nucleus", "cytoplasm", "second_obj"],
+        }
+    ]
+
+
+def test_resolve_defaults_3_when_detection_false():
+    out = resolve_aggregate_combos([{"channels": ["DAPI"]}], second_obj_detection=False)
+    assert out == [
+        {"channels": ["DAPI"], "compartments": ["cell", "nucleus", "cytoplasm"]}
+    ]
+
+
+def test_resolve_rejects_unknown_compartment():
+    with pytest.raises(ValueError, match="unknown compartment"):
+        resolve_aggregate_combos(
+            [{"channels": ["DAPI"], "compartments": ["nucleous"]}],
+            second_obj_detection=True,
+        )
+
+
+def test_resolve_rejects_second_obj_when_detection_false():
+    with pytest.raises(ValueError, match="second_obj_detection"):
+        resolve_aggregate_combos(
+            [{"channels": ["DAPI"], "compartments": ["second_obj"]}],
+            second_obj_detection=False,
+        )
+
+
+def test_resolve_rejects_empty_compartments():
+    with pytest.raises(ValueError, match="at least one compartment"):
+        resolve_aggregate_combos(
+            [{"channels": ["DAPI"], "compartments": []}],
+            second_obj_detection=True,
+        )
+
+
+def test_resolve_rejects_empty_channels():
+    with pytest.raises(ValueError, match="at least one channel"):
+        resolve_aggregate_combos(
+            [{"channels": [], "compartments": ["cell"]}],
+            second_obj_detection=True,
+        )
+
+
+def test_resolve_dedupes_compartments_within_combo():
+    out = resolve_aggregate_combos(
+        [{"channels": ["DAPI"], "compartments": ["cell", "cell", "nucleus"]}],
+        second_obj_detection=True,
+    )
+    assert out[0]["compartments"] == ["cell", "nucleus"]
+
+
+def test_resolve_dedupes_duplicate_combos():
+    out = resolve_aggregate_combos(
+        [
+            {"channels": ["DAPI"], "compartments": ["cell"]},
+            {"channels": ["DAPI"], "compartments": ["cell"]},
+        ],
+        second_obj_detection=True,
+    )
+    assert len(out) == 1
+
+
+def test_resolve_preserves_distinct_combos():
+    out = resolve_aggregate_combos(
+        [
+            {"channels": ["DAPI"], "compartments": ["cell"]},
+            {"channels": ["DAPI"], "compartments": ["nucleus"]},
+        ],
+        second_obj_detection=True,
+    )
+    assert len(out) == 2

@@ -224,3 +224,75 @@ def compartment_combo_subset(features, compartment_combo, all_compartments):
         cols_to_drop += [c for c in SECOND_OBJ_EXTRA_COLS if c in features.columns]
 
     return features.drop(columns=cols_to_drop)
+
+
+def resolve_aggregate_combos(aggregate_combos, second_obj_detection):
+    """Normalize and validate AGGREGATE_COMBOS entries.
+
+    For each entry:
+    - Fills in default compartments (all 4 if detection on, 3 otherwise) when missing.
+    - Dedupes compartments within the combo (preserving order).
+    - Validates compartment names, non-empty channels/compartments, and
+      second_obj-vs-detection consistency.
+    After normalization, duplicate (channels, compartments) pairs are deduped.
+
+    Args:
+        aggregate_combos (list[dict]): Each dict has "channels" (list[str]) and
+            optionally "compartments" (list[str]).
+        second_obj_detection (bool): From config["phenotype"]["second_obj_detection"].
+
+    Returns:
+        list[dict]: Normalized, validated, and de-duplicated combos.
+
+    Raises:
+        ValueError: On any validation failure.
+    """
+    valid_compartments = set(COMPARTMENT_PREFIXES)
+    default_compartments = (
+        ["cell", "nucleus", "cytoplasm", "second_obj"]
+        if second_obj_detection
+        else ["cell", "nucleus", "cytoplasm"]
+    )
+
+    resolved = []
+    seen = set()
+    for idx, combo in enumerate(aggregate_combos):
+        channels = list(combo.get("channels") or [])
+        if not channels:
+            raise ValueError(
+                f"AGGREGATE_COMBOS[{idx}] must specify at least one channel"
+            )
+
+        comps = combo.get("compartments")
+        if comps is None:
+            comps = list(default_compartments)
+        else:
+            comps = list(comps)
+        if not comps:
+            raise ValueError(
+                f"AGGREGATE_COMBOS[{idx}] must specify at least one compartment"
+            )
+
+        # Dedupe compartments while preserving order
+        deduped = []
+        for c in comps:
+            if c not in valid_compartments:
+                raise ValueError(
+                    f"AGGREGATE_COMBOS[{idx}] has unknown compartment {c!r}; "
+                    f"must be one of {sorted(valid_compartments)}"
+                )
+            if c == "second_obj" and not second_obj_detection:
+                raise ValueError(
+                    f"AGGREGATE_COMBOS[{idx}] lists 'second_obj' but "
+                    f"config['phenotype']['second_obj_detection'] is False"
+                )
+            if c not in deduped:
+                deduped.append(c)
+
+        key = (tuple(channels), tuple(deduped))
+        if key in seen:
+            continue
+        seen.add(key)
+        resolved.append({"channels": channels, "compartments": deduped})
+
+    return resolved

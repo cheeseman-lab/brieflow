@@ -19,6 +19,7 @@ from lib.shared.file_utils import parse_filename, get_filename
 def find_optimal_resolution(
     root_fp,
     channel_combo,
+    compartment_combo,
     cell_class,
     use_filtered=False,
     metric="balanced",
@@ -34,6 +35,7 @@ def find_optimal_resolution(
     Args:
         root_fp (Path): Root output directory (config["all"]["root_fp"]).
         channel_combo (str): Channel combination name.
+        compartment_combo (str): Compartment combination name.
         cell_class (str): Cell class name.
         use_filtered (bool): Whether to look in filtered/ subdirectory.
         metric (str): Metric to optimize. Options:
@@ -65,9 +67,16 @@ def find_optimal_resolution(
 
     # Build base cluster path
     if use_filtered:
-        base_path = root_fp / "cluster" / channel_combo / cell_class / "filtered"
+        base_path = (
+            root_fp
+            / "cluster"
+            / channel_combo
+            / compartment_combo
+            / cell_class
+            / "filtered"
+        )
     else:
-        base_path = root_fp / "cluster" / channel_combo / cell_class
+        base_path = root_fp / "cluster" / channel_combo / compartment_combo / cell_class
 
     # Auto-discover resolutions if not provided
     if resolutions is None:
@@ -430,6 +439,7 @@ def analyze_all_resolutions(
     root_fp,
     cell_classes,
     channel_combos,
+    compartment_combos,
     use_filtered=False,
     metric="balanced",
     ideal_size_range=(15, 25),
@@ -438,7 +448,7 @@ def analyze_all_resolutions(
     top_n_table=10,
     verbose=True,
 ):
-    """Analyze optimal resolutions for all cell class/channel combinations.
+    """Analyze optimal resolutions for all cell class/channel/compartment combinations.
 
     Convenience wrapper that finds optimal resolutions, displays results,
     and returns a summary for all combinations.
@@ -447,6 +457,7 @@ def analyze_all_resolutions(
         root_fp (Path): Root output directory (config["all"]["root_fp"]).
         cell_classes (list): List of cell class names (e.g., ["Interphase", "Mitotic"]).
         channel_combos (list): List of channel combinations.
+        compartment_combos (list): List of compartment combinations.
         use_filtered (bool): Whether to look in filtered/ subdirectory.
         metric (str): Metric to optimize ("balanced", "combined", etc.).
         ideal_size_range (tuple): (min, max) target cluster size.
@@ -467,56 +478,58 @@ def analyze_all_resolutions(
 
     for cell_class in cell_classes:
         for channel_combo in channel_combos:
-            try:
-                result = find_optimal_resolution(
-                    root_fp=root_fp,
-                    channel_combo=channel_combo,
-                    cell_class=cell_class,
-                    use_filtered=use_filtered,
-                    metric=metric,
-                    ideal_size_range=ideal_size_range,
-                    size_metric=size_metric,
-                )
-                key = f"{cell_class}_{channel_combo}"
-                optimal_resolutions[key] = result
+            for compartment_combo in compartment_combos:
+                try:
+                    result = find_optimal_resolution(
+                        root_fp=root_fp,
+                        channel_combo=channel_combo,
+                        compartment_combo=compartment_combo,
+                        cell_class=cell_class,
+                        use_filtered=use_filtered,
+                        metric=metric,
+                        ideal_size_range=ideal_size_range,
+                        size_metric=size_metric,
+                    )
+                    key = f"{cell_class}_{channel_combo}_{compartment_combo}"
+                    optimal_resolutions[key] = result
 
-                if verbose:
-                    print(f"\n{'=' * 80}")
-                    print(f"{cell_class} / {channel_combo}")
-                    print(f"{'=' * 80}")
-                    print(f"  Optimal resolution: {result['optimal_resolution']}")
-                    print(f"  Optimization metric: {result['metric_used']}")
-                    print(f"  Size metric used: {result['size_metric_used']}")
-                    print(f"  Target size range: {result['ideal_size_range']}")
+                    if verbose:
+                        print(f"\n{'=' * 80}")
+                        print(f"{cell_class} / {channel_combo} / {compartment_combo}")
+                        print(f"{'=' * 80}")
+                        print(f"  Optimal resolution: {result['optimal_resolution']}")
+                        print(f"  Optimization metric: {result['metric_used']}")
+                        print(f"  Size metric used: {result['size_metric_used']}")
+                        print(f"  Target size range: {result['ideal_size_range']}")
 
-                    # Show formatted decision table
-                    print(
-                        f"\nTop {top_n_table} resolutions (sorted by {metric} score):"
-                    )
-                    table = format_resolution_table(
-                        result["all_results"], top_n=top_n_table
-                    )
-                    display(table)
+                        # Show formatted decision table
+                        print(
+                            f"\nTop {top_n_table} resolutions (sorted by {metric} score):"
+                        )
+                        table = format_resolution_table(
+                            result["all_results"], top_n=top_n_table
+                        )
+                        display(table)
 
-                if show_plots:
-                    # Show metrics comparison plot
-                    fig = plot_resolution_comparison(
-                        result["all_results"], metric=metric
-                    )
-                    plt.suptitle(
-                        f"{cell_class} / {channel_combo}",
-                        fontsize=14,
-                        fontweight="bold",
-                    )
-                    plt.tight_layout()
-                    plt.show()
+                    if show_plots:
+                        # Show metrics comparison plot
+                        fig = plot_resolution_comparison(
+                            result["all_results"], metric=metric
+                        )
+                        plt.suptitle(
+                            f"{cell_class} / {channel_combo} / {compartment_combo}",
+                            fontsize=14,
+                            fontweight="bold",
+                        )
+                        plt.tight_layout()
+                        plt.show()
 
-            except Exception as e:
-                if verbose:
-                    print(
-                        f"\n{cell_class} / {channel_combo}: No benchmark results found"
-                    )
-                    print(f"  Error: {e}")
+                except Exception as e:
+                    if verbose:
+                        print(
+                            f"\n{cell_class} / {channel_combo} / {compartment_combo}: No benchmark results found"
+                        )
+                        print(f"  Error: {e}")
 
     # Generate summary table
     if verbose:

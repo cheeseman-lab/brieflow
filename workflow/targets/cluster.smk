@@ -11,12 +11,14 @@ CLUSTER_OUTPUTS = {
     "clean_aggregate": [
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / get_filename({}, "aggregate_cleaned", "tsv"),
     ],
     "phate_leiden_clustering": [
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename(
@@ -26,11 +28,13 @@ CLUSTER_OUTPUTS = {
         ),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({}, "cluster_sizes", "png"),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({}, "clusters", "png"),
@@ -38,41 +42,49 @@ CLUSTER_OUTPUTS = {
     "benchmark_clusters": [
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Real"}, "integrated_results", "json"),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Shuffled"}, "integrated_results", "json"),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Real"}, "combined_table", "tsv"),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Shuffled"}, "combined_table", "tsv"),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Real"}, "global_metrics", "json"),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Shuffled"}, "global_metrics", "json"),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Real"}, "pie_chart", "png"),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename(
@@ -80,11 +92,13 @@ CLUSTER_OUTPUTS = {
         ),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Real"}, "enrichment_bar_chart", "png"),
         CLUSTER_FP
         / "{channel_combo}"
+        / "{compartment_combo}"
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename(

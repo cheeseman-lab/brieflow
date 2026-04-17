@@ -50,7 +50,7 @@ if cols_to_drop:
     obs = obs.drop(columns=cols_to_drop)
 
 # Add is_control boolean
-obs["is_control"] = obs[perturbation_name_col].str.contains(control_key, na=False)
+obs["is_control"] = obs[perturbation_name_col].str.contains(control_key, na=False).astype(bool)
 
 # Add cell_uid as a globally unique cell identifier across experiments
 # Format: {plate}_{well}_{tile}_{cell_seq_id}

@@ -98,8 +98,12 @@ def perturbation_score(
             )
             keep_idx = np.union1d(gene_idx, nt_keep)
 
-            # Extract subset
-            gene_subset_df = cell_data.iloc[keep_idx].copy()
+            # Extract subset. keep_idx holds pandas index labels (built from
+            # perturbation_col.index[...] and nt_idx above); use .loc so this
+            # works whether cell_data has a RangeIndex or a preserved label
+            # index (the latter happens when the caller passes a groupby slice
+            # without reset_index).
+            gene_subset_df = cell_data.loc[keep_idx].copy()
             original_idx = gene_subset_df.index.copy()
             gene_subset_df = gene_subset_df.reset_index(drop=True)
 

@@ -137,6 +137,9 @@ for i, indices in enumerate(subset_indices):
             metadata_cols,
             snakemake.params.perturbation_name_col,
             snakemake.params.control_key,
+            perturbation_id_col=snakemake.params.perturbation_id_col,
+            control_name_col=snakemake.params.get("control_name_col"),
+            batch_cols=snakemake.params.batch_cols,
         )
 
     for col in subset_df.columns:

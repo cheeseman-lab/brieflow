@@ -191,7 +191,12 @@ gc.collect()
 construct_table = pd.DataFrame(construct_rows)
 
 # Reorder columns: sgRNA, gene, cell_count, features
-construct_columns = [pert_id_col, pert_col, "cell_count"] + feature_cols
+# Dedupe while preserving order: when perturbation_id_col == perturbation_name_col
+# (a valid config when aggregation is already at the per-construct level),
+# listing both would create a duplicate column and break downstream Series ops.
+construct_columns = list(
+    dict.fromkeys([pert_id_col, pert_col, "cell_count"] + feature_cols)
+)
 construct_table = construct_table[construct_columns]
 
 print(f"Construct table shape: {construct_table.shape}")

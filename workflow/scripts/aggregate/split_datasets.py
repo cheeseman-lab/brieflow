@@ -3,6 +3,7 @@ import numpy as np
 
 from lib.aggregate.cell_classification import CellClassifier
 from lib.aggregate.cell_data_utils import (
+    COMPARTMENT_PREFIXES,
     load_metadata_cols,
     split_cell_data,
     channel_combo_subset,
@@ -155,10 +156,10 @@ unique_specs = aggregate_wildcard_combos[
     ["cell_class", "channel_combo", "compartment_combo"]
 ].drop_duplicates()
 
-# Full set of compartments this run has data for (derived from the TSV, not hard-coded)
-all_compartments_run = sorted(
-    {comp for combo in unique_specs["compartment_combo"] for comp in combo.split("-")}
-)
+# Universe of compartment prefixes that may exist in the input data. Must come from
+# the known prefix set, not from the TSV — compartments never requested in any combo
+# would otherwise pass through undropped.
+all_compartments_run = sorted(COMPARTMENT_PREFIXES.keys())
 
 for _, row in unique_specs.iterrows():
     cell_class = row["cell_class"]

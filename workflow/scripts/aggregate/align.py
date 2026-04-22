@@ -16,6 +16,7 @@ from lib.aggregate.align import (
     centerscale_by_batch,
     tvn_on_controls,
 )
+from lib.aggregate.filter import harmonize_pool_schema
 from lib.aggregate.perturbation_score import perturbation_score
 
 warnings.filterwarnings(
@@ -51,13 +52,38 @@ n_sample = min(PCA_SUBSET, total_rows)
 random_indices = np.random.choice(total_rows, size=n_sample, replace=False)
 random_indices.sort()
 
-# load sample df
-sample_df = cell_dataset.scanner().take(random_indices)
-sample_df = sample_df.to_pandas(use_threads=True, memory_pool=None)
-
 # load sample df as pandas dataframe
 use_classifier = snakemake.params.get("use_classifier", False)
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classifier)
+
+# Harmonize the pool's column set once: drop cols present in only some per-well
+# files (typically driven by per-well filter decisions diverging when class
+# composition differs across wells) and apply drop_cols_threshold at the pool
+# level — matching the convention used by missing_values_filter.
+kept_metadata_cols, kept_feature_cols, _pool_report = harmonize_pool_schema(
+    non_empty_paths,
+    metadata_cols,
+    drop_cols_threshold=snakemake.params.get("drop_cols_threshold"),
+)
+scan_cols = kept_metadata_cols + kept_feature_cols
+
+# load sample df
+sample_df = (
+    cell_dataset.scanner(columns=scan_cols)
+    .take(random_indices)
+    .to_pandas(use_threads=True, memory_pool=None)
+)
+
+# Residual NaN handling: after pool-level col drops, any remaining NaN is
+# sparse and row-localized. Drop those rows from the PCA training sample so
+# PCA/StandardScaler see a clean matrix. Matches the drop_rows_threshold intent
+# at a per-row granularity appropriate for a training sample.
+_sample_pre = len(sample_df)
+sample_df = sample_df.dropna(subset=kept_feature_cols).reset_index(drop=True)
+if len(sample_df) < _sample_pre:
+    print(
+        f"[pool] dropped {_sample_pre - len(sample_df)} PCA-sample rows with residual NaN"
+    )
 metadata, features = split_cell_data(sample_df, metadata_cols)
 metadata, features = prepare_alignment_data(
     metadata,
@@ -87,11 +113,19 @@ for i, indices in enumerate(subset_indices):
     print(f"Processing subset {i + 1}/{num_align_batches} with {len(indices)} cells")
 
     subset_df = (
-        cell_dataset.scanner()
+        cell_dataset.scanner(columns=scan_cols)
         .take(pa.array(indices))
         .to_pandas(use_threads=True, memory_pool=None)
-        .dropna(axis=1)
     )
+    # Drop any residual per-row NaN (pool-level col drops above have already
+    # eliminated systematically-missing columns).
+    _pre = len(subset_df)
+    subset_df = subset_df.dropna(subset=kept_feature_cols).reset_index(drop=True)
+    if len(subset_df) < _pre:
+        print(
+            f"[pool] dropped {_pre - len(subset_df)} rows with residual NaN "
+            f"from batch {i + 1}"
+        )
 
     # CALCULATE PERTURBATION SCORE
     subset_df["perturbation_score"] = np.nan

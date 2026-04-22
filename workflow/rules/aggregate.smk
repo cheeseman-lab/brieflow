@@ -96,6 +96,7 @@ rule generate_feature_table:
         num_align_batches=config["aggregate"]["num_align_batches"],
         feature_normalization=config["aggregate"].get("feature_normalization", "standard"),
         pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None),
+        drop_cols_threshold=config["aggregate"].get("drop_cols_threshold"),
     script:
         "../scripts/aggregate/generate_feature_table.py"
 
@@ -126,6 +127,7 @@ rule align:
         num_align_batches=config["aggregate"]["num_align_batches"],
         skip_perturbation_score=config["aggregate"]["skip_perturbation_score"],
         control_name_col=config["aggregate"].get("control_name_col"),
+        drop_cols_threshold=config["aggregate"].get("drop_cols_threshold"),
     script:
         "../scripts/aggregate/align.py"
 

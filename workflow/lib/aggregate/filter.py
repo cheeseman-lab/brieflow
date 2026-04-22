@@ -5,12 +5,114 @@ Available filters:
 - perturbation_filter: Remove cells without perturbation assignments
 - missing_values_filter: Handle missing values through dropping or imputation
 - intensity_filter: Remove outliers based on channel intensities using LocalOutlierFactor
+- harmonize_pool_schema: Compute a consistent feature-column set for a pool of per-well parquets
 """
 
 import pandas as pd
 import numpy as np
+import pyarrow.dataset as ds
+import pyarrow.parquet as pq
 from sklearn.impute import KNNImputer
 from sklearn.neighbors import LocalOutlierFactor
+
+
+def harmonize_pool_schema(
+    paths,
+    metadata_cols,
+    drop_cols_threshold=None,
+):
+    """Compute a consistent (metadata, feature) column set for a multi-file pool.
+
+    When per-well filter decisions diverge — e.g. missing_values_filter drops
+    different columns in different wells because class composition varies — naive
+    pool reads via pyarrow's dataset union produce NaN blocks that break
+    downstream operations (PCA, center-scale). This helper produces a single
+    harmonized column set to use across every scan of the pool, matching the
+    drop-column convention from missing_values_filter.
+
+    Steps:
+      1. Schema intersection across `paths`. Columns present in some but not all
+         files are "lost to per-well schema mismatch" (typically driven by
+         class-composition differences across wells) and logged per-file.
+      2. If `drop_cols_threshold` is provided, scan the intersected pool once and
+         drop any feature column whose pool-level NaN proportion is >= threshold.
+         Uses the same comparison as missing_values_filter.
+    Row-level NaN cleanup (drop_rows_threshold, impute) is intentionally
+    deferred to the caller so it can be applied on each working subset.
+
+    Args:
+        paths (list[str]): parquet file paths forming the pool.
+        metadata_cols (list[str]): canonical metadata column names (only those
+            present in every file are returned).
+        drop_cols_threshold (float | None): pool-level NaN proportion threshold
+            above which a feature column is dropped. None disables this step.
+
+    Returns:
+        tuple:
+            kept_metadata_cols (list[str]),
+            kept_feature_cols (list[str]),
+            report (dict) — keys: "schema_mismatch" (dict file -> missing cols),
+                                  "threshold_dropped" (list of col names).
+    """
+    if not paths:
+        return [], [], {"schema_mismatch": {}, "threshold_dropped": []}
+
+    per_file_schemas = {p: set(pq.read_schema(p).names) for p in paths}
+    union_cols = set().union(*per_file_schemas.values())
+    intersection_cols = set.intersection(*per_file_schemas.values())
+    schema_mismatch = {
+        p: sorted(union_cols - cols)
+        for p, cols in per_file_schemas.items()
+        if union_cols - cols
+    }
+
+    if schema_mismatch:
+        total_lost = len(union_cols - intersection_cols)
+        print(
+            f"[pool] dropping {total_lost} column(s) present in some but not all "
+            f"of {len(paths)} input files (per-file missingness — typically driven "
+            f"by class composition differences across wells):"
+        )
+        for p, missing in schema_mismatch.items():
+            preview = ", ".join(missing[:5]) + (
+                f", ...(+{len(missing) - 5} more)" if len(missing) > 5 else ""
+            )
+            print(f"  {p.split('/')[-1]}: missing {len(missing)} col(s): {preview}")
+
+    # Preserve caller-provided order within metadata_cols; feature order is sorted
+    # for determinism since there's no natural ordering after an intersection.
+    kept_metadata_cols = [c for c in metadata_cols if c in intersection_cols]
+    kept_feature_cols = sorted(intersection_cols - set(metadata_cols))
+
+    threshold_dropped = []
+    if drop_cols_threshold is not None and kept_feature_cols:
+        pool = ds.dataset(paths, format="parquet").to_table(columns=kept_feature_cols)
+        # Compute pool-level NaN proportion per column without materializing full pandas.
+        total_rows = pool.num_rows
+        if total_rows > 0:
+            for col_name in list(kept_feature_cols):
+                nulls = pool.column(col_name).null_count
+                if nulls / total_rows >= drop_cols_threshold:
+                    threshold_dropped.append(col_name)
+        if threshold_dropped:
+            print(
+                f"[pool] dropping {len(threshold_dropped)} column(s) with pool-level "
+                f"NaN proportion >= {drop_cols_threshold * 100:.1f}%: "
+                f"{', '.join(threshold_dropped[:10])}"
+                f"{', ...' if len(threshold_dropped) > 10 else ''}"
+            )
+            kept_feature_cols = [
+                c for c in kept_feature_cols if c not in threshold_dropped
+            ]
+
+    return (
+        kept_metadata_cols,
+        kept_feature_cols,
+        {
+            "schema_mismatch": schema_mismatch,
+            "threshold_dropped": threshold_dropped,
+        },
+    )
 
 
 def query_filter(metadata, features, queries):

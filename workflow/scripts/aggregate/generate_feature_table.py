@@ -11,6 +11,7 @@ from pandas.api.types import is_numeric_dtype
 from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
 from lib.aggregate.bootstrap import create_pseudogene_groups
+from lib.aggregate.filter import harmonize_pool_schema
 
 # get snakemake parameters
 pert_col = snakemake.params.perturbation_name_col
@@ -34,14 +35,18 @@ if len(non_empty_paths) == 0:
 
 cell_dataset = ds.dataset(non_empty_paths, format="parquet")
 
-# Determine columns
-cell_data_cols = cell_dataset.schema.names
 use_classifier = snakemake.params.get("use_classifier", False)
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classifier)
-feature_cols = [col for col in cell_dataset.schema.names if col not in metadata_cols]
 
-# Filter metadata_cols to only include columns that exist in the parquet
-existing_metadata_cols = [col for col in metadata_cols if col in cell_data_cols]
+# Harmonize the pool's column set once: drop cols present in only some per-well
+# files (typically driven by per-well filter decisions diverging when class
+# composition differs across wells) and apply drop_cols_threshold at the pool
+# level — matching the convention used by missing_values_filter.
+existing_metadata_cols, feature_cols, _pool_report = harmonize_pool_schema(
+    non_empty_paths,
+    metadata_cols,
+    drop_cols_threshold=snakemake.params.get("drop_cols_threshold"),
+)
 
 print(
     f"Number of metadata columns: {len(existing_metadata_cols)} | Number of feature columns: {len(feature_cols)}"

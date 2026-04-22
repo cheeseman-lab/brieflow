@@ -222,10 +222,15 @@ MONTAGE_OUTPUTS = {
     "montage_flag": AGGREGATE_FP / "montages" / "{cell_class}__montages_complete.flag",
 }
 cell_classes = aggregate_wildcard_combos["cell_class"].unique()
-MONTAGE_TARGETS_ALL = [
-    str(MONTAGE_OUTPUTS["montage_flag"]).format(cell_class=cell_class)
-    for cell_class in cell_classes
-]
+generate_montages = config.get("aggregate", {}).get("generate_montages", True)
+MONTAGE_TARGETS_ALL = (
+    [
+        str(MONTAGE_OUTPUTS["montage_flag"]).format(cell_class=cell_class)
+        for cell_class in cell_classes
+    ]
+    if generate_montages
+    else []
+)
 
 
 # Define bootstrap outputs

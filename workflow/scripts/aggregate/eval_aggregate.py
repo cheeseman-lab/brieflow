@@ -64,16 +64,29 @@ aligned_data = aligned_data.to_pandas(use_threads=True, memory_pool=None)
 
 # determine original and aligned columns
 random.seed(42)
-# Prefer cell-level features, fall back to nuclear if none found
-merge_feature_cols = [
-    col for col in merge_data.columns if ("cell_" in col and col.endswith("_mean"))
+# Try compartment prefixes in priority order and use the first that yields
+# *_<channel>_mean feature columns. Driven by the wildcard's compartment_combo
+# first (whichever compartments this output is actually about), then a fallback
+# chain so e.g. second_obj or cytoplasm combos still find intensity means.
+compartment_combo = snakemake.wildcards.compartment_combo.split("-")
+prefix_priority = compartment_combo + [
+    c
+    for c in ("cell", "nucleus", "cytoplasm", "second_obj")
+    if c not in compartment_combo
 ]
-if len(merge_feature_cols) == 0:
+merge_feature_cols = []
+for prefix in prefix_priority:
     merge_feature_cols = [
         col
         for col in merge_data.columns
-        if ("nucleus_" in col and col.endswith("_mean"))
+        if col.startswith(f"{prefix}_") and col.endswith("_mean")
     ]
+    if merge_feature_cols:
+        print(
+            f"[eval] using {len(merge_feature_cols)} '{prefix}_*_mean' feature columns"
+        )
+        break
+
 pc_cols = [col for col in aligned_data.columns if col.startswith("PC_")]
 aligned_feature_cols = random.sample(
     pc_cols, k=min(len(merge_feature_cols), len(pc_cols))

@@ -145,6 +145,7 @@ rule aggregate:
         agg_method=config["aggregate"]["agg_method"],
         ps_probability_threshold=config["aggregate"]["ps_probability_threshold"],
         ps_percentile_threshold=config["aggregate"]["ps_percentile_threshold"],
+        control_name_col=config["aggregate"].get("control_name_col"),
     script:
         "../scripts/aggregate/aggregate.py"
 

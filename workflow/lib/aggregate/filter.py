@@ -251,42 +251,38 @@ def missing_values_filter(
                 if pd.api.types.is_integer_dtype(features[col]):
                     features[col] = features[col].astype("float64")
 
-            # Identify rows with any NAs in the remaining columns
-            has_na_mask = features[remaining_cols_with_na].isna().any(axis=1)
-            na_rows_idx = features.index[has_na_mask]
-            non_na_rows_idx = features.index[~has_na_mask]
+            # Use positional (iloc) indexing throughout — features.index may have
+            # duplicate labels (e.g. when concat across wells doesn't reset),
+            # which breaks .loc-based reads/writes.
+            has_na_mask = features[remaining_cols_with_na].isna().any(axis=1).to_numpy()
+            na_positions = np.flatnonzero(has_na_mask)
+            non_na_positions = np.flatnonzero(~has_na_mask)
+            col_positions = [
+                features.columns.get_loc(c) for c in remaining_cols_with_na
+            ]
 
             np.random.seed(42)
-            # Process NA rows in batches
-            for i in range(0, len(na_rows_idx), batch_size):
-                batch_na_idx = na_rows_idx[i : i + batch_size]
+            for i in range(0, len(na_positions), batch_size):
+                batch_pos = na_positions[i : i + batch_size]
                 print(
-                    f"Imputing for batch {i // batch_size + 1} with {len(batch_na_idx)} NA rows"
+                    f"Imputing for batch {i // batch_size + 1} with {len(batch_pos)} NA rows"
                 )
 
-                # Sample non-NA rows randomly instead of stratified sampling
-                sampled_non_na_idx = np.random.choice(
-                    non_na_rows_idx,
-                    size=min(sample_size, len(non_na_rows_idx)),
+                sampled_non_na_pos = np.random.choice(
+                    non_na_positions,
+                    size=min(sample_size, len(non_na_positions)),
                     replace=False,
                 )
+                combined_pos = np.concatenate([batch_pos, sampled_non_na_pos])
 
-                # Combine sampled non-NA rows with current batch of NA rows
-                batch_idx = np.concatenate([batch_na_idx, sampled_non_na_idx])
-
-                # Perform KNN imputation on this batch
                 imputer = KNNImputer(n_neighbors=5)
                 imputed_values = imputer.fit_transform(
-                    features.loc[batch_idx, remaining_cols_with_na]
+                    features.iloc[combined_pos, col_positions].to_numpy()
                 )
 
-                # Update only the NA rows with imputed values
-                na_rows_in_batch = np.arange(len(batch_na_idx))
-                features.loc[batch_na_idx, remaining_cols_with_na] = pd.DataFrame(
-                    imputed_values[na_rows_in_batch],
-                    index=batch_na_idx,
-                    columns=remaining_cols_with_na,
-                )
+                features.iloc[batch_pos, col_positions] = imputed_values[
+                    : len(batch_pos)
+                ]
 
     return metadata, features
 

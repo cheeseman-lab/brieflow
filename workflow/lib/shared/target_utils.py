@@ -130,14 +130,21 @@ def output_to_input(
         filtered_combos = metadata_combos[mask]
 
         # Extract relevant expansion values
-        selected_cols_df = filtered_combos[expansion_values]
-
-        if len(expansion_values) == 1:
-            expansion_dicts = [
-                {expansion_values[0]: value} for value in selected_cols_df.iloc[:, 0]
-            ]
+        if not expansion_values:
+            # No expansion requested — emit one empty combo per matching row so
+            # the template gets expanded once per (already fully-bound) wildcard
+            # set. (Avoids pandas to_dict(orient="records") returning [] on a
+            # zero-column frame.)
+            expansion_dicts = [{} for _ in range(len(filtered_combos))]
         else:
-            expansion_dicts = selected_cols_df.to_dict(orient="records")
+            selected_cols_df = filtered_combos[expansion_values]
+            if len(expansion_values) == 1:
+                expansion_dicts = [
+                    {expansion_values[0]: value}
+                    for value in selected_cols_df.iloc[:, 0]
+                ]
+            else:
+                expansion_dicts = selected_cols_df.to_dict(orient="records")
 
         expanded_paths = []
         for combo in expansion_dicts:

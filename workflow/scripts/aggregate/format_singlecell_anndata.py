@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 import pandas as pd
 import anndata as ad
@@ -112,19 +114,14 @@ obs["is_control"] = (
 # Compose region as plate_well for cross-well grouping.
 obs["region"] = obs["plate"].astype(str) + "_" + obs["well"].astype(str)
 
-# Count of ranked barcodes called for each cell.
-if "cell_barcode_0" in obs.columns or "cell_barcode_1" in obs.columns:
-    bc0 = (
-        obs["cell_barcode_0"].notna().astype(int)
-        if "cell_barcode_0" in obs.columns
-        else 0
-    )
-    bc1 = (
-        obs["cell_barcode_1"].notna().astype(int)
-        if "cell_barcode_1" in obs.columns
-        else 0
-    )
-    obs["mapped_n_barcodes"] = bc0 + bc1
+# Count of ranked barcodes called for each cell. Generalizes over n_barcodes:
+# call_cells emits cell_barcode_0, cell_barcode_1, ..., cell_barcode_{n-1}.
+bc_cols = sorted(
+    (c for c in obs.columns if re.fullmatch(r"cell_barcode_\d+", c)),
+    key=lambda c: int(c.rsplit("_", 1)[1]),
+)
+if bc_cols:
+    obs["mapped_n_barcodes"] = sum(obs[c].notna().astype(int) for c in bc_cols)
 
 # Surface global pixel coords under the user-facing global_x / global_y names
 # (skimage/brieflow convention: i = row = y, j = col = x). The upstream

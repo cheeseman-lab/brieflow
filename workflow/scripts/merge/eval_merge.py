@@ -26,9 +26,7 @@ merge_deduplicated = validate_dtypes(
 )
 
 # Load formatted (pre-dedup) merge data for matching rate heatmaps
-merge_formatted = validate_dtypes(
-    read_parquets(snakemake.input.formatted_merge_paths)
-)
+merge_formatted = validate_dtypes(read_parquets(snakemake.input.formatted_merge_paths))
 
 # Standardize coordinate column names (stitch uses global_i_0/global_j_0, fast uses i_0/j_0)
 if "global_i_0" in merge_deduplicated.columns:
@@ -42,20 +40,14 @@ if "global_i_0" in merge_deduplicated.columns:
     )
 
 # Load SBS data
-sbs_cells = validate_dtypes(
-    read_parquets(snakemake.input.combine_cells_paths)
-)
-sbs_info = validate_dtypes(
-    read_parquets(snakemake.input.sbs_info_paths)
-)
+sbs_cells = validate_dtypes(read_parquets(snakemake.input.combine_cells_paths))
+sbs_info = validate_dtypes(read_parquets(snakemake.input.sbs_info_paths))
 
 # Load phenotype data
 phenotype_min_cp = validate_dtypes(
     read_parquets(snakemake.input.min_phenotype_cp_paths)
 )
-phenotype_info = validate_dtypes(
-    read_parquets(snakemake.input.phenotype_info_paths)
-)
+phenotype_info = validate_dtypes(read_parquets(snakemake.input.phenotype_info_paths))
 
 # Load metadata for spatial heatmap plotting
 sbs_metadata = pd.concat(

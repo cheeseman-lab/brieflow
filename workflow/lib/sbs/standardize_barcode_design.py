@@ -559,9 +559,7 @@ def get_gene_mapping(
             )
         return pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
 
-    symbols = [
-        s for s in gene_symbols if s and not str(s).startswith("nontargeting")
-    ]
+    symbols = [s for s in gene_symbols if s and not str(s).startswith("nontargeting")]
     if not symbols:
         return pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
 
@@ -635,7 +633,9 @@ def get_gene_mapping(
     unresolved_symbols = [s for s in symbols if s not in resolved]
     if unresolved_symbols:
         if verbose:
-            print(f"  Retrying {len(unresolved_symbols)} unresolved symbols in smaller batches...")
+            print(
+                f"  Retrying {len(unresolved_symbols)} unresolved symbols in smaller batches..."
+            )
         retry_chunk_size = 50
         for i in range(0, len(unresolved_symbols), retry_chunk_size):
             chunk = unresolved_symbols[i : i + retry_chunk_size]
@@ -653,8 +653,10 @@ def get_gene_mapping(
                     }
                 )
 
-    df = pd.DataFrame(rows) if rows else pd.DataFrame(
-        columns=["gene_symbol", "entrez_id", "ensembl_gene_id"]
+    df = (
+        pd.DataFrame(rows)
+        if rows
+        else pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
     )
 
     # Drop rows with missing gene symbol or ensembl ID

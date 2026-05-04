@@ -45,8 +45,12 @@ def _attach_global_pixel_coords(
     tile_h, tile_w = tile_dimensions
 
     # Tile top-left corner in stage μm (assuming x_pos / y_pos = tile center).
-    corner_x_um = merged[f"x_pos_{suffix}"] - tile_w / 2 * merged[f"pixel_size_x_{suffix}"]
-    corner_y_um = merged[f"y_pos_{suffix}"] - tile_h / 2 * merged[f"pixel_size_y_{suffix}"]
+    corner_x_um = (
+        merged[f"x_pos_{suffix}"] - tile_w / 2 * merged[f"pixel_size_x_{suffix}"]
+    )
+    corner_y_um = (
+        merged[f"y_pos_{suffix}"] - tile_h / 2 * merged[f"pixel_size_y_{suffix}"]
+    )
 
     # Per-cell global μm: tile corner + local pixel offset.
     cell_x_um = corner_x_um + merged[f"j_{suffix}"] * merged[f"pixel_size_x_{suffix}"]

@@ -24,9 +24,7 @@ if getattr(snakemake.params, "score", None) is None:
     raise ValueError("Required config parameter 'score' is not set")
 
 # Load inputs
-phenotype_positions = validate_dtypes(
-    read_parquet(snakemake.input.phenotype_positions)
-)
+phenotype_positions = validate_dtypes(read_parquet(snakemake.input.phenotype_positions))
 sbs_positions = validate_dtypes(read_parquet(snakemake.input.sbs_positions))
 
 plate = snakemake.params.plate
@@ -135,7 +133,9 @@ summary_df.to_csv(
 print(f" Alignment summary: {snakemake.output.alignment_summary}")
 
 # Output [5]: Transformed phenotype positions
-write_parquet(phenotype_transformed, str(snakemake.output.transformed_phenotype_positions))
+write_parquet(
+    phenotype_transformed, str(snakemake.output.transformed_phenotype_positions)
+)
 print(f" Transformed positions: {snakemake.output.transformed_phenotype_positions}")
 
 print(f"\n Well alignment completed successfully for {plate}/{well}!")

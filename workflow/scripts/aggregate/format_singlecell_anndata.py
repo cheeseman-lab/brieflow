@@ -92,7 +92,9 @@ metadata_cols = [MERGE_DATASET_RENAMES.get(c, c) for c in metadata_cols]
 # Split obs (metadata) and feature columns.
 # Any non-numeric column not in metadata_cols is also moved to obs automatically.
 non_numeric_cols = [c for c in df.columns if not pd.api.types.is_numeric_dtype(df[c])]
-obs_cols = list(dict.fromkeys([c for c in metadata_cols if c in df.columns] + non_numeric_cols))
+obs_cols = list(
+    dict.fromkeys([c for c in metadata_cols if c in df.columns] + non_numeric_cols)
+)
 feature_cols = [c for c in df.columns if c not in obs_cols]
 
 # Build obs, dropping internal pipeline columns
@@ -103,15 +105,25 @@ if cols_to_drop:
     obs = obs.drop(columns=cols_to_drop)
 
 # Add is_control boolean
-obs["is_control"] = obs[perturbation_name_col].str.contains(control_key, na=False).astype(bool)
+obs["is_control"] = (
+    obs[perturbation_name_col].str.contains(control_key, na=False).astype(bool)
+)
 
 # Compose region as plate_well for cross-well grouping.
 obs["region"] = obs["plate"].astype(str) + "_" + obs["well"].astype(str)
 
 # Count of ranked barcodes called for each cell.
 if "cell_barcode_0" in obs.columns or "cell_barcode_1" in obs.columns:
-    bc0 = obs["cell_barcode_0"].notna().astype(int) if "cell_barcode_0" in obs.columns else 0
-    bc1 = obs["cell_barcode_1"].notna().astype(int) if "cell_barcode_1" in obs.columns else 0
+    bc0 = (
+        obs["cell_barcode_0"].notna().astype(int)
+        if "cell_barcode_0" in obs.columns
+        else 0
+    )
+    bc1 = (
+        obs["cell_barcode_1"].notna().astype(int)
+        if "cell_barcode_1" in obs.columns
+        else 0
+    )
     obs["mapped_n_barcodes"] = bc0 + bc1
 
 # Surface global pixel coords under the user-facing global_x / global_y names
@@ -131,9 +143,12 @@ if stage_drop_present:
 cell_id_col = "cell_phenotype" if "cell_phenotype" in obs.columns else "cell_0"
 obs["cell_uid"] = (
     obs["plate"].astype(str)
-    + "_" + obs["well"].astype(str)
-    + "_" + obs["tile"].astype(str)
-    + "_" + obs[cell_id_col].astype(str)
+    + "_"
+    + obs["well"].astype(str)
+    + "_"
+    + obs["tile"].astype(str)
+    + "_"
+    + obs[cell_id_col].astype(str)
 )
 obs = obs.set_index("cell_uid")
 print(f"Set obs index to cell_uid (e.g. {obs.index[0]})")
@@ -142,6 +157,7 @@ print(f"Set obs index to cell_uid (e.g. {obs.index[0]})")
 # Feature names follow the pattern: {compartment}_{channel}_{feature_type}
 # e.g. nucleus_DAPI_mean, cytoplasm_zernike_9_1, cell_area
 channel_names_upper = [c.upper() for c in channel_names]
+
 
 def parse_feature_name(name):
     parts = name.split("_")
@@ -155,6 +171,7 @@ def parse_feature_name(name):
         else:
             feature_type = "_".join(parts[1:])
     return compartment, channel, feature_type
+
 
 parsed = [parse_feature_name(f) for f in feature_cols]
 var = pd.DataFrame(

@@ -81,10 +81,15 @@ def assemble_aligned_tiff_well(
     canvas_bytes = final_shape[0] * final_shape[1] * 4  # float32
     if canvas_bytes > 1_000_000_000:
         import tempfile
+
         _tmp_img = tempfile.NamedTemporaryFile(dir=".", suffix=".mmap", delete=True)
         _tmp_div = tempfile.NamedTemporaryFile(dir=".", suffix=".mmap", delete=True)
-        output_image = np.memmap(_tmp_img.name, dtype=np.float32, mode="w+", shape=final_shape)
-        divisor = np.memmap(_tmp_div.name, dtype=np.uint16, mode="w+", shape=final_shape)
+        output_image = np.memmap(
+            _tmp_img.name, dtype=np.float32, mode="w+", shape=final_shape
+        )
+        divisor = np.memmap(
+            _tmp_div.name, dtype=np.uint16, mode="w+", shape=final_shape
+        )
     else:
         output_image = np.zeros(final_shape, dtype=np.float32)
         divisor = np.zeros(final_shape, dtype=np.uint16)

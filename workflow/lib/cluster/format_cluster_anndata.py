@@ -222,7 +222,11 @@ def format_cluster_anndata(
             obs[col] = merged[col].values
 
     # Drop columns that belong elsewhere or are duplicates
-    drop_cols = {"cluster", "PHATE_0", "PHATE_1"}  # cluster → per-resolution, PHATE → obsm
+    drop_cols = {
+        "cluster",
+        "PHATE_0",
+        "PHATE_1",
+    }  # cluster → per-resolution, PHATE → obsm
     # Drop merge-suffix duplicates (e.g. cell_count_cluster)
     drop_cols.update(c for c in obs.columns if c.endswith("_cluster"))
     obs = obs.drop(columns=[c for c in drop_cols if c in obs.columns])

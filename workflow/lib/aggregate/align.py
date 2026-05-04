@@ -207,9 +207,7 @@ def tvn_on_controls(
             embeddings[batch_ind] = np.matmul(
                 embeddings[batch_ind], source_cov_inv_sqrt
             )
-            embeddings[batch_ind] = np.matmul(
-                embeddings[batch_ind], target_cov_sqrt
-            )
+            embeddings[batch_ind] = np.matmul(embeddings[batch_ind], target_cov_sqrt)
     return embeddings
 
 

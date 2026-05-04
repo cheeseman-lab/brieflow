@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 from lib.aggregate.cell_classification import CellClassifier
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.aggregate.cell_data_utils import (
     load_metadata_cols,
     split_cell_data,
@@ -104,7 +105,7 @@ for _param_name in ["all_channels", "metadata_cols_fp"]:
         raise ValueError(f"Required config parameter '{_param_name}' is not set")
 
 # Load merge data
-cell_data = pd.read_parquet(snakemake.input[0])
+cell_data = read_parquet(snakemake.input[0])
 
 # Split data into metadata and features
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp)
@@ -181,4 +182,4 @@ for cell_class in snakemake.params.cell_classes:
             for f in snakemake.output
             if f"CeCl-{cell_class}_ChCo-{channel_combo}__" in f
         ][0]
-        cell_class_data.to_parquet(dataset_fp, index=False)
+        write_parquet(cell_class_data, dataset_fp)

@@ -1,6 +1,8 @@
 import pandas as pd
 from joblib import Parallel, delayed
 
+from lib.shared.parquet_io import write_parquet
+
 
 # Validate required params
 if getattr(snakemake.params, "channel_names", None) is None:
@@ -20,7 +22,7 @@ arr_reads = Parallel(n_jobs=snakemake.threads)(
     delayed(get_file)(file) for file in snakemake.input
 )
 phenotype_cp = pd.concat(arr_reads)
-phenotype_cp.to_parquet(snakemake.output[0])
+write_parquet(phenotype_cp, snakemake.output[0])
 
 
 # Create subset of features
@@ -48,4 +50,4 @@ phenotype_cp_min_features.extend(bounds_features + channel_min_features)
 
 # Save subset of features
 phenotype_cp_min = phenotype_cp[phenotype_cp_min_features]
-phenotype_cp_min.to_parquet(snakemake.output[1])
+write_parquet(phenotype_cp_min, snakemake.output[1])

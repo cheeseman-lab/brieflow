@@ -462,7 +462,7 @@ def normalize_bases(df):
 
     # Normalize intensity values by dividing by respective channel median
     df_out = df.copy()
-    df_out.intensity = df.apply(lambda x: x.intensity / df_medians[x.channel], axis=1)
+    df_out.intensity = df["intensity"] / df["channel"].map(df_medians)
 
     return df_out
 

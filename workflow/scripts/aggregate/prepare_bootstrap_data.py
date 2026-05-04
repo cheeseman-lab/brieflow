@@ -12,6 +12,7 @@ from lib.aggregate.cell_data_utils import (
     get_feature_table_cols,
 )
 from lib.aggregate.bootstrap import write_construct_data
+from lib.shared.parquet_io import read_parquet
 
 # Validate required params
 for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:
@@ -27,7 +28,7 @@ metadata_cols_fp = snakemake.params.metadata_cols_fp
 bootstrap_features_fp = snakemake.params.bootstrap_features_fp
 
 print("Loading single-cell features data...")
-all_features_cells = pd.read_parquet(snakemake.input.features_singlecell)
+all_features_cells = read_parquet(snakemake.input.features_singlecell)
 print(f"Features data shape: {all_features_cells.shape}")
 
 # Handle empty input gracefully

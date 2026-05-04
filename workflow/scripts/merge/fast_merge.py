@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.merge.fast_merge import merge_triangle_hash
 
 # Validate required params
@@ -10,14 +11,15 @@ for _param_name in ["det_range", "score", "threshold"]:
         raise ValueError(f"Required config parameter '{_param_name}' is not set")
 
 # Load phenotype and sbs info with cell locations
-phenotype_info = validate_dtypes(pd.read_parquet(snakemake.input[0]))
-sbs_info = validate_dtypes(pd.read_parquet(snakemake.input[1]))
+phenotype_info = validate_dtypes(read_parquet(snakemake.input[0]))
+sbs_info = validate_dtypes(read_parquet(snakemake.input[1]))
 
 # Load alignment data
-fast_alignment = pd.read_parquet(snakemake.input[2])
-fast_alignment["rotation"] = fast_alignment.apply(
-    lambda row: np.array([row["rotation_1"], row["rotation_2"]]), axis=1
-)
+fast_alignment = read_parquet(snakemake.input[2])
+fast_alignment["rotation"] = [
+    np.array([r1, r2])
+    for r1, r2 in zip(fast_alignment["rotation_1"], fast_alignment["rotation_2"])
+]
 fast_alignment.drop(columns=["rotation_1", "rotation_2"], inplace=True)
 
 # Filter alignment data based on parameters
@@ -55,4 +57,4 @@ for index, alignment_row in fast_alignment_filtered.iterrows():
 merge_data = pd.concat(merge_data, ignore_index=True)
 print(f"Legacy merge completed: {len(merge_data)} cells merged")
 
-merge_data.to_parquet(snakemake.output[0])
+write_parquet(merge_data, snakemake.output[0])

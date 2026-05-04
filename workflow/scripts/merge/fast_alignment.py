@@ -1,5 +1,6 @@
 import pandas as pd
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.merge.hash import (
     hash_cell_locations,
     multistep_alignment,
@@ -14,8 +15,8 @@ for _param_name in ["det_range", "score"]:
         raise ValueError(f"Required config parameter '{_param_name}' is not set")
 
 # Load dfs with metadata on well level
-phenotype_metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
-sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input[1]))
+phenotype_metadata = validate_dtypes(read_parquet(snakemake.input[0]))
+sbs_metadata = validate_dtypes(read_parquet(snakemake.input[1]))
 
 # Apply coordinate alignment if transformation parameters are provided
 alignment_params = {
@@ -72,8 +73,8 @@ if not ph_filters:
 
 
 # Load phentoype/sbs info on well level
-phenotype_info = validate_dtypes(pd.read_parquet(snakemake.input[2]))
-sbs_info = validate_dtypes(pd.read_parquet(snakemake.input[3]))
+phenotype_info = validate_dtypes(read_parquet(snakemake.input[2]))
+sbs_info = validate_dtypes(read_parquet(snakemake.input[3]))
 
 # Derive fast alignment per well
 
@@ -173,4 +174,4 @@ well_alignment["plate"] = snakemake.params.plate
 well_alignment["well"] = snakemake.params.well
 
 # Save alignment data
-well_alignment.to_parquet(snakemake.output[0])
+write_parquet(well_alignment, snakemake.output[0])

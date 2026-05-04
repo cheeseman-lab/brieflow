@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.parquet_io import read_parquet, write_parquet
 
 
 def _attach_global_pixel_coords(
@@ -74,13 +75,13 @@ def _attach_global_pixel_coords(
 
 
 # Load deduplicated merge data
-merge_deduplicated = validate_dtypes(pd.read_parquet(snakemake.input[0]))
+merge_deduplicated = validate_dtypes(read_parquet(snakemake.input[0]))
 
 # Extract configuration parameters
 approach = snakemake.params.approach
 
 # Load full feature data
-cp_phenotype = validate_dtypes(pd.read_parquet(snakemake.input[1]))
+cp_phenotype = validate_dtypes(read_parquet(snakemake.input[1]))
 
 # Merge full CP data on deduplicated
 merged_final = merge_deduplicated.merge(
@@ -124,4 +125,4 @@ if approach == "stitch":
     )
 
 # Save final merged dataset
-merged_final.to_parquet(snakemake.output[0])
+write_parquet(merged_final, snakemake.output[0])

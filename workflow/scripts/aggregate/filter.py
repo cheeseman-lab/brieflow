@@ -1,6 +1,7 @@
 import pandas as pd
 
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.aggregate.filter import (
     query_filter,
     perturbation_filter,
@@ -23,8 +24,8 @@ for _param_name in ["metadata_cols_fp", "perturbation_name_col", "channel_names"
         raise ValueError(f"Required config parameter '{_param_name}' is not set")
 
 # Load cell data
-cell_data = pd.read_parquet(snakemake.input[0])
-use_classifier = snakemake.params.use_classifier
+cell_data = read_parquet(snakemake.input[0])
+use_classifier = snakemake.params.get("use_classifier", False)
 metadata_cols = load_metadata_cols(
     snakemake.params.metadata_cols_fp,
     include_classification_cols=use_classifier,
@@ -65,4 +66,4 @@ metadata, features = intensity_filter(
 
 # Save filtered data
 cell_data = pd.concat([metadata, features], axis=1)
-cell_data.to_parquet(output_path, index=False)
+write_parquet(cell_data, output_path)

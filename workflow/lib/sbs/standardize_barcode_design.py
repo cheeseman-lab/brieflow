@@ -583,15 +583,10 @@ def get_gene_mapping(
             f"(release {ensembl_release}, {species_name})..."
         )
 
-    # Bulk symbol lookup — POST endpoint works best with ~200 symbols per request
-    rows = []
-    chunk_size = 200
-    n_chunks = (len(symbols) + chunk_size - 1) // chunk_size
-    for chunk_idx, i in enumerate(range(0, len(symbols), chunk_size)):
-        chunk = symbols[i : i + chunk_size]
-        if verbose and n_chunks > 1:
-            print(f"  Chunk {chunk_idx + 1}/{n_chunks} ({len(chunk)} symbols)...")
+    import time
 
+    def _fetch_chunk(chunk, chunk_label):
+        """POST a single chunk to Ensembl REST; returns dict or {} on failure."""
         for attempt in range(3):
             try:
                 resp = requests.post(
@@ -601,19 +596,27 @@ def get_gene_mapping(
                     timeout=60,
                 )
                 resp.raise_for_status()
-                data = resp.json()
-                break
+                return resp.json()
             except (requests.RequestException, ValueError) as e:
                 if attempt < 2:
-                    import time
-                    time.sleep(2 ** attempt)
-                    continue
-                warnings.warn(
-                    f"Ensembl REST API request failed for chunk {chunk_idx + 1} "
-                    f"after 3 attempts: {e}. Skipping {len(chunk)} symbols."
-                )
-                data = {}
+                    time.sleep(2**attempt)
+                else:
+                    warnings.warn(
+                        f"Ensembl REST API request failed for {chunk_label} "
+                        f"after 3 attempts: {e}. Skipping {len(chunk)} symbols."
+                    )
+        return {}
 
+    # Bulk symbol lookup — POST endpoint works best with ~200 symbols per request
+    rows = []
+    chunk_size = 200
+    n_chunks = (len(symbols) + chunk_size - 1) // chunk_size
+    for chunk_idx, i in enumerate(range(0, len(symbols), chunk_size)):
+        chunk = symbols[i : i + chunk_size]
+        if verbose and n_chunks > 1:
+            print(f"  Chunk {chunk_idx + 1}/{n_chunks} ({len(chunk)} symbols)...")
+
+        data = _fetch_chunk(chunk, f"chunk {chunk_idx + 1}/{n_chunks}")
         for symbol in chunk:
             info = data.get(symbol)
             if info is None or isinstance(info, str):
@@ -626,6 +629,29 @@ def get_gene_mapping(
                     "ensembl_gene_id": ensembl_id,
                 }
             )
+
+    # Second pass: retry any symbols that got no result (catches transient API failures)
+    resolved = {r["gene_symbol"] for r in rows}
+    unresolved_symbols = [s for s in symbols if s not in resolved]
+    if unresolved_symbols:
+        if verbose:
+            print(f"  Retrying {len(unresolved_symbols)} unresolved symbols in smaller batches...")
+        retry_chunk_size = 50
+        for i in range(0, len(unresolved_symbols), retry_chunk_size):
+            chunk = unresolved_symbols[i : i + retry_chunk_size]
+            data = _fetch_chunk(chunk, f"retry batch {i // retry_chunk_size + 1}")
+            for symbol in chunk:
+                info = data.get(symbol)
+                if info is None or isinstance(info, str):
+                    continue
+                ensembl_id = info.get("id", "")
+                rows.append(
+                    {
+                        "gene_symbol": symbol,
+                        "entrez_id": "",
+                        "ensembl_gene_id": ensembl_id,
+                    }
+                )
 
     df = pd.DataFrame(rows) if rows else pd.DataFrame(
         columns=["gene_symbol", "entrez_id", "ensembl_gene_id"]

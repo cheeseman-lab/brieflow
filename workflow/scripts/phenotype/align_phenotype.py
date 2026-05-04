@@ -1,6 +1,6 @@
 from lib.phenotype.align_channels import align_phenotype_channels
 from lib.shared.align import apply_custom_offsets
-from lib.shared.io import read_image, save_image
+from lib.shared.image_io import read_image, save_image
 
 # Load image data
 image_data = read_image(snakemake.input[0])

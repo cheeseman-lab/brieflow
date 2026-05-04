@@ -1,4 +1,4 @@
-from lib.shared.io import read_image, save_image
+from lib.shared.image_io import read_image, save_image
 
 # Get configuration from params
 params = snakemake.params.config

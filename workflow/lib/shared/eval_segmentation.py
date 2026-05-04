@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pandas as pd
-from lib.shared.io import read_image
+from lib.shared.image_io import read_image
 from microfilm.microplot import Microimage
 import matplotlib.pyplot as plt
 

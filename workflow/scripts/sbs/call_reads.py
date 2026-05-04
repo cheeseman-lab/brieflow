@@ -1,7 +1,7 @@
 import pandas as pd
 
 from lib.sbs.call_reads import call_reads
-from lib.shared.io import read_image
+from lib.shared.image_io import read_image
 
 # Load bases data
 bases_data = pd.read_csv(snakemake.input[0], sep="\t")

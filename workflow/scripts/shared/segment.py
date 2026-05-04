@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from lib.shared.io import read_image, save_image
+from lib.shared.image_io import read_image, save_image
 
 # Load illumination corrected data
 aligned_data = read_image(snakemake.input[0])

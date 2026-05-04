@@ -1,5 +1,5 @@
 from lib.sbs.extract_bases import extract_bases
-from lib.shared.io import read_image
+from lib.shared.image_io import read_image
 
 # Validate required params
 for _param_name in ["threshold_peaks", "bases"]:

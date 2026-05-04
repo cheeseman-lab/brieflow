@@ -15,7 +15,7 @@ if getattr(snakemake.params, "channels", None) is None:
 montage_data = pd.read_csv(snakemake.input[0], sep="\t")
 
 if IMG_FMT == "zarr":
-    from lib.shared.io import save_image
+    from lib.shared.image_io import save_image
 
     # Extract individual cell crops → write to examples.zarr
     examples_zarr_root = Path(snakemake.params.examples_zarr_root)

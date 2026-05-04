@@ -1,5 +1,5 @@
 from lib.sbs.compute_standard_deviation import compute_standard_deviation
-from lib.shared.io import read_image, save_image
+from lib.shared.image_io import read_image, save_image
 
 # Load log filtered image data
 log_filtered_data = read_image(snakemake.input[0])

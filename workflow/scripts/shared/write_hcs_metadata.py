@@ -16,7 +16,7 @@ import pandas as pd
 from iohub.ngff import open_ome_zarr
 from iohub.ngff.display import channel_display_settings
 
-from lib.shared.io import DEFAULT_CHANNEL_COLORS
+from lib.shared.image_io import DEFAULT_CHANNEL_COLORS
 from iohub.ngff.models import OMEROMeta, RDefsMeta, TransformationMeta
 
 from lib.shared.hcs import write_hcs_metadata

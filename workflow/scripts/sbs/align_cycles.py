@@ -1,5 +1,5 @@
 from lib.sbs.align_cycles import align_cycles
-from lib.shared.io import read_image, save_image
+from lib.shared.image_io import read_image, save_image
 
 # Validate required params
 if getattr(snakemake.params, "channel_names", None) is None:

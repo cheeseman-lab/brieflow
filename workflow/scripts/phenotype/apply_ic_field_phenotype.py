@@ -1,5 +1,5 @@
 from lib.shared.illumination_correction import apply_ic_field
-from lib.shared.io import read_image, save_image
+from lib.shared.image_io import read_image, save_image
 
 # Load raw image data
 raw_image_data = read_image(snakemake.input[0])

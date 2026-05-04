@@ -15,7 +15,7 @@ import skimage.transform
 import skimage.filters
 
 from lib.shared.image_utils import applyIJ
-from lib.shared.io import read_image
+from lib.shared.image_io import read_image
 
 
 def calculate_ic_field(

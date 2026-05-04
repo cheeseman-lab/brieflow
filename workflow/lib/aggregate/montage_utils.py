@@ -20,7 +20,7 @@ from itertools import product
 import numpy as np
 
 from lib.shared.file_utils import get_filename, get_hcs_nested_path
-from lib.shared.io import read_image
+from lib.shared.image_io import read_image
 from lib.external.cp_emulator import subimage
 
 

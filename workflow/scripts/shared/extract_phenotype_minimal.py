@@ -1,5 +1,5 @@
 from lib.shared.extract_phenotype_minimal import extract_phenotype_minimal
-from lib.shared.io import read_image
+from lib.shared.image_io import read_image
 
 # Load nuclei data
 nuclei_data = read_image(snakemake.input[0])

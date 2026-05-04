@@ -3,7 +3,7 @@ import numpy as np
 from lib.phenotype.identify_cytoplasm_cellpose import (
     identify_cytoplasm_cellpose,
 )
-from lib.shared.io import read_image, save_image
+from lib.shared.image_io import read_image, save_image
 
 # Load nuclei and cell segmentation data
 nuclei = read_image(snakemake.input[0])

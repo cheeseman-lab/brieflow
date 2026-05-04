@@ -1,4 +1,4 @@
-from lib.shared.io import read_image
+from lib.shared.image_io import read_image
 
 # Validate required params
 for _param_name in ["cp_method", "channel_names", "foci_channel_index"]:

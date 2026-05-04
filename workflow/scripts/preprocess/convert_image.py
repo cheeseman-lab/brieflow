@@ -4,7 +4,7 @@ Uses the unified save_image() I/O layer which dispatches based on output path su
 """
 
 from lib.preprocess.preprocess import convert_to_array, get_data_config
-from lib.shared.io import save_image
+from lib.shared.image_io import save_image
 
 # Get data configuration from rule name
 rule_name = snakemake.rule

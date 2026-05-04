@@ -1,5 +1,5 @@
 from lib.shared.illumination_correction import apply_ic_field, combine_ic_images
-from lib.shared.io import read_image, save_image
+from lib.shared.image_io import read_image, save_image
 
 # Validate required params
 for _param_name in ["dapi_cycle", "dapi_cycle_index", "cyto_cycle", "cyto_cycle_index"]:

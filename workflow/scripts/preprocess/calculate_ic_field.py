@@ -1,5 +1,5 @@
 from lib.shared.illumination_correction import calculate_ic_field
-from lib.shared.io import save_image
+from lib.shared.image_io import save_image
 
 # Calculate IC field
 ic_field = calculate_ic_field(

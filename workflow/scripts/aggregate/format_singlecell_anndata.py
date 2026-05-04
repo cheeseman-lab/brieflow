@@ -12,29 +12,82 @@ perturbation_name_col = snakemake.params.perturbation_name_col
 channel_names = snakemake.params.channel_names
 channel_combo = snakemake.params.channel_combo
 
-# Internal pipeline columns that have no meaning outside brieflow
+# Internal pipeline columns dropped from obs. We keep i_0/j_0/i_1/j_1 and
+# fov_distance_0/1 (then rename to _phenotype/_sbs below) since they're
+# useful for cross-modality QC.
 PIPELINE_INTERNAL_COLS = {
     "batch_values",
     "channels_min",
     "site",
-    "i_0", "j_0",
-    "i_1", "j_1",
-    "fov_distance_0", "fov_distance_1",
 }
+
+# _0/_1 in the merge pipeline means dataset_0 = phenotype, dataset_1 = sbs.
+# Rename for clarity in the canonical singlecell h5ad. We deliberately do NOT
+# rename cell_barcode_*, gene_symbol_*, gene_id_*, Q_min_*, Q_recomb_*,
+# no_recomb_*, cell_barcode_peak_*, cell_barcode_count_* — their _0/_1 means
+# "top-ranked barcode #0/#1", not phenotype/sbs.
+MERGE_DATASET_RENAMES = {
+    "cell_0": "cell_phenotype",
+    "cell_1": "cell_sbs",
+    "i_0": "i_phenotype",
+    "j_0": "j_phenotype",
+    "i_1": "i_sbs",
+    "j_1": "j_sbs",
+    "fov_distance_0": "fov_distance_phenotype",
+    "fov_distance_1": "fov_distance_sbs",
+    "x_pos_0": "x_pos_phenotype",
+    "y_pos_0": "y_pos_phenotype",
+    "pixel_size_x_0": "pixel_size_x_phenotype",
+    "pixel_size_y_0": "pixel_size_y_phenotype",
+    "x_pos_1": "x_pos_sbs",
+    "y_pos_1": "y_pos_sbs",
+    "pixel_size_x_1": "pixel_size_x_sbs",
+    "pixel_size_y_1": "pixel_size_y_sbs",
+}
+
+# Stage-position columns are intermediate — they were carried through to enable
+# global-pixel computation upstream and to expose physical units; keep the
+# pixel-size columns in obs (downstream may want to convert pixels↔μm) but drop
+# the raw x_pos/y_pos to avoid leaking acquisition-only state.
+STAGE_DROP_COLS = {"x_pos_phenotype", "y_pos_phenotype", "x_pos_sbs", "y_pos_sbs"}
 
 # Load metadata cols from TSV + optional classifier cols
 metadata_cols = load_metadata_cols(metadata_cols_fp, use_classifier)
 
-# Load and concatenate all singlecell parquets (one per cell_class)
-print("Loading singlecell parquets...")
+# Load and concatenate all filtered parquets (one per cell_class × plate × well).
+# These are RAW features (pre-centerscale_on_controls), unlike the previous
+# singlecell_paths inputs which were per-batch z-scored.
+print("Loading filtered parquets...")
 dfs = []
-for path in snakemake.input.singlecell_paths:
+for path in snakemake.input.filtered_paths:
     df = pd.read_parquet(path)
     dfs.append(df)
     print(f"  {path}: {df.shape}")
 
 df = pd.concat(dfs, ignore_index=True)
 print(f"Combined shape: {df.shape}")
+
+# Apply merge-dataset renames before splitting metadata/features. This must
+# happen first so all downstream code sees the new names.
+present_renames = {k: v for k, v in MERGE_DATASET_RENAMES.items() if k in df.columns}
+if present_renames:
+    df = df.rename(columns=present_renames)
+
+# Deduplicate to one row per phenotype cell. The merge step can emit several
+# rows for the same phenotype mask when multiple SBS detections fall inside
+# it; OPS requires globally unique cell_uid, and the canonical "cell" unit
+# here is the phenotype mask. Sort by distance ascending so the closest
+# SBS match wins, then keep the first per (plate, well, tile, cell_phenotype).
+cell_id_col = "cell_phenotype" if "cell_phenotype" in df.columns else "cell_0"
+dedup_keys = [c for c in ["plate", "well", "tile", cell_id_col] if c in df.columns]
+if "distance" in df.columns:
+    df = df.sort_values("distance", kind="stable", na_position="last")
+before = len(df)
+df = df.drop_duplicates(subset=dedup_keys, keep="first").reset_index(drop=True)
+print(f"Dedup on {dedup_keys}: {before} -> {len(df)} cells")
+
+# Reflect the renames in the metadata-cols list so split_cell_data sees them.
+metadata_cols = [MERGE_DATASET_RENAMES.get(c, c) for c in metadata_cols]
 
 # Split obs (metadata) and feature columns.
 # Any non-numeric column not in metadata_cols is also moved to obs automatically.
@@ -52,13 +105,35 @@ if cols_to_drop:
 # Add is_control boolean
 obs["is_control"] = obs[perturbation_name_col].str.contains(control_key, na=False).astype(bool)
 
-# Add cell_uid as a globally unique cell identifier across experiments
-# Format: {plate}_{well}_{tile}_{cell_seq_id}
+# Compose region as plate_well for cross-well grouping.
+obs["region"] = obs["plate"].astype(str) + "_" + obs["well"].astype(str)
+
+# Count of ranked barcodes called for each cell.
+if "cell_barcode_0" in obs.columns or "cell_barcode_1" in obs.columns:
+    bc0 = obs["cell_barcode_0"].notna().astype(int) if "cell_barcode_0" in obs.columns else 0
+    bc1 = obs["cell_barcode_1"].notna().astype(int) if "cell_barcode_1" in obs.columns else 0
+    obs["mapped_n_barcodes"] = bc0 + bc1
+
+# Surface global pixel coords under the user-facing global_x / global_y names
+# (skimage/brieflow convention: i = row = y, j = col = x). The upstream
+# final_merge step computed these in pixels, anchored at per-(plate, well) origin.
+if "global_j_0" in obs.columns and "global_i_0" in obs.columns:
+    obs["global_x"] = obs["global_j_0"]
+    obs["global_y"] = obs["global_i_0"]
+
+# Drop raw stage-center positions but keep pixel sizes for downstream conversion.
+stage_drop_present = [c for c in STAGE_DROP_COLS if c in obs.columns]
+if stage_drop_present:
+    obs = obs.drop(columns=stage_drop_present)
+
+# Add cell_uid as a globally unique cell identifier across experiments.
+# Format: {plate}_{well}_{tile}_{cell_phenotype} (was {cell_0} pre-rename).
+cell_id_col = "cell_phenotype" if "cell_phenotype" in obs.columns else "cell_0"
 obs["cell_uid"] = (
     obs["plate"].astype(str)
     + "_" + obs["well"].astype(str)
     + "_" + obs["tile"].astype(str)
-    + "_" + obs["cell_0"].astype(str)
+    + "_" + obs[cell_id_col].astype(str)
 )
 obs = obs.set_index("cell_uid")
 print(f"Set obs index to cell_uid (e.g. {obs.index[0]})")
@@ -95,14 +170,21 @@ var = pd.DataFrame(
 X = df[feature_cols].values.astype(np.float32)
 adata = ad.AnnData(X=X, obs=obs, var=var)
 
-# Add spatial coordinates from cell centroid columns
+# Add spatial coordinates from cell centroid columns (tile-local pixels).
 if "cell_i" in obs.columns and "cell_j" in obs.columns:
     adata.obsm["spatial"] = obs[["cell_i", "cell_j"]].values.astype(np.float32)
-    print("Added obsm['spatial'] from cell_i/cell_j")
+    print("Added obsm['spatial'] from cell_i/cell_j (tile-local)")
 
-# Store pipeline provenance
+# Add global spatial coordinates (whole-well pixel coords) when available.
+if "global_x" in obs.columns and "global_y" in obs.columns:
+    adata.obsm["spatial_global"] = (
+        obs[["global_x", "global_y"]].fillna(-1).values.astype(np.int32)
+    )
+    print("Added obsm['spatial_global'] from global_x/global_y")
+
+# Pipeline provenance — features here are raw (no centerscale_on_controls).
 adata.uns["pipeline"] = {
-    "normalization": "zscore",
+    "normalization": "raw",
     "channel_combo": channel_combo,
     "channels": channel_names,
 }

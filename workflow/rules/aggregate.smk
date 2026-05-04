@@ -379,10 +379,12 @@ rule combine_bootstrap:
 
 rule format_singlecell_anndata:
     input:
-        singlecell_paths=lambda wildcards: output_to_input(
-            AGGREGATE_OUTPUTS["generate_feature_table"][0],
+        # Read raw filtered parquets (pre-normalization) so X holds raw features.
+        # Stage-position + global pixel columns are already attached upstream in final_merge.
+        filtered_paths=lambda wildcards: output_to_input(
+            AGGREGATE_OUTPUTS_MAPPED["filter"],
             wildcards={"channel_combo": wildcards.channel_combo},
-            expansion_values=["cell_class"],
+            expansion_values=["plate", "well", "cell_class"],
             metadata_combos=aggregate_wildcard_combos,
         ),
     output:

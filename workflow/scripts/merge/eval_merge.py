@@ -8,7 +8,7 @@ import pandas as pd
 from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
-from lib.shared.io import read_parquet, read_parquets, write_parquet
+from lib.shared.parquet_io import read_parquet, read_parquets, write_parquet
 from lib.merge.format_merge import identify_single_gene_mappings
 from lib.merge.eval_merge import plot_sbs_ph_matching_heatmap, plot_cell_positions
 

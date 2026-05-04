@@ -1,6 +1,6 @@
 import pandas as pd
 
-from lib.shared.io import read_parquets
+from lib.shared.parquet_io import read_parquets
 from lib.sbs.standardize_barcode_design import get_barcode_list
 from lib.sbs.eval_mapping import (
     plot_mapping_vs_threshold,

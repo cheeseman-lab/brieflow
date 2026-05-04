@@ -26,7 +26,7 @@ from lib.classify.shared import (
     well_for_filename,
 )
 from lib.shared.file_utils import get_filename
-from lib.shared.io import read_parquet, write_parquet
+from lib.shared.parquet_io import read_parquet, write_parquet
 
 
 def select_next_batch_from_pools(

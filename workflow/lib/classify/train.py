@@ -19,7 +19,7 @@ import pandas as pd
 import seaborn as sns
 from lightgbm import LGBMClassifier
 
-from lib.shared.io import read_parquet
+from lib.shared.parquet_io import read_parquet
 from matplotlib.colors import LinearSegmentedColormap
 from scipy.stats import linregress
 from sklearn.base import clone

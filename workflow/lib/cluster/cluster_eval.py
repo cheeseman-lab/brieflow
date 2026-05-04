@@ -14,7 +14,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 from lib.shared.file_utils import parse_filename, get_filename
-from lib.shared.io import read_parquet
+from lib.shared.parquet_io import read_parquet
 
 
 def find_optimal_resolution(

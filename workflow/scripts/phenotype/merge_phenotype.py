@@ -1,7 +1,7 @@
 import pandas as pd
 from joblib import Parallel, delayed
 
-from lib.shared.io import write_parquet
+from lib.shared.parquet_io import write_parquet
 
 
 # Define function to read df tsv files

@@ -21,7 +21,7 @@ from PIL import Image as PILImage
 from skimage import measure, segmentation
 
 from lib.shared.file_utils import get_filename
-from lib.shared.io import read_parquet
+from lib.shared.parquet_io import read_parquet
 
 
 def robust_norm(

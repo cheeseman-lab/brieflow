@@ -5,7 +5,7 @@ under the hood for faster reads and writes. All functions accept and return
 pandas DataFrames so downstream code is unchanged.
 
 Usage:
-    from lib.shared.io import read_parquet, write_parquet, read_parquets
+    from lib.shared.parquet_io import read_parquet, write_parquet, read_parquets
 
     # Single file read (returns pandas DataFrame)
     df = read_parquet("data.parquet")

@@ -1,7 +1,7 @@
 import pandas as pd
 
 from lib.phenotype.eval_features import plot_feature_heatmap
-from lib.shared.io import read_parquets
+from lib.shared.parquet_io import read_parquets
 
 
 # Load SBS processing files

@@ -9,7 +9,7 @@ from scipy.spatial.distance import cdist
 import yaml
 
 from lib.shared.eval import plot_plate_heatmap
-from lib.shared.io import read_parquet
+from lib.shared.parquet_io import read_parquet
 
 
 def plot_sbs_ph_matching_heatmap(

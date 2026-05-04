@@ -1,7 +1,7 @@
 import pandas as pd
 
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
-from lib.shared.io import read_parquet, write_parquet
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.aggregate.filter import (
     query_filter,
     perturbation_filter,

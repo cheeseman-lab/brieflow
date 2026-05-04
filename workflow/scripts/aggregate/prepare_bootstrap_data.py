@@ -12,7 +12,7 @@ from lib.aggregate.cell_data_utils import (
     get_feature_table_cols,
 )
 from lib.aggregate.bootstrap import write_construct_data
-from lib.shared.io import read_parquet
+from lib.shared.parquet_io import read_parquet
 
 # Get parameters
 perturbation_col = snakemake.params.perturbation_name_col

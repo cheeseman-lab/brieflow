@@ -2,7 +2,7 @@ import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes
 from lib.shared.file_utils import validate_dtypes
-from lib.shared.io import read_parquet, write_parquet
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.merge.format_merge import (
     fov_distance,
     identify_single_gene_mappings,

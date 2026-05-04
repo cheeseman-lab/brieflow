@@ -9,7 +9,7 @@ import numpy as np
 import yaml
 
 from lib.shared.file_utils import validate_dtypes, files_to_tile_mapping
-from lib.shared.io import read_parquet, write_parquet
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.merge.stitch import (
     assemble_aligned_tiff_well,
     extract_cell_positions_from_stitched_mask,

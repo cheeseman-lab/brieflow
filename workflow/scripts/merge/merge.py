@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from lib.shared.file_utils import validate_dtypes
-from lib.shared.io import read_parquet, write_parquet
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.merge.merge import merge_triangle_hash
 
 # Load phenotype and sbs info with cell locations

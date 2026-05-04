@@ -1,7 +1,7 @@
 import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes
-from lib.shared.io import read_parquet, write_parquet
+from lib.shared.parquet_io import read_parquet, write_parquet
 
 # Load deduplicated merge data
 merge_deduplicated = validate_dtypes(read_parquet(snakemake.input[0]))

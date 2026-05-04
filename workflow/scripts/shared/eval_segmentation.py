@@ -4,7 +4,7 @@ from lib.shared.eval_segmentation import (
     segmentation_overview,
     plot_cell_density_heatmap,
 )
-from lib.shared.io import read_parquets
+from lib.shared.parquet_io import read_parquets
 
 
 # Get the segmentation overview

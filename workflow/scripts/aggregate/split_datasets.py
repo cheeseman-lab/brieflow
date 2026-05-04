@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from lib.aggregate.cell_classification import CellClassifier
-from lib.shared.io import read_parquet, write_parquet
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.aggregate.cell_data_utils import (
     load_metadata_cols,
     split_cell_data,

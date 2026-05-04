@@ -12,7 +12,7 @@ import numpy as np
 from pathlib import Path
 
 from lib.shared.file_utils import validate_dtypes
-from lib.shared.io import read_parquet
+from lib.shared.parquet_io import read_parquet
 from lib.merge.estimate_stitch import (
     estimate_stitch_coordinate_based,
     convert_numpy_types,

@@ -8,7 +8,7 @@ merge process. Supports both tile-based and stitched image approaches.
 import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes
-from lib.shared.io import read_parquet, write_parquet
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.merge.deduplicate_merge import (
     deduplicate_cells,
     check_matching_rates,

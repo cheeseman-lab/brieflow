@@ -14,3 +14,8 @@ tests/small_test_analysis/.snakemake/
 tests/small_test_analysis/brieflow_output/
 tests/small_test_analysis/brieflow_output_zarr/
 tests/small_test_analysis/small_test_data/
+
+# classifier dills — only dummy_classifier.dill is tracked; rebuild script and other models stay local
+tests/small_test_analysis/config/*.dill
+!tests/small_test_analysis/config/dummy_classifier.dill
+tests/small_test_analysis/config/regen_dummy_classifier.py

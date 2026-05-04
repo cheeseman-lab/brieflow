@@ -38,6 +38,11 @@ class DummyMitoticClassifier(CellClassifier):
         self.features = features
 
     def classify_cells(self, metadata, features):
+        # Import inside the method: this class is defined in __main__, so on
+        # dill.load the method's __globals__ becomes the loader's __main__,
+        # which does not have numpy bound. Local import avoids that lookup.
+        import numpy as np
+
         rng = np.random.default_rng(self.seed)
         n = len(metadata)
         class_ids = np.where(rng.random(n) < self.mitotic_fraction, 1, 2).astype(int)

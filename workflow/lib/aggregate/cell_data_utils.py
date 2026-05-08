@@ -136,7 +136,7 @@ def get_feature_table_cols(feature_cols):
     # Define the specific tags to look for
     intensity_tags = [
         "mean",
-        "int",
+        "integrated",
         "mass_displacement",
         "mean_edge",
         "std_edge",
@@ -144,7 +144,8 @@ def get_feature_table_cols(feature_cols):
         "mean_frac_3",
     ]
     shape_tags = ["area", "solidity", "form_factor", "eccentricity"]
-    overlap_tags = ["manders"]
+    # Substring match — picks up *_correlation_* (Pearson/Spearman) and *manders* features
+    overlap_tags = ["manders", "correlation"]
 
     # Define the specific compartments to look for
     compartments = ["nucleus", "cell"]

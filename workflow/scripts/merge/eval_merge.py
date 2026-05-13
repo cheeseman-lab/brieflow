@@ -28,17 +28,6 @@ merge_deduplicated = validate_dtypes(
 # Load formatted (pre-dedup) merge data for matching rate heatmaps
 merge_formatted = validate_dtypes(read_parquets(snakemake.input.formatted_merge_paths))
 
-# Standardize coordinate column names (stitch uses global_i_0/global_j_0, fast uses i_0/j_0)
-if "global_i_0" in merge_deduplicated.columns:
-    merge_deduplicated = merge_deduplicated.rename(
-        columns={
-            "global_i_0": "i_0",
-            "global_j_0": "j_0",
-            "global_i_1": "i_1",
-            "global_j_1": "j_1",
-        }
-    )
-
 # Load SBS data
 sbs_cells = validate_dtypes(read_parquets(snakemake.input.combine_cells_paths))
 sbs_info = validate_dtypes(read_parquets(snakemake.input.sbs_info_paths))

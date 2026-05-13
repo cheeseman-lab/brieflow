@@ -1,12 +1,12 @@
 import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes
-from lib.shared.file_utils import validate_dtypes
 from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.merge.format_merge import (
     fov_distance,
     identify_single_gene_mappings,
     calculate_channel_mins,
+    attach_global_pixel_coords,
 )
 
 # Load data for formatting merge data
@@ -14,7 +14,7 @@ merge_data = validate_dtypes(read_parquet(snakemake.input[0]))
 sbs_cells = validate_dtypes(read_parquet(snakemake.input[1]))
 phenotype_min_cp = validate_dtypes(read_parquet(snakemake.input[2]))
 
-# Get image dimensions from params (with defaults)
+approach = snakemake.params.approach
 phenotype_dimensions = tuple(snakemake.params.phenotype_dimensions or (2960, 2960))
 sbs_dimensions = tuple(snakemake.params.sbs_dimensions or (1480, 1480))
 
@@ -47,7 +47,6 @@ for col in sbs_cells.columns:
         ]
     ):
         sbs_merge_cols.append(col)
-# Only keep columns that exist
 sbs_merge_cols = [c for c in sbs_merge_cols if c in sbs_cells.columns]
 
 merge_formatted = merge_formatted.merge(
@@ -58,7 +57,6 @@ merge_formatted = merge_formatted.merge(
 
 # Calculate minimum channel values for cells
 phenotype_min_cp = calculate_channel_mins(phenotype_min_cp)
-# Merge cell information from ph
 merge_formatted = merge_formatted.merge(
     phenotype_min_cp[["tile", "label", "channels_min"]].rename(
         columns={"label": "cell_0"}
@@ -66,6 +64,17 @@ merge_formatted = merge_formatted.merge(
     how="left",
     on=["tile", "cell_0"],
 )
+
+# Attach global pixel coords for the fast approach (stitch approach derives these in stitch_merge)
+if approach == "fast":
+    phenotype_metadata = pd.read_parquet(snakemake.input.phenotype_metadata)
+    sbs_metadata = pd.read_parquet(snakemake.input.sbs_metadata)
+    merge_formatted = attach_global_pixel_coords(
+        merge_formatted, phenotype_metadata, phenotype_dimensions, suffix="0"
+    )
+    merge_formatted = attach_global_pixel_coords(
+        merge_formatted, sbs_metadata, sbs_dimensions, suffix="1"
+    )
 
 # Save formatted merge data
 write_parquet(merge_formatted, snakemake.output[0])

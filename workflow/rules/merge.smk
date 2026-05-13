@@ -260,7 +260,7 @@ rule format_merge:
     input:
         lambda wildcards: (
             MERGE_OUTPUTS["stitch_merge"][1]
-            if config.get("merge", {}).get("approach", "fast") == "stitch" 
+            if config.get("merge", {}).get("approach", "fast") == "stitch"
             else MERGE_OUTPUTS["fast_merge"][0]
         ),
         ancient(lambda wildcards: output_to_input(
@@ -271,6 +271,18 @@ rule format_merge:
         )),
         ancient(lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["merge_phenotype"][1],
+            wildcards={"plate": wildcards.plate, "well": wildcards.well},
+            expansion_values=_merge_well_expand,
+            metadata_combos=merge_wildcard_combos,
+        )),
+        phenotype_metadata=ancient(lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+            wildcards={"plate": wildcards.plate, "well": wildcards.well},
+            expansion_values=_merge_well_expand,
+            metadata_combos=merge_wildcard_combos,
+        )),
+        sbs_metadata=ancient(lambda wildcards: output_to_input(
+            PREPROCESS_OUTPUTS["combine_metadata_sbs"],
             wildcards={"plate": wildcards.plate, "well": wildcards.well},
             expansion_values=_merge_well_expand,
             metadata_combos=merge_wildcard_combos,
@@ -322,24 +334,10 @@ rule final_merge:
             expansion_values=_merge_well_expand,
             metadata_combos=merge_wildcard_combos,
         )),
-        phenotype_metadata=ancient(lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
-            wildcards={"plate": wildcards.plate, "well": wildcards.well},
-            expansion_values=_merge_well_expand,
-            metadata_combos=merge_wildcard_combos,
-        )),
-        sbs_metadata=ancient(lambda wildcards: output_to_input(
-            PREPROCESS_OUTPUTS["combine_metadata_sbs"],
-            wildcards={"plate": wildcards.plate, "well": wildcards.well},
-            expansion_values=_merge_well_expand,
-            metadata_combos=merge_wildcard_combos,
-        )),
     output:
         MERGE_OUTPUTS_MAPPED["final_merge"][0],
     params:
         approach=config.get("merge", {}).get("approach", "fast"),
-        phenotype_dimensions=config.get("merge", {}).get("phenotype_dimensions"),
-        sbs_dimensions=config.get("merge", {}).get("sbs_dimensions"),
     script:
         "../scripts/merge/final_merge.py"
 

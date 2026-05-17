@@ -56,6 +56,7 @@ dependencies = [
   "dask[array]==2026.1.1",
   "fsspec==2026.2.0",
   "iohub==0.3.0",
+  "marimo==0.23.6",
 ]
 
 

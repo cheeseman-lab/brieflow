@@ -158,6 +158,27 @@ def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
         print(f"Cells with {num_nuclei} nuclei: {count}")
     print("--------------------------\n")
 
+    # Segmentation QC
+    n_total = sum(nuclei_per_cell.values())
+    cells_with_1_nucleus_frac = nuclei_per_cell.get(1, 0) / n_total if n_total else 0.0
+    cell_areas = np.array([r.area for r in regionprops(cells)])
+    cell_area_cv = (
+        float(np.std(cell_areas) / np.mean(cell_areas))
+        if cell_areas.size
+        else float("nan")
+    )
+    nuclear_solidities = np.array([r.solidity for r in regionprops(nuclei)])
+    mean_nuclear_solidity = (
+        float(np.mean(nuclear_solidities)) if nuclear_solidities.size else float("nan")
+    )
+
+    print("Segmentation QC:")
+    print(
+        f"  cells_with_1_nucleus_frac: {cells_with_1_nucleus_frac:.4f}  (pass > 0.95)"
+    )
+    print(f"  cell_area_cv:              {cell_area_cv:.4f}  (pass < 0.6)")
+    print(f"  mean_nuclear_solidity:     {mean_nuclear_solidity:.4f}  (pass > 0.9)")
+
     if how == "contained_in_cells":
         cell_map = get_unique_label_map(
             regionprops(cells, intensity_image=nuclei_eroded), keep_multiple=True

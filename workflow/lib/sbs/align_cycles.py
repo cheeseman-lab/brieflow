@@ -314,6 +314,36 @@ def align_cycles(
     else:
         raise ValueError(f'Method "{method}" not implemented')
 
+    # Alignment QC — residual on aligned cycles and base channels
+    if aligned.shape[1] > 0 and (channel_order is None or channel_order[0] == "DAPI"):
+        dapi_residual = calculate_offsets(
+            aligned[:, 0], upsample_factor=upsample_factor
+        )
+        cycle_dapi_shift_residual_max_px = float(np.max(np.abs(dapi_residual)))
+    else:
+        cycle_dapi_shift_residual_max_px = float("nan")
+
+    if base_indices and len(base_indices) > 1:
+        per_cycle_residuals = []
+        for c in range(aligned.shape[0]):
+            intra = calculate_offsets(
+                aligned[c, base_indices], upsample_factor=upsample_factor
+            )
+            per_cycle_residuals.append(float(np.max(np.abs(intra))))
+        intra_cycle_channel_shift_residual_max_px = (
+            float(max(per_cycle_residuals)) if per_cycle_residuals else float("nan")
+        )
+    else:
+        intra_cycle_channel_shift_residual_max_px = float("nan")
+
+    print("Alignment QC:")
+    print(
+        f"  cycle_dapi_shift_residual_max_px:           {cycle_dapi_shift_residual_max_px:.4f}  (pass < 1.0)"
+    )
+    print(
+        f"  intra_cycle_channel_shift_residual_max_px:  {intra_cycle_channel_shift_residual_max_px:.4f}  (pass < 1.0)"
+    )
+
     return aligned
 
 

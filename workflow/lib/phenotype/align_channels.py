@@ -78,6 +78,25 @@ def align_phenotype_channels(
     else:
         aligned = apply_offsets(data_, full_offsets)
 
+    # Alignment QC — residual on aligned target/source (+riders)
+    to_check = [target, source] + list(riders)
+    if aligned.ndim == 4:
+        check_data = aligned.max(axis=0)
+    else:
+        check_data = aligned
+    residual = calculate_offsets(
+        apply_window(check_data[to_check], window),
+        upsample_factor=upsample_factor,
+    )
+    phenotype_channel_shift_residual_max_px = (
+        float(np.max(np.abs(residual[1:]))) if len(residual) > 1 else float("nan")
+    )
+
+    print("Alignment QC:")
+    print(
+        f"  phenotype_channel_shift_residual_max_px:    {phenotype_channel_shift_residual_max_px:.4f}  (pass < 5.0)"
+    )
+
     # Handle channel removal if specified
     if remove_channel == "target":
         channel_order = list(range(image_data.shape[-3]))

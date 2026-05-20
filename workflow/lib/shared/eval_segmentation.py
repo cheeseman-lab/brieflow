@@ -148,7 +148,9 @@ def evaluate_segmentation_paramsearch(
         default_flow_threshold (float, optional): Reference flow threshold.
             Required if default_cell_diameter is provided. Defaults to None.
         channel_cmaps (list of str, optional): List of colormap names for each channel.
-            Only used when segmentation_process is "phenotype".
+            Only used when segmentation_process is "phenotype". Defaults to
+            ["pure_red", "pure_green", "pure_blue", "pure_cyan", "pure_magenta", "pure_yellow"]
+            when None.
         prepare_cellpose_kwargs (dict, optional): Keywords for prepare_cellpose function.
             Only used when segmentation_process is "sbs".
 
@@ -320,6 +322,19 @@ def evaluate_segmentation_paramsearch(
         default_nuclei = read_image(default_nuclei_path)
         default_cells = read_image(default_cells_path)
         corrected_image_data = read_image(corrected_full_path)
+
+        # Default cmaps for phenotype microimages when caller didn't supply any.
+        # Order matches the typical 5-channel DAPI+GTAC layout; extra channels fall
+        # back to grayscale so the panel renders even on non-standard screens.
+        if channel_cmaps is None:
+            channel_cmaps = [
+                "pure_red",
+                "pure_green",
+                "pure_blue",
+                "pure_cyan",
+                "pure_magenta",
+                "pure_yellow",
+            ]
 
         if segmentation_process == "phenotype":
             annotated_optimal = image_segmentation_annotations(

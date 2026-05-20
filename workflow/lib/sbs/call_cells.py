@@ -64,6 +64,7 @@ def call_cells(
         q_min: Minimum quality threshold for reads.
         barcode_col: Library column with full barcode sequences (auto-truncation mode).
         prefix_col: Library column with pre-computed prefixes (overrides barcode_col).
+            If None and df_barcode_library has a 'prefix' column, auto-detects it.
         map_start: Starting cycle for mapping barcode, 1-indexed (cycle-based mode).
         map_end: Ending cycle for mapping barcode, 1-indexed inclusive.
         prefix_map: Column name for extracted mapping barcode.
@@ -92,6 +93,16 @@ def call_cells(
 
     if reads_data is None or reads_data.empty:
         return _get_empty_output()
+
+    # Auto-detect prefix_col from library if not supplied (canonical name: 'prefix')
+    if (
+        prefix_col is None
+        and map_start is None
+        and df_barcode_library is not None
+        and "prefix" in df_barcode_library.columns
+    ):
+        prefix_col = "prefix"
+        print("Auto-detected prefix_col='prefix' from barcode library")
 
     # === STEP 1: Extract barcodes based on mode ===
 

@@ -308,6 +308,14 @@ def plot_cell_mapping_heatmap(
         .drop(columns="mapped")
     )
 
+    # Wizard QC — emit rate to stdout for R7 single-axis maximization
+    n_total = int(len(df))
+    mean_rate = float(df["mapped"].mean()) if n_total else float("nan")
+    if mapping_to == "one":
+        print(f"SINGLE_MAP_RATE: {mean_rate:.4f}  (maximize; n_total={n_total})")
+    elif mapping_to == "any":
+        print(f"ANY_MAP_RATE:    {mean_rate:.4f}  (informational; n_total={n_total})")
+
     if return_summary and return_plot:
         # Plot heatmap
         fig, _ = plot_plate_heatmap(df_summary, metadata=metadata, **kwargs)
@@ -424,10 +432,16 @@ def plot_gene_symbol_histogram(df, x_cutoff=None):
 
     # Auto-determine x_cutoff if not provided
     if x_cutoff is None:
-        # Use IQR method to determine cutoff
-        q1, q3 = gene_symbol_counts.quantile(0.25), gene_symbol_counts.quantile(0.75)
-        iqr = q3 - q1
-        x_cutoff = q3 + 1.5 * iqr
+        if gene_symbol_counts.empty:
+            x_cutoff = 1
+        else:
+            q1, q3 = (
+                gene_symbol_counts.quantile(0.25),
+                gene_symbol_counts.quantile(0.75),
+            )
+            x_cutoff = q3 + 1.5 * (q3 - q1)
+            if pd.isna(x_cutoff) or x_cutoff <= 0:
+                x_cutoff = max(float(gene_symbol_counts.max()), 1.0)
 
     # Always create 100 evenly spaced bins from 0 to x_cutoff
     bins = np.linspace(0, x_cutoff, 101)  # 101 edges to create 100 bins

@@ -44,20 +44,22 @@ def standardize_barcode_design(
 
     Args:
         df_design (pd.DataFrame): Input barcode design table
-        prefix_map (str): Name of column containing barcode sequences for mapping (default: "sgRNA")
+        prefix_map (str): Name of column containing barcode sequences for mapping (default: "sgRNA").
+            If None, auto-detects from canonical names ('barcode', 'sgRNA').
         prefix_recomb (str, optional): Name of column containing barcodes used to calculate recombination (optional)
         gene_symbol_col (str, optional): Name of column containing gene symbols.
-            If None, will create empty gene_symbol column
+            If None, auto-detects 'gene_symbol' column when present; otherwise creates empty gene_symbol column.
         gene_id_col (str, optional): Name of column containing gene IDs.
-            Optional - only included if user wants additional gene identifiers
+            If None, auto-detects 'gene_id' column when present; otherwise omitted.
         prefix_map_func (callable, optional): Custom function to generate prefixes for mapping that match
             experimental read structure. Function should take a row and return the prefix string.
         prefix_recomb_func (callable, optional): Custom function to generate prefixes for recombination that match
             experimental read structure. Function should take a row and return the prefix string.
-        map_prefix_length (int, optional): Total bases to extract BEFORE skipping cycles for prefix_map.
+        map_prefix_length (int): Total bases to extract BEFORE skipping cycles for prefix_map.
             Final length = map_prefix_length - len(skip_cycles_map).
             Example: For 10 final bases skipping [2,3,4], set map_prefix_length=13.
-            Ignored if prefix_map_func is provided.
+            Required when neither prefix_map_func nor skip_cycles_map is provided —
+            None is rejected with ValueError to prevent silent SINGLE_MAP_RATE=0.
         recomb_prefix_length (int, optional): Total bases to extract BEFORE skipping cycles for prefix_recomb.
             Final length = recomb_prefix_length - len(skip_cycles_recomb).
             Ignored if prefix_recomb_func is provided.
@@ -112,6 +114,35 @@ def standardize_barcode_design(
 
     # Create a copy to avoid modifying original
     df = df_design.copy()
+
+    # Auto-detect barcode column if not supplied (canonical names: 'barcode', 'sgRNA')
+    if prefix_map is None:
+        for candidate in ("barcode", "sgRNA"):
+            if candidate in df.columns:
+                prefix_map = candidate
+                if verbose:
+                    print(
+                        f"Auto-detected barcode column '{prefix_map}' from design table"
+                    )
+                break
+        if prefix_map is None:
+            raise ValueError(
+                "prefix_map (barcode column) is required (got None) and could not be "
+                "auto-detected. Expected one of {'barcode', 'sgRNA'} in design table. "
+                f"Available columns: {list(df.columns)}"
+            )
+
+    # Auto-detect gene_symbol column if not supplied (canonical name: 'gene_symbol')
+    if gene_symbol_col is None and "gene_symbol" in df.columns:
+        gene_symbol_col = "gene_symbol"
+        if verbose:
+            print("Auto-detected gene_symbol column 'gene_symbol' from design table")
+
+    # Auto-detect gene_id column if not supplied (canonical name: 'gene_id')
+    if gene_id_col is None and "gene_id" in df.columns:
+        gene_id_col = "gene_id"
+        if verbose:
+            print("Auto-detected gene_id column 'gene_id' from design table")
 
     # Validate required barcode column exists
     if prefix_map not in df.columns:
@@ -212,13 +243,12 @@ def standardize_barcode_design(
     else:
         # Use map_prefix_length for prefix_map
         if map_prefix_length is None:
-            # Use full barcode length as default
-            barcode_lengths = df["prefix_map"].astype(str).str.len()
-            map_prefix_length = int(barcode_lengths.mode()[0])  # Most common length
-            if verbose:
-                print(
-                    f"Using full barcode length ({map_prefix_length}) for 'prefix_map'"
-                )
+            raise ValueError(
+                "map_prefix_length is required (got None). "
+                "Auto-derive from barcode library (e.g. len(SBS_CYCLES)) or set explicitly. "
+                "Silent fallback to full barcode length produces SINGLE_MAP_RATE=0 on "
+                "downstream call_cells when reads are shorter than the library prefixes."
+            )
         df["prefix_map"] = df["prefix_map"].astype(str).str[:map_prefix_length]
         if verbose:
             print(

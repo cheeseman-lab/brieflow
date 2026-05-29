@@ -1,7 +1,7 @@
 from lib.shared.image_io import read_image
 
-# Validate required params
-for _param_name in ["cp_method", "channel_names", "foci_channel_index"]:
+# foci_channel_index intentionally omitted — extract_phenotype_cp_emulator handles foci_channel=None
+for _param_name in ["cp_method", "channel_names"]:
     if getattr(snakemake.params, _param_name, None) is None:
         raise ValueError(f"Required config parameter '{_param_name}' is not set")
 

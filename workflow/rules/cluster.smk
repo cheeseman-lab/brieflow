@@ -60,7 +60,17 @@ rule format_cluster_anndata:
             )
             for res in cluster_wildcard_combos["leiden_resolution"].unique()
         ],
-        bootstrap_results=ancient(BOOTSTRAP_OUTPUTS["combined_gene_results"]),
+        bootstrap_results=lambda wildcards: (
+            ancient(str(BOOTSTRAP_OUTPUTS["combined_gene_results"]).format(
+                cell_class=wildcards.cell_class,
+                channel_combo=wildcards.channel_combo,
+            ))
+            if Path(str(BOOTSTRAP_OUTPUTS["combined_gene_results"]).format(
+                cell_class=wildcards.cell_class,
+                channel_combo=wildcards.channel_combo,
+            )).exists()
+            else []
+        ),
     output:
         CLUSTER_OUTPUTS_MAPPED["format_cluster_anndata"],
     params:

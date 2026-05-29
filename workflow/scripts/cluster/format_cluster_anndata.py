@@ -17,14 +17,15 @@ for path, res in zip(clustering_paths, leiden_resolutions):
     print(f"Resolution {res}: {df.shape}")
     clusterings[str(res)] = df
 
-# Bootstrap results
+# Bootstrap results (optional — absent for channel combos without bootstrap runs)
 bootstrap_results = None
 try:
     bootstrap_path = snakemake.input.bootstrap_results
     if bootstrap_path:
-        bootstrap_results = pd.read_csv(bootstrap_path, sep="\t")
+        path = bootstrap_path[0] if isinstance(bootstrap_path, (list, tuple)) else bootstrap_path
+        bootstrap_results = pd.read_csv(path, sep="\t")
         print(f"Bootstrap results: {bootstrap_results.shape}")
-except AttributeError:
+except (AttributeError, Exception):
     pass
 
 # Build AnnData

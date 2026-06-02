@@ -1,0 +1,10 @@
+
+# ~BrieFlow OME-Zarr output override~
+
+# Deep-merged on top of config.yml when running `run_brieflow.sh --zarr`.
+# Only the output format differs; all pipeline parameters come from config.yml.
+
+all:
+  root_fp: brieflow_output_zarr/
+  image_format: zarr
+  zarr_max_levels: 1  # Number of pyramid resolution levels (1 = no downsampling)

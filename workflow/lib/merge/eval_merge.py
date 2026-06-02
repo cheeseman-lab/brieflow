@@ -152,7 +152,12 @@ def plot_cell_positions(df_merge, title, color=None, hue="channels_min"):
     if color is not None:
         sns.scatterplot(data=df_merge, x=i_col, y=j_col, color=color, alpha=0.5)
     else:
-        sns.scatterplot(data=df_merge, x=i_col, y=j_col, hue=hue, alpha=0.5)
+        # seaborn's numeric-hue legend locator cannot interpret pandas nullable
+        # extension dtypes (e.g. Int64); cast the hue to plain float64 for plotting.
+        plot_df = df_merge
+        if pd.api.types.is_extension_array_dtype(df_merge[hue].dtype):
+            plot_df = df_merge.assign(**{hue: df_merge[hue].astype("float64")})
+        sns.scatterplot(data=plot_df, x=i_col, y=j_col, hue=hue, alpha=0.5)
 
     plt.title(title)
     plt.xlabel(i_col)

@@ -376,7 +376,7 @@ def _resolve_output_dir() -> Path:
             return p
 
     pytest.skip(
-        "Brieflow output directory not found. Run small_test_analysis/run_brieflow.sh first."
+        "Brieflow output directory not found. Run small_test_analysis/run_brieflow.sh --zarr first."
     )
 
 

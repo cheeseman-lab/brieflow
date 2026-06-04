@@ -384,6 +384,10 @@ def standardize_barcode_design(
             "uniprot_entry",
         ]
 
+    # Only keep required columns that actually exist in the dataframe
+    # (e.g. gene_id is optional and may not be present)
+    required_cols = [col for col in required_cols if col in df.columns]
+
     if keep_extra_cols:
         # Keep additional columns that might be useful
         extra_cols = [col for col in df.columns if col not in required_cols]

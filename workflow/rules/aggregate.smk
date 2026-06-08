@@ -92,6 +92,7 @@ rule generate_feature_table:
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
         perturbation_id_col=config["aggregate"]["perturbation_id_col"],
         control_key=config["aggregate"]["control_key"],
+        control_name_col=config["aggregate"].get("control_name_col"),
         batch_cols=config["aggregate"]["batch_cols"],
         num_align_batches=config["aggregate"]["num_align_batches"],
         feature_normalization=config["aggregate"].get("feature_normalization", "standard"),

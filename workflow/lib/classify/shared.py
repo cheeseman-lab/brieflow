@@ -316,8 +316,13 @@ def load_parquet(
     wname = well_for_filename(well)
     m = re.match(r"^([A-Z])(\d{1,2})$", wname)
     wpad = f"{m.group(1)}{int(m.group(2)):02d}" if m else wname
+    row = wname[0]
+    col = wname[1:]
     if mode_ == "vacuole":
         candidates = [
+            # HCS nested layout
+            pq_dir / str(plate) / row / col / "phenotype_vacuoles.parquet",
+            # Flat layout
             pq_dir
             / get_filename(
                 {"plate": plate, "well": wname}, "phenotype_vacuoles", "parquet"
@@ -329,6 +334,10 @@ def load_parquet(
         ]
     else:
         candidates = [
+            # HCS nested layout
+            pq_dir / str(plate) / row / col / "phenotype_cp.parquet",
+            pq_dir / str(plate) / row / col / "phenotype_cp_min.parquet",
+            # Flat layout
             pq_dir
             / get_filename({"plate": plate, "well": wname}, "phenotype_cp", "parquet"),
             pq_dir

@@ -203,6 +203,10 @@ adata.uns["pipeline"] = {
     "channels": channel_names,
 }
 
+for col in adata.obs.columns:
+    if adata.obs[col].dtype == object:
+        adata.obs[col] = adata.obs[col].fillna("").astype(str)
+
 print(f"\n{adata}")
 adata.write_h5ad(snakemake.output[0])
 print(f"Saved to {snakemake.output[0]}")

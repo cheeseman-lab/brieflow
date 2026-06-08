@@ -169,6 +169,14 @@ def evaluate_resolution(
             aggregated_data, resolution, phate_distance_metric
         )
 
+        # Report cluster granularity
+        _n_clusters = clustering["cluster"].nunique()
+        _median_gpc = float(clustering["cluster"].value_counts().median())
+        print(
+            f"  resolution {resolution}: {_n_clusters} clusters, "
+            f"median genes/cluster {_median_gpc:.1f}"
+        )
+
         # For each benchmark, calculate metrics
         for benchmark_name, group_df in group_benchmarks.items():
             # Filter the benchmark if needed (for group benchmarks)
@@ -215,6 +223,9 @@ def evaluate_resolution(
             statistics = {
                 "resolution": resolution,
                 "num_clusters": clustering["cluster"].nunique(),
+                "median_genes_per_cluster": float(
+                    clustering["cluster"].value_counts().median()
+                ),
                 "precision": adjusted_metrics["adjusted_precision"],
                 "recall": adjusted_metrics["recall"],
                 "f1_score": adjusted_metrics["adjusted_f1_score"],

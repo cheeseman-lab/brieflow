@@ -200,7 +200,9 @@ SECOND_OBJ_EXTRA_COLS = frozenset(
 )
 
 
-def compartment_combo_subset(features, compartment_combo, all_compartments):
+def compartment_combo_subset(
+    features: pd.DataFrame, compartment_combo: str, all_compartments: list[str]
+) -> pd.DataFrame:
     """Filter features to keep only columns belonging to the requested compartments.
 
     Args:
@@ -226,7 +228,9 @@ def compartment_combo_subset(features, compartment_combo, all_compartments):
     return features.drop(columns=cols_to_drop)
 
 
-def resolve_aggregate_combos(aggregate_combos, second_obj_detection):
+def resolve_aggregate_combos(
+    aggregate_combos: list[dict], second_obj_detection: bool
+) -> list[dict]:
     """Normalize and validate AGGREGATE_COMBOS entries.
 
     For each entry:

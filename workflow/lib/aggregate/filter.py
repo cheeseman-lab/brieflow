@@ -17,10 +17,10 @@ from sklearn.neighbors import LocalOutlierFactor
 
 
 def harmonize_pool_schema(
-    paths,
-    metadata_cols,
-    drop_cols_threshold=None,
-):
+    paths: list[str],
+    metadata_cols: list[str],
+    drop_cols_threshold: float | None = None,
+) -> tuple[list[str], list[str], dict]:
     """Compute a consistent (metadata, feature) column set for a multi-file pool.
 
     When per-well filter decisions diverge — e.g. missing_values_filter drops
@@ -86,7 +86,12 @@ def harmonize_pool_schema(
 
     threshold_dropped = []
     if drop_cols_threshold is not None and kept_feature_cols:
-        pool = ds.dataset(paths, format="parquet").to_table(columns=kept_feature_cols)
+        # Pin to one reference schema so pyarrow casts each file to it instead of
+        # auto-unifying (which raises ArrowInvalid when files share a column with a
+        # mismatched dtype). paths are non-empty and share the kept columns.
+        pool = ds.dataset(
+            paths, format="parquet", schema=pq.read_schema(paths[0])
+        ).to_table(columns=kept_feature_cols)
         # Compute pool-level NaN proportion per column without materializing full pandas.
         total_rows = pool.num_rows
         if total_rows > 0:

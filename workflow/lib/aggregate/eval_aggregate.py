@@ -108,6 +108,24 @@ def plot_feature_distributions(
     Returns:
         matplotlib.figure.Figure: Figure containing the violin plots.
     """
+    # Defensive: empty feature selection (e.g. a compartment_combo whose
+    # prefixes don't match any *_mean column in the merge data) would pass
+    # nrows=0 to plt.subplots and raise. Return a placeholder figure so
+    # eval_aggregate can still write its other outputs and the DAG proceeds.
+    if not original_feature_cols or not aligned_feature_cols:
+        fig, ax = plt.subplots(figsize=(8, 2))
+        ax.text(
+            0.5,
+            0.5,
+            "No intensity features available for this compartment_combo; "
+            "feature-distribution plot skipped.",
+            ha="center",
+            va="center",
+            wrap=True,
+        )
+        ax.axis("off")
+        return fig
+
     # Melt original features
     df_orig = original_cell_data[["plate", "well"] + original_feature_cols].melt(
         id_vars=["plate", "well"], var_name="Feature", value_name="Value"

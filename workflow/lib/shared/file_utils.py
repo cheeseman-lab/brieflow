@@ -16,6 +16,7 @@ FILENAME_METADATA_MAPPING = {
     "round": ["R-", str],
     "cell_class": ["CeCl-", str],
     "channel_combo": ["ChCo-", str],
+    "compartment_combo": ["CmCo-", str],
     "gene": ["G-", str],
     "sgrna": ["SG-", str],
     "channel": ["CH-", str],

@@ -298,7 +298,7 @@ def get_aggregate_stats(config, n_rows=10000, include_batch_effects=False):
         include_batch_effects: Whether to calculate batch effect metrics (slow)
 
     Returns:
-        dict: Dictionary with statistics for each cell_class/channel_combo combination
+        dict: Dictionary with statistics for each cell_class/channel_combo/compartment_combo combination
     """
     root_fp = Path(config["all"]["root_fp"])
     aggregate_dir = root_fp / "aggregate"
@@ -307,8 +307,10 @@ def get_aggregate_stats(config, n_rows=10000, include_batch_effects=False):
     aggregate_combo_fp = Path(config["aggregate"]["aggregate_combo_fp"])
     aggregate_combos = pd.read_csv(aggregate_combo_fp, sep="\t")
 
-    # Get unique cell_class and channel_combo combinations
-    unique_combos = aggregate_combos[["cell_class", "channel_combo"]].drop_duplicates()
+    # Get unique cell_class, channel_combo, and compartment_combo combinations
+    unique_combos = aggregate_combos[
+        ["cell_class", "channel_combo", "compartment_combo"]
+    ].drop_duplicates()
 
     # Get perturbation column name from config
     perturbation_col = config["aggregate"].get("perturbation_name_col", "gene_symbol_0")
@@ -319,12 +321,14 @@ def get_aggregate_stats(config, n_rows=10000, include_batch_effects=False):
     for _, combo in unique_combos.iterrows():
         cell_class = combo["cell_class"]
         channel_combo = combo["channel_combo"]
+        compartment_combo = combo["compartment_combo"]
 
         try:
             result = _get_single_aggregate_stats(
                 config,
                 cell_class,
                 channel_combo,
+                compartment_combo,
                 n_rows,
                 root_fp,
                 aggregate_dir,
@@ -332,10 +336,14 @@ def get_aggregate_stats(config, n_rows=10000, include_batch_effects=False):
                 control_key,
                 include_batch_effects,
             )
-            all_results[f"{cell_class}_{channel_combo}"] = result
+            all_results[f"{cell_class}_{channel_combo}_{compartment_combo}"] = result
         except Exception as e:
-            print(f"Error processing {cell_class}/{channel_combo}: {str(e)}")
-            all_results[f"{cell_class}_{channel_combo}"] = {"error": str(e)}
+            print(
+                f"Error processing {cell_class}/{channel_combo}/{compartment_combo}: {str(e)}"
+            )
+            all_results[f"{cell_class}_{channel_combo}_{compartment_combo}"] = {
+                "error": str(e)
+            }
 
     return all_results
 
@@ -344,6 +352,7 @@ def _get_single_aggregate_stats(
     config,
     cell_class,
     channel_combo,
+    compartment_combo,
     n_rows,
     root_fp,
     aggregate_dir,
@@ -351,14 +360,14 @@ def _get_single_aggregate_stats(
     control_key,
     include_batch_effects,
 ):
-    """Helper function to get stats for a single cell_class/channel_combo combination."""
+    """Helper function to get stats for a single cell_class/channel_combo/compartment_combo combination."""
     from lib.shared.file_utils import load_parquet_subset
 
     # Load the aggregated TSV file
     aggregated_path = (
         aggregate_dir
         / "tsvs"
-        / f"CeCl-{cell_class}_ChCo-{channel_combo}__aggregated.tsv"
+        / f"CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__aggregated.tsv"
     )
     aggregated = pd.read_csv(aggregated_path, sep="\t")
 
@@ -378,7 +387,7 @@ def _get_single_aggregate_stats(
     merge_data_dir = aggregate_dir / "parquets"
     merge_data_paths = list(
         merge_data_dir.glob(
-            f"*_CeCl-{cell_class}_ChCo-{channel_combo}__merge_data.parquet"
+            f"*_CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__merge_data.parquet"
         )
     )
 
@@ -390,7 +399,9 @@ def _get_single_aggregate_stats(
     # Count filtered cells from parquet metadata (fast)
     filtered_dir = aggregate_dir / "parquets"
     filtered_paths = list(
-        filtered_dir.glob(f"*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet")
+        filtered_dir.glob(
+            f"*_CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__filtered.parquet"
+        )
     )
 
     total_filtered_cells = 0
@@ -414,6 +425,7 @@ def _get_single_aggregate_stats(
             config,
             cell_class,
             channel_combo,
+            compartment_combo,
             n_rows,
             aggregate_dir,
             perturbation_col,
@@ -428,6 +440,7 @@ def _calculate_batch_effects(
     config,
     cell_class,
     channel_combo,
+    compartment_combo,
     n_rows,
     aggregate_dir,
     perturbation_col,
@@ -441,7 +454,9 @@ def _calculate_batch_effects(
     filtered_dir = aggregate_dir / "parquets"
     # Use direct path instead of recursive glob for speed
     filtered_paths = list(
-        filtered_dir.glob(f"*_CeCl-{cell_class}_ChCo-{channel_combo}__filtered.parquet")
+        filtered_dir.glob(
+            f"*_CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__filtered.parquet"
+        )
     )
 
     # Load filtered data - sample from a subset of files to avoid
@@ -504,7 +519,7 @@ def _calculate_batch_effects(
     aligned_path = (
         aggregate_dir
         / "parquets"
-        / f"CeCl-{cell_class}_ChCo-{channel_combo}__aligned.parquet"
+        / f"CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__aligned.parquet"
     )
 
     # Use same sample size as pre-alignment for consistency
@@ -565,10 +580,15 @@ def get_cluster_stats(config):
     for _, row in cluster_combos.iterrows():
         cell_class = row["cell_class"]
         channel_combo = row["channel_combo"]
+        compartment_combo = row["compartment_combo"]
         leiden_resolution = row["leiden_resolution"]
 
         cluster_specific_dir = (
-            cluster_dir / channel_combo / cell_class / str(leiden_resolution)
+            cluster_dir
+            / channel_combo
+            / compartment_combo
+            / cell_class
+            / str(leiden_resolution)
         )
 
         # Path to metrics files
@@ -598,6 +618,7 @@ def get_cluster_stats(config):
             result = {
                 "cell_class": cell_class,
                 "channel_combo": channel_combo,
+                "compartment_combo": compartment_combo,
                 "leiden_resolution": leiden_resolution,
                 "unique_clusters": unique_clusters,
                 # CORUM metrics
@@ -641,7 +662,7 @@ def get_cluster_stats(config):
 
         except Exception as e:
             print(
-                f"Error reading metrics for {cell_class}/{channel_combo}/{leiden_resolution}: {e}"
+                f"Error reading metrics for {cell_class}/{channel_combo}/{compartment_combo}/{leiden_resolution}: {e}"
             )
 
     results_df = pd.DataFrame(results)
@@ -813,7 +834,7 @@ def get_all_stats(
     if not stats["cluster"]["detailed_results"].empty:
         for _, row in stats["cluster"]["detailed_results"].iterrows():
             print(
-                f"\n   {row['cell_class']} - {row['channel_combo']} (resolution={row['leiden_resolution']}):"
+                f"\n   {row['cell_class']} - {row['channel_combo']} - {row['compartment_combo']} (resolution={row['leiden_resolution']}):"
             )
             print(f"      - Clusters: {row['unique_clusters']}")
             print(

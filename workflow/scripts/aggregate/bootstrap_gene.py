@@ -12,6 +12,7 @@ from lib.aggregate.cell_data_utils import get_feature_table_cols
 gene_id = snakemake.wildcards.gene
 cell_class = snakemake.wildcards.cell_class
 channel_combo = snakemake.wildcards.channel_combo
+compartment_combo = snakemake.wildcards.compartment_combo
 num_sims = snakemake.params.num_sims
 bootstrap_features_fp = snakemake.params.get("bootstrap_features_fp", None)
 

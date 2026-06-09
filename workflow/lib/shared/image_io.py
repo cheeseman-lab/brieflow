@@ -235,7 +235,11 @@ def write_image_omezarr(
     metadata: Dict[str, Any] = {}
     omero: Dict[str, Any] = {}
 
-    dtype_max = float(np.iinfo(image_data.dtype).max) if np.issubdtype(image_data.dtype, np.integer) else 1.0
+    dtype_max = (
+        float(np.iinfo(image_data.dtype).max)
+        if np.issubdtype(image_data.dtype, np.integer)
+        else 1.0
+    )
     default_window = {"start": 0.0, "end": dtype_max, "min": 0.0, "max": dtype_max}
 
     if channel_names:

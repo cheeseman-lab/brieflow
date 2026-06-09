@@ -441,10 +441,9 @@ shape_features = {
     "minor_axis": lambda r: r.minor_axis_length,
     "orientation": lambda r: r.orientation,
     # compactness from centrosome.cpmorphology.ellipse_from_second_moments(): "variance of the radial distribution normalized by the area"
-    "compactness": lambda r: 2
-    * np.pi
-    * (r.moments_central[0, 2] + r.moments_central[2, 0])
-    / (r.area**2),
+    "compactness": lambda r: (
+        2 * np.pi * (r.moments_central[0, 2] + r.moments_central[2, 0]) / (r.area**2)
+    ),
     "radius": lambda r: max_median_mean_radius(r.filled_image),
     "feret_diameter": lambda r: min_max_feret_diameter(
         r.coords

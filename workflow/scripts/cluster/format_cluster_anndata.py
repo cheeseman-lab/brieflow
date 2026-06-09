@@ -22,7 +22,11 @@ bootstrap_results = None
 try:
     bootstrap_path = snakemake.input.bootstrap_results
     if bootstrap_path:
-        path = bootstrap_path[0] if isinstance(bootstrap_path, (list, tuple)) else bootstrap_path
+        path = (
+            bootstrap_path[0]
+            if isinstance(bootstrap_path, (list, tuple))
+            else bootstrap_path
+        )
         bootstrap_results = pd.read_csv(path, sep="\t")
         print(f"Bootstrap results: {bootstrap_results.shape}")
 except (AttributeError, Exception):

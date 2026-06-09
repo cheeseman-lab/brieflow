@@ -234,6 +234,14 @@ def write_image_omezarr(
 
     metadata: Dict[str, Any] = {}
     omero: Dict[str, Any] = {}
+
+    dtype_max = (
+        float(np.iinfo(image_data.dtype).max)
+        if np.issubdtype(image_data.dtype, np.integer)
+        else 1.0
+    )
+    default_window = {"start": 0.0, "end": dtype_max, "min": 0.0, "max": dtype_max}
+
     if channel_names:
         if is_label:
             omero["channels"] = [
@@ -245,6 +253,7 @@ def write_image_omezarr(
                     "label": name,
                     "active": True,
                     "color": DEFAULT_CHANNEL_COLORS[i % len(DEFAULT_CHANNEL_COLORS)],
+                    "window": dict(default_window),
                 }
                 for i, name in enumerate(channel_names)
             ]
@@ -305,13 +314,13 @@ _AXIS_TYPES: Dict[str, str] = {
 
 
 def _axes_str_to_dicts(axes: str) -> List[Dict[str, str]]:
-    """Convert an uppercase axes string to a list of axis dicts for ome_zarr.
+    """Convert an axes string to a list of axis dicts for ome_zarr.
 
-    ome_zarr.writer only recognises lowercase axis names for type inference.
-    Passing a list of dicts with explicit ``type`` values lets us store
-    uppercase names while still satisfying the validator.
+    OME-NGFF v0.5 requires lowercase axis names. The internal ``axes``
+    parameter may be uppercase for readability; this function lowercases
+    the stored ``name`` so that ngio and other spec-compliant readers
+    can parse the metadata without an AxesSetup override.
     """
-    # Units for axes that have a physical dimension.
     _AXIS_UNITS: Dict[str, str] = {
         "T": "second",
         "Z": "micrometer",
@@ -320,7 +329,7 @@ def _axes_str_to_dicts(axes: str) -> List[Dict[str, str]]:
     }
     result = []
     for ch in axes.upper():
-        d: Dict[str, str] = {"name": ch}
+        d: Dict[str, str] = {"name": ch.lower()}
         if ch in _AXIS_TYPES:
             d["type"] = _AXIS_TYPES[ch]
         if ch in _AXIS_UNITS:

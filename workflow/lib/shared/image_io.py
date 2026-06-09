@@ -234,6 +234,7 @@ def write_image_omezarr(
 
     metadata: Dict[str, Any] = {}
     omero: Dict[str, Any] = {}
+
     if channel_names:
         if is_label:
             omero["channels"] = [

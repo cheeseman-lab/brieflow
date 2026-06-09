@@ -260,9 +260,7 @@ def load_mask_labels(
             {"plate": plate, "well": wpad, "tile": tile}, label_name, "tiff"
         ),
         images_dir
-        / get_filename(
-            {"plate": plate, "well": wpad, "tile": tile}, label_name, "tif"
-        ),
+        / get_filename({"plate": plate, "well": wpad, "tile": tile}, label_name, "tif"),
     ]
 
     zarr_path = next((p for p in zarr_candidates if p.exists()), None)

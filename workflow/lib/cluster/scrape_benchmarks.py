@@ -23,6 +23,10 @@ import io
 import gzip
 from itertools import combinations
 
+_REQUEST_HEADERS = {
+    "User-Agent": "brieflow/1.5 (+https://github.com/cheeseman-lab/brieflow)"
+}
+
 import pandas as pd
 
 
@@ -139,7 +143,7 @@ def generate_msigdb_group_benchmark(
     Returns:
         pd.DataFrame: A DataFrame containing the MSigDB group benchmark.
     """
-    response = requests.get(url)
+    response = requests.get(url, headers=_REQUEST_HEADERS)
     msigdb_data = json.loads(response.text)
 
     # Create lists to hold data for DataFrame
@@ -190,6 +194,7 @@ def get_uniprot_data(species_id: str = "9606"):
     re_next_link = re.compile(r"<(.+)>; rel=\"next\"")
     retries = Retry(total=5, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
     session = requests.Session()
+    session.headers.update(_REQUEST_HEADERS)
     session.mount("https://", HTTPAdapter(max_retries=retries))
 
     # Function to extract next link from headers
@@ -270,7 +275,7 @@ def get_corum_data():
     # Parameters for human complexes in text format
     params = {"file_id": "human", "file_format": "txt"}
 
-    response = requests.get(url, params=params, verify=False)
+    response = requests.get(url, params=params, verify=False, headers=_REQUEST_HEADERS)
     response.raise_for_status()
 
     # Read data into DataFrame
@@ -301,7 +306,7 @@ def get_string_data(species_id: str = "9606"):
     print("Fetching STRING data...")
     url = f"https://stringdb-downloads.org/download/protein.links.v12.0/{species_id}.protein.links.v12.0.txt.gz"
 
-    response = requests.get(url)
+    response = requests.get(url, headers=_REQUEST_HEADERS)
     response.raise_for_status()
 
     # Read compressed data directly into DataFrame

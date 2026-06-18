@@ -31,6 +31,7 @@ def call_reads(
     correction_only_in_cells=True,
     normalize_bases_first=True,
     method="median",
+    combinatorial=None,
 ):
     """Call reads for in situ sequencing data.
 
@@ -124,8 +125,19 @@ def call_reads(
             channels=channels,
             correction_only_in_cells=correction_only_in_cells,
         )
+    elif method == "combinatorial":
+        # Combinatorial multi-dye chemistry: decode bases from dye-channel ON-sets
+        df_reads = bases_data.pipe(clean_up_bases).pipe(
+            do_combinatorial_call,
+            cycles=cycles,
+            channels=channels,
+            combinatorial=combinatorial,
+            correction_only_in_cells=correction_only_in_cells,
+        )
     else:
-        raise ValueError(f"Unknown method: {method}. Use 'median' or 'percentile'.")
+        raise ValueError(
+            f"Unknown method: {method}. Use 'median', 'percentile', or 'combinatorial'."
+        )
 
     # Include peaks scores if available
     if peaks_data is not None:
@@ -243,6 +255,176 @@ def do_percentile_call(
     df_reads = call_barcodes(df_bases, Y, cycles=cycles, channels=channels)
 
     return df_reads
+
+
+def do_combinatorial_call(
+    df_bases,
+    cycles=12,
+    channels=3,
+    combinatorial=None,
+    correction_only_in_cells=False,
+):
+    """Call reads for combinatorial multi-dye SBS chemistry.
+
+    Each base is encoded as a fixed combination of dye channels being ON (e.g.
+    the 3-dye scheme T=Cy3, C=Cy3+FITC, A=FITC+Cy5, G=blank). Per spot per cycle,
+    each dye channel is classified on/off, and the resulting ON-set is matched to
+    the nearest base codeword in ``combinatorial["code"]``. A per-cycle quality is
+    derived from on/off confidence and whether the ON-set matched a codeword
+    exactly.
+
+    Library/Hamming error-correction is intentionally NOT performed here — that is
+    brieflow's stock ``call_cells`` step (``error_correct``), an ex-post decision.
+    The nearest-codeword step below is per-cycle *base* disambiguation among the
+    valid bases (the combinatorial analog of 4-color argmax), not read-vs-library
+    correction.
+
+    Args:
+        df_bases (pandas.DataFrame): Cleaned long-format base intensities
+            (clean_up_bases output).
+        cycles (int): Number of sequencing cycles.
+        channels (int): Number of channels present in df_bases.
+        combinatorial (dict):
+            code (dict): base char -> string of channel-labels ON for that base,
+                where labels are the CHANNEL values set by extract_bases' ``bases``
+                (e.g. {"T": "c", "C": "cf", "A": "fy", "G": ""}).
+            classifier (str): "per_read" (default; per-spot relative threshold) or
+                "global" (per-channel GMM on/off).
+        correction_only_in_cells (bool): For the global classifier, fit on/off
+            thresholds on in-cell reads only.
+
+    Returns:
+        pandas.DataFrame: df_reads with barcode + per-cycle Q columns (standard
+            schema).
+    """
+    if not combinatorial or "code" not in combinatorial:
+        raise ValueError(
+            "method='combinatorial' requires config['sbs']['combinatorial'] with a "
+            "'code' map {base: channel-labels-ON}, e.g. {'T':'c','C':'cf',"
+            "'A':'fy','G':''}."
+        )
+    code = combinatorial["code"]
+    classifier = combinatorial.get("classifier", "per_read")
+
+    # Channel labels in df_bases, sorted (matches dataframe_to_values order)
+    labels = sorted(df_bases[CHANNEL].unique())
+    lab_idx = {lab: i for i, lab in enumerate(labels)}
+
+    # Dye channels = those referenced by any codeword (presence/other channels,
+    # if extracted, are simply ignored by decode)
+    dye_labels = sorted({c for combo in code.values() for c in combo})
+    missing = [lab for lab in dye_labels if lab not in lab_idx]
+    if missing:
+        raise ValueError(
+            f"combinatorial code references channel-labels {missing} not present "
+            f"in df_bases channels {labels}"
+        )
+    dye_cols = [lab_idx[lab] for lab in dye_labels]
+    nd = len(dye_labels)
+
+    base_chars = list(code.keys())
+    codeword = np.zeros((len(base_chars), nd), dtype=bool)
+    for bi, b in enumerate(base_chars):
+        for c in code[b]:
+            codeword[bi, dye_labels.index(c)] = True
+
+    X = dataframe_to_values(df_bases).astype(float)  # (N, cycles, channels)
+    n_reads = X.shape[0]
+    dye = X[:, :, dye_cols]  # (N, cycles, nd)
+
+    on = np.zeros((n_reads, cycles, nd), dtype=bool)
+    conf = np.zeros((n_reads, cycles, nd), dtype=float)
+    if classifier == "global":
+        log_x = np.log1p(np.clip(dye, 0, None))
+        if correction_only_in_cells:
+            cell = df_bases.drop_duplicates([WELL, TILE, READ])[CELL].to_numpy()
+            fit_mask = cell > 0 if (cell > 0).any() else np.ones(n_reads, bool)
+        else:
+            fit_mask = np.ones(n_reads, dtype=bool)
+        for c in range(nd):
+            on[:, :, c], conf[:, :, c] = classify_on_off(
+                log_x[:, :, c], fit_values=log_x[fit_mask, :, c].ravel()
+            )
+    else:  # per_read background-anchored threshold (per spot, per channel)
+        # Anchor to each spot/channel's background (low percentile across cycles),
+        # not the midpoint — robust to bright-on-cycle spread. on_factor tunable.
+        factor = combinatorial.get("on_factor", 2.0)
+        bg_pct = combinatorial.get("bg_percentile", 25)
+        bg = np.percentile(dye, bg_pct, axis=1, keepdims=True)  # (N,1,nd) background
+        thr = np.clip(bg, 1.0, None) * factor
+        on = dye > thr
+        conf = np.clip(
+            np.abs(np.log1p(dye) - np.log1p(thr)) / np.log(2.0), 0, 1
+        )
+
+    # Nearest base codeword (per-cycle base disambiguation, NOT library correction)
+    dist = (on[:, :, None, :] != codeword[None, None, :, :]).sum(axis=3)  # (N,cyc,B)
+    chosen = np.array(base_chars)[dist.argmin(axis=2)]  # (N, cycles)
+    barcodes = ["".join(row) for row in chosen]
+
+    # Per-cycle quality: clarity of the weakest dye channel, halved when the
+    # observed ON-set did not match a codeword exactly
+    exact = dist.min(axis=2) == 0
+    Q = conf.min(axis=2) * np.where(exact, 1.0, 0.5)
+
+    df_reads = df_bases.drop_duplicates([WELL, TILE, READ]).copy()
+    df_reads[BARCODE] = barcodes
+    for i in range(cycles):
+        df_reads["Q_%d" % i] = Q[:, i]
+    df_reads = df_reads.assign(Q_min=lambda x: x.filter(regex=r"Q_\d+").min(axis=1))
+    df_reads = df_reads.drop([CYCLE, CHANNEL, INTENSITY], axis=1)
+
+    return df_reads
+
+
+def classify_on_off(log_vals_2d, fit_values=None):
+    """Classify each log-intensity entry on/off with a [0, 1] confidence.
+
+    Fits a 2-component Gaussian mixture on log intensity (Otsu-threshold
+    fallback). Confidence is distance from the decision boundary
+    (|2*p_on - 1| for the GMM, tanh of the threshold margin for the fallback).
+
+    Args:
+        log_vals_2d (numpy.ndarray): (N, cycles) log-intensities for one channel.
+        fit_values (numpy.ndarray, optional): 1D values to fit the split on;
+            defaults to all of log_vals_2d.
+
+    Returns:
+        tuple[numpy.ndarray, numpy.ndarray]: (on mask, confidence), both (N, cycles).
+    """
+    shape = log_vals_2d.shape
+    flat = log_vals_2d.ravel().reshape(-1, 1)
+    fit = (fit_values if fit_values is not None else log_vals_2d.ravel()).reshape(-1, 1)
+    try:
+        from sklearn.mixture import GaussianMixture
+
+        gm = GaussianMixture(n_components=2, random_state=0).fit(fit)
+        on_comp = int(np.argmax(gm.means_.ravel()))
+        p_on = gm.predict_proba(flat)[:, on_comp]
+        on = p_on > 0.5
+        conf = np.abs(2 * p_on - 1)
+    except Exception:
+        thr = _otsu_threshold(fit.ravel())
+        spread = np.std(fit.ravel()) + 1e-6
+        z = (flat.ravel() - thr) / spread
+        on = z > 0
+        conf = np.abs(np.tanh(z))
+    return on.reshape(shape), conf.reshape(shape)
+
+
+def _otsu_threshold(x, nbins=256):
+    """Otsu's threshold on a 1D array (fallback when sklearn is unavailable)."""
+    hist, edges = np.histogram(x, bins=nbins)
+    p = hist / max(hist.sum(), 1)
+    w = np.cumsum(p)
+    centers = (edges[:-1] + edges[1:]) / 2
+    mu = np.cumsum(p * centers)
+    mu_t = mu[-1]
+    denom = w * (1 - w)
+    denom[denom == 0] = np.nan
+    sigma_b = (mu_t * w - mu) ** 2 / denom
+    k = int(np.nanargmax(sigma_b))
+    return (edges[k] + edges[k + 1]) / 2
 
 
 def dataframe_to_values(df, value="intensity"):

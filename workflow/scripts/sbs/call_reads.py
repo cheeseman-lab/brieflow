@@ -14,6 +14,7 @@ reads_data = call_reads(
     bases_data=bases_data,
     peaks_data=peaks_data,
     method=snakemake.params.call_reads_method,
+    combinatorial=getattr(snakemake.params, "combinatorial", None),
 )
 
 # Save reads data

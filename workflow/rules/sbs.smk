@@ -146,6 +146,7 @@ rule call_reads:
         SBS_OUTPUTS_MAPPED["call_reads"],
     params:
         call_reads_method=config.get("sbs", {}).get("call_reads_method", "median"),
+        combinatorial=config.get("sbs", {}).get("combinatorial", None),
     script:
         "../scripts/sbs/call_reads.py"
 

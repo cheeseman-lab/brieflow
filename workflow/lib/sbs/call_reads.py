@@ -257,6 +257,65 @@ def do_percentile_call(
     return df_reads
 
 
+def _combinatorial_on_off(vals, classifier, combinatorial, fit_mask):
+    """On/off classification + [0, 1] confidence per channel for combinatorial calling.
+
+    Args:
+        vals (numpy.ndarray): (N, cycles, K) intensities.
+        classifier (str): "per_read" (background-anchored), "frac"
+            (brightness-normalized composition) or "global" (GMM).
+        combinatorial (dict): supplies on_factor / bg_percentile for per_read,
+            blank_thresh / frac_thresh for frac.
+        fit_mask (numpy.ndarray): rows to fit the global thresholds on.
+
+    Returns:
+        tuple[numpy.ndarray, numpy.ndarray]: (on, conf), both (N, cycles, K).
+    """
+    n, cyc, k = vals.shape
+    if classifier == "global":
+        on = np.zeros((n, cyc, k), dtype=bool)
+        conf = np.zeros((n, cyc, k), dtype=float)
+        logv = np.log1p(np.clip(vals, 0, None))
+        for c in range(k):
+            on[:, :, c], conf[:, :, c] = classify_on_off(
+                logv[:, :, c], fit_values=logv[fit_mask, :, c].ravel()
+            )
+        return on, conf
+    if classifier == "frac":
+        # Brightness-normalized: separate the blank call (per-spot relative
+        # brightness) from which dyes are on (each dye's fraction of the cycle
+        # total). Independent of dye count, so 2- and 3-color codes share it.
+        blank_thresh = combinatorial.get("blank_thresh", 0.5)
+        # Default frac_thresh from the code: a base with D dyes on splits the
+        # signal ~1/D each, so a threshold near (1/D)*0.36 catches even a dim
+        # member while rejecting bleed. D = densest codeword (e.g. 2 -> 0.18).
+        frac_thresh = combinatorial.get("frac_thresh")
+        if frac_thresh is None:
+            d_max = max((len(v) for v in combinatorial.get("code", {}).values()), default=1)
+            frac_thresh = 0.36 / max(d_max, 1)
+        tot = vals.sum(axis=2, keepdims=True)  # (n,cyc,1) total dye brightness
+        smed = np.median(tot, axis=1, keepdims=True)  # (n,1,1) per-spot median
+        rel = tot[:, :, 0] / np.clip(smed[:, :, 0], 1.0, None)  # (n,cyc) brightness
+        frac = vals / np.clip(tot, 1.0, None)  # (n,cyc,k) dye composition
+        bright = (rel >= blank_thresh)[:, :, None]  # not-blank gate
+        on = bright & (frac >= frac_thresh)
+        conf = np.where(
+            bright,
+            np.clip(np.abs(frac - frac_thresh) / frac_thresh, 0, 1),
+            np.clip((blank_thresh - rel)[:, :, None] / blank_thresh, 0, 1),
+        )
+        return on, conf
+    # per_read background-anchored: threshold = bg(low percentile) * on_factor.
+    # Robust to bright-on-cycle spread and adapts to per-spot brightness.
+    factor = combinatorial.get("on_factor", 2.0)
+    bg_pct = combinatorial.get("bg_percentile", 25)
+    bg = np.percentile(vals, bg_pct, axis=1, keepdims=True)
+    thr = np.clip(bg, 1.0, None) * factor
+    on = vals > thr
+    conf = np.clip(np.abs(np.log1p(vals) - np.log1p(thr)) / np.log(2.0), 0, 1)
+    return on, conf
+
+
 def do_combinatorial_call(
     df_bases,
     cycles=12,
@@ -288,8 +347,16 @@ def do_combinatorial_call(
             code (dict): base char -> string of channel-labels ON for that base,
                 where labels are the CHANNEL values set by extract_bases' ``bases``
                 (e.g. {"T": "c", "C": "cf", "A": "fy", "G": ""}).
-            classifier (str): "per_read" (default; per-spot relative threshold) or
-                "global" (per-channel GMM on/off).
+            classifier (str): "per_read" (default; per-spot relative threshold),
+                "frac" (per-spot brightness-normalized blank gate + dye
+                composition) or "global" (per-channel GMM on/off).
+            presence (str, optional): a channel-label that is ON for any non-blank
+                base (e.g. Cy3-long). When given, it gates the blank call: presence
+                on -> best non-blank base; presence off -> blank. Corrects
+                systematic over-calling of the blank base.
+            on_factor (float): per_read threshold = background * on_factor (default
+                2.0; lower => more channels called on).
+            bg_percentile (int): per_read background percentile (default 25).
         correction_only_in_cells (bool): For the global classifier, fit on/off
             thresholds on in-cell reads only.
 
@@ -304,7 +371,7 @@ def do_combinatorial_call(
             "'A':'fy','G':''}."
         )
     code = combinatorial["code"]
-    classifier = combinatorial.get("classifier", "per_read")
+    classifier = combinatorial.get("classifier", "frac")
 
     # Channel labels in df_bases, sorted (matches dataframe_to_values order)
     labels = sorted(df_bases[CHANNEL].unique())
@@ -332,40 +399,39 @@ def do_combinatorial_call(
     n_reads = X.shape[0]
     dye = X[:, :, dye_cols]  # (N, cycles, nd)
 
-    on = np.zeros((n_reads, cycles, nd), dtype=bool)
-    conf = np.zeros((n_reads, cycles, nd), dtype=float)
-    if classifier == "global":
-        log_x = np.log1p(np.clip(dye, 0, None))
-        if correction_only_in_cells:
-            cell = df_bases.drop_duplicates([WELL, TILE, READ])[CELL].to_numpy()
-            fit_mask = cell > 0 if (cell > 0).any() else np.ones(n_reads, bool)
-        else:
-            fit_mask = np.ones(n_reads, dtype=bool)
-        for c in range(nd):
-            on[:, :, c], conf[:, :, c] = classify_on_off(
-                log_x[:, :, c], fit_values=log_x[fit_mask, :, c].ravel()
-            )
-    else:  # per_read background-anchored threshold (per spot, per channel)
-        # Anchor to each spot/channel's background (low percentile across cycles),
-        # not the midpoint — robust to bright-on-cycle spread. on_factor tunable.
-        factor = combinatorial.get("on_factor", 2.0)
-        bg_pct = combinatorial.get("bg_percentile", 25)
-        bg = np.percentile(dye, bg_pct, axis=1, keepdims=True)  # (N,1,nd) background
-        thr = np.clip(bg, 1.0, None) * factor
-        on = dye > thr
-        conf = np.clip(
-            np.abs(np.log1p(dye) - np.log1p(thr)) / np.log(2.0), 0, 1
-        )
+    fit_mask = np.ones(n_reads, dtype=bool)
+    if classifier == "global" and correction_only_in_cells:
+        cell = df_bases.drop_duplicates([WELL, TILE, READ])[CELL].to_numpy()
+        if (cell > 0).any():
+            fit_mask = cell > 0
 
-    # Nearest base codeword (per-cycle base disambiguation, NOT library correction)
+    on, conf = _combinatorial_on_off(dye, classifier, combinatorial, fit_mask)
+
+    # Distance of each cycle's dye ON-set to every base codeword
     dist = (on[:, :, None, :] != codeword[None, None, :, :]).sum(axis=3)  # (N,cyc,B)
-    chosen = np.array(base_chars)[dist.argmin(axis=2)]  # (N, cycles)
+
+    # Optional presence channel ("not-G" gate, e.g. Cy3-long): when on, force the
+    # best NON-blank base; when off, call the blank base. Directly uses the
+    # presence channel to correct systematic over-calling of the blank base.
+    presence_label = combinatorial.get("presence")
+    g_rows = ~codeword.any(axis=1)
+    if presence_label and presence_label in lab_idx and g_rows.any():
+        pres = X[:, :, [lab_idx[presence_label]]]
+        pres_on = _combinatorial_on_off(pres, classifier, combinatorial, fit_mask)[0][:, :, 0]
+        g_idx = int(np.where(g_rows)[0][0])
+        non_g = np.where(~g_rows)[0]
+        best_non_g = non_g[dist[:, :, non_g].argmin(axis=2)]
+        base_idx = np.where(pres_on, best_non_g, g_idx)
+    else:
+        base_idx = dist.argmin(axis=2)
+
+    chosen = np.array(base_chars)[base_idx]  # (N, cycles)
     barcodes = ["".join(row) for row in chosen]
 
     # Per-cycle quality: clarity of the weakest dye channel, halved when the
-    # observed ON-set did not match a codeword exactly
-    exact = dist.min(axis=2) == 0
-    Q = conf.min(axis=2) * np.where(exact, 1.0, 0.5)
+    # chosen base's codeword did not match the observed ON-set exactly
+    chosen_dist = np.take_along_axis(dist, base_idx[:, :, None], axis=2)[:, :, 0]
+    Q = conf.min(axis=2) * np.where(chosen_dist == 0, 1.0, 0.5)
 
     df_reads = df_bases.drop_duplicates([WELL, TILE, READ]).copy()
     df_reads[BARCODE] = barcodes
@@ -891,3 +957,116 @@ def plot_normalization_comparison(
     # Adjust layout to make room for the legend
     plt.tight_layout()
     plt.subplots_adjust(bottom=0.1)
+
+
+def plot_combinatorial_gates(df_bases, combinatorial, max_points=25000):
+    """Visual QC for combinatorial (2-/3-color) base calling.
+
+    The operator-confirmation surface for combinatorial chemistry — the analog
+    of plot_normalization_comparison for the standard caller. Two panels:
+      (1) dye composition colored by called base: a ternary simplex for 3 dyes,
+          a fraction-vs-brightness scatter for 2 dyes. Confirms each base
+          separates by which dyes are on.
+      (2) per-spot relative-brightness histogram with the blank gate. Confirms
+          the dim/blank population splits cleanly from signal.
+
+    Colors use the SAME classifier configured in ``combinatorial``, so the plot
+    matches what call_reads(method="combinatorial") will produce.
+
+    Args:
+        df_bases (pandas.DataFrame): raw base intensities from extract_bases.
+        combinatorial (dict): the sbs.combinatorial config (code, classifier,
+            blank_thresh/frac_thresh ...).
+        max_points (int): cap on scatter points for legibility.
+
+    Returns:
+        matplotlib.figure.Figure
+    """
+    code = combinatorial["code"]
+    classifier = combinatorial.get("classifier", "frac")
+    blank_thresh = combinatorial.get("blank_thresh", 0.5)
+
+    df_clean = clean_up_bases(df_bases)
+    labels = sorted(df_clean[CHANNEL].unique())
+    lab_idx = {lab: i for i, lab in enumerate(labels)}
+    dye_labels = sorted({c for combo in code.values() for c in combo})
+    dye_cols = [lab_idx[lab] for lab in dye_labels]
+    nd = len(dye_labels)
+
+    base_chars = list(code.keys())
+    codeword = np.zeros((len(base_chars), nd), dtype=bool)
+    for bi, b in enumerate(base_chars):
+        for c in code[b]:
+            codeword[bi, dye_labels.index(c)] = True
+
+    X = dataframe_to_values(df_clean).astype(float)
+    dye = X[:, :, dye_cols]  # (N, cyc, nd)
+    on, _ = _combinatorial_on_off(
+        dye, classifier, combinatorial, np.ones(dye.shape[0], dtype=bool)
+    )
+    dist = (on[:, :, None, :] != codeword[None, None, :, :]).sum(axis=3)
+    called = np.array(base_chars)[dist.argmin(axis=2)].ravel()  # (N*cyc,)
+
+    tot = dye.sum(axis=2)
+    rel = (tot / np.clip(np.median(tot, axis=1, keepdims=True), 1.0, None)).ravel()
+    frac = (dye / np.clip(tot[:, :, None], 1.0, None)).reshape(-1, nd)
+
+    g_rows = ~codeword.any(axis=1)
+    blank_char = base_chars[int(np.where(g_rows)[0][0])] if g_rows.any() else None
+
+    default_colors = {"G": "#999999", "T": "#1f77b4", "A": "#d62728", "C": "#2ca02c"}
+    cmap = plt.get_cmap("tab10")
+    palette = {
+        b: default_colors.get(b, cmap(i % 10)) for i, b in enumerate(base_chars)
+    }
+
+    fig, axes = plt.subplots(1, 2, figsize=(15, 6.2))
+
+    ax = axes[0]
+    keep = (called != blank_char) if blank_char else np.ones(len(called), bool)
+    idx = np.where(keep)[0]
+    if len(idx) > max_points:
+        idx = np.random.default_rng(0).choice(idx, max_points, replace=False)
+    pt_colors = [palette[b] for b in called[idx]]
+    if nd == 3:
+        verts = np.array([[0.0, 0.0], [1.0, 0.0], [0.5, np.sqrt(3) / 2]])
+        pts = frac[idx] @ verts
+        ax.scatter(pts[:, 0], pts[:, 1], s=2, c=pt_colors, alpha=0.3)
+        tri = np.vstack([verts, verts[0]])
+        ax.plot(tri[:, 0], tri[:, 1], "k-", lw=1)
+        for lab, (vx, vy) in zip(dye_labels, verts):
+            ax.annotate(lab, (vx, vy), ha="center",
+                        va="bottom" if vy > 0 else "top",
+                        fontsize=12, fontweight="bold")
+        ax.axis("equal")
+        ax.axis("off")
+        ax.set_title("Dye composition (non-blank cycle-spots)\ncolored by called base")
+    elif nd == 2:
+        ax.scatter(frac[idx, 0], np.clip(rel[idx], 0, 3), s=2, c=pt_colors, alpha=0.3)
+        ax.axhline(blank_thresh, color="red", ls="--")
+        ax.set_xlabel(f"fraction {dye_labels[0]} (vs {dye_labels[1]})")
+        ax.set_ylabel("relative brightness")
+        ax.set_title("Composition vs brightness\ncolored by called base")
+    else:
+        ax.text(0.5, 0.5, f"{nd}-dye composition\n(no 2D projection)",
+                ha="center", va="center")
+        ax.axis("off")
+    for b in base_chars:
+        ax.scatter([], [], c=[palette[b]], label=f"{b} = {code[b] or 'blank'}")
+    ax.legend(loc="upper right", markerscale=3, fontsize=9)
+
+    ax = axes[1]
+    ax.hist(np.clip(rel, 0, 3), bins=120, color="#888888", alpha=0.85)
+    ax.axvline(blank_thresh, color="red", lw=2, ls="--",
+               label=f"blank gate = {blank_thresh}")
+    if blank_char:
+        fg = (called == blank_char).mean()
+        ax.set_title("Per-spot relative brightness (cycle total / spot median)\n"
+                     f"left of gate = blank ({100 * fg:.0f}% of cycle-spots)")
+    else:
+        ax.set_title("Per-spot relative brightness (cycle total / spot median)")
+    ax.set_xlabel("relative brightness")
+    ax.set_ylabel("cycle-spots")
+    ax.legend()
+    plt.tight_layout()
+    return fig

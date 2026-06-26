@@ -1219,7 +1219,7 @@ def _parse_binning_from_nd2(file_path: str) -> Optional[str]:
         md = img.attrs.get("metadata", {})
         text_info = md.get("text_info", {})
         desc = text_info.get("description", "") if isinstance(text_info, dict) else ""
-        m = re.search(r"Binning:\\s*(\\d+)x(\\d+)", desc)
+        m = re.search(r"Binning:\s*(\d+)x(\d+)", desc)
         if m:
             return f"{m.group(1)}x{m.group(2)}"
     except Exception:

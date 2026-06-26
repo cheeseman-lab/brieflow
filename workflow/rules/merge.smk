@@ -22,9 +22,18 @@ if merge_approach == "fast":
             initial_sites=config["merge"].get("initial_sites"),
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
+            metadata_align=config["merge"].get("metadata_align", False),
             alignment_flip_x=config["merge"].get("alignment_flip_x"),
             alignment_flip_y=config["merge"].get("alignment_flip_y"),
             alignment_rotate_90=config["merge"].get("alignment_rotate_90"),
+            threshold_triangle=config["merge"].get("threshold_triangle"),
+            threshold_point=config["merge"].get("threshold_point"),
+            threshold_region=config["merge"].get("threshold_region"),
+            ransac_residual_threshold=config["merge"].get("ransac_residual_threshold"),
+            ransac_max_trials=config["merge"].get("ransac_max_trials"),
+            ransac_min_samples=config["merge"].get("ransac_min_samples"),
+            ransac_random_state=config["merge"].get("ransac_random_state"),
+            batch_size=config["merge"].get("batch_size"),
         script:
             "../scripts/merge/fast_alignment.py"
 
@@ -39,6 +48,10 @@ if merge_approach == "fast":
             det_range=config["merge"]["det_range"],
             score=config["merge"]["score"],
             threshold=config["merge"]["threshold"],
+            local_refinement=config["merge"].get("local_refinement"),
+            warp_degree=config["merge"].get("warp_degree"),
+            warp_iterations=config["merge"].get("warp_iterations"),
+            warp_min_correspondences=config["merge"].get("warp_min_correspondences"),
         script:
             "../scripts/merge/fast_merge.py"
 

@@ -19,8 +19,14 @@ alignment_params = {
     "rotate_90": getattr(snakemake.params, "alignment_rotate_90", False),
 }
 
-# Only apply alignment if at least one transformation is requested
-if any(
+# metadata_align center-aligns the two scopes' stage coordinate frames (translation)
+# even when no flip/rotate is requested — needed when SBS and phenotype were acquired
+# on different microscopes with different coordinate origins. Backward compatible:
+# defaults False, and any requested flip/rotate still triggers alignment as before.
+metadata_align = getattr(snakemake.params, "metadata_align", False)
+
+# Apply alignment if center-alignment is requested or any flip/rotate is set
+if metadata_align or any(
     [
         alignment_params["flip_x"],
         alignment_params["flip_y"],
@@ -100,6 +106,32 @@ if (initial_sbs_tiles is None) == (initial_sites_param is None):
 d0, d1 = snakemake.params.det_range
 score_thresh = snakemake.params.score
 
+
+# Optional alignment levers — backward compatible: absent config keys -> None -> drop ->
+# lib falls back to its literal defaults (existing screens unchanged).
+def _drop_none(d):
+    return {k: v for k, v in d.items() if v is not None}
+
+
+ransac_kwargs = _drop_none(
+    {
+        "residual_threshold": getattr(snakemake.params, "ransac_residual_threshold", None),
+        "max_trials": getattr(snakemake.params, "ransac_max_trials", None),
+        "min_samples": getattr(snakemake.params, "ransac_min_samples", None),
+        "random_state": getattr(snakemake.params, "ransac_random_state", None),
+    }
+)
+evaluate_kwargs = _drop_none(
+    {
+        "threshold_triangle": getattr(snakemake.params, "threshold_triangle", None),
+        "threshold_point": getattr(snakemake.params, "threshold_point", None),
+        "threshold_region": getattr(snakemake.params, "threshold_region", None),
+        "ransac_kwargs": ransac_kwargs or None,
+    }
+) or None
+batch_size = getattr(snakemake.params, "batch_size", None)
+multistep_extra = {} if batch_size is None else {"batch_size": batch_size}
+
 if initial_sbs_tiles is not None:
     # Auto-discover initial sites from SBS tiles
     candidate_pairs = []
@@ -119,7 +151,10 @@ else:
 
 # Run initial alignment on candidates (validates both paths)
 initial_alignment_df = initial_alignment(
-    phenotype_info_hash, sbs_info_hash, initial_sites=candidate_pairs
+    phenotype_info_hash,
+    sbs_info_hash,
+    initial_sites=candidate_pairs,
+    evaluate_kwargs=evaluate_kwargs,
 )
 
 # Filter by thresholds
@@ -149,6 +184,8 @@ well_alignment = multistep_alignment(
     score=snakemake.params.score,
     initial_sites=initial_sites,
     n_jobs=snakemake.threads,
+    evaluate_kwargs=evaluate_kwargs,
+    **multistep_extra,
 )
 
 # Reset index

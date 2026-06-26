@@ -185,7 +185,9 @@ def nine_edge_hash(dt, i):
     return segments, vector
 
 
-def initial_alignment(well_triangles_0, well_triangles_1, initial_sites=8):
+def initial_alignment(
+    well_triangles_0, well_triangles_1, initial_sites=8, evaluate_kwargs=None
+):
     """Identifies matching tiles from two acquisitions with similar Delaunay triangulations within the same well.
 
     Matches tiles from two datasets based on Delaunay triangulations, assuming minimal cell movement between acquisitions and equivalent segmentations.
@@ -194,14 +196,16 @@ def initial_alignment(well_triangles_0, well_triangles_1, initial_sites=8):
         well_triangles_0 (pandas.DataFrame): Hashed Delaunay triangulation for all tiles in dataset 0. Produced by concatenating outputs of `find_triangles` for individual tiles of a single well. Must include a `tile` column.
         well_triangles_1 (pandas.DataFrame): Hashed Delaunay triangulation for all sites in dataset 1. Produced by concatenating outputs of `find_triangles` for individual sites of a single well. Must include a `site` column.
         initial_sites (int | list[tuple[int, int]], optional): If an integer, specifies the number of sites sampled from `df_1` for initial brute-force matching of tiles to build the alignment model. If a list of 2-tuples, represents known (tile, site) matches to initialize the alignment model. At least 5 pairs are recommended.
+        evaluate_kwargs (dict, optional): Keyword args forwarded to `evaluate_match` (threshold_triangle, threshold_point, threshold_region, ransac_kwargs). Defaults to None.
 
     Returns:
         pandas.DataFrame: Table of possible (tile, site) matches, including rotation and translation transformations. Includes all tested matches, which should be filtered by `score` and `determinant` to retain valid matches.
     """
+    evaluate_kwargs = evaluate_kwargs or {}
 
     # Define a function to work on individual (tile,site) pairs
     def work_on(df_t, df_s):
-        rotation, translation, score = evaluate_match(df_t, df_s)
+        rotation, translation, score = evaluate_match(df_t, df_s, **evaluate_kwargs)
         determinant = None if rotation is None else np.linalg.det(rotation)
         result = pd.Series(
             {
@@ -227,7 +231,12 @@ def initial_alignment(well_triangles_0, well_triangles_1, initial_sites=8):
 
 
 def evaluate_match(
-    vec_centers_0, vec_centers_1, threshold_triangle=0.3, threshold_point=2
+    vec_centers_0,
+    vec_centers_1,
+    threshold_triangle=0.3,
+    threshold_point=2,
+    threshold_region=50,
+    ransac_kwargs=None,
 ):
     """Evaluates the match between two sets of vectors and centers.
 
@@ -238,6 +247,8 @@ def evaluate_match(
         vec_centers_1 (pandas.DataFrame): DataFrame containing the second set of vectors and centers.
         threshold_triangle (float, optional): Threshold for matching triangles. Defaults to 0.3.
         threshold_point (float, optional): Threshold for matching points. Defaults to 2.
+        threshold_region (float, optional): Region radius (px) within which a triangle center is scored. Defaults to 50.
+        ransac_kwargs (dict, optional): Keyword args forwarded to RANSACRegressor (e.g. residual_threshold, max_trials, min_samples, random_state). Defaults to None (sklearn defaults).
 
     Returns:
         tuple:
@@ -267,7 +278,7 @@ def evaluate_match(
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
         # Use matching triangles to define transformation
-        model = RANSACRegressor()
+        model = RANSACRegressor(**(ransac_kwargs or {}))
         model.fit(X, Y)  # Fit the RANSAC model to the matching centers
 
     rotation = model.estimator_.coef_  # Extract rotation matrix
@@ -275,11 +286,9 @@ def evaluate_match(
 
     # Score transformation based on the triangle centers
     distances = cdist(model.predict(c_0), c_1, metric="sqeuclidean")
-    threshold_region = 50  # Threshold for the region to consider
-    filt = np.sqrt(distances.min(axis=0)) < threshold_region
-    score = (
-        np.sqrt(distances.min(axis=0))[filt] < threshold_point
-    ).mean()  # Calculate score
+    min_distances = np.sqrt(distances.min(axis=0))
+    filt = min_distances < threshold_region
+    score = (min_distances[filt] < threshold_point).mean()  # Calculate score
 
     return rotation, translation, score  # Return rotation, translation, and score
 
@@ -339,6 +348,7 @@ def multistep_alignment(
     initial_sites=8,
     batch_size=180,
     n_jobs=None,
+    evaluate_kwargs=None,
 ):
     """Find tiles of two different acquisitions with matching Delaunay triangulations within the same well.
 
@@ -364,18 +374,24 @@ def multistep_alignment(
         batch_size (int, optional): Number of (tile, site) matches to evaluate per batch during global
             alignment model updates. Defaults to 180.
         n_jobs (int, optional): Number of parallel jobs to deploy using joblib. Defaults to None.
+        evaluate_kwargs (dict, optional): Keyword args forwarded to `evaluate_match` (threshold_triangle,
+            threshold_point, threshold_region, ransac_kwargs). Defaults to None.
 
     Returns:
         pandas.DataFrame: Table of possible (tile, site) matches with corresponding rotation and translation
         transformations. All tested matches are included; query based on `score` and `determinant` to filter valid matches.
     """
+    evaluate_kwargs = evaluate_kwargs or {}
+
     # If n_jobs is not provided, set it to one less than the number of CPU cores
     if n_jobs is None:
         n_jobs = multiprocessing.cpu_count() - 1
 
     # Define a function to work on individual (tile,site) pairs
     def work_on(tiles_df, sites_df):
-        rotation, translation, score = evaluate_match(tiles_df, sites_df)
+        rotation, translation, score = evaluate_match(
+            tiles_df, sites_df, **evaluate_kwargs
+        )
         determinant = None if rotation is None else np.linalg.det(rotation)
         result = pd.Series(
             {

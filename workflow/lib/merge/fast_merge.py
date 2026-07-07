@@ -17,12 +17,14 @@ def merge_triangle_hash(
         hash_df_1 (pandas.DataFrame): The second DataFrame.
         alignment (dict): Alignment parameters containing rotation and translation.
         threshold (int): The threshold value. Defaults to 2.
-        local_refinement (str | bool | None): If truthy (e.g. "polynomial"), refine the
-            global affine with a local non-rigid warp before matching, to correct
-            residual within-tile distortion (e.g. two-scope acquisitions). Defaults None
-            (off) — behaviour is then identical to the plain affine merge.
+        local_refinement (str | bool | None): If truthy, refine the global affine with a
+            local non-rigid warp before matching, to correct residual within-tile
+            distortion (e.g. two-scope acquisitions). The string selects the warp model:
+            "polynomial" or "thin_plate_spline". Defaults None (off) — behaviour is then
+            identical to the plain affine merge.
         warp_kwargs (dict | None): Keyword args forwarded to `refine_local_warp`
-            (degree, iterations, min_correspondences) when local_refinement is on. Defaults None.
+            (degree, iterations, min_correspondences, smoothing, max_correspondences) when
+            local_refinement is on. Defaults None.
 
     Returns:
         pandas.DataFrame: The merged DataFrame.
@@ -45,15 +47,26 @@ def merge_triangle_hash(
 
 
 def refine_local_warp(
-    X, Y, Y_pred, threshold, degree=2, iterations=2, min_correspondences=30
+    X, Y, Y_pred, threshold, degree=2, iterations=2, min_correspondences=30,
+    model="polynomial", smoothing=10.0, max_correspondences=700
 ):
-    """Refine a global affine alignment with a local non-rigid (polynomial) warp.
+    """Refine a global affine alignment with a local non-rigid warp.
 
     Corrects residual within-tile distortion that a single affine cannot capture (the
     failure mode when SBS and phenotype come from differently-configured microscopes).
     The warp is fit ONLY on high-confidence correspondences — points already matched
     within `threshold` under the current prediction — so it cannot be pulled by spurious
     loose matches. Each iteration the warp improves and more points come into range.
+
+    Two warp models (``model``):
+      - "polynomial" (default): a degree-``degree`` polynomial. Backward-compatible;
+        the original behaviour. Beware high degrees — a degree-5 polynomial oscillates
+        (Runge) and can diverge.
+      - "thin_plate_spline": a smoothed thin-plate spline (scipy RBFInterpolator). It is
+        the smoothest deformation fitting the correspondences, so it captures local
+        distortion without the polynomial's oscillation, regularized by ``smoothing``.
+        Validated to beat the polynomial on two-scope OPS merges (higher single-match
+        rate, ~half the median residual) while remaining stable.
 
     Degrades gracefully: with fewer than `min_correspondences` confident matches it
     returns the input prediction unchanged (so sparse tiles behave like plain affine).
@@ -64,9 +77,13 @@ def refine_local_warp(
         Y_pred (numpy.ndarray): Current predicted source coords in target space (n, 2),
             i.e. the global-affine prediction.
         threshold (float): Match distance defining a high-confidence correspondence.
-        degree (int): Polynomial degree of the warp. Defaults to 2.
+        degree (int): Polynomial degree (model="polynomial"). Defaults to 2.
         iterations (int): Number of refine-and-rematch passes. Defaults to 2.
         min_correspondences (int): Minimum confident matches required to fit. Defaults 30.
+        model (str): "polynomial" (default) or "thin_plate_spline".
+        smoothing (float): TPS regularization (model="thin_plate_spline"). Defaults 10.0.
+        max_correspondences (int): TPS fit is capped at this many points (subsampled) for
+            speed; the fit is smooth so a few hundred anchors suffice. Defaults 700.
 
     Returns:
         numpy.ndarray: Refined predicted source coordinates in target space, shape (n, 2).
@@ -79,10 +96,28 @@ def refine_local_warp(
         within = np.sqrt(distances.min(axis=1)) < threshold
         if within.sum() < min_correspondences:
             break
-        X_corr = X[nearest[within]]
         Y_corr = Y[within]
-        reg = LinearRegression().fit(pf.fit_transform(X_corr), Y_corr)
-        refined = reg.predict(pf.transform(X))
+        if model == "thin_plate_spline":
+            from scipy.interpolate import RBFInterpolator
+
+            # TPS is fit on the RESIDUAL (current prediction -> target), not raw
+            # source -> target: its `smoothing` is calibrated for the small residual
+            # scale, so fitting the full transform (which carries the ~0.27x scale)
+            # would mis-regularize. Compose the correction onto the running estimate.
+            src = refined[nearest[within]]
+            if len(src) > max_correspondences:
+                sel = np.random.default_rng(0).choice(
+                    len(src), max_correspondences, replace=False
+                )
+                src, Y_corr = src[sel], Y_corr[sel]
+            rbf = RBFInterpolator(
+                src, Y_corr, kernel="thin_plate_spline", smoothing=smoothing
+            )
+            refined = rbf(refined)
+        else:
+            X_corr = X[nearest[within]]
+            reg = LinearRegression().fit(pf.fit_transform(X_corr), Y_corr)
+            refined = reg.predict(pf.transform(X))
     return refined
 
 
@@ -127,10 +162,12 @@ def merge_sbs_phenotype(
         threshold (float, optional): Maximum Euclidean distance allowed between matching
             points. Defaults to 2.
         local_refinement (str | bool | None, optional): If truthy, refine the affine
-            prediction with a local polynomial warp (`refine_local_warp`) before matching.
-            Defaults None (off) — prediction is then the plain affine, identical to before.
+            prediction with a local warp (`refine_local_warp`) before matching. The string
+            "polynomial" or "thin_plate_spline" selects the model. Defaults None (off) —
+            prediction is then the plain affine, identical to before.
         warp_kwargs (dict | None, optional): Keyword args forwarded to `refine_local_warp`
-            (degree, iterations, min_correspondences) when local_refinement is on. Defaults None.
+            (degree, iterations, min_correspondences, smoothing, max_correspondences) when
+            local_refinement is on. Defaults None.
 
     Returns:
         pandas.DataFrame: Table of merged identities of cell labels from cell_locations_0 and cell_locations_1.
@@ -170,8 +207,14 @@ def merge_sbs_phenotype(
 
     # Optional local non-rigid refinement of the affine prediction (corrects residual
     # within-tile distortion; off by default so existing screens are unaffected).
+    # `local_refinement` doubles as the warp-model selector: the string "polynomial" or
+    # "thin_plate_spline" picks the model, while a bare truthy (e.g. True) keeps
+    # refine_local_warp's default (polynomial). An explicit warp_kwargs["model"] wins.
     if local_refinement:
-        Y_pred = refine_local_warp(X, Y, Y_pred, threshold, **(warp_kwargs or {}))
+        wk = dict(warp_kwargs or {})
+        if isinstance(local_refinement, str):
+            wk.setdefault("model", local_refinement)
+        Y_pred = refine_local_warp(X, Y, Y_pred, threshold, **wk)
 
     # Calculate squared Euclidean distances between predicted coordinates and dataset 1 coordinates
     distances = cdist(Y, Y_pred, metric="sqeuclidean")

@@ -57,6 +57,8 @@ if merge_approach == "fast":
             ransac_min_samples=config.get("merge", {}).get("ransac_min_samples"),
             ransac_random_state=config.get("merge", {}).get("ransac_random_state"),
             batch_size=config.get("merge", {}).get("batch_size"),
+            seed_optimize=config.get("merge", {}).get("seed_optimize", False),
+            seed_topk=config.get("merge", {}).get("seed_topk"),
         script:
             "../scripts/merge/fast_alignment.py"
 
@@ -85,6 +87,8 @@ if merge_approach == "fast":
             warp_degree=config.get("merge", {}).get("warp_degree"),
             warp_iterations=config.get("merge", {}).get("warp_iterations"),
             warp_min_correspondences=config.get("merge", {}).get("warp_min_correspondences"),
+            warp_smoothing=config.get("merge", {}).get("warp_smoothing"),
+            warp_max_correspondences=config.get("merge", {}).get("warp_max_correspondences"),
         script:
             "../scripts/merge/fast_merge.py"
 

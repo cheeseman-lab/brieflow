@@ -23,27 +23,40 @@ def test_assign_subtiles_grid():
 
 
 def _piecewise_two_modality(seed=0):
-    """Two global frames related by a per-subtile-varying affine (rotation ramp)."""
+    """PH and SBS in a COMMON global frame, related by per-subtile local affine.
+
+    Cells are placed in the interior of each 400x400 subtile region (50px margin from
+    each edge) to ensure the small per-subtile rotation + translation cannot push sbs
+    cells across subtile boundaries, preserving shared-subtile bucketing for both frames.
+    The 2x2 grid has 200 cells per subtile; rotation ramps 0.3 deg to 1.0 deg.
+    """
     rng = np.random.default_rng(seed)
     rows = []
     cid = 0
     for st_r in range(2):
         for st_c in range(2):
             n = 200
-            X = rng.uniform(0, 400, size=(n, 2)) + np.array([st_r * 400, st_c * 400])
-            theta = np.deg2rad(1.0 + 0.3 * (st_r + st_c))  # varies per subtile
-            scale = 0.27
-            R = scale * np.array([[np.cos(theta), -np.sin(theta)],
-                                  [np.sin(theta), np.cos(theta)]])
-            Y = X @ R.T + np.array([40.0, -15.0])
+            # Cells in interior of each subtile's 400x400 region (50px margin)
+            X = rng.uniform(50, 350, size=(n, 2)) + np.array([st_r * 400, st_c * 400])
+            # Per-subtile rotation ramp: 0.3 to 1.0 degrees across 2x2 grid
+            angle_deg = 0.3 + 0.7 * (st_r * 2 + st_c) / 3.0
+            theta = np.deg2rad(angle_deg)
+            center = X.mean(axis=0)
+            R = np.array([[np.cos(theta), -np.sin(theta)],
+                          [np.sin(theta),  np.cos(theta)]])
+            # Small per-subtile translation (+-1px, symmetric across subtiles)
+            t = np.array([1.0 * (-1) ** st_r, 1.0 * (-1) ** st_c])
+            Y = (X - center) @ R.T + center + t
             for k in range(n):
                 rows.append((cid, X[k, 0], X[k, 1], Y[k, 0], Y[k, 1]))
                 cid += 1
     df = pd.DataFrame(rows, columns=["cell", "phy", "phx", "sy", "sx"])
     ph = df[["cell", "phy", "phx"]].rename(columns={"phy": "gy", "phx": "gx"})
-    ph["tile"] = 0; ph["well"] = "A1"; ph["plate"] = 1; ph["i"] = ph["gy"]; ph["j"] = ph["gx"]
+    ph["tile"] = 0; ph["well"] = "A1"; ph["plate"] = 1
+    ph["i"] = ph["gy"]; ph["j"] = ph["gx"]
     sbs = df[["cell", "sy", "sx"]].rename(columns={"sy": "gy", "sx": "gx"})
-    sbs["tile"] = 0; sbs["well"] = "A1"; sbs["plate"] = 1; sbs["i"] = sbs["gy"]; sbs["j"] = sbs["gx"]
+    sbs["tile"] = 0; sbs["well"] = "A1"; sbs["plate"] = 1
+    sbs["i"] = sbs["gy"]; sbs["j"] = sbs["gx"]
     return ph, sbs
 
 
@@ -55,5 +68,8 @@ def test_merge_subtiles_recovers_matches():
         local_refinement="thin_plate_spline", warp_kwargs=None,
         evaluate_kwargs={"ransac_kwargs": {"random_state": 0}},
     )
-    # most cells should match across the 4 subtiles despite the rotation ramp
+    # >70% of PH cells matched across the 4 subtiles despite per-subtile rotation ramp
     assert len(merged) > 0.7 * len(ph)
+    # Strict 1:1: no duplicate ph or sbs cell assignments after deduplicate_cells
+    assert merged["cell_0"].nunique() == len(merged)
+    assert merged["cell_1"].nunique() == len(merged)

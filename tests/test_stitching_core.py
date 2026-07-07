@@ -11,6 +11,8 @@ if str(_REPO_ROOT) not in sys.path:
 
 from workflow.lib.shared.stitching.types import TileOffsets
 from workflow.lib.shared.stitching.prep import select_registration_plane
+from workflow.lib.shared.stitching.stitch_well import find_neighbor_pairs, stitch_well
+from workflow.lib.shared.stitching.place_cells import place_cells
 
 
 @pytest.mark.unit
@@ -75,10 +77,6 @@ def test_solve_global_offsets_disconnected_uses_prior():
     off = solve_global_offsets(3, edges, prior, min_confidence=0.2).to_frame()
     row2 = off[off["tile"] == 2].iloc[0]
     assert (row2["y"], row2["x"]) == (5.0, 300.0)
-
-
-from workflow.lib.shared.stitching.stitch_well import find_neighbor_pairs, stitch_well
-from workflow.lib.shared.stitching.place_cells import place_cells
 
 
 @pytest.mark.unit

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import shapely
 
 from workflow.lib.shared.stitching.place import solve_global_offsets
 from workflow.lib.shared.stitching.register import register_pair
@@ -20,8 +19,8 @@ def find_neighbor_pairs(
     Args:
         prior: {tile: (y, x)} stage-coordinate offsets.
         tile_shape: (height, width) of each tile in pixels.
-        overlap_fraction: expected fractional tile overlap (unused in detection,
-            kept for API consistency with stitch_well).
+        overlap_fraction: used in the strip-vs-corner discriminator to set the
+            minimum intersection extent.
 
     Returns:
         List of (i, j, expected_shift) tuples where i < j and the tiles'
@@ -29,25 +28,21 @@ def find_neighbor_pairs(
     """
     h, w = tile_shape
     ids = sorted(prior)
-    boxes = {
-        t: shapely.box(prior[t][1], prior[t][0], prior[t][1] + w, prior[t][0] + h)
-        for t in ids
-    }
     pairs = []
     for a_idx in range(len(ids)):
         for b_idx in range(a_idx + 1, len(ids)):
             i, j = ids[a_idx], ids[b_idx]
-            inter = boxes[i].intersection(boxes[j])
-            if inter.is_empty or inter.area <= 0:
+            yi, xi = prior[i]
+            yj, xj = prior[j]
+            inter_h = min(yi + h, yj + h) - max(yi, yj)
+            inter_w = min(xi + w, xj + w) - max(xi, xj)
+            if inter_h <= 0 or inter_w <= 0:
                 continue
             # Exclude corner-only (diagonal) overlaps: require the intersection to span
             # most of the tile in at least one dimension (strip, not just a corner).
-            bounds = inter.bounds  # (minx, miny, maxx, maxy)
-            inter_w = bounds[2] - bounds[0]
-            inter_h = bounds[3] - bounds[1]
             if not (inter_h > (1 - overlap_fraction) * h or inter_w > (1 - overlap_fraction) * w):
                 continue
-            expected = (prior[j][0] - prior[i][0], prior[j][1] - prior[i][1])
+            expected = (yj - yi, xj - xi)
             pairs.append((i, j, expected))
     return pairs
 

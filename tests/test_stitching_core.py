@@ -99,3 +99,20 @@ def test_find_neighbor_pairs_grid():
     got = {(i, j) for i, j, _ in pairs}
     assert (0, 1) in got and (0, 2) in got and (1, 3) in got and (2, 3) in got
     assert (0, 3) not in got  # diagonal, no overlap
+
+
+import zarr
+from workflow.lib.shared.stitching.fuse import fuse_mosaic
+
+
+@pytest.mark.unit
+def test_fuse_mosaic_writes_chunked_zarr(tmp_path):
+    planes = {0: np.full((64, 64), 5.0, np.float32),
+              1: np.full((64, 64), 9.0, np.float32)}
+    off = TileOffsets.from_frame(
+        pd.DataFrame({"tile": [0, 1], "y": [0.0, 0.0], "x": [0.0, 60.0]})
+    )
+    out = fuse_mosaic(planes, off, str(tmp_path / "mosaic.zarr"), chunk=32)
+    arr = zarr.open(out, mode="r")
+    assert arr.shape == (64, 124)          # 60 + 64
+    assert arr[0, 0] == 5.0 and arr[0, 123] == 9.0

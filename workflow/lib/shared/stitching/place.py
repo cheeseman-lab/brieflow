@@ -21,13 +21,19 @@ def solve_global_offsets(n_tiles, edges, prior, min_confidence=0.2):
     Returns:
         TileOffsets in a single well frame (root tile at its prior position).
     """
+    # Build a compact 0-based index from the authoritative tile set (prior keys).
+    # This supports arbitrary (non-contiguous) tile IDs such as 123, 142, 165.
+    tiles_sorted = sorted(prior)
+    tile_to_idx = {tile: k for k, tile in enumerate(tiles_sorted)}
+    idx_to_tile = {k: tile for tile, k in tile_to_idx.items()}
+
     good = [(i, j, s, c) for (i, j, s, c) in edges if c >= min_confidence]
     g = ig.Graph()
-    g.add_vertices(n_tiles)
+    g.add_vertices(len(prior))
     for i, j, s, c in good:
-        g.add_edge(i, j, weight=float(c), shift=np.asarray(s, dtype=float))
+        g.add_edge(tile_to_idx[i], tile_to_idx[j], weight=float(c), shift=np.asarray(s, dtype=float))
 
-    offsets = {t: None for t in range(n_tiles)}
+    offsets = {t: None for t in tiles_sorted}
     for comp in g.connected_components(mode="weak"):
         if not comp:
             continue
@@ -36,7 +42,7 @@ def solve_global_offsets(n_tiles, edges, prior, min_confidence=0.2):
         neg = [-w for w in sub.es["weight"]] if sub.ecount() > 0 else []
         mst = sub.spanning_tree(weights=neg if neg else None)
         root_local = 0
-        root_global = comp[root_local]
+        root_global = idx_to_tile[comp[root_local]]
         offsets[root_global] = np.asarray(prior[root_global], dtype=float)
         # propagate offsets along MST edges in BFS order from root
         bfs_vids, _, parent = mst.bfs(root_local)
@@ -49,17 +55,17 @@ def solve_global_offsets(n_tiles, edges, prior, min_confidence=0.2):
             # orient shift so it maps parent -> child (shift_yx = child - parent)
             src, tgt = mst.es[eid].tuple
             s = shift if (src, tgt) == (p, v) else -shift
-            offsets[comp[v]] = offsets[comp[p]] + s
+            offsets[idx_to_tile[comp[v]]] = offsets[idx_to_tile[comp[p]]] + s
 
-    for t in range(n_tiles):
+    for t in tiles_sorted:
         if offsets[t] is None:
             offsets[t] = np.asarray(prior[t], dtype=float)
 
     frame = pd.DataFrame(
         {
-            "tile": list(range(n_tiles)),
-            "y": [offsets[t][0] for t in range(n_tiles)],
-            "x": [offsets[t][1] for t in range(n_tiles)],
+            "tile": tiles_sorted,
+            "y": [offsets[t][0] for t in tiles_sorted],
+            "x": [offsets[t][1] for t in tiles_sorted],
         }
     )
     return TileOffsets.from_frame(frame)

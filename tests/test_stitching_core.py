@@ -4,6 +4,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+import zarr
+from scipy.ndimage import shift as ndi_shift
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
@@ -13,6 +15,9 @@ from workflow.lib.shared.stitching.types import TileOffsets
 from workflow.lib.shared.stitching.prep import select_registration_plane
 from workflow.lib.shared.stitching.stitch_well import find_neighbor_pairs, stitch_well
 from workflow.lib.shared.stitching.place_cells import place_cells
+from workflow.lib.shared.stitching.register import register_pair
+from workflow.lib.shared.stitching.place import solve_global_offsets
+from workflow.lib.shared.stitching.fuse import fuse_mosaic
 
 
 @pytest.mark.unit
@@ -35,10 +40,6 @@ def test_select_registration_plane_4d_and_3d():
     assert plane.shape == (8, 8) and plane[0, 0] == 4
 
 
-from workflow.lib.shared.stitching.register import register_pair
-from scipy.ndimage import shift as ndi_shift
-
-
 @pytest.mark.unit
 def test_register_pair_recovers_known_translation():
     rng = np.random.default_rng(0)
@@ -51,9 +52,6 @@ def test_register_pair_recovers_known_translation():
     )
     assert conf > 0.5
     np.testing.assert_allclose(shift_yx, true, atol=1.0)
-
-
-from workflow.lib.shared.stitching.place import solve_global_offsets
 
 
 @pytest.mark.unit
@@ -101,10 +99,6 @@ def test_find_neighbor_pairs_grid():
     assert (0, 3) not in got  # diagonal, no overlap
 
 
-import zarr
-from workflow.lib.shared.stitching.fuse import fuse_mosaic
-
-
 @pytest.mark.unit
 def test_fuse_mosaic_writes_chunked_zarr(tmp_path):
     planes = {0: np.full((64, 64), 5.0, np.float32),
@@ -116,3 +110,15 @@ def test_fuse_mosaic_writes_chunked_zarr(tmp_path):
     arr = zarr.open(out, mode="r")
     assert arr.shape == (64, 124)          # 60 + 64
     assert arr[0, 0] == 5.0 and arr[0, 123] == 9.0
+
+
+@pytest.mark.unit
+def test_solve_global_offsets_noncontiguous_tile_ids():
+    prior = {123: (0.0, 0.0), 142: (0.0, 100.0), 165: (0.0, 200.0)}
+    edges = [(123, 142, np.array([0.0, 100.0]), 0.9),
+             (142, 165, np.array([0.0, 100.0]), 0.9)]
+    off = solve_global_offsets(3, edges, prior, min_confidence=0.2).to_frame()
+    off = off.sort_values("tile").reset_index(drop=True)
+    assert off["tile"].tolist() == [123, 142, 165]
+    np.testing.assert_allclose(off["x"].to_numpy(), [0.0, 100.0, 200.0], atol=1e-6)
+    np.testing.assert_allclose(off["y"].to_numpy(), [0.0, 0.0, 0.0], atol=1e-6)

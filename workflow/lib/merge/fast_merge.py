@@ -8,7 +8,12 @@ from sklearn.preprocessing import PolynomialFeatures
 
 
 def merge_triangle_hash(
-    hash_df_0, hash_df_1, alignment, threshold=2, local_refinement=None, warp_kwargs=None
+    hash_df_0,
+    hash_df_1,
+    alignment,
+    threshold=2,
+    local_refinement=None,
+    warp_kwargs=None,
 ):
     """Merges two DataFrames using triangle hashing after images at different magnifications have been hashed together.
 
@@ -44,98 +49,6 @@ def merge_triangle_hash(
         local_refinement=local_refinement,
         warp_kwargs=warp_kwargs,
     )
-
-
-def refine_local_warp(
-    X, Y, Y_pred, threshold, degree=2, iterations=2, min_correspondences=30,
-    model="polynomial", smoothing=10.0, max_correspondences=700
-):
-    """Refine a global affine alignment with a local non-rigid warp.
-
-    Corrects residual within-tile distortion that a single affine cannot capture (the
-    failure mode when SBS and phenotype come from differently-configured microscopes).
-    The warp is fit ONLY on high-confidence correspondences — points already matched
-    within `threshold` under the current prediction — so it cannot be pulled by spurious
-    loose matches. Each iteration the warp improves and more points come into range.
-
-    Two warp models (``model``):
-      - "polynomial" (default): a degree-``degree`` polynomial. Backward-compatible;
-        the original behaviour. Beware high degrees — a degree-5 polynomial oscillates
-        (Runge) and can diverge.
-      - "thin_plate_spline": a smoothed thin-plate spline (scipy RBFInterpolator). It is
-        the smoothest deformation fitting the correspondences, so it captures local
-        distortion without the polynomial's oscillation, regularized by ``smoothing``.
-        Validated to beat the polynomial on two-scope OPS merges (higher single-match
-        rate, ~half the median residual) while remaining stable.
-
-    Degrades gracefully: with fewer than `min_correspondences` confident matches it
-    returns the input prediction unchanged (so sparse tiles behave like plain affine).
-
-    Args:
-        X (numpy.ndarray): Source (phenotype) coordinates, shape (n, 2).
-        Y (numpy.ndarray): Target (SBS) coordinates, shape (m, 2).
-        Y_pred (numpy.ndarray): Current predicted source coords in target space (n, 2),
-            i.e. the global-affine prediction.
-        threshold (float): Match distance defining a high-confidence correspondence.
-        degree (int): Polynomial degree (model="polynomial"). Defaults to 2.
-        iterations (int): Number of refine-and-rematch passes. Defaults to 2.
-        min_correspondences (int): Minimum confident matches required to fit. Defaults 30.
-        model (str): "polynomial" (default) or "thin_plate_spline".
-        smoothing (float): TPS regularization (model="thin_plate_spline"). Defaults 10.0.
-        max_correspondences (int): TPS fit is capped at this many points (subsampled) for
-            speed; the fit is smooth so a few hundred anchors suffice. Defaults 700.
-
-    Returns:
-        numpy.ndarray: Refined predicted source coordinates in target space, shape (n, 2).
-    """
-    pf = PolynomialFeatures(degree)
-    refined = Y_pred
-    for _ in range(iterations):
-        distances = cdist(Y, refined, metric="sqeuclidean")
-        nearest = distances.argmin(axis=1)
-        within = np.sqrt(distances.min(axis=1)) < threshold
-        if within.sum() < min_correspondences:
-            break
-        Y_corr = Y[within]
-        if model == "thin_plate_spline":
-            from scipy.interpolate import RBFInterpolator
-
-            # TPS is fit on the RESIDUAL (current prediction -> target), not raw
-            # source -> target: its `smoothing` is calibrated for the small residual
-            # scale, so fitting the full transform (which carries the ~0.27x scale)
-            # would mis-regularize. Compose the correction onto the running estimate.
-            src = refined[nearest[within]]
-            if len(src) > max_correspondences:
-                sel = np.random.default_rng(0).choice(
-                    len(src), max_correspondences, replace=False
-                )
-                src, Y_corr = src[sel], Y_corr[sel]
-            rbf = RBFInterpolator(
-                src, Y_corr, kernel="thin_plate_spline", smoothing=smoothing
-            )
-            refined = rbf(refined)
-        else:
-            X_corr = X[nearest[within]]
-            reg = LinearRegression().fit(pf.fit_transform(X_corr), Y_corr)
-            refined = reg.predict(pf.transform(X))
-    return refined
-
-
-def build_linear_model(rotation, translation):
-    """Builds a linear regression model using the provided rotation matrix and translation vector.
-
-    Args:
-        rotation (numpy.ndarray): Rotation matrix for the model.
-        translation (numpy.ndarray): Translation vector for the model.
-
-    Returns:
-        sklearn.linear_model.LinearRegression: Linear regression model with the specified rotation
-        and translation.
-    """
-    m = LinearRegression()
-    m.coef_ = rotation  # Set the rotation matrix as the model's coefficients
-    m.intercept_ = translation  # Set the translation vector as the model's intercept
-    return m  # Return the linear regression model
 
 
 def merge_sbs_phenotype(
@@ -205,11 +118,7 @@ def merge_sbs_phenotype(
     # Predict coordinates for dataset 0 using the alignment model
     Y_pred = model.predict(X)
 
-    # Optional local non-rigid refinement of the affine prediction (corrects residual
-    # within-tile distortion; off by default so existing screens are unaffected).
-    # `local_refinement` doubles as the warp-model selector: the string "polynomial" or
-    # "thin_plate_spline" picks the model, while a bare truthy (e.g. True) keeps
-    # refine_local_warp's default (polynomial). An explicit warp_kwargs["model"] wins.
+    # Optional local warp; local_refinement gates it and (as a string) names the model
     if local_refinement:
         wk = dict(warp_kwargs or {})
         if isinstance(local_refinement, str):
@@ -248,3 +157,86 @@ def merge_sbs_phenotype(
             cols_final
         ]  # Assign distance column  # Select final columns
     )
+
+
+def build_linear_model(rotation, translation):
+    """Builds a linear regression model using the provided rotation matrix and translation vector.
+
+    Args:
+        rotation (numpy.ndarray): Rotation matrix for the model.
+        translation (numpy.ndarray): Translation vector for the model.
+
+    Returns:
+        sklearn.linear_model.LinearRegression: Linear regression model with the specified rotation
+        and translation.
+    """
+    m = LinearRegression()
+    m.coef_ = rotation  # Set the rotation matrix as the model's coefficients
+    m.intercept_ = translation  # Set the translation vector as the model's intercept
+    return m  # Return the linear regression model
+
+
+def refine_local_warp(
+    X,
+    Y,
+    Y_pred,
+    threshold,
+    degree=2,
+    iterations=2,
+    min_correspondences=30,
+    model="polynomial",
+    smoothing=10.0,
+    max_correspondences=700,
+):
+    """Refine a global affine alignment with a local non-rigid warp.
+
+    Corrects residual within-tile distortion a single affine cannot capture (e.g. two
+    differently-configured microscopes). The warp is fit only on correspondences already
+    matched within `threshold`, then re-matched each iteration. With fewer than
+    `min_correspondences` confident matches it returns the input prediction unchanged.
+    "polynomial" (default) is backward-compatible; "thin_plate_spline" (scipy
+    RBFInterpolator, regularized by `smoothing`) is smoother and stable on two-scope data.
+
+    Args:
+        X (numpy.ndarray): Source (phenotype) coordinates, shape (n, 2).
+        Y (numpy.ndarray): Target (SBS) coordinates, shape (m, 2).
+        Y_pred (numpy.ndarray): Global-affine prediction of X in target space, shape (n, 2).
+        threshold (float): Match distance defining a high-confidence correspondence.
+        degree (int): Polynomial degree (model="polynomial"). Defaults to 2.
+        iterations (int): Number of refine-and-rematch passes. Defaults to 2.
+        min_correspondences (int): Minimum confident matches required to fit. Defaults to 30.
+        model (str): "polynomial" (default) or "thin_plate_spline".
+        smoothing (float): Thin-plate-spline regularization. Defaults to 10.0.
+        max_correspondences (int): Cap on thin-plate-spline anchor points. Defaults to 700.
+
+    Returns:
+        numpy.ndarray: Refined prediction of X in target space, shape (n, 2).
+    """
+    pf = PolynomialFeatures(degree)
+    refined = Y_pred
+    for _ in range(iterations):
+        distances = cdist(Y, refined, metric="sqeuclidean")
+        nearest = distances.argmin(axis=1)
+        within = np.sqrt(distances.min(axis=1)) < threshold
+        if within.sum() < min_correspondences:
+            break
+        Y_corr = Y[within]
+        if model == "thin_plate_spline":
+            from scipy.interpolate import RBFInterpolator
+
+            # Fit on the residual (prediction -> target): smoothing is tuned for that small scale
+            src = refined[nearest[within]]
+            if len(src) > max_correspondences:
+                sel = np.random.default_rng(0).choice(
+                    len(src), max_correspondences, replace=False
+                )
+                src, Y_corr = src[sel], Y_corr[sel]
+            rbf = RBFInterpolator(
+                src, Y_corr, kernel="thin_plate_spline", smoothing=smoothing
+            )
+            refined = rbf(refined)
+        else:
+            X_corr = X[nearest[within]]
+            reg = LinearRegression().fit(pf.fit_transform(X_corr), Y_corr)
+            refined = reg.predict(pf.transform(X))
+    return refined

@@ -49,3 +49,29 @@ def test_register_pair_recovers_known_translation():
     )
     assert conf > 0.5
     np.testing.assert_allclose(shift_yx, true, atol=1.0)
+
+
+from workflow.lib.shared.stitching.place import solve_global_offsets
+
+
+@pytest.mark.unit
+def test_solve_global_offsets_chain():
+    # 3 tiles in a row; edge (i->j) carries the true offset of j relative to i.
+    edges = [
+        (0, 1, np.array([0.0, 100.0]), 0.9),
+        (1, 2, np.array([0.0, 100.0]), 0.9),
+    ]
+    prior = {0: (0.0, 0.0), 1: (0.0, 90.0), 2: (0.0, 190.0)}
+    off = solve_global_offsets(3, edges, prior, min_confidence=0.2).to_frame()
+    off = off.sort_values("tile").reset_index(drop=True)
+    np.testing.assert_allclose(off["x"].to_numpy(), [0.0, 100.0, 200.0], atol=1e-6)
+    np.testing.assert_allclose(off["y"].to_numpy(), [0.0, 0.0, 0.0], atol=1e-6)
+
+
+@pytest.mark.unit
+def test_solve_global_offsets_disconnected_uses_prior():
+    edges = [(0, 1, np.array([0.0, 100.0]), 0.9)]  # tile 2 disconnected
+    prior = {0: (0.0, 0.0), 1: (0.0, 90.0), 2: (5.0, 300.0)}
+    off = solve_global_offsets(3, edges, prior, min_confidence=0.2).to_frame()
+    row2 = off[off["tile"] == 2].iloc[0]
+    assert (row2["y"], row2["x"]) == (5.0, 300.0)

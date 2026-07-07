@@ -33,18 +33,19 @@ print(f"Original tile-by-tile merge approach")
 print(f"Total alignments: {len(fast_alignment)}")
 print(f"Filtered alignments: {len(fast_alignment_filtered)}")
 
-# Optional local-warp levers — backward compatible: absent keys -> None -> dropped ->
-# refine_local_warp falls back to its literal defaults (existing screens unchanged). The
-# warp MODEL is selected by `local_refinement` ("polynomial" | "thin_plate_spline");
-# `smoothing`/`max_correspondences` only apply to the thin-plate-spline model.
+# Optional warp levers; absent keys fall back to refine_local_warp defaults
 warp_kwargs = {
     k: v
     for k, v in {
         "degree": getattr(snakemake.params, "warp_degree", None),
         "iterations": getattr(snakemake.params, "warp_iterations", None),
-        "min_correspondences": getattr(snakemake.params, "warp_min_correspondences", None),
+        "min_correspondences": getattr(
+            snakemake.params, "warp_min_correspondences", None
+        ),
         "smoothing": getattr(snakemake.params, "warp_smoothing", None),
-        "max_correspondences": getattr(snakemake.params, "warp_max_correspondences", None),
+        "max_correspondences": getattr(
+            snakemake.params, "warp_max_correspondences", None
+        ),
     }.items()
     if v is not None
 } or None

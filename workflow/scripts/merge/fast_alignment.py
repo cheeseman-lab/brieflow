@@ -25,10 +25,7 @@ alignment_params = {
     "rotate_90": snakemake.params.alignment_rotate_90,
 }
 
-# metadata_align center-aligns the two scopes' stage coordinate frames (translation)
-# even when no flip/rotate is requested — needed when SBS and phenotype were acquired
-# on different microscopes with different coordinate origins. Backward compatible:
-# defaults False, and any requested flip/rotate still triggers alignment as before.
+# metadata_align center-aligns the two scopes' coordinate frames (translation only)
 metadata_align = getattr(snakemake.params, "metadata_align", False)
 
 # Apply alignment if center-alignment is requested or any flip/rotate is set
@@ -113,35 +110,36 @@ d0, d1 = snakemake.params.det_range
 score_thresh = snakemake.params.score
 
 
-# Optional alignment levers — backward compatible: absent config keys -> None -> drop ->
-# lib falls back to its literal defaults (existing screens unchanged).
+# Optional alignment levers; absent config keys drop out to lib defaults
 def _drop_none(d):
     return {k: v for k, v in d.items() if v is not None}
 
 
 ransac_kwargs = _drop_none(
     {
-        "residual_threshold": getattr(snakemake.params, "ransac_residual_threshold", None),
+        "residual_threshold": getattr(
+            snakemake.params, "ransac_residual_threshold", None
+        ),
         "max_trials": getattr(snakemake.params, "ransac_max_trials", None),
         "min_samples": getattr(snakemake.params, "ransac_min_samples", None),
         "random_state": getattr(snakemake.params, "ransac_random_state", None),
     }
 )
-evaluate_kwargs = _drop_none(
-    {
-        "threshold_triangle": getattr(snakemake.params, "threshold_triangle", None),
-        "threshold_point": getattr(snakemake.params, "threshold_point", None),
-        "threshold_region": getattr(snakemake.params, "threshold_region", None),
-        "ransac_kwargs": ransac_kwargs or None,
-    }
-) or None
+evaluate_kwargs = (
+    _drop_none(
+        {
+            "threshold_triangle": getattr(snakemake.params, "threshold_triangle", None),
+            "threshold_point": getattr(snakemake.params, "threshold_point", None),
+            "threshold_region": getattr(snakemake.params, "threshold_region", None),
+            "ransac_kwargs": ransac_kwargs or None,
+        }
+    )
+    or None
+)
 batch_size = getattr(snakemake.params, "batch_size", None)
 multistep_extra = {} if batch_size is None else {"batch_size": batch_size}
 
-# find-optimal-site (gated, default off): the stage-NEAREST phenotype tile is not always
-# the best real overlap when the two scopes have a metadata-alignment residual. When on,
-# offer the top-K nearest tiles per SBS tile as candidates and let the score/det filter
-# keep the single best-scoring one per site.
+# find-optimal-site (gated): try top-K nearest PH tiles per SBS seed, keep best per site
 seed_optimize = getattr(snakemake.params, "seed_optimize", False)
 seed_topk = getattr(snakemake.params, "seed_topk", None) or 3
 
@@ -179,13 +177,12 @@ valid_pairs_df = initial_alignment_df.query(
     "@d0 <= determinant <= @d1 & score > @score_thresh"
 )
 
-# find-optimal-site: keep only the best-scoring phenotype tile per SBS site (higher score
-# == better real overlap), collapsing the top-K candidates expanded above back to one seed.
+# find-optimal-site: collapse top-K candidates to the best-scoring tile per site
 if seed_optimize:
     n_before = len(valid_pairs_df)
-    valid_pairs_df = valid_pairs_df.sort_values("score", ascending=False).drop_duplicates(
-        subset="site", keep="first"
-    )
+    valid_pairs_df = valid_pairs_df.sort_values(
+        "score", ascending=False
+    ).drop_duplicates(subset="site", keep="first")
     print(
         f"seed_optimize: kept best-scoring tile per site ({n_before} -> {len(valid_pairs_df)})"
     )

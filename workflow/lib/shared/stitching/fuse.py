@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import shutil
+from typing import TYPE_CHECKING
 
 import numpy as np
 import zarr
 
+if TYPE_CHECKING:
+    from workflow.lib.shared.stitching.types import TileOffsets
 
-def fuse_mosaic(planes, offsets, out_path, chunk=1024, blend="linear"):
+
+def fuse_mosaic(
+    planes: dict[int, np.ndarray],
+    offsets: TileOffsets,
+    out_path: str,
+    chunk: int = 1024,
+    blend: str = "linear",
+) -> str:
     """Fuse tile planes at global offsets into a chunked zarr v3 mosaic.
 
     Args:
@@ -46,16 +56,17 @@ def fuse_mosaic(planes, offsets, out_path, chunk=1024, blend="linear"):
         acc[yy:yy + th, xx:xx + tw] = acc[yy:yy + th, xx:xx + tw] + plane * weight
         wsum[yy:yy + th, xx:xx + tw] = wsum[yy:yy + th, xx:xx + tw] + weight
 
-    out = zarr.open(out_path, mode="w", shape=(H, W),
-                    chunks=(chunk, chunk), dtype="f4")
-    for i in range(0, H, chunk):
-        for j in range(0, W, chunk):
-            a = acc[i:i + chunk, j:j + chunk]
-            w = wsum[i:i + chunk, j:j + chunk]
-            out[i:i + chunk, j:j + chunk] = np.divide(a, w, out=np.zeros_like(a),
-                                                       where=w > 0)
-
-    shutil.rmtree(acc_path, ignore_errors=True)
-    shutil.rmtree(wsum_path, ignore_errors=True)
+    try:
+        out = zarr.open(out_path, mode="w", shape=(H, W),
+                        chunks=(chunk, chunk), dtype="f4")
+        for i in range(0, H, chunk):
+            for j in range(0, W, chunk):
+                a = acc[i:i + chunk, j:j + chunk]
+                w = wsum[i:i + chunk, j:j + chunk]
+                out[i:i + chunk, j:j + chunk] = np.divide(a, w, out=np.zeros_like(a),
+                                                           where=w > 0)
+    finally:
+        shutil.rmtree(acc_path, ignore_errors=True)
+        shutil.rmtree(wsum_path, ignore_errors=True)
 
     return out_path

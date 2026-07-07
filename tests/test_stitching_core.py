@@ -75,3 +75,29 @@ def test_solve_global_offsets_disconnected_uses_prior():
     off = solve_global_offsets(3, edges, prior, min_confidence=0.2).to_frame()
     row2 = off[off["tile"] == 2].iloc[0]
     assert (row2["y"], row2["x"]) == (5.0, 300.0)
+
+
+from workflow.lib.shared.stitching.stitch_well import find_neighbor_pairs, stitch_well
+from workflow.lib.shared.stitching.place_cells import place_cells
+
+
+@pytest.mark.unit
+def test_place_cells_applies_offset():
+    cells = pd.DataFrame({"tile": [0, 1], "i": [10.0, 20.0], "j": [5.0, 7.0],
+                          "cell": [0, 1]})
+    off = TileOffsets.from_frame(
+        pd.DataFrame({"tile": [0, 1], "y": [0.0, 100.0], "x": [0.0, 50.0]})
+    )
+    out = place_cells(cells, off)
+    np.testing.assert_allclose(out["gy"].to_numpy(), [10.0, 120.0])
+    np.testing.assert_allclose(out["gx"].to_numpy(), [5.0, 57.0])
+
+
+@pytest.mark.unit
+def test_find_neighbor_pairs_grid():
+    # 2x2 grid, tile side 100, 10% overlap -> right/down neighbors only.
+    prior = {0: (0, 0), 1: (0, 90), 2: (90, 0), 3: (90, 90)}
+    pairs = find_neighbor_pairs(prior, tile_shape=(100, 100), overlap_fraction=0.1)
+    got = {(i, j) for i, j, _ in pairs}
+    assert (0, 1) in got and (0, 2) in got and (1, 3) in got and (2, 3) in got
+    assert (0, 3) not in got  # diagonal, no overlap

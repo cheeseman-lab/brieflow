@@ -184,7 +184,16 @@ def coarse_align_dapi(
 
     scale = ph_um_per_px / sbs_um_per_px
     coarse_to_sbs = target_um_per_px / sbs_um_per_px
-    translation = np.asarray(shift_coarse, dtype=np.float64) * coarse_to_sbs
+
+    # skimage.transform.rotate defaults to rotating about the image center, but the
+    # application in image_stitch_merge.py uses R @ ph + t (rotation about the ORIGIN).
+    # Fold the center-compensation term into the translation so that applying R @ ph + t
+    # correctly reproduces the center-rotation measured by register_coarse.
+    padded_h = max(mosaic_sbs.shape[0], mosaic_ph.shape[0])
+    padded_w = max(mosaic_sbs.shape[1], mosaic_ph.shape[1])
+    center_coarse = np.array([padded_h / 2.0, padded_w / 2.0])
+    center_compensation = (np.eye(2) - R) @ center_coarse
+    translation = (np.asarray(shift_coarse, dtype=np.float64) + center_compensation) * coarse_to_sbs
 
     return {
         "rotation": scale * R,

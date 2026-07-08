@@ -9,7 +9,12 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from workflow.lib.merge.image_stitch_merge import assign_subtiles, merge_subtiles, merge_reference_tiles
+from workflow.lib.merge.image_stitch_merge import (
+    assign_subtiles,
+    merge_subtiles,
+    merge_reference_tiles,
+    merge_reference_tiles_per_phtile,
+)
 from workflow.lib.shared.stitching.types import TileOffsets
 
 
@@ -329,3 +334,135 @@ def test_merge_reference_tiles_global_model():
     # Strict 1:1
     assert merged_true["cell_0"].nunique() == len(merged_true), "PH cell_0 not unique"
     assert merged_true["cell_1"].nunique() == len(merged_true), "SBS cell_1 not unique"
+
+
+def _split_phtile_two_modality(seed=7):
+    """3 SBS tiles, each overlapping 2 PH tiles with OPPOSITE residual transforms.
+
+    Each 500x500 SBS tile footprint is covered by a LEFT and a RIGHT phenotype tile.
+    Within one footprint the left PH tile carries residual (+1.2 deg rot, +4px shift)
+    and the right PH tile carries the opposite (-1.2 deg rot, -4px shift), each about
+    its own centroid.  No single per-footprint affine can align both halves (the
+    piecewise-constant opposite shift is not linear in position), so a merged-footprint
+    merge leaves >4px residuals on most cells.  Per-PH-tile hashing fits each coherent
+    PH tile exactly.  Coarse transform is identity, so gy_ref == gy.
+
+    Returns:
+        (sbs_cells, ph_cells, coarse, sbs_offsets_dict, tile_shape) synthetic tables.
+    """
+    rng = np.random.default_rng(seed)
+    tile_shape = (500, 500)
+    h, w = tile_shape
+    n_per_phtile = 150
+
+    sbs_offsets = {0: (0.0, 0.0), 1: (0.0, float(w)), 2: (0.0, float(2 * w))}
+    coarse = {"rotation": np.eye(2), "translation": np.zeros(2),
+              "angle_deg": 0.0, "scale": 1.0}
+
+    def _rot(deg):
+        th = np.deg2rad(deg)
+        return np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])
+
+    sbs_rows, ph_rows = [], []
+    sbs_cid = 0
+    ph_cid = 0
+    for s in range(3):
+        ox = s * w
+        # (ph_tile_id, x-range, residual angle deg, shift)
+        subtiles = [
+            (10 + 2 * s, (ox + 30, ox + 230), +1.2, np.array([4.0, 4.0])),
+            (11 + 2 * s, (ox + 270, ox + 470), -1.2, np.array([-4.0, -4.0])),
+        ]
+        for ph_tile_id, (x0, x1), ang, shift in subtiles:
+            q = np.column_stack([
+                rng.uniform(30, 470, size=n_per_phtile),          # y (truth SBS)
+                rng.uniform(x0, x1, size=n_per_phtile),           # x (truth SBS)
+            ])
+            c = q.mean(axis=0)
+            R = _rot(ang)
+            p = (R @ (q - c).T).T + c + shift  # PH partner positions
+            for k in range(n_per_phtile):
+                sbs_rows.append({
+                    "cell": sbs_cid, "tile": s, "well": "A1", "plate": 1,
+                    "gy": float(q[k, 0]), "gx": float(q[k, 1]),
+                    "i": float(q[k, 0]), "j": float(q[k, 1]),
+                })
+                ph_rows.append({
+                    "cell": ph_cid, "tile": ph_tile_id, "well": "A1", "plate": 1,
+                    "gy": float(p[k, 0]), "gx": float(p[k, 1]),
+                    "i": float(p[k, 0]), "j": float(p[k, 1]),
+                })
+                sbs_cid += 1
+                ph_cid += 1
+
+    return pd.DataFrame(sbs_rows), pd.DataFrame(ph_rows), coarse, sbs_offsets, tile_shape
+
+
+@pytest.mark.unit
+def test_merge_reference_tiles_per_phtile_recovers_split_tiles():
+    """Per-PH-tile hashing recovers >70% with strict 1:1 on split-residual data."""
+    sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape = _split_phtile_two_modality()
+
+    merged = merge_reference_tiles_per_phtile(
+        sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape,
+        margin_px=50, min_overlap_cells=30, threshold=4,
+        local_refinement=True,
+    )
+
+    n_sbs = len(sbs_cells)
+    recall = len(merged) / n_sbs
+    assert recall > 0.70, f"per-PH-tile recall {recall:.1%} ({len(merged)}/{n_sbs})"
+    assert merged["cell_0"].nunique() == len(merged), "PH cell_0 not strictly 1:1"
+    assert merged["cell_1"].nunique() == len(merged), "SBS cell_1 not strictly 1:1"
+
+
+@pytest.mark.unit
+def test_per_phtile_beats_merged_footprint():
+    """Per-PH-tile mode beats merged-footprint merge_reference_tiles on the same data."""
+    sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape = _split_phtile_two_modality()
+
+    merged_per = merge_reference_tiles_per_phtile(
+        sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape,
+        margin_px=50, min_overlap_cells=30, threshold=4,
+        local_refinement=True,
+    )
+
+    off_df = pd.DataFrame({
+        "tile": list(sbs_offsets.keys()),
+        "y": [v[0] for v in sbs_offsets.values()],
+        "x": [v[1] for v in sbs_offsets.values()],
+    })
+    merged_foot = merge_reference_tiles(
+        sbs_cells, ph_cells, coarse, TileOffsets.from_frame(off_df), tile_shape,
+        threshold=4, local_refinement="thin_plate_spline",
+        evaluate_kwargs={"ransac_kwargs": {"random_state": 0}},
+        margin_px=50.0, min_cells=30, global_model=True,
+    )
+
+    n_sbs = len(sbs_cells)
+    recall_per = len(merged_per) / n_sbs
+    recall_foot = len(merged_foot) / n_sbs
+    assert recall_per > recall_foot + 0.15, (
+        f"per-PH-tile ({recall_per:.1%}) should beat merged-footprint "
+        f"({recall_foot:.1%}) by >15 pp"
+    )
+
+
+@pytest.mark.unit
+def test_per_phtile_neg_det_fallback_helps():
+    """neg_det_fallback recovers at least as many cells as dropping failed pairs."""
+    sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape = _split_phtile_two_modality()
+
+    kw = dict(margin_px=50, min_overlap_cells=30, threshold=4, local_refinement=True)
+    merged_on = merge_reference_tiles_per_phtile(
+        sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape,
+        neg_det_fallback=True, **kw,
+    )
+    merged_off = merge_reference_tiles_per_phtile(
+        sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape,
+        neg_det_fallback=False, **kw,
+    )
+    assert len(merged_on) >= len(merged_off), (
+        f"fallback on ({len(merged_on)}) should be >= off ({len(merged_off)})"
+    )
+    assert merged_on["cell_1"].nunique() == len(merged_on), "SBS cell_1 not 1:1"

@@ -219,3 +219,113 @@ def test_merge_reference_tiles_density_mismatch():
     )
     assert merged["cell_0"].nunique() == len(merged), "PH cell_0 not strictly 1:1"
     assert merged["cell_1"].nunique() == len(merged), "SBS cell_1 not strictly 1:1"
+
+
+@pytest.mark.unit
+def test_merge_reference_tiles_global_model():
+    """global_model=True rescues flooded tiles from spurious RANSAC failures.
+
+    Setup: 6 tiles total.
+      - 2 CLEAN tiles: 200 SBS cells, 200 PH cells = R_true @ SBS + t_true + 0.3px noise.
+        Per-tile RANSAC succeeds → classified as GOOD tiles → provide R_global.
+      - 4 FLOODED tiles: 200 SBS cells, 1000 PH cells (200 true partners + 800 random extra).
+        True partner fraction = 20%. RANSAC unreliable at this density.
+
+    global_model=True: extracts R_global from 2 clean tiles, applies globally + per-tile
+    cKDTree translation → should recover >70% overall recall (≥840/1200 matches).
+
+    global_model=False: only clean tiles produce reliable matches → ≤40% recall.
+    """
+    rng = np.random.default_rng(99)
+    tile_shape = (600, 600)
+    h, w = tile_shape
+    n_sbs = 200
+    n_extra = 800  # flood factor: 5× density in flooded tiles
+
+    # True residual transform (applied on top of identity coarse)
+    # This is the residual the per-tile evaluate_match would normally correct.
+    angle_true = 0.6  # degrees residual
+    t_true = np.array([18.0, 12.0])
+    theta = np.deg2rad(angle_true)
+    R_true = np.array([[np.cos(theta), -np.sin(theta)],
+                       [np.sin(theta),  np.cos(theta)]])
+
+    # Coarse = identity (so ph_coarse = ph_orig; residual = full true transform)
+    coarse = {"rotation": np.eye(2), "translation": np.zeros(2), "angle_deg": 0.0, "scale": 1.0}
+
+    # Tile layout: 3×2 grid
+    tile_offsets_list = [(0, 0), (0, w), (h, 0), (h, w), (2*h, 0), (2*h, w)]
+    tile_ids = [0, 1, 2, 3, 4, 5]
+    off_df = pd.DataFrame({
+        "tile": tile_ids,
+        "y": [o[0] for o in tile_offsets_list],
+        "x": [o[1] for o in tile_offsets_list],
+    })
+    sbs_offsets = TileOffsets.from_frame(off_df)
+
+    sbs_rows, ph_rows = [], []
+    for t_id, (oy, ox) in enumerate(tile_offsets_list):
+        sbs_pos = rng.uniform(40, 560, size=(n_sbs, 2)) + np.array([oy, ox])
+
+        for k in range(n_sbs):
+            cell_id = t_id * n_sbs + k
+            sbs_rows.append({
+                "cell": cell_id, "tile": t_id, "well": "A1", "plate": 1,
+                "gy": float(sbs_pos[k, 0]), "gx": float(sbs_pos[k, 1]),
+                "i": float(sbs_pos[k, 0]), "j": float(sbs_pos[k, 1]),
+            })
+
+        # True PH partners: R_true @ SBS + t_true + tiny noise
+        ph_true = (R_true @ sbs_pos.T).T + t_true + rng.normal(0, 0.3, size=(n_sbs, 2))
+
+        if t_id < 2:
+            # CLEAN tile: only true partners
+            ph_all = ph_true
+        else:
+            # FLOODED tile: true partners + many random extras (same spatial domain)
+            extra = rng.uniform(oy, oy + h, size=(n_extra, 1))
+            extra = np.hstack([extra, rng.uniform(ox, ox + w, size=(n_extra, 1))])
+            ph_all = np.vstack([ph_true, extra])
+
+        for k, row in enumerate(ph_all):
+            ph_rows.append({
+                "cell": t_id * (n_sbs + n_extra) + k,
+                "tile": t_id, "well": "A1", "plate": 1,
+                "gy": float(row[0]), "gx": float(row[1]),
+                "i": float(row[0]), "j": float(row[1]),
+            })
+
+    sbs_cells = pd.DataFrame(sbs_rows)
+    ph_cells = pd.DataFrame(ph_rows)
+
+    total_sbs = len(sbs_cells)  # 1200
+
+    merged_true = merge_reference_tiles(
+        sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape,
+        threshold=4, local_refinement=None,
+        evaluate_kwargs={"ransac_kwargs": {"random_state": 77}},
+        margin_px=50.0, min_cells=20,
+        global_model=True,
+    )
+    merged_false = merge_reference_tiles(
+        sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape,
+        threshold=4, local_refinement=None,
+        evaluate_kwargs={"ransac_kwargs": {"random_state": 77}},
+        margin_px=50.0, min_cells=20,
+        global_model=False,
+    )
+
+    recall_true  = len(merged_true)  / total_sbs
+    recall_false = len(merged_false) / total_sbs
+
+    assert recall_true > 0.70, (
+        f"global_model=True: expected >70% recall, got {recall_true:.1%} "
+        f"({len(merged_true)}/{total_sbs})"
+    )
+    assert recall_true > recall_false + 0.15, (
+        f"global_model=True ({recall_true:.1%}) should beat False ({recall_false:.1%}) "
+        f"by >15 pp"
+    )
+    # Strict 1:1
+    assert merged_true["cell_0"].nunique() == len(merged_true), "PH cell_0 not unique"
+    assert merged_true["cell_1"].nunique() == len(merged_true), "SBS cell_1 not unique"

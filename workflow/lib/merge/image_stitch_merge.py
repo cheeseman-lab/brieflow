@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from scipy.spatial import cKDTree
 
 from workflow.lib.merge.hash import find_triangles, evaluate_match
 from workflow.lib.merge.fast_merge import merge_triangle_hash
@@ -163,7 +164,8 @@ def merge_reference_tiles(
     evaluate_kwargs: dict | None = None,
     margin_px: float = 100.0,
     min_cells: int = 30,
-    align_ratio: float = 1.3,
+    align_ratio: float = float("inf"),
+    global_model: bool = True,
 ) -> pd.DataFrame:
     """Hash-merge phenotype and SBS cells anchored on SBS tile footprints (tier 3 recut).
 
@@ -174,6 +176,20 @@ def merge_reference_tiles(
 
     Each local hash is bounded by the SBS tile (~5k cells), avoiding the O(n²) cost
     of hashing the entire well at once.
+
+    When ``global_model=True`` (default), a two-pass strategy is used to rescue tiles
+    where per-tile RANSAC fails due to PH/SBS density mismatch:
+
+    Pass 1 — run ``evaluate_match`` on every tile; classify tiles with det(R) ∈ [0.5, 2.0]
+    and score > 0.05 as GOOD.  Extract their residual rotation angle.
+
+    Pass 2 — compute ``R_global`` as the rotation at the median good angle (or identity if
+    fewer than 2 good tiles), then for each tile estimate a per-tile translation via
+    cKDTree nearest-neighbour robust median and call ``merge_triangle_hash`` with
+    ``(R_global, t_tile)``.
+
+    When ``global_model=False``, the original per-tile independent RANSAC path is used.
+    ``align_ratio`` applies only in this fallback path.
 
     When the PH footprint contains significantly more cells than the SBS tile (a common
     occurrence when PH is denser), the RANSAC triangle-hash alignment step sees a
@@ -197,11 +213,12 @@ def merge_reference_tiles(
         evaluate_kwargs: Extra kwargs for evaluate_match (e.g. ransac_kwargs).
         margin_px: Pixels to expand each SBS tile footprint when gathering PH cells.
         min_cells: Minimum cells on each side required to attempt a hash merge.
-        align_ratio: Maximum PH-to-SBS cell ratio for the RANSAC alignment step.
-            If ``len(ph_sub) > align_ratio * len(sbs_sub)``, PH is subsampled to
-            ``int(align_ratio * len(sbs_sub))`` cells before triangle hashing.
-            Set to a very large value (e.g. ``float("inf")``) to disable subsampling
-            and restore the original behaviour.
+        align_ratio: Maximum PH-to-SBS cell ratio for the RANSAC alignment step
+            (``global_model=False`` only).  Set to ``float("inf")`` (default) to
+            disable subsampling.
+        global_model: If True (default), bootstrap a single R_global from confident
+            tiles and apply it to every tile with a per-tile cKDTree translation
+            estimate.  If False, use independent per-tile RANSAC (original behaviour).
 
     Returns:
         Deduplicated 1:1 matched-cell DataFrame with a ``subtile`` column (SBS tile id).
@@ -219,58 +236,148 @@ def merge_reference_tiles(
     off_frame = sbs_offsets.to_frame().set_index("tile")
     out: list[pd.DataFrame] = []
 
-    for tile_id, sbs_sub in sbs_cells.groupby("tile"):
-        if tile_id not in off_frame.index:
-            continue
-        oy = float(off_frame.loc[tile_id, "y"])
-        ox = float(off_frame.loc[tile_id, "x"])
+    if global_model:
+        # Pass 1: per-tile evaluate_match to collect good tiles
+        ph_footprints: dict = {}   # tile_id -> (ph_sub, sbs_sub_r)
+        tile_fits: dict = {}       # tile_id -> {"rot", "trans", "det", "score", "angle"}
 
-        y0, y1 = oy - margin_px, oy + h + margin_px
-        x0, x1 = ox - margin_px, ox + w + margin_px
-        mask = (
-            (ph_aug["gy_ref"] >= y0)
-            & (ph_aug["gy_ref"] < y1)
-            & (ph_aug["gx_ref"] >= x0)
-            & (ph_aug["gx_ref"] < x1)
-        )
-        ph_sub = ph_aug[mask].reset_index(drop=True)
-        sbs_sub = sbs_sub.reset_index(drop=True)
+        for tile_id, sbs_sub in sbs_cells.groupby("tile"):
+            if tile_id not in off_frame.index:
+                continue
+            oy = float(off_frame.loc[tile_id, "y"])
+            ox = float(off_frame.loc[tile_id, "x"])
+            y0, y1 = oy - margin_px, oy + h + margin_px
+            x0, x1 = ox - margin_px, ox + w + margin_px
+            mask = (
+                (ph_aug["gy_ref"] >= y0) & (ph_aug["gy_ref"] < y1)
+                & (ph_aug["gx_ref"] >= x0) & (ph_aug["gx_ref"] < x1)
+            )
+            ph_sub = ph_aug[mask].reset_index(drop=True)
+            sbs_sub_r = sbs_sub.reset_index(drop=True)
+            if len(ph_sub) < min_cells or len(sbs_sub_r) < min_cells:
+                continue
+            ph_footprints[tile_id] = (ph_sub, sbs_sub_r)
 
-        if len(ph_sub) < min_cells or len(sbs_sub) < min_cells:
-            continue
+            t_ph = find_triangles(
+                ph_sub[["gy_ref", "gx_ref"]].rename(columns={"gy_ref": "i", "gx_ref": "j"})
+            )
+            t_sbs = find_triangles(
+                sbs_sub_r[["gy", "gx"]].rename(columns={"gy": "i", "gx": "j"})
+            )
+            rot, trans, score = evaluate_match(t_ph, t_sbs, **(evaluate_kwargs or {}))
+            if rot is not None:
+                det = float(np.linalg.det(rot))
+                angle = float(np.degrees(np.arctan2(rot[1, 0], rot[0, 0])))
+                tile_fits[int(tile_id)] = {
+                    "rot": rot, "trans": trans, "det": det, "score": score, "angle": angle,
+                }
 
-        # Subsample PH for alignment only when it would flood RANSAC.
-        n_align = int(align_ratio * len(sbs_sub))
-        if len(ph_sub) > n_align:
-            ph_align = ph_sub.sample(n=n_align, random_state=0)
+        # Classify GOOD tiles: det in [0.5, 2.0] AND score > floor
+        score_floor = 0.05
+        good = [
+            v for v in tile_fits.values()
+            if 0.5 <= v["det"] <= 2.0 and v["score"] > score_floor
+        ]
+        good_angles = [v["angle"] for v in good]
+        good_trans_list = [v["trans"] for v in good]
+
+        if len(good) >= 2:
+            global_angle = float(np.median(good_angles))
+            theta_g = np.deg2rad(global_angle)
+            R_global = np.array([
+                [np.cos(theta_g), -np.sin(theta_g)],
+                [np.sin(theta_g),  np.cos(theta_g)],
+            ])
+            t_global = np.median(good_trans_list, axis=0)
         else:
-            ph_align = ph_sub
+            R_global = np.eye(2)   # identity residual — use coarse rotation as-is
+            t_global = t           # fall back to coarse translation
 
-        t_ph = find_triangles(
-            ph_align[["gy_ref", "gx_ref"]].rename(columns={"gy_ref": "i", "gx_ref": "j"})
-        )
-        t_sbs = find_triangles(
-            sbs_sub[["gy", "gx"]].rename(columns={"gy": "i", "gx": "j"})
-        )
-        rot, trans, _score = evaluate_match(t_ph, t_sbs, **(evaluate_kwargs or {}))
-        if rot is None:
-            continue
+        # Pass 2: per-tile translation fine-tuning + merge using R_global
+        for tile_id, (ph_sub, sbs_sub_r) in ph_footprints.items():
+            ph_ij = ph_sub[["gy_ref", "gx_ref"]].to_numpy(dtype=np.float64)
+            # Apply R_global + global translation: initial prediction already near SBS
+            ph_in_sbs = (R_global @ ph_ij.T).T + t_global
 
-        ph_hash = ph_sub.assign(i=ph_sub["gy_ref"], j=ph_sub["gx_ref"])
-        sbs_hash = sbs_sub.assign(i=sbs_sub["gy"], j=sbs_sub["gx"])
+            sbs_ij = sbs_sub_r[["gy", "gx"]].to_numpy(dtype=np.float64)
+            tree = cKDTree(sbs_ij)
+            dists, nn_idx = tree.query(ph_in_sbs, k=1)
+            close = dists < 100.0
+            if close.sum() >= 5:
+                t_fine = np.median(sbs_ij[nn_idx[close]] - ph_in_sbs[close], axis=0)
+                t_tile = t_global + t_fine
+            else:
+                t_tile = t_global
 
-        m = merge_triangle_hash(
-            ph_hash,
-            sbs_hash,
-            {"rotation": rot, "translation": trans},
-            threshold=threshold,
-            local_refinement=local_refinement,
-            warp_kwargs=warp_kwargs,
-        )
-        if len(m):
-            m = m.copy()
-            m["subtile"] = tile_id
-            out.append(m)
+            ph_hash = ph_sub.assign(i=ph_sub["gy_ref"], j=ph_sub["gx_ref"])
+            sbs_hash = sbs_sub_r.assign(i=sbs_sub_r["gy"], j=sbs_sub_r["gx"])
+            m = merge_triangle_hash(
+                ph_hash,
+                sbs_hash,
+                {"rotation": R_global, "translation": t_tile},
+                threshold=threshold,
+                local_refinement=local_refinement,
+                warp_kwargs=warp_kwargs,
+            )
+            if len(m):
+                m = m.copy()
+                m["subtile"] = tile_id
+                out.append(m)
+
+    else:
+        # Original per-tile independent RANSAC path
+        for tile_id, sbs_sub in sbs_cells.groupby("tile"):
+            if tile_id not in off_frame.index:
+                continue
+            oy = float(off_frame.loc[tile_id, "y"])
+            ox = float(off_frame.loc[tile_id, "x"])
+
+            y0, y1 = oy - margin_px, oy + h + margin_px
+            x0, x1 = ox - margin_px, ox + w + margin_px
+            mask = (
+                (ph_aug["gy_ref"] >= y0)
+                & (ph_aug["gy_ref"] < y1)
+                & (ph_aug["gx_ref"] >= x0)
+                & (ph_aug["gx_ref"] < x1)
+            )
+            ph_sub = ph_aug[mask].reset_index(drop=True)
+            sbs_sub = sbs_sub.reset_index(drop=True)
+
+            if len(ph_sub) < min_cells or len(sbs_sub) < min_cells:
+                continue
+
+            # Subsample PH for alignment only when it would flood RANSAC.
+            if align_ratio < float("inf"):
+                n_align = int(align_ratio * len(sbs_sub))
+                ph_align = ph_sub.sample(n=n_align, random_state=0) if len(ph_sub) > n_align else ph_sub
+            else:
+                ph_align = ph_sub
+
+            t_ph = find_triangles(
+                ph_align[["gy_ref", "gx_ref"]].rename(columns={"gy_ref": "i", "gx_ref": "j"})
+            )
+            t_sbs = find_triangles(
+                sbs_sub[["gy", "gx"]].rename(columns={"gy": "i", "gx": "j"})
+            )
+            rot, trans, _score = evaluate_match(t_ph, t_sbs, **(evaluate_kwargs or {}))
+            if rot is None:
+                continue
+
+            ph_hash = ph_sub.assign(i=ph_sub["gy_ref"], j=ph_sub["gx_ref"])
+            sbs_hash = sbs_sub.assign(i=sbs_sub["gy"], j=sbs_sub["gx"])
+
+            m = merge_triangle_hash(
+                ph_hash,
+                sbs_hash,
+                {"rotation": rot, "translation": trans},
+                threshold=threshold,
+                local_refinement=local_refinement,
+                warp_kwargs=warp_kwargs,
+            )
+            if len(m):
+                m = m.copy()
+                m["subtile"] = tile_id
+                out.append(m)
 
     if not out:
         return ph_cells.head(0).assign(subtile=pd.Series(dtype=int))

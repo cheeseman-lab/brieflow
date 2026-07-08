@@ -155,3 +155,67 @@ def test_merge_reference_tiles():
     )
     assert merged["cell_0"].nunique() == len(merged), "PH cell_0 not strictly unique"
     assert merged["cell_1"].nunique() == len(merged), "SBS cell_1 not strictly unique"
+
+
+@pytest.mark.unit
+def test_merge_reference_tiles_density_mismatch():
+    """align_ratio subsampling achieves high recall when PH footprint is denser than SBS.
+
+    SBS tile: 300 cells.  PH footprint: the 300 true partners PLUS 200 extra cells
+    from the same spatial distribution (1.67× total density).  This models the real
+    two-scope scenario where PH (higher-res) detects additional faint nuclei absent
+    from SBS — the extras are real co-field cells, not noise.
+
+    With align_ratio=1.3 the implementation subsamples PH to int(1.3×300)=390 cells
+    before triangle hashing (500 > 390 → subsampling fires) while still passing the
+    full 500-cell PH set to merge_triangle_hash for matching.  The subsampled set
+    retains ~67% true partners (well above the RANSAC reliability threshold), so the
+    correct transform is recovered and recall on true partners exceeds 70%.
+    """
+    rng = np.random.default_rng(17)
+    tile_shape = (500, 500)
+    n_sbs = 300
+    n_extra = 200  # 1.67× density flood
+
+    coarse = {"rotation": np.eye(2), "translation": np.zeros(2), "angle_deg": 0.0, "scale": 1.0}
+    off_df = pd.DataFrame({"tile": [0], "y": [0.0], "x": [0.0]})
+    sbs_offsets = TileOffsets.from_frame(off_df)
+
+    sbs_pos = rng.uniform(30, 470, size=(n_sbs, 2))
+    # True PH partners: pure translation (3, 3) from SBS positions.
+    ph_true = sbs_pos + np.array([3.0, 3.0])
+    # Extra PH cells: drawn from the same spatial distribution as SBS (real co-field cells).
+    extra_pos = rng.uniform(30, 470, size=(n_extra, 2))
+    all_ph = np.vstack([ph_true, extra_pos])
+
+    sbs_rows = [
+        {"cell": k, "tile": 0, "well": "A1", "plate": 1,
+         "gy": float(sbs_pos[k, 0]), "gx": float(sbs_pos[k, 1]),
+         "i": float(sbs_pos[k, 0]), "j": float(sbs_pos[k, 1])}
+        for k in range(n_sbs)
+    ]
+    ph_rows = [
+        {"cell": k, "tile": 0, "well": "A1", "plate": 1,
+         "gy": float(all_ph[k, 0]), "gx": float(all_ph[k, 1]),
+         "i": float(all_ph[k, 0]), "j": float(all_ph[k, 1])}
+        for k in range(len(all_ph))
+    ]
+    sbs_cells = pd.DataFrame(sbs_rows)
+    ph_cells = pd.DataFrame(ph_rows)
+
+    # align_ratio=1.3: PH (500) > 1.3×SBS (390) → subsampling fires for alignment.
+    # merge_triangle_hash still receives all 500 PH cells for matching.
+    merged = merge_reference_tiles(
+        sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape,
+        threshold=4,
+        align_ratio=1.3,
+        evaluate_kwargs={"ransac_kwargs": {"random_state": 0}},
+    )
+
+    recall = len(merged) / n_sbs
+    assert recall > 0.70, (
+        f"Density-mismatch fix: expected >70% recall, got {recall:.1%} "
+        f"({len(merged)}/{n_sbs})"
+    )
+    assert merged["cell_0"].nunique() == len(merged), "PH cell_0 not strictly 1:1"
+    assert merged["cell_1"].nunique() == len(merged), "SBS cell_1 not strictly 1:1"

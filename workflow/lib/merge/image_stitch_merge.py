@@ -163,6 +163,7 @@ def merge_reference_tiles(
     evaluate_kwargs: dict | None = None,
     margin_px: float = 100.0,
     min_cells: int = 30,
+    align_ratio: float = 1.3,
 ) -> pd.DataFrame:
     """Hash-merge phenotype and SBS cells anchored on SBS tile footprints (tier 3 recut).
 
@@ -173,6 +174,15 @@ def merge_reference_tiles(
 
     Each local hash is bounded by the SBS tile (~5k cells), avoiding the O(n²) cost
     of hashing the entire well at once.
+
+    When the PH footprint contains significantly more cells than the SBS tile (a common
+    occurrence when PH is denser), the RANSAC triangle-hash alignment step sees a
+    density-flooded point set that can produce spurious transforms. ``align_ratio``
+    controls the maximum PH-to-SBS cell ratio used *for alignment only*: if
+    ``len(ph_sub) > align_ratio * len(sbs_sub)``, PH is randomly subsampled to
+    ``int(align_ratio * len(sbs_sub))`` cells before ``find_triangles`` /
+    ``evaluate_match``. The full ``ph_sub`` is always forwarded to
+    ``merge_triangle_hash`` so that matching still sees every candidate cell.
 
     Args:
         sbs_cells: SBS global cell table with columns gy, gx, tile, well, plate, cell.
@@ -187,6 +197,11 @@ def merge_reference_tiles(
         evaluate_kwargs: Extra kwargs for evaluate_match (e.g. ransac_kwargs).
         margin_px: Pixels to expand each SBS tile footprint when gathering PH cells.
         min_cells: Minimum cells on each side required to attempt a hash merge.
+        align_ratio: Maximum PH-to-SBS cell ratio for the RANSAC alignment step.
+            If ``len(ph_sub) > align_ratio * len(sbs_sub)``, PH is subsampled to
+            ``int(align_ratio * len(sbs_sub))`` cells before triangle hashing.
+            Set to a very large value (e.g. ``float("inf")``) to disable subsampling
+            and restore the original behaviour.
 
     Returns:
         Deduplicated 1:1 matched-cell DataFrame with a ``subtile`` column (SBS tile id).
@@ -224,8 +239,15 @@ def merge_reference_tiles(
         if len(ph_sub) < min_cells or len(sbs_sub) < min_cells:
             continue
 
+        # Subsample PH for alignment only when it would flood RANSAC.
+        n_align = int(align_ratio * len(sbs_sub))
+        if len(ph_sub) > n_align:
+            ph_align = ph_sub.sample(n=n_align, random_state=0)
+        else:
+            ph_align = ph_sub
+
         t_ph = find_triangles(
-            ph_sub[["gy_ref", "gx_ref"]].rename(columns={"gy_ref": "i", "gx_ref": "j"})
+            ph_align[["gy_ref", "gx_ref"]].rename(columns={"gy_ref": "i", "gx_ref": "j"})
         )
         t_sbs = find_triangles(
             sbs_sub[["gy", "gx"]].rename(columns={"gy": "i", "gx": "j"})

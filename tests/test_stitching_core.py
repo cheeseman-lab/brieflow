@@ -122,3 +122,57 @@ def test_solve_global_offsets_noncontiguous_tile_ids():
     assert off["tile"].tolist() == [123, 142, 165]
     np.testing.assert_allclose(off["x"].to_numpy(), [0.0, 100.0, 200.0], atol=1e-6)
     np.testing.assert_allclose(off["y"].to_numpy(), [0.0, 0.0, 0.0], atol=1e-6)
+
+
+@pytest.mark.unit
+def test_reconcile_overlap_cells_removes_cross_tile_dups():
+    """Two-tile overlap: N duplicate pairs + M unique cells per tile → N + 2*M kept."""
+    from workflow.lib.shared.stitching.reconcile import reconcile_overlap_cells
+
+    rng = np.random.default_rng(7)
+    N_dups = 20    # physical cells seen by both tiles (in overlap zone)
+    M_unique = 40  # unique cells visible to only one tile
+
+    # Duplicate pairs: tile 0 sees p, tile 1 sees p + small jitter (< radius_px=5)
+    base_pos = rng.uniform(100, 200, size=(N_dups, 2))
+    jitter = rng.uniform(-2.0, 2.0, size=(N_dups, 2))
+
+    rows = []
+    for k in range(N_dups):
+        rows.append({"cell": k,           "tile": 0,
+                     "gy": base_pos[k, 0], "gx": base_pos[k, 1]})
+        rows.append({"cell": k + N_dups,  "tile": 1,
+                     "gy": base_pos[k, 0] + jitter[k, 0],
+                     "gx": base_pos[k, 1] + jitter[k, 1]})
+    # Unique cells far from the duplicates (> radius_px from any neighbour)
+    for k in range(M_unique):
+        p = rng.uniform(400, 500, size=2)
+        rows.append({"cell": N_dups * 2 + k,           "tile": 0, "gy": p[0], "gx": p[1]})
+    for k in range(M_unique):
+        p = rng.uniform(600, 700, size=2)
+        rows.append({"cell": N_dups * 2 + M_unique + k, "tile": 1, "gy": p[0], "gx": p[1]})
+
+    cells = pd.DataFrame(rows)
+    result = reconcile_overlap_cells(cells, radius_px=5.0)
+
+    expected = N_dups + 2 * M_unique
+    assert len(result) == expected, (
+        f"Expected {expected} unique physical cells, got {len(result)}"
+    )
+
+
+@pytest.mark.unit
+def test_reconcile_never_merges_same_tile():
+    """Cells from the same tile are kept even when closer than radius_px."""
+    from workflow.lib.shared.stitching.reconcile import reconcile_overlap_cells
+
+    rows = [
+        {"cell": 0, "tile": 0, "gy": 0.0,   "gx": 0.0},
+        {"cell": 1, "tile": 0, "gy": 0.5,   "gx": 0.5},   # same tile, very close
+        {"cell": 2, "tile": 1, "gy": 100.0, "gx": 100.0},  # different tile, far away
+    ]
+    cells = pd.DataFrame(rows)
+    result = reconcile_overlap_cells(cells, radius_px=5.0)
+    assert len(result) == 3, (
+        f"Same-tile near-neighbors must not be merged; got {len(result)} rows"
+    )

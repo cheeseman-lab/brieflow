@@ -8,6 +8,7 @@ import pandas as pd
 from workflow.lib.merge.hash import find_triangles, evaluate_match
 from workflow.lib.merge.fast_merge import merge_triangle_hash
 from workflow.lib.merge.deduplicate_merge import deduplicate_cells
+from workflow.lib.shared.stitching.types import TileOffsets
 
 
 def assign_subtiles(
@@ -143,6 +144,123 @@ def merge_subtiles(
     combined = deduplicate_cells(
         combined,
         approach="fast",
+        sbs_dedup_prior={"distance": True},
+        pheno_dedup_prior={"distance": True},
+    )
+
+    return combined
+
+
+def merge_reference_tiles(
+    sbs_cells: pd.DataFrame,
+    ph_cells: pd.DataFrame,
+    coarse: dict,
+    sbs_offsets: TileOffsets,
+    tile_shape: tuple[int, int],
+    threshold: float = 4,
+    local_refinement: str | None = None,
+    warp_kwargs: dict | None = None,
+    evaluate_kwargs: dict | None = None,
+    margin_px: float = 100.0,
+    min_cells: int = 30,
+) -> pd.DataFrame:
+    """Hash-merge phenotype and SBS cells anchored on SBS tile footprints (tier 3 recut).
+
+    Applies a coarse transform (from coarse_align_dapi) to bring phenotype cells into
+    the SBS reference frame, then for each SBS tile performs a local triangle-hash merge
+    using only the cells whose coarse-projected positions fall within that tile's
+    footprint (plus margin). All per-tile matches are deduplicated to strict 1:1.
+
+    Each local hash is bounded by the SBS tile (~5k cells), avoiding the O(n²) cost
+    of hashing the entire well at once.
+
+    Args:
+        sbs_cells: SBS global cell table with columns gy, gx, tile, well, plate, cell.
+        ph_cells: Phenotype global cell table with same required columns.
+        coarse: Transform dict from coarse_align_dapi with keys rotation (2×2 ndarray)
+            and translation (shape (2,) ndarray) mapping PH global px → SBS global px.
+        sbs_offsets: Per-tile pixel offsets for SBS (TileOffsets).
+        tile_shape: (height, width) of each SBS tile in pixels.
+        threshold: Nearest-neighbour match threshold in pixels.
+        local_refinement: None | "polynomial" | "thin_plate_spline" for refine_local_warp.
+        warp_kwargs: Extra kwargs for refine_local_warp.
+        evaluate_kwargs: Extra kwargs for evaluate_match (e.g. ransac_kwargs).
+        margin_px: Pixels to expand each SBS tile footprint when gathering PH cells.
+        min_cells: Minimum cells on each side required to attempt a hash merge.
+
+    Returns:
+        Deduplicated 1:1 matched-cell DataFrame with a ``subtile`` column (SBS tile id).
+    """
+    h, w = tile_shape
+    R = np.asarray(coarse["rotation"], dtype=np.float64)
+    t = np.asarray(coarse["translation"], dtype=np.float64)
+
+    ph_xy = ph_cells[["gy", "gx"]].to_numpy(dtype=np.float64)
+    ph_ref_xy = (R @ ph_xy.T).T + t
+    ph_aug = ph_cells.copy()
+    ph_aug["gy_ref"] = ph_ref_xy[:, 0]
+    ph_aug["gx_ref"] = ph_ref_xy[:, 1]
+
+    off_frame = sbs_offsets.to_frame().set_index("tile")
+    out: list[pd.DataFrame] = []
+
+    for tile_id, sbs_sub in sbs_cells.groupby("tile"):
+        if tile_id not in off_frame.index:
+            continue
+        oy = float(off_frame.loc[tile_id, "y"])
+        ox = float(off_frame.loc[tile_id, "x"])
+
+        y0, y1 = oy - margin_px, oy + h + margin_px
+        x0, x1 = ox - margin_px, ox + w + margin_px
+        mask = (
+            (ph_aug["gy_ref"] >= y0)
+            & (ph_aug["gy_ref"] < y1)
+            & (ph_aug["gx_ref"] >= x0)
+            & (ph_aug["gx_ref"] < x1)
+        )
+        ph_sub = ph_aug[mask].reset_index(drop=True)
+        sbs_sub = sbs_sub.reset_index(drop=True)
+
+        if len(ph_sub) < min_cells or len(sbs_sub) < min_cells:
+            continue
+
+        t_ph = find_triangles(
+            ph_sub[["gy_ref", "gx_ref"]].rename(columns={"gy_ref": "i", "gx_ref": "j"})
+        )
+        t_sbs = find_triangles(
+            sbs_sub[["gy", "gx"]].rename(columns={"gy": "i", "gx": "j"})
+        )
+        rot, trans, _score = evaluate_match(t_ph, t_sbs, **(evaluate_kwargs or {}))
+        if rot is None:
+            continue
+
+        ph_hash = ph_sub.assign(i=ph_sub["gy_ref"], j=ph_sub["gx_ref"])
+        sbs_hash = sbs_sub.assign(i=sbs_sub["gy"], j=sbs_sub["gx"])
+
+        m = merge_triangle_hash(
+            ph_hash,
+            sbs_hash,
+            {"rotation": rot, "translation": trans},
+            threshold=threshold,
+            local_refinement=local_refinement,
+            warp_kwargs=warp_kwargs,
+        )
+        if len(m):
+            m = m.copy()
+            m["subtile"] = tile_id
+            out.append(m)
+
+    if not out:
+        return ph_cells.head(0).assign(subtile=pd.Series(dtype=int))
+
+    combined = pd.concat(out, ignore_index=True)
+    if "mapped_single_gene" not in combined.columns:
+        combined["mapped_single_gene"] = False
+
+    combined = deduplicate_cells(
+        combined,
+        approach="fast",
+        mapped_single_gene=False,
         sbs_dedup_prior={"distance": True},
         pheno_dedup_prior={"distance": True},
     )

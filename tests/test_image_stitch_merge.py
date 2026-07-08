@@ -9,7 +9,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from workflow.lib.merge.image_stitch_merge import assign_subtiles, merge_subtiles
+from workflow.lib.merge.image_stitch_merge import assign_subtiles, merge_subtiles, merge_reference_tiles
+from workflow.lib.shared.stitching.types import TileOffsets
 
 
 @pytest.mark.unit
@@ -73,3 +74,84 @@ def test_merge_subtiles_recovers_matches():
     # Strict 1:1: no duplicate ph or sbs cell assignments after deduplicate_cells
     assert merged["cell_0"].nunique() == len(merged)
     assert merged["cell_1"].nunique() == len(merged)
+
+
+@pytest.mark.unit
+def test_merge_reference_tiles():
+    """merge_reference_tiles matches >70% of SBS cells with strict 1:1."""
+    rng = np.random.default_rng(42)
+    tile_shape = (500, 500)
+    h, w = tile_shape
+    n_per_tile = 200
+
+    tile_ids = [0, 1, 2, 3]
+    tile_offsets = [(0, 0), (0, w), (h, 0), (h, w)]
+    off_df = pd.DataFrame({
+        "tile": tile_ids,
+        "y": [o[0] for o in tile_offsets],
+        "x": [o[1] for o in tile_offsets],
+    })
+    sbs_offsets = TileOffsets.from_frame(off_df)
+
+    # Global transform: 0.5° rotation + [5, 8] translation in SBS px, scale=1.0
+    angle_global = 0.5
+    t_global = np.array([5.0, 8.0])
+    theta = np.deg2rad(angle_global)
+    R_fwd = np.array([[np.cos(theta), -np.sin(theta)],
+                      [np.sin(theta),  np.cos(theta)]])
+    # Inverse transform maps PH → SBS
+    R_inv = R_fwd.T
+    t_inv = -R_fwd.T @ t_global
+    coarse = {
+        "rotation": R_inv,
+        "translation": t_inv,
+        "angle_deg": -angle_global,
+        "scale": 1.0,
+    }
+
+    sbs_rows, ph_rows = [], []
+    for t_id, (oy, ox) in enumerate(tile_offsets):
+        local_ij = rng.uniform(40, 460, size=(n_per_tile, 2))
+        gy = local_ij[:, 0] + oy
+        gx = local_ij[:, 1] + ox
+
+        # Use globally unique cell IDs so cell_0.nunique() == len(merged) is testable
+        for k in range(n_per_tile):
+            cell_id = t_id * n_per_tile + k
+            sbs_rows.append({
+                "cell": cell_id, "tile": t_id, "well": "A1", "plate": 1,
+                "gy": gy[k], "gx": gx[k], "i": gy[k], "j": gx[k],
+            })
+
+        # Per-tile residual: 0.08° rotation around tile center
+        angle_res = 0.08 * (t_id + 1)
+        theta_r = np.deg2rad(angle_res)
+        R_res = np.array([[np.cos(theta_r), -np.sin(theta_r)],
+                          [np.sin(theta_r),  np.cos(theta_r)]])
+        center = np.array([oy + h / 2.0, ox + w / 2.0])
+
+        for k in range(n_per_tile):
+            cell_id = t_id * n_per_tile + k
+            p = np.array([gy[k], gx[k]])
+            p_ph = R_fwd @ p + t_global
+            p_ph = R_res @ (p_ph - center) + center
+            ph_rows.append({
+                "cell": cell_id, "tile": t_id, "well": "A1", "plate": 1,
+                "gy": p_ph[0], "gx": p_ph[1], "i": p_ph[0], "j": p_ph[1],
+            })
+
+    sbs_cells = pd.DataFrame(sbs_rows)
+    ph_cells = pd.DataFrame(ph_rows)
+
+    merged = merge_reference_tiles(
+        sbs_cells, ph_cells, coarse, sbs_offsets, tile_shape,
+        threshold=4,
+        evaluate_kwargs={"ransac_kwargs": {"random_state": 0}},
+    )
+
+    total_sbs = len(sbs_cells)
+    assert len(merged) > 0.70 * total_sbs, (
+        f"Only matched {len(merged)}/{total_sbs} ({len(merged)/total_sbs:.1%})"
+    )
+    assert merged["cell_0"].nunique() == len(merged), "PH cell_0 not strictly unique"
+    assert merged["cell_1"].nunique() == len(merged), "SBS cell_1 not strictly unique"

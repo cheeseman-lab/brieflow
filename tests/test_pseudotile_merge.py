@@ -152,79 +152,87 @@ def test_stage_coarse_transform_zero_offset_identity_translation():
 # ---------------------------------------------------------------------------
 
 
-def _make_sbs_ph_synthetic():
-    """Build a small SBS + PH cell pair for merge_pseudotiles tests.
+def _make_multitile_synthetic():
+    """Build a synthetic where each SBS footprint overlaps 4 PH tiles with distinct rotations.
 
-    SBS: 2×2 tiles (step=360px, tile_shape=400×400, ~10% overlap), 120 cells per tile.
-    PH: same 4 tiles; each PH tile's cells are the corresponding SBS cells rotated by a
-    per-tile angle (drawn from ±1.5°) about that tile's centre.
+    Physical region: [0,800]×[0,800] at unit scale (sbs_um_per_px = ph_um_per_px = 1.0).
+    SBS: 2×2 tiles of 400×400.
+    PH: 4×4 pseudo-tiles of 200×200; each of the 16 tiles is rotated by a different angle
+        drawn from np.linspace(-8.0, 8.0, 16) degrees about its own centre.
 
-    sbs_um_per_px = ph_um_per_px = 1.0; ph_meta = sbs_meta (identical stage frames)
-    → stage_coarse_transform returns identity coarse (rotation=I, translation=(0,0)),
-    so ph_ref = ph_global.  The per-tile rotations are small enough that
-    evaluate_match/RANSAC converges; the purpose is to verify assignment-by-position
-    and per-PH-tile hashing, not to stress RANSAC.
+    ph_meta = sbs_meta so stage_coarse_transform returns (scale=1, translation=(0,0)) and
+    correspondence is purely by physical position. Each SBS tile footprint overlaps exactly
+    4 PH tiles (e.g. SBS tile 0 sees PH tiles 0,1,4,5) whose angles span ~5.3°, making a
+    single per-footprint rotation insufficient to align them all at threshold=4px.
+    merge_pseudotiles hashes each PH tile independently and recovers high match rate;
+    the naive merged-footprint RANSAC can only align ONE of the four groups and collapses.
     """
     rng = np.random.default_rng(0)
 
-    TILE_H, TILE_W = 400, 400
-    STEP = 360  # 10% overlap (400 - 360 = 40 px per edge)
-    N_CELLS = 120
+    SBS_H, SBS_W = 400, 400
+    PH_H, PH_W = 200, 200
+    N_PHYS = 2000
 
-    # SBS: 2×2 grid
-    sbs_offsets = {0: (0, 0), 1: (0, STEP), 2: (STEP, 0), 3: (STEP, STEP)}
-
-    # Stage metadata: y_pos/x_pos = tile offsets in µm (valid since um_per_px=1.0)
+    # SBS 2×2 grid (step=400, no overlap)
+    sbs_offsets = {0: (0, 0), 1: (0, 400), 2: (400, 0), 3: (400, 400)}
     sbs_meta = pd.DataFrame([
         {"tile": t, "y_pos": float(oy), "x_pos": float(ox)}
         for t, (oy, ox) in sbs_offsets.items()
     ])
-    # Identical meta → stage_coarse_transform gives scale=1, translation=(0,0)
+    # ph_meta = sbs_meta → stage_coarse_transform returns identity (scale=1, translation=0)
     ph_meta = sbs_meta.copy()
 
-    # SBS cells: uniformly inside each tile (avoid the 20px edge for clean per-tile membership)
+    # Physical cell positions uniformly in [10, 790]×[10, 790]
+    y_phys = rng.uniform(10, 790, N_PHYS)
+    x_phys = rng.uniform(10, 790, N_PHYS)
+
+    # SBS cells: gy/gx = physical position; tile = SBS quadrant (0–3)
     sbs_rows = []
-    for t, (oy, ox) in sbs_offsets.items():
-        ly = rng.uniform(20, TILE_H - 20, N_CELLS)
-        lx = rng.uniform(20, TILE_W - 20, N_CELLS)
-        for k, (y, x) in enumerate(zip(ly, lx)):
-            sbs_rows.append({"plate": 1, "well": "A1", "tile": t, "cell": k,
-                              "gy": oy + y, "gx": ox + x})
+    for k in range(N_PHYS):
+        y, x = float(y_phys[k]), float(x_phys[k])
+        t = min(int(y / SBS_H), 1) * 2 + min(int(x / SBS_W), 1)
+        sbs_rows.append({"plate": 1, "well": "A1", "tile": t, "cell": k, "gy": y, "gx": x})
     sbs_cells = pd.DataFrame(sbs_rows)
 
-    # PH cells: same physical positions, each tile rotated by a different small angle.
-    # Angles ≤ 1.5° keep RANSAC reliable; different per-tile = the key test variation.
-    angles_deg = rng.uniform(-1.5, 1.5, 4)
+    # PH cells: assign to 4×4 grid; each PH tile rotated by a distinct angle
+    # Angles from -8° to +8° across 16 tiles — ~5.3° spread within each SBS footprint
+    angles_deg = np.linspace(-8.0, 8.0, 16)
     ph_rows = []
-    for t, (oy, ox) in sbs_offsets.items():
-        # Rotate about this PH tile's centre
-        cy = oy + TILE_H / 2
-        cx = ox + TILE_W / 2
-        theta = np.deg2rad(float(angles_deg[t]))
+    for k in range(N_PHYS):
+        y, x = float(y_phys[k]), float(x_phys[k])
+        ph_row = min(int(y / PH_H), 3)
+        ph_col = min(int(x / PH_W), 3)
+        ph_t = ph_row * 4 + ph_col
+
+        # Rotate this cell about the PH tile's centre
+        cy = ph_row * PH_H + PH_H / 2
+        cx = ph_col * PH_W + PH_W / 2
+        theta = np.deg2rad(float(angles_deg[ph_t]))
         cos_t, sin_t = np.cos(theta), np.sin(theta)
-        for row in sbs_cells[sbs_cells["tile"] == t].itertuples(index=False):
-            dy, dx = row.gy - cy, row.gx - cx
-            ph_rows.append({
-                "plate": 1, "well": "A1", "tile": t, "cell": row.cell,
-                "gy": cy + cos_t * dy - sin_t * dx,
-                "gx": cx + sin_t * dy + cos_t * dx,
-            })
+        dy, dx = y - cy, x - cx
+        ph_rows.append({
+            "plate": 1, "well": "A1", "tile": ph_t, "cell": k,
+            "gy": cy + cos_t * dy - sin_t * dx,
+            "gx": cx + sin_t * dy + cos_t * dx,
+        })
     ph_cells = pd.DataFrame(ph_rows)
 
-    return sbs_cells, ph_cells, sbs_meta, ph_meta, sbs_offsets, (TILE_H, TILE_W)
+    return sbs_cells, ph_cells, sbs_meta, ph_meta, sbs_offsets, (SBS_H, SBS_W)
 
 
 @pytest.mark.unit
 def test_merge_pseudotiles_matches_under_per_tile_varying_rotation():
-    """Physical-position assignment survives per-PH-tile-varying rotation.
+    """Per-PH-tile hashing survives the multi-tile-per-footprint scenario.
 
-    A single fitted global rotation fails when each PH tile carries a different residual
-    (the production bug this feature fixes).  Here we verify that merge_pseudotiles —
-    which assigns PH cells to SBS tile footprints by physical stage position and then hashes
-    per-PH-tile — achieves a healthy match rate even though no single rotation aligns all
-    four PH tiles simultaneously.
+    Each SBS tile footprint overlaps 4 PH tiles each carrying a DIFFERENT rotation (angles
+    span ~5.3° within one footprint). A single rotation fitted to the mixed footprint at
+    threshold=4px can only align ONE of the four PH groups; merge_pseudotiles hashes each PH
+    tile independently and achieves a high match rate.  The naive merge_reference_tiles
+    (global_model=False, local_refinement=None) is shown to do materially worse, proving
+    per-PH-tile hashing is what makes the difference.
     """
-    sbs_cells, ph_cells, sbs_meta, ph_meta, sbs_offsets, tile_shape = _make_sbs_ph_synthetic()
+    sbs_cells, ph_cells, sbs_meta, ph_meta, sbs_offsets, tile_shape = _make_multitile_synthetic()
+    total_sbs = len(sbs_cells)
 
     result = merge_pseudotiles(
         sbs_cells,
@@ -235,21 +243,19 @@ def test_merge_pseudotiles_matches_under_per_tile_varying_rotation():
         tile_shape,
         sbs_um_per_px=1.0,
         ph_um_per_px=1.0,
-        margin_um=50.0,       # small margin reduces cross-tile ambiguity
+        margin_um=50.0,
         min_overlap_cells=30,
         threshold=4.0,
         local_refinement=True,
     )
 
-    total_sbs = len(sbs_cells)
-
     # (a) Healthy fraction of SBS cells matched
     assert len(result) / total_sbs >= 0.60, (
-        f"Expected ≥60% SBS cells matched, got {len(result)}/{total_sbs}"
+        f"merge_pseudotiles: expected ≥60% SBS cells matched, got {len(result)}/{total_sbs}"
     )
 
-    # (b) Strict 1:1: no SBS cell matched twice, no PH cell matched twice
-    assert not result.duplicated(subset=["cell_1", "subtile"]).any(), \
+    # (b) Strict 1:1: no SBS cell matched twice (canonical 'site' key), no PH cell twice
+    assert not result.duplicated(subset=["cell_1", "site"]).any(), \
         "Duplicate SBS cell in result (not strict 1:1 on SBS side)"
     assert not result.duplicated(subset=["cell_0", "ph_tile"]).any(), \
         "Duplicate PH cell in result (not strict 1:1 on PH side)"
@@ -257,6 +263,37 @@ def test_merge_pseudotiles_matches_under_per_tile_varying_rotation():
     # (c) Median match distance well within threshold
     assert float(result["distance"].median()) < 4.0, \
         f"Median match distance too large: {result['distance'].median():.3f}"
+
+    # (d) Contrast: naive merged-footprint RANSAC does materially worse WITHOUT per-tile TPS.
+    # merge_reference_tiles mixes all PH tiles in each SBS footprint; a single RANSAC rotation
+    # (no TPS) can only align ONE PH group at threshold=4px and misses the rest.
+    # local_refinement=None here is intentional: TPS can hide the mixing by warping locally,
+    # but the point is that the RANSAC seed itself fails when footprints carry multiple
+    # distinct rotations — per-PH-tile hashing avoids that entirely.
+    from workflow.lib.merge.image_stitch_merge import merge_reference_tiles
+    from workflow.lib.shared.stitching.types import TileOffsets
+    coarse = stage_coarse_transform(sbs_meta, ph_meta, 1.0, 1.0)
+    # merge_reference_tiles requires TileOffsets (not a plain dict)
+    offsets_frame = pd.DataFrame([
+        {"tile": t, "y": float(v[0]), "x": float(v[1])}
+        for t, v in sbs_offsets.items()
+    ])
+    sbs_offsets_obj = TileOffsets.from_frame(offsets_frame)
+    naive = merge_reference_tiles(
+        sbs_cells,
+        ph_cells,
+        coarse,
+        sbs_offsets_obj,
+        tile_shape=tile_shape,
+        margin_px=50.0,
+        threshold=4.0,
+        local_refinement=None,
+        global_model=False,
+    )
+    assert len(naive) < 0.6 * len(result), (
+        f"Naive per-footprint RANSAC should do materially worse than per-PH-tile: "
+        f"naive={len(naive)}, pseudotile={len(result)}"
+    )
 
 
 @pytest.mark.unit
@@ -285,7 +322,10 @@ def test_merge_pseudotiles_returns_expected_schema():
         margin_um=50.0, min_overlap_cells=10, threshold=2.0,
     )
 
-    required = {"subtile", "ph_tile", "cell_0", "cell_1", "distance"}
+    required = {
+        "cell_0", "i_0", "j_0", "site", "cell_1", "i_1", "j_1",
+        "distance", "subtile", "ph_tile",
+    }
     assert required.issubset(result.columns), \
         f"Missing columns: {required - set(result.columns)}"
 

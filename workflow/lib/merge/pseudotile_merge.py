@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from workflow.lib.merge.image_stitch_merge import merge_reference_tiles_per_phtile
+
 
 def register_stage_frames(
     sbs_meta: pd.DataFrame,
@@ -91,3 +93,72 @@ def stage_coarse_transform(
         "angle_deg": 0.0,
         "scale": scale,
     }
+
+
+def merge_pseudotiles(
+    sbs_cells: pd.DataFrame,
+    ph_cells: pd.DataFrame,
+    sbs_meta: pd.DataFrame,
+    ph_meta: pd.DataFrame,
+    sbs_offsets,
+    tile_shape: tuple[int, int],
+    sbs_um_per_px: float,
+    ph_um_per_px: float,
+    margin_um: float = 250.0,
+    min_overlap_cells: int = 30,
+    threshold: float = 4.0,
+    local_refinement: bool = True,
+    warp_kwargs: dict | None = None,
+    neg_det_fallback: bool = True,
+) -> pd.DataFrame:
+    """Merge SBS and phenotype cells by physical-position pseudotile assignment + per-PH-tile hash.
+
+    Builds a translation-only coarse transform from the two modalities' stage frames
+    (``stage_coarse_transform``) — so PH cells are assigned to each SBS tile's footprint by
+    physical stage position rather than a fitted global image rotation — then runs the
+    per-PH-tile hash merge (``merge_reference_tiles_per_phtile``), which keeps each PH tile a
+    coherent hashing unit and deduplicates to a strict 1:1 mapping.
+
+    Args:
+        sbs_cells: SBS global cell table with columns ``gy``, ``gx``, ``tile``, ``well``,
+            ``plate``, ``cell``.
+        ph_cells: Phenotype global cell table with the same required columns.
+        sbs_meta: SBS per-tile metadata with ``y_pos``/``x_pos`` stage coords (µm).
+        ph_meta: Phenotype per-tile metadata with the same columns.
+        sbs_offsets: Per-tile SBS pixel offsets as a ``TileOffsets`` or a plain
+            ``{tile_id: (y, x)}`` mapping.
+        tile_shape: (height, width) of each SBS tile in pixels.
+        sbs_um_per_px: SBS pixel size (µm/px).
+        ph_um_per_px: Phenotype pixel size (µm/px).
+        margin_um: Expansion of each SBS tile footprint in µm when gathering PH cells
+            (converted to SBS pixels via ``sbs_um_per_px``). Defaults to 250.0 µm.
+        min_overlap_cells: Minimum coarse-projected PH cells inside a footprint for a PH
+            tile to count as overlapping (also the minimum SBS tile size). Defaults to 30.
+        threshold: Nearest-neighbour match threshold in SBS pixels. Defaults to 4.0.
+        local_refinement: If True (default), refine each (SBS tile, PH tile) pair with a
+            thin-plate-spline local warp; if False, use the plain affine. A model-name
+            string (``"polynomial"`` | ``"thin_plate_spline"``) is also accepted.
+        warp_kwargs: Extra kwargs forwarded to the local warp model.
+        neg_det_fallback: If True (default), retry pairs whose per-pair rotation estimate
+            failed (rotation None or det < 0) using a bootstrapped global rotation.
+
+    Returns:
+        Deduplicated strict-1:1 matched-cell DataFrame (same schema as
+        ``merge_reference_tiles_per_phtile``): ``subtile`` = SBS tile id,
+        ``ph_tile`` = PH tile id, plus merge id columns.
+    """
+    coarse = stage_coarse_transform(sbs_meta, ph_meta, sbs_um_per_px, ph_um_per_px)
+    margin_px = int(round(margin_um / sbs_um_per_px))
+    return merge_reference_tiles_per_phtile(
+        sbs_cells,
+        ph_cells,
+        coarse,
+        sbs_offsets,
+        tile_shape,
+        margin_px=margin_px,
+        min_overlap_cells=min_overlap_cells,
+        threshold=threshold,
+        local_refinement=local_refinement,
+        warp_kwargs=warp_kwargs,
+        neg_det_fallback=neg_det_fallback,
+    )

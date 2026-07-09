@@ -9,7 +9,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from workflow.lib.merge.pseudotile_merge import register_stage_frames, stage_coarse_transform
+from workflow.lib.merge.pseudotile_merge import (
+    register_stage_frames,
+    stage_coarse_transform,
+    merge_pseudotiles,
+)
 
 
 def _grid_meta(n_rows, n_cols, spacing, dy=0.0, dx=0.0):
@@ -141,3 +145,160 @@ def test_stage_coarse_transform_zero_offset_identity_translation():
     assert np.isclose(result["scale"], 1.0)
     assert np.allclose(result["rotation"], np.eye(2))
     assert result["angle_deg"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# merge_pseudotiles tests
+# ---------------------------------------------------------------------------
+
+
+def _make_sbs_ph_synthetic():
+    """Build a small SBS + PH cell pair for merge_pseudotiles tests.
+
+    SBS: 2×2 tiles (step=360px, tile_shape=400×400, ~10% overlap), 120 cells per tile.
+    PH: same 4 tiles; each PH tile's cells are the corresponding SBS cells rotated by a
+    per-tile angle (drawn from ±1.5°) about that tile's centre.
+
+    sbs_um_per_px = ph_um_per_px = 1.0; ph_meta = sbs_meta (identical stage frames)
+    → stage_coarse_transform returns identity coarse (rotation=I, translation=(0,0)),
+    so ph_ref = ph_global.  The per-tile rotations are small enough that
+    evaluate_match/RANSAC converges; the purpose is to verify assignment-by-position
+    and per-PH-tile hashing, not to stress RANSAC.
+    """
+    rng = np.random.default_rng(0)
+
+    TILE_H, TILE_W = 400, 400
+    STEP = 360  # 10% overlap (400 - 360 = 40 px per edge)
+    N_CELLS = 120
+
+    # SBS: 2×2 grid
+    sbs_offsets = {0: (0, 0), 1: (0, STEP), 2: (STEP, 0), 3: (STEP, STEP)}
+
+    # Stage metadata: y_pos/x_pos = tile offsets in µm (valid since um_per_px=1.0)
+    sbs_meta = pd.DataFrame([
+        {"tile": t, "y_pos": float(oy), "x_pos": float(ox)}
+        for t, (oy, ox) in sbs_offsets.items()
+    ])
+    # Identical meta → stage_coarse_transform gives scale=1, translation=(0,0)
+    ph_meta = sbs_meta.copy()
+
+    # SBS cells: uniformly inside each tile (avoid the 20px edge for clean per-tile membership)
+    sbs_rows = []
+    for t, (oy, ox) in sbs_offsets.items():
+        ly = rng.uniform(20, TILE_H - 20, N_CELLS)
+        lx = rng.uniform(20, TILE_W - 20, N_CELLS)
+        for k, (y, x) in enumerate(zip(ly, lx)):
+            sbs_rows.append({"plate": 1, "well": "A1", "tile": t, "cell": k,
+                              "gy": oy + y, "gx": ox + x})
+    sbs_cells = pd.DataFrame(sbs_rows)
+
+    # PH cells: same physical positions, each tile rotated by a different small angle.
+    # Angles ≤ 1.5° keep RANSAC reliable; different per-tile = the key test variation.
+    angles_deg = rng.uniform(-1.5, 1.5, 4)
+    ph_rows = []
+    for t, (oy, ox) in sbs_offsets.items():
+        # Rotate about this PH tile's centre
+        cy = oy + TILE_H / 2
+        cx = ox + TILE_W / 2
+        theta = np.deg2rad(float(angles_deg[t]))
+        cos_t, sin_t = np.cos(theta), np.sin(theta)
+        for row in sbs_cells[sbs_cells["tile"] == t].itertuples(index=False):
+            dy, dx = row.gy - cy, row.gx - cx
+            ph_rows.append({
+                "plate": 1, "well": "A1", "tile": t, "cell": row.cell,
+                "gy": cy + cos_t * dy - sin_t * dx,
+                "gx": cx + sin_t * dy + cos_t * dx,
+            })
+    ph_cells = pd.DataFrame(ph_rows)
+
+    return sbs_cells, ph_cells, sbs_meta, ph_meta, sbs_offsets, (TILE_H, TILE_W)
+
+
+@pytest.mark.unit
+def test_merge_pseudotiles_matches_under_per_tile_varying_rotation():
+    """Physical-position assignment survives per-PH-tile-varying rotation.
+
+    A single fitted global rotation fails when each PH tile carries a different residual
+    (the production bug this feature fixes).  Here we verify that merge_pseudotiles —
+    which assigns PH cells to SBS tile footprints by physical stage position and then hashes
+    per-PH-tile — achieves a healthy match rate even though no single rotation aligns all
+    four PH tiles simultaneously.
+    """
+    sbs_cells, ph_cells, sbs_meta, ph_meta, sbs_offsets, tile_shape = _make_sbs_ph_synthetic()
+
+    result = merge_pseudotiles(
+        sbs_cells,
+        ph_cells,
+        sbs_meta,
+        ph_meta,
+        sbs_offsets,
+        tile_shape,
+        sbs_um_per_px=1.0,
+        ph_um_per_px=1.0,
+        margin_um=50.0,       # small margin reduces cross-tile ambiguity
+        min_overlap_cells=30,
+        threshold=4.0,
+        local_refinement=True,
+    )
+
+    total_sbs = len(sbs_cells)
+
+    # (a) Healthy fraction of SBS cells matched
+    assert len(result) / total_sbs >= 0.60, (
+        f"Expected ≥60% SBS cells matched, got {len(result)}/{total_sbs}"
+    )
+
+    # (b) Strict 1:1: no SBS cell matched twice, no PH cell matched twice
+    assert not result.duplicated(subset=["cell_1", "subtile"]).any(), \
+        "Duplicate SBS cell in result (not strict 1:1 on SBS side)"
+    assert not result.duplicated(subset=["cell_0", "ph_tile"]).any(), \
+        "Duplicate PH cell in result (not strict 1:1 on PH side)"
+
+    # (c) Median match distance well within threshold
+    assert float(result["distance"].median()) < 4.0, \
+        f"Median match distance too large: {result['distance'].median():.3f}"
+
+
+@pytest.mark.unit
+def test_merge_pseudotiles_returns_expected_schema():
+    """merge_pseudotiles returns correct column schema on happy-path and empty inputs."""
+    rng = np.random.default_rng(42)
+    TILE_H, TILE_W = 400, 400
+
+    sbs_offsets = {0: (0, 0)}
+    sbs_meta = pd.DataFrame([{"tile": 0, "y_pos": 0.0, "x_pos": 0.0}])
+    ph_meta = sbs_meta.copy()
+
+    # Happy path: identical SBS and PH cells → should match nearly all
+    n = 60
+    gy = rng.uniform(20, TILE_H - 20, n)
+    gx = rng.uniform(20, TILE_W - 20, n)
+    sbs_cells = pd.DataFrame({
+        "plate": 1, "well": "A1", "tile": 0,
+        "cell": np.arange(n), "gy": gy, "gx": gx,
+    })
+    ph_cells = sbs_cells.copy()
+
+    result = merge_pseudotiles(
+        sbs_cells, ph_cells, sbs_meta, ph_meta,
+        sbs_offsets, (TILE_H, TILE_W), 1.0, 1.0,
+        margin_um=50.0, min_overlap_cells=10, threshold=2.0,
+    )
+
+    required = {"subtile", "ph_tile", "cell_0", "cell_1", "distance"}
+    assert required.issubset(result.columns), \
+        f"Missing columns: {required - set(result.columns)}"
+
+    # Empty-safe: PH cells far outside SBS footprint → no overlap → empty result
+    ph_far = ph_cells.copy()
+    ph_far["gy"] = ph_far["gy"] + 1_000_000
+    ph_far["gx"] = ph_far["gx"] + 1_000_000
+
+    empty = merge_pseudotiles(
+        sbs_cells, ph_far, sbs_meta, ph_meta,
+        sbs_offsets, (TILE_H, TILE_W), 1.0, 1.0,
+        margin_um=50.0, min_overlap_cells=10, threshold=2.0,
+    )
+    assert len(empty) == 0, "Expected empty result for non-overlapping inputs"
+    assert "subtile" in empty.columns and "ph_tile" in empty.columns, \
+        "Empty result must still carry subtile/ph_tile columns"

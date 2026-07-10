@@ -28,8 +28,7 @@ def merge_triangle_hash(
             "polynomial" or "thin_plate_spline". Defaults None (off) — behaviour is then
             identical to the plain affine merge.
         warp_kwargs (dict | None): Keyword args forwarded to `refine_local_warp`
-            (degree, iterations, min_correspondences, smoothing, max_correspondences) when
-            local_refinement is on. Defaults None.
+            (degree, iterations, smoothing) when local_refinement is on. Defaults None.
 
     Returns:
         pandas.DataFrame: The merged DataFrame.
@@ -79,8 +78,7 @@ def merge_sbs_phenotype(
             "polynomial" or "thin_plate_spline" selects the model. Defaults None (off) —
             prediction is then the plain affine, identical to before.
         warp_kwargs (dict | None, optional): Keyword args forwarded to `refine_local_warp`
-            (degree, iterations, min_correspondences, smoothing, max_correspondences) when
-            local_refinement is on. Defaults None.
+            (degree, iterations, smoothing) when local_refinement is on. Defaults None.
 
     Returns:
         pandas.DataFrame: Table of merged identities of cell labels from cell_locations_0 and cell_locations_1.
@@ -183,10 +181,8 @@ def refine_local_warp(
     threshold,
     degree=2,
     iterations=2,
-    min_correspondences=30,
     model="polynomial",
     smoothing=10.0,
-    max_correspondences=700,
 ):
     """Refine a global affine alignment with a local non-rigid warp.
 
@@ -204,14 +200,14 @@ def refine_local_warp(
         threshold (float): Match distance defining a high-confidence correspondence.
         degree (int): Polynomial degree (model="polynomial"). Defaults to 2.
         iterations (int): Number of refine-and-rematch passes. Defaults to 2.
-        min_correspondences (int): Minimum confident matches required to fit. Defaults to 30.
         model (str): "polynomial" (default) or "thin_plate_spline".
         smoothing (float): Thin-plate-spline regularization. Defaults to 10.0.
-        max_correspondences (int): Cap on thin-plate-spline anchor points. Defaults to 700.
 
     Returns:
         numpy.ndarray: Refined prediction of X in target space, shape (n, 2).
     """
+    min_correspondences = 30  # min confident matches required to fit the warp
+    max_correspondences = 700  # cap on thin-plate-spline anchor points
     pf = PolynomialFeatures(degree)
     refined = Y_pred
     for _ in range(iterations):

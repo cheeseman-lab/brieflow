@@ -110,28 +110,17 @@ def _drop_none(d):
 
 
 ransac_kwargs = _drop_none(
-    {
-        "residual_threshold": getattr(
-            snakemake.params, "ransac_residual_threshold", None
-        ),
-        "max_trials": getattr(snakemake.params, "ransac_max_trials", None),
-        "min_samples": getattr(snakemake.params, "ransac_min_samples", None),
-        "random_state": getattr(snakemake.params, "ransac_random_state", None),
-    }
+    {"random_state": getattr(snakemake.params, "ransac_random_state", None)}
 )
 evaluate_kwargs = (
     _drop_none(
         {
             "threshold_triangle": getattr(snakemake.params, "threshold_triangle", None),
-            "threshold_point": getattr(snakemake.params, "threshold_point", None),
-            "threshold_region": getattr(snakemake.params, "threshold_region", None),
             "ransac_kwargs": ransac_kwargs or None,
         }
     )
     or None
 )
-batch_size = getattr(snakemake.params, "batch_size", None)
-multistep_extra = {} if batch_size is None else {"batch_size": batch_size}
 
 # find-optimal-site (gated): try top-K nearest PH tiles per SBS seed, keep best per site
 seed_optimize = getattr(snakemake.params, "seed_optimize", False)
@@ -204,7 +193,6 @@ well_alignment = multistep_alignment(
     initial_sites=initial_sites,
     n_jobs=snakemake.threads,
     evaluate_kwargs=evaluate_kwargs,
-    **multistep_extra,
 )
 
 # Reset index

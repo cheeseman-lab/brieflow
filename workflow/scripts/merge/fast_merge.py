@@ -32,13 +32,7 @@ warp_kwargs = {
     for k, v in {
         "degree": getattr(snakemake.params, "warp_degree", None),
         "iterations": getattr(snakemake.params, "warp_iterations", None),
-        "min_correspondences": getattr(
-            snakemake.params, "warp_min_correspondences", None
-        ),
         "smoothing": getattr(snakemake.params, "warp_smoothing", None),
-        "max_correspondences": getattr(
-            snakemake.params, "warp_max_correspondences", None
-        ),
     }.items()
     if v is not None
 } or None

@@ -90,6 +90,15 @@ def calculate_offsets(data_, upsample_factor):
     return np.array(offsets), np.array(errors)
 
 
+def offsets_to_metrics(offsets, unit):
+    """Flatten per-step (dy, dx) offsets into an {offset_y_{unit}{i}, offset_x_{unit}{i}} metrics dict (i from 1)."""
+    metrics = {}
+    for i, (dy, dx) in enumerate(offsets, 1):
+        metrics[f"offset_y_{unit}{i}"] = dy
+        metrics[f"offset_x_{unit}{i}"] = dx
+    return metrics
+
+
 @applyIJ
 def filter_percentiles(data, q1, q2):
     """Replace data outside of the percentile range [q1, q2] with uniform noise.

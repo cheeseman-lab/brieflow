@@ -11,6 +11,13 @@ SBS_OUTPUTS = {
         / get_filename(
             {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}, "aligned", "tiff"
         ),
+        SBS_FP
+        / "tsvs"
+        / get_filename(
+            {"plate": "{plate}", "well": "{well}", "tile": "{tile}"},
+            "alignment_metrics",
+            "tsv",
+        ),
     ],
     "log_filter": [
         SBS_FP

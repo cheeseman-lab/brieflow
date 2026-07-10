@@ -155,7 +155,7 @@ AGGREGATE_OUTPUT_MAPPINGS = {
 }
 
 # Determine which outputs to include based on config
-AGGREGATE_SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", True)
+AGGREGATE_SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", False)
 
 if not AGGREGATE_SECOND_OBJ_DETECTION:
     # Filter out secondary object rules when disabled

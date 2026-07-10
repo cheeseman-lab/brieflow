@@ -196,7 +196,7 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
 }
 
 # Determine which outputs to include based on config
-PHENOTYPE_SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", True)
+PHENOTYPE_SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", False)
 
 if not PHENOTYPE_SECOND_OBJ_DETECTION:
     # Filter out secondary object rules when disabled

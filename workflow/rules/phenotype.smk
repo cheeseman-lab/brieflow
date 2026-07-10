@@ -82,7 +82,7 @@ rule combine_phenotype_info:
 
 
 # Identify secondary objects from aligned phenotype image and cell segmentation
-if config["phenotype"].get("second_obj_detection", True):
+if config["phenotype"].get("second_obj_detection", False):
     rule identify_second_objs:
         input:
             # aligned phenotype image
@@ -107,7 +107,7 @@ if config["phenotype"].get("second_obj_detection", True):
             "../scripts/phenotype/identify_second_objs.py"
 
 # Extract secondary object phenotype features
-if config["phenotype"].get("second_obj_detection", True):
+if config["phenotype"].get("second_obj_detection", False):
     rule extract_phenotype_second_objs:
         input:
             # aligned phenotype image
@@ -126,7 +126,7 @@ if config["phenotype"].get("second_obj_detection", True):
 
 
 # Combine secondary object phenotype results from different tiles
-if config["phenotype"].get("second_obj_detection", True):
+if config["phenotype"].get("second_obj_detection", False):
     rule merge_phenotype_second_objs:
         input:
             lambda wildcards: output_to_input(
@@ -168,7 +168,7 @@ rule extract_phenotype_cp:
 
 
 # Merge secondary object data with main phenotype data
-if config["phenotype"].get("second_obj_detection", True):
+if config["phenotype"].get("second_obj_detection", False):
     rule merge_second_objs_phenotype_cp:
         input:
             # main phenotype data
@@ -186,7 +186,7 @@ rule merge_phenotype:
     input:
         lambda wildcards: output_to_input(
             PHENOTYPE_OUTPUTS["merge_second_objs_phenotype_cp"]
-            if config["phenotype"].get("second_obj_detection", True)
+            if config["phenotype"].get("second_obj_detection", False)
             else PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
             wildcards=wildcards,
             expansion_values=["tile"],

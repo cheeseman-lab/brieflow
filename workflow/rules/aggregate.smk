@@ -3,7 +3,7 @@ from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_
 
 
 # Aggregate secondary object features into cell-level data
-SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", True)
+SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", False)
 
 if SECOND_OBJ_DETECTION:
     rule aggregate_cells_second_objs:

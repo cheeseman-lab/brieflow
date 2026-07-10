@@ -22,6 +22,11 @@ import json
 import io
 import gzip
 from itertools import combinations
+from pathlib import Path
+
+_REQUEST_HEADERS = {
+    "User-Agent": "brieflow/1.5 (+https://github.com/cheeseman-lab/brieflow)"
+}
 
 import pandas as pd
 
@@ -139,7 +144,7 @@ def generate_msigdb_group_benchmark(
     Returns:
         pd.DataFrame: A DataFrame containing the MSigDB group benchmark.
     """
-    response = requests.get(url)
+    response = requests.get(url, headers=_REQUEST_HEADERS)
     msigdb_data = json.loads(response.text)
 
     # Create lists to hold data for DataFrame
@@ -167,7 +172,7 @@ def generate_msigdb_group_benchmark(
     return group_benchmark_df.reset_index(drop=True)
 
 
-def get_uniprot_data(species_id: str = "9606"):
+def get_uniprot_data(species_id: str = "9606", cache_path: str = None):
     """Fetch reviewed UniProt data for a specified species using the REST API.
 
     This function retrieves UniProt data for reviewed entries of the specified organism,
@@ -182,14 +187,21 @@ def get_uniprot_data(species_id: str = "9606"):
                          - "7227": Drosophila melanogaster (fruit fly)
                          - "6239": Caenorhabditis elegans (worm)
                          - "5811": Toxoplasma gondii
+        cache_path (str, optional): Path to a cached TSV; if present it is loaded and returned without a network call, and a fresh fetch is written here for reuse. Defaults to None (always fetch).
 
     Returns:
         pd.DataFrame: A DataFrame containing UniProt data with UniProt entry links.
     """
+    # Reuse a cached copy if present so concurrent/repeat runs don't re-query the REST API.
+    if cache_path and Path(cache_path).exists():
+        print(f"Loading cached UniProt data from {cache_path}")
+        return pd.read_csv(cache_path, sep="\t")
+
     # Define UniProt REST API query
     re_next_link = re.compile(r"<(.+)>; rel=\"next\"")
     retries = Retry(total=5, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
     session = requests.Session()
+    session.headers.update(_REQUEST_HEADERS)
     session.mount("https://", HTTPAdapter(max_retries=retries))
 
     # Function to extract next link from headers
@@ -252,6 +264,13 @@ def get_uniprot_data(species_id: str = "9606"):
         df["function"] = df["function"].str.replace("FUNCTION: ", "", regex=False)
 
     print(f"Completed. Total entries: {len(df)}")
+
+    # Persist for reuse so later/concurrent runs load from disk instead of re-querying the API.
+    if cache_path:
+        Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(cache_path, sep="\t", index=False)
+        print(f"Cached UniProt data to {cache_path}")
+
     return df
 
 
@@ -270,7 +289,7 @@ def get_corum_data():
     # Parameters for human complexes in text format
     params = {"file_id": "human", "file_format": "txt"}
 
-    response = requests.get(url, params=params, verify=False)
+    response = requests.get(url, params=params, verify=False, headers=_REQUEST_HEADERS)
     response.raise_for_status()
 
     # Read data into DataFrame
@@ -301,7 +320,7 @@ def get_string_data(species_id: str = "9606"):
     print("Fetching STRING data...")
     url = f"https://stringdb-downloads.org/download/protein.links.v12.0/{species_id}.protein.links.v12.0.txt.gz"
 
-    response = requests.get(url)
+    response = requests.get(url, headers=_REQUEST_HEADERS)
     response.raise_for_status()
 
     # Read compressed data directly into DataFrame

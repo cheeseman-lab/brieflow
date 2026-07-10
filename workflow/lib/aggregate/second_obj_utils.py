@@ -59,6 +59,9 @@ def aggregate_second_obj_data(
         return cells_df.copy()
 
     _validate_merge_keys(second_objs_df, second_objs_merge_keys, "second_objs")
+    second_objs_df = _align_merge_key_dtypes(
+        cells_df, second_objs_df, cells_merge_keys, second_objs_merge_keys
+    )
 
     strategy_functions = {
         "single": _aggregate_single,
@@ -78,6 +81,24 @@ def _validate_merge_keys(
     missing_keys = [key for key in required_keys if key not in df.columns]
     if missing_keys:
         raise ValueError(f"Missing merge keys {missing_keys} in {df_name} dataframe")
+
+
+def _align_merge_key_dtypes(
+    cells_df: pd.DataFrame,
+    second_objs_df: pd.DataFrame,
+    cells_keys: List[str],
+    second_objs_keys: List[str],
+) -> pd.DataFrame:
+    """Cast second-object merge keys to the cells' dtypes so the left-merge matches."""
+    df = second_objs_df.copy()
+    for ck, sk in zip(cells_keys, second_objs_keys):
+        if (
+            ck in cells_df.columns
+            and sk in df.columns
+            and df[sk].dtype != cells_df[ck].dtype
+        ):
+            df[sk] = df[sk].astype(cells_df[ck].dtype)
+    return df
 
 
 def _get_feature_cols(second_objs_df: pd.DataFrame, merge_keys: List[str]) -> List[str]:

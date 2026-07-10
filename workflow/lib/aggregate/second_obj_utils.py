@@ -53,6 +53,11 @@ def aggregate_second_obj_data(
     second_objs_merge_keys = ["plate", "well", "tile", "cell_id"]
 
     _validate_merge_keys(cells_df, cells_merge_keys, "cells")
+
+    # No secondary objects in this well: keep all cells, nothing to merge
+    if second_objs_df is None or second_objs_df.empty:
+        return cells_df.copy()
+
     _validate_merge_keys(second_objs_df, second_objs_merge_keys, "second_objs")
 
     strategy_functions = {

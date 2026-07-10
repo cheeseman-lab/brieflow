@@ -222,8 +222,7 @@ def segment_second_objs_ml(
         model = create_cellpose_model(model_type, gpu=gpu)
 
         # Run Cellpose segmentation
-        # Note: CellposeModel.eval() returns 3 values (masks, flows, styles)
-        # Diameter must be specified explicitly for Cellpose 4.x
+        # eval() returns (masks, flows, styles); diameter must be explicit for Cellpose 4.x.
         labeled_mask, flows, styles = model.eval(
             target_channel,
             diameter=diameter,
@@ -368,8 +367,7 @@ def estimate_second_obj_diameter(
         return float(diameter)
 
     elif method == "manual":
-        # Simple estimation based on image statistics
-        # Threshold the image and measure typical object sizes
+        # Estimate diameter by thresholding and measuring typical object sizes.
         from skimage import filters, measure
         from scipy import ndimage
 
@@ -775,8 +773,7 @@ def create_second_obj_boundary_visualization(
 
         # Add cell boundaries (green)
         if base_is_multichannel:
-            # For multichannel image, we need to create a temporary RGB image
-            # to use mark_boundaries, then extract the green channel
+            # Build a temporary RGB image for mark_boundaries, then extract the green channel.
             temp_img = np.zeros((height, width, 3), dtype=np.float32)
             for c in range(min(3, num_channels)):
                 temp_img[:, :, c] = enhanced_img[c] / (
@@ -852,8 +849,7 @@ def create_second_obj_boundary_visualization(
         merged_with_boundaries, channel_names="Merged", cmaps=channel_cmaps
     )
 
-    # Create secondary object channel microimage with boundaries
-    # Convert single channel to 3D for processing
+    # Create secondary object channel microimage with boundaries (single channel to 3D).
     second_obj_3d = add_boundaries(second_obj_img, base_is_multichannel=False)
     boundaries_microimage = Microimage(
         second_obj_3d,
@@ -1266,7 +1262,6 @@ def shape_based_declumping(
         # Vectorized boundary detection
         lab = local_watershed
 
-        # Detect boundaries by comparing with neighbors
         # Vertical boundaries (compare rows)
         vertical_boundary = (
             (lab[:-1, :] != lab[1:, :]) & (lab[:-1, :] > 0) & (lab[1:, :] > 0)
@@ -1278,7 +1273,6 @@ def shape_based_declumping(
         )
 
         # Count total boundary pixels
-        # We need to count them separately since they have different shapes
         boundary_length = np.sum(vertical_boundary) + np.sum(horizontal_boundary)
 
         prop = measure.regionprops(region_mask.astype(np.uint8))[0]

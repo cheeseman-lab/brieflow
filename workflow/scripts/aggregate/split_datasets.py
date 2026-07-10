@@ -156,9 +156,7 @@ unique_specs = aggregate_wildcard_combos[
     ["cell_class", "channel_combo", "compartment_combo"]
 ].drop_duplicates()
 
-# Universe of compartment prefixes that may exist in the input data. Must come from
-# the known prefix set, not from the TSV — compartments never requested in any combo
-# would otherwise pass through undropped.
+# Universe of compartment prefixes that may exist in the input, from the known prefix set.
 all_compartments_run = sorted(COMPARTMENT_PREFIXES.keys())
 
 for _, row in unique_specs.iterrows():

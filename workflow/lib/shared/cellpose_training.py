@@ -104,8 +104,7 @@ def load_training_data(
 
         # Apply mode-specific preprocessing using prepare_cellpose (single source of truth)
         if mode == "secondary_obj":
-            # Use prepare_cellpose with target channel as cyto, extract green channel
-            # Green channel (index 1) has log scaling + max normalization
+            # Use prepare_cellpose with target channel as cyto; green channel (1) has log scaling + max norm.
             rgb = prepare_cellpose(
                 img,
                 dapi_index=channel_index,  # Dummy - will use cyto
@@ -370,8 +369,7 @@ def train_cellpose(
 
     print(f"Starting training with {len(train_images)} samples...")
 
-    # In Cellpose 3.0+, use train.train_seg() instead of model.train()
-    # Note: channels is not a parameter for train_seg - images should be pre-formatted
+    # Cellpose 3.0+ uses train.train_seg() with pre-formatted images (no channels param).
     model_path, train_losses, test_losses = train.train_seg(
         model.net,
         train_data=train_images,

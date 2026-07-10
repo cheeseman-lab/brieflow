@@ -26,10 +26,7 @@ metadata, tvn_normalized = split_cell_data(cell_data, metadata_cols)
 tvn_normalized = tvn_normalized.to_numpy()
 del cell_data
 
-# When aggregating by a construct-level ID (e.g. cell_barcode_0) while controls
-# are identified via a different column (e.g. gene_symbol_0), carry the
-# control/gene column through so downstream clustering / benchmarking /
-# annotation merges can match on the human-readable name.
+# Carry the control/gene name column through when it differs from the aggregation ID.
 pert_col = snakemake.params.perturbation_name_col
 control_name_col = snakemake.params.get("control_name_col")
 carry_cols = None

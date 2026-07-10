@@ -125,12 +125,10 @@ else:
         segment_second_objs(**common_params, **cv_params)
     )
 
-# Save outputs
 # Save secondary object masks as TIFF
 imwrite(snakemake.output[0], second_obj_masks)
 
-# Save cell-secondary object table as TSV
-# It has two DataFrames, save both
+# Save cell-secondary object table (two DataFrames) as TSV
 cell_summary_df = cell_second_obj_table["cell_summary"]
 second_obj_cell_mapping_df = cell_second_obj_table["second_obj_cell_mapping"]
 

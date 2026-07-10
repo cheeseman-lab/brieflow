@@ -189,8 +189,7 @@ COMPARTMENT_PREFIXES = {
     "second_obj": "second_obj_",
 }
 
-# Per-cell summary columns added by aggregate_second_obj_data that don't carry
-# the second_obj_ prefix but are derived from second-object data.
+# Second-object-derived per-cell summary columns lacking the second_obj_ prefix.
 SECOND_OBJ_EXTRA_COLS = frozenset(
     {
         "total_second_obj_area",

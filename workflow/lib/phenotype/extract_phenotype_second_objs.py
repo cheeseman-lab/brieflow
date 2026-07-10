@@ -152,8 +152,7 @@ def extract_phenotype_second_objs(
             suffixes=("_map", "_feat"),  # left, right
         )
 
-        # If both exist, make a single second_obj_area column (prefer features)
-        # If other features are present in both dataframes, modify the next next four lines to reflect the column names and add _map and _feat suffixes
+        # If both exist, coalesce into a single second_obj_area column (prefer features).
         if {"second_obj_area_map", "second_obj_area_feat"} <= set(
             second_obj_df.columns
         ):

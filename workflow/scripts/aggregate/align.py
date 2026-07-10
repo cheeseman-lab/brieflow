@@ -56,10 +56,7 @@ random_indices.sort()
 use_classifier = snakemake.params.get("use_classifier", False)
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classifier)
 
-# Harmonize the pool's column set once: drop cols present in only some per-well
-# files (typically driven by per-well filter decisions diverging when class
-# composition differs across wells) and apply drop_cols_threshold at the pool
-# level — matching the convention used by missing_values_filter.
+# Harmonize the pool's column set once (drop partial cols, apply pool-level drop_cols_threshold).
 kept_metadata_cols, kept_feature_cols, _pool_report = harmonize_pool_schema(
     non_empty_paths,
     metadata_cols,
@@ -74,10 +71,7 @@ sample_df = (
     .to_pandas(use_threads=True, memory_pool=None)
 )
 
-# Residual NaN handling: after pool-level col drops, any remaining NaN is
-# sparse and row-localized. Drop those rows from the PCA training sample so
-# PCA/StandardScaler see a clean matrix. Matches the drop_rows_threshold intent
-# at a per-row granularity appropriate for a training sample.
+# Drop rows with residual NaN so the PCA training sample is clean.
 _sample_pre = len(sample_df)
 sample_df = sample_df.dropna(subset=kept_feature_cols).reset_index(drop=True)
 if len(sample_df) < _sample_pre:
@@ -117,8 +111,7 @@ for i, indices in enumerate(subset_indices):
         .take(pa.array(indices))
         .to_pandas(use_threads=True, memory_pool=None)
     )
-    # Drop any residual per-row NaN (pool-level col drops above have already
-    # eliminated systematically-missing columns).
+    # Drop any residual per-row NaN.
     _pre = len(subset_df)
     subset_df = subset_df.dropna(subset=kept_feature_cols).reset_index(drop=True)
     if len(subset_df) < _pre:

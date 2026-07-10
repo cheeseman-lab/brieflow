@@ -98,11 +98,7 @@ def perturbation_score(
             )
             keep_idx = np.union1d(gene_idx, nt_keep)
 
-            # Extract subset. keep_idx holds pandas index labels (built from
-            # perturbation_col.index[...] and nt_idx above); use .loc so this
-            # works whether cell_data has a RangeIndex or a preserved label
-            # index (the latter happens when the caller passes a groupby slice
-            # without reset_index).
+            # Extract subset via .loc since keep_idx holds pandas index labels.
             gene_subset_df = cell_data.loc[keep_idx].copy()
             original_idx = gene_subset_df.index.copy()
             gene_subset_df = gene_subset_df.reset_index(drop=True)
@@ -173,9 +169,7 @@ def calculate_perturbation_scores(
     if cell_data.shape[0] < minimum_cell_count:
         return pd.Series(np.nan, index=cell_data.index), np.nan
 
-    # NaN-safe binary target. Comparisons on nullable string dtypes can return
-    # pandas.NA for NaN rows; convert to plain bool via fillna(False) so
-    # astype(int) always yields strictly {0, 1}.
+    # NaN-safe binary target: fillna(False) so astype(int) yields strictly {0, 1}.
     y = (
         cell_data[perturbation_col]
         .eq(gene)

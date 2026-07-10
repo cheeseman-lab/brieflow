@@ -79,16 +79,13 @@ def harmonize_pool_schema(
             )
             print(f"  {p.split('/')[-1]}: missing {len(missing)} col(s): {preview}")
 
-    # Preserve caller-provided order within metadata_cols; feature order is sorted
-    # for determinism since there's no natural ordering after an intersection.
+    # Preserve caller order for metadata cols; sort feature cols for determinism.
     kept_metadata_cols = [c for c in metadata_cols if c in intersection_cols]
     kept_feature_cols = sorted(intersection_cols - set(metadata_cols))
 
     threshold_dropped = []
     if drop_cols_threshold is not None and kept_feature_cols:
-        # Pin to one reference schema so pyarrow casts each file to it instead of
-        # auto-unifying (which raises ArrowInvalid when files share a column with a
-        # mismatched dtype). paths are non-empty and share the kept columns.
+        # Pin to one reference schema so pyarrow casts each file instead of auto-unifying.
         pool = ds.dataset(
             paths, format="parquet", schema=pq.read_schema(paths[0])
         ).to_table(columns=kept_feature_cols)
@@ -256,9 +253,7 @@ def missing_values_filter(
                 if pd.api.types.is_integer_dtype(features[col]):
                     features[col] = features[col].astype("float64")
 
-            # Use positional (iloc) indexing throughout — features.index may have
-            # duplicate labels (e.g. when concat across wells doesn't reset),
-            # which breaks .loc-based reads/writes.
+            # Use positional (iloc) indexing throughout since features.index may have duplicate labels.
             has_na_mask = features[remaining_cols_with_na].isna().any(axis=1).to_numpy()
             na_positions = np.flatnonzero(has_na_mask)
             non_na_positions = np.flatnonzero(~has_na_mask)

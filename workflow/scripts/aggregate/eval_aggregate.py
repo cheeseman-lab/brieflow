@@ -64,10 +64,7 @@ aligned_data = aligned_data.to_pandas(use_threads=True, memory_pool=None)
 
 # determine original and aligned columns
 random.seed(42)
-# Try compartment prefixes in priority order and use the first that yields
-# *_<channel>_mean feature columns. Driven by the wildcard's compartment_combo
-# first (whichever compartments this output is actually about), then a fallback
-# chain so e.g. second_obj or cytoplasm combos still find intensity means.
+# Try compartment prefixes in priority order (wildcard combo first, then fallback chain).
 compartment_combo = snakemake.wildcards.compartment_combo.split("-")
 prefix_priority = compartment_combo + [
     c

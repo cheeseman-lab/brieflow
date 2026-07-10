@@ -17,10 +17,7 @@ from lib.aggregate.filter import harmonize_pool_schema
 pert_col = snakemake.params.perturbation_name_col
 pert_id_col = snakemake.params.perturbation_id_col or pert_col
 control_key = snakemake.params.control_key
-# Column used to identify controls via control_key. When aggregating by a
-# construct ID (pert_col = cell_barcode_0) controls are still named in a
-# separate column (e.g. gene_symbol_0); fall back to pert_col when unset so
-# gene-level runs (control_name_col == pert_col) are unchanged.
+# Column used with control_key to identify controls; falls back to pert_col when unset.
 control_name_col = snakemake.params.get("control_name_col") or pert_col
 num_batches = snakemake.params.get("num_align_batches", 1)
 
@@ -43,10 +40,7 @@ cell_dataset = ds.dataset(non_empty_paths, format="parquet")
 use_classifier = snakemake.params.get("use_classifier", False)
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classifier)
 
-# Harmonize the pool's column set once: drop cols present in only some per-well
-# files (typically driven by per-well filter decisions diverging when class
-# composition differs across wells) and apply drop_cols_threshold at the pool
-# level — matching the convention used by missing_values_filter.
+# Harmonize the pool's column set once (drop partial cols, apply pool-level drop_cols_threshold).
 existing_metadata_cols, feature_cols, _pool_report = harmonize_pool_schema(
     non_empty_paths,
     metadata_cols,
@@ -75,8 +69,7 @@ print(f"Processing data in {num_batches} batch(es), ~{chunk_size} rows per batch
 aligned_output = snakemake.output[0]
 writer = None
 
-# Accumulators for construct-level aggregation
-# We'll collect per-construct data across batches
+# Accumulators for per-construct data collected across batches
 construct_cell_counts = {}  # {construct_id: count}
 construct_gene_map = {}  # {construct_id: gene_name}
 construct_control_map = {}  # {construct_id: control_name_col value (for control id)}
@@ -201,9 +194,7 @@ gc.collect()
 construct_table = pd.DataFrame(construct_rows)
 
 # Reorder columns: sgRNA, gene, cell_count, features
-# Dedupe while preserving order: when perturbation_id_col == perturbation_name_col
-# (a valid config when aggregation is already at the per-construct level),
-# listing both would create a duplicate column and break downstream Series ops.
+# Dedupe while preserving order (id/name cols may be identical).
 construct_columns = list(
     dict.fromkeys(
         [pert_id_col, pert_col, control_name_col, "cell_count"] + feature_cols

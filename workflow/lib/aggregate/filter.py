@@ -5,12 +5,119 @@ Available filters:
 - perturbation_filter: Remove cells without perturbation assignments
 - missing_values_filter: Handle missing values through dropping or imputation
 - intensity_filter: Remove outliers based on channel intensities using LocalOutlierFactor
+- harmonize_pool_schema: Compute a consistent feature-column set for a pool of per-well parquets
 """
 
 import pandas as pd
 import numpy as np
+import pyarrow.dataset as ds
+import pyarrow.parquet as pq
 from sklearn.impute import KNNImputer
 from sklearn.neighbors import LocalOutlierFactor
+
+
+def harmonize_pool_schema(
+    paths: list[str],
+    metadata_cols: list[str],
+    drop_cols_threshold: float | None = None,
+) -> tuple[list[str], list[str], dict]:
+    """Compute a consistent (metadata, feature) column set for a multi-file pool.
+
+    When per-well filter decisions diverge — e.g. missing_values_filter drops
+    different columns in different wells because class composition varies — naive
+    pool reads via pyarrow's dataset union produce NaN blocks that break
+    downstream operations (PCA, center-scale). This helper produces a single
+    harmonized column set to use across every scan of the pool, matching the
+    drop-column convention from missing_values_filter.
+
+    Steps:
+      1. Schema intersection across `paths`. Columns present in some but not all
+         files are "lost to per-well schema mismatch" (typically driven by
+         class-composition differences across wells) and logged per-file.
+      2. If `drop_cols_threshold` is provided, scan the intersected pool once and
+         drop any feature column whose pool-level NaN proportion is >= threshold.
+         Uses the same comparison as missing_values_filter.
+    Row-level NaN cleanup (drop_rows_threshold, impute) is intentionally
+    deferred to the caller so it can be applied on each working subset.
+
+    Args:
+        paths (list[str]): parquet file paths forming the pool.
+        metadata_cols (list[str]): canonical metadata column names (only those
+            present in every file are returned).
+        drop_cols_threshold (float | None): pool-level NaN proportion threshold
+            above which a feature column is dropped. None disables this step.
+
+    Returns:
+        tuple:
+            kept_metadata_cols (list[str]),
+            kept_feature_cols (list[str]),
+            report (dict) — keys: "schema_mismatch" (dict file -> missing cols),
+                                  "threshold_dropped" (list of col names).
+    """
+    if not paths:
+        return [], [], {"schema_mismatch": {}, "threshold_dropped": []}
+
+    per_file_schemas = {p: set(pq.read_schema(p).names) for p in paths}
+    union_cols = set().union(*per_file_schemas.values())
+    intersection_cols = set.intersection(*per_file_schemas.values())
+    schema_mismatch = {
+        p: sorted(union_cols - cols)
+        for p, cols in per_file_schemas.items()
+        if union_cols - cols
+    }
+
+    if schema_mismatch:
+        total_lost = len(union_cols - intersection_cols)
+        print(
+            f"[pool] dropping {total_lost} column(s) present in some but not all "
+            f"of {len(paths)} input files (per-file missingness — typically driven "
+            f"by class composition differences across wells):"
+        )
+        for p, missing in schema_mismatch.items():
+            preview = ", ".join(missing[:5]) + (
+                f", ...(+{len(missing) - 5} more)" if len(missing) > 5 else ""
+            )
+            print(f"  {p.split('/')[-1]}: missing {len(missing)} col(s): {preview}")
+
+    # Preserve caller-provided order within metadata_cols; feature order is sorted
+    # for determinism since there's no natural ordering after an intersection.
+    kept_metadata_cols = [c for c in metadata_cols if c in intersection_cols]
+    kept_feature_cols = sorted(intersection_cols - set(metadata_cols))
+
+    threshold_dropped = []
+    if drop_cols_threshold is not None and kept_feature_cols:
+        # Pin to one reference schema so pyarrow casts each file to it instead of
+        # auto-unifying (which raises ArrowInvalid when files share a column with a
+        # mismatched dtype). paths are non-empty and share the kept columns.
+        pool = ds.dataset(
+            paths, format="parquet", schema=pq.read_schema(paths[0])
+        ).to_table(columns=kept_feature_cols)
+        # Compute pool-level NaN proportion per column without materializing full pandas.
+        total_rows = pool.num_rows
+        if total_rows > 0:
+            for col_name in list(kept_feature_cols):
+                nulls = pool.column(col_name).null_count
+                if nulls / total_rows >= drop_cols_threshold:
+                    threshold_dropped.append(col_name)
+        if threshold_dropped:
+            print(
+                f"[pool] dropping {len(threshold_dropped)} column(s) with pool-level "
+                f"NaN proportion >= {drop_cols_threshold * 100:.1f}%: "
+                f"{', '.join(threshold_dropped[:10])}"
+                f"{', ...' if len(threshold_dropped) > 10 else ''}"
+            )
+            kept_feature_cols = [
+                c for c in kept_feature_cols if c not in threshold_dropped
+            ]
+
+    return (
+        kept_metadata_cols,
+        kept_feature_cols,
+        {
+            "schema_mismatch": schema_mismatch,
+            "threshold_dropped": threshold_dropped,
+        },
+    )
 
 
 def query_filter(metadata, features, queries):
@@ -149,42 +256,38 @@ def missing_values_filter(
                 if pd.api.types.is_integer_dtype(features[col]):
                     features[col] = features[col].astype("float64")
 
-            # Identify rows with any NAs in the remaining columns
-            has_na_mask = features[remaining_cols_with_na].isna().any(axis=1)
-            na_rows_idx = features.index[has_na_mask]
-            non_na_rows_idx = features.index[~has_na_mask]
+            # Use positional (iloc) indexing throughout — features.index may have
+            # duplicate labels (e.g. when concat across wells doesn't reset),
+            # which breaks .loc-based reads/writes.
+            has_na_mask = features[remaining_cols_with_na].isna().any(axis=1).to_numpy()
+            na_positions = np.flatnonzero(has_na_mask)
+            non_na_positions = np.flatnonzero(~has_na_mask)
+            col_positions = [
+                features.columns.get_loc(c) for c in remaining_cols_with_na
+            ]
 
             np.random.seed(42)
-            # Process NA rows in batches
-            for i in range(0, len(na_rows_idx), batch_size):
-                batch_na_idx = na_rows_idx[i : i + batch_size]
+            for i in range(0, len(na_positions), batch_size):
+                batch_pos = na_positions[i : i + batch_size]
                 print(
-                    f"Imputing for batch {i // batch_size + 1} with {len(batch_na_idx)} NA rows"
+                    f"Imputing for batch {i // batch_size + 1} with {len(batch_pos)} NA rows"
                 )
 
-                # Sample non-NA rows randomly instead of stratified sampling
-                sampled_non_na_idx = np.random.choice(
-                    non_na_rows_idx,
-                    size=min(sample_size, len(non_na_rows_idx)),
+                sampled_non_na_pos = np.random.choice(
+                    non_na_positions,
+                    size=min(sample_size, len(non_na_positions)),
                     replace=False,
                 )
+                combined_pos = np.concatenate([batch_pos, sampled_non_na_pos])
 
-                # Combine sampled non-NA rows with current batch of NA rows
-                batch_idx = np.concatenate([batch_na_idx, sampled_non_na_idx])
-
-                # Perform KNN imputation on this batch
                 imputer = KNNImputer(n_neighbors=5)
                 imputed_values = imputer.fit_transform(
-                    features.loc[batch_idx, remaining_cols_with_na]
+                    features.iloc[combined_pos, col_positions].to_numpy()
                 )
 
-                # Update only the NA rows with imputed values
-                na_rows_in_batch = np.arange(len(batch_na_idx))
-                features.loc[batch_na_idx, remaining_cols_with_na] = pd.DataFrame(
-                    imputed_values[na_rows_in_batch],
-                    index=batch_na_idx,
-                    columns=remaining_cols_with_na,
-                )
+                features.iloc[batch_pos, col_positions] = imputed_values[
+                    : len(batch_pos)
+                ]
 
     return metadata, features
 

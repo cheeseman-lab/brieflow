@@ -1,22 +1,16 @@
 import pandas as pd
 from joblib import Parallel, delayed
 
-from lib.shared.file_utils import validate_dtypes
-
-
-# Define function to read df tsv files
-def get_file(f):
-    try:
-        return pd.read_csv(f, sep="\t")
-    except pd.errors.EmptyDataError:
-        pass
-
+from lib.shared.file_utils import validate_dtypes, read_tsv_safe
 
 # Load and concatenate data
 all_dfs = Parallel(n_jobs=snakemake.threads)(
-    delayed(get_file)(file) for file in snakemake.input
+    delayed(read_tsv_safe)(file) for file in snakemake.input
 )
-combined_df = pd.concat(all_dfs).reset_index(drop=True)
+valid_dfs = [df for df in all_dfs if not df.empty]
+combined_df = (
+    pd.concat(valid_dfs).reset_index(drop=True) if valid_dfs else pd.DataFrame()
+)
 
 # Validate col types
 # Empty dfs can cause issues with dtype

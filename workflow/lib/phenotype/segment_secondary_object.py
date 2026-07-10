@@ -366,9 +366,9 @@ def segment_second_objs(
         suppress_local_maxima (int, optional): Minimum spacing between seed points in pixels (default: 20).
             CellProfiler parameter. Controls spatial separation of detected peaks.
 
-        maxima_reduction_factor (float or None, optional): H-minima threshold for suppressing weak peaks (default: None).
+        maxima_reduction_factor (float or None, optional): H-maxima threshold for suppressing weak peaks (default: None).
             Range: 0.0-1.0. Higher values = more aggressive suppression.
-            If None, no h-minima filtering applied.
+            If None, no h-maxima filtering applied.
             Formula: h = maxima_reduction_factor * (peak_map_max - peak_map_min)
             This is applied DURING seed detection (before watershed).
 
@@ -1020,8 +1020,8 @@ def apply_morphological_opening(binary_mask, opening_disk_radius=1):
     return opened
 
 
-def apply_h_minima_suppression(peak_map, h_factor):
-    """Apply h-minima transform to suppress weak local maxima.
+def apply_h_maxima_suppression(peak_map, h_factor):
+    """Apply h-maxima transform to suppress weak local maxima.
 
     This complements spatial suppression (min_distance) by filtering peaks
     based on their prominence/height in the distance or intensity map.
@@ -1046,8 +1046,8 @@ def apply_h_minima_suppression(peak_map, h_factor):
     # Calculate absolute height threshold
     h = h_factor * (peak_map.max() - peak_map.min())
 
-    # Apply h-minima transform
-    filtered_map = morphology.h_minima(peak_map, h=h)
+    # h-maxima transform: flatten maxima shallower than h, keep the map grayscale
+    filtered_map = morphology.reconstruction(peak_map - h, peak_map, method="dilation")
 
     return filtered_map
 
@@ -1075,7 +1075,7 @@ def apply_declumping(
     suppress_local_maxima : int
         Minimum distance between peaks (spatial constraint)
     maxima_reduction_factor : float or None
-        H-minima threshold (0.0-1.0), None=disabled
+        H-maxima threshold (0.0-1.0), None=disabled
 
     Returns:
     -------
@@ -1117,9 +1117,9 @@ def apply_declumping(
     else:
         raise ValueError(f"Unknown declump_method: {declump_method}")
 
-    # Apply h-minima suppression if requested
+    # Apply h-maxima suppression if requested
     if maxima_reduction_factor is not None:
-        peak_map = apply_h_minima_suppression(peak_map, maxima_reduction_factor)
+        peak_map = apply_h_maxima_suppression(peak_map, maxima_reduction_factor)
 
     # Detect local maxima
     local_max = feature.peak_local_max(

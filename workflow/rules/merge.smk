@@ -50,13 +50,7 @@ if merge_approach == "fast":
             alignment_flip_y=config.get("merge", {}).get("alignment_flip_y"),
             alignment_rotate_90=config.get("merge", {}).get("alignment_rotate_90"),
             threshold_triangle=config.get("merge", {}).get("threshold_triangle"),
-            threshold_point=config.get("merge", {}).get("threshold_point"),
-            threshold_region=config.get("merge", {}).get("threshold_region"),
-            ransac_residual_threshold=config.get("merge", {}).get("ransac_residual_threshold"),
-            ransac_max_trials=config.get("merge", {}).get("ransac_max_trials"),
-            ransac_min_samples=config.get("merge", {}).get("ransac_min_samples"),
             ransac_random_state=config.get("merge", {}).get("ransac_random_state"),
-            batch_size=config.get("merge", {}).get("batch_size"),
             seed_optimize=config.get("merge", {}).get("seed_optimize", False),
             seed_topk=config.get("merge", {}).get("seed_topk"),
         script:
@@ -86,9 +80,7 @@ if merge_approach == "fast":
             local_refinement=config.get("merge", {}).get("local_refinement"),
             warp_degree=config.get("merge", {}).get("warp_degree"),
             warp_iterations=config.get("merge", {}).get("warp_iterations"),
-            warp_min_correspondences=config.get("merge", {}).get("warp_min_correspondences"),
             warp_smoothing=config.get("merge", {}).get("warp_smoothing"),
-            warp_max_correspondences=config.get("merge", {}).get("warp_max_correspondences"),
         script:
             "../scripts/merge/fast_merge.py"
 

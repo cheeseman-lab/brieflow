@@ -19,8 +19,11 @@ alignment_params = {
     "rotate_90": getattr(snakemake.params, "alignment_rotate_90", False),
 }
 
-# Only apply alignment if at least one transformation is requested
-if any(
+# metadata_align center-aligns the two scopes' coordinate frames (translation only)
+metadata_align = getattr(snakemake.params, "metadata_align", False)
+
+# Apply alignment if center-alignment is requested or any flip/rotate is set
+if metadata_align or any(
     [
         alignment_params["flip_x"],
         alignment_params["flip_y"],
@@ -100,6 +103,29 @@ if (initial_sbs_tiles is None) == (initial_sites_param is None):
 d0, d1 = snakemake.params.det_range
 score_thresh = snakemake.params.score
 
+
+# Optional alignment levers; absent config keys drop out to lib defaults
+def _drop_none(d):
+    return {k: v for k, v in d.items() if v is not None}
+
+
+ransac_kwargs = _drop_none(
+    {"random_state": getattr(snakemake.params, "ransac_random_state", None)}
+)
+evaluate_kwargs = (
+    _drop_none(
+        {
+            "threshold_triangle": getattr(snakemake.params, "threshold_triangle", None),
+            "ransac_kwargs": ransac_kwargs or None,
+        }
+    )
+    or None
+)
+
+# find-optimal-site (gated): try top-K nearest PH tiles per SBS seed, keep best per site
+seed_optimize = getattr(snakemake.params, "seed_optimize", False)
+seed_topk = getattr(snakemake.params, "seed_topk", None) or 3
+
 if initial_sbs_tiles is not None:
     # Auto-discover initial sites from SBS tiles
     candidate_pairs = []
@@ -107,10 +133,14 @@ if initial_sbs_tiles is not None:
         closest = find_closest_tiles(
             sbs_metadata, phenotype_metadata, sbs_tile, verbose=False
         )
-        best_ph_tile = int(closest.iloc[0]["tile"])
-        candidate_pairs.append([best_ph_tile, sbs_tile])
+        if seed_optimize:
+            for ph_tile in closest.head(seed_topk)["tile"].astype(int):
+                candidate_pairs.append([int(ph_tile), sbs_tile])
+        else:
+            candidate_pairs.append([int(closest.iloc[0]["tile"]), sbs_tile])
     print(
         f"Discovered {len(candidate_pairs)} candidate pairs from {len(initial_sbs_tiles)} SBS tiles"
+        + (f" (seed_optimize: top-{seed_topk} per tile)" if seed_optimize else "")
     )
 else:
     # Use user-provided pairs
@@ -119,13 +149,26 @@ else:
 
 # Run initial alignment on candidates (validates both paths)
 initial_alignment_df = initial_alignment(
-    phenotype_info_hash, sbs_info_hash, initial_sites=candidate_pairs
+    phenotype_info_hash,
+    sbs_info_hash,
+    initial_sites=candidate_pairs,
+    evaluate_kwargs=evaluate_kwargs,
 )
 
 # Filter by thresholds
 valid_pairs_df = initial_alignment_df.query(
     "@d0 <= determinant <= @d1 & score > @score_thresh"
 )
+
+# find-optimal-site: collapse top-K candidates to the best-scoring tile per site
+if seed_optimize:
+    n_before = len(valid_pairs_df)
+    valid_pairs_df = valid_pairs_df.sort_values(
+        "score", ascending=False
+    ).drop_duplicates(subset="site", keep="first")
+    print(
+        f"seed_optimize: kept best-scoring tile per site ({n_before} -> {len(valid_pairs_df)})"
+    )
 
 # Require minimum 5 valid pairs (only if > 5 candidates were provided)
 if len(candidate_pairs) > 5 and len(valid_pairs_df) < 5:
@@ -149,6 +192,7 @@ well_alignment = multistep_alignment(
     score=snakemake.params.score,
     initial_sites=initial_sites,
     n_jobs=snakemake.threads,
+    evaluate_kwargs=evaluate_kwargs,
 )
 
 # Reset index

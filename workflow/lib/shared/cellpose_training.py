@@ -204,17 +204,27 @@ def augment_training_data(
             # Original intensity
             final_variants.append((v_img.copy(), v_mask.copy()))
 
-            # Intensity scaling
+            # Intensity scaling; clip to the image's own range (inputs are uint8 0-255)
             if intensity_scaling:
+                hi = (
+                    np.iinfo(v_img.dtype).max
+                    if np.issubdtype(v_img.dtype, np.integer)
+                    else 1.0
+                )
                 scale = random.uniform(intensity_range[0], intensity_range[1])
-                scaled_img = np.clip(v_img * scale, 0, 1)
-                final_variants.append((scaled_img.astype(np.float32), v_mask.copy()))
+                scaled_img = np.clip(v_img * scale, 0, hi).astype(v_img.dtype)
+                final_variants.append((scaled_img, v_mask.copy()))
 
-            # Noise
+            # Noise; std scaled to the image's value range
             if noise:
-                noisy_img = v_img + np.random.normal(0, noise_std, v_img.shape)
-                noisy_img = np.clip(noisy_img, 0, 1)
-                final_variants.append((noisy_img.astype(np.float32), v_mask.copy()))
+                hi = (
+                    np.iinfo(v_img.dtype).max
+                    if np.issubdtype(v_img.dtype, np.integer)
+                    else 1.0
+                )
+                noisy_img = v_img + np.random.normal(0, noise_std * hi, v_img.shape)
+                noisy_img = np.clip(noisy_img, 0, hi).astype(v_img.dtype)
+                final_variants.append((noisy_img, v_mask.copy()))
 
         for v_img, v_mask in final_variants:
             aug_images.append(v_img)

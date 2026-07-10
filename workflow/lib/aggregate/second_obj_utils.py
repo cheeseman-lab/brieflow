@@ -20,32 +20,25 @@ def aggregate_second_obj_data(
     strategies to handle the one-to-many relationship between cells and
     secondary objects.
 
-    Parameters
-    ----------
-    cells_df : pd.DataFrame
-        Cell-level data from final_merge. Must contain merge keys:
-        'plate', 'well', 'tile', 'cell_0'.
-    second_objs_df : pd.DataFrame
-        Per-object secondary object data from merge_phenotype_second_objs.
-        Must contain merge keys: 'plate', 'well', 'tile', 'cell_id'.
-    agg_strategy : {"none", "single", "all", "average"}
-        Aggregation strategy:
-        - "none": Return cells_df unchanged
-        - "single": Add features only for cells with exactly 1 secondary object;
-          NaN for cells with 0 or 2+ objects (no rows are dropped)
-        - "all": Create numbered columns per object (feature_1, feature_2, etc.)
-        - "average": Mean of numeric features across all secondary objects per cell
+    Args:
+        cells_df (pd.DataFrame): Cell-level data from final_merge. Must contain
+            merge keys: 'plate', 'well', 'tile', 'cell_0'.
+        second_objs_df (pd.DataFrame): Per-object secondary object data from
+            merge_phenotype_second_objs. Must contain merge keys: 'plate', 'well',
+            'tile', 'cell_id'.
+        agg_strategy ({"none", "single", "all", "average"}): Aggregation strategy:
+            - "none": Return cells_df unchanged
+            - "single": Add features only for cells with exactly 1 secondary object;
+              NaN for cells with 0 or 2+ objects (no rows are dropped)
+            - "all": Create numbered columns per object (feature_1, feature_2, etc.)
+            - "average": Mean of numeric features across all secondary objects per cell
 
     Returns:
-    -------
-    pd.DataFrame
-        Cell-level data with secondary object features merged according to strategy.
-        All cells from cells_df are always preserved.
+        pd.DataFrame: Cell-level data with secondary object features merged according
+            to strategy. All cells from cells_df are always preserved.
 
     Raises:
-    ------
-    ValueError
-        If required merge keys are missing or strategy is invalid.
+        ValueError: If required merge keys are missing or strategy is invalid.
     """
     valid_strategies = ["none", "single", "all", "average"]
     if agg_strategy not in valid_strategies:

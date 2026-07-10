@@ -286,168 +286,6 @@ def segment_second_objs_ml(
     )
 
 
-def estimate_second_obj_diameter(
-    image, second_obj_channel_index, method="cellpose", **kwargs
-):
-    """Estimate the diameter of secondary objects in an image channel.
-
-    This is a convenience function to help users estimate appropriate diameter
-    parameters for ML-based secondary object segmentation.
-
-    Parameters
-    ----------
-    image : ndarray
-        Multichannel image data with shape [channels, height, width]
-    second_obj_channel_index : int
-        Index of the channel containing secondary objects
-    method : str
-        Method to use for diameter estimation:
-        - "cellpose": Use Cellpose's built-in diameter estimation (default)
-        - "manual": Manually measure from image statistics
-    **kwargs : dict
-        Additional parameters for the estimation method:
-        - For method="cellpose":
-            - model_type : str (default: 'cyto3')
-            - gpu : bool (default: False)
-
-    Returns:
-    -------
-    diameter : float
-        Estimated diameter in pixels
-
-    Examples:
-    --------
-    >>> diameter = estimate_second_obj_diameter(
-    ...     aligned_image,
-    ...     second_obj_channel_index=7,
-    ...     method="cellpose",
-    ...     model_type="cyto3"
-    ... )
-    >>> print(f"Estimated diameter: {diameter:.1f} pixels")
-    """
-    target_channel = image[second_obj_channel_index]
-
-    if method == "cellpose":
-        # Check Cellpose availability
-        if not CELLPOSE_AVAILABLE:
-            raise ImportError(
-                "Cellpose is required for diameter estimation. "
-                "Install it with: pip install cellpose"
-            )
-
-        # Cellpose 4.x does not support automatic diameter estimation
-        if CELLPOSE_4X:
-            raise NotImplementedError(
-                "Automatic diameter estimation is not supported with Cellpose 4.x. "
-                "Please specify second_obj_diameter explicitly in your config, "
-                "or use method='manual' for threshold-based estimation, "
-                "or downgrade to Cellpose 3.x: pip install cellpose==3.1.0"
-            )
-
-        model_type = kwargs.get("model_type", "cyto3")
-        gpu = kwargs.get("gpu", False)
-
-        print(f"Estimating secondary object diameter using Cellpose {model_type}...")
-
-        # Cellpose 3.x: Use the old API which supports diameter estimation
-        from cellpose import models as cellpose_models
-
-        model = cellpose_models.Cellpose(gpu=gpu, model_type=model_type)
-
-        # Run segmentation with automatic diameter estimation
-        _, _, _, diameter = model.eval(
-            target_channel,
-            diameter=None,  # Auto-estimate
-            channels=[0, 0],
-        )
-
-        print(f"Estimated diameter: {diameter:.1f} pixels")
-        return float(diameter)
-
-    elif method == "manual":
-        # Estimate diameter by thresholding and measuring typical object sizes.
-        from skimage import filters, measure
-        from scipy import ndimage
-
-        # Apply Otsu threshold
-        thresh = filters.threshold_otsu(target_channel)
-        binary = target_channel > thresh
-
-        # Label objects
-        labeled, _ = ndimage.label(binary)
-        regions = measure.regionprops(labeled)
-
-        if len(regions) == 0:
-            print("No objects detected for diameter estimation")
-            return None
-
-        # Calculate median equivalent diameter
-        diameters = [r.equivalent_diameter for r in regions]
-        diameter = np.median(diameters)
-
-        print(
-            f"Estimated diameter (median of {len(regions)} objects): {diameter:.1f} pixels"
-        )
-        return float(diameter)
-
-    else:
-        raise ValueError(f"Unknown method: {method}. Use 'cellpose' or 'manual'")
-
-
-def apply_threshold_method(image, method="otsu_two_peak"):
-    """Apply specified thresholding method to an image.
-
-    Parameters
-    ----------
-    image : ndarray
-        Input image (should be preprocessed with log transform and smoothing)
-    method : str
-        Thresholding method to use.
-        Options:
-        - 'otsu_two_peak': Standard Otsu thresholding (2-class)
-        - 'otsu_three_peak_mid_bg': 3-class Otsu, middle class as background
-        - 'otsu_three_peak_mid_fg': 3-class Otsu, middle class as foreground
-        - 'min_cross_entropy': Minimum cross entropy (Li) thresholding
-
-    Returns:
-    -------
-    threshold : float
-        Computed threshold value
-    binary_mask : ndarray
-        Binary mask after thresholding
-    """
-    if method == "otsu_two_peak":
-        # Standard two-class Otsu
-        threshold = filters.threshold_otsu(image)
-        binary_mask = image > threshold
-
-    elif method == "otsu_three_peak_mid_bg":
-        # Three-class Otsu, treat middle intensity class as background
-        threshold = filters.threshold_multiotsu(image, classes=3)
-        # Keep only the highest intensity class (threshold[1] separates mid from high)
-        binary_mask = image > threshold[1]
-
-    elif method == "otsu_three_peak_mid_fg":
-        # Three-class Otsu, treat middle intensity class as foreground
-        threshold = filters.threshold_multiotsu(image, classes=3)
-        # Keep both middle and high intensity classes (threshold[0] separates low from mid)
-        binary_mask = image > threshold[0]
-
-    elif method == "min_cross_entropy":
-        # Minimum cross entropy (Li) method
-        threshold = filters.threshold_li(image)
-        binary_mask = image > threshold
-
-    else:
-        raise ValueError(
-            f"Unknown threshold method: {method}. "
-            f"Valid options: 'otsu_two_peak', 'otsu_three_peak_mid_bg', "
-            f"'otsu_three_peak_mid_fg', 'min_cross_entropy'"
-        )
-
-    return threshold, binary_mask
-
-
 def segment_second_objs(
     image,
     second_obj_channel_index,
@@ -716,6 +554,168 @@ def segment_second_objs(
     else:
         # Standard return (backward compatible)
         return post_results
+
+
+def estimate_second_obj_diameter(
+    image, second_obj_channel_index, method="cellpose", **kwargs
+):
+    """Estimate the diameter of secondary objects in an image channel.
+
+    This is a convenience function to help users estimate appropriate diameter
+    parameters for ML-based secondary object segmentation.
+
+    Parameters
+    ----------
+    image : ndarray
+        Multichannel image data with shape [channels, height, width]
+    second_obj_channel_index : int
+        Index of the channel containing secondary objects
+    method : str
+        Method to use for diameter estimation:
+        - "cellpose": Use Cellpose's built-in diameter estimation (default)
+        - "manual": Manually measure from image statistics
+    **kwargs : dict
+        Additional parameters for the estimation method:
+        - For method="cellpose":
+            - model_type : str (default: 'cyto3')
+            - gpu : bool (default: False)
+
+    Returns:
+    -------
+    diameter : float
+        Estimated diameter in pixels
+
+    Examples:
+    --------
+    >>> diameter = estimate_second_obj_diameter(
+    ...     aligned_image,
+    ...     second_obj_channel_index=7,
+    ...     method="cellpose",
+    ...     model_type="cyto3"
+    ... )
+    >>> print(f"Estimated diameter: {diameter:.1f} pixels")
+    """
+    target_channel = image[second_obj_channel_index]
+
+    if method == "cellpose":
+        # Check Cellpose availability
+        if not CELLPOSE_AVAILABLE:
+            raise ImportError(
+                "Cellpose is required for diameter estimation. "
+                "Install it with: pip install cellpose"
+            )
+
+        # Cellpose 4.x does not support automatic diameter estimation
+        if CELLPOSE_4X:
+            raise NotImplementedError(
+                "Automatic diameter estimation is not supported with Cellpose 4.x. "
+                "Please specify second_obj_diameter explicitly in your config, "
+                "or use method='manual' for threshold-based estimation, "
+                "or downgrade to Cellpose 3.x: pip install cellpose==3.1.0"
+            )
+
+        model_type = kwargs.get("model_type", "cyto3")
+        gpu = kwargs.get("gpu", False)
+
+        print(f"Estimating secondary object diameter using Cellpose {model_type}...")
+
+        # Cellpose 3.x: Use the old API which supports diameter estimation
+        from cellpose import models as cellpose_models
+
+        model = cellpose_models.Cellpose(gpu=gpu, model_type=model_type)
+
+        # Run segmentation with automatic diameter estimation
+        _, _, _, diameter = model.eval(
+            target_channel,
+            diameter=None,  # Auto-estimate
+            channels=[0, 0],
+        )
+
+        print(f"Estimated diameter: {diameter:.1f} pixels")
+        return float(diameter)
+
+    elif method == "manual":
+        # Estimate diameter by thresholding and measuring typical object sizes.
+        from skimage import filters, measure
+        from scipy import ndimage
+
+        # Apply Otsu threshold
+        thresh = filters.threshold_otsu(target_channel)
+        binary = target_channel > thresh
+
+        # Label objects
+        labeled, _ = ndimage.label(binary)
+        regions = measure.regionprops(labeled)
+
+        if len(regions) == 0:
+            print("No objects detected for diameter estimation")
+            return None
+
+        # Calculate median equivalent diameter
+        diameters = [r.equivalent_diameter for r in regions]
+        diameter = np.median(diameters)
+
+        print(
+            f"Estimated diameter (median of {len(regions)} objects): {diameter:.1f} pixels"
+        )
+        return float(diameter)
+
+    else:
+        raise ValueError(f"Unknown method: {method}. Use 'cellpose' or 'manual'")
+
+
+def apply_threshold_method(image, method="otsu_two_peak"):
+    """Apply specified thresholding method to an image.
+
+    Parameters
+    ----------
+    image : ndarray
+        Input image (should be preprocessed with log transform and smoothing)
+    method : str
+        Thresholding method to use.
+        Options:
+        - 'otsu_two_peak': Standard Otsu thresholding (2-class)
+        - 'otsu_three_peak_mid_bg': 3-class Otsu, middle class as background
+        - 'otsu_three_peak_mid_fg': 3-class Otsu, middle class as foreground
+        - 'min_cross_entropy': Minimum cross entropy (Li) thresholding
+
+    Returns:
+    -------
+    threshold : float
+        Computed threshold value
+    binary_mask : ndarray
+        Binary mask after thresholding
+    """
+    if method == "otsu_two_peak":
+        # Standard two-class Otsu
+        threshold = filters.threshold_otsu(image)
+        binary_mask = image > threshold
+
+    elif method == "otsu_three_peak_mid_bg":
+        # Three-class Otsu, treat middle intensity class as background
+        threshold = filters.threshold_multiotsu(image, classes=3)
+        # Keep only the highest intensity class (threshold[1] separates mid from high)
+        binary_mask = image > threshold[1]
+
+    elif method == "otsu_three_peak_mid_fg":
+        # Three-class Otsu, treat middle intensity class as foreground
+        threshold = filters.threshold_multiotsu(image, classes=3)
+        # Keep both middle and high intensity classes (threshold[0] separates low from mid)
+        binary_mask = image > threshold[0]
+
+    elif method == "min_cross_entropy":
+        # Minimum cross entropy (Li) method
+        threshold = filters.threshold_li(image)
+        binary_mask = image > threshold
+
+    else:
+        raise ValueError(
+            f"Unknown threshold method: {method}. "
+            f"Valid options: 'otsu_two_peak', 'otsu_three_peak_mid_bg', "
+            f"'otsu_three_peak_mid_fg', 'min_cross_entropy'"
+        )
+
+    return threshold, binary_mask
 
 
 def create_second_obj_boundary_visualization(

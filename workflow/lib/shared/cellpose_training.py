@@ -34,43 +34,30 @@ def load_training_data(
     - "cells": For segment_cellpose with cells=True (3-channel RGB)
     - "nuclei": For segment_cellpose with cells=False (DAPI only)
 
-    Parameters
-    ----------
-    image_paths : List[str | Path]
-        Paths to image files (TIFF format, can be multi-channel).
-    mask_paths : List[str | Path]
-        Paths to mask files (NPY format, labeled masks where each object
-        has a unique integer ID and background is 0).
-    mode : str
-        Preprocessing mode. Options:
-        - "secondary_obj": For segment_second_objs_ml (requires channel_index)
-        - "cells": For segment_cellpose cells (requires dapi_index, cyto_index)
-        - "nuclei": For segment_cellpose nuclei only (requires dapi_index)
-    channel_index : int, optional
-        Channel index for secondary_obj mode.
-    dapi_index : int, optional
-        DAPI channel index for cells/nuclei modes.
-    cyto_index : int, optional
-        Cytoplasm channel index for cells mode.
-    helper_index : int, optional
-        Helper channel index for cells mode (optional).
-    logscale : bool
-        Apply log scaling preprocessing. Default True.
+    Args:
+        image_paths (List[str | Path]): Paths to image files (TIFF format, can be
+            multi-channel).
+        mask_paths (List[str | Path]): Paths to mask files (NPY format, labeled
+            masks where each object has a unique integer ID and background is 0).
+        mode (str): Preprocessing mode. Options:
+            - "secondary_obj": For segment_second_objs_ml (requires channel_index)
+            - "cells": For segment_cellpose cells (requires dapi_index, cyto_index)
+            - "nuclei": For segment_cellpose nuclei only (requires dapi_index)
+        channel_index (int, optional): Channel index for secondary_obj mode.
+        dapi_index (int, optional): DAPI channel index for cells/nuclei modes.
+        cyto_index (int, optional): Cytoplasm channel index for cells mode.
+        helper_index (int, optional): Helper channel index for cells mode (optional).
+        logscale (bool): Apply log scaling preprocessing. Default True.
 
     Returns:
-    -------
-    images : List[np.ndarray]
-        List of preprocessed image arrays (uint8).
-        - secondary_obj/nuclei: 2D arrays [height, width]
-        - cells: 3D arrays [3, height, width]
-    masks : List[np.ndarray]
-        List of 2D labeled mask arrays (int32).
+        images (List[np.ndarray]): List of preprocessed image arrays (uint8).
+            - secondary_obj/nuclei: 2D arrays [height, width]
+            - cells: 3D arrays [3, height, width]
+        masks (List[np.ndarray]): List of 2D labeled mask arrays (int32).
 
     Raises:
-    ------
-    ValueError
-        If number of images and masks don't match, required indices not provided,
-        or if dimensions mismatch.
+        ValueError: If number of images and masks don't match, required indices not
+            provided, or if dimensions mismatch.
     """
     if len(image_paths) != len(mask_paths):
         raise ValueError(
@@ -174,31 +161,19 @@ def augment_training_data(
     For a dataset of N images, this can produce up to 8N augmented samples
     (4 rotations x 2 flip states).
 
-    Parameters
-    ----------
-    images : List[np.ndarray]
-        List of 2D image arrays.
-    masks : List[np.ndarray]
-        List of 2D labeled mask arrays.
-    rotations : bool
-        Apply 90, 180, 270 degree rotations.
-    flips : bool
-        Apply horizontal and vertical flips.
-    intensity_scaling : bool
-        Apply random intensity scaling.
-    intensity_range : Tuple[float, float]
-        Range for intensity scaling factor.
-    noise : bool
-        Add Gaussian noise.
-    noise_std : float
-        Standard deviation of Gaussian noise.
+    Args:
+        images (List[np.ndarray]): List of 2D image arrays.
+        masks (List[np.ndarray]): List of 2D labeled mask arrays.
+        rotations (bool): Apply 90, 180, 270 degree rotations.
+        flips (bool): Apply horizontal and vertical flips.
+        intensity_scaling (bool): Apply random intensity scaling.
+        intensity_range (Tuple[float, float]): Range for intensity scaling factor.
+        noise (bool): Add Gaussian noise.
+        noise_std (float): Standard deviation of Gaussian noise.
 
     Returns:
-    -------
-    aug_images : List[np.ndarray]
-        Augmented images (includes originals).
-    aug_masks : List[np.ndarray]
-        Augmented masks (includes originals).
+        aug_images (List[np.ndarray]): Augmented images (includes originals).
+        aug_masks (List[np.ndarray]): Augmented masks (includes originals).
     """
     aug_images = []
     aug_masks = []
@@ -260,23 +235,17 @@ def prepare_cellpose_training(
 ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
     """Split data into training and test sets for Cellpose.
 
-    Parameters
-    ----------
-    images : List[np.ndarray]
-        List of 2D image arrays.
-    masks : List[np.ndarray]
-        List of 2D labeled mask arrays.
-    test_fraction : float
-        Fraction of data to use for testing (0.0 to 1.0).
-    seed : int
-        Random seed for reproducibility.
+    Args:
+        images (List[np.ndarray]): List of 2D image arrays.
+        masks (List[np.ndarray]): List of 2D labeled mask arrays.
+        test_fraction (float): Fraction of data to use for testing (0.0 to 1.0).
+        seed (int): Random seed for reproducibility.
 
     Returns:
-    -------
-    train_images : List[np.ndarray]
-    train_masks : List[np.ndarray]
-    test_images : List[np.ndarray]
-    test_masks : List[np.ndarray]
+        train_images (List[np.ndarray]): Training images.
+        train_masks (List[np.ndarray]): Training masks.
+        test_images (List[np.ndarray]): Test images.
+        test_masks (List[np.ndarray]): Test masks.
     """
     n_samples = len(images)
     n_test = max(1, int(n_samples * test_fraction))
@@ -314,39 +283,26 @@ def train_cellpose(
 ) -> models.CellposeModel:
     """Fine-tune a Cellpose model on custom training data.
 
-    Parameters
-    ----------
-    train_images : List[np.ndarray]
-        Training images (2D arrays).
-    train_masks : List[np.ndarray]
-        Training masks (labeled 2D arrays).
-    test_images : List[np.ndarray], optional
-        Test images for validation during training.
-    test_masks : List[np.ndarray], optional
-        Test masks for validation.
-    base_model : str
-        Base model to fine-tune from. Options: "cpsam", "cyto3", "cyto2", "nuclei".
-    n_epochs : int
-        Number of training epochs.
-    learning_rate : float
-        Initial learning rate.
-    weight_decay : float
-        L2 regularization weight.
-    batch_size : int
-        Training batch size.
-    save_path : str | Path
-        Directory to save trained model.
-    model_name : str
-        Name for the saved model.
-    gpu : bool
-        Use GPU acceleration if available.
-    channels : List[int], optional
-        Channel configuration for Cellpose. Default [0, 0] for grayscale.
+    Args:
+        train_images (List[np.ndarray]): Training images (2D arrays).
+        train_masks (List[np.ndarray]): Training masks (labeled 2D arrays).
+        test_images (List[np.ndarray], optional): Test images for validation during
+            training.
+        test_masks (List[np.ndarray], optional): Test masks for validation.
+        base_model (str): Base model to fine-tune from. Options: "cpsam", "cyto3",
+            "cyto2", "nuclei".
+        n_epochs (int): Number of training epochs.
+        learning_rate (float): Initial learning rate.
+        weight_decay (float): L2 regularization weight.
+        batch_size (int): Training batch size.
+        save_path (str | Path): Directory to save trained model.
+        model_name (str): Name for the saved model.
+        gpu (bool): Use GPU acceleration if available.
+        channels (List[int], optional): Channel configuration for Cellpose.
+            Default [0, 0] for grayscale.
 
     Returns:
-    -------
-    model : CellposeModel
-        Trained Cellpose model.
+        model (CellposeModel): Trained Cellpose model.
     """
     save_path = Path(save_path)
     save_path.mkdir(parents=True, exist_ok=True)
@@ -395,17 +351,12 @@ def load_trained_model(
 ) -> models.CellposeModel:
     """Load a fine-tuned Cellpose model.
 
-    Parameters
-    ----------
-    model_path : str | Path
-        Path to saved model file.
-    gpu : bool
-        Use GPU acceleration.
+    Args:
+        model_path (str | Path): Path to saved model file.
+        gpu (bool): Use GPU acceleration.
 
     Returns:
-    -------
-    model : CellposeModel
-        Loaded Cellpose model ready for inference.
+        model (CellposeModel): Loaded Cellpose model ready for inference.
     """
     model = models.CellposeModel(gpu=gpu, pretrained_model=str(model_path))
     print(f"Loaded model from: {model_path}")
@@ -422,25 +373,17 @@ def predict_masks(
 ) -> List[np.ndarray]:
     """Run inference on images using a Cellpose model.
 
-    Parameters
-    ----------
-    model : CellposeModel
-        Cellpose model (base or fine-tuned).
-    images : List[np.ndarray]
-        List of 2D images to segment.
-    diameter : float, optional
-        Expected object diameter. None for auto-estimation.
-    flow_threshold : float
-        Flow error threshold.
-    cellprob_threshold : float
-        Cell probability threshold.
-    channels : List[int], optional
-        Channel configuration. Default [0, 0] for grayscale.
+    Args:
+        model (CellposeModel): Cellpose model (base or fine-tuned).
+        images (List[np.ndarray]): List of 2D images to segment.
+        diameter (float, optional): Expected object diameter. None for auto-estimation.
+        flow_threshold (float): Flow error threshold.
+        cellprob_threshold (float): Cell probability threshold.
+        channels (List[int], optional): Channel configuration. Default [0, 0] for
+            grayscale.
 
     Returns:
-    -------
-    masks : List[np.ndarray]
-        Predicted segmentation masks.
+        masks (List[np.ndarray]): Predicted segmentation masks.
     """
     if channels is None:
         channels = [0, 0]
@@ -461,17 +404,12 @@ def calculate_iou(pred_mask: np.ndarray, gt_mask: np.ndarray) -> float:
 
     This computes the average IoU across all objects.
 
-    Parameters
-    ----------
-    pred_mask : np.ndarray
-        Predicted labeled mask.
-    gt_mask : np.ndarray
-        Ground truth labeled mask.
+    Args:
+        pred_mask (np.ndarray): Predicted labeled mask.
+        gt_mask (np.ndarray): Ground truth labeled mask.
 
     Returns:
-    -------
-    iou : float
-        Mean IoU score (0 to 1).
+        iou (float): Mean IoU score (0 to 1).
     """
     pred_binary = pred_mask > 0
     gt_binary = gt_mask > 0
@@ -495,19 +433,14 @@ def calculate_object_metrics(
     An object is considered a true positive if it overlaps with a ground truth
     object with IoU >= threshold.
 
-    Parameters
-    ----------
-    pred_mask : np.ndarray
-        Predicted labeled mask.
-    gt_mask : np.ndarray
-        Ground truth labeled mask.
-    iou_threshold : float
-        IoU threshold for matching objects.
+    Args:
+        pred_mask (np.ndarray): Predicted labeled mask.
+        gt_mask (np.ndarray): Ground truth labeled mask.
+        iou_threshold (float): IoU threshold for matching objects.
 
     Returns:
-    -------
-    metrics : dict
-        Dictionary with 'precision', 'recall', 'f1', 'n_pred', 'n_gt', 'n_tp'.
+        metrics (dict): Dictionary with 'precision', 'recall', 'f1', 'n_pred',
+            'n_gt', 'n_tp'.
     """
     pred_labels = np.unique(pred_mask[pred_mask > 0])
     gt_labels = np.unique(gt_mask[gt_mask > 0])
@@ -598,27 +531,18 @@ def evaluate_segmentation(
 ) -> Dict[str, float]:
     """Evaluate model performance on a test set.
 
-    Parameters
-    ----------
-    model : CellposeModel
-        Cellpose model to evaluate.
-    images : List[np.ndarray]
-        Test images.
-    gt_masks : List[np.ndarray]
-        Ground truth masks.
-    diameter : float, optional
-        Object diameter for inference.
-    flow_threshold : float
-        Flow threshold for inference.
-    cellprob_threshold : float
-        Cell probability threshold.
-    iou_threshold : float
-        IoU threshold for object matching.
+    Args:
+        model (CellposeModel): Cellpose model to evaluate.
+        images (List[np.ndarray]): Test images.
+        gt_masks (List[np.ndarray]): Ground truth masks.
+        diameter (float, optional): Object diameter for inference.
+        flow_threshold (float): Flow threshold for inference.
+        cellprob_threshold (float): Cell probability threshold.
+        iou_threshold (float): IoU threshold for object matching.
 
     Returns:
-    -------
-    metrics : dict
-        Aggregated metrics: mean_iou, mean_precision, mean_recall, mean_f1.
+        metrics (dict): Aggregated metrics: mean_iou, mean_precision, mean_recall,
+            mean_f1.
     """
     pred_masks = predict_masks(
         model,
@@ -671,23 +595,15 @@ def visualize_comparison(
 ) -> plt.Figure:
     """Visualize side-by-side comparison of prediction vs ground truth.
 
-    Parameters
-    ----------
-    image : np.ndarray
-        Original image.
-    pred_mask : np.ndarray
-        Predicted segmentation mask.
-    gt_mask : np.ndarray
-        Ground truth mask.
-    title : str
-        Figure title.
-    figsize : Tuple[int, int]
-        Figure size.
+    Args:
+        image (np.ndarray): Original image.
+        pred_mask (np.ndarray): Predicted segmentation mask.
+        gt_mask (np.ndarray): Ground truth mask.
+        title (str): Figure title.
+        figsize (Tuple[int, int]): Figure size.
 
     Returns:
-    -------
-    fig : plt.Figure
-        Matplotlib figure.
+        fig (plt.Figure): Matplotlib figure.
     """
     fig, axes = plt.subplots(1, 4, figsize=figsize)
 
@@ -738,21 +654,14 @@ def visualize_training_sample(
 ) -> plt.Figure:
     """Visualize a single training sample (image + mask).
 
-    Parameters
-    ----------
-    image : np.ndarray
-        Training image.
-    mask : np.ndarray
-        Corresponding mask.
-    title : str
-        Figure title.
-    figsize : Tuple[int, int]
-        Figure size.
+    Args:
+        image (np.ndarray): Training image.
+        mask (np.ndarray): Corresponding mask.
+        title (str): Figure title.
+        figsize (Tuple[int, int]): Figure size.
 
     Returns:
-    -------
-    fig : plt.Figure
-        Matplotlib figure.
+        fig (plt.Figure): Matplotlib figure.
     """
     fig, axes = plt.subplots(1, 2, figsize=figsize)
 

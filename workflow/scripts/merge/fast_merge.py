@@ -33,6 +33,17 @@ print(f"Original tile-by-tile merge approach")
 print(f"Total alignments: {len(fast_alignment)}")
 print(f"Filtered alignments: {len(fast_alignment_filtered)}")
 
+# Optional warp levers; absent keys fall back to refine_local_warp defaults
+warp_kwargs = {
+    k: v
+    for k, v in {
+        "degree": getattr(snakemake.params, "warp_degree", None),
+        "iterations": getattr(snakemake.params, "warp_iterations", None),
+        "smoothing": getattr(snakemake.params, "warp_smoothing", None),
+    }.items()
+    if v is not None
+} or None
+
 # Merge cells across well
 merge_data = []
 for index, alignment_row in fast_alignment_filtered.iterrows():
@@ -50,6 +61,8 @@ for index, alignment_row in fast_alignment_filtered.iterrows():
         sbs_info_filtered,
         alignment_row,
         threshold=snakemake.params.threshold,
+        local_refinement=getattr(snakemake.params, "local_refinement", None),
+        warp_kwargs=warp_kwargs,
     )
     merge_data.append(alignment_row_merge)
 

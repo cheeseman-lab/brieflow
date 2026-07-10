@@ -20,7 +20,7 @@ import matplotlib.colors as mcolors
 from skimage.measure import regionprops
 
 
-from lib.merge.fast_merge import build_linear_model
+from lib.merge.fast_merge import build_linear_model, refine_local_warp
 
 
 def plot_combined_tile_grid(
@@ -173,7 +173,9 @@ def _estimate_tile_size_from_coords(metadata):
     return min(x_spacing, y_spacing) if pd.notna(x_spacing) else 1000
 
 
-def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
+def plot_merge_example(
+    df_ph, df_sbs, alignment_vec, threshold=2, local_refinement=None, warp_kwargs=None
+):
     """Visualizes the merge process for a single tile-site pair.
 
     Args:
@@ -181,6 +183,9 @@ def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
         df_sbs (pandas.DataFrame): SBS data with 'i', 'j' columns.
         alignment_vec (dict): Contains 'rotation' and 'translation' for alignment.
         threshold (float, optional): Distance threshold for matching points. Defaults to 2.
+        local_refinement (str | bool | None, optional): Warp model to apply to the affine
+            prediction before matching, matching the pipeline (`refine_local_warp`). Defaults None.
+        warp_kwargs (dict | None, optional): Keyword args forwarded to `refine_local_warp`. Defaults None.
     """
     # Create figure with three subplots
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 10))
@@ -196,6 +201,13 @@ def plot_merge_example(df_ph, df_sbs, alignment_vec, threshold=2):
     # Build model and predict
     model = build_linear_model(alignment_vec["rotation"], alignment_vec["translation"])
     Y_pred = model.predict(X)
+
+    # Optional local warp; mirrors the pipeline so the preview reflects the levers
+    if local_refinement:
+        wk = dict(warp_kwargs or {})
+        if isinstance(local_refinement, str):
+            wk.setdefault("model", local_refinement)
+        Y_pred = refine_local_warp(X, Y, Y_pred, threshold, **wk)
 
     # Calculate distances
     distances = cdist(Y, Y_pred, metric="sqeuclidean")
@@ -701,7 +713,14 @@ def find_closest_tiles(sbs_metadata, ph_metadata, sbs_tile_id, verbose=True):
 
 
 def fast_merge_example(
-    ph_tile, sbs_site, alignment_df, phenotype_info, sbs_info, threshold
+    ph_tile,
+    sbs_site,
+    alignment_df,
+    phenotype_info,
+    sbs_info,
+    threshold,
+    local_refinement=None,
+    warp_kwargs=None,
 ):
     """Process and plot PH tile and SBS site pairs."""
     print(f"\nProcessing PH tile {ph_tile} and SBS site {sbs_site}...")
@@ -728,7 +747,14 @@ def fast_merge_example(
 
     # Try plotting
     try:
-        plot_merge_example(phenotype_info, sbs_info, alignment_vec, threshold=threshold)
+        plot_merge_example(
+            phenotype_info,
+            sbs_info,
+            alignment_vec,
+            threshold=threshold,
+            local_refinement=local_refinement,
+            warp_kwargs=warp_kwargs,
+        )
         return True
     except Exception as e:
         print(f"  Error plotting: {str(e)}")

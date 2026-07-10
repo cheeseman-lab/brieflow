@@ -45,9 +45,14 @@ if merge_approach == "fast":
             initial_sites=config.get("merge", {}).get("initial_sites"),
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
+            metadata_align=config.get("merge", {}).get("metadata_align", False),
             alignment_flip_x=config.get("merge", {}).get("alignment_flip_x"),
             alignment_flip_y=config.get("merge", {}).get("alignment_flip_y"),
             alignment_rotate_90=config.get("merge", {}).get("alignment_rotate_90"),
+            threshold_triangle=config.get("merge", {}).get("threshold_triangle"),
+            ransac_random_state=config.get("merge", {}).get("ransac_random_state"),
+            seed_optimize=config.get("merge", {}).get("seed_optimize", False),
+            seed_topk=config.get("merge", {}).get("seed_topk"),
         script:
             "../scripts/merge/fast_alignment.py"
 
@@ -72,6 +77,10 @@ if merge_approach == "fast":
             det_range=config.get("merge", {}).get("det_range"),
             score=config.get("merge", {}).get("score"),
             threshold=config.get("merge", {}).get("threshold"),
+            local_refinement=config.get("merge", {}).get("local_refinement"),
+            warp_degree=config.get("merge", {}).get("warp_degree"),
+            warp_iterations=config.get("merge", {}).get("warp_iterations"),
+            warp_smoothing=config.get("merge", {}).get("warp_smoothing"),
         script:
             "../scripts/merge/fast_merge.py"
 

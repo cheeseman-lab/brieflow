@@ -4,9 +4,17 @@ import pandas as pd
 import numpy as np
 from scipy.spatial.distance import cdist
 from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
 
 
-def merge_triangle_hash(hash_df_0, hash_df_1, alignment, threshold=2):
+def merge_triangle_hash(
+    hash_df_0,
+    hash_df_1,
+    alignment,
+    threshold=2,
+    local_refinement=None,
+    warp_kwargs=None,
+):
     """Merges two DataFrames using triangle hashing after images at different magnifications have been hashed together.
 
     Args:
@@ -14,6 +22,13 @@ def merge_triangle_hash(hash_df_0, hash_df_1, alignment, threshold=2):
         hash_df_1 (pandas.DataFrame): The second DataFrame.
         alignment (dict): Alignment parameters containing rotation and translation.
         threshold (int): The threshold value. Defaults to 2.
+        local_refinement (str | bool | None): If truthy, refine the global affine with a
+            local non-rigid warp before matching, to correct residual within-tile
+            distortion (e.g. two-scope acquisitions). The string selects the warp model:
+            "polynomial" or "thin_plate_spline". Defaults None (off) — behaviour is then
+            identical to the plain affine merge.
+        warp_kwargs (dict | None): Keyword args forwarded to `refine_local_warp`
+            (degree, iterations, smoothing) when local_refinement is on. Defaults None.
 
     Returns:
         pandas.DataFrame: The merged DataFrame.
@@ -25,27 +40,24 @@ def merge_triangle_hash(hash_df_0, hash_df_1, alignment, threshold=2):
     model = build_linear_model(alignment["rotation"], alignment["translation"])
 
     # Merge dataframes using triangle hashing
-    return merge_sbs_phenotype(hash_df_0, hash_df_1, model, threshold=threshold)
+    return merge_sbs_phenotype(
+        hash_df_0,
+        hash_df_1,
+        model,
+        threshold=threshold,
+        local_refinement=local_refinement,
+        warp_kwargs=warp_kwargs,
+    )
 
 
-def build_linear_model(rotation, translation):
-    """Builds a linear regression model using the provided rotation matrix and translation vector.
-
-    Args:
-        rotation (numpy.ndarray): Rotation matrix for the model.
-        translation (numpy.ndarray): Translation vector for the model.
-
-    Returns:
-        sklearn.linear_model.LinearRegression: Linear regression model with the specified rotation
-        and translation.
-    """
-    m = LinearRegression()
-    m.coef_ = rotation  # Set the rotation matrix as the model's coefficients
-    m.intercept_ = translation  # Set the translation vector as the model's intercept
-    return m  # Return the linear regression model
-
-
-def merge_sbs_phenotype(cell_locations_0, cell_locations_1, model, threshold=2):
+def merge_sbs_phenotype(
+    cell_locations_0,
+    cell_locations_1,
+    model,
+    threshold=2,
+    local_refinement=None,
+    warp_kwargs=None,
+):
     """Perform fine alignment of one (tile, site) match found using `multistep_alignment`.
 
     Args:
@@ -61,6 +73,12 @@ def merge_sbs_phenotype(cell_locations_0, cell_locations_1, model, threshold=2):
             matrix determined in `multistep_alignment`.
         threshold (float, optional): Maximum Euclidean distance allowed between matching
             points. Defaults to 2.
+        local_refinement (str | bool | None, optional): If truthy, refine the affine
+            prediction with a local warp (`refine_local_warp`) before matching. The string
+            "polynomial" or "thin_plate_spline" selects the model. Defaults None (off) —
+            prediction is then the plain affine, identical to before.
+        warp_kwargs (dict | None, optional): Keyword args forwarded to `refine_local_warp`
+            (degree, iterations, smoothing) when local_refinement is on. Defaults None.
 
     Returns:
         pandas.DataFrame: Table of merged identities of cell labels from cell_locations_0 and cell_locations_1.
@@ -98,6 +116,13 @@ def merge_sbs_phenotype(cell_locations_0, cell_locations_1, model, threshold=2):
     # Predict coordinates for dataset 0 using the alignment model
     Y_pred = model.predict(X)
 
+    # Optional local warp; local_refinement gates it and (as a string) names the model
+    if local_refinement:
+        wk = dict(warp_kwargs or {})
+        if isinstance(local_refinement, str):
+            wk.setdefault("model", local_refinement)
+        Y_pred = refine_local_warp(X, Y, Y_pred, threshold, **wk)
+
     # Calculate squared Euclidean distances between predicted coordinates and dataset 1 coordinates
     distances = cdist(Y, Y_pred, metric="sqeuclidean")
 
@@ -130,3 +155,84 @@ def merge_sbs_phenotype(cell_locations_0, cell_locations_1, model, threshold=2):
             cols_final
         ]  # Assign distance column  # Select final columns
     )
+
+
+def build_linear_model(rotation, translation):
+    """Builds a linear regression model using the provided rotation matrix and translation vector.
+
+    Args:
+        rotation (numpy.ndarray): Rotation matrix for the model.
+        translation (numpy.ndarray): Translation vector for the model.
+
+    Returns:
+        sklearn.linear_model.LinearRegression: Linear regression model with the specified rotation
+        and translation.
+    """
+    m = LinearRegression()
+    m.coef_ = rotation  # Set the rotation matrix as the model's coefficients
+    m.intercept_ = translation  # Set the translation vector as the model's intercept
+    return m  # Return the linear regression model
+
+
+def refine_local_warp(
+    X,
+    Y,
+    Y_pred,
+    threshold,
+    degree=2,
+    iterations=2,
+    model="polynomial",
+    smoothing=10.0,
+):
+    """Refine a global affine alignment with a local non-rigid warp.
+
+    Corrects residual within-tile distortion a single affine cannot capture (e.g. two
+    differently-configured microscopes). The warp is fit only on correspondences already
+    matched within `threshold`, then re-matched each iteration. With fewer than
+    `min_correspondences` confident matches it returns the input prediction unchanged.
+    "polynomial" (default) is backward-compatible; "thin_plate_spline" (scipy
+    RBFInterpolator, regularized by `smoothing`) is smoother and stable on two-scope data.
+
+    Args:
+        X (numpy.ndarray): Source (phenotype) coordinates, shape (n, 2).
+        Y (numpy.ndarray): Target (SBS) coordinates, shape (m, 2).
+        Y_pred (numpy.ndarray): Global-affine prediction of X in target space, shape (n, 2).
+        threshold (float): Match distance defining a high-confidence correspondence.
+        degree (int): Polynomial degree (model="polynomial"). Defaults to 2.
+        iterations (int): Number of refine-and-rematch passes. Defaults to 2.
+        model (str): "polynomial" (default) or "thin_plate_spline".
+        smoothing (float): Thin-plate-spline regularization. Defaults to 10.0.
+
+    Returns:
+        numpy.ndarray: Refined prediction of X in target space, shape (n, 2).
+    """
+    min_correspondences = 30  # min confident matches required to fit the warp
+    max_correspondences = 700  # cap on thin-plate-spline anchor points
+    pf = PolynomialFeatures(degree)
+    refined = Y_pred
+    for _ in range(iterations):
+        distances = cdist(Y, refined, metric="sqeuclidean")
+        nearest = distances.argmin(axis=1)
+        within = np.sqrt(distances.min(axis=1)) < threshold
+        if within.sum() < min_correspondences:
+            break
+        Y_corr = Y[within]
+        if model == "thin_plate_spline":
+            from scipy.interpolate import RBFInterpolator
+
+            # Fit on the residual (prediction -> target): smoothing is tuned for that small scale
+            src = refined[nearest[within]]
+            if len(src) > max_correspondences:
+                sel = np.random.default_rng(0).choice(
+                    len(src), max_correspondences, replace=False
+                )
+                src, Y_corr = src[sel], Y_corr[sel]
+            rbf = RBFInterpolator(
+                src, Y_corr, kernel="thin_plate_spline", smoothing=smoothing
+            )
+            refined = rbf(refined)
+        else:
+            X_corr = X[nearest[within]]
+            reg = LinearRegression().fit(pf.fit_transform(X_corr), Y_corr)
+            refined = reg.predict(pf.transform(X))
+    return refined

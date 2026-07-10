@@ -8,12 +8,11 @@ cluster size visualization, bootstrap filtering, and optimal resolution finding.
 import json
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-from lib.shared.file_utils import parse_filename, get_filename
+from lib.shared.file_utils import get_filename
 
 
 def find_optimal_resolution(

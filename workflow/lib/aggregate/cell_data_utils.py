@@ -7,8 +7,6 @@ and filtering features based on channel combinations.
 
 import pandas as pd
 
-from lib.phenotype.constants import DEFAULT_METADATA_COLS
-
 
 def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     """Load metadata column names from a file.

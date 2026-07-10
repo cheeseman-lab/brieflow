@@ -6,7 +6,7 @@ Uses NumPy and scikit-image to provide image alignment between sequencing cycles
 import numpy as np
 import skimage
 
-from lib.shared.image_utils import applyIJ, remove_channels
+from lib.shared.image_utils import applyIJ
 
 
 def apply_window(data, window):

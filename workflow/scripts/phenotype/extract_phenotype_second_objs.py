@@ -31,9 +31,6 @@ cell_summary_cols = [
 columns_to_drop = ["table_type"] + cell_summary_cols
 second_obj_cell_mapping_df = second_obj_cell_mapping_df.drop(columns=columns_to_drop)
 
-# Print the final columns to verify
-print("Final columns:", second_obj_cell_mapping_df.columns.tolist())
-
 # Extract secondary object phenotype features
 second_obj_phenotype = extract_phenotype_second_objs(
     data_phenotype=data_phenotype,

@@ -9,8 +9,6 @@ from typing import List, Tuple, Optional, Union, Dict
 import numpy as np
 from tifffile import imread
 from cellpose import models, train, io
-from skimage.transform import rotate
-from skimage.measure import regionprops, label
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import random

@@ -6,9 +6,7 @@ import numpy as np
 import json
 import sys
 import io
-from scipy import stats
 import pyarrow.parquet as pq
-import pyarrow.dataset as ds
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -361,8 +359,6 @@ def _get_single_aggregate_stats(
     include_batch_effects,
 ):
     """Helper function to get stats for a single cell_class/channel_combo/compartment_combo combination."""
-    from lib.shared.file_utils import load_parquet_subset
-
     # Load the aggregated TSV file
     aggregated_path = (
         aggregate_dir

@@ -38,15 +38,13 @@ Helper Functions:
 import numpy as np
 import pandas as pd
 from scipy import ndimage
-from skimage import filters, morphology, measure, segmentation, feature, util, exposure
+from skimage import filters, morphology, measure, segmentation, feature, exposure
 from skimage.segmentation import mark_boundaries
-import matplotlib.pyplot as plt
 from microfilm.microplot import Microimage
 from lib.shared.configuration_utils import create_micropanel
 from lib.shared.segment_cellpose import (
     prepare_cellpose,
     create_cellpose_model,
-    CELLPOSE_VERSION,
     CELLPOSE_4X,
 )
 import cv2
@@ -955,39 +953,6 @@ def create_second_obj_standard_visualization(
             text.set_color(label_color)
 
     return panel
-
-
-def get_feret_diameters(coords):
-    """Compute the minimum and maximum Feret diameters of a 2D shape.
-
-    The Feret diameters are calculated using OpenCV's minAreaRect, which finds
-    the smallest-area rotated bounding rectangle that encloses the input coordinates.
-
-    Parameters
-    ----------
-    coords : ndarray of shape (N, 2)
-        An array of (x, y) coordinates representing the pixels or contour of a region.
-
-    Returns:
-    -------
-    feret_min : float
-        The shortest distance between two parallel lines tangent to the object
-        (i.e., the minimum Feret diameter).
-
-    feret_max : float
-        The longest distance between two parallel lines tangent to the object
-        (i.e., the maximum Feret diameter).
-
-    Notes:
-    -----
-    - This method assumes the input coordinates define a planar shape (e.g., from a binary mask or regionprops).
-    - The returned values are in the same units as the input coordinates (typically pixels).
-    - Internally uses OpenCV's cv2.minAreaRect for fast and robust measurement.
-    """
-    cnt = coords.astype(np.int32)
-    rect = cv2.minAreaRect(cnt)
-    w, h = rect[1]
-    return min(w, h), max(w, h)
 
 
 def get_feret_diameters(coords):

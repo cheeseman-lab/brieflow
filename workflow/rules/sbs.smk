@@ -117,6 +117,8 @@ rule segment_sbs:
         SBS_OUTPUTS_MAPPED["segment_sbs"],
     params:
         config=lambda wildcards: get_segmentation_params("sbs", config),
+    resources:
+        gpu=1,
     script:
         "../scripts/shared/segment.py"
 

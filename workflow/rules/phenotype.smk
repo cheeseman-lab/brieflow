@@ -33,6 +33,8 @@ rule segment_phenotype:
         PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"],
     params:
         config=lambda wildcards: get_segmentation_params("phenotype", config),
+    resources:
+        gpu=1,
     script:
         "../scripts/shared/segment.py"
 

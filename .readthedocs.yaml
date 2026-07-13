@@ -11,8 +11,8 @@ sphinx:
   configuration: docs/source/conf.py
 
 # Set the requirements required to build your docs
+# Docs are Markdown-only (myst-parser, no autodoc), so the brieflow package
+# itself is not imported at build time and does not need to be installed.
 python:
   install:
     - requirements: docs/requirements.txt
-    - method: pip
-      path: .

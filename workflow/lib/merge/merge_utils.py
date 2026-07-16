@@ -15,12 +15,11 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import skimage.morphology
-from scipy.spatial.distance import cdist
 import matplotlib.colors as mcolors
 from skimage.measure import regionprops
 
 
-from lib.merge.fast_merge import build_linear_model, refine_local_warp
+from lib.merge.fast_merge import build_linear_model, refine_local_warp, match_cells
 
 
 def plot_combined_tile_grid(
@@ -187,169 +186,121 @@ def plot_merge_example(
             prediction before matching, matching the pipeline (`refine_local_warp`). Defaults None.
         warp_kwargs (dict | None, optional): Keyword args forwarded to `refine_local_warp`. Defaults None.
     """
-    # Create figure with three subplots
+    # Create the figure — three panels sharing one matched/unmatched coloring
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 10))
 
-    # Filter for specific tile and site
+    # Filter for the specific tile and site
     df_ph_filtered = df_ph[df_ph["tile"] == alignment_vec["tile"]]
     df_sbs_filtered = df_sbs[df_sbs["tile"] == alignment_vec["site"]]
 
-    # Get coordinates
     X = df_ph_filtered[["i", "j"]].values
     Y = df_sbs_filtered[["i", "j"]].values
 
-    # Build model and predict
+    # Predict phenotype coordinates into SBS space, optionally warped (mirrors the pipeline)
     model = build_linear_model(alignment_vec["rotation"], alignment_vec["translation"])
     Y_pred = model.predict(X)
-
-    # Optional local warp; mirrors the pipeline so the preview reflects the levers
     if local_refinement:
         wk = dict(warp_kwargs or {})
         if isinstance(local_refinement, str):
             wk.setdefault("model", local_refinement)
         Y_pred = refine_local_warp(X, Y, Y_pred, threshold, **wk)
 
-    # Calculate distances
-    distances = cdist(Y, Y_pred, metric="sqeuclidean")
-    ix = distances.argmin(axis=1)
-    filt = np.sqrt(distances.min(axis=1)) < threshold
+    # Mutual nearest-neighbor match — the same 1:1 rule merge_sbs_phenotype uses
+    sbs_ix, ph_ix, match_distances = match_cells(Y, Y_pred, threshold)
+    n_ph, n_sbs, n_matched = len(X), len(Y), len(ph_ix)
+    matched_ph_mask = np.zeros(n_ph, dtype=bool)
+    matched_ph_mask[ph_ix] = True
+    n_unmatched = int((~matched_ph_mask).sum())
+    frac_ph = n_matched / n_ph if n_ph else 0.0
+    median_residual = float(np.median(match_distances)) if n_matched else float("nan")
+    doubles = n_matched - len(np.unique(ph_ix))
 
-    # Filter out Y_pred based on filt
-    Y_pred = Y_pred[ix[filt]]
+    # Header carries the merge stats so each preview is self-describing
+    fig.suptitle(
+        f"PH tile {alignment_vec['tile']} ↔ SBS site {alignment_vec['site']}   |   "
+        f"{n_matched} matched   |   {frac_ph * 100:.0f}% phenotype   |   "
+        f"{median_residual:.2f} px median residual   |   {doubles} doubles",
+        fontsize=16,
+    )
 
-    # Calculate statistics
-    n_ph = len(X)
-    n_sbs = len(Y)
-    n_matched = len(Y_pred)
-
-    # Plot 1: Original Scale
+    # Panel 1: matched/unmatched phenotype in the real SBS pixel frame, with residual segments
     ax1.scatter(
-        X[:, 0], X[:, 1], c="blue", s=20, alpha=0.5, label=f"Phenotype ({n_ph} points)"
+        Y[:, 0], Y[:, 1], c="lightgray", s=8, alpha=0.3, label=f"SBS field ({n_sbs})"
+    )
+    for k in range(n_matched):
+        p, q = Y_pred[ph_ix[k]], Y[sbs_ix[k]]
+        ax1.plot([p[0], q[0]], [p[1], q[1]], "k-", alpha=0.3, linewidth=0.5)
+    ax1.scatter(
+        Y_pred[matched_ph_mask, 0],
+        Y_pred[matched_ph_mask, 1],
+        c="#2f6fb0",
+        s=14,
+        alpha=0.7,
+        label=f"matched phenotype ({n_matched})",
     )
     ax1.scatter(
-        Y_pred[:, 0],
-        Y_pred[:, 1],
-        c="red",
-        s=20,
-        alpha=0.5,
-        label=f"Aligned SBS ({n_matched}) points)",
+        Y_pred[~matched_ph_mask, 0],
+        Y_pred[~matched_ph_mask, 1],
+        marker="*",
+        c="#e8b93a",
+        s=45,
+        alpha=0.9,
+        label=f"unmatched phenotype ({n_unmatched})",
     )
-    ax1.scatter(
-        Y[:, 0],
-        Y[:, 1],
-        c="green",
-        s=20,
-        alpha=0.5,
-        label=f"Original SBS ({n_sbs} points)",
-    )
+    ax1.set_aspect("equal")
+    ax1.set_title("Aligned overlay (SBS pixel space)")
+    ax1.legend(loc="upper right", fontsize=9)
 
-    # Draw lines between matched points that pass threshold
-    for i in range(len(Y)):
-        if filt[i]:
-            ax1.plot([X[ix[i], 0], Y[i, 0]], [X[ix[i], 1], Y[i, 1]], "k-", alpha=0.1)
-
-    ax1.set_title(
-        f"Original Scale View\nPH:{alignment_vec['tile']}, SBS:{alignment_vec['site']}"
-    )
-    ax1.legend()
-
-    # Plot 2: Scale PH values to SBS axis
+    # Normalize phenotype coordinates into the SBS field for the scaled panels
     X_norm = (X - X.min(axis=0)) / (X.max(axis=0) - X.min(axis=0))
+    X_scaled = (X_norm * (Y_pred.max(axis=0) - Y_pred.min(axis=0))) + Y_pred.min(axis=0)
 
-    # Get the range and minimum of aligned SBS points (Y_pred)
-    Y_pred_range = Y_pred.max(axis=0) - Y_pred.min(axis=0)
-    Y_pred_min = Y_pred.min(axis=0)
-
-    # Scale and translate phenotype points to align with SBS field
-    X_scaled = (X_norm * Y_pred_range) + Y_pred_min
-
+    # Panel 2: normalized overlap of phenotype on the SBS field
     ax2.scatter(
-        Y[:, 0],
-        Y[:, 1],
-        c="lightgray",
-        s=20,
-        alpha=0.1,
-        label=f"SBS Field ({n_sbs} points)",
+        Y[:, 0], Y[:, 1], c="lightgray", s=12, alpha=0.15, label=f"SBS field ({n_sbs})"
     )
     ax2.scatter(
-        Y_pred[:, 0],
-        Y_pred[:, 1],
-        c="red",
-        s=20,
-        alpha=0.25,
-        label=f"Aligned SBS ({n_matched} points)",
+        Y_pred[matched_ph_mask, 0],
+        Y_pred[matched_ph_mask, 1],
+        c="#c0392b",
+        s=14,
+        alpha=0.3,
+        label=f"aligned SBS matches ({n_matched})",
     )
     ax2.scatter(
         X_scaled[:, 0],
         X_scaled[:, 1],
-        c="blue",
-        s=20,
+        c="#2f6fb0",
+        s=14,
         alpha=0.25,
-        label=f"Phenotype ({n_ph} points)",
+        label=f"phenotype ({n_ph})",
     )
+    ax2.set_title("Normalized phenotype relative to SBS")
+    ax2.legend(loc="upper right", fontsize=9)
 
-    ax2.set_title("Normalized Scale For PH Points Relative to SBS")
-    ax2.legend()
-
-    # Plot 3: Scale PH values to SBS axis
-    X_norm = (X - X.min(axis=0)) / (X.max(axis=0) - X.min(axis=0))
-    # Get the range and minimum of aligned SBS points (Y_pred)
-    Y_pred_range = Y_pred.max(axis=0) - Y_pred.min(axis=0)
-    Y_pred_min = Y_pred.min(axis=0)
-    # Scale and translate phenotype points to align with SBS field
-    X_scaled = (X_norm * Y_pred_range) + Y_pred_min
-    # Find unmatched phenotype points
-    matched_ph_ix = np.unique(ix[filt])
-    unmatched_ph_mask = ~np.isin(np.arange(len(X)), matched_ph_ix)
-    # Plot SBS field and aligned points
+    # Panel 3: matched vs unmatched phenotype in the normalized frame (no per-cell labels)
     ax3.scatter(
-        Y[:, 0],
-        Y[:, 1],
-        c="lightgray",
-        s=20,
-        alpha=0.1,
-        label=f"SBS Field ({n_sbs} points)",
+        Y[:, 0], Y[:, 1], c="lightgray", s=12, alpha=0.15, label=f"SBS field ({n_sbs})"
     )
     ax3.scatter(
-        Y_pred[:, 0],
-        Y_pred[:, 1],
-        c="red",
-        s=20,
-        alpha=0.25,
-        label=f"Aligned SBS ({n_matched} points)",
+        X_scaled[matched_ph_mask, 0],
+        X_scaled[matched_ph_mask, 1],
+        c="#2f6fb0",
+        s=14,
+        alpha=0.35,
+        label=f"matched phenotype ({n_matched})",
     )
-    # Plot matched phenotype points in blue
     ax3.scatter(
-        X_scaled[~unmatched_ph_mask][:, 0],
-        X_scaled[~unmatched_ph_mask][:, 1],
-        c="blue",
-        s=20,
-        alpha=0.25,
-        label=f"Matched Phenotype ({n_matched} points)",
-    )
-    # Plot unmatched phenotype points in yellow with star marker
-    ax3.scatter(
-        X_scaled[unmatched_ph_mask][:, 0],
-        X_scaled[unmatched_ph_mask][:, 1],
+        X_scaled[~matched_ph_mask, 0],
+        X_scaled[~matched_ph_mask, 1],
         marker="*",
-        c="yellow",
-        s=100,
-        alpha=1,
-        label=f"Unmatched Phenotype ({sum(unmatched_ph_mask)} points)",
+        c="#e8b93a",
+        s=60,
+        alpha=0.9,
+        label=f"unmatched phenotype ({n_unmatched})",
     )
-    # Optionally add labels for unmatched points
-    for i in np.where(unmatched_ph_mask)[0]:
-        ax3.annotate(
-            f"Cell {i}",
-            (X_scaled[i, 0], X_scaled[i, 1]),
-            xytext=(10, 10),
-            textcoords="offset points",
-            bbox=dict(boxstyle="round", fc="white", alpha=0.7),
-        )
-    ax3.set_title(
-        "Normalized Scale For PH Points Relative to SBS (with unmatched points)"
-    )
-    ax3.legend()
+    ax3.set_title("Matched vs unmatched phenotype")
+    ax3.legend(loc="upper right", fontsize=9)
 
     plt.tight_layout()
     plt.show()
@@ -710,6 +661,43 @@ def find_closest_tiles(sbs_metadata, ph_metadata, sbs_tile_id, verbose=True):
             print(f"  Tile {row['tile']}: Distance = {row['distance']:.2f}")
 
     return result.sort_values("distance")
+
+
+def filter_low_score_seeds(pairs_df, score_col="score", k=3.0, min_keep=5):
+    """Drop initial-site seeds whose score is a low outlier relative to the cohort.
+
+    The alignment score's absolute scale varies by screen, so this uses a robust relative
+    cut (median and MAD) rather than a fixed floor: a seed is dropped only if its score is
+    more than `k` robust standard deviations below the median. At least `min_keep` seeds are
+    always retained (falling back to the top-scoring ones) so filtering can never push a well
+    below the minimum the pipeline requires.
+
+    Args:
+        pairs_df (pandas.DataFrame): Candidate seed pairs with a score column.
+        score_col (str, optional): Name of the score column. Defaults to "score".
+        k (float, optional): Number of robust standard deviations below the median at which a
+            seed is considered a low outlier. Defaults to 3.0.
+        min_keep (int, optional): Minimum number of seeds to retain. Defaults to 5.
+
+    Returns:
+        pandas.DataFrame: The retained seed pairs.
+    """
+    if len(pairs_df) <= min_keep:
+        return pairs_df
+
+    scores = pairs_df[score_col].to_numpy()
+    median = np.median(scores)
+    mad = np.median(np.abs(scores - median))
+    if mad == 0:
+        return pairs_df
+
+    threshold = median - k * 1.4826 * mad
+    kept = pairs_df[pairs_df[score_col] >= threshold]
+
+    # Never filter below the minimum the pipeline needs — keep the best-scoring seeds instead
+    if len(kept) < min_keep:
+        kept = pairs_df.sort_values(score_col, ascending=False).head(min_keep)
+    return kept
 
 
 def fast_merge_example(

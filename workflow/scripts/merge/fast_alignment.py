@@ -7,7 +7,11 @@ from lib.merge.hash import (
     extract_rotation,
     initial_alignment,
 )
-from lib.merge.merge_utils import align_metadata, find_closest_tiles
+from lib.merge.merge_utils import (
+    align_metadata,
+    find_closest_tiles,
+    filter_low_score_seeds,
+)
 
 # Validate required params
 for _param_name in ["det_range", "score"]:
@@ -174,6 +178,15 @@ if seed_optimize:
     ).drop_duplicates(subset="site", keep="first")
     print(
         f"seed_optimize: kept best-scoring tile per site ({n_before} -> {len(valid_pairs_df)})"
+    )
+
+# Drop seeds whose score is a low outlier relative to the cohort (keeps >= 5)
+n_before = len(valid_pairs_df)
+valid_pairs_df = filter_low_score_seeds(valid_pairs_df)
+if len(valid_pairs_df) < n_before:
+    print(
+        f"filtered {n_before - len(valid_pairs_df)} low-score outlier seed(s) "
+        f"({n_before} -> {len(valid_pairs_df)})"
     )
 
 # Require minimum 5 valid pairs (only if > 5 candidates were provided)

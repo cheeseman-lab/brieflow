@@ -180,7 +180,7 @@ SBS_OUTPUTS = {
 }
 
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": temp,
+    "align_sbs": None,
     "log_filter": temp,
     "compute_standard_deviation": temp,
     "find_peaks": temp,

@@ -89,7 +89,7 @@ _sbs_img_temp = None if SBS_IMG_FMT == "zarr" else temp
 _sbs_label_keep = directory if SBS_IMG_FMT == "zarr" else None
 
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": _sbs_img_temp,
+    "align_sbs": None,
     "log_filter": _sbs_img_temp,
     "compute_standard_deviation": _sbs_img_temp,
     "find_peaks": _sbs_img_temp,

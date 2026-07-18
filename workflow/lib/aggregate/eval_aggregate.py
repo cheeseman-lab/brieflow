@@ -78,7 +78,7 @@ def summarize_cell_data(
         class_subset = cell_data[cell_data["class"] == class_name]
         counts.append((f"{class_name} cells", len(class_subset)))
 
-        for col in collapse_cols:
+        for col in collapse_cols or []:
             counts.append((f"{class_name} {col}", class_subset[col].nunique()))
 
     summary_df = pd.DataFrame(counts, columns=["Stage", "Count"])

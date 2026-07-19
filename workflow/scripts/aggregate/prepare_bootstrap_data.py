@@ -26,6 +26,7 @@ control_key = snakemake.params.control_key
 exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp
 bootstrap_features_fp = snakemake.params.bootstrap_features_fp
+bootstrap_extra_features = snakemake.params.get("bootstrap_extra_features", None)
 
 print("Loading single-cell features data...")
 all_features_cells = read_parquet(snakemake.input.features_singlecell)
@@ -86,7 +87,11 @@ if bootstrap_features_fp is not None:
 else:
     # Use get_feature_table_cols to filter to nucleus/cell intensity, shape, and overlap features
     print("Using default feature filtering (nucleus/cell: intensity, shape, overlap)")
-    available_features = get_feature_table_cols(all_features)
+    if bootstrap_extra_features:
+        print(f"Adding extra feature tags: {bootstrap_extra_features}")
+    available_features = get_feature_table_cols(
+        all_features, extra_tags=bootstrap_extra_features
+    )
 
 print(
     f"Using {len(available_features)} features for bootstrap analysis (from {len(all_features)} total)"

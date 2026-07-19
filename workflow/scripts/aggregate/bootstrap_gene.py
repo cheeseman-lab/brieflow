@@ -14,6 +14,7 @@ cell_class = snakemake.wildcards.cell_class
 channel_combo = snakemake.wildcards.channel_combo
 num_sims = snakemake.params.num_sims
 bootstrap_features_fp = snakemake.params.bootstrap_features_fp
+bootstrap_extra_features = snakemake.params.get("bootstrap_extra_features", None)
 
 print(f"Running gene-level bootstrap aggregation for: {gene_id}")
 
@@ -64,7 +65,9 @@ if bootstrap_features_fp is not None:
     available_features = [f for f in requested_features if f in all_features]
 else:
     # Use get_feature_table_cols to filter to nucleus/cell intensity, shape, and overlap features
-    available_features = get_feature_table_cols(all_features)
+    available_features = get_feature_table_cols(
+        all_features, extra_tags=bootstrap_extra_features
+    )
 
 print(f"Using {len(available_features)} features for bootstrap analysis")
 

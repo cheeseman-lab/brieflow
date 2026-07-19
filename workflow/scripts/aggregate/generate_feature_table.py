@@ -191,7 +191,11 @@ gc.collect()
 construct_table = pd.DataFrame(construct_rows)
 
 # Reorder columns: sgRNA, gene, cell_count, features
-construct_columns = [pert_id_col, pert_col, "cell_count"] + feature_cols
+# When perturbation_id_col is unset, pert_id_col falls back to pert_col; list it
+# once to avoid a duplicate column (which turns construct_table[pert_col] into a
+# DataFrame and breaks the .str accessor below).
+label_cols = [pert_id_col, pert_col] if pert_id_col != pert_col else [pert_col]
+construct_columns = label_cols + ["cell_count"] + feature_cols
 construct_table = construct_table[construct_columns]
 
 print(f"Construct table shape: {construct_table.shape}")

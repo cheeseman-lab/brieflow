@@ -284,6 +284,7 @@ checkpoint prepare_bootstrap_data:
         control_key=config.get("aggregate", {}).get("control_key"),
         exclusion_string=config.get("aggregate", {}).get("exclusion_string"),
         bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
+        bootstrap_extra_features=config.get("aggregate", {}).get("bootstrap_extra_features", None),
     script:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 
@@ -343,6 +344,7 @@ rule bootstrap_gene:
             construct="{construct}"
         ),
         bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
+        bootstrap_extra_features=config.get("aggregate", {}).get("bootstrap_extra_features", None),
     script:
         "../scripts/aggregate/bootstrap_gene.py"
 

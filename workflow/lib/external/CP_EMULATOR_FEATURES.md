@@ -248,6 +248,35 @@ These parameters control granularity spectrum computation (computationally expen
 
 ---
 
+## Bootstrap Feature Selection
+
+Not every feature documented above is tested by the aggregate bootstrap. By default, `get_feature_table_cols` (`workflow/lib/aggregate/cell_data_utils.py`) selects a curated subset and everything else is silently dropped.
+
+**Compartment gate:** only columns belonging to the `nucleus` or `cell` compartments are considered. Other compartments (e.g. `cytoplasm`) are excluded regardless of feature type.
+
+**Included by default:**
+
+| Category | Match rule | Features |
+|----------|------------|----------|
+| Intensity | name **ends with** | `mean`, `int`, `mass_displacement`, `mean_edge`, `std_edge`, `mean_frac_0`, `mean_frac_3` |
+| Shape | name **ends with** | `area`, `solidity`, `form_factor`, `eccentricity` |
+| Overlap | substring **anywhere** | `manders` |
+
+**Excluded by default:** texture (PFTAS and Haralick), granularity, most intensity-distribution features, Zernike and Hu moments, radius and Feret diameter, neighbor features, foci features, and every non-`nucleus`/`cell` compartment.
+
+Note the intensity-distribution set is included only partially: `mean_frac_0` and `mean_frac_3` are kept, while `mean_frac_1`, `mean_frac_2`, all `frac_at_d_*`, and all `radial_cv_*` are not.
+
+**Extending the default set** — `aggregate.bootstrap_extra_features` in `config.yml` (`BOOTSTRAP_EXTRA_FEATURES` in notebook 8) additively includes any feature whose name contains one of the given substrings:
+
+```yaml
+aggregate:
+  bootstrap_extra_features: ["radial_cv", "frac_at_d"]
+```
+
+**Replacing the default set** — `aggregate.bootstrap_features_fp` points to a file listing exact feature names, one per line. This bypasses the curated subset and the compartment gate entirely.
+
+---
+
 ## References
 
 - Haralick RM, Shanmugam K, Dinstein I. (1973) "Textural Features for Image Classification" IEEE Trans. SMC 3(6):610-621

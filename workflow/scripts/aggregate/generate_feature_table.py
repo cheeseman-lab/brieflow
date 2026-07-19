@@ -16,6 +16,15 @@ from lib.aggregate.bootstrap import create_pseudogene_groups
 pert_col = snakemake.params.perturbation_name_col
 pert_id_col = snakemake.params.perturbation_id_col or pert_col
 control_key = snakemake.params.control_key
+
+if pert_id_col == pert_col:
+    print(
+        f"WARNING: perturbation_id_col is not set, so '{pert_col}' is being used as "
+        "the construct ID. Constructs collapse to gene level, which leaves a single "
+        "control construct and a bootstrap null that lacks construct-level variance "
+        "(p-values will be under-dispersed). Set perturbation_id_col to your "
+        "construct column (e.g. cell_barcode_0 or sgRNA_0)."
+    )
 num_batches = snakemake.params.get("num_align_batches", 1)
 
 # Load cell data using PyArrow dataset (lazy - no data loaded yet)
@@ -186,7 +195,9 @@ gc.collect()
 construct_table = pd.DataFrame(construct_rows)
 
 # Reorder columns: sgRNA, gene, cell_count, features
-construct_columns = [pert_id_col, pert_col, "cell_count"] + feature_cols
+# List the label column once when the id and name columns coincide
+label_cols = [pert_id_col, pert_col] if pert_id_col != pert_col else [pert_col]
+construct_columns = label_cols + ["cell_count"] + feature_cols
 construct_table = construct_table[construct_columns]
 
 print(f"Construct table shape: {construct_table.shape}")

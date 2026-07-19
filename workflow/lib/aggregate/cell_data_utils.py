@@ -124,11 +124,14 @@ def channel_combo_subset(features, channel_combo, all_channels):
     return features[columns_to_keep]
 
 
-def get_feature_table_cols(feature_cols):
+def get_feature_table_cols(feature_cols, extra_tags=None):
     """Filter feature columns based on specific tags and compartments.
 
     Args:
         feature_cols (list): List of feature column names.
+        extra_tags (list, optional): Additional substring tags to include on top of
+            the default nucleus/cell subset. Any column whose name contains one of
+            these tags (e.g. "radial_cv", "frac_at_d") is added. Defaults to None.
 
     Returns:
         list: Filtered list of feature column names.
@@ -146,6 +149,7 @@ def get_feature_table_cols(feature_cols):
     shape_tags = ["area", "solidity", "form_factor", "eccentricity"]
     # Substring match — picks up *_correlation_* (Pearson/Spearman) and *manders* features
     overlap_tags = ["manders", "correlation"]
+    extra_tags = [tag.lower() for tag in extra_tags] if extra_tags else []
 
     # Define the specific compartments to look for
     compartments = ["nucleus", "cell"]
@@ -154,6 +158,7 @@ def get_feature_table_cols(feature_cols):
     intensity_cols = []
     shape_cols = []
     overlap_cols = []
+    extra_cols = []
 
     # Filter columns based on compartments and tags
     for col in feature_cols:
@@ -171,6 +176,10 @@ def get_feature_table_cols(feature_cols):
             elif any(tag in col.lower() for tag in overlap_tags):
                 overlap_cols.append(col)
 
+            # Extra user-requested features - substring match anywhere in string
+            elif any(tag in col.lower() for tag in extra_tags):
+                extra_cols.append(col)
+
     # Create a new DataFrame with selected columns, preserving the label column if it exists
     selected_columns = []
     if "label" in feature_cols:
@@ -180,5 +189,6 @@ def get_feature_table_cols(feature_cols):
     selected_columns.extend(intensity_cols)
     selected_columns.extend(shape_cols)
     selected_columns.extend(overlap_cols)
+    selected_columns.extend(extra_cols)
 
     return selected_columns

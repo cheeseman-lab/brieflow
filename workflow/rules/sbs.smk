@@ -145,7 +145,11 @@ rule call_reads:
     output:
         SBS_OUTPUTS_MAPPED["call_reads"],
     params:
+        chemistry=config.get("sbs", {}).get("chemistry", "four_color"),
         call_reads_method=config.get("sbs", {}).get("call_reads_method", "median"),
+        combinatorial=config.get("sbs", {}).get("combinatorial", None),
+        codebook_fp=config.get("sbs", {}).get("df_barcode_library_fp", None),
+        error_correct=config.get("sbs", {}).get("error_correct", False),
     script:
         "../scripts/sbs/call_reads.py"
 

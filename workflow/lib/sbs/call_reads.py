@@ -31,6 +31,9 @@ def call_reads(
     correction_only_in_cells=True,
     normalize_bases_first=True,
     method="median",
+    chemistry="four_color",
+    combinatorial=None,
+    codebook=None,
 ):
     """Call reads for in situ sequencing data.
 
@@ -57,9 +60,20 @@ def call_reads(
         Only applies when method="median".
 
     method : str, default "median"
-        Method to use for correction. Options are "median" or "percentile".
-        - "median": Uses median-based correction, performed independently for each tile.
-        - "percentile": Uses percentile-based correction, performed independently for each tile.
+        Read caller. Four-color chemistry supports ``"median"`` and
+        ``"percentile"``; combinatorial chemistry supports ``"frac"`` and
+        ``"merfish"``.
+
+    chemistry : str, default "four_color"
+        ``"four_color"`` for one-channel-per-base chemistry or
+        ``"combinatorial"`` for two-/three-dye encodings.
+
+    combinatorial : dict or None, default None
+        Combinatorial chemistry configuration containing a ``code`` mapping from
+        bases to the dye channels that are on for that base.
+
+    codebook : pandas.DataFrame or None, default None
+        Barcode library with a ``prefix`` column. Required by ``method="merfish"``.
 
     Returns:
     df_reads : pandas DataFrame
@@ -94,8 +108,7 @@ def call_reads(
     cycles = len(set(bases_data["cycle"]))
     channels = len(set(bases_data["channel"]))
 
-    # Choose the appropriate method for read calling
-    if method == "median":
+    if chemistry == "four_color" and method == "median":
         if normalize_bases_first:
             # Clean up and normalize base intensities, then perform median calling
             df_reads = (
@@ -116,7 +129,7 @@ def call_reads(
                 channels=channels,
                 correction_only_in_cells=correction_only_in_cells,
             )
-    elif method == "percentile":
+    elif chemistry == "four_color" and method == "percentile":
         # Clean up bases and perform percentile calling
         df_reads = bases_data.pipe(clean_up_bases).pipe(
             do_percentile_call,
@@ -124,8 +137,32 @@ def call_reads(
             channels=channels,
             correction_only_in_cells=correction_only_in_cells,
         )
+    elif chemistry == "combinatorial" and method == "frac":
+        df_reads = bases_data.pipe(clean_up_bases).pipe(
+            do_frac_call,
+            cycles=cycles,
+            combinatorial=combinatorial,
+        )
+    elif chemistry == "combinatorial" and method == "merfish":
+        df_reads = bases_data.pipe(clean_up_bases).pipe(
+            do_merfish_call,
+            cycles=cycles,
+            combinatorial=combinatorial,
+            codebook=codebook,
+        )
     else:
-        raise ValueError(f"Unknown method: {method}. Use 'median' or 'percentile'.")
+        supported = {
+            "four_color": ("median", "percentile"),
+            "combinatorial": ("frac", "merfish"),
+        }
+        if chemistry not in supported:
+            raise ValueError(
+                f"Unknown chemistry: {chemistry}. Use 'four_color' or 'combinatorial'."
+            )
+        raise ValueError(
+            f"Method '{method}' is not supported for chemistry '{chemistry}'. "
+            f"Use one of {supported[chemistry]}."
+        )
 
     # Include peaks scores if available
     if peaks_data is not None:
@@ -243,6 +280,166 @@ def do_percentile_call(
     df_reads = call_barcodes(df_bases, Y, cycles=cycles, channels=channels)
 
     return df_reads
+
+
+def do_frac_call(df_bases, cycles=12, combinatorial=None):
+    """Call combinatorial bases from relative brightness and dye composition.
+
+    A dim cycle relative to the read's median cycle brightness is the blank
+    state. For non-blank cycles, each dye is called on from its fraction of the
+    cycle's total dye intensity. The observed on/off state is then matched to the
+    nearest configured base state. This step is library-blind; optional Hamming
+    correction remains in ``call_cells``.
+    """
+    dye, _, base_chars, templates = _combinatorial_setup(df_bases, combinatorial)
+    total = dye.sum(axis=2, keepdims=True)
+    median_total = np.median(total, axis=1, keepdims=True)
+    relative_brightness = total / np.clip(median_total, 1.0, None)
+    dye_fraction = dye / np.clip(total, 1.0, None)
+
+    blank_threshold = float(combinatorial.get("blank_threshold", 0.5))
+    fraction_threshold = combinatorial.get("fraction_threshold")
+    if fraction_threshold is None:
+        maximum_dyes = max(int(row.sum()) for row in templates)
+        fraction_threshold = 0.36 / max(maximum_dyes, 1)
+    fraction_threshold = float(fraction_threshold)
+
+    bright = relative_brightness >= blank_threshold
+    observed = bright & (dye_fraction >= fraction_threshold)
+    confidence = np.where(
+        bright,
+        np.clip(
+            np.abs(dye_fraction - fraction_threshold) / fraction_threshold,
+            0,
+            1,
+        ),
+        np.clip(
+            (blank_threshold - relative_brightness) / blank_threshold,
+            0,
+            1,
+        ),
+    )
+
+    distance = (observed[:, :, None, :] != templates[None, None, :, :]).sum(axis=3)
+    base_index = distance.argmin(axis=2)
+    called_bases = base_chars[base_index]
+    barcodes = ["".join(row) for row in called_bases]
+    chosen_distance = np.take_along_axis(distance, base_index[:, :, None], axis=2)[
+        :, :, 0
+    ]
+    quality_scores = confidence.min(axis=2) * np.where(chosen_distance == 0, 1.0, 0.5)
+    return _format_combinatorial_reads(df_bases, cycles, barcodes, quality_scores)
+
+
+def do_merfish_call(df_bases, cycles=12, combinatorial=None, codebook=None):
+    """Assign the codebook barcode with highest cosine intensity similarity.
+
+    This is a library-aware soft decoder: every output barcode comes from the
+    supplied codebook. Its score is repeated across per-cycle quality columns so
+    the output continues to satisfy the standard ``call_reads`` contract.
+    """
+    dye, dye_labels, _, _ = _combinatorial_setup(df_bases, combinatorial)
+    if codebook is None or "prefix" not in getattr(codebook, "columns", []):
+        raise ValueError(
+            "method='merfish' requires a codebook DataFrame with a 'prefix' column."
+        )
+
+    prefixes = codebook["prefix"].dropna().astype(str).drop_duplicates().to_numpy()
+    if not len(prefixes):
+        raise ValueError("The MERFISH codebook is empty.")
+    if any(len(prefix) != cycles for prefix in prefixes):
+        raise ValueError(
+            f"MERFISH codebook prefixes must contain exactly {cycles} bases."
+        )
+
+    code = combinatorial["code"]
+    unknown = sorted(set("".join(prefixes)) - set(code))
+    if unknown:
+        raise ValueError(
+            f"MERFISH codebook contains bases absent from the combinatorial code: "
+            f"{unknown}."
+        )
+
+    base_templates = {
+        base: np.asarray(
+            [label in _get_dye_channels(value) for label in dye_labels], dtype=float
+        )
+        for base, value in code.items()
+    }
+    templates = np.asarray(
+        [[base_templates[base] for base in prefix] for prefix in prefixes]
+    ).reshape(len(prefixes), -1)
+    templates /= np.clip(np.linalg.norm(templates, axis=1, keepdims=True), 1e-9, None)
+
+    observed = dye.reshape(len(dye), -1)
+    observed /= np.clip(np.linalg.norm(observed, axis=1, keepdims=True), 1e-9, None)
+    best = np.empty(len(observed), dtype=int)
+    scores = np.empty(len(observed), dtype=float)
+    for start in range(0, len(observed), 2000):
+        stop = min(start + 2000, len(observed))
+        cosine = observed[start:stop] @ templates.T
+        best[start:stop] = cosine.argmax(axis=1)
+        scores[start:stop] = cosine[np.arange(stop - start), best[start:stop]]
+
+    quality_scores = np.repeat(scores[:, None], cycles, axis=1)
+    return _format_combinatorial_reads(df_bases, cycles, prefixes[best], quality_scores)
+
+
+def _combinatorial_setup(df_bases, combinatorial):
+    """Build observed dye values and base-state templates from configuration."""
+    if not combinatorial or "code" not in combinatorial:
+        raise ValueError(
+            "Combinatorial chemistry requires a 'combinatorial.code' mapping."
+        )
+
+    code = combinatorial["code"]
+    if not isinstance(code, dict) or not code:
+        raise ValueError("'combinatorial.code' must be a non-empty mapping.")
+
+    channel_sets = {base: _get_dye_channels(value) for base, value in code.items()}
+    if any(not isinstance(base, str) or len(base) != 1 for base in channel_sets):
+        raise ValueError("Combinatorial code keys must be single-character bases.")
+
+    labels = sorted(df_bases[CHANNEL].unique())
+    label_index = {label: index for index, label in enumerate(labels)}
+    dye_labels = sorted({label for values in channel_sets.values() for label in values})
+    if not dye_labels:
+        raise ValueError("Combinatorial code must reference at least one dye channel.")
+    missing = [label for label in dye_labels if label not in label_index]
+    if missing:
+        raise ValueError(
+            f"Combinatorial code references channels {missing} not found in "
+            f"the bases table channels {labels}."
+        )
+
+    base_chars = np.asarray(list(channel_sets))
+    templates = np.asarray(
+        [[label in channel_sets[base] for label in dye_labels] for base in base_chars],
+        dtype=bool,
+    )
+    if len(np.unique(templates, axis=0)) != len(templates):
+        raise ValueError("Each base must have a unique combinatorial dye code.")
+
+    values = dataframe_to_values(df_bases).astype(float)
+    dye_columns = [label_index[label] for label in dye_labels]
+    return values[:, :, dye_columns], dye_labels, base_chars, templates
+
+
+def _format_combinatorial_reads(df_bases, cycles, barcodes, quality_scores):
+    """Return combinatorial calls using the standard ``call_reads`` schema."""
+    df_reads = df_bases.drop_duplicates([WELL, TILE, READ]).copy()
+    df_reads[BARCODE] = np.asarray(barcodes)
+    for cycle in range(cycles):
+        df_reads[f"Q_{cycle}"] = quality_scores[:, cycle]
+    df_reads = df_reads.assign(
+        Q_min=lambda frame: frame.filter(regex=r"Q_\d+").min(axis=1)
+    )
+    return df_reads.drop([CYCLE, CHANNEL, INTENSITY], axis=1)
+
+
+def _get_dye_channels(value):
+    """Normalize a compact string or channel sequence to a list."""
+    return list(value) if isinstance(value, str) else list(value or [])
 
 
 def dataframe_to_values(df, value="intensity"):
@@ -392,7 +589,7 @@ def call_barcodes(df_bases, Y, cycles=12, channels=4):
         df_reads["Q_%d" % i] = Q[:, i]
 
     # Assign minimum quality score for each read
-    df_reads = df_reads.assign(Q_min=lambda x: x.filter(regex="Q_\d+").min(axis=1))
+    df_reads = df_reads.assign(Q_min=lambda x: x.filter(regex=r"Q_\d+").min(axis=1))
 
     # Drop unnecessary columns
     df_reads = df_reads.drop([CYCLE, CHANNEL, INTENSITY], axis=1)

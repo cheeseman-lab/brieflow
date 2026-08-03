@@ -729,7 +729,16 @@ def _process_combination(
             )
 
         # Call reads
-        df_reads = call_reads(df_bases, peaks_data=peaks, method=call_reads_method)
+        if call_reads_method == "merfish" and error_correct:
+            raise ValueError("error_correct must be false for MERFISH calling")
+        df_reads = call_reads(
+            df_bases,
+            peaks_data=peaks,
+            method=call_reads_method,
+            chemistry=fixed_params.get("chemistry", "four_color"),
+            combinatorial=fixed_params.get("combinatorial"),
+            codebook=(df_barcode_library if call_reads_method == "merfish" else None),
+        )
 
         if df_reads is None or len(df_reads) == 0:
             return (

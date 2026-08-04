@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 
@@ -9,6 +11,8 @@ from lib.aggregate.cell_data_utils import (
     channel_combo_subset,
     compartment_combo_subset,
 )
+from lib.shared.compartment_utils import add_compartment_metadata
+from lib.shared.file_utils import get_filename
 
 
 def apply_confidence_thresholds(metadata, features, thresholds, class_col="class"):
@@ -186,9 +190,21 @@ for _, row in unique_specs.iterrows():
         drop=True
     )
 
-    dataset_fp = [
-        f
-        for f in snakemake.output
-        if f"CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__" in f
-    ][0]
+    dataset_name = get_filename(
+        add_compartment_metadata(
+            {
+                "plate": snakemake.wildcards.plate,
+                "well": snakemake.wildcards.well,
+                "cell_class": cell_class,
+                "channel_combo": channel_combo,
+            },
+            compartment_combo,
+            snakemake.params.split_by_compartment,
+        ),
+        "merge_data",
+        "parquet",
+    )
+    dataset_fp = next(
+        output for output in snakemake.output if Path(output).name == dataset_name
+    )
     cell_class_data.to_parquet(dataset_fp, index=False)

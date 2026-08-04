@@ -1,8 +1,16 @@
 from lib.shared.file_utils import get_filename
+from lib.shared.compartment_utils import (
+    add_compartment_metadata,
+    add_compartment_suffix,
+    normalize_compartment_records,
+)
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 
 AGGREGATE_FP = ROOT_FP / "aggregate"
+AGGREGATE_COMPARTMENT_METADATA = add_compartment_metadata(
+    {}, "{compartment_combo}", SPLIT_BY_COMPARTMENT
+)
 
 # Define standard (non-montage) aggreagte outputs
 AGGREGATE_OUTPUTS = {
@@ -24,7 +32,7 @@ AGGREGATE_OUTPUTS = {
                 "well": "{well}",
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
-                "compartment_combo": "{compartment_combo}",
+                **AGGREGATE_COMPARTMENT_METADATA,
             },
             "merge_data",
             "parquet",
@@ -39,7 +47,7 @@ AGGREGATE_OUTPUTS = {
                 "well": "{well}",
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
-                "compartment_combo": "{compartment_combo}",
+                **AGGREGATE_COMPARTMENT_METADATA,
             },
             "filtered",
             "parquet",
@@ -52,7 +60,7 @@ AGGREGATE_OUTPUTS = {
             {
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
-                "compartment_combo": "{compartment_combo}",
+                **AGGREGATE_COMPARTMENT_METADATA,
             },
             "features_singlecell",
             "parquet",
@@ -63,7 +71,7 @@ AGGREGATE_OUTPUTS = {
             {
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
-                "compartment_combo": "{compartment_combo}",
+                **AGGREGATE_COMPARTMENT_METADATA,
             },
             "features_constructs",
             "tsv",
@@ -74,7 +82,7 @@ AGGREGATE_OUTPUTS = {
             {
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
-                "compartment_combo": "{compartment_combo}",
+                **AGGREGATE_COMPARTMENT_METADATA,
             },
             "features_genes",
             "tsv",
@@ -87,7 +95,7 @@ AGGREGATE_OUTPUTS = {
             {
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
-                "compartment_combo": "{compartment_combo}",
+                **AGGREGATE_COMPARTMENT_METADATA,
             },
             "aligned",
             "parquet",
@@ -100,7 +108,7 @@ AGGREGATE_OUTPUTS = {
             {
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
-                "compartment_combo": "{compartment_combo}",
+                **AGGREGATE_COMPARTMENT_METADATA,
             },
             "aggregated",
             "tsv",
@@ -113,7 +121,7 @@ AGGREGATE_OUTPUTS = {
             {
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
-                "compartment_combo": "{compartment_combo}",
+                **AGGREGATE_COMPARTMENT_METADATA,
             },
             "na_stats",
             "tsv",
@@ -124,7 +132,7 @@ AGGREGATE_OUTPUTS = {
             {
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
-                "compartment_combo": "{compartment_combo}",
+                **AGGREGATE_COMPARTMENT_METADATA,
             },
             "na_stats",
             "png",
@@ -135,7 +143,7 @@ AGGREGATE_OUTPUTS = {
             {
                 "cell_class": "{cell_class}",
                 "channel_combo": "{channel_combo}",
-                "compartment_combo": "{compartment_combo}",
+                **AGGREGATE_COMPARTMENT_METADATA,
             },
             "feature_distributions",
             "png",
@@ -235,17 +243,27 @@ MONTAGE_TARGETS_ALL = (
 
 # Define bootstrap outputs
 # These are special because we dynamically derive outputs
+BOOTSTRAP_COMBO_STEM = add_compartment_suffix(
+    "{cell_class}__{channel_combo}",
+    "{compartment_combo}",
+    SPLIT_BY_COMPARTMENT,
+)
 BOOTSTRAP_OUTPUTS = {
     # Data preparation outputs
-    "bootstrap_data_dir": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__{compartment_combo}__bootstrap_data",
-    "construct_data": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__{compartment_combo}__bootstrap_data" / "{gene}__{construct}__construct_data.tsv",
+    "bootstrap_data_dir": AGGREGATE_FP
+    / "bootstrap"
+    / f"{BOOTSTRAP_COMBO_STEM}__bootstrap_data",
+    "construct_data": AGGREGATE_FP
+    / "bootstrap"
+    / f"{BOOTSTRAP_COMBO_STEM}__bootstrap_data"
+    / "{gene}__{construct}__construct_data.tsv",
 
     # Input arrays
     "controls_arr": AGGREGATE_FP / "bootstrap" / "inputs" / get_filename(
         {
             "cell_class": "{cell_class}",
             "channel_combo": "{channel_combo}",
-            "compartment_combo": "{compartment_combo}",
+            **AGGREGATE_COMPARTMENT_METADATA,
         },
         "controls_arr", "tsv"
     ),
@@ -253,7 +271,7 @@ BOOTSTRAP_OUTPUTS = {
         {
             "cell_class": "{cell_class}",
             "channel_combo": "{channel_combo}",
-            "compartment_combo": "{compartment_combo}",
+            **AGGREGATE_COMPARTMENT_METADATA,
         },
         "construct_features_arr", "tsv"
     ),
@@ -261,28 +279,45 @@ BOOTSTRAP_OUTPUTS = {
         {
             "cell_class": "{cell_class}",
             "channel_combo": "{channel_combo}",
-            "compartment_combo": "{compartment_combo}",
+            **AGGREGATE_COMPARTMENT_METADATA,
         },
         "sample_sizes", "tsv"
     ),
 
     # Construct-level outputs
-    "bootstrap_construct_nulls": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__{compartment_combo}__constructs" / "{gene}__{construct}__nulls.npy",
-    "bootstrap_construct_pvals": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__{compartment_combo}__constructs" / "{gene}__{construct}__pvals.tsv",
+    "bootstrap_construct_nulls": AGGREGATE_FP
+    / "bootstrap"
+    / f"{BOOTSTRAP_COMBO_STEM}__constructs"
+    / "{gene}__{construct}__nulls.npy",
+    "bootstrap_construct_pvals": AGGREGATE_FP
+    / "bootstrap"
+    / f"{BOOTSTRAP_COMBO_STEM}__constructs"
+    / "{gene}__{construct}__pvals.tsv",
 
     # Gene-level outputs
-    "bootstrap_gene_nulls": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__{compartment_combo}__genes" / "{gene}__nulls.npy",
-    "bootstrap_gene_pvals": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__{compartment_combo}__genes" / "{gene}__pvals.tsv",
+    "bootstrap_gene_nulls": AGGREGATE_FP
+    / "bootstrap"
+    / f"{BOOTSTRAP_COMBO_STEM}__genes"
+    / "{gene}__nulls.npy",
+    "bootstrap_gene_pvals": AGGREGATE_FP
+    / "bootstrap"
+    / f"{BOOTSTRAP_COMBO_STEM}__genes"
+    / "{gene}__pvals.tsv",
 
     # Completion flags
-    "bootstrap_flag": AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__{compartment_combo}__bootstrap_complete.flag",
+    "construct_bootstrap_flag": AGGREGATE_FP
+    / "bootstrap"
+    / f"{BOOTSTRAP_COMBO_STEM}__construct_bootstrap_complete.flag",
+    "bootstrap_flag": AGGREGATE_FP
+    / "bootstrap"
+    / f"{BOOTSTRAP_COMBO_STEM}__bootstrap_complete.flag",
 
     # Combined results
     "combined_construct_results": AGGREGATE_FP / "bootstrap" / get_filename(
         {
             "cell_class": "{cell_class}",
             "channel_combo": "{channel_combo}",
-            "compartment_combo": "{compartment_combo}",
+            **AGGREGATE_COMPARTMENT_METADATA,
         },
         "all_construct_bootstrap_results", "tsv"
     ),
@@ -290,14 +325,18 @@ BOOTSTRAP_OUTPUTS = {
         {
             "cell_class": "{cell_class}",
             "channel_combo": "{channel_combo}",
-            "compartment_combo": "{compartment_combo}",
+            **AGGREGATE_COMPARTMENT_METADATA,
         },
         "all_gene_bootstrap_results", "tsv"
     ),
 }
 
 # Bootstrap target combinations
-bootstrap_combos = config.get("aggregate", {}).get("bootstrap_combinations", [])
+bootstrap_combos = normalize_compartment_records(
+    config.get("aggregate", {}).get("bootstrap_combinations", []),
+    SPLIT_BY_COMPARTMENT,
+    DEFAULT_COMPARTMENT_COMBO,
+)
 BOOTSTRAP_TARGETS_ALL = [
     str(output_path).format(
         cell_class=combo["cell_class"],

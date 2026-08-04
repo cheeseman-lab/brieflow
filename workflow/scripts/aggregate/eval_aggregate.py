@@ -65,7 +65,7 @@ aligned_data = aligned_data.to_pandas(use_threads=True, memory_pool=None)
 # determine original and aligned columns
 random.seed(42)
 # Try compartment prefixes in priority order (wildcard combo first, then fallback chain).
-compartment_combo = snakemake.wildcards.compartment_combo.split("-")
+compartment_combo = snakemake.params.compartment_combo.split("-")
 prefix_priority = compartment_combo + [
     c
     for c in ("cell", "nucleus", "cytoplasm", "second_obj")

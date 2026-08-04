@@ -9,6 +9,14 @@ import io
 import pyarrow.parquet as pq
 import warnings
 
+from lib.shared.compartment_utils import (
+    add_compartment_metadata,
+    add_compartment_path,
+    get_default_compartment_combo,
+    normalize_compartment_combo_table,
+)
+from lib.shared.file_utils import get_filename
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
@@ -303,7 +311,15 @@ def get_aggregate_stats(config, n_rows=10000, include_batch_effects=False):
 
     # Load the aggregate combo TSV file from config
     aggregate_combo_fp = Path(config["aggregate"]["aggregate_combo_fp"])
-    aggregate_combos = pd.read_csv(aggregate_combo_fp, sep="\t")
+    split_by_compartment = config["aggregate"].get("split_by_compartment", False)
+    default_compartment_combo = get_default_compartment_combo(
+        config.get("phenotype", {}).get("second_obj_detection", False)
+    )
+    aggregate_combos = normalize_compartment_combo_table(
+        pd.read_csv(aggregate_combo_fp, sep="\t"),
+        split_by_compartment,
+        default_compartment_combo,
+    )
 
     # Get unique cell_class, channel_combo, and compartment_combo combinations
     unique_combos = aggregate_combos[
@@ -333,15 +349,20 @@ def get_aggregate_stats(config, n_rows=10000, include_batch_effects=False):
                 perturbation_col,
                 control_key,
                 include_batch_effects,
+                split_by_compartment,
             )
-            all_results[f"{cell_class}_{channel_combo}_{compartment_combo}"] = result
+            result_key = f"{cell_class}_{channel_combo}"
+            if split_by_compartment:
+                result_key = f"{result_key}_{compartment_combo}"
+            all_results[result_key] = result
         except Exception as e:
-            print(
-                f"Error processing {cell_class}/{channel_combo}/{compartment_combo}: {str(e)}"
-            )
-            all_results[f"{cell_class}_{channel_combo}_{compartment_combo}"] = {
-                "error": str(e)
-            }
+            result_key = f"{cell_class}_{channel_combo}"
+            result_label = f"{cell_class}/{channel_combo}"
+            if split_by_compartment:
+                result_key = f"{result_key}_{compartment_combo}"
+                result_label = f"{result_label}/{compartment_combo}"
+            print(f"Error processing {result_label}: {str(e)}")
+            all_results[result_key] = {"error": str(e)}
 
     return all_results
 
@@ -357,13 +378,17 @@ def _get_single_aggregate_stats(
     perturbation_col,
     control_key,
     include_batch_effects,
+    split_by_compartment,
 ):
     """Helper function to get stats for a single cell_class/channel_combo/compartment_combo combination."""
     # Load the aggregated TSV file
+    data_location = add_compartment_metadata(
+        {"cell_class": cell_class, "channel_combo": channel_combo},
+        compartment_combo,
+        split_by_compartment,
+    )
     aggregated_path = (
-        aggregate_dir
-        / "tsvs"
-        / f"CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__aggregated.tsv"
+        aggregate_dir / "tsvs" / get_filename(data_location, "aggregated", "tsv")
     )
     aggregated = pd.read_csv(aggregated_path, sep="\t")
 
@@ -381,10 +406,13 @@ def _get_single_aggregate_stats(
     # Count total cells from merge_data parquets (pre-filter)
     # Use direct path instead of recursive glob for speed
     merge_data_dir = aggregate_dir / "parquets"
+    well_data_location = {
+        "plate": "*",
+        "well": "*",
+        **data_location,
+    }
     merge_data_paths = list(
-        merge_data_dir.glob(
-            f"*_CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__merge_data.parquet"
-        )
+        merge_data_dir.glob(get_filename(well_data_location, "merge_data", "parquet"))
     )
 
     total_pre_filtered_cells = 0
@@ -395,9 +423,7 @@ def _get_single_aggregate_stats(
     # Count filtered cells from parquet metadata (fast)
     filtered_dir = aggregate_dir / "parquets"
     filtered_paths = list(
-        filtered_dir.glob(
-            f"*_CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__filtered.parquet"
-        )
+        filtered_dir.glob(get_filename(well_data_location, "filtered", "parquet"))
     )
 
     total_filtered_cells = 0
@@ -426,6 +452,7 @@ def _get_single_aggregate_stats(
             aggregate_dir,
             perturbation_col,
             control_key,
+            split_by_compartment,
         )
         result.update(batch_stats)
 
@@ -441,6 +468,7 @@ def _calculate_batch_effects(
     aggregate_dir,
     perturbation_col,
     control_key,
+    split_by_compartment,
 ):
     """Calculate batch effect metrics (pre/post alignment)."""
     from lib.aggregate.cell_data_utils import DEFAULT_METADATA_COLS
@@ -449,10 +477,18 @@ def _calculate_batch_effects(
 
     filtered_dir = aggregate_dir / "parquets"
     # Use direct path instead of recursive glob for speed
+    data_location = add_compartment_metadata(
+        {
+            "plate": "*",
+            "well": "*",
+            "cell_class": cell_class,
+            "channel_combo": channel_combo,
+        },
+        compartment_combo,
+        split_by_compartment,
+    )
     filtered_paths = list(
-        filtered_dir.glob(
-            f"*_CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__filtered.parquet"
-        )
+        filtered_dir.glob(get_filename(data_location, "filtered", "parquet"))
     )
 
     # Load filtered data - sample from a subset of files to avoid
@@ -512,10 +548,15 @@ def _calculate_batch_effects(
     pre_align_p_median = np.median(valid_p_vals) if len(valid_p_vals) > 0 else np.nan
 
     # Post-alignment batch effects
+    aligned_location = add_compartment_metadata(
+        {"cell_class": cell_class, "channel_combo": channel_combo},
+        compartment_combo,
+        split_by_compartment,
+    )
     aligned_path = (
         aggregate_dir
         / "parquets"
-        / f"CeCl-{cell_class}_ChCo-{channel_combo}_CmCo-{compartment_combo}__aligned.parquet"
+        / get_filename(aligned_location, "aligned", "parquet")
     )
 
     # Use same sample size as pre-alignment for consistency
@@ -569,7 +610,17 @@ def get_cluster_stats(config):
 
     # Read the cluster_combos.tsv file from config
     cluster_combo_fp = Path(config["cluster"]["cluster_combo_fp"])
-    cluster_combos = pd.read_csv(cluster_combo_fp, sep="\t")
+    split_by_compartment = config.get("aggregate", {}).get(
+        "split_by_compartment", False
+    )
+    default_compartment_combo = get_default_compartment_combo(
+        config.get("phenotype", {}).get("second_obj_detection", False)
+    )
+    cluster_combos = normalize_compartment_combo_table(
+        pd.read_csv(cluster_combo_fp, sep="\t"),
+        split_by_compartment,
+        default_compartment_combo,
+    )
 
     results = []
 
@@ -579,12 +630,13 @@ def get_cluster_stats(config):
         compartment_combo = row["compartment_combo"]
         leiden_resolution = row["leiden_resolution"]
 
+        cluster_specific_dir = add_compartment_path(
+            cluster_dir / channel_combo,
+            compartment_combo,
+            split_by_compartment,
+        )
         cluster_specific_dir = (
-            cluster_dir
-            / channel_combo
-            / compartment_combo
-            / cell_class
-            / str(leiden_resolution)
+            cluster_specific_dir / cell_class / str(leiden_resolution)
         )
 
         # Path to metrics files
@@ -614,7 +666,6 @@ def get_cluster_stats(config):
             result = {
                 "cell_class": cell_class,
                 "channel_combo": channel_combo,
-                "compartment_combo": compartment_combo,
                 "leiden_resolution": leiden_resolution,
                 "unique_clusters": unique_clusters,
                 # CORUM metrics
@@ -639,6 +690,8 @@ def get_cluster_stats(config):
                     "true_positives", 0
                 ),
             }
+            if split_by_compartment:
+                result["compartment_combo"] = compartment_combo
 
             # Read shuffled metrics if available
             if shuffled_metrics_path.exists():
@@ -657,9 +710,10 @@ def get_cluster_stats(config):
             results.append(result)
 
         except Exception as e:
-            print(
-                f"Error reading metrics for {cell_class}/{channel_combo}/{compartment_combo}/{leiden_resolution}: {e}"
-            )
+            result_label = f"{cell_class}/{channel_combo}"
+            if split_by_compartment:
+                result_label = f"{result_label}/{compartment_combo}"
+            print(f"Error reading metrics for {result_label}/{leiden_resolution}: {e}")
 
     results_df = pd.DataFrame(results)
 
@@ -829,9 +883,10 @@ def get_all_stats(
 
     if not stats["cluster"]["detailed_results"].empty:
         for _, row in stats["cluster"]["detailed_results"].iterrows():
-            print(
-                f"\n   {row['cell_class']} - {row['channel_combo']} - {row['compartment_combo']} (resolution={row['leiden_resolution']}):"
-            )
+            combo_label = f"{row['cell_class']} - {row['channel_combo']}"
+            if "compartment_combo" in row:
+                combo_label = f"{combo_label} - {row['compartment_combo']}"
+            print(f"\n   {combo_label} (resolution={row['leiden_resolution']}):")
             print(f"      - Clusters: {row['unique_clusters']}")
             print(
                 f"      - CORUM enriched: {row['corum_enriched']} ({row['corum_proportion']:.1%})"

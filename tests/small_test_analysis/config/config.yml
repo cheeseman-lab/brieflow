@@ -143,6 +143,7 @@ classify:
       1: Mitotic
       2: Interphase
 aggregate:
+  split_by_compartment: true
   agg_method: median
   aggregate_combo_fp: config/aggregate_combo.tsv
   batch_cols:

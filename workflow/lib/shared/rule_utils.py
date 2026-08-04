@@ -312,6 +312,7 @@ def get_bootstrap_inputs(
     cell_class: str,
     channel_combo: str,
     compartment_combo: str,
+    split_by_compartment: bool,
 ) -> List[str]:
     """Get all bootstrap inputs for completion flag.
 
@@ -324,16 +325,19 @@ def get_bootstrap_inputs(
         cell_class (str): Cell class for bootstrap analysis.
         channel_combo (str): Channel combination for bootstrap analysis.
         compartment_combo (str): Compartment combination for bootstrap analysis.
+        split_by_compartment (bool): Whether compartment-specific paths are enabled.
 
     Returns:
         List[str]: List of all bootstrap output file paths for both constructs and genes.
     """
     # Get all construct data files from checkpoint
-    bootstrap_data_dir = checkpoint.get(
-        cell_class=cell_class,
-        channel_combo=channel_combo,
-        compartment_combo=compartment_combo,
-    ).output[0]
+    checkpoint_wildcards = {
+        "cell_class": cell_class,
+        "channel_combo": channel_combo,
+    }
+    if split_by_compartment:
+        checkpoint_wildcards["compartment_combo"] = compartment_combo
+    bootstrap_data_dir = checkpoint.get(**checkpoint_wildcards).output[0]
 
     construct_files = glob.glob(f"{bootstrap_data_dir}/*__construct_data.tsv")
 
@@ -408,6 +412,7 @@ def get_bootstrap_construct_outputs(
     cell_class: str,
     channel_combo: str,
     compartment_combo: str,
+    split_by_compartment: bool,
 ) -> List[str]:
     """Get all construct bootstrap outputs for completion flag.
 
@@ -423,6 +428,7 @@ def get_bootstrap_construct_outputs(
             (e.g., 'dapi_tubulin', 'all_channels').
         compartment_combo (str): Compartment combination identifier for bootstrap analysis
             (e.g., 'cell-nucleus-cytoplasm', 'nucleus').
+        split_by_compartment (bool): Whether compartment-specific paths are enabled.
 
     Returns:
         List[str]: List of all construct bootstrap output file paths, including both
@@ -430,11 +436,13 @@ def get_bootstrap_construct_outputs(
             the checkpoint directory.
     """
     # Get all construct data files from checkpoint
-    bootstrap_data_dir = checkpoint.get(
-        cell_class=cell_class,
-        channel_combo=channel_combo,
-        compartment_combo=compartment_combo,
-    ).output[0]
+    checkpoint_wildcards = {
+        "cell_class": cell_class,
+        "channel_combo": channel_combo,
+    }
+    if split_by_compartment:
+        checkpoint_wildcards["compartment_combo"] = compartment_combo
+    bootstrap_data_dir = checkpoint.get(**checkpoint_wildcards).output[0]
 
     construct_files = glob.glob(f"{bootstrap_data_dir}/*__construct_data.tsv")
 

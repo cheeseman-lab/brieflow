@@ -16,7 +16,7 @@ from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.metrics import roc_auc_score
 
 from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
-from lib.aggregate.cell_data_utils import split_cell_data
+from lib.aggregate.cell_data_utils import split_cell_data, is_reserved_metadata_col
 
 
 def perturbation_score(
@@ -237,6 +237,7 @@ def _process_gene_subset(
 
     # SCALE PERTURBATION GENE AND CONTROL FEATURES
     feature_cols = gene_subset_df.columns.difference(metadata_cols, sort=False)
+    feature_cols = feature_cols[[not is_reserved_metadata_col(c) for c in feature_cols]]
     metadata, features = split_cell_data(gene_subset_df, metadata_cols)
     metadata, features = prepare_alignment_data(
         metadata,

@@ -15,6 +15,8 @@ import pyarrow.parquet as pq
 from sklearn.impute import KNNImputer
 from sklearn.neighbors import LocalOutlierFactor
 
+from lib.aggregate.cell_data_utils import is_reserved_metadata_col
+
 
 def harmonize_pool_schema(
     paths: list[str],
@@ -81,7 +83,15 @@ def harmonize_pool_schema(
 
     # Preserve caller order for metadata cols; sort feature cols for determinism.
     kept_metadata_cols = [c for c in metadata_cols if c in intersection_cols]
-    kept_feature_cols = sorted(intersection_cols - set(metadata_cols))
+    reserved_metadata_cols = sorted(
+        c
+        for c in intersection_cols
+        if c not in set(metadata_cols) and is_reserved_metadata_col(c)
+    )
+    kept_metadata_cols = kept_metadata_cols + reserved_metadata_cols
+    kept_feature_cols = sorted(
+        c for c in intersection_cols if c not in set(kept_metadata_cols)
+    )
 
     threshold_dropped = []
     if drop_cols_threshold is not None and kept_feature_cols:

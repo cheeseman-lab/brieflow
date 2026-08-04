@@ -30,6 +30,19 @@ def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     return metadata_cols
 
 
+RESERVED_METADATA_PREFIXES = ("offset_",)
+
+
+def is_reserved_metadata_col(col):
+    """Return True for columns always treated as metadata regardless of METADATA_COLS.
+
+    Per-cell alignment-offset QC columns (offset_*) have screen-specific names (the
+    alignment step/cycle count varies by screen), so they are matched by prefix rather
+    than enumerated in the metadata_cols file.
+    """
+    return col.startswith(RESERVED_METADATA_PREFIXES)
+
+
 def split_cell_data(
     cell_data, metadata_cols, validate_dtypes=True, raise_on_invalid=True
 ):
@@ -54,6 +67,14 @@ def split_cell_data(
     """
     # Ensure all metadata columns exist in the data
     existing_metadata_cols = [col for col in metadata_cols if col in cell_data.columns]
+
+    # Reserved metadata (offset_* QC, num_nuclei) matched by pattern, not enumeration
+    reserved_metadata_cols = [
+        col
+        for col in cell_data.columns
+        if col not in existing_metadata_cols and is_reserved_metadata_col(col)
+    ]
+    existing_metadata_cols = existing_metadata_cols + reserved_metadata_cols
 
     # Get metadata columns
     metadata = cell_data[existing_metadata_cols].copy()

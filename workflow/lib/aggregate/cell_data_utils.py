@@ -68,7 +68,7 @@ def split_cell_data(
     # Ensure all metadata columns exist in the data
     existing_metadata_cols = [col for col in metadata_cols if col in cell_data.columns]
 
-    # Reserved metadata (offset_* QC, num_nuclei) matched by pattern, not enumeration
+    # Reserved metadata (offset_* QC) matched by pattern, not enumeration
     reserved_metadata_cols = [
         col
         for col in cell_data.columns

@@ -143,7 +143,7 @@ def get_phenotype_stats(config):
     Returns:
         dict: Statistics including total cells and feature count
     """
-    from lib.aggregate.cell_data_utils import DEFAULT_METADATA_COLS
+    from lib.phenotype.constants import DEFAULT_METADATA_COLS
 
     # Extract paths from config
     root_fp = Path(config["all"]["root_fp"])
@@ -471,7 +471,7 @@ def _calculate_batch_effects(
     split_by_compartment,
 ):
     """Calculate batch effect metrics (pre/post alignment)."""
-    from lib.aggregate.cell_data_utils import DEFAULT_METADATA_COLS
+    from lib.phenotype.constants import DEFAULT_METADATA_COLS
     from lib.shared.file_utils import load_parquet_subset
     from sklearn.feature_selection import f_classif
 

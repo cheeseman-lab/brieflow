@@ -8,7 +8,7 @@ gene benchmarks for use in enrichment and precision-recall analyses.
 Key functions:
     - generate_string_pair_benchmark: Create gene pair benchmarks from STRING interactions.
     - generate_corum_group_benchmark: Extract gene complexes from CORUM.
-    - generate_msigdb_group_benchmark: Convert MSigDB KEGG pathways to gene group format.
+    - generate_msigdb_group_benchmark: Convert MSigDB canonical pathways to gene group format.
     - get_uniprot_data: Retrieve UniProt gene and annotation data.
     - get_corum_data / get_string_data: Download raw benchmark inputs.
     - select_gene_variants: Harmonize variant gene names with clustering outputs.
@@ -22,6 +22,20 @@ import json
 import io
 import gzip
 from itertools import combinations
+from pathlib import Path
+
+_REQUEST_HEADERS = {
+    "User-Agent": "brieflow/1.5 (+https://github.com/cheeseman-lab/brieflow)"
+}
+
+# CORUM organism labels keyed by NCBI taxonomy ID, used to filter the complete export.
+_CORUM_ORGANISM_BY_SPECIES = {"9606": "Human", "10090": "Mouse", "10116": "Rat"}
+
+# Per-species MSigDB canonical-pathway collection (mouse has no native KEGG, so Reactome is used).
+_MSIGDB_CP_COLLECTION_BY_SPECIES = {
+    "9606": "https://data.broadinstitute.org/gsea-msigdb/msigdb/release/2024.1.Hs/c2.cp.kegg_medicus.v2024.1.Hs.json",
+    "10090": "https://data.broadinstitute.org/gsea-msigdb/msigdb/release/2024.1.Mm/m2.cp.reactome.v2024.1.Mm.json",
+}
 
 import pandas as pd
 
@@ -94,16 +108,19 @@ def generate_string_pair_benchmark(
     return string_pair_benchmark
 
 
-def generate_corum_group_benchmark():
+def generate_corum_group_benchmark(species_id="9606"):
     """Generate a CORUM group benchmark DataFrame.
 
     This function processes CORUM data to create a benchmark DataFrame with gene names
     and their associated protein complexes.
 
+    Args:
+        species_id (str, optional): NCBI taxonomy ID for the organism. Defaults to "9606" (human).
+
     Returns:
         pd.DataFrame: A DataFrame containing the CORUM group benchmark.
     """
-    corum_data = get_corum_data()
+    corum_data = get_corum_data(species_id)
 
     # Create the new dataframe with columns for gene_name and complex
     benchmark_rows = []
@@ -125,21 +142,30 @@ def generate_corum_group_benchmark():
     return corum_cluster_benchmark
 
 
-def generate_msigdb_group_benchmark(
-    url="https://data.broadinstitute.org/gsea-msigdb/msigdb/release/2024.1.Hs/c2.cp.kegg_medicus.v2024.1.Hs.json",
-):
+def generate_msigdb_group_benchmark(species_id="9606", url=None):
     """Generate a group benchmark from MSigDB data.
 
     This function fetches pathway data from the Molecular Signatures Database (MSigDB)
     and creates a benchmark DataFrame with gene names and their associated pathways.
+    Human uses the KEGG MEDICUS collection; mouse has no native KEGG collection, so the
+    native mouse Reactome collection is used instead.
 
     Args:
-        url (str, optional): The URL to fetch MSigDB data. Defaults to the KEGG Medicus pathway.
+        species_id (str, optional): NCBI taxonomy ID for the organism. Defaults to "9606" (human).
+        url (str, optional): Explicit MSigDB JSON URL. Overrides the per-species default when set.
 
     Returns:
         pd.DataFrame: A DataFrame containing the MSigDB group benchmark.
     """
-    response = requests.get(url)
+    if url is None:
+        if species_id not in _MSIGDB_CP_COLLECTION_BY_SPECIES:
+            raise ValueError(
+                f"No MSigDB canonical-pathway collection configured for species_id {species_id}; "
+                "pass an explicit url."
+            )
+        url = _MSIGDB_CP_COLLECTION_BY_SPECIES[species_id]
+
+    response = requests.get(url, headers=_REQUEST_HEADERS)
     msigdb_data = json.loads(response.text)
 
     # Create lists to hold data for DataFrame
@@ -167,7 +193,7 @@ def generate_msigdb_group_benchmark(
     return group_benchmark_df.reset_index(drop=True)
 
 
-def get_uniprot_data(species_id: str = "9606"):
+def get_uniprot_data(species_id: str = "9606", cache_path: str = None):
     """Fetch reviewed UniProt data for a specified species using the REST API.
 
     This function retrieves UniProt data for reviewed entries of the specified organism,
@@ -182,14 +208,21 @@ def get_uniprot_data(species_id: str = "9606"):
                          - "7227": Drosophila melanogaster (fruit fly)
                          - "6239": Caenorhabditis elegans (worm)
                          - "5811": Toxoplasma gondii
+        cache_path (str, optional): Path to a cached TSV; if present it is loaded and returned without a network call, and a fresh fetch is written here for reuse. Defaults to None (always fetch).
 
     Returns:
         pd.DataFrame: A DataFrame containing UniProt data with UniProt entry links.
     """
+    # Reuse a cached copy if present so concurrent/repeat runs don't re-query the REST API.
+    if cache_path and Path(cache_path).exists():
+        print(f"Loading cached UniProt data from {cache_path}")
+        return pd.read_csv(cache_path, sep="\t")
+
     # Define UniProt REST API query
     re_next_link = re.compile(r"<(.+)>; rel=\"next\"")
     retries = Retry(total=5, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
     session = requests.Session()
+    session.headers.update(_REQUEST_HEADERS)
     session.mount("https://", HTTPAdapter(max_retries=retries))
 
     # Function to extract next link from headers
@@ -252,29 +285,51 @@ def get_uniprot_data(species_id: str = "9606"):
         df["function"] = df["function"].str.replace("FUNCTION: ", "", regex=False)
 
     print(f"Completed. Total entries: {len(df)}")
+
+    # Persist for reuse so later/concurrent runs load from disk instead of re-querying the API.
+    if cache_path:
+        Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(cache_path, sep="\t", index=False)
+        print(f"Cached UniProt data to {cache_path}")
+
     return df
 
 
-def get_corum_data():
-    """Fetch CORUM complex data for human proteins.
+def get_corum_data(species_id="9606"):
+    """Fetch CORUM complex data for a specified species.
 
-    This function retrieves CORUM data for human protein complexes and processes it
-    into a DataFrame.
+    This function retrieves CORUM protein complex data and processes it into a DataFrame.
+    Human uses the native human export; other species are filtered out of the complete
+    export by organism (CORUM has no per-organism download for them).
+
+    Args:
+        species_id (str): NCBI taxonomy ID for the organism. Defaults to "9606" (human).
+                         Common species IDs:
+                         - "9606": Homo sapiens (human)
+                         - "10090": Mus musculus (mouse)
+                         - "10116": Rattus norvegicus (rat)
 
     Returns:
         pd.DataFrame: A DataFrame containing CORUM complex data.
     """
+    organism = _CORUM_ORGANISM_BY_SPECIES.get(species_id)
+    if organism is None:
+        raise ValueError(f"No CORUM organism configured for species_id {species_id}")
+
     print("Fetching CORUM data...")
     url = "https://mips.helmholtz-muenchen.de/fastapi-corum/public/file/download_current_file"
 
-    # Parameters for human complexes in text format
-    params = {"file_id": "human", "file_format": "txt"}
+    # Human has a native export; other species are filtered out of the complete export.
+    file_id = "human" if species_id == "9606" else "complete"
+    params = {"file_id": file_id, "file_format": "txt"}
 
-    response = requests.get(url, params=params, verify=False)
+    response = requests.get(url, params=params, verify=False, headers=_REQUEST_HEADERS)
     response.raise_for_status()
 
     # Read data into DataFrame
     df = pd.read_csv(io.StringIO(response.text), sep="\t")
+    if species_id != "9606":
+        df = df[df["organism"] == organism].reset_index(drop=True)
     print(f"Completed. Total complexes: {len(df)}")
     return df
 
@@ -301,7 +356,7 @@ def get_string_data(species_id: str = "9606"):
     print("Fetching STRING data...")
     url = f"https://stringdb-downloads.org/download/protein.links.v12.0/{species_id}.protein.links.v12.0.txt.gz"
 
-    response = requests.get(url)
+    response = requests.get(url, headers=_REQUEST_HEADERS)
     response.raise_for_status()
 
     # Read compressed data directly into DataFrame

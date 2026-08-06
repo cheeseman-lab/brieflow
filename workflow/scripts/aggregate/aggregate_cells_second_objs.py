@@ -16,6 +16,18 @@ print(f"Aggregating secondary objects with strategy: {agg_strategy}")
 print(f"  Cells: {len(cells_df)} rows")
 print(f"  Secondary objects: {len(second_objs_df)} rows")
 
+# Screen-level guard: asking to integrate secondary objects into a screen that has
+# none is a misconfiguration, not a data condition. Checked here (before the
+# plate/well filter below) so an individual empty well stays legal — those are
+# NaN-filled downstream and must keep their columns.
+if agg_strategy != "none" and second_objs_df.empty:
+    raise ValueError(
+        f"aggregate.second_obj_agg_strategy is '{agg_strategy}' but no secondary "
+        f"objects were detected anywhere in the screen ({snakemake.input[1]} has 0 "
+        f"rows). Set second_obj_agg_strategy: none, or disable "
+        f"phenotype.second_obj_detection."
+    )
+
 # Filter secondary objects to matching plate/well
 plate = int(
     snakemake.wildcards.plate

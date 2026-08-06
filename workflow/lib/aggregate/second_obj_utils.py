@@ -35,7 +35,10 @@ def aggregate_second_obj_data(
 
     Returns:
         pd.DataFrame: Cell-level data with secondary object features merged according
-            to strategy. All cells from cells_df are always preserved.
+            to strategy. All cells from cells_df are always preserved. A well with no
+            secondary objects still gets the full set of feature columns, NaN-filled,
+            so per-well outputs keep a consistent schema — pooling intersects columns
+            across wells, so dropping them for one well would drop them for all.
 
     Raises:
         ValueError: If required merge keys are missing or strategy is invalid.
@@ -53,11 +56,6 @@ def aggregate_second_obj_data(
     second_objs_merge_keys = ["plate", "well", "tile", "cell_id"]
 
     _validate_merge_keys(cells_df, cells_merge_keys, "cells")
-
-    # No secondary objects in this well: keep all cells, nothing to merge
-    if second_objs_df is None or second_objs_df.empty:
-        return cells_df.copy()
-
     _validate_merge_keys(second_objs_df, second_objs_merge_keys, "second_objs")
     second_objs_df = _align_merge_key_dtypes(
         cells_df, second_objs_df, cells_merge_keys, second_objs_merge_keys

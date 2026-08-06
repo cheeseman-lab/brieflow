@@ -90,81 +90,70 @@ def segment_second_objs_ml(
     - Cell summary statistics
     - Cytoplasm mask updates
 
-    Parameters
-    ----------
-    image : ndarray
-        Multichannel image data with shape [channels, height, width]
-    second_obj_channel_index : int
-        Index of the channel used for secondary object detection
-    cell_masks : ndarray
-        Cell segmentation masks with unique integers for each cell
-    cytoplasm_masks : ndarray, optional
-        Cytoplasm segmentation masks. If provided, secondary object
-        regions will be removed from cytoplasm masks
+    Args:
+        image (ndarray): Multichannel image data with shape [channels, height, width].
+        second_obj_channel_index (int): Index of the channel used for secondary object
+            detection.
+        cell_masks (ndarray): Cell segmentation masks with unique integers for each cell.
+        cytoplasm_masks (ndarray, optional): Cytoplasm segmentation masks. If provided,
+            secondary object regions will be removed from cytoplasm masks.
+        second_obj_min_size (float): Minimum size for valid secondary objects.
+        second_obj_max_size (float): Maximum size for valid secondary objects.
+        size_filter_method (str): Size filtering method ("feret" or "area").
+        max_objects_per_cell (int): Maximum secondary objects allowed per cell.
+        overlap_threshold (float): Minimum overlap ratio to associate object with cell
+            (0.0-1.0).
+        nuclei_centroids (dict, DataFrame, or None): Cell nuclei centroids for distance
+            calculations.
+        max_total_objects (int or None): Failsafe limit on detected objects.
+        logscale (bool): Apply log scaling and normalization preprocessing to the target
+            channel before segmentation. Matches the preprocessing used in
+            segment_cellpose and improves segmentation performance. Default is True.
+        **ml_params: Additional ML model parameters. Required and optional parameters
+            depend on ml_method:
 
-    second_obj_min_size : float
-        Minimum size for valid secondary objects
-    second_obj_max_size : float
-        Maximum size for valid secondary objects
-    size_filter_method : str
-        Size filtering method ("feret" or "area")
-    max_objects_per_cell : int
-        Maximum secondary objects allowed per cell
-    overlap_threshold : float
-        Minimum overlap ratio to associate object with cell (0.0-1.0)
-    nuclei_centroids : dict, DataFrame, or None
-        Cell nuclei centroids for distance calculations
-    max_total_objects : int or None
-        Failsafe limit on detected objects
-    logscale : bool
-        Apply log scaling and normalization preprocessing to the target channel
-        before segmentation. This matches the preprocessing used in segment_cellpose
-        and improves segmentation performance. Default is True.
+            Common parameters:
 
-    **ml_params : dict
-        Additional ML model parameters. Required and optional parameters depend on ml_method:
+            - second_obj_method (str, required): ML model to use, "cellpose" or
+              "stardist".
+            - gpu (bool, default False): Whether to use GPU acceleration.
 
-        Common parameters:
-        - second_obj_method : str (required)
-            ML model to use: "cellpose" or "stardist"
-        - gpu : bool (default: False)
-            Whether to use GPU acceleration
+            For second_obj_method="cellpose":
 
-        For second_obj_method="cellpose":
-        - second_obj_cellpose_model : str (default: 'cyto3')
-            Cellpose model type ('cyto3', 'cyto2', 'cyto', 'nuclei', etc.)
-        - second_obj_diameter : float or None (default: None)
-            Expected diameter of objects in pixels. If None, estimated automatically
-        - second_obj_flow_threshold : float (default: 0.4)
-            Flow error threshold for Cellpose segmentation
-        - second_obj_cellprob_threshold : float (default: 0.0)
-            Cell probability threshold for Cellpose
+            - second_obj_cellpose_model (str, default 'cyto3'): Cellpose model type
+              ('cyto3', 'cyto2', 'cyto', 'nuclei', etc.).
+            - second_obj_diameter (float or None, default None): Expected diameter of
+              objects in pixels. If None, estimated automatically.
+            - second_obj_flow_threshold (float, default 0.4): Flow error threshold for
+              Cellpose segmentation.
+            - second_obj_cellprob_threshold (float, default 0.0): Cell probability
+              threshold for Cellpose.
 
-        For second_obj_method="stardist":
-        - second_obj_stardist_model : str (default: '2D_versatile_fluo')
-            StarDist pretrained model name
-        - second_obj_prob_threshold : float (default: 0.5)
-            Probability threshold for object detection
-        - second_obj_nms_threshold : float (default: 0.4)
-            Non-maximum suppression threshold
+            For second_obj_method="stardist":
+
+            - second_obj_stardist_model (str, default '2D_versatile_fluo'): StarDist
+              pretrained model name.
+            - second_obj_prob_threshold (float, default 0.5): Probability threshold for
+              object detection.
+            - second_obj_nms_threshold (float, default 0.4): Non-maximum suppression
+              threshold.
 
     Returns:
-    -------
-    tuple
-        - second_obj_masks: Labeled mask of secondary objects [height, width]
-        - cell_second_obj_table: Dict with 'cell_summary' and 'second_obj_cell_mapping' DataFrames
-        - updated_cytoplasm_masks: Cytoplasm masks with secondary objects removed (if provided)
+        tuple:
+            - second_obj_masks: Labeled mask of secondary objects [height, width]
+            - cell_second_obj_table: Dict with 'cell_summary' and
+              'second_obj_cell_mapping' DataFrames
+            - updated_cytoplasm_masks: Cytoplasm masks with secondary objects removed
+              (None if cytoplasm_masks was not provided)
 
     Raises:
-    ------
-    ValueError
-        If ml_method is not 'cellpose' or 'stardist', or if required packages are not installed
+        ValueError: If ml_method is not 'cellpose' or 'stardist', or if required
+            packages are not installed.
 
-    Notes:
-    -----
-    - All post-processing is handled by _postprocess_secondary_objects()
-    - Output format is guaranteed to match segment_second_objs()
-    - Requires cellpose or stardist packages to be installed
+    Note:
+        All post-processing is handled by _postprocess_secondary_objects(), so the
+        output format is guaranteed to match segment_second_objs(). Requires the
+        cellpose or stardist package to be installed.
     """
     # Extract and preprocess target channel
     if logscale:
@@ -402,12 +391,14 @@ def segment_second_objs(
         If return_threshold_output=False (default):
             - second_obj_masks (numpy.ndarray): Labeled mask of secondary objects
             - cell_second_obj_table (dict): Dictionary with DataFrames containing associations
-            - updated_cytoplasm_masks (numpy.ndarray): Updated cytoplasm masks (if cytoplasm_masks provided)
+            - updated_cytoplasm_masks (numpy.ndarray | None): Updated cytoplasm masks,
+              None if cytoplasm_masks was not provided
 
         If return_threshold_output=True:
             - second_obj_masks (numpy.ndarray): Labeled mask of secondary objects
             - cell_second_obj_table (dict): Dictionary with DataFrames containing associations
-            - updated_cytoplasm_masks (numpy.ndarray): Updated cytoplasm masks (if cytoplasm_masks provided)
+            - updated_cytoplasm_masks (numpy.ndarray | None): Updated cytoplasm masks,
+              None if cytoplasm_masks was not provided
             - threshold_output (dict): Intermediate thresholding results with keys:
                 - 'binary_mask': Binary mask before declumping
                 - 'threshold_value': Threshold value used
@@ -660,36 +651,29 @@ def estimate_second_obj_diameter(
     This is a convenience function to help users estimate appropriate diameter
     parameters for ML-based secondary object segmentation.
 
-    Parameters
-    ----------
-    image : ndarray
-        Multichannel image data with shape [channels, height, width]
-    second_obj_channel_index : int
-        Index of the channel containing secondary objects
-    method : str
-        Method to use for diameter estimation:
-        - "cellpose": Use Cellpose's built-in diameter estimation (default)
-        - "manual": Manually measure from image statistics
-    **kwargs : dict
-        Additional parameters for the estimation method:
-        - For method="cellpose":
-            - model_type : str (default: 'cyto3')
-            - gpu : bool (default: False)
+    Args:
+        image (ndarray): Multichannel image data with shape [channels, height, width].
+        second_obj_channel_index (int): Index of the channel containing secondary
+            objects.
+        method (str): Method to use for diameter estimation:
+
+            - "cellpose": Use Cellpose's built-in diameter estimation (default).
+            - "manual": Manually measure from image statistics.
+        **kwargs: Additional parameters for the estimation method. For
+            method="cellpose": model_type (str, default 'cyto3') and gpu (bool,
+            default False).
 
     Returns:
-    -------
-    diameter : float
-        Estimated diameter in pixels
+        float: Estimated diameter in pixels.
 
     Examples:
-    --------
-    >>> diameter = estimate_second_obj_diameter(
-    ...     aligned_image,
-    ...     second_obj_channel_index=7,
-    ...     method="cellpose",
-    ...     model_type="cyto3"
-    ... )
-    >>> print(f"Estimated diameter: {diameter:.1f} pixels")
+        >>> diameter = estimate_second_obj_diameter(
+        ...     aligned_image,
+        ...     second_obj_channel_index=7,
+        ...     method="cellpose",
+        ...     model_type="cyto3"
+        ... )
+        >>> print(f"Estimated diameter: {diameter:.1f} pixels")
     """
     target_channel = image[second_obj_channel_index]
 
@@ -763,24 +747,20 @@ def estimate_second_obj_diameter(
 def apply_threshold_method(image, method="otsu_two_peak"):
     """Apply specified thresholding method to an image.
 
-    Parameters
-    ----------
-    image : ndarray
-        Input image (should be preprocessed with log transform and smoothing)
-    method : str
-        Thresholding method to use.
-        Options:
-        - 'otsu_two_peak': Standard Otsu thresholding (2-class)
-        - 'otsu_three_peak_mid_bg': 3-class Otsu, middle class as background
-        - 'otsu_three_peak_mid_fg': 3-class Otsu, middle class as foreground
-        - 'min_cross_entropy': Minimum cross entropy (Li) thresholding
+    Args:
+        image (ndarray): Input image, should be preprocessed with log transform and
+            smoothing.
+        method (str): Thresholding method to use. Options:
+
+            - 'otsu_two_peak': Standard Otsu thresholding (2-class).
+            - 'otsu_three_peak_mid_bg': 3-class Otsu, middle class as background.
+            - 'otsu_three_peak_mid_fg': 3-class Otsu, middle class as foreground.
+            - 'min_cross_entropy': Minimum cross entropy (Li) thresholding.
 
     Returns:
-    -------
-    threshold : float
-        Computed threshold value
-    binary_mask : ndarray
-        Binary mask after thresholding
+        tuple:
+            - threshold (float): Computed threshold value.
+            - binary_mask (ndarray): Binary mask after thresholding.
     """
     if method == "otsu_two_peak":
         # Standard two-class Otsu
@@ -968,28 +948,21 @@ def create_second_obj_standard_visualization(
 ):
     """Create standard visualization panel for secondary object segmentation.
 
-    Parameters
-    ----------
-    aligned_image : ndarray
-        Multichannel aligned image [channels, height, width]
-    second_obj_channel_index : int
-        Index of the channel used for secondary object detection
-    second_obj_channel_name : str
-        Name of the secondary object channel (e.g., "CDPK1")
-    second_obj_masks : ndarray
-        Labeled mask of segmented secondary objects
-    threshold_output : dict, optional
-        Dictionary containing threshold debugging output with keys:
-        - 'preprocessed_channel': Log-transformed and Gaussian-smoothed channel
-        - 'binary_mask': Binary mask after thresholding
-        If None, creates simple 1x2 panel. If provided, creates 2x2 panel.
-    label_color : str, optional
-        Color for channel labels (default: 'magenta')
+    Args:
+        aligned_image (ndarray): Multichannel aligned image [channels, height, width].
+        second_obj_channel_index (int): Index of the channel used for secondary object
+            detection.
+        second_obj_channel_name (str): Name of the secondary object channel
+            (e.g. "CDPK1").
+        second_obj_masks (ndarray): Labeled mask of segmented secondary objects.
+        threshold_output (dict, optional): Threshold debugging output with keys
+            'preprocessed_channel' (log-transformed, Gaussian-smoothed channel) and
+            'binary_mask' (binary mask after thresholding). If None, creates a simple
+            1x2 panel; if provided, creates a 2x2 panel.
+        label_color (str, optional): Color for channel labels. Defaults to 'magenta'.
 
     Returns:
-    -------
-    panel : Micropanel
-        Micropanel object with visualizations
+        Micropanel: Micropanel object with visualizations.
     """
     from lib.shared.configuration_utils import random_cmap
 
@@ -1057,26 +1030,21 @@ def get_feret_diameters(coords):
     The Feret diameters are calculated using OpenCV's minAreaRect, which finds
     the smallest-area rotated bounding rectangle that encloses the input coordinates.
 
-    Parameters
-    ----------
-    coords : ndarray of shape (N, 2)
-        An array of (x, y) coordinates representing the pixels or contour of a region.
+    Args:
+        coords (ndarray): Array of shape (N, 2) of (x, y) coordinates representing the
+            pixels or contour of a region.
 
     Returns:
-    -------
-    feret_min : float
-        The shortest distance between two parallel lines tangent to the object
-        (i.e., the minimum Feret diameter).
+        tuple:
+            - feret_min (float): The shortest distance between two parallel lines
+              tangent to the object (the minimum Feret diameter).
+            - feret_max (float): The longest distance between two parallel lines
+              tangent to the object (the maximum Feret diameter).
 
-    feret_max : float
-        The longest distance between two parallel lines tangent to the object
-        (i.e., the maximum Feret diameter).
-
-    Notes:
-    -----
-    - This method assumes the input coordinates define a planar shape (e.g., from a binary mask or regionprops).
-    - The returned values are in the same units as the input coordinates (typically pixels).
-    - Internally uses OpenCV's cv2.minAreaRect for fast and robust measurement.
+    Note:
+        Assumes the input coordinates define a planar shape (e.g. from a binary mask or
+        regionprops). Returned values are in the same units as the input coordinates,
+        typically pixels. Internally uses OpenCV's cv2.minAreaRect.
     """
     cnt = coords.astype(np.int32)
     rect = cv2.minAreaRect(cnt)
@@ -1087,17 +1055,13 @@ def get_feret_diameters(coords):
 def apply_morphological_opening(binary_mask, opening_disk_radius=1):
     """Apply morphological opening to separate weakly connected secondary objects.
 
-    Parameters
-    ----------
-    binary_mask : ndarray
-        Binary mask of secondary objects
-    opening_disk_radius : int
-        Radius of disk structuring element (larger = more aggressive)
+    Args:
+        binary_mask (ndarray): Binary mask of secondary objects.
+        opening_disk_radius (int): Radius of the disk structuring element; larger is
+            more aggressive.
 
     Returns:
-    -------
-    opened_mask : ndarray
-        Morphologically opened mask
+        ndarray: Morphologically opened mask.
     """
     footprint = morphology.disk(max(1, opening_disk_radius))
     opened = morphology.binary_opening(binary_mask, footprint=footprint)
@@ -1122,19 +1086,14 @@ def apply_h_maxima_suppression(peak_map, h_factor):
     This complements spatial suppression (min_distance) by filtering peaks
     based on their prominence/height in the distance or intensity map.
 
-    Parameters
-    ----------
-    peak_map : ndarray
-        Distance transform or intensity image
-    h_factor : float
-        Height threshold factor (0.0-1.0)
-        h = h_factor * (peak_map.max() - peak_map.min())
-        Higher values = more aggressive suppression
+    Args:
+        peak_map (ndarray): Distance transform or intensity image.
+        h_factor (float): Height threshold factor (0.0-1.0), where
+            h = h_factor * (peak_map.max() - peak_map.min()). Higher values suppress
+            more aggressively.
 
     Returns:
-    -------
-    filtered_map : ndarray
-        Map with weak maxima suppressed
+        ndarray: Map with weak maxima suppressed.
     """
     if h_factor <= 0 or h_factor > 1:
         raise ValueError(f"h_factor must be in (0, 1], got {h_factor}")
@@ -1158,30 +1117,23 @@ def apply_declumping(
 ):
     """Apply declumping based on CellProfiler-compatible method selection.
 
-    Parameters
-    ----------
-    binary_mask : ndarray
-        Binary mask of secondary objects
-    second_obj_smooth : ndarray
-        Smoothed intensity image (log + Gaussian filtered)
-    declump_method : str
-        "none", "shape", "intensity", "shape_intensity", "distance"
-    declump_mode : str
-        "watershed", "propagate", "none"
-    suppress_local_maxima : int
-        Minimum distance between peaks (spatial constraint)
-    maxima_reduction_factor : float or None
-        H-maxima threshold (0.0-1.0), None=disabled
+    Args:
+        binary_mask (ndarray): Binary mask of secondary objects.
+        second_obj_smooth (ndarray): Smoothed intensity image (log + Gaussian filtered).
+        declump_method (str): One of "none", "shape", "intensity", "shape_intensity",
+            "distance".
+        declump_mode (str): One of "watershed", "propagate", "none".
+        suppress_local_maxima (int): Minimum distance between peaks (spatial
+            constraint).
+        maxima_reduction_factor (float or None): H-maxima threshold (0.0-1.0). None
+            disables it.
 
     Returns:
-    -------
-    declumped : ndarray
-        Labeled mask after declumping
+        ndarray: Labeled mask after declumping.
 
-    Notes:
-    -----
-    Shape refinement is NOT handled here - it's applied as optional refinement
-    after this function in the main pipeline.
+    Note:
+        Shape refinement is NOT handled here — it is applied as optional refinement
+        after this function in the main pipeline.
     """
     # Method 1: No declumping
     if declump_method == "none":
@@ -1275,22 +1227,17 @@ def shape_based_declumping(
 ):
     """Split connected components only when the separating boundary is short relative to the region perimeter.
 
-    Parameters
-    ----------
-    binary_mask : ndarray
-        Input binary secondary object mask
-    second_obj_img : ndarray, optional
-        Intensity image (currently unused, kept for API compatibility)
-    min_distance : int
-        Minimum distance between peaks for watershed markers
-    proportion_threshold : float
-        If boundary_length / perimeter < proportion_threshold, accept the split
-        Example: 0.12 means cut must be < 12% of perimeter to split
+    Args:
+        binary_mask (ndarray): Input binary secondary object mask.
+        second_obj_img (ndarray, optional): Intensity image. Currently unused, kept for
+            API compatibility.
+        min_distance (int): Minimum distance between peaks for watershed markers.
+        proportion_threshold (float): Accept the split if
+            boundary_length / perimeter < proportion_threshold. For example, 0.12 means
+            the cut must be under 12% of the perimeter.
 
     Returns:
-    -------
-    labeled : ndarray
-        Labeled mask after shape-based declumping
+        ndarray: Labeled mask after shape-based declumping.
     """
     labeled_out = np.zeros_like(binary_mask, dtype=int)
     next_label = 1
@@ -1356,19 +1303,14 @@ def shape_based_declumping(
 def create_empty_results(cell_masks, cytoplasm_masks, nuclei_centroids=None):
     """Helper function to create empty results when no secondary objects are found.
 
-    Parameters
-    ----------
-    cell_masks : ndarray
-        Cell segmentation masks
-    cytoplasm_masks : ndarray, optional
-        Cytoplasm segmentation masks
-    nuclei_centroids : dict or DataFrame, optional
-        Nuclei centroids information
+    Args:
+        cell_masks (ndarray): Cell segmentation masks.
+        cytoplasm_masks (ndarray, optional): Cytoplasm segmentation masks.
+        nuclei_centroids (dict or DataFrame, optional): Nuclei centroids information.
 
     Returns:
-    -------
-    tuple
-        Empty secondary object masks, cell_second_obj_table dict, and optionally cytoplasm_masks
+        tuple: Empty secondary object masks, cell_second_obj_table dict, and
+            cytoplasm_masks (None if cytoplasm_masks was not provided).
     """
     cell_ids = np.unique(cell_masks[cell_masks > 0])
     empty_second_obj_masks = np.zeros_like(cell_masks)
@@ -1405,17 +1347,12 @@ def create_empty_results(cell_masks, cytoplasm_masks, nuclei_centroids=None):
 def get_spatial_overlap_candidates(second_obj_regions, cell_masks):
     """Use bounding boxes to pre-filter which cells could overlap with each secondary object.
 
-    Parameters
-    ----------
-    second_obj_regions : dict
-        Dictionary mapping second_obj_id to regionprops
-    cell_masks : ndarray
-        Cell segmentation masks
+    Args:
+        second_obj_regions (dict): Mapping of second_obj_id to regionprops.
+        cell_masks (ndarray): Cell segmentation masks.
 
     Returns:
-    -------
-    candidates : dict
-        Dictionary mapping second_obj_id to list of candidate cell_ids
+        dict: Mapping of second_obj_id to a list of candidate cell_ids.
     """
     # Get all cell regions with their bounding boxes
     cell_regions = measure.regionprops(cell_masks)
@@ -1468,49 +1405,41 @@ def _postprocess_secondary_objects(
     3. Cell summary statistics
     4. Cytoplasm mask updates
 
-    Parameters
-    ----------
-    second_obj_masks : ndarray
-        Labeled mask of secondary objects (integer labels, background=0)
-    cell_masks : ndarray
-        Cell segmentation masks with unique integers for each cell
-    cytoplasm_masks : ndarray or None
-        Cytoplasm segmentation masks. If provided, secondary object
-        regions will be removed from cytoplasm masks
-    second_obj_min_size : float
-        Minimum size for valid secondary objects
-    second_obj_max_size : float
-        Maximum size for valid secondary objects
-    size_filter_method : str
-        Size filtering method ("feret" or "area")
-    max_objects_per_cell : int
-        Maximum secondary objects allowed per cell
-    overlap_threshold : float
-        Minimum overlap ratio to associate object with cell (0.0-1.0)
-    nuclei_centroids : dict, DataFrame, or None
-        Cell nuclei centroids for distance calculations.
-        Format: {nuclei_id: (i, j)} or DataFrame with 'i', 'j' columns
-    max_total_objects : int or None
-        Failsafe limit on detected objects. Returns empty results if exceeded
-    image : ndarray, optional
-        Multichannel image [channels, height, width].
-        Only needed if nuclei_centroids provided (for distance calculations)
-    second_obj_channel_index : int, optional
-        Index of secondary object channel.
-        Only needed if nuclei_centroids provided (for distance calculations)
+    Args:
+        second_obj_masks (ndarray): Labeled mask of secondary objects (integer labels,
+            background=0).
+        cell_masks (ndarray): Cell segmentation masks with unique integers for each
+            cell.
+        cytoplasm_masks (ndarray or None): Cytoplasm segmentation masks. If provided,
+            secondary object regions will be removed from cytoplasm masks.
+        second_obj_min_size (float): Minimum size for valid secondary objects.
+        second_obj_max_size (float): Maximum size for valid secondary objects.
+        size_filter_method (str): Size filtering method ("feret" or "area").
+        max_objects_per_cell (int): Maximum secondary objects allowed per cell.
+        overlap_threshold (float): Minimum overlap ratio to associate object with cell
+            (0.0-1.0).
+        nuclei_centroids (dict, DataFrame, or None): Cell nuclei centroids for distance
+            calculations, as {nuclei_id: (i, j)} or a DataFrame with 'i' and 'j'
+            columns.
+        max_total_objects (int or None): Failsafe limit on detected objects. Returns
+            empty results if exceeded.
+        image (ndarray, optional): Multichannel image [channels, height, width]. Only
+            needed if nuclei_centroids is provided, for distance calculations.
+        second_obj_channel_index (int, optional): Index of the secondary object channel.
+            Only needed if nuclei_centroids is provided, for distance calculations.
 
     Returns:
-    -------
-    tuple
-        - second_obj_masks: Filtered and renumbered secondary object masks
-        - cell_second_obj_table: Dict with 'cell_summary' and 'second_obj_cell_mapping' DataFrames
-        - updated_cytoplasm_masks: Cytoplasm masks with secondary objects removed (or None)
+        tuple:
+            - second_obj_masks: Filtered and renumbered secondary object masks
+            - cell_second_obj_table: Dict with 'cell_summary' and
+              'second_obj_cell_mapping' DataFrames
+            - updated_cytoplasm_masks: Cytoplasm masks with secondary objects removed
+              (or None)
 
-    Notes:
-    -----
-    - This function is shared by both segment_second_objs() and segment_second_objs_ml()
-    - Input masks should already be labeled (not binary)
-    - Empty input masks are handled gracefully
+    Note:
+        Shared by both segment_second_objs() and segment_second_objs_ml(). Input masks
+        should already be labeled (not binary). Empty input masks are handled
+        gracefully.
     """
     # Handle empty input
     if not np.any(second_obj_masks):

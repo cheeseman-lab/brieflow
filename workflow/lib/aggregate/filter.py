@@ -44,14 +44,16 @@ def harmonize_pool_schema(
 
     Args:
         paths (list[str]): parquet file paths forming the pool.
-        metadata_cols (list[str]): canonical metadata column names (only those
-            present in every file are returned).
+        metadata_cols (list[str]): canonical metadata column names. Only those
+            present in every file are returned.
         drop_cols_threshold (float | None): pool-level NaN proportion threshold
             above which a feature column is dropped. None disables this step.
 
     Returns:
         tuple:
-            kept_metadata_cols (list[str]),
+            kept_metadata_cols (list[str]) — the surviving `metadata_cols`, plus any
+                reserved metadata columns (see is_reserved_metadata_col) found in the
+                intersection but absent from `metadata_cols`,
             kept_feature_cols (list[str]),
             report (dict) — keys: "schema_mismatch" (dict file -> missing cols),
                                   "threshold_dropped" (list of col names).

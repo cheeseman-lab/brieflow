@@ -7,11 +7,11 @@ and visualization of Cellpose models for secondary object segmentation.
 from pathlib import Path
 from typing import List, Tuple, Optional, Union, Dict
 import numpy as np
+
 from tifffile import imread
 from cellpose import models, train, io
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
-import random
 
 # Reuse utilities from segment_cellpose (single source of truth)
 from lib.shared.segment_cellpose import prepare_cellpose, create_cellpose_model
@@ -155,6 +155,7 @@ def augment_training_data(
     intensity_range: Tuple[float, float] = (0.8, 1.2),
     noise: bool = False,
     noise_std: float = 0.02,
+    seed: Optional[int] = None,
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """Apply data augmentation to expand small training datasets.
 
@@ -170,6 +171,7 @@ def augment_training_data(
         intensity_range (Tuple[float, float]): Range for intensity scaling factor.
         noise (bool): Add Gaussian noise.
         noise_std (float): Standard deviation of Gaussian noise.
+        seed (int, optional): Seed for reproducible intensity/noise augmentation.
 
     Returns:
         aug_images (List[np.ndarray]): Augmented images (includes originals).
@@ -177,6 +179,7 @@ def augment_training_data(
     """
     aug_images = []
     aug_masks = []
+    rng = np.random.default_rng(seed)
 
     for img, mask in zip(images, masks):
         # Start with original
@@ -211,7 +214,7 @@ def augment_training_data(
                     if np.issubdtype(v_img.dtype, np.integer)
                     else 1.0
                 )
-                scale = random.uniform(intensity_range[0], intensity_range[1])
+                scale = rng.uniform(intensity_range[0], intensity_range[1])
                 scaled_img = np.clip(v_img * scale, 0, hi).astype(v_img.dtype)
                 final_variants.append((scaled_img, v_mask.copy()))
 
@@ -222,7 +225,7 @@ def augment_training_data(
                     if np.issubdtype(v_img.dtype, np.integer)
                     else 1.0
                 )
-                noisy_img = v_img + np.random.normal(0, noise_std * hi, v_img.shape)
+                noisy_img = v_img + rng.normal(0, noise_std * hi, v_img.shape)
                 noisy_img = np.clip(noisy_img, 0, hi).astype(v_img.dtype)
                 final_variants.append((noisy_img, v_mask.copy()))
 
@@ -259,10 +262,12 @@ def prepare_cellpose_training(
     """
     n_samples = len(images)
     n_test = max(1, int(n_samples * test_fraction))
+    # Keep at least one training sample (n_test=0 when only one sample exists)
+    n_test = min(n_test, n_samples - 1) if n_samples > 1 else 0
 
-    # Shuffle indices
-    np.random.seed(seed)
-    indices = np.random.permutation(n_samples)
+    # Shuffle indices with a local generator (no global RNG side effects)
+    rng = np.random.default_rng(seed)
+    indices = rng.permutation(n_samples)
 
     test_indices = indices[:n_test]
     train_indices = indices[n_test:]
@@ -590,8 +595,8 @@ def evaluate_segmentation(
 
 def random_label_cmap(n_labels: int = 256, seed: int = 42) -> ListedColormap:
     """Create a random colormap for labeled masks."""
-    np.random.seed(seed)
-    colors = np.random.rand(n_labels, 3)
+    rng = np.random.default_rng(seed)
+    colors = rng.random((n_labels, 3))
     colors[0] = [0, 0, 0]  # Background is black
     return ListedColormap(colors)
 

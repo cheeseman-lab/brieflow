@@ -447,10 +447,7 @@ def segment_second_objs(
                 "preprocessed_channel": second_obj_smooth,
             }
             # Add threshold_output to the tuple
-            if cytoplasm_masks is not None:
-                return (*empty_results, threshold_output)
-            else:
-                return (*empty_results, threshold_output)
+            return (*empty_results, threshold_output)
         else:
             return empty_results
 
@@ -473,10 +470,7 @@ def segment_second_objs(
                     "threshold_value": thresh,
                     "preprocessed_channel": second_obj_smooth,
                 }
-                if cytoplasm_masks is not None:
-                    return (*empty_results, threshold_output)
-                else:
-                    return (*empty_results, threshold_output)
+                return (*empty_results, threshold_output)
             else:
                 return empty_results
 
@@ -517,13 +511,14 @@ def segment_second_objs(
         )
         print(f"After shape refinement: {len(np.unique(declumped)) - 1} objects")
 
-    # Fill holes after declumping (if enabled)
+    # Fill holes after declumping (if enabled). Only claim background pixels so a filled
+    # hole cannot overwrite a neighboring declumped object.
     if fill_holes in ["declump", "both"]:
         unique_labels = np.unique(declumped[declumped > 0])
         for label in unique_labels:
             mask = declumped == label
             filled = ndimage.binary_fill_holes(mask)
-            declumped[filled] = label
+            declumped[filled & (declumped == 0)] = label
 
     # Apply shared post-processing pipeline: size filtering, cell association, statistics, cytoplasm updates
     post_results = _postprocess_secondary_objects(
@@ -554,6 +549,107 @@ def segment_second_objs(
     else:
         # Standard return (backward compatible)
         return post_results
+
+
+def segment_second_objs_from_config(
+    image,
+    cell_masks,
+    cytoplasm_masks,
+    second_obj_params,
+    nuclei_centroids=None,
+):
+    """Dispatch secondary-object segmentation (ML or classical) from a config param dict.
+
+    Routes the phenotype config's second-object parameters to segment_second_objs_ml or
+    segment_second_objs, passing only ML-specific params to the ML path.
+
+    Args:
+        image (numpy.ndarray): Phenotype image (CHANNELS, I, J).
+        cell_masks (numpy.ndarray): Cell segmentation masks.
+        cytoplasm_masks (numpy.ndarray): Cytoplasm segmentation masks.
+        second_obj_params (dict): Second-object parameters from config["phenotype"].
+        nuclei_centroids (dict, optional): Cell nuclei centroids for distance calculations.
+
+    Returns:
+        tuple: (second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks).
+    """
+    common_params = {
+        "image": image,
+        "second_obj_channel_index": second_obj_params["second_obj_channel_index"],
+        "cell_masks": cell_masks,
+        "cytoplasm_masks": cytoplasm_masks,
+        "second_obj_min_size": second_obj_params.get("second_obj_min_size", 10),
+        "second_obj_max_size": second_obj_params.get("second_obj_max_size", 200),
+        "size_filter_method": second_obj_params.get("size_filter_method", "feret"),
+        "max_objects_per_cell": second_obj_params.get("max_objects_per_cell", 120),
+        "overlap_threshold": second_obj_params.get("overlap_threshold", 0.1),
+        "nuclei_centroids": nuclei_centroids,
+        "max_total_objects": second_obj_params.get("max_total_objects", 1000),
+    }
+
+    if second_obj_params.get("use_ml_segmentation", False):
+        # ML path takes only ML-specific params (drop shared, classical-only, and config-level keys).
+        shared_keys = set(common_params)
+        cv_only_keys = {
+            "threshold_smoothing_scale",
+            "threshold_method",
+            "use_morphological_opening",
+            "opening_disk_radius",
+            "fill_holes",
+            "declump_method",
+            "declump_mode",
+            "suppress_local_maxima",
+            "maxima_reduction_factor",
+            "use_shape_refinement",
+            "proportion_threshold",
+        }
+        config_level_keys = {
+            "use_ml_segmentation",
+            "second_obj_detection",
+            "foci_channel_index",
+            "channel_names",
+            "dapi_index",
+            "cyto_index",
+            "align",
+            "segmentation_method",
+            "reconcile",
+            "cp_method",
+            "nuclei_diameter",
+            "cell_diameter",
+            "target",
+            "source",
+            "riders",
+            "remove_channel",
+            "upsample_factor",
+            "window",
+        }
+        ml_params = {
+            k: v
+            for k, v in second_obj_params.items()
+            if k not in shared_keys | cv_only_keys | config_level_keys
+        }
+        return segment_second_objs_ml(**common_params, **ml_params)
+
+    cv_params = {
+        "threshold_smoothing_scale": second_obj_params.get(
+            "threshold_smoothing_scale", 1.3488
+        ),
+        "threshold_method": second_obj_params.get("threshold_method", "otsu_two_peak"),
+        "use_morphological_opening": second_obj_params.get(
+            "use_morphological_opening", True
+        ),
+        "opening_disk_radius": second_obj_params.get("opening_disk_radius", 1),
+        "fill_holes": second_obj_params.get("fill_holes", "both"),
+        "declump_method": second_obj_params.get("declump_method", "shape"),
+        "declump_mode": second_obj_params.get("declump_mode", "watershed"),
+        "suppress_local_maxima": second_obj_params.get("suppress_local_maxima", 20),
+        "maxima_reduction_factor": second_obj_params.get(
+            "maxima_reduction_factor", None
+        ),
+        "use_shape_refinement": second_obj_params.get("use_shape_refinement", False),
+        "proportion_threshold": second_obj_params.get("proportion_threshold", 0.4),
+    }
+    return segment_second_objs(**common_params, **cv_params)
 
 
 def estimate_second_obj_diameter(
@@ -1302,10 +1398,8 @@ def create_empty_results(cell_masks, cytoplasm_masks, nuclei_centroids=None):
         "second_obj_cell_mapping": pd.DataFrame(),
     }
 
-    if cytoplasm_masks is not None:
-        return empty_second_obj_masks, cell_second_obj_table, cytoplasm_masks
-    else:
-        return empty_second_obj_masks, cell_second_obj_table
+    # cytoplasm_masks is None when no cytoplasm masks were given (no objects to remove)
+    return empty_second_obj_masks, cell_second_obj_table, cytoplasm_masks
 
 
 def get_spatial_overlap_candidates(second_obj_regions, cell_masks):
@@ -1693,12 +1787,5 @@ def _postprocess_secondary_objects(
             f"Updated cytoplasm masks by removing {len(second_obj_cell_mapping)} secondary object regions"
         )
 
-    # Return results
-    if updated_cytoplasm_masks is not None:
-        return (
-            associated_second_objs,
-            cell_second_obj_table,
-            updated_cytoplasm_masks,
-        )
-    else:
-        return associated_second_objs, cell_second_obj_table
+    # Return results (updated_cytoplasm_masks is None when no cytoplasm masks were given)
+    return associated_second_objs, cell_second_obj_table, updated_cytoplasm_masks

@@ -59,7 +59,7 @@ def extract_phenotype_second_objs(
     if second_obj_channels == "all":
         try:
             second_obj_channels = list(range(data_phenotype.shape[-3]))
-        except:
+        except IndexError:
             second_obj_channels = [0]
 
     dfs = []

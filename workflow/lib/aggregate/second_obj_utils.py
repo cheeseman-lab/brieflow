@@ -139,9 +139,12 @@ def _aggregate_single(
         second_objs.groupby(cells_merge_keys).size().reset_index(name="_obj_count")
     )
 
-    # Tag cells with their object count
+    # Tag cells with their object count; keep a stable key so the split/concat below
+    # preserves the input cell order (the feature merge would otherwise reorder rows).
     cells_with_count = cells_df.merge(obj_counts, on=cells_merge_keys, how="left")
     cells_with_count["_obj_count"] = cells_with_count["_obj_count"].fillna(0)
+    cells_with_count = cells_with_count.reset_index(drop=True)
+    cells_with_count["_orig_order"] = np.arange(len(cells_with_count))
 
     # Split into single-object and other cells
     single_mask = cells_with_count["_obj_count"] == 1
@@ -160,7 +163,9 @@ def _aggregate_single(
         nan_df = pd.DataFrame(np.nan, index=other_cells.index, columns=feature_cols)
         other_cells = pd.concat([other_cells, nan_df], axis=1)
 
-    return pd.concat([merged_single, other_cells], ignore_index=True)
+    combined = pd.concat([merged_single, other_cells], ignore_index=True)
+    combined = combined.sort_values("_orig_order").reset_index(drop=True)
+    return combined.drop(columns=["_orig_order"])
 
 
 def _aggregate_all(

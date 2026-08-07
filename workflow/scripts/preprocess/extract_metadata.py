@@ -25,7 +25,7 @@ if metadata_files:
     file_input = metadata_file_path  # Pass the CSV file as the main input
     print(f"Using metadata file: {metadata_file_path}")
 elif sample_files:
-    # Extract from image files
+    # Extract from image files (e.g. ND2, IMS)
     file_input = sample_files
     metadata_file_path = None
     print("No metadata file - extracting from image headers")

@@ -13,6 +13,7 @@ from lib.shared.align import (
     calculate_offsets,
     apply_offsets,
     filter_percentiles,
+    offsets_to_metrics,
 )
 
 
@@ -29,6 +30,7 @@ def align_cycles(
     manual_background_cycle=None,
     manual_channel_mapping=None,
     verbose=False,
+    return_metrics=False,
 ):
     """Rigid alignment of sequencing cycles and channels.
 
@@ -66,9 +68,12 @@ def align_cycles(
         verbose (bool, optional): If True, print detailed alignment information including
             calculated offsets for each cycle. Useful for debugging alignment issues.
             Defaults to False.
+        return_metrics (bool, optional): If True, also return a dict of per-cycle alignment
+            offset metrics keyed offset_y_cycle{i}/offset_x_cycle{i}. Defaults to False.
 
     Returns:
         np.ndarray: SBS image aligned across cycles.
+        dict, optional: Per-cycle alignment offset metrics if return_metrics is True.
     """
     skip_cycles = skip_cycles or []
 
@@ -247,6 +252,9 @@ def align_cycles(
             [align_it(x) for x in aligned[:, base_slices]]
         )
 
+    # Track per-cycle offsets from whichever alignment branch runs
+    cycle_offsets = None
+
     # Align between cycles
     if method == "DAPI":
         # Only attempt DAPI alignment if DAPI channel exists
@@ -262,6 +270,7 @@ def align_cycles(
                 upsample_factor=upsample_factor,
                 return_offsets=True,
             )
+            cycle_offsets = offsets
 
             if verbose:
                 print("\n=== Cycle Alignment Offsets (DAPI method) ===")
@@ -286,7 +295,8 @@ def align_cycles(
         target = apply_window(aligned[:, sbs_channels], window=window).max(axis=1)
         normed = normalize_by_percentile(target, q_norm=q_norm)
         normed[normed > cutoff] = cutoff
-        offsets = calculate_offsets(normed, upsample_factor=upsample_factor)
+        offsets, _ = calculate_offsets(normed, upsample_factor=upsample_factor)
+        cycle_offsets = offsets
 
         if verbose:
             print("\n=== Cycle Alignment Offsets (sbs_mean method) ===")
@@ -314,6 +324,13 @@ def align_cycles(
     else:
         raise ValueError(f'Method "{method}" not implemented')
 
+    if return_metrics:
+        return aligned, (
+            offsets_to_metrics(cycle_offsets, "cycle")
+            if cycle_offsets is not None
+            else {}
+        )
+
     return aligned
 
 
@@ -333,7 +350,7 @@ def align_within_cycle(data_, upsample_factor=4, window=1, q1=0, q2=90):
     # Filter the input data based on percentiles
     filtered = filter_percentiles(apply_window(data_, window), q1=q1, q2=q2)
     # Calculate offsets using the filtered data
-    offsets = calculate_offsets(filtered, upsample_factor=upsample_factor)
+    offsets, _ = calculate_offsets(filtered, upsample_factor=upsample_factor)
     # Apply the calculated offsets to the original data and return the result
     return apply_offsets(data_, offsets)
 
@@ -356,7 +373,7 @@ def align_between_cycles(
     """
     # Calculate offsets from the target channel
     target = apply_window(data[:, channel_index], window)
-    offsets = calculate_offsets(target, upsample_factor=upsample_factor)
+    offsets, _ = calculate_offsets(target, upsample_factor=upsample_factor)
 
     # Apply the calculated offsets to all channels
     warped = []

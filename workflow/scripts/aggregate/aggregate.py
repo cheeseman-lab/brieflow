@@ -26,14 +26,26 @@ metadata, tvn_normalized = split_cell_data(cell_data, metadata_cols)
 tvn_normalized = tvn_normalized.to_numpy()
 del cell_data
 
+# Carry the control/gene name column through when it differs from the aggregation ID.
+pert_col = snakemake.params.perturbation_name_col
+control_name_col = snakemake.params.get("control_name_col")
+carry_cols = None
+if (
+    control_name_col
+    and control_name_col != pert_col
+    and control_name_col in metadata.columns
+):
+    carry_cols = [control_name_col]
+
 # Aggregate
 aggregated_embeddings, aggregated_metadata = aggregate(
     tvn_normalized,
     metadata,
-    snakemake.params.perturbation_name_col,
+    pert_col,
     method=snakemake.params.agg_method,
     ps_probability_threshold=snakemake.params.ps_probability_threshold,
     ps_percentile_threshold=snakemake.params.ps_percentile_threshold,
+    carry_cols=carry_cols,
 )
 
 # Save aggregated data

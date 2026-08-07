@@ -1,2 +1,3 @@
-cell_class	channel_combo	leiden_resolution
-Interphase	DAPI_COXIV_CENPA_WGA	2
+cell_class	channel_combo	compartment_combo	leiden_resolution
+Interphase	DAPI_COXIV_CENPA_WGA	cell-nucleus-cytoplasm	2
+Interphase	DAPI	nucleus	2

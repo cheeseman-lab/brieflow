@@ -8,12 +8,12 @@ cluster size visualization, bootstrap filtering, and optimal resolution finding.
 import json
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-from lib.shared.file_utils import parse_filename, get_filename
+from lib.shared.compartment_utils import add_compartment_path
+from lib.shared.file_utils import get_filename
 
 
 def find_optimal_resolution(
@@ -25,6 +25,7 @@ def find_optimal_resolution(
     resolutions=None,
     ideal_size_range=(15, 25),
     size_metric="mean",
+    compartment_combo=None,
 ):
     """Find the optimal Leiden resolution by reading benchmark outputs.
 
@@ -52,6 +53,8 @@ def find_optimal_resolution(
         size_metric (str): Which cluster size metric to optimize. Options:
             - "mean": Mean genes per cluster (default, better for skewed distributions)
             - "median": Median genes per cluster (less sensitive to outliers)
+        compartment_combo (str, optional): Compartment combination name. When omitted,
+            resolves the legacy path without a compartment directory.
 
     Returns:
         dict: Dictionary with:
@@ -63,11 +66,16 @@ def find_optimal_resolution(
     """
     root_fp = Path(root_fp)
 
+    base_path = add_compartment_path(
+        root_fp / "cluster" / channel_combo,
+        compartment_combo or "",
+        compartment_combo is not None,
+    )
+    base_path = base_path / cell_class
+
     # Build base cluster path
     if use_filtered:
-        base_path = root_fp / "cluster" / channel_combo / cell_class / "filtered"
-    else:
-        base_path = root_fp / "cluster" / channel_combo / cell_class
+        base_path = base_path / "filtered"
 
     # Auto-discover resolutions if not provided
     if resolutions is None:
@@ -437,8 +445,9 @@ def analyze_all_resolutions(
     show_plots=True,
     top_n_table=10,
     verbose=True,
+    compartment_combos=None,
 ):
-    """Analyze optimal resolutions for all cell class/channel combinations.
+    """Analyze optimal resolutions for all cell class/channel/compartment combinations.
 
     Convenience wrapper that finds optimal resolutions, displays results,
     and returns a summary for all combinations.
@@ -455,68 +464,81 @@ def analyze_all_resolutions(
         show_plots (bool): Whether to display comparison plots (default True).
         top_n_table (int): Number of top resolutions to show in table (default 10).
         verbose (bool): Whether to print detailed output (default True).
+        compartment_combos (list, optional): Compartment combinations to analyze.
+            When omitted, resolves legacy paths without a compartment directory.
 
     Returns:
-        dict: Dictionary mapping "cellclass_channel" to result dict from find_optimal_resolution.
-            Also includes "summary_df" key with pandas DataFrame of all optimal resolutions.
+        dict: Dictionary mapping a cell-class/channel key (plus compartment when
+            supplied) to results from ``find_optimal_resolution``. Also includes
+            ``summary_df`` with all optimal resolutions.
     """
     import matplotlib.pyplot as plt
     from IPython.display import display
 
     optimal_resolutions = {}
+    resolved_compartment_combos = (
+        compartment_combos if compartment_combos is not None else [None]
+    )
 
     for cell_class in cell_classes:
         for channel_combo in channel_combos:
-            try:
-                result = find_optimal_resolution(
-                    root_fp=root_fp,
-                    channel_combo=channel_combo,
-                    cell_class=cell_class,
-                    use_filtered=use_filtered,
-                    metric=metric,
-                    ideal_size_range=ideal_size_range,
-                    size_metric=size_metric,
-                )
-                key = f"{cell_class}_{channel_combo}"
-                optimal_resolutions[key] = result
+            for compartment_combo in resolved_compartment_combos:
+                try:
+                    result = find_optimal_resolution(
+                        root_fp=root_fp,
+                        channel_combo=channel_combo,
+                        compartment_combo=compartment_combo,
+                        cell_class=cell_class,
+                        use_filtered=use_filtered,
+                        metric=metric,
+                        ideal_size_range=ideal_size_range,
+                        size_metric=size_metric,
+                    )
+                    key = f"{cell_class}_{channel_combo}"
+                    combo_label = f"{cell_class} / {channel_combo}"
+                    if compartment_combo is not None:
+                        key = f"{key}_{compartment_combo}"
+                        combo_label = f"{combo_label} / {compartment_combo}"
+                    optimal_resolutions[key] = result
 
-                if verbose:
-                    print(f"\n{'=' * 80}")
-                    print(f"{cell_class} / {channel_combo}")
-                    print(f"{'=' * 80}")
-                    print(f"  Optimal resolution: {result['optimal_resolution']}")
-                    print(f"  Optimization metric: {result['metric_used']}")
-                    print(f"  Size metric used: {result['size_metric_used']}")
-                    print(f"  Target size range: {result['ideal_size_range']}")
+                    if verbose:
+                        print(f"\n{'=' * 80}")
+                        print(combo_label)
+                        print(f"{'=' * 80}")
+                        print(f"  Optimal resolution: {result['optimal_resolution']}")
+                        print(f"  Optimization metric: {result['metric_used']}")
+                        print(f"  Size metric used: {result['size_metric_used']}")
+                        print(f"  Target size range: {result['ideal_size_range']}")
 
-                    # Show formatted decision table
-                    print(
-                        f"\nTop {top_n_table} resolutions (sorted by {metric} score):"
-                    )
-                    table = format_resolution_table(
-                        result["all_results"], top_n=top_n_table
-                    )
-                    display(table)
+                        # Show formatted decision table
+                        print(
+                            f"\nTop {top_n_table} resolutions (sorted by {metric} score):"
+                        )
+                        table = format_resolution_table(
+                            result["all_results"], top_n=top_n_table
+                        )
+                        display(table)
 
-                if show_plots:
-                    # Show metrics comparison plot
-                    fig = plot_resolution_comparison(
-                        result["all_results"], metric=metric
-                    )
-                    plt.suptitle(
-                        f"{cell_class} / {channel_combo}",
-                        fontsize=14,
-                        fontweight="bold",
-                    )
-                    plt.tight_layout()
-                    plt.show()
+                    if show_plots:
+                        # Show metrics comparison plot
+                        fig = plot_resolution_comparison(
+                            result["all_results"], metric=metric
+                        )
+                        plt.suptitle(
+                            combo_label,
+                            fontsize=14,
+                            fontweight="bold",
+                        )
+                        plt.tight_layout()
+                        plt.show()
 
-            except Exception as e:
-                if verbose:
-                    print(
-                        f"\n{cell_class} / {channel_combo}: No benchmark results found"
-                    )
-                    print(f"  Error: {e}")
+                except Exception as e:
+                    if verbose:
+                        combo_label = f"{cell_class} / {channel_combo}"
+                        if compartment_combo is not None:
+                            combo_label = f"{combo_label} / {compartment_combo}"
+                        print(f"\n{combo_label}: No benchmark results found")
+                        print(f"  Error: {e}")
 
     # Generate summary table
     if verbose:

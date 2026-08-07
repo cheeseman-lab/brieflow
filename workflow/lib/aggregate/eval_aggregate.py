@@ -8,7 +8,6 @@ It provides the following functionalities:
 """
 
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -108,6 +107,21 @@ def plot_feature_distributions(
     Returns:
         matplotlib.figure.Figure: Figure containing the violin plots.
     """
+    # Defensive: return a placeholder figure when feature selection is empty (avoids nrows=0 in plt.subplots).
+    if not original_feature_cols or not aligned_feature_cols:
+        fig, ax = plt.subplots(figsize=(8, 2))
+        ax.text(
+            0.5,
+            0.5,
+            "No intensity features available for this compartment_combo; "
+            "feature-distribution plot skipped.",
+            ha="center",
+            va="center",
+            wrap=True,
+        )
+        ax.axis("off")
+        return fig
+
     # Melt original features
     df_orig = original_cell_data[["plate", "well"] + original_feature_cols].melt(
         id_vars=["plate", "well"], var_name="Feature", value_name="Value"

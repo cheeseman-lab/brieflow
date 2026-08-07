@@ -221,7 +221,7 @@ def get_merge_targets_by_approach(config):
 def map_wildcard_outputs(wildcard_combos_df, output_template, wildcards_to_map):
     """Map specified wildcards in a template string using values from a DataFrame.
 
-    Given a template path and a list of wildcards to map (e.g. ["cell_class", "channel_combo"]),
+    Given a template path and a list of wildcards to map (e.g. ["cell_class", "channel_combo", "compartment_combo"]),
     replaces only those placeholders with values from the DataFrame, leaving others untouched.
     Useful for creating lists of output paths where we need to fill in some wildcards but not others.
 

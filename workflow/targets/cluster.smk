@@ -1,22 +1,23 @@
-import pandas as pd
-from itertools import product
-
+from lib.shared.compartment_utils import add_compartment_path
 from lib.shared.file_utils import get_filename
 from lib.shared.target_utils import map_outputs, outputs_to_targets
 
 
 CLUSTER_FP = ROOT_FP / "cluster"
+CLUSTER_OUTPUT_BASE = add_compartment_path(
+    CLUSTER_FP / "{channel_combo}",
+    "{compartment_combo}",
+    SPLIT_BY_COMPARTMENT,
+)
 
 CLUSTER_OUTPUTS = {
     "clean_aggregate": [
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / get_filename({}, "aggregate_cleaned", "tsv"),
     ],
     "phate_leiden_clustering": [
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename(
@@ -24,67 +25,55 @@ CLUSTER_OUTPUTS = {
             "phate_leiden_clustering",
             "tsv",
         ),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({}, "cluster_sizes", "png"),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({}, "clusters", "png"),
     ],
     "benchmark_clusters": [
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Real"}, "integrated_results", "json"),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Shuffled"}, "integrated_results", "json"),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Real"}, "combined_table", "tsv"),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Shuffled"}, "combined_table", "tsv"),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Real"}, "global_metrics", "json"),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Shuffled"}, "global_metrics", "json"),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Real"}, "pie_chart", "png"),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename(
             {"cluster_benchmark": "Shuffled"}, "enrichment_pie_chart", "png"
         ),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename({"cluster_benchmark": "Real"}, "enrichment_bar_chart", "png"),
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "{leiden_resolution}"
         / get_filename(

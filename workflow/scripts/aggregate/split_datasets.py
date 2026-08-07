@@ -1,12 +1,18 @@
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 
 from lib.aggregate.cell_classification import CellClassifier
 from lib.aggregate.cell_data_utils import (
+    COMPARTMENT_PREFIXES,
     load_metadata_cols,
     split_cell_data,
     channel_combo_subset,
+    compartment_combo_subset,
 )
+from lib.shared.compartment_utils import add_compartment_metadata
+from lib.shared.file_utils import get_filename
 
 
 def apply_confidence_thresholds(metadata, features, thresholds, class_col="class"):
@@ -148,8 +154,20 @@ else:
 # Load all channels
 all_channels = snakemake.params.all_channels
 
-# split cells by cell class
-for cell_class in snakemake.params.cell_classes:
+# Each row pairs a channel_combo with its compartment_combo; compartments are zipped not crossed.
+aggregate_wildcard_combos = snakemake.params.aggregate_wildcard_combos
+unique_specs = aggregate_wildcard_combos[
+    ["cell_class", "channel_combo", "compartment_combo"]
+].drop_duplicates()
+
+# Universe of compartment prefixes that may exist in the input, from the known prefix set.
+all_compartments_run = sorted(COMPARTMENT_PREFIXES.keys())
+
+for _, row in unique_specs.iterrows():
+    cell_class = row["cell_class"]
+    channel_combo = row["channel_combo"]
+    compartment_combo = row["compartment_combo"]
+
     if cell_class == "all":
         cell_class_metadata = metadata
         cell_class_features = features
@@ -158,22 +176,35 @@ for cell_class in snakemake.params.cell_classes:
         cell_class_metadata = metadata[cell_class_mask]
         cell_class_features = features[cell_class_mask]
 
-    # split features into channel combos
-    for channel_combo in snakemake.params.channel_combos:
-        channel_combo_list = channel_combo.split("_")
-        channel_combo_features = channel_combo_subset(
-            cell_class_features, channel_combo_list, all_channels
-        )
+    channel_combo_list = channel_combo.split("_")
+    compartment_combo_list = compartment_combo.split("-")
 
-        # concatenate metadata and features
-        cell_class_data = pd.concat(
-            [cell_class_metadata, channel_combo_features], axis=1
-        ).reset_index(drop=True)
+    filtered = channel_combo_subset(
+        cell_class_features, channel_combo_list, all_channels
+    )
+    filtered = compartment_combo_subset(
+        filtered, compartment_combo_list, all_compartments_run
+    )
 
-        # Save data
-        dataset_fp = [
-            f
-            for f in snakemake.output
-            if f"CeCl-{cell_class}_ChCo-{channel_combo}__" in f
-        ][0]
-        cell_class_data.to_parquet(dataset_fp, index=False)
+    cell_class_data = pd.concat([cell_class_metadata, filtered], axis=1).reset_index(
+        drop=True
+    )
+
+    dataset_name = get_filename(
+        add_compartment_metadata(
+            {
+                "plate": snakemake.wildcards.plate,
+                "well": snakemake.wildcards.well,
+                "cell_class": cell_class,
+                "channel_combo": channel_combo,
+            },
+            compartment_combo,
+            snakemake.params.split_by_compartment,
+        ),
+        "merge_data",
+        "parquet",
+    )
+    dataset_fp = next(
+        output for output in snakemake.output if Path(output).name == dataset_name
+    )
+    cell_class_data.to_parquet(dataset_fp, index=False)

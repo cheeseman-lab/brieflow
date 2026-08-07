@@ -6,8 +6,6 @@ import glob
 from typing import Dict, List, Any, Union
 import pandas as pd
 
-from lib.shared.file_utils import parse_filename
-
 
 def get_alignment_params(wildcards, config: Dict[str, Any]) -> Dict[str, Any]:
     """Get alignment parameters for a specific plate.
@@ -313,6 +311,8 @@ def get_bootstrap_inputs(
     gene_pvals_pattern: Union[str, Path],
     cell_class: str,
     channel_combo: str,
+    compartment_combo: str,
+    split_by_compartment: bool,
 ) -> List[str]:
     """Get all bootstrap inputs for completion flag.
 
@@ -324,14 +324,20 @@ def get_bootstrap_inputs(
         gene_pvals_pattern (Union[str, Path]): Template string for gene p-value files.
         cell_class (str): Cell class for bootstrap analysis.
         channel_combo (str): Channel combination for bootstrap analysis.
+        compartment_combo (str): Compartment combination for bootstrap analysis.
+        split_by_compartment (bool): Whether compartment-specific paths are enabled.
 
     Returns:
         List[str]: List of all bootstrap output file paths for both constructs and genes.
     """
     # Get all construct data files from checkpoint
-    bootstrap_data_dir = checkpoint.get(
-        cell_class=cell_class, channel_combo=channel_combo
-    ).output[0]
+    checkpoint_wildcards = {
+        "cell_class": cell_class,
+        "channel_combo": channel_combo,
+    }
+    if split_by_compartment:
+        checkpoint_wildcards["compartment_combo"] = compartment_combo
+    bootstrap_data_dir = checkpoint.get(**checkpoint_wildcards).output[0]
 
     construct_files = glob.glob(f"{bootstrap_data_dir}/*__construct_data.tsv")
 
@@ -362,12 +368,14 @@ def get_bootstrap_inputs(
                 str(construct_nulls_pattern).format(
                     cell_class=cell_class,
                     channel_combo=channel_combo,
+                    compartment_combo=compartment_combo,
                     gene=gene,
                     construct=construct,
                 ),
                 str(construct_pvals_pattern).format(
                     cell_class=cell_class,
                     channel_combo=channel_combo,
+                    compartment_combo=compartment_combo,
                     gene=gene,
                     construct=construct,
                 ),
@@ -380,10 +388,16 @@ def get_bootstrap_inputs(
             outputs.extend(
                 [
                     str(gene_nulls_pattern).format(
-                        cell_class=cell_class, channel_combo=channel_combo, gene=gene
+                        cell_class=cell_class,
+                        channel_combo=channel_combo,
+                        compartment_combo=compartment_combo,
+                        gene=gene,
                     ),
                     str(gene_pvals_pattern).format(
-                        cell_class=cell_class, channel_combo=channel_combo, gene=gene
+                        cell_class=cell_class,
+                        channel_combo=channel_combo,
+                        compartment_combo=compartment_combo,
+                        gene=gene,
                     ),
                 ]
             )
@@ -397,6 +411,8 @@ def get_bootstrap_construct_outputs(
     construct_pvals_pattern: Union[str, Path],
     cell_class: str,
     channel_combo: str,
+    compartment_combo: str,
+    split_by_compartment: bool,
 ) -> List[str]:
     """Get all construct bootstrap outputs for completion flag.
 
@@ -410,6 +426,9 @@ def get_bootstrap_construct_outputs(
         cell_class (str): Cell class identifier for bootstrap analysis (e.g., 'live', 'dead').
         channel_combo (str): Channel combination identifier for bootstrap analysis
             (e.g., 'dapi_tubulin', 'all_channels').
+        compartment_combo (str): Compartment combination identifier for bootstrap analysis
+            (e.g., 'cell-nucleus-cytoplasm', 'nucleus').
+        split_by_compartment (bool): Whether compartment-specific paths are enabled.
 
     Returns:
         List[str]: List of all construct bootstrap output file paths, including both
@@ -417,9 +436,13 @@ def get_bootstrap_construct_outputs(
             the checkpoint directory.
     """
     # Get all construct data files from checkpoint
-    bootstrap_data_dir = checkpoint.get(
-        cell_class=cell_class, channel_combo=channel_combo
-    ).output[0]
+    checkpoint_wildcards = {
+        "cell_class": cell_class,
+        "channel_combo": channel_combo,
+    }
+    if split_by_compartment:
+        checkpoint_wildcards["compartment_combo"] = compartment_combo
+    bootstrap_data_dir = checkpoint.get(**checkpoint_wildcards).output[0]
 
     construct_files = glob.glob(f"{bootstrap_data_dir}/*__construct_data.tsv")
 
@@ -449,12 +472,14 @@ def get_bootstrap_construct_outputs(
                 str(construct_nulls_pattern).format(
                     cell_class=cell_class,
                     channel_combo=channel_combo,
+                    compartment_combo=compartment_combo,
                     gene=gene,
                     construct=construct,
                 ),
                 str(construct_pvals_pattern).format(
                     cell_class=cell_class,
                     channel_combo=channel_combo,
+                    compartment_combo=compartment_combo,
                     gene=gene,
                     construct=construct,
                 ),

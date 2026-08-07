@@ -1,5 +1,3 @@
-from functools import partial
-
 from lib.shared.compartment_utils import get_compartment_combo, format_rule_output
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
 from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_bootstrap_construct_outputs
@@ -7,18 +5,6 @@ from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_
 
 # Aggregate secondary object features into cell-level data
 SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", False)
-
-# Bind the compartment-split config once so rule input functions stay thin (logic lives in lib)
-get_rule_compartment_combo = partial(
-    get_compartment_combo,
-    split_by_compartment=SPLIT_BY_COMPARTMENT,
-    default_compartment_combo=DEFAULT_COMPARTMENT_COMBO,
-)
-format_rule_output = partial(
-    format_rule_output,
-    split_by_compartment=SPLIT_BY_COMPARTMENT,
-    default_compartment_combo=DEFAULT_COMPARTMENT_COMBO,
-)
 
 
 if SECOND_OBJ_DETECTION:
@@ -95,7 +81,9 @@ rule generate_feature_table:
             wildcards={
                 "cell_class": wildcards.cell_class,
                 "channel_combo": wildcards.channel_combo,
-                "compartment_combo": get_rule_compartment_combo(wildcards),
+                "compartment_combo": get_compartment_combo(
+                    wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+                ),
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
@@ -126,7 +114,9 @@ rule align:
             wildcards={
                 "cell_class": wildcards.cell_class,
                 "channel_combo": wildcards.channel_combo,
-                "compartment_combo": get_rule_compartment_combo(wildcards),
+                "compartment_combo": get_compartment_combo(
+                    wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+                ),
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
@@ -178,7 +168,9 @@ rule eval_aggregate:
             wildcards={
                 "cell_class": wildcards.cell_class,
                 "channel_combo": wildcards.channel_combo,
-                "compartment_combo": get_rule_compartment_combo(wildcards),
+                "compartment_combo": get_compartment_combo(
+                    wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+                ),
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
@@ -187,7 +179,9 @@ rule eval_aggregate:
     output:
         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
     params:
-        compartment_combo=get_rule_compartment_combo,
+        compartment_combo=lambda wildcards: get_compartment_combo(
+            wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+        ),
     script:
         "../scripts/aggregate/eval_aggregate.py"
 
@@ -275,13 +269,22 @@ rule initiate_montage:
 checkpoint prepare_bootstrap_data:
     input:
         features_singlecell=lambda wildcards: format_rule_output(
-            AGGREGATE_OUTPUTS["generate_feature_table"][0], wildcards
+            AGGREGATE_OUTPUTS["generate_feature_table"][0],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
         construct_table=lambda wildcards: format_rule_output(
-            AGGREGATE_OUTPUTS["generate_feature_table"][1], wildcards
+            AGGREGATE_OUTPUTS["generate_feature_table"][1],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
         gene_table=lambda wildcards: format_rule_output(
-            AGGREGATE_OUTPUTS["generate_feature_table"][2], wildcards
+            AGGREGATE_OUTPUTS["generate_feature_table"][2],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
     output:
         directory(BOOTSTRAP_OUTPUTS["bootstrap_data_dir"]),
@@ -306,13 +309,22 @@ rule bootstrap_construct:
     input:
         construct_data=BOOTSTRAP_OUTPUTS["construct_data"],
         controls_arr=lambda wildcards: format_rule_output(
-            BOOTSTRAP_OUTPUTS["controls_arr"], wildcards
+            BOOTSTRAP_OUTPUTS["controls_arr"],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
         construct_features_arr=lambda wildcards: format_rule_output(
-            BOOTSTRAP_OUTPUTS["construct_features_arr"], wildcards
+            BOOTSTRAP_OUTPUTS["construct_features_arr"],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
         sample_sizes=lambda wildcards: format_rule_output(
-            BOOTSTRAP_OUTPUTS["sample_sizes"], wildcards
+            BOOTSTRAP_OUTPUTS["sample_sizes"],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
     output:
         BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
@@ -332,7 +344,9 @@ rule construct_bootstrap_complete:
             BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
             wildcards.cell_class,
             wildcards.channel_combo,
-            get_rule_compartment_combo(wildcards),
+            get_compartment_combo(
+                wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+            ),
             SPLIT_BY_COMPARTMENT,
         ),
     output:
@@ -344,7 +358,10 @@ rule bootstrap_gene:
     input:
         construct_flag=BOOTSTRAP_OUTPUTS["construct_bootstrap_flag"],
         gene_table=lambda wildcards: format_rule_output(
-            AGGREGATE_OUTPUTS["generate_feature_table"][2], wildcards
+            AGGREGATE_OUTPUTS["generate_feature_table"][2],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
     output:
         BOOTSTRAP_OUTPUTS["bootstrap_gene_nulls"],
@@ -354,8 +371,10 @@ rule bootstrap_gene:
         construct_nulls_pattern=lambda wildcards: format_rule_output(
             BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
             wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
             gene=wildcards.gene,
-            construct="{construct}"
+            construct="{construct}",
         ),
         bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
         bootstrap_extra_features=config.get("aggregate", {}).get("bootstrap_extra_features", None),
@@ -374,7 +393,9 @@ rule initiate_bootstrap:
             BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
             wildcards.cell_class,
             wildcards.channel_combo,
-            get_rule_compartment_combo(wildcards),
+            get_compartment_combo(
+                wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+            ),
             SPLIT_BY_COMPARTMENT,
         ),
     output:
@@ -392,10 +413,14 @@ rule combine_bootstrap:
         constructs_dir=lambda wildcards: format_rule_output(
             BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"].parent,
             wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
         genes_dir=lambda wildcards: format_rule_output(
             BOOTSTRAP_OUTPUTS["bootstrap_gene_nulls"].parent,
             wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
     script:
         "../scripts/aggregate/combine_bootstrap.py"

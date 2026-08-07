@@ -1,4 +1,6 @@
-from lib.shared.compartment_utils import get_compartment_combo
+from functools import partial
+
+from lib.shared.compartment_utils import get_compartment_combo, format_rule_output
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
 from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_bootstrap_construct_outputs
 
@@ -6,22 +8,17 @@ from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_
 # Aggregate secondary object features into cell-level data
 SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", False)
 
-
-def get_rule_compartment_combo(wildcards):
-    return get_compartment_combo(
-        wildcards,
-        SPLIT_BY_COMPARTMENT,
-        DEFAULT_COMPARTMENT_COMBO,
-    )
-
-
-def format_rule_output(output, wildcards, **values):
-    return str(output).format(
-        cell_class=wildcards.cell_class,
-        channel_combo=wildcards.channel_combo,
-        compartment_combo=get_rule_compartment_combo(wildcards),
-        **values,
-    )
+# Bind the compartment-split config once so rule input functions stay thin (logic lives in lib)
+get_rule_compartment_combo = partial(
+    get_compartment_combo,
+    split_by_compartment=SPLIT_BY_COMPARTMENT,
+    default_compartment_combo=DEFAULT_COMPARTMENT_COMBO,
+)
+format_rule_output = partial(
+    format_rule_output,
+    split_by_compartment=SPLIT_BY_COMPARTMENT,
+    default_compartment_combo=DEFAULT_COMPARTMENT_COMBO,
+)
 
 
 if SECOND_OBJ_DETECTION:

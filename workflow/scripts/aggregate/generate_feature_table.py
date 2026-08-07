@@ -203,8 +203,7 @@ gc.collect()
 construct_table = pd.DataFrame(construct_rows)
 
 # Reorder columns: sgRNA, gene, cell_count, features
-# Dedupe while preserving order: the id, name and control-name cols may coincide, and
-# control_name_col has to survive for the control filter below.
+# Dedupe preserving order; control_name_col must survive for the control filter below
 construct_columns = list(
     dict.fromkeys(
         [pert_id_col, pert_col, control_name_col, "cell_count"] + feature_cols

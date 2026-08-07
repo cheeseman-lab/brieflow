@@ -88,6 +88,39 @@ def get_compartment_combo(
     return default_compartment_combo
 
 
+def format_rule_output(
+    output,
+    wildcards,
+    split_by_compartment: bool,
+    default_compartment_combo: str,
+    **values,
+):
+    """Format a target-path template with the current rule's wildcards.
+
+    Fills cell_class, channel_combo, and the resolved compartment_combo (plus any extra
+    values), so rule input functions can resolve sibling output paths without defining
+    helpers in the .smk files.
+
+    Args:
+        output: A target-path template (str or Path) containing named fields.
+        wildcards: Snakemake wildcards for the current job.
+        split_by_compartment: Whether compartment-specific paths are enabled.
+        default_compartment_combo: Combo to use when splitting is disabled.
+        **values: Additional template fields to fill (e.g. gene, construct).
+
+    Returns:
+        The formatted path string.
+    """
+    return str(output).format(
+        cell_class=wildcards.cell_class,
+        channel_combo=wildcards.channel_combo,
+        compartment_combo=get_compartment_combo(
+            wildcards, split_by_compartment, default_compartment_combo
+        ),
+        **values,
+    )
+
+
 def add_compartment_metadata(
     metadata: dict,
     compartment_combo: str,

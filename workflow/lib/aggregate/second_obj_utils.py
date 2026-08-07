@@ -137,8 +137,7 @@ def _aggregate_single(
         second_objs.groupby(cells_merge_keys).size().reset_index(name="_obj_count")
     )
 
-    # Tag cells with their object count; keep a stable key so the split/concat below
-    # preserves the input cell order (the feature merge would otherwise reorder rows).
+    # Tag cells with their object count, keeping a stable key so the split/concat below preserves input order
     cells_with_count = cells_df.merge(obj_counts, on=cells_merge_keys, how="left")
     cells_with_count["_obj_count"] = cells_with_count["_obj_count"].fillna(0)
     cells_with_count = cells_with_count.reset_index(drop=True)

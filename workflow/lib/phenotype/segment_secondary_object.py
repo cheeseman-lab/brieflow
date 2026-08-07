@@ -208,8 +208,7 @@ def segment_second_objs_ml(
         # Initialize Cellpose model (handles version detection and validation)
         model = create_cellpose_model(model_type, gpu=gpu)
 
-        # Run Cellpose segmentation
-        # eval() returns (masks, flows, styles); diameter must be explicit for Cellpose 4.x.
+        # eval() returns (masks, flows, styles); diameter must be explicit for Cellpose 4.x
         labeled_mask, flows, styles = model.eval(
             target_channel,
             diameter=diameter,
@@ -502,8 +501,7 @@ def segment_second_objs(
         )
         print(f"After shape refinement: {len(np.unique(declumped)) - 1} objects")
 
-    # Fill holes after declumping (if enabled). Only claim background pixels so a filled
-    # hole cannot overwrite a neighboring declumped object.
+    # Fill holes after declumping, claiming only background pixels so a fill can't overwrite a neighboring object
     if fill_holes in ["declump", "both"]:
         unique_labels = np.unique(declumped[declumped > 0])
         for label in unique_labels:

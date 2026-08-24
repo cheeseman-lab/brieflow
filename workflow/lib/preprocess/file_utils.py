@@ -211,7 +211,23 @@ def get_metadata_wildcard_combos(
         metadata_columns = [
             col for col in metadata_samples_df.columns if col != "sample_fp"
         ]
-        return metadata_samples_df[metadata_columns].drop_duplicates().astype(str)
+        combos = metadata_samples_df[metadata_columns].drop_duplicates().astype(str)
+        # The metadata rule runs per-tile (plate/well/tile/cycle). When the metadata
+        # source is coarser than that — e.g. one Opera Phenix Index.xml per cycle covers
+        # every well/tile — expand to per-tile jobs by joining the image samples' finer
+        # keys onto the shared coarse keys; extract_metadata_tiff then narrows the shared
+        # file to each FOV. No-op when the metadata is already per-tile.
+        if not samples_df.empty and not {"well", "tile"}.issubset(metadata_columns):
+            tile_keys = [
+                k
+                for k in ("plate", "well", "tile", "cycle", "round")
+                if k in samples_df.columns
+            ]
+            shared = [c for c in metadata_columns if c in tile_keys]
+            if shared and {"well", "tile"} & set(tile_keys):
+                tiles = samples_df[tile_keys].drop_duplicates().astype(str)
+                combos = tiles.merge(combos, on=shared, how="inner")
+        return combos.reset_index(drop=True)
     elif not samples_df.empty:
         # Use image file structure for metadata extraction
         return samples_df.drop(columns=["sample_fp"]).drop_duplicates().astype(str)

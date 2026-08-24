@@ -407,17 +407,6 @@ def extract_metadata_tiff(
                         return name
                 return None
 
-            # Narrow an all-tiles metadata table to this FOV (no-op for per-tile files)
-            _wc = find_column("well")
-            _tc = find_column("tile")
-            _cc = find_column("cycle")
-            if _wc and well is not None:
-                metadata_df = metadata_df[metadata_df[_wc].astype(str) == str(well)]
-            if _tc and tile is not None:
-                metadata_df = metadata_df[metadata_df[_tc].astype(str) == str(tile)]
-            if _cc and cycle is not None:
-                metadata_df = metadata_df[metadata_df[_cc].astype(str) == str(cycle)]
-
             # Convert entire dataframe to standardized format
             metadata_rows = []
 

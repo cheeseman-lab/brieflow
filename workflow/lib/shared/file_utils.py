@@ -454,17 +454,20 @@ def split_well_to_cols(df):
 def get_well_from_wildcards(wildcards):
     """Get well identifier from wildcards.
 
-    Handles both ``{well}`` (TIFF) and ``{row}/{col}`` (zarr) modes.
+    Handles ``{well}`` (TIFF) and ``{row}/{col}`` (zarr) modes, and returns None
+    when neither is present (a coarse metadata job scoped by plate/cycle, not well).
 
     Args:
         wildcards: Snakemake wildcards object.
 
     Returns:
-        str: Well string (e.g. ``"A1"``).
+        str | None: Well string (e.g. ``"A1"``), or None when the job carries no well.
     """
     if hasattr(wildcards, "well"):
         return str(wildcards.well)
-    return str(wildcards.row) + str(wildcards.col)
+    if hasattr(wildcards, "row") and hasattr(wildcards, "col"):
+        return str(wildcards.row) + str(wildcards.col)
+    return None
 
 
 def validate_data_type(data_type):

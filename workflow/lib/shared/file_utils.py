@@ -438,10 +438,16 @@ def split_well_to_cols(df):
         pd.DataFrame: Copy with ``row`` and ``col`` columns added.
     """
     if len(df) > 0 and "well" in df.columns:
-        splits = df["well"].str.extract(r"^([A-Za-z]+)(\d+)$")
         df = df.copy()
-        df["row"] = splits[0].values
-        df["col"] = splits[1].values
+        w = df["well"].astype(str)
+        # A1 / B12 style: alphabetic row + numeric col.
+        splits = w.str.extract(r"^([A-Za-z]+)(\d+)$")
+        # Opera Phenix rNNcNN style: numeric row AND col. Keep the r/c prefixes so
+        # get_well_from_wildcards' str(row)+str(col) round-trips to the original well
+        # (e.g. "r02c02" -> row="r02", col="c02" -> "r02c02").
+        phenix = w.str.extract(r"^([Rr]\d+)([Cc]\d+)$")
+        df["row"] = splits[0].fillna(phenix[0]).values
+        df["col"] = splits[1].fillna(phenix[1]).values
     return df
 
 

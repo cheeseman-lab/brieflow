@@ -19,8 +19,11 @@ IMG_FMT = config.get("all", {}).get("image_format", "tiff")
 #     row="[A-Za-z]+",
 #     col="[0-9]+",
 wildcard_constraints:
-    row=r"[A-Za-z]+",
-    col=r"[0-9]+",
+    # Accept both plate-well style (row=letters "A", col=digits "1") AND Opera Phenix
+    # numeric wells (row="r02", col="c02"). Segments are "/"-delimited in paths so
+    # widening these does not introduce cross-wildcard ambiguity.
+    row=r"[A-Za-z]+\d*",
+    col=r"[A-Za-z]*\d+",
     tile=r"[0-9]+",
     plate=r"[0-9]+",
 

@@ -287,8 +287,9 @@ def extract_metadata_tiff(
     """Extract metadata for TIFF files using external metadata file.
 
     TIFF files don't contain position metadata in their headers, so this function
-    reads from an external CSV/TSV file containing stage positions and other metadata.
-    The function handles various column naming conventions and unit conversions.
+    reads from an external file containing stage positions and other metadata,
+    dispatching on file type (.csv, .xml Opera Phenix Index, else TSV). The function
+    handles various column naming conventions and unit conversions.
 
     Args:
         file_path: Path to the TIFF file
@@ -297,7 +298,7 @@ def extract_metadata_tiff(
         tile: Tile/FOV number
         cycle: Optional cycle number
         round: Optional round number
-        metadata_file_path: Path to CSV/TSV with position metadata
+        metadata_file_path: Path to a position-metadata file (.csv / .tsv / Phenix .xml)
         verbose: Print debug information
 
     Returns:
@@ -308,9 +309,11 @@ def extract_metadata_tiff(
             print(f"Reading metadata from: {metadata_file_path}")
 
         try:
-            # Read metadata file
+            # Read metadata file, dispatching on its type
             if metadata_file_path.endswith(".csv"):
                 metadata_df = pd.read_csv(metadata_file_path)
+            elif metadata_file_path.endswith(".xml"):
+                metadata_df = read_phenix_index_xml(metadata_file_path)
             else:  # assume TSV
                 metadata_df = pd.read_csv(metadata_file_path, sep="\t")
 
@@ -403,6 +406,17 @@ def extract_metadata_tiff(
                     if name in metadata_df.columns:
                         return name
                 return None
+
+            # Narrow an all-tiles metadata table to this FOV (no-op for per-tile files)
+            _wc = find_column("well")
+            _tc = find_column("tile")
+            _cc = find_column("cycle")
+            if _wc and well is not None:
+                metadata_df = metadata_df[metadata_df[_wc].astype(str) == str(well)]
+            if _tc and tile is not None:
+                metadata_df = metadata_df[metadata_df[_tc].astype(str) == str(tile)]
+            if _cc and cycle is not None:
+                metadata_df = metadata_df[metadata_df[_cc].astype(str) == str(cycle)]
 
             # Convert entire dataframe to standardized format
             metadata_rows = []
@@ -899,6 +913,43 @@ def convert_tiff_to_array(
             )
 
     return result.astype(np.uint16)
+
+
+def read_phenix_index_xml(index_fp):
+    """Read Opera Phenix `Index.xml` stage positions into an external-metadata table.
+
+    Maps each `<Image>` `URL` (filename `rNNcNNfNN...`) to its well (`rNNcNN`) and tile
+    (`fNN`), converting `PositionX/Y` from meters to micrometers. Returns columns
+    `well, tile, x_pos, y_pos`; empty DataFrame if the file holds no readable positions.
+
+    Args:
+        index_fp (str | Path): Path to a single Opera Phenix `Index.xml`.
+
+    Returns:
+        pd.DataFrame: per-FOV stage positions.
+    """
+    with open(index_fp, encoding="utf-8", errors="ignore") as fh:
+        xml = fh.read()
+    rows = []
+    for block in re.finditer(r"<Image[ >].*?</Image>", xml, re.S):
+        b = block.group(0)
+        url = re.search(r"<URL>([^<]*)</URL>", b)
+        pos_x = re.search(r"<PositionX[^>]*>([^<]*)</PositionX>", b)
+        pos_y = re.search(r"<PositionY[^>]*>([^<]*)</PositionY>", b)
+        if not (url and pos_x and pos_y):
+            continue
+        wt = re.match(r"(r\d+c\d+)f(\d+)", url.group(1))
+        if not wt:
+            continue
+        rows.append({
+            "well": wt.group(1),
+            "tile": int(wt.group(2)),
+            "x_pos": float(pos_x.group(1)) * 1e6,
+            "y_pos": float(pos_y.group(1)) * 1e6,
+        })
+    if not rows:
+        return pd.DataFrame(columns=["well", "tile", "x_pos", "y_pos"])
+    return pd.DataFrame(rows).drop_duplicates(subset=["well", "tile"]).reset_index(drop=True)
 
 
 def extract_metadata(

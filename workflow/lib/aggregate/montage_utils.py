@@ -19,7 +19,7 @@ from itertools import product
 
 import numpy as np
 
-from lib.shared.file_utils import get_filename, get_hcs_nested_path
+from lib.shared.file_utils import get_filename, get_hcs_nested_path, split_well
 from lib.shared.image_io import read_image
 from lib.external.cp_emulator import subimage
 
@@ -43,10 +43,11 @@ def add_filenames(merge_data, root_fp, img_fmt="tiff"):
     def _build_path(row):
         if img_fmt == "zarr":
             well = str(row["well"])
+            _row, _col = split_well(well)
             loc = {
                 "plate": row["plate"],
-                "row": well[0],
-                "col": well[1:],
+                "row": _row,
+                "col": _col,
                 "tile": row["tile"],
             }
             return str(root_fp / "phenotype" / get_hcs_nested_path(loc, "aligned"))

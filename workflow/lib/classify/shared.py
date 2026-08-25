@@ -20,7 +20,7 @@ import tifffile
 from PIL import Image as PILImage
 from skimage import measure, segmentation
 
-from lib.shared.file_utils import get_filename
+from lib.shared.file_utils import get_filename, split_well
 from lib.shared.parquet_io import read_parquet
 
 
@@ -160,8 +160,8 @@ def load_aligned_stack(
     wname = well_for_filename(well)
     m = re.match(r"^([A-Z])(\d{1,2})$", wname)
     wpad = f"{m.group(1)}{int(m.group(2)):02d}" if m else wname
-    row = wname[0]
-    col = wname[1:]
+    # Split the raw well canonically (wname/wpad above are for the TIFF-fallback filename).
+    row, col = split_well(str(well))
 
     # Try OME-Zarr HCS layout first, then TIFF
     zarr_candidates = [
@@ -230,8 +230,8 @@ def load_mask_labels(
     wname = well_for_filename(well)
     m = re.match(r"^([A-Z])(\d{1,2})$", wname)
     wpad = f"{m.group(1)}{int(m.group(2)):02d}" if m else wname
-    row = wname[0]
-    col = wname[1:]
+    # Split the raw well canonically (wname/wpad above are for the TIFF-fallback filename).
+    row, col = split_well(str(well))
 
     label_name = "identified_vacuoles" if mode_ == "vacuole" else "cells"
 
@@ -314,8 +314,8 @@ def load_parquet(
     wname = well_for_filename(well)
     m = re.match(r"^([A-Z])(\d{1,2})$", wname)
     wpad = f"{m.group(1)}{int(m.group(2)):02d}" if m else wname
-    row = wname[0]
-    col = wname[1:]
+    # Split the raw well canonically (wname/wpad above are for the TIFF-fallback filename).
+    row, col = split_well(str(well))
     if mode_ == "vacuole":
         candidates = [
             # HCS nested layout

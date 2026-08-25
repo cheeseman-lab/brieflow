@@ -14,6 +14,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from lib.shared.file_utils import WELL_ROWCOL_PATTERNS, split_well
+
 from iohub.ngff import open_ome_zarr
 from iohub.ngff.display import channel_display_settings
 from iohub.ngff.models import OMEROMeta, RDefsMeta, TransformationMeta
@@ -95,9 +97,10 @@ def discover_plate_structure(plate_zarr_path):
             continue
 
         row, col, tile = parts[0], parts[1], parts[2]
-        if not re.match(r"^[A-Za-z]+$", str(row)):
+        if not str(tile).isdigit():
             continue
-        if not str(col).isdigit() or not str(tile).isdigit():
+        # Skip zarr.json paths whose (row, col) don't reconstruct to a recognized well.
+        if not any(p.match(f"{row}{col}") for p in WELL_ROWCOL_PATTERNS):
             continue
 
         key = (row, col, tile)
@@ -116,9 +119,10 @@ def discover_plate_structure(plate_zarr_path):
             continue
 
         row, col, tile = parts[0], parts[1], parts[2]
-        if not re.match(r"^[A-Za-z]+$", str(row)):
+        if not str(tile).isdigit():
             continue
-        if not str(col).isdigit() or not str(tile).isdigit():
+        # Skip zarr.json paths whose (row, col) don't reconstruct to a recognized well.
+        if not any(p.match(f"{row}{col}") for p in WELL_ROWCOL_PATTERNS):
             continue
 
         key = (row, col, tile)
@@ -333,11 +337,8 @@ def _normalize_channels_metadata(channels_metadata):
 
 
 def _split_well(well_str):
-    """Split a well identifier like 'A1' into (row, col) -> ('A', '1')."""
-    match = re.match(r"^([A-Za-z]+)(\d+)$", str(well_str))
-    if not match:
-        raise ValueError(f"Cannot parse well identifier: '{well_str}'")
-    return match.group(1), match.group(2)
+    """Deprecated shim — use ``lib.shared.file_utils.split_well`` (handles Phenix)."""
+    return split_well(well_str)
 
 
 # ---------------------------------------------------------------------------

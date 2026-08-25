@@ -115,29 +115,11 @@ def get_sample_fps(
 
             # If channel order is specified, get files in that order for this round
             if "channel" in round_df.columns and channel_order is not None:
-                # Group by channel, handling potential z-planes
-                channel_groups = {
-                    chan: group for chan, group in round_df.groupby("channel")
-                }
-
-                # Add files for each requested channel if available in this round
+                # Shared channel-major / z-within-channel ordering (see collect_channel_z_ordered).
+                all_files.extend(collect_channel_z_ordered(round_df, channel_order, z))
+                present_channels = set(round_df["channel"].unique())
                 for channel in channel_order:
-                    if channel in channel_groups:
-                        channel_df = channel_groups[channel]
-
-                        # Handle z-planes: if z column exists and z is None, add all z-planes sorted
-                        if "z" in channel_df.columns and z is None:
-                            z_sorted = channel_df.sort_values("z")
-                            z_files = z_sorted["sample_fp"].tolist()
-                            all_files.extend(z_files)
-                            if verbose:
-                                print(
-                                    f"Round {round_num}, Channel {channel}: Added {len(z_files)} z-planes"
-                                )
-                        else:
-                            # Single file per channel
-                            all_files.append(channel_df["sample_fp"].iloc[0])
-
+                    if channel in present_channels:
                         final_channel_order.append(f"Round {round_num}: {channel}")
             else:
                 # If no channel order, handle z-planes if present
@@ -168,14 +150,10 @@ def get_sample_fps(
             return all_files[0]
         return all_files
 
-    # If no rounds specified but we have channels and channel order
+    # If no rounds specified but we have channels and channel order (the SBS path)
     if "channel" in filtered_df.columns and channel_order is not None:
-        channel_to_file = dict(zip(filtered_df["channel"], filtered_df["sample_fp"]))
-        result = [
-            channel_to_file[channel]
-            for channel in channel_order
-            if channel in channel_to_file
-        ]
+        # Shared ordering; a {channel: fp} dict here collapsed z-planes -> single-channel zarrs.
+        result = collect_channel_z_ordered(filtered_df, channel_order, z)
         # Return single string if input was single value and result is single file
         if channel_was_single and len(result) == 1:
             return result[0]
@@ -183,6 +161,13 @@ def get_sample_fps(
 
     # Handle z-planes: if z column exists and z parameter is None, return all z-planes sorted
     if "z" in filtered_df.columns and z is None:
+        # Without channel_order a bare z-sort would interleave multiple channels; refuse.
+        if "channel" in filtered_df.columns and filtered_df["channel"].nunique() > 1:
+            raise ValueError(
+                "get_sample_fps: a multi-channel z-stack reached the bare-z fallback "
+                "with no channel_order — cannot infer a channel-major ordering "
+                "(would interleave channels). Pass channel_order (e.g. sbs_channel_order)."
+            )
         # Sort by z-plane and return all files
         z_sorted_df = filtered_df.sort_values("z")
         z_files = z_sorted_df["sample_fp"].tolist()
@@ -192,6 +177,29 @@ def get_sample_fps(
 
     # Otherwise return single file path
     return filtered_df["sample_fp"].iloc[0]
+
+
+def collect_channel_z_ordered(df, channel_order, z):
+    """Return sample_fps channel-major with all z-planes per channel, sorted.
+
+    For each channel in ``channel_order`` present in ``df``, appends that channel's
+    z-planes ascending (when a ``z`` column exists and ``z is None``), else one file.
+    This is the ordering ``convert_tiff_to_array`` expects
+    (``[ch0_z0, ch0_z1, ..., ch1_z0, ...]``), shared by :func:`get_sample_fps`'s
+    branches. A ``{channel: fp}`` dict must not be used here — it drops all but one
+    z-plane per channel, yielding single-channel arrays.
+    """
+    files = []
+    channel_groups = {chan: grp for chan, grp in df.groupby("channel")}
+    for chan in channel_order:
+        if chan not in channel_groups:
+            continue
+        chan_df = channel_groups[chan]
+        if "z" in chan_df.columns and z is None:
+            files.extend(chan_df.sort_values("z")["sample_fp"].tolist())
+        else:
+            files.append(chan_df["sample_fp"].iloc[0])
+    return files
 
 
 def get_metadata_wildcard_combos(

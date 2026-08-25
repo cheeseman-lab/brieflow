@@ -1,5 +1,6 @@
 """Utility functions for handling and filtering sample file paths in the BrieFlow pipeline."""
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -426,10 +427,49 @@ def get_data_output_path(data_location, info_type, file_type, img_fmt="tiff"):
     return get_filename(data_location, info_type, file_type)
 
 
-def split_well_to_cols(df):
-    """Add ``row`` and ``col`` columns derived from ``well``.
+# Canonical well->(row,col) patterns; extend here (one source of truth), not at call sites.
+WELL_ROWCOL_PATTERNS = (
+    re.compile(r"^([A-Za-z]+)(\d+)$"),
+    re.compile(r"^([Rr]\d+)([Cc]\d+)$"),
+)
 
-    E.g. ``"A1"`` → ``row="A"``, ``col="1"``.
+
+def split_well(well):
+    """Split a well id into its ``(row, col)`` HCS-path components.
+
+    Canonical scalar derivation shared with the vectorized :func:`split_well_to_cols`
+    via ``WELL_ROWCOL_PATTERNS`` (alphanumeric ``"A1"`` -> ``("A", "1")``, Opera Phenix
+    ``"r02c05"`` -> ``("r02", "c05")``, prefixes kept so ``str(row)+str(col)`` round-trips).
+    Raises ``ValueError`` on an unrecognized convention rather than mis-splitting — the
+    naive ``well[0], well[1:]`` turned ``"r02c05"`` into ``("r", "02c05")`` and 404'd
+    every HCS-nested path.
+
+    Args:
+        well: Well identifier (e.g. ``"A1"``, ``"r02c05"``).
+
+    Returns:
+        tuple[str, str]: ``(row, col)``.
+
+    Raises:
+        ValueError: If ``well`` matches no known convention.
+    """
+    s = str(well)
+    for pattern in WELL_ROWCOL_PATTERNS:
+        m = pattern.match(s)
+        if m:
+            return m.group(1), m.group(2)
+    raise ValueError(
+        f"Cannot split well '{well}' into (row, col): matches no known convention "
+        f"(alphanumeric 'A1' or Opera Phenix 'r02c05'). Extend WELL_ROWCOL_PATTERNS."
+    )
+
+
+def split_well_to_cols(df):
+    """Add ``row`` and ``col`` columns derived from ``well`` (vectorized).
+
+    Vectorized twin of :func:`split_well`, sharing ``WELL_ROWCOL_PATTERNS`` so the two
+    derivations cannot drift. E.g. ``"A1"`` -> ``row="A"``, ``col="1"``; ``"r02c05"`` ->
+    ``row="r02"``, ``col="c05"``.
 
     Args:
         df (pd.DataFrame): DataFrame with a ``well`` column.
@@ -440,12 +480,9 @@ def split_well_to_cols(df):
     if len(df) > 0 and "well" in df.columns:
         df = df.copy()
         w = df["well"].astype(str)
-        # A1 / B12 style: alphabetic row + numeric col.
-        splits = w.str.extract(r"^([A-Za-z]+)(\d+)$")
-        # Opera Phenix rNNcNN style: numeric row AND col. Keep the r/c prefixes so
-        # get_well_from_wildcards' str(row)+str(col) round-trips to the original well
-        # (e.g. "r02c02" -> row="r02", col="c02" -> "r02c02").
-        phenix = w.str.extract(r"^([Rr]\d+)([Cc]\d+)$")
+        alpha_re, phenix_re = WELL_ROWCOL_PATTERNS
+        splits = w.str.extract(alpha_re.pattern)
+        phenix = w.str.extract(phenix_re.pattern)
         df["row"] = splits[0].fillna(phenix[0]).values
         df["col"] = splits[1].fillna(phenix[1]).values
     return df

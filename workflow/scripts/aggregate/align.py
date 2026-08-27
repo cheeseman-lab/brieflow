@@ -56,9 +56,10 @@ n_sample = min(PCA_SUBSET, total_rows)
 random_indices = np.random.choice(total_rows, size=n_sample, replace=False)
 random_indices.sort()
 
-# load sample df
+# load sample df; drop null columns as the batch loop below does, since filter drops
+# columns per well and pyarrow fills the missing ones with nulls the PCA cannot consume
 sample_df = cell_dataset.scanner().take(random_indices)
-sample_df = sample_df.to_pandas(use_threads=True, memory_pool=None)
+sample_df = sample_df.to_pandas(use_threads=True, memory_pool=None).dropna(axis=1)
 
 # load sample df as pandas dataframe
 use_classifier = snakemake.params.use_classifier

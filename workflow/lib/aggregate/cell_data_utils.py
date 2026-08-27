@@ -60,7 +60,12 @@ def control_mask(perturbation_values, control_key, match="contains"):
     perturbations = perturbation_values.astype(str).str.split(GROUP_KEY_SEP, n=1).str[0]
 
     if isinstance(control_key, (list, tuple, set)):
-        return perturbations.isin(set(control_key))
+        keys = set(control_key)
+        # prepare_alignment_data uniquifies controls to <name>_<pert_id>, so an exact
+        # match alone would stop seeing them downstream of that rename
+        renamed = perturbations.str.startswith(tuple(f"{key}_" for key in keys))
+
+        return perturbations.isin(keys) | renamed
     if match == "startswith":
         return perturbations.str.startswith(control_key, na=False)
 

@@ -159,6 +159,22 @@ def test_control_mask_ignores_a_control_key_naming_a_group_value():
 # --- Bug class 3: well-annotation join -------------------------------------------
 
 
+def test_control_mask_list_survives_the_control_rename():
+    """prepare_alignment_data uniquifies controls to <name>_<pert_id>.
+
+    An exact-only list match stops seeing them after that rename, which silently
+    skips TVN normalization instead of failing. The suffixed form must still match,
+    while a longer name sharing the prefix (EGFP_10) must not.
+    """
+    values = pd.Series(
+        ["EGFP_1", "EGFP_1_CCTCCGGC", "H2B-EGFP_1_CCTCGCGT", "NES-EGFP_1", "EGFP_10"]
+    )
+
+    flagged = values[control_mask(values, ["EGFP_1", "H2B-EGFP_1"])].tolist()
+
+    assert flagged == ["EGFP_1", "EGFP_1_CCTCCGGC", "H2B-EGFP_1_CCTCGCGT"]
+
+
 def test_join_well_annotations_raises_on_unmapped_well(tmp_path):
     """An unmapped well becomes a NaN group that groupby drops without a word."""
     metadata = pd.DataFrame({"plate": [1, 1], "well": ["A1", "A2"], "cell": [10, 11]})

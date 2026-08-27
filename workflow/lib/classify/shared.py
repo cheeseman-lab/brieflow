@@ -129,15 +129,17 @@ def well_for_filename(well: Union[str, int]) -> str:
       - 'A01' -> 'A1'  (strip leading zeros)
       - 'b12' -> 'B12'
 
-    If the pattern doesn't match Letter+digits, returns uppercased string as-is.
+    Ids that are not Letter+digits are returned unchanged: Opera Phenix "r02c05"
+    has no unpadded form, and uppercasing it to "R02C05" built filenames that
+    matched nothing on disk.
     """
-    s = str(well).strip().upper()
-    m = re.match(r"^([A-Z])0*(\d{1,2})$", s)
+    s = str(well).strip()
+    m = re.match(r"^([A-Za-z])0*(\d{1,2})$", s)
     if not m:
         return s
     row, col = m.group(1), m.group(2)
     # int() removes any leading zeros
-    return f"{row}{int(col)}"
+    return f"{row.upper()}{int(col)}"
 
 
 def load_aligned_stack(

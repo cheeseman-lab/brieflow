@@ -7,6 +7,8 @@ Covers the two bug classes fixed for the first Phenix screens (PoTC, zargun):
    in lib.shared.file_utils. The naive `well[0], well[1:]` split turned r02c05 into
    ("r","02c05") and 404'd every HCS-nested path; `discover_plate_structure`'s
    alpha-only guard also silently dropped Phenix wells from tile enumeration.
+   `well_for_filename` likewise uppercased anything it did not recognize, turning
+   r02c02 into R02C02 and building parquet paths that matched nothing on disk.
 2. `get_sample_fps` must not collapse z-planes for SBS (no round_order): keying a
    dict by channel dropped the n_z_planes rows/channel, yielding single-channel zarrs.
 """
@@ -24,6 +26,7 @@ if str(_WORKFLOW) not in sys.path:
     sys.path.insert(0, str(_WORKFLOW))
 
 from lib.shared.file_utils import split_well, split_well_to_cols  # noqa: E402
+from lib.classify.shared import well_for_filename  # noqa: E402
 from lib.preprocess.file_utils import get_sample_fps  # noqa: E402
 from lib.shared.hcs import discover_plate_structure  # noqa: E402
 
@@ -74,6 +77,29 @@ def test_discover_plate_structure_includes_phenix(tmp_path):
     found = set(discover_plate_structure(plate))
     assert ("A", "1", "1") in found
     assert ("r02", "c03", "1") in found  # would be dropped by the old alpha-only guard
+
+
+@pytest.mark.parametrize(
+    "well,expected",
+    [
+        ("A1", "A1"),
+        ("A01", "A1"),      # unpadded column
+        ("b12", "B12"),     # row letter uppercased
+        ("r02c02", "r02c02"),   # Phenix: unchanged, NOT "R02C02"
+        ("r06c10", "r06c10"),
+    ],
+)
+def test_well_for_filename(well, expected):
+    assert well_for_filename(well) == expected
+
+
+def test_well_for_filename_roundtrips_phenix_parquet_name():
+    """The normalized well must reproduce the name the pipeline actually writes."""
+    from lib.shared.file_utils import get_filename
+
+    well = "r02c02"
+    name = get_filename({"plate": 1, "well": well_for_filename(well)}, "merge_final", "parquet")
+    assert name == "P-1_W-r02c02__merge_final.parquet"
 
 
 # --- Bug class 2: SBS z-plane convert -------------------------------------------

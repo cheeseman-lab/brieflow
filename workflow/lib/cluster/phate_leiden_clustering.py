@@ -14,6 +14,8 @@ from igraph import Graph
 import leidenalg
 import phate
 
+from lib.aggregate.cell_data_utils import control_mask
+
 
 def phate_leiden_pipeline(
     aggregated_data,
@@ -176,7 +178,7 @@ def plot_phate_leiden_clusters(
         phate_leiden_clustering (pd.DataFrame): Output from phate_leiden_pipeline with
             'PHATE_0', 'PHATE_1', and 'cluster' columns.
         perturbation_name_col (str): Column name containing perturbation identifiers.
-        control_key (str): Prefix or value in perturbation_name_col that identifies controls.
+        control_key (str | list): Prefix or value in perturbation_name_col that identifies controls.
         figsize (tuple, optional): Figure dimensions (width, height). Defaults to (8, 8).
         clusters_of_interest (list or int, optional): Cluster ID(s) to highlight. If None,
             all clusters are colored. Defaults to None.
@@ -198,11 +200,11 @@ def plot_phate_leiden_clusters(
             clusters_of_interest = [clusters_of_interest]
 
     # Split data into experimental and control groups
-    control_mask = phate_leiden_clustering[perturbation_name_col].str.startswith(
-        control_key
+    is_control = control_mask(
+        phate_leiden_clustering[perturbation_name_col], control_key, match="startswith"
     )
-    control_data = phate_leiden_clustering[control_mask]
-    exp_data = phate_leiden_clustering[~control_mask]
+    control_data = phate_leiden_clustering[is_control]
+    exp_data = phate_leiden_clustering[~is_control]
 
     if clusters_of_interest is None:
         # Original behavior - plot all experimental data colored by cluster
@@ -310,7 +312,7 @@ def calculate_potential_to_nontargeting(
 
     Args:
         potential_df (pd.DataFrame): DataFrame with gene_symbol_0 and potential columns
-        control_key (str): String pattern used to identify control rows
+        control_key (str | list): String pattern used to identify control rows
         distance_metric (str): Distance metric to use (default: 'euclidean')
         normalize (bool): Whether to min-max normalize the distances (default: True)
 
@@ -327,9 +329,7 @@ def calculate_potential_to_nontargeting(
     ]
 
     # Identify nontargeting control rows
-    nontargeting_mask = potential_df["gene_symbol_0"].str.contains(
-        control_key, na=False
-    )
+    nontargeting_mask = control_mask(potential_df["gene_symbol_0"], control_key)
     nontargeting_indices = potential_df.index[nontargeting_mask].tolist()
 
     # Extract only the potential values for calculation

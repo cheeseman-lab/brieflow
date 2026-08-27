@@ -434,7 +434,7 @@ def _calculate_batch_effects(
     control_key,
 ):
     """Calculate batch effect metrics (pre/post alignment)."""
-    from lib.aggregate.cell_data_utils import DEFAULT_METADATA_COLS
+    from lib.aggregate.cell_data_utils import DEFAULT_METADATA_COLS, control_mask
     from lib.shared.file_utils import load_parquet_subset
     from sklearn.feature_selection import f_classif
 
@@ -466,7 +466,9 @@ def _calculate_batch_effects(
 
     # Pre-alignment batch effects
     filtered = filtered.dropna(axis=1)
-    control_data = filtered[filtered[perturbation_col].str.startswith(control_key)]
+    control_data = filtered[
+        control_mask(filtered[perturbation_col], control_key, match="startswith")
+    ]
 
     # Skip if no control data
     if len(control_data) == 0:
@@ -511,7 +513,7 @@ def _calculate_batch_effects(
     aligned = load_parquet_subset(aligned_path, sample_rows)
 
     control_aligned = aligned[
-        aligned[perturbation_col].str.startswith(control_key)
+        control_mask(aligned[perturbation_col], control_key, match="startswith")
     ].copy()
 
     # Skip if no control data

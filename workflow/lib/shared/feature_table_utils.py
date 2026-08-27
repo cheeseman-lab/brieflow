@@ -26,6 +26,10 @@ def feature_table(data, labels, features, global_features=None):
     # Extract regions from the labeled segmentation mask
     regions = regionprops(labels, intensity_image=data)
 
+    # Return an empty table when a field segments to zero objects
+    if len(regions) == 0:
+        return pd.DataFrame({"label": pd.Series(dtype=int)})
+
     # Initialize a defaultdict to store feature values
     results = defaultdict(list)
 
@@ -65,7 +69,7 @@ def feature_table_multichannel(data, labels, features, global_features=None):
 
     # Return an empty table when a field segments to zero objects
     if len(regions) == 0:
-        return pd.DataFrame()
+        return pd.DataFrame({"label": pd.Series(dtype=int)})
 
     # Initialize a defaultdict to store feature values
     results = defaultdict(list)

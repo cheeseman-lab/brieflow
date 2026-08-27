@@ -13,6 +13,7 @@ def aggregate(
     embeddings: np.ndarray,
     metadata: pd.DataFrame,
     pert_col: str,
+    group_cols: list = None,
     method="mean",
     ps_probability_threshold=None,
     ps_percentile_threshold=None,
@@ -27,6 +28,8 @@ def aggregate(
         embeddings (numpy.ndarray): The embeddings to be aggregated.
         metadata (pandas.DataFrame): The metadata containing information about the embeddings.
         pert_col (str): The column in the metadata containing perturbation information.
+        group_cols (list, optional): Additional metadata columns to aggregate within, so a
+            point becomes perturbation x these columns (e.g. ["treatment"]). Defaults to None.
         method (str, optional): The aggregation method to use. Must be either "mean" or "median".
             Defaults to "mean".
         ps_probability_threshold (float, optional): Threshold for filtering based on perturbation score.
@@ -67,15 +70,16 @@ def aggregate(
         metadata = metadata.loc[mask].reset_index(drop=True)
         embeddings = embeddings[mask.to_numpy(), :]
 
-    grouping = metadata.groupby(pert_col)
-    for pert, group in grouping:
+    group_keys = [pert_col] + list(group_cols or [])
+    grouping = metadata.groupby(group_keys)
+    for keys, group in grouping:
         final_emb = aggr_func(embeddings[group.index.values, :], axis=0)
         aggregated_embeddings.append(final_emb)
 
-        agg_meta = {
-            pert_col: pert,
-            "cell_count": len(group),
-        }
+        # groupby yields a scalar key for one column and a tuple for several
+        keys = keys if isinstance(keys, tuple) else (keys,)
+        agg_meta = dict(zip(group_keys, keys))
+        agg_meta["cell_count"] = len(group)
 
         # Always include perturbation_auc if present (needed for gene-level filtering in clustering)
         if "perturbation_auc" in metadata.columns:

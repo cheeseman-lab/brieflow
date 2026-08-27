@@ -163,8 +163,8 @@ def extract_phenotype_cp_emulator(
             .add_prefix("cell_")
         )
 
-    # Extract cytoplasmic features if cytoplasms are provided
-    if cytoplasms is not None:
+    # Extract cytoplasmic features if cytoplasms are provided and not empty
+    if cytoplasms is not None and np.sum(cytoplasms) > 0:
         cytoplasmic_columns = make_column_map(cytoplasm_channels)
         dfs.append(
             extract_features(
@@ -213,7 +213,7 @@ def extract_phenotype_cp_emulator(
             .add_prefix("cell_")
         )
 
-    if cytoplasms is not None:
+    if cytoplasms is not None and np.sum(cytoplasms) > 0:
         dfs.append(
             neighbor_measurements(cytoplasms, distances=[1])
             .set_index("label")

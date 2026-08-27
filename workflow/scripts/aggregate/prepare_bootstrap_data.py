@@ -10,6 +10,7 @@ from lib.aggregate.cell_data_utils import (
     load_metadata_cols,
     split_cell_data,
     get_feature_table_cols,
+    control_mask,
 )
 from lib.aggregate.bootstrap import write_construct_data
 from lib.shared.parquet_io import read_parquet
@@ -27,6 +28,7 @@ exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp
 bootstrap_features_fp = snakemake.params.bootstrap_features_fp
 bootstrap_extra_features = snakemake.params.get("bootstrap_extra_features", None)
+group_cols = list(snakemake.params.get("group_cols", None) or [])
 
 print("Loading single-cell features data...")
 all_features_cells = read_parquet(snakemake.input.features_singlecell)
@@ -50,8 +52,8 @@ print(f"Construct table shape: {construct_table.shape}")
 print(f"Gene table shape: {gene_table.shape}")
 
 # Filter for control cells (already center-scaled)
-control_mask = all_features_cells[perturbation_col].str.contains(control_key, na=False)
-control_cells = all_features_cells[control_mask]
+is_control = control_mask(all_features_cells[perturbation_col], control_key)
+control_cells = all_features_cells[is_control]
 print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 
 # Load metadata columns and split control cell data
@@ -59,6 +61,16 @@ use_classifier = snakemake.params.use_classifier
 metadata_cols = load_metadata_cols(
     metadata_cols_fp, include_classification_cols=use_classifier
 )
+# group cols are literal columns in the single-cell data, but folded into the
+# composite key in the construct/gene tables
+missing_group_cols = [
+    col for col in group_cols if col not in all_features_cells.columns
+]
+if missing_group_cols:
+    raise ValueError(
+        f"aggregate group_cols not found in cell data: {missing_group_cols}"
+    )
+metadata_cols += [col for col in group_cols if col not in metadata_cols]
 # Add batch_values to metadata_cols (created by prepare_alignment_data in upstream scripts)
 if "batch_values" not in metadata_cols:
     metadata_cols.append("batch_values")

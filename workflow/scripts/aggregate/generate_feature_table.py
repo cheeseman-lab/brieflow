@@ -9,8 +9,15 @@ import numpy as np
 from pandas.api.types import is_numeric_dtype
 
 from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
-from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
+from lib.aggregate.cell_data_utils import (
+    load_metadata_cols,
+    split_cell_data,
+    control_mask,
+)
 from lib.aggregate.bootstrap import create_pseudogene_groups
+
+# folds group values into perturbation labels; not "__" (reserved in filenames), glob, or regex
+GROUP_KEY_SEP = "="
 
 # Validate required params
 for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:
@@ -22,6 +29,7 @@ pert_col = snakemake.params.perturbation_name_col
 pert_id_col = snakemake.params.perturbation_id_col or pert_col
 control_key = snakemake.params.control_key
 num_batches = snakemake.params.num_align_batches
+group_cols = list(snakemake.params.get("group_cols", None) or [])
 
 # Load cell data using PyArrow dataset (lazy - no data loaded yet)
 print("Loading cell data as PyArrow dataset...")
@@ -43,6 +51,12 @@ cell_dataset = ds.dataset(non_empty_paths, format="parquet")
 cell_data_cols = cell_dataset.schema.names
 use_classifier = snakemake.params.use_classifier
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp, use_classifier)
+missing_group_cols = [col for col in group_cols if col not in cell_data_cols]
+if missing_group_cols:
+    raise ValueError(
+        f"aggregate group_cols not found in cell data: {missing_group_cols}"
+    )
+metadata_cols += [col for col in group_cols if col not in metadata_cols]
 feature_cols = [col for col in cell_dataset.schema.names if col not in metadata_cols]
 
 # Filter metadata_cols to only include columns that exist in the parquet
@@ -78,6 +92,7 @@ construct_feature_sums = {}  # {construct_id: [sum of features]}
 construct_feature_counts = {}  # {construct_id: count for averaging}
 # For median, we need all values - store them
 construct_feature_values = {}  # {construct_id: list of feature arrays}
+construct_group_map = {}  # {construct_id: group label}
 
 # Process each batch
 for batch_idx, indices in enumerate(subset_indices):
@@ -125,6 +140,19 @@ for batch_idx, indices in enumerate(subset_indices):
         method=snakemake.params.feature_normalization,
     ).astype(np.float32)
 
+    # fold group values into the perturbation labels so a point is perturbation x group
+    if group_cols:
+        group_labels = metadata[group_cols[0]].astype(str)
+        for col in group_cols[1:]:
+            group_labels = group_labels + GROUP_KEY_SEP + metadata[col].astype(str)
+        metadata[pert_col] = (
+            metadata[pert_col].astype(str) + GROUP_KEY_SEP + group_labels
+        )
+        if pert_id_col != pert_col:
+            metadata[pert_id_col] = (
+                metadata[pert_id_col].astype(str) + GROUP_KEY_SEP + group_labels
+            )
+
     # OUTPUT 1: Write center-scaled single-cell data incrementally
     print(f"Writing batch {batch_idx + 1} to parquet...")
     aligned_batch = pd.concat(
@@ -152,6 +180,8 @@ for batch_idx, indices in enumerate(subset_indices):
             construct_cell_counts[construct_id] = 0
             construct_gene_map[construct_id] = gene_name
             construct_feature_values[construct_id] = []
+            if group_cols:
+                construct_group_map[construct_id] = group_labels[mask].iloc[0]
 
         construct_cell_counts[construct_id] += mask.sum()
         construct_feature_values[construct_id].append(construct_features)
@@ -203,7 +233,7 @@ print("\n=== Creating gene-level table ===")
 
 # Filter out controls for gene-level aggregation
 non_control_constructs = construct_table[
-    ~construct_table[pert_col].str.contains(control_key, na=False)
+    ~control_mask(construct_table[pert_col], control_key)
 ]
 
 # Calculate gene-level sample sizes (sum of construct cell counts)
@@ -225,7 +255,7 @@ gene_table = pd.merge(gene_features, gene_sample_sizes, on=pert_col, how="left")
 
 # Add controls to gene table (controls are their own "genes")
 control_constructs = construct_table[
-    construct_table[pert_col].str.contains(control_key, na=False)
+    control_mask(construct_table[pert_col], control_key)
 ]
 control_gene_table = control_constructs[[pert_col, "cell_count"] + feature_cols].copy()
 
@@ -247,10 +277,24 @@ if pseudogene_patterns:
     # Import the pseudo-gene grouping function
     from lib.aggregate.bootstrap import create_pseudogene_groups
 
-    # Create pseudo-gene groups from construct table
-    pseudogene_groups, remaining_constructs = create_pseudogene_groups(
-        construct_table, pseudogene_patterns, pert_col, seed=42
-    )
+    if group_cols:
+        pseudogene_groups = []
+        construct_groups = construct_table[pert_id_col].map(construct_group_map)
+        for group_label in sorted(construct_groups.dropna().unique()):
+            group_pseudogenes, _ = create_pseudogene_groups(
+                construct_table[construct_groups == group_label],
+                pseudogene_patterns,
+                pert_col,
+                seed=42,
+            )
+            for pseudogene_group in group_pseudogenes:
+                pseudogene_group["pseudogene_id"] += f"{GROUP_KEY_SEP}{group_label}"
+            pseudogene_groups.extend(group_pseudogenes)
+    else:
+        # Create pseudo-gene groups from construct table
+        pseudogene_groups, remaining_constructs = create_pseudogene_groups(
+            construct_table, pseudogene_patterns, pert_col, seed=42
+        )
 
     pseudogene_rows = []
 

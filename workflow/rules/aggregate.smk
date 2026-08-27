@@ -21,6 +21,8 @@ rule split_datasets:
         confidence_thresholds=config.get("classify", {}).get("confidence_thresholds"),
         class_title=config.get("classify", {}).get("class_title"),
         class_mapping=config.get("classify", {}).get("class_mapping"),
+        well_annotations_fp=config.get("aggregate", {}).get("well_annotations_fp"),
+        split_col=config.get("aggregate", {}).get("split_col", "class"),
         cell_classes=aggregate_wildcard_combos["cell_class"].unique(),
         channel_combos=aggregate_wildcard_combos["channel_combo"].unique(),
     script:
@@ -71,6 +73,7 @@ rule generate_feature_table:
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
         perturbation_id_col=config.get("aggregate", {}).get("perturbation_id_col"),
+        group_cols=config.get("aggregate", {}).get("group_cols", []),
         control_key=config.get("aggregate", {}).get("control_key"),
         batch_cols=config.get("aggregate", {}).get("batch_cols", ["plate", "well"]),
         num_align_batches=config.get("aggregate", {}).get("num_align_batches", 1),
@@ -119,6 +122,7 @@ rule aggregate:
         metadata_cols_fp=config.get("aggregate", {}).get("metadata_cols_fp"),
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
+        group_cols=config.get("aggregate", {}).get("group_cols", []),
         agg_method=config.get("aggregate", {}).get("agg_method", "median"),
         ps_probability_threshold=config.get("aggregate", {}).get("ps_probability_threshold"),
         ps_percentile_threshold=config.get("aggregate", {}).get("ps_percentile_threshold"),
@@ -281,6 +285,7 @@ checkpoint prepare_bootstrap_data:
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
         perturbation_id_col=config.get("aggregate", {}).get("perturbation_id_col"),
+        group_cols=config.get("aggregate", {}).get("group_cols", []),
         control_key=config.get("aggregate", {}).get("control_key"),
         exclusion_string=config.get("aggregate", {}).get("exclusion_string"),
         bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
@@ -307,6 +312,7 @@ rule bootstrap_construct:
         BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
     params:
         num_sims=config.get("aggregate", {}).get("num_sims", 100000),
+        bootstrap_control_scope=config.get("aggregate", {}).get("bootstrap_control_scope", "pooled"),
     script:
         "../scripts/aggregate/bootstrap_construct.py"
 
@@ -337,6 +343,7 @@ rule bootstrap_gene:
         BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
     params:
         num_sims=config.get("aggregate", {}).get("num_sims", 100000),
+        perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
         construct_nulls_pattern=lambda wildcards: str(BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"]).format(
             cell_class=wildcards.cell_class,
             channel_combo=wildcards.channel_combo,

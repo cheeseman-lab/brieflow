@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 
 from lib.aggregate.bootstrap import run_construct_bootstrap
+from lib.aggregate.cell_data_utils import GROUP_KEY_SEP
 
 # Load construct data to get construct ID and gene
 construct_data = pd.read_csv(snakemake.input.construct_data, sep="\t")
@@ -14,6 +15,26 @@ print(f"Running bootstrap analysis for construct: {construct_id} (gene: {gene})"
 # Load bootstrap input arrays
 print("Loading bootstrap input arrays...")
 controls_df = pd.read_csv(snakemake.input.controls_arr, sep="\t")
+
+# Restrict the null pool to controls sharing this construct's group key
+control_scope = snakemake.params.get("bootstrap_control_scope", "pooled")
+if control_scope not in ("pooled", "within_group"):
+    raise ValueError(f"Unknown bootstrap_control_scope: {control_scope}")
+if control_scope == "within_group" and GROUP_KEY_SEP in str(construct_id):
+    group_key = str(construct_id).split(GROUP_KEY_SEP, 1)[1]
+    group_mask = (
+        controls_df.iloc[:, 0].astype(str).str.split(GROUP_KEY_SEP, n=1).str[1]
+        == group_key
+    )
+    print(
+        f"Restricting controls to group '{group_key}': {int(group_mask.sum())} of {len(controls_df)} rows"
+    )
+    controls_df = controls_df[group_mask]
+    if len(controls_df) == 0:
+        raise ValueError(
+            f"No control cells found for group '{group_key}' (construct {construct_id})"
+        )
+
 controls_arr = controls_df.values
 
 construct_features_df = pd.read_csv(snakemake.input.construct_features_arr, sep="\t")

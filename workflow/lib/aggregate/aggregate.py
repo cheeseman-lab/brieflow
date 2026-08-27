@@ -8,6 +8,8 @@ and cell counts.
 import numpy as np
 import pandas as pd
 
+from lib.aggregate.cell_data_utils import GROUP_KEY_SEP
+
 
 def aggregate(
     embeddings: np.ndarray,
@@ -79,6 +81,12 @@ def aggregate(
         # groupby yields a scalar key for one column and a tuple for several
         keys = keys if isinstance(keys, tuple) else (keys,)
         agg_meta = dict(zip(group_keys, keys))
+
+        # pert_col carries the composite so it stays unique as an obs name and matches the
+        # bootstrap tables; the group columns are kept alongside it for grouping downstream
+        if group_cols:
+            agg_meta[pert_col] = GROUP_KEY_SEP.join(str(key) for key in keys)
+
         agg_meta["cell_count"] = len(group)
 
         # Always include perturbation_auc if present (needed for gene-level filtering in clustering)

@@ -9,6 +9,10 @@ import pandas as pd
 
 from lib.phenotype.constants import DEFAULT_METADATA_COLS
 
+# joins a perturbation to its group values; not "__" (the filename separator parsed
+# in lib/shared/rule_utils.py), not a glob metacharacter, not regex-special
+GROUP_KEY_SEP = "="
+
 
 def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     """Load metadata column names from a file.
@@ -31,6 +35,25 @@ def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
         ]
 
     return metadata_cols
+
+
+def control_mask(perturbation_values, control_key):
+    """Flag control perturbations, ignoring any group suffix on a composite key.
+
+    Matching the whole composite would let a group value satisfy control_key, silently
+    labelling perturbed cells as controls (e.g. control_key "DMSO" matching "MYC=DMSO").
+    A no-op when group_cols is unset, since there is no separator to strip.
+
+    Args:
+        perturbation_values (pd.Series): Perturbation names, composite or plain.
+        control_key (str): Substring identifying a control perturbation.
+
+    Returns:
+        pd.Series: Boolean mask of control rows.
+    """
+    perturbations = perturbation_values.astype(str).str.split(GROUP_KEY_SEP, n=1).str[0]
+
+    return perturbations.str.contains(control_key, na=False)
 
 
 def join_well_annotations(metadata, well_annotations_fp):

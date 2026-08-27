@@ -13,6 +13,7 @@ gene_id = snakemake.wildcards.gene
 cell_class = snakemake.wildcards.cell_class
 channel_combo = snakemake.wildcards.channel_combo
 num_sims = snakemake.params.num_sims
+perturbation_col = snakemake.params.perturbation_name_col
 bootstrap_features_fp = snakemake.params.bootstrap_features_fp
 bootstrap_extra_features = snakemake.params.get("bootstrap_extra_features", None)
 
@@ -43,16 +44,16 @@ construct_null_arrays = load_construct_null_arrays(construct_null_paths)
 
 # Load gene table to get observed gene values
 gene_table = pd.read_csv(snakemake.input.gene_table, sep="\t")
-gene_row = gene_table[gene_table["gene_symbol_0"] == gene_id]
+gene_row = gene_table[gene_table[perturbation_col] == gene_id]
 
 if len(gene_row) == 0:
     print(f"Gene {gene_id} not found in gene table")
-    print(f"Available genes: {sorted(gene_table['gene_symbol_0'].unique())}")
+    print(f"Available genes: {sorted(gene_table[perturbation_col].unique())}")
     raise ValueError(f"Gene {gene_id} not found in gene table")
 
 # Get available features from gene table (same filtering as prepare_bootstrap_data.py)
 all_features = [
-    col for col in gene_table.columns if col not in ["gene_symbol_0", "cell_count"]
+    col for col in gene_table.columns if col not in [perturbation_col, "cell_count"]
 ]
 
 # Filter features for bootstrap analysis (must match prepare_bootstrap_data.py)

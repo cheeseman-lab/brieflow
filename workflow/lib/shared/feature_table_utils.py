@@ -63,9 +63,7 @@ def feature_table_multichannel(data, labels, features, global_features=None):
     # Extract regions from the labeled segmentation mask
     regions = regionprops_multichannel(labels, intensity_image=data)
 
-    # An empty or out-of-focus field segments to zero objects; probing regions[0]
-    # below would raise IndexError and fail the whole tile. Return an empty table
-    # instead, matching feature_table, whose per-region loop simply does not run.
+    # Return an empty table when a field segments to zero objects
     if len(regions) == 0:
         return pd.DataFrame()
 

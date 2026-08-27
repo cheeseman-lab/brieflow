@@ -37,21 +37,32 @@ def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     return metadata_cols
 
 
-def control_mask(perturbation_values, control_key):
+def control_mask(perturbation_values, control_key, match="contains"):
     """Flag control perturbations, ignoring any group suffix on a composite key.
 
     Matching the whole composite would let a group value satisfy control_key, silently
     labelling perturbed cells as controls (e.g. control_key "DMSO" matching "MYC=DMSO").
-    A no-op when group_cols is unset, since there is no separator to strip.
+    Stripping the suffix is a no-op when group_cols is unset.
+
+    A list control_key matches exactly against any element, for libraries whose controls
+    share no usable prefix (an ORF screen's EGFP_1 and H2B-EGFP_1). A string keeps the
+    caller's historical convention, so existing screens are unaffected.
 
     Args:
         perturbation_values (pd.Series): Perturbation names, composite or plain.
-        control_key (str): Substring identifying a control perturbation.
+        control_key (str | list): Control identifier, or a list of exact names.
+        match (str, optional): How a string key matches, "contains" or "startswith".
+            Ignored for a list. Defaults to "contains".
 
     Returns:
         pd.Series: Boolean mask of control rows.
     """
     perturbations = perturbation_values.astype(str).str.split(GROUP_KEY_SEP, n=1).str[0]
+
+    if isinstance(control_key, (list, tuple, set)):
+        return perturbations.isin(set(control_key))
+    if match == "startswith":
+        return perturbations.str.startswith(control_key, na=False)
 
     return perturbations.str.contains(control_key, na=False)
 

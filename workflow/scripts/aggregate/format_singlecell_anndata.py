@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import anndata as ad
 
-from lib.aggregate.cell_data_utils import load_metadata_cols
+from lib.aggregate.cell_data_utils import load_metadata_cols, control_mask
 
 # Parameters
 metadata_cols_fp = snakemake.params.metadata_cols_fp
@@ -107,9 +107,7 @@ if cols_to_drop:
     obs = obs.drop(columns=cols_to_drop)
 
 # Add is_control boolean
-obs["is_control"] = (
-    obs[perturbation_name_col].str.contains(control_key, na=False).astype(bool)
-)
+obs["is_control"] = control_mask(obs[perturbation_name_col], control_key).astype(bool)
 
 # Compose region as plate_well for cross-well grouping.
 obs["region"] = obs["plate"].astype(str) + "_" + obs["well"].astype(str)

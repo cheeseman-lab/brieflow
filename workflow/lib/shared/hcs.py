@@ -395,6 +395,12 @@ def _write_zarr_v3_group_metadata(path):
         json.dump(metadata, f, indent=2)
 
 
+def _column_order(label):
+    """Sort key for an HCS column label: its digits, so `c10` follows `c9`."""
+    digits = "".join(ch for ch in str(label) if ch.isdigit())
+    return (0, int(digits)) if digits else (1, str(label))
+
+
 def _write_plate_metadata(
     plate_zarr_path, wells_by_row_col, channels_metadata=None, field_count=1
 ):
@@ -403,7 +409,7 @@ def _write_plate_metadata(
     plate_path.mkdir(parents=True, exist_ok=True)
 
     rows = sorted(set(rc[0] for rc in wells_by_row_col.keys()))
-    cols = sorted(set(rc[1] for rc in wells_by_row_col.keys()), key=lambda x: int(x))
+    cols = sorted(set(rc[1] for rc in wells_by_row_col.keys()), key=_column_order)
 
     plate_name = plate_path.stem  # e.g. "aligned_1"
 

@@ -77,6 +77,21 @@ def test_group_cols_empty_reproduces_single_key_aggregate():
     pd.testing.assert_frame_equal(meta, meta_default)
 
 
+def test_positional_call_still_binds_method_not_group_cols():
+    """group_cols must sit after method: 8_aggregate.py calls aggregate() positionally.
+
+    Inserting it before method silently bound AGG_METHOD ("median") to group_cols, and
+    list("median") splatted into single characters -> KeyError: 'm'.
+    """
+    metadata = pd.DataFrame({"gene": ["A", "A", "B", "B"]})
+    embeddings = np.array([[1.0], [3.0], [10.0], [30.0]])
+
+    _, meta = aggregate(embeddings, metadata, "gene", "median")
+
+    assert list(meta["gene"]) == ["A", "B"]
+    assert "group_cols" not in meta.columns
+
+
 def test_group_cols_yields_one_row_per_perturbation_and_group():
     embeddings = np.arange(14, dtype=float).reshape(7, 2)
     metadata = _cells(

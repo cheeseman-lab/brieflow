@@ -15,10 +15,10 @@ def aggregate(
     embeddings: np.ndarray,
     metadata: pd.DataFrame,
     pert_col: str,
-    group_cols: list = None,
     method="mean",
     ps_probability_threshold=None,
     ps_percentile_threshold=None,
+    group_cols: list = None,
 ) -> tuple[np.ndarray, pd.DataFrame]:
     """Apply mean or median aggregation to replicate embeddings and perturbation scores for each perturbation.
 

@@ -36,6 +36,7 @@ aggregated_embeddings, aggregated_metadata = aggregate(
     tvn_normalized,
     metadata,
     snakemake.params.perturbation_name_col,
+    group_cols=snakemake.params.group_cols,
     method=snakemake.params.agg_method,
     ps_probability_threshold=snakemake.params.ps_probability_threshold,
     ps_percentile_threshold=snakemake.params.ps_percentile_threshold,

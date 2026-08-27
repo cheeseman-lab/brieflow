@@ -13,11 +13,9 @@ from lib.aggregate.cell_data_utils import (
     load_metadata_cols,
     split_cell_data,
     control_mask,
+    GROUP_KEY_SEP,
 )
 from lib.aggregate.bootstrap import create_pseudogene_groups
-
-# folds group values into perturbation labels; not "__" (reserved in filenames), glob, or regex
-GROUP_KEY_SEP = "="
 
 # Validate required params
 for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:

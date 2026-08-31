@@ -7,7 +7,7 @@ from lib.shared.image_io import read_image
 from microfilm.microplot import Microimage
 import matplotlib.pyplot as plt
 
-from lib.shared.file_utils import parse_filename, parse_nested_path
+from lib.shared.file_utils import parse_filename, parse_nested_path, split_well
 from lib.shared.eval import plot_plate_heatmap
 from lib.shared.configuration_utils import create_micropanel
 from lib.shared.configuration_utils import image_segmentation_annotations
@@ -48,13 +48,11 @@ def segmentation_overview(segmentation_stats_paths):
                 data_location, _, _ = parse_nested_path(
                     segmentation_stats_path, ["plate", "row", "col", "tile"]
                 )
-                # Validate: row should be alphabetic (e.g. 'A') in zarr mode
-                if str(data_location["row"]).isalpha():
-                    data_location["well"] = str(data_location["row"]) + str(
-                        data_location["col"]
-                    )
-                else:
-                    raise ValueError("Not a zarr-mode path")
+                # split_well accepts every supported convention, so a well it
+                # rejects is not a zarr-mode path
+                well_id = f"{data_location['row']}{data_location['col']}"
+                split_well(well_id)
+                data_location["well"] = well_id
             except (ValueError, KeyError):
                 data_location, _, _ = parse_nested_path(
                     segmentation_stats_path, ["plate", "well", "tile"]

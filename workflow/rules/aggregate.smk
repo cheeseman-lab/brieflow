@@ -313,6 +313,8 @@ rule bootstrap_construct:
     params:
         num_sims=config.get("aggregate", {}).get("num_sims", 100000),
         bootstrap_control_scope=config.get("aggregate", {}).get("bootstrap_control_scope", "pooled"),
+        bootstrap_reference_group=config.get("aggregate", {}).get("bootstrap_reference_group", None),
+        group_cols=config.get("aggregate", {}).get("group_cols", []),
     script:
         "../scripts/aggregate/bootstrap_construct.py"
 

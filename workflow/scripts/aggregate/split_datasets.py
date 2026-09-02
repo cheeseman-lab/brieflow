@@ -7,6 +7,7 @@ from lib.aggregate.cell_data_utils import (
     load_metadata_cols,
     split_cell_data,
     channel_combo_subset,
+    join_well_annotations,
 )
 
 
@@ -111,6 +112,11 @@ cell_data = read_parquet(snakemake.input[0])
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp)
 metadata, features = split_cell_data(cell_data, metadata_cols)
 
+# join per-well annotations before splitting so they are available to split and group
+well_annotations_fp = snakemake.params.well_annotations_fp
+if well_annotations_fp is not None:
+    metadata = join_well_annotations(metadata, well_annotations_fp)
+
 # Classify cells only if classifier path is provided
 classifier_path = snakemake.params.classifier_path
 confidence_thresholds = snakemake.params.confidence_thresholds
@@ -160,7 +166,7 @@ for cell_class in snakemake.params.cell_classes:
         cell_class_metadata = metadata
         cell_class_features = features
     else:
-        cell_class_mask = metadata["class"] == cell_class
+        cell_class_mask = metadata[snakemake.params.split_col] == cell_class
         cell_class_metadata = metadata[cell_class_mask]
         cell_class_features = features[cell_class_mask]
 

@@ -22,6 +22,9 @@ rule phate_leiden_clustering:
         phate_distance_metric=config.get("cluster", {}).get("phate_distance_metric", "cosine"),
         perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
         control_key=config.get("aggregate", {}).get("control_key"),
+        control_scope=config.get("cluster", {}).get("control_scope", "pooled"),
+        control_reference_group=config.get("cluster", {}).get("control_reference_group", None),
+        group_cols=config.get("aggregate", {}).get("group_cols", []),
         uniprot_data_fp=config.get("cluster", {}).get("uniprot_data_fp"),
         perturbation_auc_threshold=config.get("cluster", {}).get("perturbation_auc_threshold"),
     script:

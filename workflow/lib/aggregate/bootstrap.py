@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Tuple, List, Dict, Any, Optional, Union
 from scipy.stats import false_discovery_control
 
+from lib.aggregate.cell_data_utils import GROUP_KEY_SEP
+
 
 @numba.njit(cache=True)
 def _bootstrap_inner_numba(
@@ -62,6 +64,83 @@ def _bootstrap_inner_numba(
         for j in range(n_features):
             null_medians[i, j] = np.median(sample[:, j])
     return null_medians
+
+
+def select_control_pool(
+    controls_df: pd.DataFrame,
+    construct_id: str,
+    control_scope: str = "pooled",
+    reference_group: Optional[str] = None,
+    group_cols: Optional[List[str]] = None,
+) -> pd.DataFrame:
+    """Restrict the bootstrap null pool to the controls a scope names.
+
+    "reference_group" pins the null to one fixed group whatever the construct's own
+    group, so an over-expression library is tested against the unliganded control
+    state rather than against controls that saw the same ligand.
+
+    Args:
+        controls_df (pd.DataFrame): Control cells, perturbation key in the first column.
+        construct_id (str): Construct being tested, composite when group_cols is set.
+        control_scope (str, optional): "pooled" keeps every control, "within_group"
+            keeps controls sharing the construct's own group, "reference_group" keeps
+            controls in `reference_group`. Defaults to "pooled".
+        reference_group (str, optional): Group key the "reference_group" scope pins the
+            pool to; several group_cols join their values with GROUP_KEY_SEP.
+            Defaults to None.
+        group_cols (list, optional): Columns folded into the composite key.
+            Defaults to None.
+
+    Returns:
+        pd.DataFrame: Controls the scope selects.
+
+    Raises:
+        ValueError: If the scope is unknown, if "reference_group" is requested without
+            group_cols or without a reference_group, or if the selected group matches
+            no control cells.
+    """
+    if control_scope not in ("pooled", "within_group", "reference_group"):
+        raise ValueError(f"Unknown bootstrap_control_scope: {control_scope}")
+
+    if control_scope == "pooled":
+        return controls_df
+
+    if control_scope == "within_group":
+        if GROUP_KEY_SEP not in str(construct_id):
+            return controls_df
+        group_key = str(construct_id).split(GROUP_KEY_SEP, 1)[1]
+    else:
+        if not group_cols:
+            raise ValueError(
+                "bootstrap_control_scope 'reference_group' needs aggregate group_cols; "
+                "without them controls carry no group to pin the null to"
+            )
+        if reference_group is None:
+            raise ValueError(
+                "bootstrap_control_scope 'reference_group' requires "
+                "bootstrap_reference_group to be set"
+            )
+        group_key = str(reference_group)
+
+    control_groups = (
+        controls_df.iloc[:, 0].astype(str).str.split(GROUP_KEY_SEP, n=1).str[1]
+    )
+    group_mask = control_groups == group_key
+    print(
+        f"Restricting controls to group '{group_key}': {int(group_mask.sum())} of {len(controls_df)} rows"
+    )
+    control_pool = controls_df[group_mask]
+    if len(control_pool) == 0:
+        if control_scope == "reference_group":
+            raise ValueError(
+                f"bootstrap_reference_group '{group_key}' is absent from the control pool; "
+                f"control groups present: {sorted(control_groups.dropna().unique())}"
+            )
+        raise ValueError(
+            f"No control cells found for group '{group_key}' (construct {construct_id})"
+        )
+
+    return control_pool
 
 
 def get_construct_features(

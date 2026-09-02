@@ -9,6 +9,7 @@ plt.rcParams.update(
     }
 )
 
+from lib.aggregate.cell_data_utils import control_mask
 from lib.cluster.phate_leiden_clustering import phate_leiden_pipeline
 from lib.cluster.benchmark_clusters import (
     run_benchmark_analysis,
@@ -29,8 +30,10 @@ phate_leiden_clustering = pd.read_csv(snakemake.input[1], sep="\t")
 if snakemake.params.perturbation_auc_threshold is not None:
     aggregated_data = aggregated_data[
         (
-            aggregated_data[snakemake.params.perturbation_name_col].str.startswith(
-                snakemake.params.control_key
+            control_mask(
+                aggregated_data[snakemake.params.perturbation_name_col],
+                snakemake.params.control_key,
+                match="startswith",
             )
         )
         | (

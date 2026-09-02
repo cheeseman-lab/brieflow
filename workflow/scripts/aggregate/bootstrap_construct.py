@@ -3,7 +3,7 @@
 import pandas as pd
 import numpy as np
 
-from lib.aggregate.bootstrap import run_construct_bootstrap
+from lib.aggregate.bootstrap import run_construct_bootstrap, select_control_pool
 
 # Load construct data to get construct ID and gene
 construct_data = pd.read_csv(snakemake.input.construct_data, sep="\t")
@@ -14,6 +14,16 @@ print(f"Running bootstrap analysis for construct: {construct_id} (gene: {gene})"
 # Load bootstrap input arrays
 print("Loading bootstrap input arrays...")
 controls_df = pd.read_csv(snakemake.input.controls_arr, sep="\t")
+
+# Restrict the null pool to the controls this scope names
+controls_df = select_control_pool(
+    controls_df,
+    construct_id,
+    snakemake.params.get("bootstrap_control_scope", "pooled"),
+    reference_group=snakemake.params.get("bootstrap_reference_group", None),
+    group_cols=snakemake.params.get("group_cols", None),
+)
+
 controls_arr = controls_df.values
 
 construct_features_df = pd.read_csv(snakemake.input.construct_features_arr, sep="\t")

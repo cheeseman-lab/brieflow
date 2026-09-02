@@ -8,6 +8,7 @@ plt.rcParams.update(
     }
 )
 
+from lib.aggregate.cell_data_utils import control_mask
 from lib.cluster.cluster_eval import plot_cluster_sizes
 from lib.cluster.phate_leiden_clustering import (
     phate_leiden_pipeline,
@@ -29,8 +30,10 @@ if snakemake.params.perturbation_auc_threshold is not None:
     )
     aggregated_data = aggregated_data[
         (
-            aggregated_data[snakemake.params.perturbation_name_col].str.startswith(
-                snakemake.params.control_key
+            control_mask(
+                aggregated_data[snakemake.params.perturbation_name_col],
+                snakemake.params.control_key,
+                match="startswith",
             )
         )
         | (
@@ -79,7 +82,11 @@ phate_leiden_clustering = phate_leiden_clustering.merge(
 
 # calculate potential to nontargeting
 average_distance_df = calculate_potential_to_nontargeting(
-    potential_df, snakemake.params.control_key
+    potential_df,
+    snakemake.params.control_key,
+    control_scope=snakemake.params.get("control_scope", "pooled"),
+    reference_group=snakemake.params.get("control_reference_group", None),
+    group_cols=snakemake.params.get("group_cols", None),
 )
 
 # merge clustering data with potential_df

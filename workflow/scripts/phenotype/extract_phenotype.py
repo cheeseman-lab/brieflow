@@ -18,6 +18,7 @@ if not segment_cells:
     cytoplasms = None
 
 cp_method = snakemake.params.cp_method
+custom_feature_definitions = getattr(snakemake.params, "custom_features", None)
 
 # Build wildcards dict, synthesizing 'well' from 'row'+'col' in zarr mode
 wc = dict(snakemake.wildcards)
@@ -25,6 +26,9 @@ if "row" in wc and "col" in wc and "well" not in wc:
     wc["well"] = wc["row"] + wc["col"]
 
 if cp_method == "cp_measure":
+    if custom_feature_definitions:
+        raise ValueError("Custom phenotype features require cp_method 'cp_emulator'")
+
     from lib.phenotype.extract_phenotype_cp_measure import (
         extract_phenotype_cp_measure,
     )
@@ -38,6 +42,7 @@ if cp_method == "cp_measure":
         channel_names=snakemake.params.channel_names,
     )
 elif cp_method == "cp_emulator":
+    from lib.phenotype.custom_features import load_custom_features
     from lib.phenotype.extract_phenotype_cp_emulator import (
         extract_phenotype_cp_emulator,
     )
@@ -51,6 +56,7 @@ elif cp_method == "cp_emulator":
         foci_channel=snakemake.params.foci_channel_index,
         channel_names=snakemake.params.channel_names,
         wildcards=wc,
+        custom_features=load_custom_features(custom_feature_definitions),
     )
 else:
     raise ValueError(

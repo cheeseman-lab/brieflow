@@ -26,6 +26,7 @@ from statsmodels.stats.multitest import multipletests
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+from lib.aggregate.cell_data_utils import control_mask
 from lib.cluster.phate_leiden_clustering import phate_leiden_pipeline
 from lib.cluster.scrape_benchmarks import filter_complexes
 
@@ -47,7 +48,7 @@ def run_benchmark_analysis(
         corum_group_benchmark (pd.DataFrame): CORUM group benchmark.
         kegg_group_benchmark (pd.DataFrame): KEGG group benchmark.
         perturbation_col_name (str): Column name for gene identifiers.
-        control_key (str): Prefix for control perturbations.
+        control_key (str | list): Prefix for control perturbations.
         max_clusters (int): Maximum clusters to analyze.
 
     Returns:
@@ -146,7 +147,7 @@ def evaluate_resolution(
         leiden_resolutions (list): List of resolution parameters to evaluate.
         group_benchmarks (dict): Dictionary of benchmark DataFrames with known gene groups. Must have a group column.
         perturbation_col_name (str): Column name for gene identifiers.
-        control_key (str, optional): Prefix for control perturbations to filter out.
+        control_key (str | list, optional): Prefix for control perturbations to filter out.
 
     Returns:
         tuple:
@@ -335,7 +336,7 @@ def calculate_group_enrichment(
         group_benchmark (pd.DataFrame): DataFrame with 'group' and 'gene_name' columns.
         phate_leiden_clustering (pd.DataFrame): Clustering results.
         perturbation_col_name (str, optional): Column name for gene identifiers.
-        control_key (str, optional): Prefix for control perturbations to filter out.
+        control_key (str | list, optional): Prefix for control perturbations to filter out.
         return_full_table (bool, optional): Whether to return the full table.
         max_clusters (int, optional): Maximum number of clusters to analyze before stopping.
 
@@ -346,7 +347,9 @@ def calculate_group_enrichment(
     cluster_df = phate_leiden_clustering.sort_values(by="cluster")
     if control_key is not None:
         cluster_df = cluster_df[
-            ~cluster_df[perturbation_col_name].str.startswith(control_key)
+            ~control_mask(
+                cluster_df[perturbation_col_name], control_key, match="startswith"
+            )
         ]
 
     background_genes = set(phate_leiden_clustering[perturbation_col_name])
@@ -424,7 +427,7 @@ def calculate_pair_enrichment(
         pair_benchmark (pd.DataFrame): DataFrame with 'pair' and 'gene_name' columns.
         phate_leiden_clustering (pd.DataFrame): Clustering results.
         perturbation_col_name (str, optional): Column name for gene identifiers.
-        control_key (str, optional): Prefix for control perturbations to filter out.
+        control_key (str | list, optional): Prefix for control perturbations to filter out.
         max_clusters (int, optional): Maximum number of clusters to analyze.
         return_cluster_details (bool, optional): Whether to return per-cluster details.
         adjust_precision (bool, optional): If True, calculates precision more conservatively by
@@ -438,7 +441,11 @@ def calculate_pair_enrichment(
     # Filter non-targeting genes
     if control_key is not None:
         cluster_df = phate_leiden_clustering[
-            ~phate_leiden_clustering[perturbation_col_name].str.startswith(control_key)
+            ~control_mask(
+                phate_leiden_clustering[perturbation_col_name],
+                control_key,
+                match="startswith",
+            )
         ]
     else:
         cluster_df = phate_leiden_clustering
@@ -664,7 +671,7 @@ def run_integrated_benchmarks(
         pair_benchmarks (dict): Mapping from benchmark name to pair benchmark DataFrame.
         group_benchmarks (dict): Mapping from benchmark name to group benchmark DataFrame.
         perturbation_col_name (str): Column name for gene identifiers.
-        control_key (str): Prefix for control perturbations to filter out.
+        control_key (str | list): Prefix for control perturbations to filter out.
         max_clusters (int): Maximum number of clusters to analyze.
 
     Returns:

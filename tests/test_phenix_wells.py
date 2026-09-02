@@ -140,3 +140,49 @@ def test_get_sample_fps_bare_z_guard_raises_on_multichannel():
     df = _tile_df(["C", "T"], [1, 2, 3])
     with pytest.raises(ValueError):
         get_sample_fps(df, plate="1")  # no channel_order -> ambiguous ordering
+
+
+# 3. segmentation_overview must aggregate per WELL, not per column. The zarr-mode
+#    path parse guarded on `row.isalpha()`, which is False for Phenix `r03`, so every
+#    Phenix path fell through to the 3-level tiff parse and took `well` from the
+#    column component -- silently summing the six wells of a column into one row.
+def _write_stats(path, n):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        {
+            "initial_nuclei": [n],
+            "initial_cells": [n],
+            "after_edge_removal_nuclei": [n],
+            "after_edge_removal_cells": [n],
+            "final_cells": [n],
+            "final_nuclei": [n],
+        }
+    ).to_csv(path, sep="\t", index=False)
+    return str(path)
+
+
+@pytest.mark.parametrize(
+    "rows,cols,expected",
+    [
+        (["r02", "r03"], ["c05"], {"r02c05", "r03c05"}),
+        (["A", "B"], ["1"], {"A1", "B1"}),
+    ],
+)
+def test_segmentation_overview_aggregates_per_well(tmp_path, rows, cols, expected):
+    from lib.shared.eval_segmentation import segmentation_overview
+
+    paths = []
+    for row in rows:
+        for col in cols:
+            for tile in (0, 1):
+                paths.append(
+                    _write_stats(
+                        tmp_path / "1" / row / col / str(tile) / "segmentation_stats.tsv",
+                        10,
+                    )
+                )
+    out = segmentation_overview(paths)
+    assert set(out["well"]) == expected
+    assert len(out) == len(expected)
+    # two tiles per well, 10 each -> distinct wells must not be summed together
+    assert set(out["final_cells"]) == {20}

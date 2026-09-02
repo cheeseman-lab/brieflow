@@ -36,6 +36,7 @@ def extract_phenotype_cp_emulator(
     cytoplasm_channels="all",
     foci_channel=None,
     channel_names=["dapi", "tubulin", "gh2ax", "phalloidin"],
+    custom_features=None,
 ):
     """Extract phenotype features from CellProfiler-like data with multi-channel functionality.
 
@@ -63,11 +64,23 @@ def extract_phenotype_cp_emulator(
             Default is None.
         channel_names (list, optional): List of channel names used for labeling output
             columns. Default is ["dapi", "tubulin", "gh2ax", "phalloidin"].
+        custom_features (dict, optional): Mapping of compartment ("nucleus", "cell", or
+            "cytoplasm") to a mapping of namespaced column name to feature function, as
+            returned by lib.phenotype.custom_features.load_custom_features. Each
+            compartment's features are measured over that compartment's mask on the full
+            multichannel image, so a feature indexes channels in channel_names order
+            regardless of the compartment channel selections. If None, no custom features
+            are extracted. Default is None.
 
     Returns:
         pandas.DataFrame: DataFrame containing extracted features with columns ordered as:
             label, metadata (well, tile, etc.), nucleus features, cell features,
-            cytoplasm features (if applicable), and foci features (if applicable).
+            cytoplasm features (if applicable), and foci features (if applicable). Custom
+            features (if applicable) are ordered with the compartment they measure.
+
+    Raises:
+        ValueError: If a custom feature declares a compartment that is not segmented in
+            this run, or a custom feature column collides with a built-in feature column.
     """
     # If nuclei are empty, return an empty DataFrame
     if np.sum(nuclei) == 0:
@@ -219,6 +232,45 @@ def extract_phenotype_cp_emulator(
             .set_index("label")
             .add_prefix("cytoplasm_")
         )
+
+    # Extract user-registered custom features on the compartment each one declares
+    if custom_features:
+        custom_masks = {"nucleus": nuclei, "cell": cells, "cytoplasm": cytoplasms}
+
+        unknown = sorted(set(custom_features) - set(custom_masks))
+        if unknown:
+            raise ValueError(f"Custom features declare unknown compartments: {unknown}")
+
+        for compartment, custom_mask in custom_masks.items():
+            compartment_features = custom_features.get(compartment)
+            if not compartment_features:
+                continue
+
+            # A compartment that was never segmented cannot stand in for another one
+            if custom_mask is None:
+                raise ValueError(
+                    f"Custom features {sorted(compartment_features)} are measured on "
+                    f"the {compartment} compartment, which is not segmented in this run"
+                )
+            if np.sum(custom_mask) == 0:
+                continue
+
+            custom_df = extract_features_bare(
+                data_phenotype,
+                custom_mask,
+                features=compartment_features,
+                multichannel=True,
+            ).set_index("label")
+
+            collisions = [
+                col for col in custom_df.columns if any(col in df.columns for df in dfs)
+            ]
+            if collisions:
+                raise ValueError(
+                    f"Custom feature columns collide with built-in features: {collisions}"
+                )
+
+            dfs.append(custom_df)
 
     # Concatenate data frames and reset index
     result_df = pd.concat(dfs, axis=1, join="outer", sort=False).reset_index()

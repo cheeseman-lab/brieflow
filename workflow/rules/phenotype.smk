@@ -96,6 +96,7 @@ rule extract_phenotype:
         channel_names=config.get("phenotype", {}).get("channel_names"),
         cp_method=config.get("phenotype", {}).get("cp_method"),
         segment_cells=config.get("phenotype", {}).get("segment_cells", True),
+        custom_features=config.get("phenotype", {}).get("custom_features"),
     script:
         "../scripts/phenotype/extract_phenotype.py"
 

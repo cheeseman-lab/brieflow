@@ -82,7 +82,11 @@ phate_leiden_clustering = phate_leiden_clustering.merge(
 
 # calculate potential to nontargeting
 average_distance_df = calculate_potential_to_nontargeting(
-    potential_df, snakemake.params.control_key
+    potential_df,
+    snakemake.params.control_key,
+    control_scope=snakemake.params.get("control_scope", "pooled"),
+    reference_group=snakemake.params.get("control_reference_group", None),
+    group_cols=snakemake.params.get("group_cols", None),
 )
 
 # merge clustering data with potential_df

@@ -200,8 +200,10 @@ construct_rows = []
 for construct_id in construct_cell_counts.keys():
     # Concatenate all feature arrays for this construct
     all_features = np.vstack(construct_feature_values[construct_id])
-    # Compute median across all cells
-    median_features = np.median(all_features, axis=0)
+    # Compute median across all cells; nanmedian because per-well filtering drops
+    # different columns in different wells, so the unified schema carries NaN for
+    # columns absent from a construct's well
+    median_features = np.nanmedian(all_features, axis=0)
 
     row = {
         pert_id_col: construct_id,

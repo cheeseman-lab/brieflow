@@ -290,10 +290,23 @@ def do_frac_call(df_bases, cycles=12, combinatorial=None):
     cycle's total dye intensity. The observed on/off state is then matched to the
     nearest configured base state. This step is library-blind; optional Hamming
     correction remains in ``call_cells``.
+
+    ``combinatorial.dye_scale`` (``{channel label: factor}``) rescales a dye's
+    intensity before fractions are formed, for plates where one dye images dimmer
+    than the others and would otherwise fall under ``fraction_threshold`` in every
+    two-dye state. Unlisted dyes keep a factor of 1.
+
+    ``combinatorial.brightness_regions`` (a list of inclusive 1-based cycle ranges,
+    e.g. ``[[1, 7], [8, 12]]``) takes the blank state's brightness reference within
+    each region rather than across all cycles, for barcodes whose regions are imaged
+    at different brightness. Cycles outside every region keep the global reference.
     """
-    dye, _, base_chars, templates = _combinatorial_setup(df_bases, combinatorial)
+    dye, dye_labels, base_chars, templates = _combinatorial_setup(
+        df_bases, combinatorial
+    )
+    dye = dye * _dye_scale(dye_labels, combinatorial.get("dye_scale"))
     total = dye.sum(axis=2, keepdims=True)
-    median_total = np.median(total, axis=1, keepdims=True)
+    median_total = _brightness_reference(total, combinatorial.get("brightness_regions"))
     relative_brightness = total / np.clip(median_total, 1.0, None)
     dye_fraction = dye / np.clip(total, 1.0, None)
 
@@ -383,6 +396,50 @@ def do_merfish_call(df_bases, cycles=12, combinatorial=None, codebook=None):
 
     quality_scores = np.repeat(scores[:, None], cycles, axis=1)
     return _format_combinatorial_reads(df_bases, cycles, prefixes[best], quality_scores)
+
+
+def _dye_scale(dye_labels, dye_scale):
+    """Per-dye multipliers in ``dye_labels`` order from a ``{label: factor}`` mapping."""
+    if not dye_scale:
+        return np.ones(len(dye_labels))
+    if not isinstance(dye_scale, dict):
+        raise ValueError(
+            "'combinatorial.dye_scale' must be a mapping of channel label to factor."
+        )
+    unknown = [label for label in dye_scale if label not in dye_labels]
+    if unknown:
+        raise ValueError(
+            f"'combinatorial.dye_scale' references channels {unknown} not in the "
+            f"combinatorial code dyes {list(dye_labels)}."
+        )
+    scale = np.array([float(dye_scale.get(label, 1.0)) for label in dye_labels])
+    if np.any(scale <= 0):
+        raise ValueError("'combinatorial.dye_scale' factors must be positive.")
+    return scale
+
+
+def _brightness_reference(total, brightness_regions):
+    """Median cycle brightness per read, taken within each region when regions are given."""
+    if not brightness_regions:
+        return np.median(total, axis=1, keepdims=True)
+    n_cycles = total.shape[1]
+    reference = np.median(total, axis=1, keepdims=True) * np.ones_like(total)
+    for region in brightness_regions:
+        if len(region) != 2:
+            raise ValueError(
+                "'combinatorial.brightness_regions' entries must be [start, end] cycle pairs."
+            )
+        start, end = int(region[0]), int(region[1])
+        if start < 1 or end < start:
+            raise ValueError(
+                f"'combinatorial.brightness_regions' entry {list(region)} is not a "
+                "1-based inclusive range."
+            )
+        columns = list(range(start - 1, min(end, n_cycles)))
+        if not columns:
+            continue
+        reference[:, columns] = np.median(total[:, columns], axis=1, keepdims=True)
+    return reference
 
 
 def _combinatorial_setup(df_bases, combinatorial):

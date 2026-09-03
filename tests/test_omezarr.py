@@ -11,7 +11,7 @@ Sections
 --------
 1. Fixtures .............. shared dummy arrays and temp paths
 2. omezarr_writer ........ roundtrip tests for write_image/labels/table
-3. NGFF compliance ....... OME-NGFF v0.4 metadata validation
+3. NGFF compliance ....... OME-NGFF v0.5 metadata validation
 4. Pixel-size / scales ... coordinate transform metadata
 5. IO roundtrip .......... read_image / save_image for zarr and tiff
 6. Zarr structural ........ chunk layout, compression, multiscale structure
@@ -39,7 +39,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from workflow.lib.shared.file_utils import get_filename
-from workflow.lib.shared.io import read_image, save_image, write_image_omezarr
+from workflow.lib.shared.image_io import read_image, save_image, write_image_omezarr
 
 # ===========================================================================
 # Section 1: Fixtures
@@ -81,30 +81,38 @@ class TestOmezarrWriterRoundtrip:
         )
 
         store = zarr.open(str(out), mode="r")
-        assert "multiscales" in store.attrs
+        assert "multiscales" in _ome_metadata(store)
         np.testing.assert_array_equal(data, store["0"][:])
 
-        omero = store.attrs.get("omero")
+        omero = _ome_metadata(store).get("omero")
         assert omero is not None
         assert len(omero["channels"]) == 3
         assert omero["channels"][0]["label"] == "r"
 
 
 # ===========================================================================
-# Section 3: NGFF compliance — OME-NGFF v0.4 metadata validation
+# Section 3: NGFF compliance — OME-NGFF v0.5 metadata validation
 # ===========================================================================
 
 
-def _read_zattrs(zarr_path: Path) -> dict:
-    """Read .zattrs JSON from a Zarr v2 store."""
-    return json.loads((zarr_path / ".zattrs").read_text())
+def _ome_metadata(store_or_path) -> dict:
+    """OME-NGFF metadata block of a store, given the store or its path.
+
+    NGFF 0.5 nests everything under an ``ome`` key; 0.4 held the same keys at the
+    root. Reading through here keeps the assertions about content, not placement.
+    """
+    if isinstance(store_or_path, (str, Path)):
+        attrs = dict(zarr.open_group(str(store_or_path), mode="r").attrs)
+    else:
+        attrs = dict(store_or_path.attrs)
+    return attrs.get("ome", attrs)
 
 
 class TestNGFFCompliance:
     """Validate that write_image_omezarr produces spec-compliant
-    OME-NGFF v0.4 (Zarr v2) metadata."""
+    OME-NGFF v0.5 (Zarr v3) metadata."""
 
-    def test_v04_metadata_structure(self, tmp_path):
+    def test_v05_metadata_structure(self, tmp_path):
         """Check multiscales version, axes, datasets, and coordinateTransformations."""
         out = tmp_path / "img.ome.zarr"
         img = np.arange(2 * 64 * 80, dtype=np.uint16).reshape((2, 64, 80))
@@ -118,21 +126,21 @@ class TestNGFFCompliance:
             channel_names=["c0", "c1"],
         )
 
-        # Zarr v2 layout: .zgroup + .zattrs, no zarr.json
-        assert (out / ".zgroup").exists()
-        assert (out / ".zattrs").exists()
-        assert not (out / "zarr.json").exists()
+        # Zarr v3 layout: one zarr.json per node, no .zgroup / .zattrs
+        assert (out / "zarr.json").exists()
+        assert not (out / ".zgroup").exists()
+        assert not (out / ".zattrs").exists()
 
-        zattrs = _read_zattrs(out)
-        assert "multiscales" in zattrs
-        assert len(zattrs["multiscales"]) == 1
+        ome = _ome_metadata(out)
+        assert ome["version"] == "0.5"
+        assert "multiscales" in ome
+        assert len(ome["multiscales"]) == 1
 
-        ms0 = zattrs["multiscales"][0]
-        assert ms0["version"] == "0.4"
+        ms0 = ome["multiscales"][0]
         assert ms0["axes"] == [
             {"name": "c", "type": "channel"},
-            {"name": "y", "type": "space"},
-            {"name": "x", "type": "space"},
+            {"name": "y", "type": "space", "unit": "micrometer"},
+            {"name": "x", "type": "space", "unit": "micrometer"},
         ]
 
         datasets = ms0["datasets"]
@@ -194,7 +202,7 @@ class TestPixelSizeScales:
         img = np.zeros((1, 256, 256), dtype=np.uint16)
         write_image_omezarr(img, str(out), axes="cyx", pixel_size_um=0.325)
 
-        scale0 = _read_zattrs(out)["multiscales"][0]["datasets"][0][
+        scale0 = _ome_metadata(out)["multiscales"][0]["datasets"][0][
             "coordinateTransformations"
         ][0]["scale"]
         assert scale0 == [1.0, 0.325, 0.325]
@@ -210,7 +218,7 @@ class TestPixelSizeScales:
             pixel_size_um={"z": 1.5, "y": 0.325, "x": 0.325},
         )
 
-        scale0 = _read_zattrs(out)["multiscales"][0]["datasets"][0][
+        scale0 = _ome_metadata(out)["multiscales"][0]["datasets"][0][
             "coordinateTransformations"
         ][0]["scale"]
         assert scale0 == [1.0, 1.5, 0.325, 0.325]
@@ -228,7 +236,7 @@ class TestPixelSizeScales:
             max_levels=2,
         )
 
-        datasets = _read_zattrs(out)["multiscales"][0]["datasets"]
+        datasets = _ome_metadata(out)["multiscales"][0]["datasets"]
         scale0 = datasets[0]["coordinateTransformations"][0]["scale"]
         scale1 = datasets[1]["coordinateTransformations"][0]["scale"]
 
@@ -258,7 +266,11 @@ class TestIORoundtrip:
         np.testing.assert_array_equal(dummy_2d_uint16, read_image(fp))
 
     def test_save_and_read_omezarr_3d(self, tmp_path, dummy_3d_uint16):
-        """Zarr write → read preserves data and metadata."""
+        """Zarr write → read preserves data and metadata.
+
+        save_image promotes to the pipeline's TCZYX layout, so (C, Y, X) is stored
+        as (1, C, 1, Y, X).
+        """
         zp = tmp_path / "test.zarr"
         channel_names = ["Ch1", "Ch2", "Ch3"]
         save_image(
@@ -271,23 +283,27 @@ class TestIORoundtrip:
         )
 
         assert zp.is_dir()
-        assert (zp / ".zgroup").exists()
+        assert (zp / "zarr.json").exists()
+        stored = zarr.open(str(zp), mode="r")["0"][:]
+        assert stored.shape == (1, 3, 1) + dummy_3d_uint16.shape[1:]
         np.testing.assert_array_equal(
-            dummy_3d_uint16, zarr.open(str(zp), mode="r")["0"][:]
+            dummy_3d_uint16[np.newaxis, :, np.newaxis, ...], stored
         )
 
-        attrs = _read_zattrs(zp)
-        assert attrs["multiscales"][0]["version"] == "0.4"
-        assert attrs["omero"]["channels"][0]["label"] == "Ch1"
+        ome = _ome_metadata(zp)
+        assert ome["version"] == "0.5"
+        assert ome["omero"]["channels"][0]["label"] == "Ch1"
 
-    def test_save_omezarr_2d_gets_singleton_channel(self, tmp_path, dummy_2d_uint16):
-        """2D array saved as zarr is expanded to (1,Y,X)."""
+    def test_save_omezarr_2d_gets_singleton_tczyx(self, tmp_path, dummy_2d_uint16):
+        """2D array saved as zarr is expanded to (1, 1, 1, Y, X)."""
         zp = tmp_path / "test.zarr"
         save_image(dummy_2d_uint16, zp)
 
         stored = zarr.open(str(zp), mode="r")["0"][:]
-        assert stored.shape == (1,) + dummy_2d_uint16.shape
-        np.testing.assert_array_equal(dummy_2d_uint16[np.newaxis, ...], stored)
+        assert stored.shape == (1, 1, 1) + dummy_2d_uint16.shape
+        np.testing.assert_array_equal(
+            dummy_2d_uint16[np.newaxis, np.newaxis, np.newaxis, ...], stored
+        )
 
     def test_save_omezarr_label_flag(self, tmp_path, dummy_3d_uint16):
         """is_label=True produces image-label metadata without channel colors."""
@@ -295,9 +311,9 @@ class TestIORoundtrip:
         label_img = (dummy_3d_uint16 > 1000).astype(np.uint16)
         save_image(label_img, zp, is_label=True)
 
-        attrs = _read_zattrs(zp)
-        assert "image-label" in attrs
-        assert "color" not in attrs["omero"]["channels"][0]
+        ome = _ome_metadata(zp)
+        assert "image-label" in ome
+        assert "color" not in ome["omero"]["channels"][0]
 
     def test_read_omezarr_multiscale(self, tmp_path, dummy_3d_uint16):
         """read_image returns full-resolution level from a multiscale store."""
@@ -458,11 +474,12 @@ class TestZarrStructural:
             pytest.skip("OME-Zarr export not found.")
 
         store = zarr.open(str(omezarr_path), mode="r")
-        ms = store.attrs["multiscales"]
+        ome = _ome_metadata(store)
+        ms = ome["multiscales"]
         assert isinstance(ms, list) and len(ms) > 0
 
         ms0 = ms[0]
-        assert ms0["version"] == "0.4"
+        assert ome["version"] == "0.5"
         assert "axes" in ms0
         datasets = ms0["datasets"]
         assert len(datasets) >= 2, "Expected >=2 resolution levels"

@@ -137,6 +137,8 @@ def join_well_annotations(metadata, well_annotations_fp):
 
 
 RESERVED_METADATA_PREFIXES = ("offset_",)
+# per-cell list of secondary object labels; a record, not a feature
+RESERVED_METADATA_COLS = ("second_obj_ids",)
 
 
 def is_reserved_metadata_col(col):
@@ -144,9 +146,10 @@ def is_reserved_metadata_col(col):
 
     Per-cell alignment-offset QC columns (offset_*) have screen-specific names (the
     alignment step/cycle count varies by screen), so they are matched by prefix rather
-    than enumerated in the metadata_cols file.
+    than enumerated in the metadata_cols file. Non-numeric per-cell records written by
+    secondary object detection are reserved by name.
     """
-    return col.startswith(RESERVED_METADATA_PREFIXES)
+    return col in RESERVED_METADATA_COLS or col.startswith(RESERVED_METADATA_PREFIXES)
 
 
 def split_cell_data(

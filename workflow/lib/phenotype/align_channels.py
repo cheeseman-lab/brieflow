@@ -96,7 +96,7 @@ def align_phenotype_channels(
         check_data = aligned.max(axis=0)
     else:
         check_data = aligned
-    residual = calculate_offsets(
+    residual, _ = calculate_offsets(
         apply_window(check_data[to_check], window),
         upsample_factor=upsample_factor,
     )

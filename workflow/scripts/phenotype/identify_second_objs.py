@@ -1,12 +1,13 @@
-from tifffile import imread, imwrite
 import pandas as pd
+
+from lib.shared.image_io import read_image, save_image
 
 from lib.phenotype.segment_secondary_object import segment_second_objs_from_config
 
 # Load input files
-data_phenotype = imread(snakemake.input[0])
-cells = imread(snakemake.input[1])
-cytoplasms = imread(snakemake.input[2])
+data_phenotype = read_image(snakemake.input[0])
+cells = read_image(snakemake.input[1])
+cytoplasms = read_image(snakemake.input[2])
 phenotype_info = pd.read_csv(snakemake.input[3], sep="\t")
 
 # Prepare nuclei centroids from phenotype info (for cell-nucleus distance calculations)
@@ -28,8 +29,8 @@ second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks = (
     )
 )
 
-# Save secondary object masks as TIFF
-imwrite(snakemake.output[0], second_obj_masks)
+# Save secondary object masks
+save_image(second_obj_masks, snakemake.output[0], is_label=True)
 
 # Combine the two tables into one TSV, prefixing columns by table type
 cell_summary_df = cell_second_obj_table["cell_summary"]
@@ -55,5 +56,5 @@ combined_df = pd.concat(
 )
 combined_df.to_csv(snakemake.output[1], sep="\t", index=False)
 
-# Save updated cytoplasm masks as TIFF
-imwrite(snakemake.output[2], updated_cytoplasm_masks)
+# Save updated cytoplasm masks
+save_image(updated_cytoplasm_masks, snakemake.output[2], is_label=True)

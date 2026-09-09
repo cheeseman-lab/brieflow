@@ -1,3 +1,15 @@
+from lib.shared.compartment_utils import format_rule_output
+
+
+# bootstrap gene results for the current combo, resolved on the same compartment path
+_bootstrap_gene_results = lambda wildcards: format_rule_output(
+    BOOTSTRAP_OUTPUTS["combined_gene_results"],
+    wildcards,
+    SPLIT_BY_COMPARTMENT,
+    DEFAULT_COMPARTMENT_COMBO,
+)
+
+
 # Clean aggregate datasets
 rule clean_aggregate:
     input:
@@ -54,31 +66,32 @@ rule benchmark_clusters:
 # Format cluster results into AnnData h5ad (combines all resolutions)
 rule format_cluster_anndata:
     input:
-        features_genes=AGGREGATE_OUTPUTS["generate_feature_table"][2],
-        clustering=[
-            str(CLUSTER_OUTPUTS["phate_leiden_clustering"][0]).format(
-                channel_combo="{channel_combo}",
-                cell_class="{cell_class}",
+        features_genes=lambda wildcards: format_rule_output(
+            AGGREGATE_OUTPUTS["generate_feature_table"][2],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
+        ),
+        clustering=lambda wildcards: [
+            format_rule_output(
+                CLUSTER_OUTPUTS["phate_leiden_clustering"][0],
+                wildcards,
+                SPLIT_BY_COMPARTMENT,
+                DEFAULT_COMPARTMENT_COMBO,
                 leiden_resolution=res,
             )
             for res in cluster_wildcard_combos["leiden_resolution"].unique()
         ],
         bootstrap_results=lambda wildcards: (
-            ancient(str(BOOTSTRAP_OUTPUTS["combined_gene_results"]).format(
-                cell_class=wildcards.cell_class,
-                channel_combo=wildcards.channel_combo,
-            ))
-            if Path(str(BOOTSTRAP_OUTPUTS["combined_gene_results"]).format(
-                cell_class=wildcards.cell_class,
-                channel_combo=wildcards.channel_combo,
-            )).exists()
+            ancient(_bootstrap_gene_results(wildcards))
+            if Path(_bootstrap_gene_results(wildcards)).exists()
             else []
         ),
     output:
         CLUSTER_OUTPUTS_MAPPED["format_cluster_anndata"],
     params:
         perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
-        channel_names=config["phenotype"]["channel_names"],
+        channel_names=config.get("phenotype", {}).get("channel_names"),
         leiden_resolutions=list(cluster_wildcard_combos["leiden_resolution"].unique()),
     script:
         "../scripts/cluster/format_cluster_anndata.py"

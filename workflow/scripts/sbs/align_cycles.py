@@ -1,3 +1,5 @@
+import pandas as pd
+
 from lib.sbs.align_cycles import align_cycles
 from lib.shared.image_io import read_image, save_image
 
@@ -8,8 +10,8 @@ if getattr(snakemake.params, "channel_names", None) is None:
 # Load image data
 image_data = [read_image(file_path) for file_path in snakemake.input]
 
-# Align cycles
-aligned_data = align_cycles(
+# align cycles
+aligned_data, metrics = align_cycles(
     image_data,
     channel_order=snakemake.params.channel_names,
     method=snakemake.params.method,
@@ -18,7 +20,17 @@ aligned_data = align_cycles(
     skip_cycles=snakemake.params.skip_cycles_indices,
     manual_background_cycle=snakemake.params.manual_background_cycle_index,
     manual_channel_mapping=snakemake.params.manual_channel_mapping,
+    return_metrics=True,
 )
 
 # Save the aligned data
 save_image(aligned_data, snakemake.output[0])
+
+# Save alignment metrics to TSV (one row per tile); synthesize 'well' from 'row'+'col' in zarr mode
+wc = dict(snakemake.wildcards)
+if "row" in wc and "col" in wc and "well" not in wc:
+    wc["well"] = wc["row"] + wc["col"]
+metrics_df = pd.DataFrame(
+    [{"plate": wc["plate"], "well": wc["well"], "tile": wc["tile"], **metrics}]
+)
+metrics_df.to_csv(snakemake.output[1], index=False, sep="\t")

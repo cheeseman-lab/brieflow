@@ -20,6 +20,7 @@ _sbs_tile_expand = ["row", "col", "tile"] if SBS_IMG_FMT == "zarr" else ["well",
 SBS_OUTPUTS = {
     "align_sbs": [
         SBS_FP / get_image_output_path(_tile, "aligned", SBS_IMG_FMT),
+        SBS_FP / "tsvs" / get_data_output_path(_tile, "alignment_metrics", "tsv", SBS_IMG_FMT),
     ],
     "log_filter": [
         SBS_FP / get_image_output_path(_tile, "log_filtered", SBS_IMG_FMT),

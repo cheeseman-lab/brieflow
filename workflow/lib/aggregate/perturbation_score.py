@@ -16,7 +16,11 @@ from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.metrics import roc_auc_score
 
 from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
-from lib.aggregate.cell_data_utils import split_cell_data, control_mask
+from lib.aggregate.cell_data_utils import (
+    split_cell_data,
+    control_mask,
+    is_reserved_metadata_col,
+)
 
 
 def perturbation_score(
@@ -24,6 +28,9 @@ def perturbation_score(
     metadata_cols: list[str],
     perturbation_name_col: str,
     control_key: str | list,
+    perturbation_id_col: str | None = None,
+    control_name_col: str | None = None,
+    batch_cols: list[str] | None = None,
     minimum_cell_count: int = 100,
     n_jobs: int = -1,
 ) -> None:
@@ -36,19 +43,31 @@ def perturbation_score(
     Args:
         cell_data (pd.DataFrame): DataFrame containing cell data that will be modified in-place.
         metadata_cols (list[str]): List of metadata column names that will be updated to include 'perturbation_score'.
-        perturbation_name_col (str): Column name containing perturbation identifiers.
-        control_key (str | list): Prefix identifying control perturbations (e.g., 'nontargeting').
+        perturbation_name_col (str): Column name containing perturbation identifiers (what `gene` is drawn from; e.g. "gene_symbol_0" or "cell_barcode_0").
+        control_key (str | list): Prefix identifying control perturbations (e.g., 'nontargeting'), or a list of exact control names.
+        perturbation_id_col (str, optional): Column name for unique perturbation IDs
+            used by prepare_alignment_data. Defaults to perturbation_name_col.
+        control_name_col (str, optional): Column used to identify controls via
+            control_key. Defaults to perturbation_name_col.
+        batch_cols (list[str], optional): Columns defining the batch grouping.
+            Defaults to ["plate", "well"].
         minimum_cell_count (int, optional): Minimum number of cells required to process a perturbation. Defaults to 100.
         n_jobs (int, optional): Number of parallel jobs. -1 uses all available CPUs. Defaults to -1.
     """
+    if perturbation_id_col is None:
+        perturbation_id_col = perturbation_name_col
+    if control_name_col is None:
+        control_name_col = perturbation_name_col
+    if batch_cols is None:
+        batch_cols = ["plate", "well"]
+
     perturbation_col = cell_data[perturbation_name_col]
-    unique_perts = perturbation_col.drop_duplicates()
-    perturbed_genes = unique_perts[
-        ~control_mask(unique_perts, control_key, match="startswith")
-    ].tolist()
-    nt_idx = perturbation_col.index[
-        control_mask(perturbation_col, control_key, match="startswith")
-    ].to_numpy()
+    # Controls are identified on control_name_col; control_mask ignores any group suffix on a composite key.
+    is_control = control_mask(
+        cell_data[control_name_col], control_key, match="startswith"
+    )
+    perturbed_genes = perturbation_col[~is_control].dropna().unique().tolist()
+    nt_idx = perturbation_col.index[is_control].to_numpy()
 
     print(f"Processing {len(perturbed_genes)} genes with {n_jobs} parallel jobs...")
 
@@ -82,8 +101,8 @@ def perturbation_score(
             )
             keep_idx = np.union1d(gene_idx, nt_keep)
 
-            # Extract subset
-            gene_subset_df = cell_data.iloc[keep_idx].copy()
+            # Extract subset via .loc since keep_idx holds pandas index labels.
+            gene_subset_df = cell_data.loc[keep_idx].copy()
             original_idx = gene_subset_df.index.copy()
             gene_subset_df = gene_subset_df.reset_index(drop=True)
 
@@ -97,6 +116,11 @@ def perturbation_score(
                 gene_subset_df,
                 original_idx,
                 metadata_cols,
+                perturbation_name_col,
+                control_key,
+                perturbation_id_col,
+                control_name_col,
+                batch_cols,
                 minimum_cell_count,
                 perturbation_name_col,
                 control_key,
@@ -123,7 +147,7 @@ def calculate_perturbation_scores(
     cell_data: pd.DataFrame,
     gene: str,
     feature_cols: list[str],
-    perturbation_col: str = "gene_symbol_0",
+    perturbation_col: str,
     n_differential_features: int = 200,
     minimum_cell_count: int = 100,
 ) -> tuple[pd.Series, float]:
@@ -139,7 +163,7 @@ def calculate_perturbation_scores(
         cell_data (pd.DataFrame): DataFrame containing cell data with features and metadata.
         gene (str): The target gene perturbation to score against.
         feature_cols (list[str]): List of feature column names to use for scoring.
-        perturbation_col (str, optional): Column name containing perturbation labels. Defaults to "gene_symbol_0".
+        perturbation_col (str): Column name containing perturbation labels used to build the binary target.
         n_differential_features (int, optional): Number of top differential features to select. Defaults to 200.
         minimum_cell_count (int, optional): Minimum number of cells required for scoring. Defaults to 200.
 
@@ -150,7 +174,15 @@ def calculate_perturbation_scores(
     if cell_data.shape[0] < minimum_cell_count:
         return pd.Series(np.nan, index=cell_data.index), np.nan
 
-    y = (cell_data[perturbation_col] == gene).astype(int).to_numpy()
+    # NaN-safe binary target: fillna(False) so astype(int) yields strictly {0, 1}.
+    y = (
+        cell_data[perturbation_col]
+        .eq(gene)
+        .fillna(False)
+        .astype(bool)
+        .astype(int)
+        .to_numpy()
+    )
     X_all = cell_data[feature_cols].to_numpy()
 
     # select top-k differential features (ANOVA F-test)
@@ -179,21 +211,27 @@ def _process_gene_subset(
     gene_subset_df: pd.DataFrame,
     original_idx: pd.Index,
     metadata_cols: list[str],
-    minimum_cell_count: int,
     perturbation_name_col: str,
     control_key: str | list,
+    perturbation_id_col: str,
+    control_name_col: str,
+    batch_cols: list[str],
+    minimum_cell_count: int,
 ) -> tuple[str, np.ndarray, pd.Series, float] | None:
     """Process a pre-sliced gene subset and return perturbation scores.
 
     Args:
-        gene: Gene symbol being processed.
-        gene_idx: Original indices of gene cells in the full dataset.
-        gene_subset_df: Pre-sliced DataFrame with gene + control cells (reset index).
+        gene: Perturbation identifier being scored (drawn from perturbation_name_col).
+        gene_idx: Original indices of perturbation cells in the full dataset.
+        gene_subset_df: Pre-sliced DataFrame with perturbation + control cells (reset index).
         original_idx: Original indices before reset (for mapping scores back).
         metadata_cols: Metadata column names.
+        perturbation_name_col: Column naming each perturbation unit (what `gene` is drawn from).
+        control_key: Prefix identifying control rows in control_name_col, or a list of exact control names.
+        perturbation_id_col: Column used as the unique perturbation ID in prepare_alignment_data.
+        control_name_col: Column used by centerscale to detect controls via control_key.
+        batch_cols: Columns defining the batch grouping.
         minimum_cell_count: Minimum cells required.
-        perturbation_name_col: Column name containing perturbation labels.
-        control_key: Control identifier, or a list of exact control names.
 
     Returns:
         Tuple of (gene, gene_idx, perturbation_scores, auc) or None if skipped.
@@ -204,14 +242,15 @@ def _process_gene_subset(
 
     # SCALE PERTURBATION GENE AND CONTROL FEATURES
     feature_cols = gene_subset_df.columns.difference(metadata_cols, sort=False)
+    feature_cols = feature_cols[[not is_reserved_metadata_col(c) for c in feature_cols]]
     metadata, features = split_cell_data(gene_subset_df, metadata_cols)
     metadata, features = prepare_alignment_data(
         metadata,
         features,
-        ["plate", "well"],
+        batch_cols,
         perturbation_name_col,
         control_key,
-        "cell_barcode_0",
+        perturbation_id_col,
     )
 
     features = features.astype(np.float32)
@@ -221,6 +260,7 @@ def _process_gene_subset(
         perturbation_name_col,
         control_key,
         "batch_values",
+        control_col=control_name_col,
     )
     features = pd.DataFrame(features, columns=feature_cols)
     gene_subset_df = pd.concat([metadata, features], axis=1)

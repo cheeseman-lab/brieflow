@@ -81,8 +81,7 @@ CLUSTER_OUTPUTS = {
         ),
     ],
     "format_cluster_anndata": [
-        CLUSTER_FP
-        / "{channel_combo}"
+        CLUSTER_OUTPUT_BASE
         / "{cell_class}"
         / "h5ad"
         / get_filename({}, "cluster", "h5ad"),

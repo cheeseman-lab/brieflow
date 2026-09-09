@@ -1,13 +1,14 @@
 import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.aggregate.second_obj_utils import aggregate_second_obj_data
 
 # Load cell-level data from final_merge
-cells_df = validate_dtypes(pd.read_parquet(snakemake.input[0]))
+cells_df = validate_dtypes(read_parquet(snakemake.input[0]))
 
 # Load per-object secondary object data
-second_objs_df = validate_dtypes(pd.read_parquet(snakemake.input[1]))
+second_objs_df = validate_dtypes(read_parquet(snakemake.input[1]))
 
 # Get aggregation strategy from config
 agg_strategy = snakemake.params.agg_strategy
@@ -42,4 +43,4 @@ result = aggregate_second_obj_data(cells_df, second_objs_filtered, agg_strategy)
 print(f"  Result: {len(result)} rows, {len(result.columns)} columns")
 
 # Save
-result.to_parquet(snakemake.output[0])
+write_parquet(result, snakemake.output[0])

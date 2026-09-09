@@ -131,7 +131,7 @@ if merge_approach == "stitch":
             phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
             phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"][0],
             phenotype_tiles=lambda wildcards: output_to_input(
-                PHENOTYPE_OUTPUTS["align_phenotype"],
+                PHENOTYPE_OUTPUTS["align_phenotype"][0],
                 wildcards=wildcards,
                 expansion_values=["tile"],
                 metadata_combos=phenotype_wildcard_combos,
@@ -279,7 +279,7 @@ rule format_merge:
             metadata_combos=merge_wildcard_combos,
         )),
         ancient(lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype"][1],
+            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
             wildcards={"plate": wildcards.plate, "well": wildcards.well},
             expansion_values=_merge_well_expand,
             metadata_combos=merge_wildcard_combos,
@@ -316,7 +316,7 @@ rule deduplicate_merge:
             metadata_combos=merge_wildcard_combos,
         )),
         ancient(lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype"][1],
+            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
             wildcards={"plate": wildcards.plate, "well": wildcards.well},
             expansion_values=_merge_well_expand,
             metadata_combos=merge_wildcard_combos,
@@ -338,7 +338,7 @@ rule final_merge:
     input:
         MERGE_OUTPUTS["deduplicate_merge"][1],
         ancient(lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype"][0],
+            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][0],
             wildcards={"plate": wildcards.plate, "well": wildcards.well},
             expansion_values=_merge_well_expand,
             metadata_combos=merge_wildcard_combos,
@@ -367,7 +367,7 @@ rule eval_merge:
             ancient_output=True,
         ),
         min_phenotype_cp_paths=lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_phenotype"][1],
+            PHENOTYPE_OUTPUTS["merge_phenotype_cp"][1],
             wildcards=wildcards,
             expansion_values=_merge_well_expand_all,
             metadata_combos=phenotype_wildcard_combos,

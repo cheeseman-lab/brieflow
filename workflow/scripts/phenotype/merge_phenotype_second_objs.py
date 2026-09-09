@@ -2,6 +2,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 
 from lib.shared.file_utils import read_tsv_safe
+from lib.shared.parquet_io import write_parquet
 
 # Load, concatenate, and save the secondary object phenotype data
 arr_reads = Parallel(n_jobs=snakemake.threads)(
@@ -20,4 +21,4 @@ else:
     second_obj_phenotype = pd.DataFrame()
 
 # Save the combined secondary object phenotype data
-second_obj_phenotype.to_parquet(snakemake.output[0])
+write_parquet(second_obj_phenotype, snakemake.output[0])

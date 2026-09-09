@@ -26,14 +26,17 @@ if agg_strategy != "none" and second_objs_df.empty:
         f"phenotype.second_obj_detection."
     )
 
-# Filter secondary objects to matching plate/well
+# Filter secondary objects to matching plate/well; an empty screen-wide table has no columns
 plate = int(
     snakemake.wildcards.plate
 )  # plate is int64 in both merge_final and phenotype parquets
 well = str(snakemake.wildcards.well)  # well is always string ("A1", etc.)
-second_objs_filtered = second_objs_df[
-    (second_objs_df["plate"] == plate) & (second_objs_df["well"] == well)
-]
+if second_objs_df.empty:
+    second_objs_filtered = second_objs_df
+else:
+    second_objs_filtered = second_objs_df[
+        (second_objs_df["plate"] == plate) & (second_objs_df["well"] == well)
+    ]
 
 print(f"  Secondary objects after plate/well filter: {len(second_objs_filtered)} rows")
 

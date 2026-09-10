@@ -174,6 +174,8 @@ rule extract_sbs_info:
         SBS_OUTPUTS["segment_sbs"][0],
         # alignment metrics TSV
         SBS_OUTPUTS["align_sbs"][1],
+        # per-cell nuclei counts TSV
+        SBS_OUTPUTS["segment_sbs"][3],
     output:
         SBS_OUTPUTS_MAPPED["extract_sbs_info"],
     script:

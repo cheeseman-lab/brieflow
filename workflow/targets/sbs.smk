@@ -41,6 +41,7 @@ SBS_OUTPUTS = {
         SBS_FP / get_image_output_path(_tile, "nuclei", SBS_IMG_FMT, subdirectory="labels"),
         SBS_FP / get_image_output_path(_tile, "cells", SBS_IMG_FMT, subdirectory="labels"),
         SBS_FP / "tsvs" / get_data_output_path(_tile, "segmentation_stats", "tsv", SBS_IMG_FMT),
+        SBS_FP / "tsvs" / get_data_output_path(_tile, "nuclei_per_cell", "tsv", SBS_IMG_FMT),
     ],
     "extract_bases": [
         SBS_FP / "tsvs" / get_data_output_path(_tile, "bases", "tsv", SBS_IMG_FMT),
@@ -96,7 +97,7 @@ SBS_OUTPUT_MAPPINGS = {
     "find_peaks": _sbs_img_temp,
     "max_filter": _sbs_img_temp,
     "apply_ic_field_sbs": _sbs_img_temp,
-    "segment_sbs": [_sbs_label_keep, _sbs_label_keep, None],
+    "segment_sbs": [_sbs_label_keep, _sbs_label_keep, None, None],
     "extract_bases": None,
     "call_reads": None,
     "call_cells": None,

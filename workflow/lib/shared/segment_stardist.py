@@ -19,7 +19,7 @@ from stardist.models import StarDist2D
 from csbdeep.utils import normalize
 from skimage.segmentation import clear_border
 
-from lib.shared.segmentation_utils import reconcile_nuclei_cells
+from lib.shared.segmentation_utils import count_nuclei_per_cell, reconcile_nuclei_cells
 
 
 def segment_stardist(
@@ -95,7 +95,7 @@ def segment_stardist(
     # Perform cell segmentation using StarDist
     if cells:
         if return_counts:
-            nuclei, cells, seg_counts = segment_stardist_multichannel(
+            nuclei, cells, seg_counts, nuclei_per_cell = segment_stardist_multichannel(
                 dapi,
                 cyto,
                 model_type=model_type,
@@ -125,7 +125,7 @@ def segment_stardist(
         print(f"Number of cells segmented: {counts['final_cells']}")
 
         if return_counts:
-            return nuclei, cells, counts_df
+            return nuclei, cells, counts_df, nuclei_per_cell
         else:
             return nuclei, cells
     else:
@@ -239,9 +239,12 @@ def segment_stardist_multichannel(
         file=sys.stderr,
     )
 
+    raw_nuclei = nuclei.copy()
     if reconcile:
         print(f"reconciling masks with method how={reconcile}")
         nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
+
+    nuclei_per_cell = count_nuclei_per_cell(raw_nuclei, cells)
 
     counts["final_cells"] = len(np.unique(cells)) - 1
 
@@ -250,7 +253,7 @@ def segment_stardist_multichannel(
     )
 
     if return_counts:
-        return nuclei, cells, counts
+        return nuclei, cells, counts, nuclei_per_cell
     else:
         return nuclei, cells
 

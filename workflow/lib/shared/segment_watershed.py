@@ -28,7 +28,7 @@ from skimage.morphology import (
 from skimage.feature import peak_local_max
 from skimage.filters import threshold_local, gaussian, rank
 
-from lib.shared.segmentation_utils import reconcile_nuclei_cells
+from lib.shared.segmentation_utils import count_nuclei_per_cell, reconcile_nuclei_cells
 from scipy import ndimage as ndi
 from skimage.util import img_as_ubyte
 
@@ -98,15 +98,18 @@ def segment_watershed(
     counts["cells"] = len(np.unique(cells)) - 1  # Subtract 1 to exclude background
 
     # Reconcile nuclei and cells if specified
+    raw_nuclei = nuclei.copy()
     if reconcile:
         print(f"reconciling masks with method how={reconcile}")
         nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
         counts["reconciled_nuclei"] = len(np.unique(nuclei)) - 1
         counts["reconciled_cells"] = len(np.unique(cells)) - 1
 
+    nuclei_per_cell = count_nuclei_per_cell(raw_nuclei, cells)
+
     if return_counts:
         counts_df = pd.DataFrame([counts])
-        return nuclei, cells, counts_df
+        return nuclei, cells, counts_df, nuclei_per_cell
     else:
         return nuclei, cells
 

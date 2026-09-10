@@ -6,6 +6,7 @@ st.set_page_config(
     layout="wide",
 )
 
+import anndata as ad
 import pandas as pd
 import glob
 import os
@@ -32,12 +33,32 @@ from workflow.lib.shared.image_io import read_image
 CLUSTER_ROOT = os.path.join(BRIEFLOW_OUTPUT_PATH, "cluster")
 IMAGE_FORMAT = get_image_format()
 
-# Cluster outputs nest as channel_combo/[compartment_combo/]cell_class/leiden_resolution,
+# One h5ad per channel_combo/[compartment_combo/]cell_class carries every resolution,
 # so name the levels by how many there are rather than by fixed position.
 CLUSTER_DIR_LEVELS = {
-    3: ["channel_combo", "cell_class", "leiden_resolution"],
-    4: ["channel_combo", "compartment_combo", "cell_class", "leiden_resolution"],
+    2: ["channel_combo", "cell_class"],
+    3: ["channel_combo", "compartment_combo", "cell_class"],
 }
+
+# obs holds one cluster assignment column per leiden resolution
+CLUSTER_GROUP_PREFIX = "cluster_group_"
+
+# obs columns the page already carries as a filter, so they stay out of the gene table
+OBS_EXCLUDED_COLUMNS = ["cell_cycle_phase"]
+
+# columns the page adds for its own bookkeeping, dropped before the gene table is shown
+BOOKKEEPING_COLUMNS = [
+    "source",
+    "source_h5ad_path",
+    "cluster_dir",
+    "channel_combo",
+    "compartment_combo",
+    "cell_class",
+    "leiden_resolution",
+]
+
+# bootstrap significance layers, most directly usable first
+SIGNIFICANCE_LAYERS = ("neg_log10_fdr", "fdr")
 
 # Common hover data columns
 HOVER_COLUMNS = ["gene_symbol_0", "cluster", "cell_count", "source"]
@@ -97,34 +118,92 @@ def has_mozzarellm_for_leiden(channel_combo: str, cell_class: str, leiden_res) -
 
 
 # -- Data Load Methods --
-# Load and merge cluster TSV files
 @st.cache_data
-def load_cluster_data():
-    # Find all relevant TSV files
-    tsv_files = glob.glob(
-        f"{CLUSTER_ROOT}/**/phate_leiden_clustering.tsv", recursive=True
+def find_cluster_h5ads() -> list:
+    """List every cluster h5ad written by ``rule format_cluster_anndata``."""
+    return sorted(
+        glob.glob(os.path.join(CLUSTER_ROOT, "**", "h5ad", "*.h5ad"), recursive=True)
     )
 
-    # Read each file and add source attribute
-    dfs = []
-    for file_path in tsv_files:
-        rel_path = os.path.relpath(file_path, CLUSTER_ROOT)
-        dirname = os.path.dirname(rel_path)
-        base_name = os.path.splitext(os.path.basename(file_path))[0]
-        df = pd.read_csv(file_path, sep="\t")
-        df["source_full_path"] = file_path
-        df["source"] = base_name
-        parts = dirname.split(os.sep)
-        level_names = CLUSTER_DIR_LEVELS.get(
-            len(parts), [f"dir_level_{i}" for i in range(len(parts))]
-        )
-        for name, part in zip(level_names, parts):
-            df[name] = part
 
-        dfs.append(df)
+@st.cache_resource
+def load_cluster_h5ad(h5ad_path: str):
+    """Read one cluster h5ad, the single source for clustering, features and gene metadata."""
+    return ad.read_h5ad(h5ad_path)
 
-    # Concatenate all dataframes
-    return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+
+def cluster_base_dir(h5ad_path: str) -> str:
+    """Return the cell class directory that holds a cluster h5ad's ``h5ad/`` subdirectory."""
+    return os.path.dirname(os.path.dirname(h5ad_path))
+
+
+def parse_cluster_levels(h5ad_path: str) -> dict:
+    """Return the channel_combo / compartment_combo / cell_class a cluster h5ad belongs to.
+
+    The compartment_combo level is only present when the run splits by compartment.
+    """
+    parts = os.path.relpath(cluster_base_dir(h5ad_path), CLUSTER_ROOT).split(os.sep)
+    level_names = CLUSTER_DIR_LEVELS.get(
+        len(parts), [f"dir_level_{i}" for i in range(len(parts))]
+    )
+    return dict(zip(level_names, parts))
+
+
+def leiden_resolutions(adata) -> list:
+    """List the leiden resolutions an h5ad carries cluster assignments for."""
+    return [
+        col[len(CLUSTER_GROUP_PREFIX) :]
+        for col in adata.obs.columns
+        if col.startswith(CLUSTER_GROUP_PREFIX)
+    ]
+
+
+@st.cache_data
+def load_cluster_data():
+    """Build the gene table the page filters on, one row per gene per leiden resolution."""
+    frames = []
+    for h5ad_path in find_cluster_h5ads():
+        adata = load_cluster_h5ad(h5ad_path)
+        dropped = [
+            col
+            for col in adata.obs.columns
+            if col.startswith(CLUSTER_GROUP_PREFIX) or col in OBS_EXCLUDED_COLUMNS
+        ]
+        genes = adata.obs.drop(columns=dropped).reset_index(drop=True)
+        genes.insert(0, "gene_symbol_0", adata.obs_names.to_numpy())
+        if "X_phate" in adata.obsm:
+            genes["PHATE_0"] = adata.obsm["X_phate"][:, 0]
+            genes["PHATE_1"] = adata.obsm["X_phate"][:, 1]
+
+        levels = parse_cluster_levels(h5ad_path)
+        for resolution in leiden_resolutions(adata):
+            frame = genes.copy()
+            frame["cluster"] = adata.obs[
+                f"{CLUSTER_GROUP_PREFIX}{resolution}"
+            ].to_numpy()
+            frame["leiden_resolution"] = resolution
+            frame["source"] = os.path.basename(h5ad_path)
+            frame["source_h5ad_path"] = h5ad_path
+            frame["cluster_dir"] = os.path.join(cluster_base_dir(h5ad_path), resolution)
+            for name, part in levels.items():
+                frame[name] = part
+            frames.append(frame)
+
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+def get_active_h5ad(cluster_data):
+    """Return the AnnData behind the filtered cluster data, or None when nothing matches."""
+    if cluster_data.empty:
+        return None
+    return load_cluster_h5ad(cluster_data["source_h5ad_path"].iloc[0])
+
+
+def get_cluster_dir(cluster_data):
+    """Return the resolution directory holding the outputs that are not in the h5ad."""
+    if cluster_data.empty:
+        return None
+    return cluster_data["cluster_dir"].iloc[0]
 
 
 @st.cache_data
@@ -615,73 +694,89 @@ def cluster_table(cluster_data):
         st.warning("No cluster data found for the selected filters.")
         return
 
+    table_data = cluster_data.drop(
+        columns=[c for c in BOOKKEEPING_COLUMNS if c in cluster_data.columns]
+    )
     # If an item is selected, filter the dataframe
-    source_tsv = cluster_data["source_full_path"].unique()[0]
-    if os.path.exists(source_tsv):
-        table_data = pd.read_csv(source_tsv, sep="\t")
-        if st.session_state.selected_item:
-            # Convert selected_item to integer since cluster column is int64
-            try:
-                selected_item_int = int(st.session_state.selected_item)
-                table_data = table_data[table_data["cluster"] == selected_item_int]
-            except ValueError:
-                st.error(f"Invalid cluster value: {st.session_state.selected_item}")
+    if st.session_state.selected_item:
+        table_data = table_data[
+            table_data["cluster"].astype(str) == str(st.session_state.selected_item)
+        ]
 
-            if len(table_data.index) == 0:
-                st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
-            else:
-                table_data.set_index("gene_symbol_0", inplace=True)
-                st.dataframe(table_data)
-        else:
-            if len(table_data.index) == 0:
-                st.warning(f"⚠️ WARNING: No data found in the TSV file: {source_tsv}")
-            else:
-                table_data.set_index("gene_symbol_0", inplace=True)
-                st.dataframe(table_data)
-    else:
-        st.warning(f"⚠️ WARNING: Source TSV file not found at: {source_tsv}")
+    if table_data.empty:
+        st.warning("⚠️ WARNING: No genes found for the selected cluster.")
+        return
+    st.dataframe(table_data.set_index("gene_symbol_0"))
 
 
-def get_compartment_combo(cluster_data):
-    """Return the compartment combo of the loaded cluster data, or None when it has none."""
-    if "compartment_combo" in cluster_data.columns and len(cluster_data) > 0:
-        return cluster_data["compartment_combo"].iloc[0]
-    return None
-
-
-def feature_table(cell_class, channel_combo, compartment_combo=None):
+def feature_table(adata):
     # Feature Data Overview
     st.markdown("## Feature Data Overview")
     st.markdown(
         "Median feature values per gene after center scaling all single cell data on control cells by well."
     )
-    # Construct the feature table path
-    name = f"CeCl-{cell_class}_ChCo-{channel_combo}"
-    if compartment_combo:
-        name = f"{name}_CmCo-{compartment_combo}"
-    feature_table_path = os.path.join(
-        BRIEFLOW_OUTPUT_PATH, "aggregate", "tsvs", f"{name}__features_genes.tsv"
-    )
-    # Load and display the feature table if it exists
-    if os.path.exists(feature_table_path):
-        feature_df = pd.read_csv(feature_table_path, sep="\t")
-        feature_df.set_index("gene_symbol_0", inplace=True)
+    if adata is None:
+        st.warning("⚠️ WARNING: No cluster h5ad found for the selected filters.")
+        return
 
-        # Create a container with a fixed height and scrolling
-        with st.container():
-            # Display the dataframe with all columns and sorting enabled
-            st.dataframe(
-                feature_df,
-                use_container_width=True,
-                height=400,  # Fixed height for scrolling
-                column_config={
-                    # Configure all columns to be sortable
-                    col: st.column_config.NumberColumn(width="medium")
-                    for col in feature_df.columns
-                },
-            )
-    else:
-        st.warning(f"⚠️ WARNING: Feature table not found at: {feature_table_path}")
+    feature_df = pd.DataFrame(
+        adata.X, index=adata.obs_names, columns=adata.var_names.to_list()
+    )
+    if "cell_count" in adata.obs.columns:
+        feature_df.insert(0, "cell_count", adata.obs["cell_count"].to_numpy())
+    feature_df.index.name = "gene_symbol_0"
+
+    # Create a container with a fixed height and scrolling
+    with st.container():
+        # Display the dataframe with all columns and sorting enabled
+        st.dataframe(
+            feature_df,
+            use_container_width=True,
+            height=400,  # Fixed height for scrolling
+            column_config={
+                # Configure all columns to be sortable
+                col: st.column_config.NumberColumn(width="medium")
+                for col in feature_df.columns
+            },
+        )
+
+
+def gene_significance_chart(adata, gene):
+    """Plot each feature's value against its bootstrap significance for one gene.
+
+    Renders nothing unless the h5ad carries bootstrap layers, which only runs with
+    gene-level bootstrap results have.
+    """
+    if adata is None or not gene or gene not in adata.obs_names:
+        return
+    layer = next((name for name in SIGNIFICANCE_LAYERS if name in adata.layers), None)
+    if layer is None:
+        return
+
+    row = adata.obs_names.get_loc(gene)
+    effect = np.asarray(adata.X[row, :]).ravel()
+    significance = np.asarray(adata.layers[layer][row, :]).ravel()
+    if layer == "fdr":
+        significance = -np.log10(np.clip(significance, 1e-300, None))
+
+    st.markdown("#### Feature Significance")
+    fig = go.Figure(
+        go.Scattergl(
+            x=effect,
+            y=significance,
+            mode="markers",
+            text=adata.var_names.to_list(),
+            marker=dict(size=6, opacity=0.7),
+            hovertemplate="%{text}<br>value=%{x}<br>-log10 FDR=%{y}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        xaxis_title="Feature value",
+        yaxis_title="-log10 FDR",
+        height=400,
+        showlegend=False,
+    )
+    st.plotly_chart(fig, use_container_width=True, key=f"significance_{gene}")
 
 
 def cluster_size_charts(cluster_data):
@@ -691,18 +786,21 @@ def cluster_size_charts(cluster_data):
     # Create two equal-sized columns
     col1, col2 = st.columns([1, 1])
 
-    cluster_dir = os.path.dirname(cluster_data["source_full_path"].unique()[0])
+    cluster_dir = get_cluster_dir(cluster_data)
 
     with col1:
         st.markdown("### Cluster Sizes")
-        # Construct the path to the cluster sizes plot
-        cluster_sizes_path = os.path.join(cluster_dir, "cluster_sizes.png")
-
-        # Display the plot if it exists
-        if os.path.exists(cluster_sizes_path):
-            st.image(cluster_sizes_path, use_container_width=True)
-        else:
-            st.warning(f"Cluster sizes plot not found at: {cluster_sizes_path}")
+        # Cluster membership lives in obs, so count the genes per cluster instead of
+        # reading the PNG the pipeline renders.
+        sizes = (
+            cluster_data["cluster"]
+            .astype(str)
+            .value_counts()
+            .rename_axis("cluster")
+            .reset_index(name="genes")
+            .sort_values("cluster", key=lambda values: values.astype(int))
+        )
+        st.bar_chart(sizes, x="cluster", y="genes")
 
     with col2:
         st.markdown("### Cluster Enrichment")
@@ -732,8 +830,7 @@ def display_cluster_json(cluster_data, container=st.container()):
         "selected_item" in st.session_state
         and st.session_state.selected_item is not None
     ):
-        # Because the interphase folder has mixed case
-        cluster_dir = os.path.dirname(cluster_data["source_full_path"].unique()[0])
+        cluster_dir = get_cluster_dir(cluster_data)
         cluster_id = str(st.session_state.selected_item)
 
         # Build the path to the individual cluster JSON file in mozzarellm/clusters/
@@ -856,22 +953,23 @@ def display_cluster_json(cluster_data, container=st.container()):
 
 
 def display_uniprot_info():
-    if st.session_state.selected_gene:
-        source_tsv = cluster_data["source_full_path"].unique()[0]
-        if os.path.exists(source_tsv):
-            table_data = pd.read_csv(source_tsv, sep="\t")
-            table_data = table_data[
-                table_data["gene_symbol_0"] == st.session_state.selected_gene
-            ]
-            if len(table_data.index) != 0:
-                st.write(
-                    f"Uniprot Entry: [{table_data['uniprot_entry'].values[0]}]({table_data['uniprot_link'].values[0]})"
-                )
-                function_text = table_data["uniprot_function"].values[0]
-                if isinstance(function_text, str) and function_text.strip():
-                    st.markdown(f"Uniprot Function:\n>{function_text}")
-                else:
-                    st.write("Uniprot Function: Not available")
+    """Show the uniprot entry and function text the h5ad carries in obs for the selected gene."""
+    if not st.session_state.selected_gene:
+        return
+    gene_rows = cluster_data[
+        cluster_data["gene_symbol_0"] == st.session_state.selected_gene
+    ]
+    if gene_rows.empty or "uniprot_entry" not in gene_rows.columns:
+        return
+
+    st.write(
+        f"Uniprot Entry: [{gene_rows['uniprot_entry'].values[0]}]({gene_rows['uniprot_link'].values[0]})"
+    )
+    function_text = gene_rows["uniprot_function"].values[0]
+    if isinstance(function_text, str) and function_text.strip():
+        st.markdown(f"Uniprot Function:\n>{function_text}")
+    else:
+        st.write("Uniprot Function: Not available")
 
 
 # -- Search/Filter state management --
@@ -1200,6 +1298,8 @@ cell_class = st.session_state.cell_class
 channel_combo = st.session_state.channel_combo
 leiden_resolution = st.session_state.leiden_resolution
 
+cluster_adata = get_active_h5ad(cluster_data)
+
 if not st.session_state.selected_item:
     # No cluster selected: Just show the full width cluster plot
     display_cluster(
@@ -1208,7 +1308,7 @@ if not st.session_state.selected_item:
         channel_combo=st.session_state.channel_combo,
     )
     cluster_table(cluster_data)
-    feature_table(cell_class, channel_combo, get_compartment_combo(cluster_data))
+    feature_table(cluster_adata)
     cluster_size_charts(cluster_data)
 
 else:
@@ -1219,7 +1319,7 @@ else:
             cluster_data, cell_class=cell_class, channel_combo=channel_combo
         )
         cluster_table(cluster_data)
-        feature_table(cell_class, channel_combo, get_compartment_combo(cluster_data))
+        feature_table(cluster_adata)
         cluster_size_charts(cluster_data)
 
     with col2:
@@ -1284,6 +1384,7 @@ else:
                 st.write("No genes found in this cluster.")
 
             display_uniprot_info()
+            gene_significance_chart(cluster_adata, st.session_state.selected_gene)
 
             # Display montages only for the selected gene
             if st.session_state.selected_gene:

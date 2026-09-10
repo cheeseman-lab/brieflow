@@ -262,96 +262,6 @@ def extract_metadata_well_nd2(
     return df
 
 
-def _extract_ims_per_file_metadata(ims_file):
-    def _decode_hdf5_value(v):
-        """Return a Python-friendly value for common HDF5 attribute/dataset types.
-
-        - bytes -> decoded utf-8 string (ignore errors)
-        - numpy byte-char arrays -> joined string
-        - numpy scalars -> Python scalar via .item()
-        - numpy numeric arrays -> list
-        """
-        if isinstance(v, bytes):
-            return v.decode("utf-8", errors="ignore")
-        if isinstance(v, np.ndarray):
-            if v.dtype.kind == "S":
-                return b"".join(v).decode("utf-8", errors="ignore")
-            return v.tolist()
-        if np.isscalar(v):
-            return v.item()
-        return v
-
-    def _hdf5_to_dict(h5obj, load_datasets=False):
-        """Recursively convert groups/datasets into a nested dict with '@attrs' keys for attributes.
-
-        - load_datasets: if True, dataset values are read into 'value' keys (not used by default).
-        """
-        out = {}
-        if hasattr(h5obj, "attrs") and len(h5obj.attrs) > 0:
-            out["@attrs"] = {k: _decode_hdf5_value(v) for k, v in h5obj.attrs.items()}
-        for name, obj in h5obj.items():
-            try:
-                if isinstance(obj, h5py.Group):
-                    out[name] = _hdf5_to_dict(obj, load_datasets)
-                elif isinstance(obj, h5py.Dataset):
-                    ds = {"shape": obj.shape, "dtype": str(obj.dtype)}
-                    if load_datasets:
-                        ds["value"] = _decode_hdf5_value(obj[()])
-                    if hasattr(obj, "attrs") and len(obj.attrs) > 0:
-                        ds["@attrs"] = {
-                            k: _decode_hdf5_value(v) for k, v in obj.attrs.items()
-                        }
-                    out[name] = ds
-            except Exception:
-                # best-effort skip on problematic entries
-                continue
-        return out
-
-    def _ims_metadata_to_dict(pth, load_datasets=False):
-        """Open an .ims file and return a nested dict of groups/attrs using _hdf5_to_dict."""
-        p = Path(pth)
-        with h5py.File(p, "r") as f:
-            return _hdf5_to_dict(f, load_datasets)
-
-    md_dict = _ims_metadata_to_dict(ims_file)
-
-    return pd.DataFrame(
-        [
-            {
-                "filename": Path(ims_file).name,
-                "tile": int(ims_file.split(".ims")[0].split("F")[-1]),
-                "x_pos": float(
-                    md_dict["DataSetInfo"]["CustomData"]["@attrs"].get(
-                        "XPosition", None
-                    )
-                ),
-                "y_pos": float(
-                    md_dict["DataSetInfo"]["CustomData"]["@attrs"].get(
-                        "YPosition", None
-                    )
-                ),
-                "x_binning": int(
-                    md_dict["DataSetInfo"]["CustomData"]["@attrs"].get("BinningX", None)
-                ),
-                "y_binning": int(
-                    md_dict["DataSetInfo"]["CustomData"]["@attrs"].get("BinningY", None)
-                ),
-                "lens_magnification": float(
-                    md_dict["DataSetInfo"]["Image"]["@attrs"].get("LensPower", None)
-                ),
-                "numerical_aperture": float(
-                    md_dict["DataSetInfo"]["Image"]["@attrs"].get(
-                        "NumericalAperture", None
-                    )
-                ),
-                "well": md_dict["DataSetInfo"]["CustomData"]["@attrs"].get(
-                    "FieldID", None
-                ),
-            }
-        ]
-    )
-
-
 def extract_metadata_ims(
     file_path: Union[str, List[str], Path, List[Path]],
     plate: Union[int, str] = None,
@@ -371,8 +281,8 @@ def extract_metadata_ims(
     Args:
         file_path: Single path or list of .ims paths (str or pathlib.Path).
         plate: Plate identifier.
-        well: Well identifier.
-        tile: Tile/FOV number.
+        well: Well identifier. Used when set, otherwise the Imaris FieldID is used.
+        tile: Tile/FOV number. Used only when the file name has no trailing "F<number>".
         cycle: Optional cycle number for SBS imaging.
         round: Optional round number for multiplexed imaging.
         rescale_positions: factor to convert stage positions from mm to µm (default 1000).
@@ -387,7 +297,13 @@ def extract_metadata_ims(
     else:
         files = file_path
 
-    df_meta = pd.concat([_extract_ims_per_file_metadata(f) for f in files])
+    df_meta = pd.concat(
+        [
+            _extract_ims_per_file_metadata(f, well=well, tile=tile, verbose=verbose)
+            for f in files
+        ],
+        ignore_index=True,
+    )
 
     if "lens_magnification" in df_meta.columns and "x_binning" in df_meta.columns:
         df_meta["effective_magnification_x"] = df_meta["lens_magnification"].fillna(
@@ -399,13 +315,125 @@ def extract_metadata_ims(
             1
         ) * df_meta["y_binning"].fillna(1)
 
-    df_meta['x_pos'] = df_meta['x_pos'].apply(lambda x: x * rescale_positions if pd.notna(rescale_positions) else x)
-    df_meta['y_pos'] = df_meta['y_pos'].apply(lambda x: x * rescale_positions if pd.notna(rescale_positions) else x)
+    # Imaris records stage positions in mm; the rest of the pipeline works in µm
+    if rescale_positions is not None:
+        df_meta["x_pos"] = df_meta["x_pos"] * rescale_positions
+        df_meta["y_pos"] = df_meta["y_pos"] * rescale_positions
 
     if plate is not None:
-        df_meta['plate'] = plate
+        df_meta["plate"] = plate
+    if cycle is not None:
+        df_meta["cycle"] = cycle
+    if round is not None:
+        df_meta["round"] = round
 
     return df_meta
+
+
+def _decode_hdf5_value(value):
+    """Return a Python-friendly value for common HDF5 attribute/dataset types."""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="ignore")
+    if isinstance(value, np.ndarray):
+        if value.dtype.kind == "S":
+            return b"".join(value).decode("utf-8", errors="ignore")
+        return value.tolist()
+    if np.isscalar(value):
+        return value.item()
+    return value
+
+
+def _hdf5_to_dict(h5obj, load_datasets: bool = False) -> Dict[str, Any]:
+    """Recursively convert groups/datasets into a nested dict with '@attrs' keys for attributes."""
+    out = {}
+    if hasattr(h5obj, "attrs") and len(h5obj.attrs) > 0:
+        out["@attrs"] = {k: _decode_hdf5_value(v) for k, v in h5obj.attrs.items()}
+    for name, obj in h5obj.items():
+        try:
+            if isinstance(obj, h5py.Group):
+                out[name] = _hdf5_to_dict(obj, load_datasets)
+            elif isinstance(obj, h5py.Dataset):
+                ds = {"shape": obj.shape, "dtype": str(obj.dtype)}
+                if load_datasets:
+                    ds["value"] = _decode_hdf5_value(obj[()])
+                if hasattr(obj, "attrs") and len(obj.attrs) > 0:
+                    ds["@attrs"] = {
+                        k: _decode_hdf5_value(v) for k, v in obj.attrs.items()
+                    }
+                out[name] = ds
+        except Exception:
+            # best-effort skip on problematic entries
+            continue
+    return out
+
+
+def _ims_metadata_to_dict(file_path, load_datasets: bool = False) -> Dict[str, Any]:
+    """Open an .ims file and return a nested dict of groups/attrs using _hdf5_to_dict."""
+    with h5py.File(Path(file_path), "r") as f:
+        return _hdf5_to_dict(f, load_datasets)
+
+
+def _coerce_number(value, cast):
+    """Cast an HDF5 attribute to a number, returning None when missing or unparseable."""
+    if value is None:
+        return None
+    try:
+        return cast(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_ims_tile(file_path) -> Optional[int]:
+    """Parse the tile number from the trailing "F<number>" field of an .ims file name."""
+    match = re.search(r"F(\d+)$", Path(file_path).stem)
+    return int(match.group(1)) if match else None
+
+
+def _extract_ims_per_file_metadata(
+    ims_file,
+    well: Union[int, str] = None,
+    tile: Union[int, str] = None,
+    verbose: bool = False,
+) -> pd.DataFrame:
+    """Read the metadata attributes bundled in a single Imaris .ims file.
+
+    Args:
+        ims_file: Path to the .ims file.
+        well: Well identifier. Used when set, otherwise the Imaris FieldID is used.
+        tile: Tile/FOV number, used only when the file name has no trailing "F<number>".
+        verbose: Print parsed values.
+
+    Returns:
+        Single-row DataFrame of metadata for this file.
+    """
+    ims_file = Path(ims_file)
+    md_dict = _ims_metadata_to_dict(ims_file)
+    data_set_info = md_dict.get("DataSetInfo", {})
+    custom_attrs = data_set_info.get("CustomData", {}).get("@attrs", {})
+    image_attrs = data_set_info.get("Image", {}).get("@attrs", {})
+
+    field_id = custom_attrs.get("FieldID", None)
+    parsed_tile = _parse_ims_tile(ims_file)
+
+    metadata = {
+        "filename": ims_file.name,
+        "well": well if well is not None else field_id,
+        "tile": parsed_tile if parsed_tile is not None else tile,
+        "field_id": field_id,
+        "x_pos": _coerce_number(custom_attrs.get("XPosition"), float),
+        "y_pos": _coerce_number(custom_attrs.get("YPosition"), float),
+        "x_binning": _coerce_number(custom_attrs.get("BinningX"), int),
+        "y_binning": _coerce_number(custom_attrs.get("BinningY"), int),
+        "lens_magnification": _coerce_number(image_attrs.get("LensPower"), float),
+        "numerical_aperture": _coerce_number(
+            image_attrs.get("NumericalAperture"), float
+        ),
+    }
+
+    if verbose:
+        print(f"Parsed metadata from {ims_file.name}: {metadata}")
+
+    return pd.DataFrame([metadata])
 
 
 def extract_metadata_tiff(
@@ -891,6 +919,7 @@ def convert_ims_to_array(
     channel_order_flip: bool = False,
     flip_y_axis: bool = True,
     verbose: bool = False,
+    **kwargs,
 ) -> np.ndarray:
     """Convert tile-based Imaris files to numpy array in CYX format.
 
@@ -901,8 +930,11 @@ def convert_ims_to_array(
     Args:
         files: Path(s) to Imaris file(s)
         channel_order_flip: Reverse the order of channels
-        flip_y_axis: reverses the orientation of the second axis to match the convention of nd2 files.
+        flip_y_axis: Reverse the orientation of the Y axis. Imaris stores rows bottom-up
+            relative to the ND2 convention, so this defaults to True to keep image
+            orientation consistent with the stage positions used downstream.
         verbose: Print debug information
+        **kwargs: Additional arguments for compatibility
 
     Returns:
         numpy array in CYX format (Channel, Y, X) with dtype uint16
@@ -1284,7 +1316,7 @@ def convert_to_array(
 
     Args:
         files: Path(s) to image file(s)
-        data_format: 'nd2' or 'tiff'
+        data_format: 'nd2', 'ims', or 'tiff'
         data_organization: 'tile' (one FOV per file) or 'well' (multiple FOVs per file)
         position: Position/tile to extract (required for well organization)
         channel_order_flip: Reverse the order of channels
@@ -1324,7 +1356,7 @@ def convert_to_array(
 
     elif data_format == "ims":
         return convert_ims_to_array(
-            files, channel_order_flip=channel_order_flip, verbose=verbose
+            files, channel_order_flip=channel_order_flip, verbose=verbose, **kwargs
         )
 
     elif data_format == "tiff":

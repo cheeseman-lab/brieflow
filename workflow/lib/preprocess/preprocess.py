@@ -1,7 +1,7 @@
 """Unified preprocessing module for microscopy image data.
 
 This module provides a unified interface for preprocessing microscopy data from different
-sources (ND2, TIFF) and organizations (tile-based, well-based). The main functions handle
+sources (ND2, IMS, TIFF) and organizations (tile-based, well-based). The main functions handle
 metadata extraction and image conversion to standardized formats.
 
 The module outputs images in CYX format (Channel, Y, X) which is the standard format
@@ -12,6 +12,9 @@ regardless of the input format.
 import pandas as pd
 import numpy as np
 import nd2
+from imaris_ims_file_reader.ims import ims
+import re
+import h5py
 from typing import Union, List, Dict, Any, Optional, Tuple
 from pathlib import Path
 import warnings
@@ -19,7 +22,7 @@ import gc
 
 
 # Data organization and format constants
-DATA_FORMATS = {"nd2", "tiff"}
+DATA_FORMATS = {"nd2", "tiff", "ims"}
 DATA_ORGANIZATIONS = {"tile", "well"}
 
 
@@ -257,6 +260,152 @@ def extract_metadata_well_nd2(
 
     df = pd.DataFrame(metadata_rows)
     return df
+
+
+def _extract_ims_per_file_metadata(ims_file):
+    def _decode_hdf5_value(v):
+        """Return a Python-friendly value for common HDF5 attribute/dataset types.
+
+        - bytes -> decoded utf-8 string (ignore errors)
+        - numpy byte-char arrays -> joined string
+        - numpy scalars -> Python scalar via .item()
+        - numpy numeric arrays -> list
+        """
+        if isinstance(v, bytes):
+            return v.decode("utf-8", errors="ignore")
+        if isinstance(v, np.ndarray):
+            if v.dtype.kind == "S":
+                return b"".join(v).decode("utf-8", errors="ignore")
+            return v.tolist()
+        if np.isscalar(v):
+            return v.item()
+        return v
+
+    def _hdf5_to_dict(h5obj, load_datasets=False):
+        """Recursively convert groups/datasets into a nested dict with '@attrs' keys for attributes.
+
+        - load_datasets: if True, dataset values are read into 'value' keys (not used by default).
+        """
+        out = {}
+        if hasattr(h5obj, "attrs") and len(h5obj.attrs) > 0:
+            out["@attrs"] = {k: _decode_hdf5_value(v) for k, v in h5obj.attrs.items()}
+        for name, obj in h5obj.items():
+            try:
+                if isinstance(obj, h5py.Group):
+                    out[name] = _hdf5_to_dict(obj, load_datasets)
+                elif isinstance(obj, h5py.Dataset):
+                    ds = {"shape": obj.shape, "dtype": str(obj.dtype)}
+                    if load_datasets:
+                        ds["value"] = _decode_hdf5_value(obj[()])
+                    if hasattr(obj, "attrs") and len(obj.attrs) > 0:
+                        ds["@attrs"] = {
+                            k: _decode_hdf5_value(v) for k, v in obj.attrs.items()
+                        }
+                    out[name] = ds
+            except Exception:
+                # best-effort skip on problematic entries
+                continue
+        return out
+
+    def _ims_metadata_to_dict(pth, load_datasets=False):
+        """Open an .ims file and return a nested dict of groups/attrs using _hdf5_to_dict."""
+        p = Path(pth)
+        with h5py.File(p, "r") as f:
+            return _hdf5_to_dict(f, load_datasets)
+
+    md_dict = _ims_metadata_to_dict(ims_file)
+
+    return pd.DataFrame(
+        [
+            {
+                "filename": Path(ims_file).name,
+                "tile": int(ims_file.split(".ims")[0].split("F")[-1]),
+                "x_pos": float(
+                    md_dict["DataSetInfo"]["CustomData"]["@attrs"].get(
+                        "XPosition", None
+                    )
+                ),
+                "y_pos": float(
+                    md_dict["DataSetInfo"]["CustomData"]["@attrs"].get(
+                        "YPosition", None
+                    )
+                ),
+                "x_binning": int(
+                    md_dict["DataSetInfo"]["CustomData"]["@attrs"].get("BinningX", None)
+                ),
+                "y_binning": int(
+                    md_dict["DataSetInfo"]["CustomData"]["@attrs"].get("BinningY", None)
+                ),
+                "lens_magnification": float(
+                    md_dict["DataSetInfo"]["Image"]["@attrs"].get("LensPower", None)
+                ),
+                "numerical_aperture": float(
+                    md_dict["DataSetInfo"]["Image"]["@attrs"].get(
+                        "NumericalAperture", None
+                    )
+                ),
+                "well": md_dict["DataSetInfo"]["CustomData"]["@attrs"].get(
+                    "FieldID", None
+                ),
+            }
+        ]
+    )
+
+
+def extract_metadata_ims(
+    file_path: Union[str, List[str], Path, List[Path]],
+    plate: Union[int, str] = None,
+    well: Union[int, str] = None,
+    tile: Union[int, str] = None,
+    cycle: Union[int, str] = None,
+    round: Union[int, str] = None,
+    rescale_positions: float = 1000,
+    verbose: bool = False,
+    **kwargs,
+) -> pd.DataFrame:
+    """Extract metadata from one or more Imaris .ims files.
+
+    Reads HDF5 (.ims) attributes (DataSetInfo, CustomData, Image) to collect
+    coordinates, binning, magnification, and numerical aperture.
+
+    Args:
+        file_path: Single path or list of .ims paths (str or pathlib.Path).
+        plate: Plate identifier.
+        well: Well identifier.
+        tile: Tile/FOV number.
+        cycle: Optional cycle number for SBS imaging.
+        round: Optional round number for multiplexed imaging.
+        rescale_positions: factor to convert stage positions from mm to µm (default 1000).
+        verbose: Print progress / parsed values.
+        **kwargs: Additional arguments for compatibility.
+
+    Returns:
+        DataFrame with one row per .ims file containing extracted metadata.
+    """
+    if isinstance(file_path, (str, Path)):
+        files = [file_path]
+    else:
+        files = file_path
+
+    df_meta = pd.concat([_extract_ims_per_file_metadata(f) for f in files])
+
+    if "lens_magnification" in df_meta.columns and "x_binning" in df_meta.columns:
+        df_meta["effective_magnification_x"] = df_meta["lens_magnification"].fillna(
+            1
+        ) * df_meta["x_binning"].fillna(1)
+
+    if "lens_magnification" in df_meta.columns and "y_binning" in df_meta.columns:
+        df_meta["effective_magnification_y"] = df_meta["lens_magnification"].fillna(
+            1
+        ) * df_meta["y_binning"].fillna(1)
+
+    df_meta['x_pos'] = df_meta['x_pos'].apply(lambda x: x * rescale_positions if pd.notna(rescale_positions) else x)
+    df_meta['y_pos'] = df_meta['y_pos'].apply(lambda x: x * rescale_positions if pd.notna(rescale_positions) else x)
+
+    if plate is not None:
+        df_meta['plate'] = plate
+
+    return df_meta
 
 
 def extract_metadata_tiff(
@@ -621,6 +770,7 @@ def convert_nd2_to_array_well(
     return_tiles: bool = False,
     verbose: bool = False,
     n_z_planes: int = None,
+    **kwargs,
 ) -> Union[np.ndarray, Tuple[np.ndarray, int]]:
     """Extract specific position from well-based ND2 files.
 
@@ -634,6 +784,7 @@ def convert_nd2_to_array_well(
         return_tiles: If True, also return the total number of tiles
         verbose: Print debug information
         n_z_planes: Accepted for API compatibility but not used (Z-stack handled automatically)
+        **kwargs: Additional arguments for compatibility
 
     Returns:
         numpy array in CYX format, optionally with tile count
@@ -733,6 +884,94 @@ def convert_nd2_to_array_well(
         return result.astype(np.uint16), tiles
     else:
         return result.astype(np.uint16)
+
+
+def convert_ims_to_array(
+    files: Union[str, List[str], Path, List[Path]],
+    channel_order_flip: bool = False,
+    flip_y_axis: bool = True,
+    verbose: bool = False,
+) -> np.ndarray:
+    """Convert tile-based Imaris files to numpy array in CYX format.
+
+    Processes one or more Imaris files where each file contains a single FOV.
+    If multiple files are provided, they are concatenated along the channel axis.
+    Z-stacks are handled by maximum intensity projection.
+
+    Args:
+        files: Path(s) to Imaris file(s)
+        channel_order_flip: Reverse the order of channels
+        flip_y_axis: reverses the orientation of the second axis to match the convention of nd2 files.
+        verbose: Print debug information
+
+    Returns:
+        numpy array in CYX format (Channel, Y, X) with dtype uint16
+
+    Example:
+        >>> # Single 4-channel image
+        >>> img = convert_ims_to_array("image.ims")
+        >>> img.shape  # (4, 2048, 2048)
+
+        >>> # Multiple files concatenated
+        >>> img = convert_ims_to_array(["cyc1.ims", "cyc2.ims"])
+        >>> img.shape  # (8, 2048, 2048) if each has 4 channels
+    """
+    # Convert input to list of Path objects
+    if isinstance(files, (str, Path)):
+        files = [Path(files)]
+    else:
+        files = [Path(f) for f in files]
+
+    # Process all files
+    image_arrays = []
+    for i, file in enumerate(files, 1):
+        if verbose:
+            print(f"Processing file {i}/{len(files)}: {file}")
+
+        image = ims(file)
+
+        n_time, n_channel, n_z_planes, n_X, n_Y = image.shape
+
+        if verbose:
+            print(f"Original dimensions for {file}: {image.shape}")
+
+        if n_time > 1:
+            raise ValueError(
+                f"Expected 1 time point, but received {n_time} time points"
+            )
+
+        if n_z_planes == 1:
+            image_array = image[0, :, 0, :, :]  # CYX
+        else:
+            if verbose:
+                print("Max projecting image.")
+            image_array = image[0, :, :, :, :].max(axis=1)  # CZYX -> CYX
+
+        # Flip channel order if needed
+        if channel_order_flip:
+            image_array = np.flip(image_array, axis=0)
+
+        if verbose:
+            print(f"Array shape after processing: {image_array.shape}")
+
+        # Check dimensions match if not first image
+        if image_arrays and image_array.shape[1:] != image_arrays[0].shape[1:]:
+            raise ValueError(
+                f"File {file} has incompatible dimensions: {image_array.shape} vs {image_arrays[0].shape}"
+            )
+
+        image_arrays.append(image_array)
+
+    # Concatenate along channel axis (axis 0)
+    result = np.concatenate(image_arrays, axis=0)
+
+    if flip_y_axis:
+        result = result[:, ::-1, :]
+
+    if verbose:
+        print(f"Final dimensions (CYX): {result.shape}")
+
+    return result.astype(np.uint16)
 
 
 def convert_tiff_to_array(
@@ -905,7 +1144,7 @@ def extract_metadata(
         tile: Tile number (required for tile organization, ignored for well)
         cycle: Optional cycle number for SBS imaging
         round: Optional round number for multiplexed imaging
-        data_format: 'nd2' or 'tiff'
+        data_format: 'nd2', 'ims', or 'tiff'
         data_organization: 'tile' (one FOV per file) or 'well' (multiple FOVs per file)
         metadata_file_path: Path to external metadata CSV/TSV (for TIFF)
         verbose: Print debug information
@@ -921,6 +1160,10 @@ def extract_metadata(
         >>> # Well-based ND2 (extracts all positions)
         >>> df = extract_metadata("well_A01.nd2", plate=1, well="A01",
         ...                      data_format="nd2", data_organization="well")
+
+        >>> # Imaris file (metadata extracted from HDF5 header)
+        >>> df = extract_metadata("image.ims", plate=1, well="A01", tile=1,
+        ...                      data_format="ims")
 
         >>> # TIFF with external metadata
         >>> df = extract_metadata("image.tiff", plate=1, well="A01", tile=1,
@@ -974,6 +1217,29 @@ def extract_metadata(
                 kwargs["round"] = round
 
             return extract_metadata_well_nd2(**kwargs)
+
+    elif data_format == "ims":
+        # IMS files have per-image metadata bundled in the HDF5 header
+        metadata_dfs = []
+        for i, file_path in enumerate(file_paths):
+            current_tile = tile if tile is not None else i
+
+            kwargs = {
+                "file_path": file_path,
+                "plate": plate,
+                "well": well,
+                "tile": current_tile,
+                "verbose": verbose,
+            }
+
+            if cycle is not None:
+                kwargs["cycle"] = cycle
+            if round is not None:
+                kwargs["round"] = round
+
+            df = extract_metadata_ims(**kwargs)
+            metadata_dfs.append(df)
+        return pd.concat(metadata_dfs, ignore_index=True)
 
     elif data_format == "tiff":
         # For TIFF, always treat as tile-based for now
@@ -1055,6 +1321,11 @@ def convert_to_array(
             return convert_nd2_to_array_well(
                 files, position, channel_order_flip, verbose=verbose, **kwargs
             )
+
+    elif data_format == "ims":
+        return convert_ims_to_array(
+            files, channel_order_flip=channel_order_flip, verbose=verbose
+        )
 
     elif data_format == "tiff":
         return convert_tiff_to_array(

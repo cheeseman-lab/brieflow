@@ -13,7 +13,7 @@ We have built Brieflow in tandem with [brieflow-analysis](https://github.com/che
 
 Brieflow currently automates the following OPS tasks:
 
-- **Preprocessing**: Converts raw microscope `.nd2` files into tiled `.tiff` or `.zarr` images and extracts associated metadata (e.g. cycle, tile, well).
+- **Preprocessing**: Converts raw microscope files (`.nd2`, `.ims`, `.tiff`) into tiled `.tiff` or `.zarr` images and extracts associated metadata (e.g. cycle, tile, well).
 - **SBS**: Identifies and decodes in situ sequencing barcodes from fluorescence imaging data.
 - **Phenotype**: Extracts morphological and intensity-based features for each cell from the imaging data.
 - **Merge**: Matches phenotypic features with decoded barcodes across cycles and imaging rounds.

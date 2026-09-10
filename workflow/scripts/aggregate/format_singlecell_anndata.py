@@ -4,7 +4,11 @@ import numpy as np
 import pandas as pd
 import anndata as ad
 
-from lib.aggregate.cell_data_utils import load_metadata_cols, control_mask
+from lib.aggregate.cell_data_utils import (
+    load_metadata_cols,
+    control_mask,
+    is_reserved_metadata_col,
+)
 
 # Parameters
 metadata_cols_fp = snakemake.params.metadata_cols_fp
@@ -94,8 +98,12 @@ metadata_cols = [MERGE_DATASET_RENAMES.get(c, c) for c in metadata_cols]
 # Split obs (metadata) and feature columns.
 # Any non-numeric column not in metadata_cols is also moved to obs automatically.
 non_numeric_cols = [c for c in df.columns if not pd.api.types.is_numeric_dtype(df[c])]
+# Reserved metadata (num_nuclei, offset_*) is numeric but is not a feature
+reserved_cols = [c for c in df.columns if is_reserved_metadata_col(c)]
 obs_cols = list(
-    dict.fromkeys([c for c in metadata_cols if c in df.columns] + non_numeric_cols)
+    dict.fromkeys(
+        [c for c in metadata_cols if c in df.columns] + non_numeric_cols + reserved_cols
+    )
 )
 feature_cols = [c for c in df.columns if c not in obs_cols]
 

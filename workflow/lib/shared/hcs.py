@@ -35,6 +35,10 @@ _STORE_INDEX_CACHE: dict[str, "_StoreIndex"] = {}
 # Stores whose single channel is the store type itself.
 _SINGLE_CHANNEL_STORES = {"peaks", "standard_deviation"}
 
+# SBS stores whose OME channel axis holds sequencing cycles, not stains:
+# align_cycles stacks (cycle, channel, y, x), so channel becomes the Z axis.
+_CYCLE_STACKED_SBS_STORES = {"aligned", "log_filtered", "max_filtered"}
+
 # Label directory stem -> annotation type and the config keys describing it.
 _LABEL_ANNOTATION_MAP = {
     "nuclei": {
@@ -162,7 +166,9 @@ def write_field_image_metadata(
         if pixel_size is not None:
             _set_per_dataset_scales(field, *pixel_size)
 
-        resolved = _resolve_channel_names(field, config_channel_names, store_type)
+        resolved = _resolve_channel_names(
+            field, config_channel_names, store_type, modality
+        )
         _rename_channels(field, resolved)
         _set_omero_rendering(field, resolved, channels_metadata=channels_metadata)
         _set_axes_units_micrometer(field)
@@ -644,13 +650,15 @@ def _load_pixel_size_map(
 
 
 def _resolve_channel_names(
-    field, config_channel_names: list[str] | None, store_type: str
+    field, config_channel_names: list[str] | None, store_type: str, modality: str
 ) -> list[str]:
     """Determine the real channel names for one field of a given store.
 
-    Single-channel stores are named after the store type. Otherwise the
-    configured channel names are used when their count matches the store, and
-    the names already on the store are kept when it does not.
+    Single-channel stores are named after the store type. SBS stores written by
+    ``align_cycles`` carry sequencing cycles on the channel axis (the stains sit
+    on Z), so their channels are named by cycle. Otherwise the configured channel
+    names are used when their count matches the store, and the names already on
+    the store are kept when it does not.
     """
     try:
         n_channels = len(list(field.channel_names))
@@ -659,6 +667,9 @@ def _resolve_channel_names(
 
     if store_type in _SINGLE_CHANNEL_STORES:
         return [store_type]
+
+    if modality == "sbs" and store_type in _CYCLE_STACKED_SBS_STORES:
+        return [f"cycle_{i + 1}" for i in range(n_channels)]
 
     if config_channel_names and len(config_channel_names) == n_channels:
         return list(config_channel_names)

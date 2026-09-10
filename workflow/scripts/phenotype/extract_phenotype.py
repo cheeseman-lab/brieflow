@@ -70,5 +70,11 @@ offset_cols = [c for c in alignment_metrics.columns if c.startswith("offset_")]
 for col in offset_cols:
     phenotype_cp[col] = alignment_metrics[col].iloc[0]
 
+# Attach the per-cell nuclei count, defaulting to 1 where a cell has no entry
+nuclei_per_cell = pd.read_csv(snakemake.input[5], sep="\t").set_index("cell")
+phenotype_cp["num_nuclei"] = (
+    phenotype_cp["label"].map(nuclei_per_cell["num_nuclei"]).fillna(1).astype(int)
+)
+
 # save phenotype cp
 phenotype_cp.to_csv(snakemake.output[0], index=False, sep="\t")

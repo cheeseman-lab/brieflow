@@ -35,6 +35,7 @@ PHENOTYPE_OUTPUTS = {
         PHENOTYPE_FP / get_image_output_path(_tile, "nuclei", PHENOTYPE_IMG_FMT, subdirectory="labels"),
         PHENOTYPE_FP / get_image_output_path(_tile, "cells", PHENOTYPE_IMG_FMT, subdirectory="labels"),
         PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "segmentation_stats", "tsv", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "nuclei_per_cell", "tsv", PHENOTYPE_IMG_FMT),
     ],
     "identify_cytoplasm": [
         PHENOTYPE_FP / get_image_output_path(_tile, "identified_cytoplasms", PHENOTYPE_IMG_FMT, subdirectory="labels"),
@@ -87,7 +88,7 @@ _phenotype_label_keep = directory if PHENOTYPE_IMG_FMT == "zarr" else None
 PHENOTYPE_OUTPUT_MAPPINGS = {
     "apply_ic_field_phenotype": _phenotype_img_temp,
     "align_phenotype": None,
-    "segment_phenotype": [_phenotype_label_keep, _phenotype_label_keep, None],
+    "segment_phenotype": [_phenotype_label_keep, _phenotype_label_keep, None, None],
     "identify_cytoplasm": _phenotype_label_keep,
     "extract_phenotype_info": None,
     "combine_phenotype_info": None,

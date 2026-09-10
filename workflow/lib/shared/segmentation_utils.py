@@ -5,6 +5,7 @@ This module provides common functions used across different segmentation methods
 - reconcile_nuclei_cells: Reconcile nuclei and cell labels based on overlap
 - center_pixels: Assign labels to center pixels of regions
 - relabel_array: Map values in an array based on a label dictionary
+- count_nuclei_per_cell: Count distinct nuclei contained in each cell
 
 These utilities are extracted from individual segmentation modules to avoid code duplication
 and ensure consistent behavior across different segmentation methods.
@@ -229,3 +230,23 @@ def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
     # Convert arrays to integers
     nuclei, cells = nuclei.astype(int), cells.astype(int)
     return nuclei, cells
+
+
+def count_nuclei_per_cell(nuclei, cells):
+    """Count distinct nuclei contained in each cell, keyed by final cell label.
+
+    Args:
+        nuclei (numpy.ndarray): Nuclei mask, before reconciliation.
+        cells (numpy.ndarray): Cell mask, after reconciliation.
+
+    Returns:
+        dict: Mapping of cell label to the number of nuclei it contains.
+    """
+    nuclei_eroded = center_pixels(nuclei)
+
+    counts = {}
+    for region in regionprops(cells, intensity_image=nuclei_eroded):
+        contained = region.intensity_image[region.intensity_image > 0]
+        counts[region.label] = int(len(np.unique(contained)))
+
+    return counts

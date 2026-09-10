@@ -31,6 +31,7 @@ for incompatible model/version combinations.
 import fcntl
 import os
 import sys
+import threading
 import time
 
 import numpy as np
@@ -57,76 +58,6 @@ except (AttributeError, ValueError):
     CELLPOSE_VERSION = (3, 0)
 
 CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
-
-
-# Per-process GPU lease (cached): both Cellpose models in a segmentation job share
-# the one leased device, and the lock is held for the process lifetime.
-_LEASED_DEVICE = None
-_LEASE_FH = None
-
-
-def _select_gpu_device(gpu: bool):
-    """Lease one CUDA device for this process so concurrent jobs don't collide.
-
-    The segment_sbs/segment_phenotype rules declare ``resources: gpu=1`` and the
-    runner gates concurrency to ``--resources gpu=BRIEFLOW_GPU_COUNT``. Cellpose,
-    however, otherwise places every model on ``cuda:0`` (``assign_device`` default),
-    so all concurrent segmentation jobs pile onto a single device and OOM while the
-    other GPUs sit idle.
-
-    Each cpsam job needs nearly a whole 16 GB card, so statistical spreading
-    (``pid % N``) still OOMs whenever two concurrent jobs hash to the same GPU.
-    Instead, atomically lease a device via a non-blocking ``flock`` over N lock
-    files: with the scheduler gating to N concurrent jobs and N cards, every job
-    gets a distinct GPU and there are zero co-located jobs. The lock is held by an
-    open fd for the process lifetime and released automatically on exit (even on
-    SIGKILL), so leases never go stale across runs.
-
-    Returns a ``torch.device`` to pass to ``CellposeModel(device=...)``, or ``None``
-    to let Cellpose pick (CPU, single GPU, or CUDA unavailable).
-    """
-    global _LEASED_DEVICE, _LEASE_FH
-    if not gpu or not torch.cuda.is_available():
-        return None
-    visible = torch.cuda.device_count()
-    if visible <= 1:
-        return None
-    if _LEASED_DEVICE is not None:
-        return _LEASED_DEVICE
-    # Prefer the operator-declared count (matches the scheduler's gpu gate),
-    # clamped to the devices actually visible to this process.
-    try:
-        declared = int(os.environ.get("BRIEFLOW_GPU_COUNT", "0"))
-    except ValueError:
-        declared = 0
-    n = min(visible, declared) if declared > 0 else visible
-    # The lock dir MUST be a fixed absolute path shared by every segmentation
-    # job on the node — NOT tempfile.gettempdir(), because snakemake sets a
-    # distinct per-job TMPDIR, which would split workers across different lock
-    # dirs and defeat the lease (jobs then collide on the same GPU and OOM).
-    # /var/tmp is node-local (flock-reliable, unlike NFS) and constant per-job.
-    lock_dir = os.environ.get("BRIEFLOW_GPU_LOCK_DIR") or "/var/tmp/brieflow_gpu_locks"
-    os.makedirs(lock_dir, exist_ok=True)
-    # Block until one of the N GPUs is free: try each slot non-blocking, and if
-    # all are held, sleep and retry. This caps concurrent GPU jobs at N even when
-    # the scheduler launches more — brieflow's flow.sh emits TWO `--resources`
-    # flags (`--resources gpu=N` then `--resources mem_mb=…`), and argparse keeps
-    # only the last, so `gpu=N` is clobbered and never gates gpu jobs. The lease
-    # is therefore the real concurrency limiter. The lock is held by an open fd
-    # for the process lifetime and released automatically on exit (even SIGKILL).
-    while True:
-        for i in range(n):
-            cand = open(os.path.join(lock_dir, f"gpu{i}.lock"), "w")
-            try:
-                fcntl.flock(cand, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
-                cand.close()
-                continue
-            _LEASE_FH = cand
-            _LEASED_DEVICE = torch.device(f"cuda:{i}")
-            return _LEASED_DEVICE
-        # All GPUs busy — wait for one to free (pid-jittered to avoid a herd).
-        time.sleep(0.25 + (os.getpid() % 100) / 200.0)
 
 
 def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
@@ -170,8 +101,7 @@ def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
             f"Upgrade with: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
         )
 
-    # Pin this job to one GPU (round-robin by pid) so concurrent segmentation
-    # jobs spread across all visible devices instead of all landing on cuda:0.
+    # Lease one GPU for this process so concurrent segmentation jobs spread across devices
     device = _select_gpu_device(gpu)
 
     # Version-aware initialization
@@ -636,3 +566,95 @@ def segment_cellpose_nuclei_rgb(
 
     # Return the segmented nuclei
     return nuclei
+
+
+DEFAULT_GPU_LOCK_DIR = "/var/tmp/brieflow_gpu_locks"
+
+_LEASE_LOCK = threading.Lock()
+_LEASED_DEVICE = None
+_LEASE_FH = None
+
+
+def _select_gpu_device(gpu: bool):
+    """Lease one CUDA device for this process so concurrent jobs don't collide.
+
+    The segment_sbs/segment_phenotype rules declare ``resources: gpu=1`` and the
+    runner gates concurrency to ``--resources gpu=BRIEFLOW_GPU_COUNT``. Cellpose,
+    however, otherwise places every model on ``cuda:0`` (``assign_device`` default),
+    so all concurrent segmentation jobs pile onto a single device and OOM while the
+    other GPUs sit idle.
+
+    Each cpsam job needs nearly a whole 16 GB card, so statistical spreading
+    (``pid % N``) still OOMs whenever two concurrent jobs hash to the same GPU.
+    Instead, atomically lease a device via a non-blocking ``flock`` over N lock
+    files: with the scheduler gating to N concurrent jobs and N cards, every job
+    gets a distinct GPU and there are zero co-located jobs. The lock is held by an
+    open fd for the process lifetime and released automatically on exit (even on
+    SIGKILL), so leases never go stale across runs.
+
+    The lock directory must be one fixed absolute path shared by every segmentation
+    process on the node, not ``tempfile.gettempdir()``: snakemake gives each job a
+    distinct TMPDIR, which would split workers across lock directories and defeat
+    the lease. ``/var/tmp`` is node-local, so ``flock`` is reliable there in a way
+    it is not on the shared filesystem, and it is stable across jobs and users.
+    An unusable lock directory (for instance one another user created without group
+    write permission) is not fatal: the lease is skipped and Cellpose picks a device
+    as it would without this function.
+
+    The first caller in a process wins the lease and every later caller reuses it,
+    so both Cellpose models in a segmentation job share the one leased device.
+
+    Args:
+        gpu (bool): Whether the caller asked for GPU inference.
+
+    Returns:
+        torch.device | None: The leased device to pass to ``CellposeModel(device=...)``,
+        or None to let Cellpose pick (CPU, a single visible GPU, CUDA unavailable, or
+        no usable lock directory).
+    """
+    global _LEASED_DEVICE, _LEASE_FH
+
+    if not gpu or not torch.cuda.is_available():
+        return None
+    visible = torch.cuda.device_count()
+    if visible <= 1:
+        return None
+
+    with _LEASE_LOCK:
+        if _LEASED_DEVICE is not None:
+            return _LEASED_DEVICE
+
+        # Prefer the operator-declared count, clamped to the devices this process can see
+        try:
+            declared = int(os.environ.get("BRIEFLOW_GPU_COUNT", "0"))
+        except ValueError:
+            declared = 0
+        n = min(visible, declared) if declared > 0 else visible
+
+        lock_dir = os.environ.get("BRIEFLOW_GPU_LOCK_DIR") or DEFAULT_GPU_LOCK_DIR
+        try:
+            os.makedirs(lock_dir, exist_ok=True)
+        except OSError:
+            return None
+
+        # Try each slot without blocking, and if every GPU is held, wait and retry
+        while True:
+            unusable = 0
+            for i in range(n):
+                try:
+                    cand = open(os.path.join(lock_dir, f"gpu{i}.lock"), "w")
+                except OSError:
+                    unusable += 1
+                    continue
+                try:
+                    fcntl.flock(cand, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError:
+                    cand.close()
+                    continue
+                _LEASE_FH = cand
+                _LEASED_DEVICE = torch.device(f"cuda:{i}")
+                return _LEASED_DEVICE
+            if unusable == n:
+                return None
+            # All GPUs busy, so wait for one to free, jittered by pid to avoid a herd
+            time.sleep(0.25 + (os.getpid() % 100) / 200.0)

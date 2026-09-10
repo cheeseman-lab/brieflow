@@ -155,6 +155,7 @@ if IMG_FMT == "zarr":
             plate_zarr_dirs=[str(PREPROCESS_FP / "sbs" / f"image_{p}.zarr")
                              for p in sorted(sbs_wildcard_combos["plate"].unique())],
             channels_metadata=config["preprocess"].get("sbs_channels_metadata", None),
+        threads: 8
         script:
             "../scripts/shared/write_hcs_metadata.py"
 
@@ -168,6 +169,7 @@ if IMG_FMT == "zarr":
             plate_zarr_dirs=[str(PREPROCESS_FP / "phenotype" / f"image_{p}.zarr")
                              for p in sorted(phenotype_wildcard_combos["plate"].unique())],
             channels_metadata=config["preprocess"].get("phenotype_channels_metadata", None),
+        threads: 8
         script:
             "../scripts/shared/write_hcs_metadata.py"
 

@@ -22,6 +22,9 @@ plate_zarr_dirs = snakemake.params.plate_zarr_dirs
 channels_metadata = getattr(snakemake.params, "channels_metadata", None)
 config_channel_names = getattr(snakemake.params, "channel_names", None)
 
+# Worker threads for the per-tile pixel reads (histograms, object counts)
+threads = getattr(snakemake, "threads", 1) or 1
+
 # Preprocess root for pixel-size lookup
 root_fp = Path(snakemake.config["all"]["root_fp"])
 preprocess_root = root_fp / "preprocess"
@@ -48,6 +51,7 @@ for plate_zarr in plate_zarr_dirs:
                 config_channel_names=config_channel_names,
                 modality_config=modality_config,
                 channels_metadata=channels_metadata,
+                threads=threads,
             )
     else:
         print(f"Plate zarr not found, skipping: {plate_path}")
@@ -64,4 +68,4 @@ renderable_plates = [
     for p in plate_zarr_dirs
     if Path(p).exists() and "preprocess" not in Path(p).parts
 ]
-compute_and_inject_omero_windows(renderable_plates)
+compute_and_inject_omero_windows(renderable_plates, threads=threads)

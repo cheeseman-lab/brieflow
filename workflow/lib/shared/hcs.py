@@ -8,7 +8,9 @@ No symlinks or data copies — only zarr.json metadata files.
 """
 
 import json
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +23,129 @@ from iohub.ngff.display import channel_display_settings
 from iohub.ngff.models import OMEROMeta, RDefsMeta, TransformationMeta
 
 from lib.shared.image_io import DEFAULT_CHANNEL_COLORS
+
+
+# ---------------------------------------------------------------------------
+# Helpers — single-pass store index
+# ---------------------------------------------------------------------------
+
+# Cache of built indices so the write / patch / window passes over one store
+# share a single directory walk; keyed by resolved store path.
+_STORE_INDEX_CACHE: dict[str, "_StoreIndex"] = {}
+
+
+def _read_zarr_json(path: Path):
+    """Parse a zarr.json, returning None if it is missing or unreadable."""
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return None
+
+
+class _StoreIndex:
+    """Every zarr.json in a plate store, keyed by path relative to the store root.
+
+    Built with one pruned ``os.scandir`` walk. Array directories are recorded
+    but never descended into, so the chunk directories under each multiscale
+    level are never listed — on a network filesystem that is the difference
+    between thousands of stats and millions. Passes mutate the parsed metadata
+    in memory and ``flush`` writes each changed node back exactly once.
+    """
+
+    def __init__(self, root: Path):
+        self.root = Path(root)
+        self.nodes: dict[str, dict] = {}
+        self.dirty: set[str] = set()
+        self._scan(self.root, "")
+
+    def _scan(self, directory: Path, rel: str) -> None:
+        meta = _read_zarr_json(directory / "zarr.json")
+        if meta is not None:
+            self.nodes[rel] = meta
+            # An array's children are chunk directories; never walk them.
+            if meta.get("node_type") == "array":
+                return
+        try:
+            entries = sorted(os.scandir(directory), key=lambda e: e.name)
+        except OSError:
+            return
+        for entry in entries:
+            if entry.is_dir(follow_symlinks=False):
+                self._scan(
+                    Path(entry.path), f"{rel}/{entry.name}" if rel else entry.name
+                )
+
+    def get(self, rel: str):
+        """Parsed zarr.json for *rel*, or None if the store has no such node."""
+        return self.nodes.get(rel)
+
+    def set(self, rel: str, meta: dict) -> None:
+        """Replace the node at *rel* and mark it for write-back."""
+        self.nodes[rel] = meta
+        self.dirty.add(rel)
+
+    def mark(self, rel: str) -> None:
+        """Mark an already-mutated node for write-back."""
+        self.dirty.add(rel)
+
+    def refresh(self, rels) -> None:
+        """Re-read the named nodes from disk (after an external writer)."""
+        for rel in rels:
+            meta = _read_zarr_json(self.path(rel) / "zarr.json")
+            if meta is not None:
+                self.nodes[rel] = meta
+            self.dirty.discard(rel)
+
+    def path(self, rel: str) -> Path:
+        """Absolute directory path of the node at *rel*."""
+        return self.root / rel if rel else self.root
+
+    def groups(self):
+        """(rel, meta) for every group node, in walk order."""
+        return [(r, m) for r, m in self.nodes.items() if m.get("node_type") != "array"]
+
+    def tiles(self) -> list[str]:
+        """Rel paths of the tile-level image groups: ``{row}/{col}/{tile}``."""
+        out = []
+        for rel, meta in self.nodes.items():
+            parts = rel.split("/")
+            if len(parts) != 3 or meta.get("node_type") == "array":
+                continue
+            if not parts[2].isdigit():
+                continue
+            if not any(p.match(f"{parts[0]}{parts[1]}") for p in WELL_ROWCOL_PATTERNS):
+                continue
+            out.append(rel)
+        return sorted(out)
+
+    def label_groups(self) -> list[str]:
+        """Rel paths of label groups: ``{row}/{col}/{tile}/labels/{name}``."""
+        out = [r for r in self.nodes if r.split("/")[-2:-1] == ["labels"]]
+        return sorted(out)
+
+    def array_shape(self, rel: str):
+        """``shape`` of the array node at *rel*, or None."""
+        meta = self.nodes.get(rel)
+        return meta.get("shape") if meta else None
+
+    def flush(self) -> int:
+        """Write every dirty node back to disk and return how many were written."""
+        n = 0
+        for rel in sorted(self.dirty):
+            directory = self.path(rel)
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / "zarr.json").write_text(json.dumps(self.nodes[rel], indent=2))
+            n += 1
+        self.dirty.clear()
+        return n
+
+
+def _get_store_index(store_path: Path, rebuild: bool = False) -> _StoreIndex:
+    """Return the cached index for *store_path*, walking the store once."""
+    key = str(Path(store_path).resolve())
+    if rebuild or key not in _STORE_INDEX_CACHE:
+        _STORE_INDEX_CACHE[key] = _StoreIndex(Path(store_path))
+    return _STORE_INDEX_CACHE[key]
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +165,8 @@ def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
     if not plate_path.exists():
         raise FileNotFoundError(f"Plate zarr directory not found: {plate_path}")
 
-    structure = discover_plate_structure(plate_path)
+    index = _get_store_index(plate_path, rebuild=True)
+    structure = _discover_from_index(index)
     if not structure:
         print(f"  No fields found in {plate_path}. Skipping metadata.")
         return
@@ -55,27 +181,30 @@ def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
         fields_by_well.setdefault((row, col), []).append(tile)
     field_count = max(len(tiles) for tiles in fields_by_well.values())
 
-    _write_plate_metadata(
-        plate_path,
-        wells_by_row_col,
-        channels_metadata=channels_metadata,
-        field_count=field_count,
+    index.set(
+        "",
+        _plate_metadata(
+            plate_path,
+            wells_by_row_col,
+            channels_metadata=channels_metadata,
+            field_count=field_count,
+        ),
     )
 
     # Write row-level group metadata
     for row in sorted(set(rc[0] for rc in wells_by_row_col)):
-        _write_zarr_v3_group_metadata(plate_path / row)
+        index.set(row, _zarr_v3_group_metadata())
 
     # Write well-level and field-level metadata
     for (row, col), tiles in sorted(fields_by_well.items()):
-        well_dir = plate_path / row / col
         field_indices = sorted(tiles)
-        _write_well_metadata(well_dir, field_indices)
+        index.set(f"{row}/{col}", _well_metadata(field_indices))
 
         # Write labels group metadata for fields that have label stores
         for tile in field_indices:
-            field_dir = well_dir / str(tile)
-            _maybe_write_labels_metadata(field_dir)
+            _maybe_write_labels_metadata(index, f"{row}/{col}/{tile}")
+
+    index.flush()
 
 
 def discover_plate_structure(plate_zarr_path):
@@ -85,52 +214,35 @@ def discover_plate_structure(plate_zarr_path):
     Pass 2 (fallback): any deeper zarr.json (e.g. preprocess cycle level)
                        plate.zarr/{row}/{col}/{tile}/.../zarr.json
     """
-    plate_path = Path(plate_zarr_path)
-    results = []
-    seen = set()
+    return _discover_from_index(_get_store_index(Path(plate_zarr_path)))
 
-    # ---- Pass 1: strict Option D tile marker ----
-    for zjson in sorted(plate_path.rglob("zarr.json")):
-        rel = zjson.relative_to(plate_path)
-        parts = rel.parts
-        if len(parts) != 4 or parts[-1] != "zarr.json":
+
+def _discover_from_index(index):
+    """Run the two discovery passes over an already-built store index."""
+    strict, loose = [], []
+    seen_strict, seen_loose = set(), set()
+
+    for rel in sorted(index.nodes):
+        parts = rel.split("/") if rel else []
+        if len(parts) < 3:
             continue
 
         row, col, tile = parts[0], parts[1], parts[2]
         if not str(tile).isdigit():
             continue
-        # Skip zarr.json paths whose (row, col) don't reconstruct to a recognized well.
+        # Skip nodes whose (row, col) don't reconstruct to a recognized well.
         if not any(p.match(f"{row}{col}") for p in WELL_ROWCOL_PATTERNS):
             continue
 
         key = (row, col, tile)
-        if key not in seen:
-            seen.add(key)
-            results.append(key)
+        if len(parts) == 3 and key not in seen_strict:
+            seen_strict.add(key)
+            strict.append(key)
+        if key not in seen_loose:
+            seen_loose.add(key)
+            loose.append(key)
 
-    if results:
-        return results
-
-    # ---- Pass 2: fallback for preprocess-style extra nesting ----
-    for zjson in sorted(plate_path.rglob("zarr.json")):
-        rel = zjson.relative_to(plate_path)
-        parts = rel.parts
-        if len(parts) < 4 or parts[-1] != "zarr.json":
-            continue
-
-        row, col, tile = parts[0], parts[1], parts[2]
-        if not str(tile).isdigit():
-            continue
-        # Skip zarr.json paths whose (row, col) don't reconstruct to a recognized well.
-        if not any(p.match(f"{row}{col}") for p in WELL_ROWCOL_PATTERNS):
-            continue
-
-        key = (row, col, tile)
-        if key not in seen:
-            seen.add(key)
-            results.append(key)
-
-    return results
+    return strict if strict else loose
 
 
 def patch_store_metadata_with_iohub(
@@ -139,6 +251,7 @@ def patch_store_metadata_with_iohub(
     config_channel_names: list[str] | None = None,
     modality_config: dict | None = None,
     channels_metadata: list[dict] | None = None,
+    threads: int = 1,
 ):
     """Open a plate zarr store in r+ mode and enrich tile-level metadata.
 
@@ -150,20 +263,23 @@ def patch_store_metadata_with_iohub(
       - image-label version on nested label stores
       - Label coordinate scales (same pixel size as parent image)
       - segmentation_metadata on label stores
+
+    All label and downsampling patches run against the cached store index, so
+    each zarr.json is read once and rewritten at most once.
     """
     store_type = _parse_store_type(store_path)
     plate = _parse_plate_from_store_name(store_path)
     modality = _infer_modality_from_store_path(store_path)
     pixel_map = _load_pixel_size_map(preprocess_root, modality, plate)
 
+    index = _get_store_index(store_path)
+
     print(f"[patch] store={store_path}  type={store_type}")
     print(f"[patch] pixel_map entries={len(pixel_map)}")
+    print(f"[patch] positions={len(index.tiles())}")
 
     ds = open_ome_zarr(str(store_path), layout="hcs", mode="r+", version="0.5")
-    pos_list = list(ds.positions())
-    print(f"[patch] positions={len(pos_list)}")
-
-    for pos_path, pos in pos_list:
+    for pos_path, pos in ds.positions():
         parts = pos_path.split("/")
         if len(parts) != 3:
             print(f"[patch] skipping unexpected pos_path={pos_path}")
@@ -200,48 +316,59 @@ def patch_store_metadata_with_iohub(
     ds.dump_meta()
     ds.close()
 
+    # iohub rewrote the plate, well and position zarr.json behind the index.
+    index.refresh([rel for rel, _ in index.groups() if rel.count("/") < 3])
+
     # --- Re-inject downsamplingMethod (iohub dump_meta strips it) ---
-    for zj in sorted(store_path.rglob("*/zarr.json")):
+    for rel, meta in index.groups():
         # Only patch image-group level (has multiscales but not inside labels/)
-        if "labels" in zj.parts:
+        if not rel or "labels" in rel.split("/"):
             continue
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
-        attrs = meta.get("attributes", {})
-        ome = attrs.get("ome", {})
-        ms_list = ome.get("multiscales", [])
+        ms_list = meta.get("attributes", {}).get("ome", {}).get("multiscales", [])
         if ms_list and "downsamplingMethod" not in ms_list[0]:
             ms_list[0]["downsamplingMethod"] = "gaussian"
-            zj.write_text(json.dumps(meta, indent=2))
+            index.mark(rel)
 
     # --- Direct JSON patching for label stores (iohub doesn't expose these) ---
-    _patch_label_versions(store_path)
-    _patch_label_axis_units(store_path)
-    _patch_label_scales(store_path, pixel_map)
+    _patch_label_versions(index)
+    _patch_label_axis_units(index)
+    _patch_label_scales(index, pixel_map)
 
     if modality_config:
-        _patch_segmentation_metadata(store_path, modality_config, channels_metadata)
+        _patch_segmentation_metadata(
+            index, modality_config, channels_metadata, threads=threads
+        )
+
+    print(f"[patch] wrote {index.flush()} zarr.json")
 
 
 def compute_and_inject_omero_windows(
     plate_paths: list[Path],
     low_pct: float = 1.0,
     high_pct: float = 99.0,
+    threads: int = 1,
 ) -> int:
     """Compute screen-wide per-channel display windows + statistics and inject into every tile zarr.json.
 
-    Accumulates uint16 histograms across every image tile in every plate
-    store, derives ``window.start`` / ``window.end`` at the given
-    percentile cutpoints, computes per-channel mean / std / median for ML
-    dataloader normalization, and writes both into every image-level
-    zarr.json's ``omero.channels[i]``.
+    Accumulates uint16 histograms across image tiles in every plate store,
+    derives ``window.start`` / ``window.end`` at the given percentile
+    cutpoints, computes per-channel mean / std / median for ML dataloader
+    normalization, and writes both into every image-level zarr.json's
+    ``omero.channels[i]``.
+
+    Tiles are read in parallel over *threads* worker threads, one chunk row at a
+    time. When a store holds more than ``_MAX_HISTOGRAM_TILES`` tiles an
+    evenly spaced, deterministic subsample of that many tiles is histogrammed
+    instead of the whole store: the window is only a display default and the
+    statistics are normalization constants, so an unbiased tile subsample is
+    accurate to well under a percent. A coarser multiscale level is not used
+    for this — gaussian downsampling would bias the standard deviation.
 
     Args:
         plate_paths: List of plate.zarr roots to histogram and patch.
         low_pct: Lower percentile for window.start (default 1.0).
         high_pct: Upper percentile for window.end (default 99.0).
+        threads: Worker threads used for the per-tile pixel reads.
 
     Returns:
         Total number of zarr.json files updated across all plates. Zero if
@@ -254,9 +381,10 @@ def compute_and_inject_omero_windows(
         f"\nComputing screen-wide OMERO windows "
         f"[{low_pct}, {high_pct}]th pct over {len(plate_paths)} store(s)..."
     )
+    indices = [_get_store_index(pp) for pp in plate_paths]
     histograms: dict[int, np.ndarray] = {}
-    for plate_path in plate_paths:
-        _accumulate_channel_histograms(plate_path, histograms)
+    for index in indices:
+        _accumulate_channel_histograms(index, histograms, threads=threads)
     if not histograms:
         print("No image tiles found for window computation; skipping.")
         return 0
@@ -272,10 +400,10 @@ def compute_and_inject_omero_windows(
         )
 
     patched_total = 0
-    for plate_path in plate_paths:
-        n = _inject_omero_windows(plate_path, windows, stats=stats)
+    for index in indices:
+        n = _inject_omero_windows(index, windows, stats=stats)
         patched_total += n
-        print(f"  {plate_path.name}: patched {n} zarr.json")
+        print(f"  {index.root.name}: patched {n} zarr.json")
     print(
         f"OMERO windows + statistics injected into {patched_total} tile zarr.json files."
     )
@@ -346,35 +474,35 @@ def _split_well(well_str):
 # ---------------------------------------------------------------------------
 
 
-def _is_label_store(zarr_path):
-    """Check if a zarr store is a label image by reading its zarr.json."""
-    zarr_json = Path(zarr_path) / "zarr.json"
-    if not zarr_json.exists():
+def _is_label_store(meta) -> bool:
+    """Check if a parsed zarr.json describes a label image."""
+    if not meta:
         return False
-    with open(zarr_json) as f:
-        meta = json.load(f)
     attrs = meta.get("attributes", {})
     # image-label may be under ome namespace (v3) or top-level
     return "image-label" in attrs or "image-label" in attrs.get("ome", {})
 
 
-def _maybe_write_labels_metadata(field_dir):
-    """If a field has label stores, write the labels/ group metadata."""
-    labels_dir = field_dir / "labels"
-    if not labels_dir.is_dir():
+def _maybe_write_labels_metadata(index, field_rel: str) -> None:
+    """If a field has label stores, stage the labels/ group metadata."""
+    labels_rel = f"{field_rel}/labels"
+    if labels_rel not in index.nodes and not index.path(labels_rel).is_dir():
         return
 
     label_stores = []
-    for child in sorted(labels_dir.iterdir()):
-        if child.is_dir() and child.suffix == ".zarr":
-            label_stores.append(child.stem)
-        elif child.is_dir() and (child / "zarr.json").exists():
+    prefix = f"{labels_rel}/"
+    for rel in sorted(index.nodes):
+        if not rel.startswith(prefix) or "/" in rel[len(prefix) :]:
+            continue
+        name = rel.rsplit("/", 1)[1]
+        if name.endswith(".zarr"):
+            label_stores.append(name[: -len(".zarr")])
+        elif _is_label_store(index.get(rel)):
             # Label stored as a named group (not .zarr suffix)
-            if _is_label_store(child):
-                label_stores.append(child.name)
+            label_stores.append(name)
 
     if label_stores:
-        _write_labels_group_metadata(labels_dir, label_stores)
+        index.set(labels_rel, _labels_group_metadata(label_stores))
 
 
 # ---------------------------------------------------------------------------
@@ -382,17 +510,13 @@ def _maybe_write_labels_metadata(field_dir):
 # ---------------------------------------------------------------------------
 
 
-def _write_zarr_v3_group_metadata(path):
-    """Write a minimal zarr v3 group zarr.json file."""
-    metadata = {
+def _zarr_v3_group_metadata():
+    """Build a minimal zarr v3 group zarr.json body."""
+    return {
         "zarr_format": 3,
         "node_type": "group",
         "attributes": {},
     }
-    path = Path(path)
-    path.mkdir(parents=True, exist_ok=True)
-    with open(path / "zarr.json", "w") as f:
-        json.dump(metadata, f, indent=2)
 
 
 def _column_order(label):
@@ -401,12 +525,11 @@ def _column_order(label):
     return (0, int(digits)) if digits else (1, str(label))
 
 
-def _write_plate_metadata(
+def _plate_metadata(
     plate_zarr_path, wells_by_row_col, channels_metadata=None, field_count=1
 ):
-    """Write HCS plate-level zarr.json with OME-NGFF plate metadata."""
+    """Build the HCS plate-level zarr.json body with OME-NGFF plate metadata."""
     plate_path = Path(plate_zarr_path)
-    plate_path.mkdir(parents=True, exist_ok=True)
 
     rows = sorted(set(rc[0] for rc in wells_by_row_col.keys()))
     cols = sorted(set(rc[1] for rc in wells_by_row_col.keys()), key=_column_order)
@@ -443,15 +566,11 @@ def _write_plate_metadata(
     if norm:  # embed into zarr.json if metadata is not empty
         plate_metadata["attributes"]["channels_metadata"] = norm
 
-    with open(plate_path / "zarr.json", "w") as f:
-        json.dump(plate_metadata, f, indent=2)
+    return plate_metadata
 
 
-def _write_well_metadata(well_path, field_indices):
-    """Write HCS well-level zarr.json listing fields (tiles)."""
-    well_dir = Path(well_path)
-    well_dir.mkdir(parents=True, exist_ok=True)
-
+def _well_metadata(field_indices):
+    """Build the HCS well-level zarr.json body listing fields (tiles)."""
     well_metadata = {
         "zarr_format": 3,
         "node_type": "group",
@@ -468,15 +587,12 @@ def _write_well_metadata(well_path, field_indices):
         },
     }
 
-    with open(well_dir / "zarr.json", "w") as f:
-        json.dump(well_metadata, f, indent=2)
+    return well_metadata
 
 
-def _write_labels_group_metadata(labels_dir, label_names):
-    """Write labels group zarr.json listing available labels."""
-    labels_dir = Path(labels_dir)
-    labels_dir.mkdir(parents=True, exist_ok=True)
-    metadata = {
+def _labels_group_metadata(label_names):
+    """Build the labels group zarr.json body listing available labels."""
+    return {
         "zarr_format": 3,
         "node_type": "group",
         "attributes": {
@@ -486,8 +602,6 @@ def _write_labels_group_metadata(labels_dir, label_names):
             }
         },
     }
-    with open(labels_dir / "zarr.json", "w") as f:
-        json.dump(metadata, f, indent=2)
 
 
 # ---------------------------------------------------------------------------
@@ -740,7 +854,7 @@ def _build_and_set_omero(
 # ---------------------------------------------------------------------------
 
 
-def _patch_label_axis_units(store_path: Path) -> None:
+def _patch_label_axis_units(index) -> None:
     """Set units on all axes in label store multiscales metadata.
 
     Always runs regardless of pixel size availability — axis units and
@@ -752,12 +866,8 @@ def _patch_label_axis_units(store_path: Path) -> None:
         "Z": "micrometer",
         "T": "second",
     }
-    for zj in sorted(store_path.rglob("labels/*/zarr.json")):
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
-
+    for rel in index.label_groups():
+        meta = index.get(rel)
         attrs = meta.get("attributes", meta)
         ome = attrs.get("ome", {})
         ms_list = ome.get("multiscales", attrs.get("multiscales", []))
@@ -772,12 +882,11 @@ def _patch_label_axis_units(store_path: Path) -> None:
                 changed = True
 
         if changed:
-            zj.write_text(json.dumps(meta, indent=2))
-            print(f"[patch] label axis units set: {zj.parent.name}")
+            index.mark(rel)
 
 
 def _patch_label_scales(
-    store_path: Path,
+    index,
     pixel_map: dict[tuple[str, str, str], tuple[float, float]],
 ) -> None:
     """Apply coordinate scales to label stores.
@@ -785,16 +894,11 @@ def _patch_label_scales(
     Labels share the same physical pixel size as their parent image.
     Uses direct JSON patching (iohub doesn't iterate labels).
     """
-    for zj in sorted(store_path.rglob("labels/*/zarr.json")):
-        label_dir = zj.parent
-        field_dir = label_dir.parent.parent  # …/labels/{name} → field dir
-
-        # Derive row/col/tile from field path
-        rel = field_dir.relative_to(store_path)
-        parts = rel.parts
-        if len(parts) != 3:
+    for rel in index.label_groups():
+        parts = rel.split("/")
+        if len(parts) != 5:
             continue
-        row, col, tile = parts
+        row, col, tile = parts[0], parts[1], parts[2]
 
         key = (str(row), str(col), str(tile))
         fallback = (str(row), str(col), "*")
@@ -806,10 +910,7 @@ def _patch_label_scales(
         if px_x is None:
             continue
 
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
+        meta = index.get(rel)
 
         # Navigate to multiscales — may be under ome namespace (v3) or top-level
         attrs = meta.get("attributes", meta)
@@ -836,27 +937,15 @@ def _patch_label_scales(
             continue
 
         # Read base (level 0) array shape
-        base_arr_zj = label_dir / datasets[0].get("path", "0") / "zarr.json"
-        base_shape = None
-        if base_arr_zj.exists():
-            try:
-                base_shape = json.loads(base_arr_zj.read_text()).get("shape")
-            except Exception:
-                pass
+        base_shape = index.array_shape(f"{rel}/{datasets[0].get('path', '0')}")
         if not base_shape:
             continue
 
         # Set per-dataset coordinate transformations
         for ds in datasets:
-            level_arr_zj = label_dir / ds.get("path", "0") / "zarr.json"
-            level_shape = base_shape
-            if level_arr_zj.exists():
-                try:
-                    level_shape = json.loads(level_arr_zj.read_text()).get(
-                        "shape", base_shape
-                    )
-                except Exception:
-                    pass
+            level_shape = (
+                index.array_shape(f"{rel}/{ds.get('path', '0')}") or base_shape
+            )
 
             scale = [1.0] * len(axes)
             fy = (
@@ -873,22 +962,18 @@ def _patch_label_scales(
             scale[x_idx] = px_x * fx
             ds["coordinateTransformations"] = [{"type": "scale", "scale": scale}]
 
-        zj.write_text(json.dumps(meta, indent=2))
-        print(f"[patch] label scales set: {label_dir.name} in {'/'.join(parts)}")
+        index.mark(rel)
 
 
-def _patch_label_versions(store_path: Path) -> None:
+def _patch_label_versions(index) -> None:
     """Walk label stores inside a plate zarr and set image-label.version.
 
-    Label stores live at <store>.zarr/{row}/{col}/{tile}/labels/{name}.zarr/.
+    Label stores live at <store>.zarr/{row}/{col}/{tile}/labels/{name}/.
     Their zarr.json should have ``"image-label": {"version": "0.5"}``.
     This uses direct JSON patching (iohub doesn't iterate labels).
     """
-    for zj in sorted(store_path.rglob("labels/*/zarr.json")):
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
+    for rel in index.label_groups():
+        meta = index.get(rel)
         # image-label may be under ome namespace (zarr v3) or top-level attrs
         attrs = meta.get("attributes", meta)
         ome = attrs.get("ome", {})
@@ -897,8 +982,7 @@ def _patch_label_versions(store_path: Path) -> None:
             continue
         if il.get("version") != "0.5":
             il["version"] = "0.5"
-            zj.write_text(json.dumps(meta, indent=2))
-            print(f"[patch] label version set: {zj.parent.name}")
+            index.mark(rel)
 
 
 # ---------------------------------------------------------------------------
@@ -1011,51 +1095,60 @@ def _build_segmentation_meta_for_label(
     }
 
 
+def _count_label_objects(label_dir: str):
+    """Number of distinct non-background labels in a label store's level-0 array."""
+    import zarr
+
+    try:
+        arr = zarr.open(label_dir, mode="r")
+        return int(len(np.unique(arr[:])) - 1)  # exclude background (0)
+    except Exception:
+        return None
+
+
 def _patch_segmentation_metadata(
-    store_path: Path,
+    index,
     modality_config: dict,
     channels_metadata: list[dict] | None,
+    threads: int = 1,
 ) -> None:
     """Inject ``segmentation_metadata`` into each label store's zarr.json.
 
     Metadata is placed at ``attributes.segmentation_metadata`` alongside the
-    existing ``attributes.ome`` block.
+    existing ``attributes.ome`` block. The object counts read one label array
+    each, so they are gathered in parallel over *threads* worker threads.
     """
-    for zj in sorted(store_path.rglob("labels/*/zarr.json")):
-        label_dir = zj.parent
-        # label_dir.name is e.g. "nuclei.zarr" → stem is "nuclei"
-        label_stem = label_dir.name.replace(".zarr", "")
-
+    targets = []
+    for rel in index.label_groups():
+        # the label group's name is e.g. "nuclei.zarr" or "nuclei"
+        label_stem = rel.rsplit("/", 1)[1].replace(".zarr", "")
         seg_meta = _build_segmentation_meta_for_label(
             label_stem, modality_config, channels_metadata
         )
         if seg_meta is None:
             continue
+        targets.append((rel, label_stem, seg_meta))
 
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
+    # Count labeled objects from the full-resolution array
+    arr_dirs = [
+        str(index.path(rel) / "0") if index.get(f"{rel}/0") else None
+        for rel, _, _ in targets
+    ]
+    counts = _parallel_map(
+        _count_label_objects, [d for d in arr_dirs if d is not None], threads
+    )
+    counts_by_dir = dict(zip([d for d in arr_dirs if d is not None], counts))
 
-        # Count labeled objects from the full-resolution array
-        n_cells = None
-        arr_zj = label_dir / "0" / "zarr.json"
-        if arr_zj.exists():
-            try:
-                import zarr
-
-                arr = zarr.open(str(label_dir / "0"), mode="r")
-                n_cells = int(len(np.unique(arr[:])) - 1)  # exclude background (0)
-            except Exception:
-                pass
+    for (rel, label_stem, seg_meta), arr_dir in zip(targets, arr_dirs):
+        n_cells = counts_by_dir.get(arr_dir) if arr_dir else None
         if n_cells is not None:
             seg_meta["statistics"] = {"n_cells": n_cells}
 
-        attrs = meta.setdefault("attributes", {})
+        attrs = index.get(rel).setdefault("attributes", {})
         attrs["segmentation_metadata"] = seg_meta
+        index.mark(rel)
 
-        zj.write_text(json.dumps(meta, indent=2))
-        print(f"[patch] segmentation_metadata set: {label_stem} in {label_dir}")
+    print(f"[patch] segmentation_metadata set on {len(targets)} label store(s)")
 
 
 # ---------------------------------------------------------------------------
@@ -1063,61 +1156,133 @@ def _patch_segmentation_metadata(
 # ---------------------------------------------------------------------------
 
 
-def _accumulate_channel_histograms(
-    store_path: Path,
-    histograms: dict[int, np.ndarray],
-    n_bins: int = 65536,
-) -> None:
-    """Add per-channel uint16 histograms from every tile array in ``store_path``.
+# Cap on tiles histogrammed per store; above this an evenly spaced subsample
+# is used for the display window and normalization statistics.
+_MAX_HISTOGRAM_TILES = 256
 
-    Mutates ``histograms`` in place: channel_idx -> int64 array of length n_bins.
-    Skips label arrays. Loads multiscale level 0 only.
+
+def _parallel_map(fn, items, threads: int):
+    """Map *fn* over *items*, in a thread pool when *threads* allows it.
+
+    Threads rather than processes: the per-tile work is zarr decompression,
+    which releases the GIL, and forking a process that already holds zarr's
+    async machinery deadlocks.
+    """
+    if threads <= 1 or len(items) <= 1:
+        return [fn(item) for item in items]
+    with ThreadPoolExecutor(max_workers=min(threads, len(items))) as pool:
+        return list(pool.map(fn, items))
+
+
+def _merge_histograms(
+    into: dict[int, np.ndarray], other: dict[int, np.ndarray]
+) -> None:
+    """Add *other*'s per-channel counts into *into*."""
+    for ch, counts in other.items():
+        if ch in into:
+            into[ch] += counts
+        else:
+            into[ch] = counts
+
+
+def _batch_channel_histograms(tile_dirs, n_bins: int = 65536):
+    """Merged per-channel histograms for a batch of tiles.
+
+    Merging inside the worker keeps only one accumulator per worker alive
+    instead of one full-resolution histogram set per tile.
+    """
+    merged: dict[int, np.ndarray] = {}
+    for tile_dir in tile_dirs:
+        _merge_histograms(merged, _tile_channel_histograms(tile_dir, n_bins=n_bins))
+    return merged
+
+
+def _tile_channel_histograms(tile_dir: str, n_bins: int = 65536):
+    """Per-channel uint16 histograms for one tile's level-0 array.
+
+    Reads one chunk row at a time so a whole tile is never held in memory.
     """
     import zarr
 
-    for zj in sorted(store_path.rglob("zarr.json")):
-        rel = zj.relative_to(store_path)
-        if "labels" in rel.parts:
-            continue
-        # Tile-level zarr.json sits at plate.zarr/{row}/{col}/{tile}/zarr.json
-        if len(rel.parts) != 4:
-            continue
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
-        if (
-            meta.get("attributes", {}).get("ome", {}).get("omero", {}).get("channels")
-            is None
-        ):
-            continue
-        try:
-            grp = zarr.open(str(zj.parent), mode="r")
-            arr = grp["0"][:]
-        except Exception as exc:
-            print(f"[window] could not read {zj.parent}: {exc}")
-            continue
+    try:
+        arr = zarr.open(tile_dir, mode="r")["0"]
+    except Exception as exc:
+        print(f"[window] could not read {tile_dir}: {exc}")
+        return {}
 
-        # Locate channel axis; image arrays are (T,C,Z,Y,X), (C,Z,Y,X), or (C,Y,X)
-        if arr.ndim == 5:
-            channel_axis = 1
-        elif arr.ndim in (3, 4):
-            channel_axis = 0
-        else:
-            continue
+    # Image arrays are (T,C,Z,Y,X), (C,Z,Y,X), or (C,Y,X)
+    ndim = len(arr.shape)
+    if ndim == 5:
+        channel_axis = 1
+    elif ndim in (3, 4):
+        channel_axis = 0
+    else:
+        return {}
 
-        if arr.dtype != np.uint16:
-            arr = np.clip(arr, 0, n_bins - 1).astype(np.uint16)
+    # Walk chunk-aligned row slabs so only one chunk of the tile is resident.
+    y_axis = ndim - 2
+    n_rows = arr.shape[y_axis]
+    step = arr.chunks[y_axis] if arr.chunks else n_rows
+    step = max(int(step or n_rows), 1)
 
-        n_channels = arr.shape[channel_axis]
-        for ch in range(n_channels):
-            sl = [slice(None)] * arr.ndim
-            sl[channel_axis] = ch
-            counts = np.bincount(arr[tuple(sl)].ravel(), minlength=n_bins)
-            if ch in histograms:
-                histograms[ch] += counts
+    out: dict[int, np.ndarray] = {}
+    for y0 in range(0, n_rows, step):
+        sl = [slice(None)] * ndim
+        sl[y_axis] = slice(y0, min(y0 + step, n_rows))
+        slab = arr[tuple(sl)]
+        if slab.dtype != np.uint16:
+            slab = np.clip(slab, 0, n_bins - 1).astype(np.uint16)
+        for ch in range(slab.shape[channel_axis]):
+            csl = [slice(None)] * ndim
+            csl[channel_axis] = ch
+            counts = np.bincount(np.ravel(slab[tuple(csl)]), minlength=n_bins)
+            if ch in out:
+                out[ch] += counts
             else:
-                histograms[ch] = counts
+                out[ch] = counts
+    return out
+
+
+def _accumulate_channel_histograms(
+    index,
+    histograms: dict[int, np.ndarray],
+    threads: int = 1,
+) -> None:
+    """Add per-channel uint16 histograms from the store's image tiles.
+
+    Mutates ``histograms`` in place: channel_idx -> int64 array. Only tiles
+    that already carry OMERO channels are histogrammed, label arrays are
+    skipped, and above ``_MAX_HISTOGRAM_TILES`` an evenly spaced subsample is
+    taken so the pass stays bounded on large screens.
+    """
+    tiles = [
+        rel
+        for rel in index.tiles()
+        if index.get(rel)
+        .get("attributes", {})
+        .get("ome", {})
+        .get("omero", {})
+        .get("channels")
+        is not None
+    ]
+    if not tiles:
+        return
+
+    if len(tiles) > _MAX_HISTOGRAM_TILES:
+        picks = np.unique(
+            np.linspace(0, len(tiles) - 1, _MAX_HISTOGRAM_TILES).round().astype(int)
+        )
+        tiles = [tiles[i] for i in picks]
+        print(
+            f"  {index.root.name}: histogramming {len(tiles)} of "
+            f"{len(index.tiles())} tiles (evenly spaced subsample)"
+        )
+
+    dirs = [str(index.path(rel)) for rel in tiles]
+    n_batches = max(1, min(threads, len(dirs)))
+    batches = [dirs[i::n_batches] for i in range(n_batches)]
+    for result in _parallel_map(_batch_channel_histograms, batches, threads):
+        _merge_histograms(histograms, result)
 
 
 def _windows_from_histograms(
@@ -1170,7 +1335,7 @@ def _stats_from_histograms(
 
 
 def _inject_omero_windows(
-    store_path: Path,
+    index,
     windows: dict[int, tuple[float, float]],
     stats: dict[int, dict[str, float]] | None = None,
 ) -> int:
@@ -1178,13 +1343,8 @@ def _inject_omero_windows(
 
     Returns the number of zarr.json files updated.
     """
-    patched = 0
-    for zj in sorted(store_path.rglob("zarr.json")):
-        if "labels" in zj.relative_to(store_path).parts:
-            continue
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
+    for rel, meta in index.groups():
+        if "labels" in rel.split("/"):
             continue
         channels = (
             meta.get("attributes", {}).get("ome", {}).get("omero", {}).get("channels")
@@ -1206,6 +1366,5 @@ def _inject_omero_windows(
                 ch["statistics"] = stats[idx]
             changed = True
         if changed:
-            zj.write_text(json.dumps(meta, indent=2))
-            patched += 1
-    return patched
+            index.mark(rel)
+    return index.flush()

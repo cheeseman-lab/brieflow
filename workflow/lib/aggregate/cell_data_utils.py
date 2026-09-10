@@ -7,8 +7,6 @@ and filtering features based on channel combinations.
 
 import pandas as pd
 
-from lib.phenotype.constants import DEFAULT_METADATA_COLS
-
 
 def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     """Load metadata column names from a file.
@@ -30,6 +28,19 @@ def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
         ]
 
     return metadata_cols
+
+
+RESERVED_METADATA_PREFIXES = ("offset_",)
+
+
+def is_reserved_metadata_col(col):
+    """Return True for columns always treated as metadata regardless of METADATA_COLS.
+
+    Per-cell alignment-offset QC columns (offset_*) have screen-specific names (the
+    alignment step/cycle count varies by screen), so they are matched by prefix rather
+    than enumerated in the metadata_cols file.
+    """
+    return col.startswith(RESERVED_METADATA_PREFIXES)
 
 
 def split_cell_data(
@@ -56,6 +67,14 @@ def split_cell_data(
     """
     # Ensure all metadata columns exist in the data
     existing_metadata_cols = [col for col in metadata_cols if col in cell_data.columns]
+
+    # Reserved metadata (offset_* QC) matched by pattern, not enumeration
+    reserved_metadata_cols = [
+        col
+        for col in cell_data.columns
+        if col not in existing_metadata_cols and is_reserved_metadata_col(col)
+    ]
+    existing_metadata_cols = existing_metadata_cols + reserved_metadata_cols
 
     # Get metadata columns
     metadata = cell_data[existing_metadata_cols].copy()
@@ -190,3 +209,122 @@ def get_feature_table_cols(feature_cols, extra_tags=None):
     selected_columns.extend(extra_cols)
 
     return selected_columns
+
+
+COMPARTMENT_PREFIXES = {
+    "cell": "cell_",
+    "nucleus": "nucleus_",
+    "cytoplasm": "cytoplasm_",
+    "second_obj": "second_obj_",
+}
+
+# Second-object-derived per-cell summary columns lacking the second_obj_ prefix.
+SECOND_OBJ_EXTRA_COLS = frozenset(
+    {
+        "total_second_obj_area",
+        "mean_second_obj_diameter",
+        "mean_distance_to_nucleus",
+    }
+)
+
+
+def compartment_combo_subset(
+    features: pd.DataFrame, compartment_combo: str, all_compartments: list[str]
+) -> pd.DataFrame:
+    """Filter features to keep only columns belonging to the requested compartments.
+
+    Args:
+        features (pd.DataFrame): Feature columns (metadata already split out).
+        compartment_combo (list[str]): Compartments to keep, e.g. ["cell", "nucleus"].
+        all_compartments (list[str]): Compartments present in the input. Used to
+            determine which prefixes to exclude.
+
+    Returns:
+        pd.DataFrame: features without columns belonging to excluded compartments.
+    """
+    excluded = [c for c in all_compartments if c not in compartment_combo]
+    excluded_prefixes = [COMPARTMENT_PREFIXES[c] for c in excluded]
+
+    cols_to_drop = [
+        col
+        for col in features.columns
+        if any(col.startswith(p) for p in excluded_prefixes)
+    ]
+    if "second_obj" in excluded:
+        cols_to_drop += [c for c in SECOND_OBJ_EXTRA_COLS if c in features.columns]
+
+    return features.drop(columns=cols_to_drop)
+
+
+def resolve_aggregate_combos(
+    aggregate_combos: list[dict], second_obj_detection: bool
+) -> list[dict]:
+    """Normalize and validate AGGREGATE_COMBOS entries.
+
+    For each entry:
+    - Fills in default compartments (all 4 if detection on, 3 otherwise) when missing.
+    - Dedupes compartments within the combo (preserving order).
+    - Validates compartment names, non-empty channels/compartments, and
+      second_obj-vs-detection consistency.
+    After normalization, duplicate (channels, compartments) pairs are deduped.
+
+    Args:
+        aggregate_combos (list[dict]): Each dict has "channels" (list[str]) and
+            optionally "compartments" (list[str]).
+        second_obj_detection (bool): From config["phenotype"]["second_obj_detection"].
+
+    Returns:
+        list[dict]: Normalized, validated, and de-duplicated combos.
+
+    Raises:
+        ValueError: On any validation failure.
+    """
+    valid_compartments = set(COMPARTMENT_PREFIXES)
+    default_compartments = (
+        ["cell", "nucleus", "cytoplasm", "second_obj"]
+        if second_obj_detection
+        else ["cell", "nucleus", "cytoplasm"]
+    )
+
+    resolved = []
+    seen = set()
+    for idx, combo in enumerate(aggregate_combos):
+        channels = list(combo.get("channels") or [])
+        if not channels:
+            raise ValueError(
+                f"AGGREGATE_COMBOS[{idx}] must specify at least one channel"
+            )
+
+        comps = combo.get("compartments")
+        if comps is None:
+            comps = list(default_compartments)
+        else:
+            comps = list(comps)
+        if not comps:
+            raise ValueError(
+                f"AGGREGATE_COMBOS[{idx}] must specify at least one compartment"
+            )
+
+        # Dedupe compartments while preserving order
+        deduped = []
+        for c in comps:
+            if c not in valid_compartments:
+                raise ValueError(
+                    f"AGGREGATE_COMBOS[{idx}] has unknown compartment {c!r}; "
+                    f"must be one of {sorted(valid_compartments)}"
+                )
+            if c == "second_obj" and not second_obj_detection:
+                raise ValueError(
+                    f"AGGREGATE_COMBOS[{idx}] lists 'second_obj' but "
+                    f"config['phenotype']['second_obj_detection'] is False"
+                )
+            if c not in deduped:
+                deduped.append(c)
+
+        key = (tuple(channels), tuple(deduped))
+        if key in seen:
+            continue
+        seen.add(key)
+        resolved.append({"channels": channels, "compartments": deduped})
+
+    return resolved

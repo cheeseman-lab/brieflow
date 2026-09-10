@@ -16,6 +16,7 @@ def aggregate(
     method="mean",
     ps_probability_threshold=None,
     ps_percentile_threshold=None,
+    carry_cols: list[str] | None = None,
 ) -> tuple[np.ndarray, pd.DataFrame]:
     """Apply mean or median aggregation to replicate embeddings and perturbation scores for each perturbation.
 
@@ -31,6 +32,13 @@ def aggregate(
             Defaults to "mean".
         ps_probability_threshold (float, optional): Threshold for filtering based on perturbation score.
         ps_percentile_threshold (float, optional): Percentile threshold for filtering based on perturbation score.
+        carry_cols (list[str], optional): Metadata columns functionally determined by
+            `pert_col` to preserve (one value per group) in the output. Typical use:
+            when `pert_col` is a construct ID (e.g. `cell_barcode_0`), carry the
+            human-readable gene symbol (`gene_symbol_0`) through so downstream
+            clustering / benchmarking / lookups can match by gene name. Raises
+            ValueError if a carry_col is missing from metadata or has more than one
+            unique value within a group.
 
     Returns:
         tuple:
@@ -47,6 +55,21 @@ def aggregate(
     )
     if aggr_func is None:
         raise ValueError(f"Invalid aggregation method: {method}")
+
+    if carry_cols is None:
+        carry_cols = []
+    else:
+        missing = [c for c in carry_cols if c not in metadata.columns]
+        if missing:
+            raise ValueError(
+                f"carry_cols not found in metadata: {missing}. "
+                f"Available columns: {list(metadata.columns)}"
+            )
+        overlap = [c for c in carry_cols if c == pert_col]
+        if overlap:
+            raise ValueError(
+                f"carry_cols overlap with pert_col: {overlap}. Remove duplicates."
+            )
 
     # filter by ps_probability_threshold; keep NaNs
     if ps_probability_threshold is not None:
@@ -80,6 +103,16 @@ def aggregate(
         # Always include perturbation_auc if present (needed for gene-level filtering in clustering)
         if "perturbation_auc" in metadata.columns:
             agg_meta["perturbation_auc"] = group["perturbation_auc"].iloc[0]
+
+        # Carry through columns that are functionally determined by pert_col.
+        for c in carry_cols:
+            nuniq = group[c].nunique(dropna=False)
+            if nuniq > 1:
+                raise ValueError(
+                    f"carry_col {c!r} has {nuniq} unique values within group "
+                    f"{pert_col}={pert!r}; not functionally determined by {pert_col}."
+                )
+            agg_meta[c] = group[c].iloc[0]
 
         if ps_probability_threshold is not None or ps_percentile_threshold is not None:
             # aggregate perturbation score with same function

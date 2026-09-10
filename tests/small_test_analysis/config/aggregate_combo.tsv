@@ -1,3 +1,5 @@
-cell_class	channel_combo	plate	well
-Interphase	DAPI_COXIV_CENPA_WGA	1	A1
-Interphase	DAPI_COXIV_CENPA_WGA	1	A2
+cell_class	channel_combo	compartment_combo	plate	well
+Interphase	DAPI_COXIV_CENPA_WGA	cell-nucleus-cytoplasm	1	A1
+Interphase	DAPI_COXIV_CENPA_WGA	cell-nucleus-cytoplasm	1	A2
+Interphase	DAPI	nucleus	1	A1
+Interphase	DAPI	nucleus	1	A2

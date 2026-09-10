@@ -1,5 +1,4 @@
 import os
-import pandas as pd
 import streamlit as st
 import sys
 import uuid
@@ -7,6 +6,7 @@ import uuid
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from workflow.lib.shared.file_utils import parse_filename
 from src.config import STATIC_ASSET_URL_ROOT, STATIC_ASSET_PATH
+from src.filesystem import parse_nested_location, read_table
 
 
 class VisualizationRenderer:
@@ -27,11 +27,18 @@ class VisualizationRenderer:
         for (dir_name, base_name), group_df in grouped:
             with st.container():
                 attrs, metric_name, _ = parse_filename(base_name)
+                # Zarr mode encodes the location in the directories, not the filename.
+                if not attrs:
+                    attrs = parse_nested_location(
+                        os.path.join(dir_name, os.path.basename(base_name))
+                    )
                 metric_title = metric_name.replace("_", " ").title()
                 attr_parts = [
                     f"{k.replace('_', ' ').title()}: {v}" for k, v in attrs.items()
                 ]
-                title = f"{metric_title} - " + ", ".join(attr_parts)
+                title = " - ".join(
+                    [metric_title] + ([", ".join(attr_parts)] if attr_parts else [])
+                )
                 st.markdown(f"### {title}")
 
                 # Count only the items we'll actually display
@@ -88,8 +95,8 @@ class VisualizationRenderer:
                         elif row["ext"] == "tsv" and not has_png:
                             # Only show TSV if there's no PNG
                             try:
-                                tsv_data = pd.read_csv(
-                                    os.path.join(root_dir, row["file_path"]), sep="\t"
+                                tsv_data = read_table(
+                                    os.path.join(root_dir, row["file_path"])
                                 )
                                 st.dataframe(tsv_data)
                             except Exception as e:

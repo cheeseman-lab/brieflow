@@ -5,6 +5,7 @@ import streamlit as st
 import yaml
 
 from src.config import BRIEFLOW_OUTPUT_PATH, CONFIG_PATH, SCREEN_PATH, load_config
+from src.filesystem import read_table
 
 st.set_page_config(page_title="Screen Overview - Brieflow Analysis", layout="wide")
 
@@ -16,13 +17,6 @@ st.set_page_config(page_title="Screen Overview - Brieflow Analysis", layout="wid
 def load_raw_yaml(file_path):
     with open(file_path, "r") as file:
         return file.read()
-
-
-def read_tabular(path):
-    """Read a TSV or CSV based on file extension."""
-    if path.endswith(".csv"):
-        return pd.read_csv(path)
-    return pd.read_csv(path, sep="\t")
 
 
 def resolve_path(path):
@@ -72,7 +66,7 @@ with tab_library:
 
     if barcode_path:
         st.subheader("Barcode Library")
-        df_lib = read_tabular(barcode_path)
+        df_lib = read_table(barcode_path)
 
         n_guides = len(df_lib)
         gene_col = "gene_symbol" if "gene_symbol" in df_lib.columns else None
@@ -102,7 +96,7 @@ with tab_library:
     if raw_lib_path:
         st.divider()
         st.subheader("Raw Perturbation Library Design")
-        df_raw = read_tabular(raw_lib_path)
+        df_raw = read_table(raw_lib_path)
 
         st.markdown(
             f"**Source:** `{raw_lib_path}` ({len(df_raw):,} rows, {len(df_raw.columns)} columns)"

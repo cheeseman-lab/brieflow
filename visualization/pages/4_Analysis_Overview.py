@@ -1,7 +1,7 @@
 import streamlit as st
 import git
 import os
-from src.config import CONFIG_PATH
+from src.config import CONFIG_PATHS
 
 st.set_page_config(
     page_title="Analysis Overview - Brieflow Analysis",
@@ -54,7 +54,10 @@ st.title("Analysis Overview")
 # tabs for: config, dependencies, git
 tab1, tab2, tab3 = st.tabs(["Config", "Dependencies", "Git"])
 with tab1:
-    display_yaml(CONFIG_PATH)
+    # CONFIG_PATH can name several files that the run deep-merged, so show each of them.
+    for config_path in CONFIG_PATHS:
+        st.subheader(os.path.basename(config_path))
+        display_yaml(config_path)
 
 with tab2:
     display_requirements()

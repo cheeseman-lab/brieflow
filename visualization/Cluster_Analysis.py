@@ -10,20 +10,34 @@ import pandas as pd
 import glob
 import os
 import json
+import sys
 
 import plotly.graph_objects as go
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from src.config import load_config
-from src.filesystem import FileSystem
+import numpy as np
+
+from src.config import get_image_format, load_config
+from src.filesystem import FileSystem, read_zarr_channel_names
 from src.filtering import create_filter_radio, apply_filter
 from src.config import BRIEFLOW_OUTPUT_PATH, STATIC_ASSET_URL_ROOT, STATIC_ASSET_PATH
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from workflow.lib.shared.image_io import read_image
 
 # =====================
 # CONSTANTS
 CLUSTER_ROOT = os.path.join(BRIEFLOW_OUTPUT_PATH, "cluster")
+IMAGE_FORMAT = get_image_format()
+
+# Cluster outputs nest as channel_combo/[compartment_combo/]cell_class/leiden_resolution,
+# so name the levels by how many there are rather than by fixed position.
+CLUSTER_DIR_LEVELS = {
+    3: ["channel_combo", "cell_class", "leiden_resolution"],
+    4: ["channel_combo", "compartment_combo", "cell_class", "leiden_resolution"],
+}
 
 # Common hover data columns
 HOVER_COLUMNS = ["gene_symbol_0", "cluster", "cell_count", "source"]
@@ -38,47 +52,48 @@ SOURCE_INDEX = 3
 # FUNCTIONS
 
 
+def find_mozzarellm_dirs(channel_combo: str) -> list:
+    """Find every mozzarellm/clusters directory under a channel combo.
+
+    Globs rather than walking fixed levels because the cluster tree gains a
+    compartment_combo level when the run defines compartments.
+    """
+    return sorted(
+        d
+        for d in glob.glob(
+            os.path.join(CLUSTER_ROOT, channel_combo, "**", "mozzarellm", "clusters"),
+            recursive=True,
+        )
+        if os.path.isdir(d)
+    )
+
+
+def parse_mozzarellm_dir(mozzarellm_dir: str) -> tuple:
+    """Return the (cell_class, leiden_resolution) a mozzarellm/clusters directory belongs to."""
+    leiden_dir = os.path.dirname(os.path.dirname(mozzarellm_dir))
+    return os.path.basename(os.path.dirname(leiden_dir)), os.path.basename(leiden_dir)
+
+
 def has_mozzarellm_analysis(channel_combo: str) -> bool:
     """Check if a channel combo has mozzarellm analysis for any cell_class/leiden_resolution."""
-    channel_dir = os.path.join(CLUSTER_ROOT, channel_combo)
-    if not os.path.exists(channel_dir):
-        return False
-    # Check all cell_class/leiden_resolution subdirectories for mozzarellm/clusters
-    for cell_class in os.listdir(channel_dir):
-        cell_class_dir = os.path.join(channel_dir, cell_class)
-        if not os.path.isdir(cell_class_dir):
-            continue
-        for leiden_res in os.listdir(cell_class_dir):
-            mozzarellm_clusters = os.path.join(
-                cell_class_dir, leiden_res, "mozzarellm", "clusters"
-            )
-            if os.path.exists(mozzarellm_clusters):
-                return True
-    return False
+    return len(find_mozzarellm_dirs(channel_combo)) > 0
 
 
 def has_mozzarellm_for_cell_class(channel_combo: str, cell_class: str) -> bool:
     """Check if mozzarellm exists for channel_combo + cell_class + any leiden_resolution."""
-    cell_class_dir = os.path.join(CLUSTER_ROOT, channel_combo, cell_class)
-    if not os.path.exists(cell_class_dir):
-        return False
-    for leiden_res in os.listdir(cell_class_dir):
-        mozzarellm_clusters = os.path.join(
-            cell_class_dir, leiden_res, "mozzarellm", "clusters"
-        )
-        if os.path.exists(mozzarellm_clusters):
-            return True
-    return False
+    return any(
+        parse_mozzarellm_dir(d)[0] == cell_class
+        for d in find_mozzarellm_dirs(channel_combo)
+    )
 
 
 def has_mozzarellm_for_leiden(channel_combo: str, cell_class: str, leiden_res) -> bool:
     """Check if mozzarellm exists for the exact channel_combo + cell_class + leiden_resolution."""
     # Convert to int then string to handle float values like 15.0 -> "15"
     leiden_str = str(int(float(leiden_res)))
-    mozzarellm_clusters = os.path.join(
-        CLUSTER_ROOT, channel_combo, cell_class, leiden_str, "mozzarellm", "clusters"
-    )
-    return os.path.exists(mozzarellm_clusters)
+    return (cell_class, leiden_str) in [
+        parse_mozzarellm_dir(d) for d in find_mozzarellm_dirs(channel_combo)
+    ]
 
 
 # -- Data Load Methods --
@@ -100,17 +115,11 @@ def load_cluster_data():
         df["source_full_path"] = file_path
         df["source"] = base_name
         parts = dirname.split(os.sep)
-        for i, part in enumerate(parts):
-            df[f"dir_level_{i}"] = part
-
-        df.rename(
-            columns={
-                "dir_level_0": "channel_combo",
-                "dir_level_1": "cell_class",
-                "dir_level_2": "leiden_resolution",
-            },
-            inplace=True,
+        level_names = CLUSTER_DIR_LEVELS.get(
+            len(parts), [f"dir_level_{i}" for i in range(len(parts))]
         )
+        for name, part in zip(level_names, parts):
+            df[name] = part
 
         dfs.append(df)
 
@@ -183,10 +192,24 @@ def make_scatter_trace(x, y, marker, text, customdata, name, showlegend, color=N
 
 
 # -- Display helpers --
+def get_montage_root(cell_class):
+    """Return the directory holding this cell class's montages for the active image format.
+
+    TIFF mode writes a PNG per channel under ``{cell_class}__montages``; zarr mode writes
+    one OME-Zarr store per cell crop under ``{cell_class}__examples.zarr``.
+    """
+    montages_dir = os.path.join(BRIEFLOW_OUTPUT_PATH, "aggregate", "montages")
+    if IMAGE_FORMAT == "zarr":
+        return os.path.join(montages_dir, f"{cell_class}__examples.zarr")
+    return os.path.join(montages_dir, f"{cell_class}__montages")
+
+
 def display_gene_montages(gene_montages_root, gene):
     gene_dir = os.path.join(gene_montages_root, gene)
     if not os.path.exists(gene_dir):
         st.warning(f"No montage directory found for gene {gene}")
+    elif IMAGE_FORMAT == "zarr":
+        display_gene_montages_zarr(gene_montages_root, gene)
     else:
         montage_data = load_montage_data(gene_montages_root, gene)
         if montage_data.empty:
@@ -194,36 +217,7 @@ def display_gene_montages(gene_montages_root, gene):
         else:
             # Add filters for guide and channel
             available_guides = sorted(montage_data["guide"].unique())
-
-            # Initialize session state for selected guide if it doesn't exist
-            if f"selected_guide_{gene}" not in st.session_state:
-                st.session_state[f"selected_guide_{gene}"] = None
-
-            # Define a callback for when the guide dropdown changes
-            def on_guide_select():
-                st.session_state[f"selected_guide_{gene}"] = st.session_state[
-                    f"guide_dropdown_{gene}"
-                ]
-
-            # Determine the index of the selected guide in the dropdown
-            selected_index = 0
-            selected_guide = st.session_state.get(f"selected_guide_{gene}", None)
-
-            if selected_guide in available_guides:
-                selected_index = available_guides.index(selected_guide)
-            elif available_guides:
-                # If no guide is selected yet or the previously selected guide is not available, select the first one
-                selected_guide = available_guides[0]
-                st.session_state[f"selected_guide_{gene}"] = selected_guide
-
-            # Create a dropdown to select a guide
-            selected_guide = st.selectbox(
-                "Select Guide",
-                available_guides,
-                index=selected_index,
-                key=f"guide_dropdown_{gene}",  # Use a stable key based on the selected gene
-                on_change=on_guide_select,
-            )
+            selected_guide = select_montage_guide(gene, available_guides)
 
             # Filter the data based on selections
             filtered_montage_data = montage_data[
@@ -248,7 +242,7 @@ def display_gene_montages(gene_montages_root, gene):
 
                 # Add download button for overlay TIFF
                 overlay_tiff_path = os.path.join(
-                    gene_montages_root, gene, selected_guide, f"overlay_montage.tiff"
+                    gene_montages_root, gene, selected_guide, "overlay_montage.tiff"
                 )
 
                 if os.path.exists(overlay_tiff_path):
@@ -270,6 +264,98 @@ def display_gene_montages(gene_montages_root, gene):
                     st.warning(f"No overlay tiff found: {overlay_tiff_path}")
             else:
                 st.warning(f"No image found for {gene} - {selected_guide}")
+
+
+def display_gene_montages_zarr(gene_montages_root, gene):
+    """Display the per-cell OME-Zarr crops the zarr pipeline writes instead of montage PNGs."""
+    available_guides = sorted(list_montage_guides(gene_montages_root, gene))
+    if not available_guides:
+        st.write(f"No montage data found for gene {gene}")
+        return
+
+    selected_guide = select_montage_guide(gene, available_guides)
+    crop_paths = load_montage_crops(gene_montages_root, gene, selected_guide)
+    if not crop_paths:
+        st.warning(f"No image found for {gene} - {selected_guide}")
+        return
+
+    channel_names = read_zarr_channel_names(crop_paths[0])
+    for crop_path in crop_paths:
+        crop = read_image(crop_path)
+        if crop.ndim == 2:
+            crop = crop[np.newaxis, ...]
+        cols = st.columns(len(crop))
+        for index, channel_image in enumerate(crop):
+            label = (
+                channel_names[index]
+                if channel_names and index < len(channel_names)
+                else f"Channel {index}"
+            )
+            cols[index].image(
+                scale_to_uint8(channel_image), caption=f"Channel: {label}"
+            )
+
+
+@st.cache_data
+def list_montage_guides(gene_montages_root, gene):
+    """List the guide (sgRNA) directories available for a gene."""
+    gene_dir = os.path.join(gene_montages_root, gene)
+    if not os.path.isdir(gene_dir):
+        return []
+    return [
+        entry
+        for entry in os.listdir(gene_dir)
+        if os.path.isdir(os.path.join(gene_dir, entry))
+    ]
+
+
+@st.cache_data
+def load_montage_crops(gene_montages_root, gene, guide):
+    """List the per-cell OME-Zarr crop stores written for a gene/guide pair."""
+    return sorted(
+        FileSystem.find_files(
+            os.path.join(gene_montages_root, gene, guide), extensions=["zarr"]
+        )
+    )
+
+
+def select_montage_guide(gene, available_guides):
+    """Render the guide dropdown for a gene and return the selected guide."""
+    if f"selected_guide_{gene}" not in st.session_state:
+        st.session_state[f"selected_guide_{gene}"] = None
+
+    # Define a callback for when the guide dropdown changes
+    def on_guide_select():
+        st.session_state[f"selected_guide_{gene}"] = st.session_state[
+            f"guide_dropdown_{gene}"
+        ]
+
+    # Determine the index of the selected guide in the dropdown
+    selected_index = 0
+    selected_guide = st.session_state.get(f"selected_guide_{gene}", None)
+
+    if selected_guide in available_guides:
+        selected_index = available_guides.index(selected_guide)
+    elif available_guides:
+        # If no guide is selected yet or the previously selected guide is not available, select the first one
+        st.session_state[f"selected_guide_{gene}"] = available_guides[0]
+
+    return st.selectbox(
+        "Select Guide",
+        available_guides,
+        index=selected_index,
+        key=f"guide_dropdown_{gene}",  # Use a stable key based on the selected gene
+        on_change=on_guide_select,
+    )
+
+
+def scale_to_uint8(channel_image):
+    """Rescale a single-channel crop to uint8 so streamlit can display it."""
+    arr = channel_image.astype(np.float32)
+    low, high = float(arr.min()), float(arr.max())
+    if high <= low:
+        return np.zeros(arr.shape, dtype=np.uint8)
+    return (((arr - low) / (high - low)) * 255).astype(np.uint8)
 
 
 def display_cluster(cluster_data, cell_class=None, channel_combo=None):
@@ -525,6 +611,10 @@ def display_cluster(cluster_data, cell_class=None, channel_combo=None):
 def cluster_table(cluster_data):
     # Display data overview
     st.markdown("## Cluster Data Overview")
+    if cluster_data.empty:
+        st.warning("No cluster data found for the selected filters.")
+        return
+
     # If an item is selected, filter the dataframe
     source_tsv = cluster_data["source_full_path"].unique()[0]
     if os.path.exists(source_tsv):
@@ -552,18 +642,25 @@ def cluster_table(cluster_data):
         st.warning(f"⚠️ WARNING: Source TSV file not found at: {source_tsv}")
 
 
-def feature_table(cell_class, channel_combo):
+def get_compartment_combo(cluster_data):
+    """Return the compartment combo of the loaded cluster data, or None when it has none."""
+    if "compartment_combo" in cluster_data.columns and len(cluster_data) > 0:
+        return cluster_data["compartment_combo"].iloc[0]
+    return None
+
+
+def feature_table(cell_class, channel_combo, compartment_combo=None):
     # Feature Data Overview
     st.markdown("## Feature Data Overview")
     st.markdown(
         "Median feature values per gene after center scaling all single cell data on control cells by well."
     )
     # Construct the feature table path
+    name = f"CeCl-{cell_class}_ChCo-{channel_combo}"
+    if compartment_combo:
+        name = f"{name}_CmCo-{compartment_combo}"
     feature_table_path = os.path.join(
-        BRIEFLOW_OUTPUT_PATH,
-        "aggregate",
-        "tsvs",
-        f"CeCl-{cell_class}_ChCo-{channel_combo}__features_genes.tsv",
+        BRIEFLOW_OUTPUT_PATH, "aggregate", "tsvs", f"{name}__features_genes.tsv"
     )
     # Load and display the feature table if it exists
     if os.path.exists(feature_table_path):
@@ -587,21 +684,19 @@ def feature_table(cell_class, channel_combo):
         st.warning(f"⚠️ WARNING: Feature table not found at: {feature_table_path}")
 
 
-def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
+def cluster_size_charts(cluster_data):
+    if cluster_data.empty:
+        return
+
     # Create two equal-sized columns
     col1, col2 = st.columns([1, 1])
+
+    cluster_dir = os.path.dirname(cluster_data["source_full_path"].unique()[0])
 
     with col1:
         st.markdown("### Cluster Sizes")
         # Construct the path to the cluster sizes plot
-        cluster_sizes_path = os.path.join(
-            BRIEFLOW_OUTPUT_PATH,
-            "cluster",
-            channel_combo,
-            cell_class,
-            leiden_resolution,
-            "cluster_sizes.png",
-        )
+        cluster_sizes_path = os.path.join(cluster_dir, "cluster_sizes.png")
 
         # Display the plot if it exists
         if os.path.exists(cluster_sizes_path):
@@ -612,14 +707,7 @@ def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
     with col2:
         st.markdown("### Cluster Enrichment")
         # Construct the path to the enrichment pie chart
-        enrichment_pie_path = os.path.join(
-            BRIEFLOW_OUTPUT_PATH,
-            "cluster",
-            channel_combo,
-            cell_class,
-            leiden_resolution,
-            "CB-Real__pie_chart.png",
-        )
+        enrichment_pie_path = os.path.join(cluster_dir, "CB-Real__pie_chart.png")
 
         # Display the plot if it exists
         if os.path.exists(enrichment_pie_path):
@@ -632,21 +720,11 @@ def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
 
 def get_available_llm_combinations(channel_combo: str) -> list:
     """Find all cell_class/resolution combinations that have LLM data."""
-    available = []
-    channel_dir = os.path.join(CLUSTER_ROOT, channel_combo)
-    if not os.path.exists(channel_dir):
-        return available
-    for cell_class in os.listdir(channel_dir):
-        cell_class_dir = os.path.join(channel_dir, cell_class)
-        if not os.path.isdir(cell_class_dir):
-            continue
-        for leiden_res in os.listdir(cell_class_dir):
-            mozzarellm_clusters = os.path.join(
-                cell_class_dir, leiden_res, "mozzarellm", "clusters"
-            )
-            if os.path.exists(mozzarellm_clusters) and os.listdir(mozzarellm_clusters):
-                available.append((cell_class, leiden_res))
-    return available
+    return [
+        parse_mozzarellm_dir(d)
+        for d in find_mozzarellm_dirs(channel_combo)
+        if os.listdir(d)
+    ]
 
 
 def display_cluster_json(cluster_data, container=st.container()):
@@ -965,10 +1043,13 @@ def apply_all_filters(data):
     data = apply_filter(data, "channel_combo", selected_channel_combo)
 
     # Cell Class filter - handle directly
-    cell_class_options = ["all", "Mitotic", "Interphase"]
+    # Options come from the data; "All" is the sentinel apply_filter treats as no filter.
+    cell_class_options = ["All"] + sorted(data["cell_class"].dropna().unique().tolist())
     # Initialize cell class in session state if needed
-    if "cell_class" not in st.session_state:
-        st.session_state.cell_class = "all"
+    if st.session_state.get("cell_class") not in cell_class_options:
+        st.session_state.cell_class = (
+            cell_class_options[1] if len(cell_class_options) > 1 else "All"
+        )
 
     # Format cell class display label
     def format_cell_class(cc: str) -> str:
@@ -1127,8 +1208,8 @@ if not st.session_state.selected_item:
         channel_combo=st.session_state.channel_combo,
     )
     cluster_table(cluster_data)
-    feature_table(cell_class, channel_combo)
-    cluster_size_charts(channel_combo, cell_class, leiden_resolution)
+    feature_table(cell_class, channel_combo, get_compartment_combo(cluster_data))
+    cluster_size_charts(cluster_data)
 
 else:
     # Cluster selected: Two columns: plot | detail.
@@ -1138,8 +1219,8 @@ else:
             cluster_data, cell_class=cell_class, channel_combo=channel_combo
         )
         cluster_table(cluster_data)
-        feature_table(cell_class, channel_combo)
-        cluster_size_charts(channel_combo, cell_class, leiden_resolution)
+        feature_table(cell_class, channel_combo, get_compartment_combo(cluster_data))
+        cluster_size_charts(cluster_data)
 
     with col2:
         # Selected Gene info
@@ -1149,9 +1230,7 @@ else:
             cluster_data["cluster"] == st.session_state.selected_item
         ]
         genes = sorted(selected_gene_info_df["gene_symbol_0"].tolist())
-        gene_montages_root = os.path.join(
-            BRIEFLOW_OUTPUT_PATH, "aggregate", "montages", f"{cell_class}__montages"
-        )
+        gene_montages_root = get_montage_root(cell_class)
 
         ## Cluster Info
         # Create two columns for the title and clear button

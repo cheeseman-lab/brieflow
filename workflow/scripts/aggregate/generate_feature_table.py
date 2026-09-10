@@ -16,6 +16,7 @@ from lib.aggregate.cell_data_utils import (
     GROUP_KEY_SEP,
 )
 from lib.aggregate.bootstrap import create_pseudogene_groups
+from lib.aggregate.filter import harmonize_pool_schema
 
 # Validate required params
 for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:
@@ -26,8 +27,19 @@ for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:
 pert_col = snakemake.params.perturbation_name_col
 pert_id_col = snakemake.params.perturbation_id_col or pert_col
 control_key = snakemake.params.control_key
+# Column used with control_key to identify controls; falls back to pert_col when unset.
+control_name_col = snakemake.params.get("control_name_col") or pert_col
 num_batches = snakemake.params.num_align_batches
 group_cols = list(snakemake.params.get("group_cols", None) or [])
+
+if pert_id_col == pert_col:
+    print(
+        f"WARNING: perturbation_id_col is not set, so '{pert_col}' is being used as "
+        "the construct ID. Constructs collapse to gene level, which leaves a single "
+        "control construct and a bootstrap null that lacks construct-level variance "
+        "(p-values will be under-dispersed). Set perturbation_id_col to your "
+        "construct column (e.g. cell_barcode_0 or sgRNA_0)."
+    )
 
 # Load cell data using PyArrow dataset (lazy - no data loaded yet)
 print("Loading cell data as PyArrow dataset...")
@@ -55,10 +67,13 @@ if missing_group_cols:
         f"aggregate group_cols not found in cell data: {missing_group_cols}"
     )
 metadata_cols += [col for col in group_cols if col not in metadata_cols]
-feature_cols = [col for col in cell_dataset.schema.names if col not in metadata_cols]
 
-# Filter metadata_cols to only include columns that exist in the parquet
-existing_metadata_cols = [col for col in metadata_cols if col in cell_data_cols]
+# Harmonize the pool's column set once (drop partial cols, apply pool-level drop_cols_threshold).
+existing_metadata_cols, feature_cols, _pool_report = harmonize_pool_schema(
+    non_empty_paths,
+    metadata_cols,
+    drop_cols_threshold=snakemake.params.get("drop_cols_threshold"),
+)
 
 print(
     f"Number of metadata columns: {len(existing_metadata_cols)} | Number of feature columns: {len(feature_cols)}"
@@ -82,10 +97,10 @@ print(f"Processing data in {num_batches} batch(es), ~{chunk_size} rows per batch
 aligned_output = snakemake.output[0]
 writer = None
 
-# Accumulators for construct-level aggregation
-# We'll collect per-construct data across batches
+# Accumulators for per-construct data collected across batches
 construct_cell_counts = {}  # {construct_id: count}
 construct_gene_map = {}  # {construct_id: gene_name}
+construct_control_map = {}  # {construct_id: control_name_col value (for control id)}
 construct_feature_sums = {}  # {construct_id: [sum of features]}
 construct_feature_counts = {}  # {construct_id: count for averaging}
 # For median, we need all values - store them
@@ -136,6 +151,7 @@ for batch_idx, indices in enumerate(subset_indices):
         control_key,
         "batch_values",
         method=snakemake.params.feature_normalization,
+        control_col=control_name_col,
     ).astype(np.float32)
 
     # fold group values into the perturbation labels so a point is perturbation x group
@@ -173,10 +189,12 @@ for batch_idx, indices in enumerate(subset_indices):
         mask = metadata[pert_id_col].values == construct_id
         construct_features = features[mask]
         gene_name = metadata.loc[mask, pert_col].iloc[0]
+        control_name = metadata.loc[mask, control_name_col].iloc[0]
 
         if construct_id not in construct_cell_counts:
             construct_cell_counts[construct_id] = 0
             construct_gene_map[construct_id] = gene_name
+            construct_control_map[construct_id] = control_name
             construct_feature_values[construct_id] = []
             if group_cols:
                 construct_group_map[construct_id] = group_labels[mask].iloc[0]
@@ -208,6 +226,7 @@ for construct_id in construct_cell_counts.keys():
     row = {
         pert_id_col: construct_id,
         pert_col: construct_gene_map[construct_id],
+        control_name_col: construct_control_map[construct_id],
         "cell_count": construct_cell_counts[construct_id],
     }
     for i, col in enumerate(feature_cols):
@@ -221,9 +240,12 @@ gc.collect()
 construct_table = pd.DataFrame(construct_rows)
 
 # Reorder columns: sgRNA, gene, cell_count, features
-# List the label column once when the id and name columns coincide
-label_cols = [pert_id_col, pert_col] if pert_id_col != pert_col else [pert_col]
-construct_columns = label_cols + ["cell_count"] + feature_cols
+# Dedupe preserving order; control_name_col must survive for the control filter below
+construct_columns = list(
+    dict.fromkeys(
+        [pert_id_col, pert_col, control_name_col, "cell_count"] + feature_cols
+    )
+)
 construct_table = construct_table[construct_columns]
 
 print(f"Construct table shape: {construct_table.shape}")
@@ -233,7 +255,7 @@ print("\n=== Creating gene-level table ===")
 
 # Filter out controls for gene-level aggregation
 non_control_constructs = construct_table[
-    ~control_mask(construct_table[pert_col], control_key)
+    ~control_mask(construct_table[control_name_col], control_key)
 ]
 
 # Calculate gene-level sample sizes (sum of construct cell counts)
@@ -255,7 +277,7 @@ gene_table = pd.merge(gene_features, gene_sample_sizes, on=pert_col, how="left")
 
 # Add controls to gene table (controls are their own "genes")
 control_constructs = construct_table[
-    control_mask(construct_table[pert_col], control_key)
+    control_mask(construct_table[control_name_col], control_key)
 ]
 control_gene_table = control_constructs[[pert_col, "cell_count"] + feature_cols].copy()
 

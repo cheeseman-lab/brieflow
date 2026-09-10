@@ -29,6 +29,7 @@ PHENOTYPE_OUTPUTS = {
     ],
     "align_phenotype": [
         PHENOTYPE_FP / get_image_output_path(_tile, "aligned", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "alignment_metrics", "tsv", PHENOTYPE_IMG_FMT),
     ],
     "segment_phenotype": [
         PHENOTYPE_FP / get_image_output_path(_tile, "nuclei", PHENOTYPE_IMG_FMT, subdirectory="labels"),
@@ -44,10 +45,24 @@ PHENOTYPE_OUTPUTS = {
     "combine_phenotype_info": [
         PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_info", "parquet", PHENOTYPE_IMG_FMT),
     ],
-    "extract_phenotype": [
+    "identify_second_objs": [
+        PHENOTYPE_FP / get_image_output_path(_tile, "identified_second_objs", PHENOTYPE_IMG_FMT, subdirectory="labels"),
+        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "cell_second_obj_table", "tsv", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / get_image_output_path(_tile, "updated_cytoplasms", PHENOTYPE_IMG_FMT, subdirectory="labels"),
+    ],
+    "extract_phenotype_cp": [
         PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_cp", "tsv", PHENOTYPE_IMG_FMT),
     ],
-    "merge_phenotype": [
+    "extract_phenotype_second_objs": [
+        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_second_objs", "tsv", PHENOTYPE_IMG_FMT),
+    ],
+    "merge_phenotype_second_objs": [
+        PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_second_objs", "parquet", PHENOTYPE_IMG_FMT),
+    ],
+    "merge_second_objs_phenotype_cp": [
+        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_with_second_objs", "tsv", PHENOTYPE_IMG_FMT),
+    ],
+    "merge_phenotype_cp": [
         PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_cp", "parquet", PHENOTYPE_IMG_FMT),
         PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_cp_min", "parquet", PHENOTYPE_IMG_FMT),
     ],
@@ -76,14 +91,33 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "identify_cytoplasm": _phenotype_label_keep,
     "extract_phenotype_info": None,
     "combine_phenotype_info": None,
-    "extract_phenotype": None,
-    "merge_phenotype": None,
+    "identify_second_objs": [_phenotype_label_keep, None, _phenotype_label_keep],
+    "extract_phenotype_cp": None,
+    "extract_phenotype_second_objs": None,
+    "merge_phenotype_second_objs": None,
+    "merge_second_objs_phenotype_cp": None,
+    "merge_phenotype_cp": None,
     "eval_segmentation_phenotype": None,
     "eval_features": None,
 }
 
-PHENOTYPE_OUTPUTS_MAPPED = map_outputs(PHENOTYPE_OUTPUTS, PHENOTYPE_OUTPUT_MAPPINGS)
+# Secondary object outputs only exist when detection is enabled
+PHENOTYPE_SECOND_OBJ_DETECTION = config.get("phenotype", {}).get("second_obj_detection", False)
+_second_obj_keys = [
+    "identify_second_objs",
+    "extract_phenotype_second_objs",
+    "merge_phenotype_second_objs",
+    "merge_second_objs_phenotype_cp",
+]
+if PHENOTYPE_SECOND_OBJ_DETECTION:
+    PHENOTYPE_OUTPUTS_FILTERED = PHENOTYPE_OUTPUTS
+    PHENOTYPE_OUTPUT_MAPPINGS_FILTERED = PHENOTYPE_OUTPUT_MAPPINGS
+else:
+    PHENOTYPE_OUTPUTS_FILTERED = {k: v for k, v in PHENOTYPE_OUTPUTS.items() if k not in _second_obj_keys}
+    PHENOTYPE_OUTPUT_MAPPINGS_FILTERED = {k: v for k, v in PHENOTYPE_OUTPUT_MAPPINGS.items() if k not in _second_obj_keys}
+
+PHENOTYPE_OUTPUTS_MAPPED = map_outputs(PHENOTYPE_OUTPUTS_FILTERED, PHENOTYPE_OUTPUT_MAPPINGS_FILTERED)
 
 PHENOTYPE_TARGETS_ALL = outputs_to_targets(
-    PHENOTYPE_OUTPUTS, phenotype_wildcard_combos, PHENOTYPE_OUTPUT_MAPPINGS
+    PHENOTYPE_OUTPUTS_FILTERED, phenotype_wildcard_combos, PHENOTYPE_OUTPUT_MAPPINGS_FILTERED
 )

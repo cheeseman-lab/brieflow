@@ -13,7 +13,8 @@ rule align_sbs:
             ancient_output=True,
         ),
     output:
-        SBS_OUTPUTS_MAPPED["align_sbs"],
+        SBS_OUTPUTS_MAPPED["align_sbs"][0],  # aligned image
+        SBS_OUTPUTS_MAPPED["align_sbs"][1],  # alignment metrics TSV
     params:
         method=config.get("sbs", {}).get("alignment_method"),
         channel_names=config.get("sbs", {}).get("channel_names"),
@@ -29,7 +30,7 @@ rule align_sbs:
 # Apply Laplacian-of-Gaussian filter to all channels
 rule log_filter:
     input:
-        SBS_OUTPUTS["align_sbs"],
+        SBS_OUTPUTS["align_sbs"][0],
     output:
         SBS_OUTPUTS_MAPPED["log_filter"],
     params:
@@ -53,7 +54,7 @@ rule compute_standard_deviation:
 # Find local maxima of SBS reads across cycles
 rule find_peaks:
     input:
-        SBS_OUTPUTS["compute_standard_deviation"] if config.get("sbs", {}).get("spot_detection_method", "standard") == "standard" else SBS_OUTPUTS["align_sbs"],
+        SBS_OUTPUTS["compute_standard_deviation"] if config.get("sbs", {}).get("spot_detection_method", "standard") == "standard" else SBS_OUTPUTS["align_sbs"][0],
     output:
         SBS_OUTPUTS_MAPPED["find_peaks"],
     params:
@@ -78,7 +79,7 @@ rule max_filter:
 # Apply illumination correction field from segmentation cycle
 rule apply_ic_field_sbs:
     input:
-        SBS_OUTPUTS["align_sbs"],
+        SBS_OUTPUTS["align_sbs"][0],
         # extra channel illumination correction field
         lambda wildcards: output_to_input(
             PREPROCESS_OUTPUTS["calculate_ic_sbs"],
@@ -171,6 +172,8 @@ rule extract_sbs_info:
     input:
         # use nuclei segmentation map
         SBS_OUTPUTS["segment_sbs"][0],
+        # alignment metrics TSV
+        SBS_OUTPUTS["align_sbs"][1],
     output:
         SBS_OUTPUTS_MAPPED["extract_sbs_info"],
     script:

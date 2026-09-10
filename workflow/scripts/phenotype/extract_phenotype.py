@@ -1,4 +1,5 @@
 from lib.shared.image_io import read_image
+import pandas as pd
 
 # foci_channel_index intentionally omitted — extract_phenotype_cp_emulator handles foci_channel=None
 for _param_name in ["cp_method", "channel_names"]:
@@ -63,5 +64,11 @@ else:
         f"Unknown cp_method: {cp_method}. Choose 'cp_measure' or 'cp_emulator'."
     )
 
-# Save phenotype cp
+# Broadcast tile-level alignment offsets to each cell row
+alignment_metrics = pd.read_csv(snakemake.input[4], sep="\t")
+offset_cols = [c for c in alignment_metrics.columns if c.startswith("offset_")]
+for col in offset_cols:
+    phenotype_cp[col] = alignment_metrics[col].iloc[0]
+
+# save phenotype cp
 phenotype_cp.to_csv(snakemake.output[0], index=False, sep="\t")

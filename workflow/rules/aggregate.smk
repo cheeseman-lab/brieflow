@@ -1,18 +1,47 @@
+from lib.shared.compartment_utils import get_compartment_combo, format_rule_output
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
 from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_bootstrap_construct_outputs
+
+
+# Aggregate secondary object features into cell-level data
+SECOND_OBJ_DETECTION = config.get("phenotype", {}).get("second_obj_detection", False)
+# phenotype well-level paths nest by row/col in zarr mode; aggregate rules are keyed by plate/well
+_agg_well_expand = ["row", "col"] if IMG_FMT == "zarr" else []
+
+
+if SECOND_OBJ_DETECTION:
+    rule aggregate_cells_second_objs:
+        input:
+            ancient(MERGE_OUTPUTS["final_merge"]),
+            ancient(lambda wildcards: output_to_input(
+                PHENOTYPE_OUTPUTS["merge_phenotype_second_objs"][0],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_agg_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+        output:
+            AGGREGATE_OUTPUTS_MAPPED["aggregate_cells_second_objs"],
+        params:
+            agg_strategy=config.get("aggregate", {}).get(
+                "second_obj_agg_strategy", "none"
+            ),
+        script:
+            "../scripts/aggregate/aggregate_cells_second_objs.py"
 
 
 # Create datasets with cell classes and channel combos
 rule split_datasets:
     input:
-        # final merge data
-        ancient(MERGE_OUTPUTS["final_merge"]),
+        # cell data (with or without secondary object features)
+        ancient(AGGREGATE_OUTPUTS["aggregate_cells_second_objs"])
+        if SECOND_OBJ_DETECTION
+        else ancient(MERGE_OUTPUTS["final_merge"]),
     priority: 100
     output:
         map_wildcard_outputs(
             aggregate_wildcard_combos,
             AGGREGATE_OUTPUTS["split_datasets"][0],
-            ["cell_class", "channel_combo"],
+            ["cell_class", "channel_combo", "compartment_combo"],
         ),
     params:
         all_channels=config.get("phenotype", {}).get("channel_names"),
@@ -23,8 +52,8 @@ rule split_datasets:
         class_mapping=config.get("classify", {}).get("class_mapping"),
         well_annotations_fp=config.get("aggregate", {}).get("well_annotations_fp"),
         split_col=config.get("aggregate", {}).get("split_col", "class"),
-        cell_classes=aggregate_wildcard_combos["cell_class"].unique(),
-        channel_combos=aggregate_wildcard_combos["channel_combo"].unique(),
+        aggregate_wildcard_combos=aggregate_wildcard_combos,
+        split_by_compartment=SPLIT_BY_COMPARTMENT,
     script:
         "../scripts/aggregate/split_datasets.py"
 
@@ -61,6 +90,9 @@ rule generate_feature_table:
             wildcards={
                 "cell_class": wildcards.cell_class,
                 "channel_combo": wildcards.channel_combo,
+                "compartment_combo": get_compartment_combo(
+                    wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+                ),
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
@@ -75,10 +107,12 @@ rule generate_feature_table:
         perturbation_id_col=config.get("aggregate", {}).get("perturbation_id_col"),
         group_cols=config.get("aggregate", {}).get("group_cols", []),
         control_key=config.get("aggregate", {}).get("control_key"),
+        control_name_col=config.get("aggregate", {}).get("control_name_col"),
         batch_cols=config.get("aggregate", {}).get("batch_cols", ["plate", "well"]),
         num_align_batches=config.get("aggregate", {}).get("num_align_batches", 1),
         feature_normalization=config.get("aggregate", {}).get("feature_normalization", "standard"),
         pseudogene_patterns=config.get("aggregate", {}).get("pseudogene_patterns", None),
+        drop_cols_threshold=config.get("aggregate", {}).get("drop_cols_threshold"),
     script:
         "../scripts/aggregate/generate_feature_table.py"
 
@@ -90,6 +124,9 @@ rule align:
             wildcards={
                 "cell_class": wildcards.cell_class,
                 "channel_combo": wildcards.channel_combo,
+                "compartment_combo": get_compartment_combo(
+                    wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+                ),
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
@@ -108,6 +145,7 @@ rule align:
         num_align_batches=config.get("aggregate", {}).get("num_align_batches", 1),
         skip_perturbation_score=config.get("aggregate", {}).get("skip_perturbation_score", True),
         control_name_col=config.get("aggregate", {}).get("control_name_col"),
+        drop_cols_threshold=config.get("aggregate", {}).get("drop_cols_threshold"),
     script:
         "../scripts/aggregate/align.py"
 
@@ -126,6 +164,7 @@ rule aggregate:
         agg_method=config.get("aggregate", {}).get("agg_method", "median"),
         ps_probability_threshold=config.get("aggregate", {}).get("ps_probability_threshold"),
         ps_percentile_threshold=config.get("aggregate", {}).get("ps_percentile_threshold"),
+        control_name_col=config.get("aggregate", {}).get("control_name_col"),
     script:
         "../scripts/aggregate/aggregate.py"
 
@@ -140,6 +179,9 @@ rule eval_aggregate:
             wildcards={
                 "cell_class": wildcards.cell_class,
                 "channel_combo": wildcards.channel_combo,
+                "compartment_combo": get_compartment_combo(
+                    wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+                ),
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
@@ -147,6 +189,10 @@ rule eval_aggregate:
     priority: 100
     output:
         AGGREGATE_OUTPUTS_MAPPED["eval_aggregate"],
+    params:
+        compartment_combo=lambda wildcards: get_compartment_combo(
+            wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+        ),
     script:
         "../scripts/aggregate/eval_aggregate.py"
 
@@ -165,9 +211,8 @@ checkpoint prepare_montage_data:
             AGGREGATE_OUTPUTS["filter"],
             wildcards={
                 "cell_class": wildcards.cell_class,
-                "channel_combo": aggregate_wildcard_combos["channel_combo"].unique()[
-                    0
-                ],
+                "channel_combo": aggregate_wildcard_combos["channel_combo"].iloc[0],
+                "compartment_combo": aggregate_wildcard_combos["compartment_combo"].iloc[0],
             },
             expansion_values=["plate", "well"],
             metadata_combos=aggregate_wildcard_combos,
@@ -192,7 +237,7 @@ if IMG_FMT == "zarr":
             touch(MONTAGE_OUTPUTS["montage_crop_flag"]),
         params:
             img_fmt="zarr",
-            channels=config["phenotype"]["channel_names"],
+            channels=config.get("phenotype", {}).get("channel_names"),
             examples_zarr_root=lambda wildcards: str(
                 MONTAGE_OUTPUTS["examples_zarr"]
             ).format(cell_class=wildcards.cell_class),
@@ -226,7 +271,7 @@ else:
                 cell_class="{cell_class}",
                 gene="{gene}",
                 sgrna="{sgrna}",
-                channel=config["phenotype"]["channel_names"],
+                channel=config.get("phenotype", {}).get("channel_names"),
             )
             + [
                 str(MONTAGE_OUTPUTS["montage_overlay"]).format(
@@ -235,7 +280,7 @@ else:
             ],
         params:
             img_fmt="tiff",
-            channels=config["phenotype"]["channel_names"],
+            channels=config.get("phenotype", {}).get("channel_names"),
             montage_cell_size=config["aggregate"].get("montage_cell_size", 40),
             montage_shape=config["aggregate"].get("montage_shape", [3, 10]),
         script:
@@ -247,7 +292,7 @@ else:
                 checkpoints.prepare_montage_data,
                 MONTAGE_OUTPUTS["montage"],
                 MONTAGE_OUTPUTS["montage_overlay"],
-                config["phenotype"]["channel_names"],
+                config.get("phenotype", {}).get("channel_names"),
                 wildcards.cell_class,
             ),
         priority: 50
@@ -266,14 +311,23 @@ else:
 # Prepare bootstrap data and create checkpoint
 checkpoint prepare_bootstrap_data:
     input:
-        features_singlecell=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][0]).format(
-            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
+        features_singlecell=lambda wildcards: format_rule_output(
+            AGGREGATE_OUTPUTS["generate_feature_table"][0],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
-        construct_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][1]).format(
-            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
+        construct_table=lambda wildcards: format_rule_output(
+            AGGREGATE_OUTPUTS["generate_feature_table"][1],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
-        gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][2]).format(
-            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
+        gene_table=lambda wildcards: format_rule_output(
+            AGGREGATE_OUTPUTS["generate_feature_table"][2],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
     output:
         directory(BOOTSTRAP_OUTPUTS["bootstrap_data_dir"]),
@@ -298,14 +352,23 @@ checkpoint prepare_bootstrap_data:
 rule bootstrap_construct:
     input:
         construct_data=BOOTSTRAP_OUTPUTS["construct_data"],
-        controls_arr=lambda wildcards: str(BOOTSTRAP_OUTPUTS["controls_arr"]).format(
-            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
+        controls_arr=lambda wildcards: format_rule_output(
+            BOOTSTRAP_OUTPUTS["controls_arr"],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
-        construct_features_arr=lambda wildcards: str(BOOTSTRAP_OUTPUTS["construct_features_arr"]).format(
-            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
+        construct_features_arr=lambda wildcards: format_rule_output(
+            BOOTSTRAP_OUTPUTS["construct_features_arr"],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
-        sample_sizes=lambda wildcards: str(BOOTSTRAP_OUTPUTS["sample_sizes"]).format(
-            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
+        sample_sizes=lambda wildcards: format_rule_output(
+            BOOTSTRAP_OUTPUTS["sample_sizes"],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
     output:
         BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
@@ -328,17 +391,24 @@ rule construct_bootstrap_complete:
             BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
             wildcards.cell_class,
             wildcards.channel_combo,
+            get_compartment_combo(
+                wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+            ),
+            SPLIT_BY_COMPARTMENT,
         ),
     output:
-        touch(AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__construct_bootstrap_complete.flag"),
+        touch(BOOTSTRAP_OUTPUTS["construct_bootstrap_flag"]),
 
 
 # Aggregate construct results to gene level
 rule bootstrap_gene:
     input:
-        construct_flag=AGGREGATE_FP / "bootstrap" / "{cell_class}__{channel_combo}__construct_bootstrap_complete.flag",
-        gene_table=lambda wildcards: str(AGGREGATE_OUTPUTS["generate_feature_table"][2]).format(
-            cell_class=wildcards.cell_class, channel_combo=wildcards.channel_combo
+        construct_flag=BOOTSTRAP_OUTPUTS["construct_bootstrap_flag"],
+        gene_table=lambda wildcards: format_rule_output(
+            AGGREGATE_OUTPUTS["generate_feature_table"][2],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
         ),
     output:
         BOOTSTRAP_OUTPUTS["bootstrap_gene_nulls"],
@@ -346,11 +416,13 @@ rule bootstrap_gene:
     params:
         num_sims=config.get("aggregate", {}).get("num_sims", 100000),
         perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
-        construct_nulls_pattern=lambda wildcards: str(BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"]).format(
-            cell_class=wildcards.cell_class,
-            channel_combo=wildcards.channel_combo,
+        construct_nulls_pattern=lambda wildcards: format_rule_output(
+            BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
             gene=wildcards.gene,
-            construct="{construct}"
+            construct="{construct}",
         ),
         bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
         bootstrap_extra_features=config.get("aggregate", {}).get("bootstrap_extra_features", None),
@@ -369,6 +441,10 @@ rule initiate_bootstrap:
             BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
             wildcards.cell_class,
             wildcards.channel_combo,
+            get_compartment_combo(
+                wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+            ),
+            SPLIT_BY_COMPARTMENT,
         ),
     output:
         touch(BOOTSTRAP_OUTPUTS["bootstrap_flag"]),
@@ -382,8 +458,18 @@ rule combine_bootstrap:
         BOOTSTRAP_OUTPUTS["combined_construct_results"],
         BOOTSTRAP_OUTPUTS["combined_gene_results"],
     params:
-        constructs_dir=lambda wildcards: str(AGGREGATE_FP / "bootstrap" / f"{wildcards.cell_class}__{wildcards.channel_combo}__constructs"),
-        genes_dir=lambda wildcards: str(AGGREGATE_FP / "bootstrap" / f"{wildcards.cell_class}__{wildcards.channel_combo}__genes"),
+        constructs_dir=lambda wildcards: format_rule_output(
+            BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"].parent,
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
+        ),
+        genes_dir=lambda wildcards: format_rule_output(
+            BOOTSTRAP_OUTPUTS["bootstrap_gene_nulls"].parent,
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
+        ),
     script:
         "../scripts/aggregate/combine_bootstrap.py"
 
@@ -394,7 +480,12 @@ rule format_singlecell_anndata:
         # Stage-position + global pixel columns are already attached upstream in final_merge.
         filtered_paths=lambda wildcards: output_to_input(
             AGGREGATE_OUTPUTS_MAPPED["filter"],
-            wildcards={"channel_combo": wildcards.channel_combo},
+            wildcards={
+                "channel_combo": wildcards.channel_combo,
+                "compartment_combo": get_compartment_combo(
+                    wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
+                ),
+            },
             expansion_values=["plate", "well", "cell_class"],
             metadata_combos=aggregate_wildcard_combos,
         ),
@@ -405,7 +496,7 @@ rule format_singlecell_anndata:
         use_classifier=config.get("classify", {}).get("classifier_path") is not None,
         control_key=config["aggregate"]["control_key"],
         perturbation_name_col=config["aggregate"]["perturbation_name_col"],
-        channel_names=config["phenotype"]["channel_names"],
+        channel_names=config.get("phenotype", {}).get("channel_names"),
         channel_combo="{channel_combo}",
     script:
         "../scripts/aggregate/format_singlecell_anndata.py"

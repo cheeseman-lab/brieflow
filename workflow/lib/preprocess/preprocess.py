@@ -36,7 +36,7 @@ def get_data_config(image_type: str, config: Dict[str, Any]) -> Dict[str, Any]:
 
     Returns:
         Dictionary with data configuration settings including:
-        - data_format: 'nd2' or 'tiff'
+        - data_format: 'nd2', 'ims' or 'tiff'
         - data_organization: 'tile' or 'well'
         - channel_order_flip: Whether to reverse channel order
         - channel_order: List of channels in desired order

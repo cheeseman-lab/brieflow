@@ -72,8 +72,10 @@ for col in offset_cols:
 
 # Attach the per-cell nuclei count, defaulting to 1 where a cell has no entry
 nuclei_per_cell = pd.read_csv(snakemake.input[5], sep="\t").set_index("cell")
+# an empty tile yields a frame with no columns at all
+cell_labels = phenotype_cp["label"] if "label" in phenotype_cp else pd.Series(dtype=int)
 phenotype_cp["num_nuclei"] = (
-    phenotype_cp["label"].map(nuclei_per_cell["num_nuclei"]).fillna(1).astype(int)
+    cell_labels.map(nuclei_per_cell["num_nuclei"]).fillna(1).astype(int)
 )
 
 # save phenotype cp

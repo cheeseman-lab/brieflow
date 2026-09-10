@@ -29,8 +29,7 @@ threads = getattr(snakemake, "threads", 1) or 1
 root_fp = Path(snakemake.config["all"]["root_fp"])
 preprocess_root = root_fp / "preprocess"
 
-# Modality config for segmentation_metadata on label stores.
-# The snakemake rule should set params.modality to "sbs" or "phenotype".
+# Modality config (params.modality: sbs | phenotype) for label segmentation_metadata
 modality_name = getattr(snakemake.params, "modality", None)
 modality_config = None
 if modality_name and modality_name in snakemake.config:
@@ -61,8 +60,7 @@ if total > 0:
 else:
     print("No plate zarr directories found. Skipping HCS metadata.")
 
-# Screen-wide per-channel intensity percentiles + summary statistics.
-# Skip preprocess stores (different cycle nesting, no rendering need).
+# Screen-wide intensity percentiles and statistics; preprocess stores need no rendering
 renderable_plates = [
     Path(p)
     for p in plate_zarr_dirs

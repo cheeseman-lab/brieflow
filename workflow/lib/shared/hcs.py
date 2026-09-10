@@ -28,15 +28,13 @@ from iohub.ngff.models import OMEROMeta, RDefsMeta, TransformationMeta
 from lib.shared.file_utils import WELL_ROWCOL_PATTERNS
 from lib.shared.image_io import DEFAULT_CHANNEL_COLORS
 
-# Store indices, keyed by resolved store path, so the three passes over one
-# plate store share a single directory walk.
+# Store indices keyed by resolved path, so all passes over a plate share one walk
 _STORE_INDEX_CACHE: dict[str, "_StoreIndex"] = {}
 
 # Stores whose single channel is the store type itself.
 _SINGLE_CHANNEL_STORES = {"peaks", "standard_deviation"}
 
-# SBS stores whose OME channel axis holds sequencing cycles, not stains:
-# align_cycles stacks (cycle, channel, y, x), so channel becomes the Z axis.
+# SBS stores stacked (cycle, channel, y, x) by align_cycles: OME C holds cycles, Z stains
 _CYCLE_STACKED_SBS_STORES = {"aligned", "log_filtered", "max_filtered"}
 
 # Label directory stem -> annotation type and the config keys describing it.
@@ -66,8 +64,7 @@ _LABEL_ANNOTATION_MAP = {
 
 _AXIS_UNITS = {"X": "micrometer", "Y": "micrometer", "Z": "micrometer", "T": "second"}
 
-# Cap on fields histogrammed per store; above this an evenly spaced subsample
-# is used for the intensity percentiles and summary statistics.
+# Fields histogrammed per store; larger stores use an evenly spaced subsample
 _MAX_HISTOGRAM_FIELDS = 256
 
 

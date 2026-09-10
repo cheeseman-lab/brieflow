@@ -1,9 +1,19 @@
 import streamlit as st
 import uuid
 
-st.set_page_config(
-    page_title="Cluster Analysis - Brieflow Analysis",
-    layout="wide",
+from src.theme import (
+    ACCENT,
+    CATEGORICAL,
+    empty_state,
+    page_setup,
+    sidebar_filters_header,
+    style_figure,
+)
+
+page_setup(
+    "Cluster Analysis",
+    "🧫",
+    "Gene clusters in the PHATE embedding, with per-cluster annotation and example cell montages.",
 )
 
 import anndata as ad
@@ -59,6 +69,9 @@ BOOKKEEPING_COLUMNS = [
 
 # bootstrap significance layers, most directly usable first
 SIGNIFICANCE_LAYERS = ("neg_log10_fdr", "fdr")
+
+# Montage crops per row, so a gene's examples read as a grid rather than a column
+MONTAGE_COLUMNS = 4
 
 # Common hover data columns
 HOVER_COLUMNS = ["gene_symbol_0", "cluster", "cell_count", "source"]
@@ -286,13 +299,13 @@ def get_montage_root(cell_class):
 def display_gene_montages(gene_montages_root, gene):
     gene_dir = os.path.join(gene_montages_root, gene)
     if not os.path.exists(gene_dir):
-        st.warning(f"No montage directory found for gene {gene}")
+        empty_state(f"No montage directory for gene {gene}.")
     elif IMAGE_FORMAT == "zarr":
         display_gene_montages_zarr(gene_montages_root, gene)
     else:
         montage_data = load_montage_data(gene_montages_root, gene)
         if montage_data.empty:
-            st.write(f"No montage data found for gene {gene}")
+            empty_state(f"No montage data found for gene {gene}.")
         else:
             # Add filters for guide and channel
             available_guides = sorted(montage_data["guide"].unique())
@@ -304,20 +317,27 @@ def display_gene_montages(gene_montages_root, gene):
             ]
 
             if len(filtered_montage_data) > 0:
-                # Display each image in the filtered data
-                for _, row in filtered_montage_data.iterrows():
+                # Display each image in the filtered data, capped columns per row
+                rows = list(filtered_montage_data.iterrows())
+                cols = st.columns(min(MONTAGE_COLUMNS, len(rows)))
+                for index, (_, row) in enumerate(rows):
                     # Construct the full path including the montages directory
                     image_path = os.path.join(gene_montages_root, row["file_path"])
                     channel_name = row["channel"]
                     channel_name = channel_name.replace("CH-", "")
 
-                    try:
-                        if os.path.exists(image_path):
-                            st.image(image_path, caption=f"Channel: {channel_name}")
-                        else:
-                            st.error(f"Image file not found: {image_path}")
-                    except Exception as e:
-                        st.error(f"Error displaying image: {str(e)}")
+                    with cols[index % len(cols)]:
+                        try:
+                            if os.path.exists(image_path):
+                                st.image(
+                                    image_path,
+                                    caption=channel_name,
+                                    use_container_width=True,
+                                )
+                            else:
+                                st.error(f"Image file not found: {image_path}")
+                        except Exception as e:
+                            st.error(f"Error displaying image: {str(e)}")
 
                 # Add download button for overlay TIFF
                 overlay_tiff_path = os.path.join(
@@ -340,38 +360,41 @@ def display_gene_montages(gene_montages_root, gene):
                                 key=f"download_{gene}_{selected_guide}_{row['channel']}_{uuid.uuid4()}",
                             )
                 else:
-                    st.warning(f"No overlay tiff found: {overlay_tiff_path}")
+                    st.caption("No overlay TIFF written for this guide.")
             else:
-                st.warning(f"No image found for {gene} - {selected_guide}")
+                empty_state(f"No montage image for {gene} - {selected_guide}.")
 
 
 def display_gene_montages_zarr(gene_montages_root, gene):
     """Display the per-cell OME-Zarr crops the zarr pipeline writes instead of montage PNGs."""
     available_guides = sorted(list_montage_guides(gene_montages_root, gene))
     if not available_guides:
-        st.write(f"No montage data found for gene {gene}")
+        empty_state(f"No montage data found for gene {gene}.")
         return
 
     selected_guide = select_montage_guide(gene, available_guides)
     crop_paths = load_montage_crops(gene_montages_root, gene, selected_guide)
     if not crop_paths:
-        st.warning(f"No image found for {gene} - {selected_guide}")
+        empty_state(f"No montage image for {gene} - {selected_guide}.")
         return
 
     channel_names = read_zarr_channel_names(crop_paths[0])
-    for crop_path in crop_paths:
+    for crop_index, crop_path in enumerate(crop_paths):
         crop = read_image(crop_path)
         if crop.ndim == 2:
             crop = crop[np.newaxis, ...]
-        cols = st.columns(len(crop))
+        st.caption(f"Cell {crop_index + 1} of {len(crop_paths)}")
+        cols = st.columns(min(MONTAGE_COLUMNS, len(crop)))
         for index, channel_image in enumerate(crop):
             label = (
                 channel_names[index]
                 if channel_names and index < len(channel_names)
                 else f"Channel {index}"
             )
-            cols[index].image(
-                scale_to_uint8(channel_image), caption=f"Channel: {label}"
+            cols[index % len(cols)].image(
+                scale_to_uint8(channel_image),
+                caption=label,
+                use_container_width=True,
             )
 
 
@@ -420,7 +443,7 @@ def select_montage_guide(gene, available_guides):
         st.session_state[f"selected_guide_{gene}"] = available_guides[0]
 
     return st.selectbox(
-        "Select Guide",
+        "Guide",
         available_guides,
         index=selected_index,
         key=f"guide_dropdown_{gene}",  # Use a stable key based on the selected gene
@@ -456,20 +479,17 @@ def display_cluster(cluster_data, cell_class=None, channel_combo=None):
         # Build a color map using the group names and the color palette
         group_names = cluster_data[st.session_state.groupby_column].unique()
 
-        # Create a color palette optimized for visibility on a black background
+        # Use the theme palette while it has enough distinct colors, then fall back
+        # to a perceptually uniform colormap for runs with many clusters
         def get_optimized_color_palette(num_colors):
-            # Use a perceptually uniform colormap that works well on dark backgrounds
-            # Options: 'viridis', 'plasma', 'inferno', 'magma', 'cividis'
-            colormap_name = "turbo"  # Good visibility on dark backgrounds
+            if num_colors <= len(CATEGORICAL):
+                return CATEGORICAL[:num_colors]
 
-            # Get evenly spaced colors from the colormap
-            cmap = plt.get_cmap(colormap_name)
-            colors = [
+            cmap = plt.get_cmap("turbo")
+            return [
                 mcolors.rgb2hex(cmap(i / (num_colors - 1 if num_colors > 1 else 1)))
                 for i in range(num_colors)
             ]
-
-            return colors
 
         # Get enough colors for all groups
         optimized_palette = get_optimized_color_palette(len(group_names))
@@ -495,9 +515,9 @@ def display_cluster(cluster_data, cell_class=None, channel_combo=None):
                 if group != selected_item:
                     group_df = cluster_data[cluster_data[groupby_column] == group]
                     marker = dict(
-                        color="gray",  # All unselected points are gray
-                        size=8,
-                        opacity=0.3,
+                        color="#C7D0D7",  # All unselected points are muted gray
+                        size=7,
+                        opacity=0.55,
                     )
                     fig.add_trace(
                         make_scatter_trace(
@@ -535,9 +555,9 @@ def display_cluster(cluster_data, cell_class=None, channel_combo=None):
                     if not other_genes_df.empty:
                         marker = dict(
                             color=color_map[group],
-                            size=10,
+                            size=9,
                             opacity=1.0,
-                            line=dict(width=2, color="black"),
+                            line=dict(width=1, color="#FFFFFF"),
                         )
                         fig.add_trace(
                             make_scatter_trace(
@@ -554,15 +574,11 @@ def display_cluster(cluster_data, cell_class=None, channel_combo=None):
                     # Add the selected gene with special highlighting
                     if not selected_gene_df.empty:
                         marker = dict(
-                            color=color_map[
-                                group
-                            ],  # Use the cluster's color instead of red
-                            size=15,  # Larger size
+                            color=color_map[group],  # Use the cluster's color
+                            size=16,
                             opacity=1.0,
-                            symbol="circle",  # Filled circle
-                            line=dict(
-                                width=3, color="white"
-                            ),  # White border for contrast
+                            symbol="circle",
+                            line=dict(width=2, color="#1F2A37"),
                         )
                         fig.add_trace(
                             make_scatter_trace(
@@ -581,8 +597,8 @@ def display_cluster(cluster_data, cell_class=None, channel_combo=None):
                 group_df = cluster_data[cluster_data[groupby_column] == group]
                 marker = dict(
                     color=color_map[group],
-                    size=8,
-                    opacity=1.0,
+                    size=7,
+                    opacity=0.9,
                 )
                 fig.add_trace(
                     make_scatter_trace(
@@ -597,12 +613,14 @@ def display_cluster(cluster_data, cell_class=None, channel_combo=None):
                 )
 
         # Update layout
-        fig.update_layout(
+        style_figure(
+            fig,
             hovermode="closest",
             showlegend=False,
             title="",
-            width=1000,
-            height=800,
+            height=760,
+            xaxis_title="PHATE 0",
+            yaxis_title="PHATE 1",
         )
 
         # Apply saved zoom coordinates if they exist
@@ -684,14 +702,21 @@ def display_cluster(cluster_data, cell_class=None, channel_combo=None):
                 ]
 
     else:
-        st.write("No cluster data files found.")
+        empty_state(
+            "No cluster data found for the selected filters.",
+            "The cluster step writes one h5ad per channel combo under `cluster/`.",
+        )
 
 
 def cluster_table(cluster_data):
     # Display data overview
-    st.markdown("## Cluster Data Overview")
+    st.subheader("Genes")
+    st.caption("One row per gene, with its cluster assignment and gene metadata.")
     if cluster_data.empty:
-        st.warning("No cluster data found for the selected filters.")
+        empty_state(
+            "No cluster data found for the selected filters.",
+            "The cluster step writes one h5ad per channel combo under `cluster/`.",
+        )
         return
 
     table_data = cluster_data.drop(
@@ -704,19 +729,33 @@ def cluster_table(cluster_data):
         ]
 
     if table_data.empty:
-        st.warning("⚠️ WARNING: No genes found for the selected cluster.")
+        empty_state("No genes found for the selected cluster.")
         return
-    st.dataframe(table_data.set_index("gene_symbol_0"))
+    st.dataframe(
+        table_data.set_index("gene_symbol_0"),
+        use_container_width=True,
+        height=360,
+        column_config={
+            "cluster": st.column_config.TextColumn("Cluster", width="small"),
+            "cell_count": st.column_config.NumberColumn("Cells", format="%d"),
+            "uniprot_link": st.column_config.LinkColumn(
+                "UniProt", display_text="entry"
+            ),
+        },
+    )
 
 
 def feature_table(adata):
     # Feature Data Overview
-    st.markdown("## Feature Data Overview")
-    st.markdown(
+    st.subheader("Features")
+    st.caption(
         "Median feature values per gene after center scaling all single cell data on control cells by well."
     )
     if adata is None:
-        st.warning("⚠️ WARNING: No cluster h5ad found for the selected filters.")
+        empty_state(
+            "No cluster h5ad found for the selected filters.",
+            "`rule format_cluster_anndata` writes `cluster/**/h5ad/*.h5ad`.",
+        )
         return
 
     feature_df = pd.DataFrame(
@@ -726,18 +765,21 @@ def feature_table(adata):
         feature_df.insert(0, "cell_count", adata.obs["cell_count"].to_numpy())
     feature_df.index.name = "gene_symbol_0"
 
-    # Create a container with a fixed height and scrolling
-    with st.container():
-        # Display the dataframe with all columns and sorting enabled
+    # Wide and long, so it opens on demand inside a scrolling expander
+    with st.expander(
+        f"{feature_df.shape[0]:,} genes x {feature_df.shape[1]:,} columns",
+        expanded=False,
+    ):
         st.dataframe(
             feature_df,
             use_container_width=True,
             height=400,  # Fixed height for scrolling
             column_config={
-                # Configure all columns to be sortable
-                col: st.column_config.NumberColumn(width="medium")
+                col: st.column_config.NumberColumn(width="medium", format="%.3f")
                 for col in feature_df.columns
-            },
+                if col != "cell_count"
+            }
+            | {"cell_count": st.column_config.NumberColumn("Cells", format="%d")},
         )
 
 
@@ -759,21 +801,22 @@ def gene_significance_chart(adata, gene):
     if layer == "fdr":
         significance = -np.log10(np.clip(significance, 1e-300, None))
 
-    st.markdown("#### Feature Significance")
+    st.markdown("##### Feature significance")
     fig = go.Figure(
         go.Scattergl(
             x=effect,
             y=significance,
             mode="markers",
             text=adata.var_names.to_list(),
-            marker=dict(size=6, opacity=0.7),
+            marker=dict(size=6, opacity=0.7, color=ACCENT),
             hovertemplate="%{text}<br>value=%{x}<br>-log10 FDR=%{y}<extra></extra>",
         )
     )
-    fig.update_layout(
+    style_figure(
+        fig,
         xaxis_title="Feature value",
         yaxis_title="-log10 FDR",
-        height=400,
+        height=360,
         showlegend=False,
     )
     st.plotly_chart(fig, use_container_width=True, key=f"significance_{gene}")
@@ -783,13 +826,15 @@ def cluster_size_charts(cluster_data):
     if cluster_data.empty:
         return
 
+    st.subheader("Cluster composition")
+
     # Create two equal-sized columns
     col1, col2 = st.columns([1, 1])
 
     cluster_dir = get_cluster_dir(cluster_data)
 
     with col1:
-        st.markdown("### Cluster Sizes")
+        st.markdown("##### Cluster sizes")
         # Cluster membership lives in obs, so count the genes per cluster instead of
         # reading the PNG the pipeline renders.
         sizes = (
@@ -800,10 +845,24 @@ def cluster_size_charts(cluster_data):
             .reset_index(name="genes")
             .sort_values("cluster", key=lambda values: values.astype(int))
         )
-        st.bar_chart(sizes, x="cluster", y="genes")
+        sizes_fig = go.Figure(
+            go.Bar(x=sizes["cluster"], y=sizes["genes"], marker_color=ACCENT)
+        )
+        style_figure(
+            sizes_fig,
+            height=320,
+            yaxis_title="Genes",
+            xaxis=dict(
+                title="Cluster",
+                type="category",
+                categoryorder="array",
+                categoryarray=sizes["cluster"].tolist(),
+            ),
+        )
+        st.plotly_chart(sizes_fig, use_container_width=True, key="cluster_sizes")
 
     with col2:
-        st.markdown("### Cluster Enrichment")
+        st.markdown("##### Cluster enrichment")
         # Construct the path to the enrichment pie chart
         enrichment_pie_path = os.path.join(cluster_dir, "CB-Real__pie_chart.png")
 
@@ -811,8 +870,10 @@ def cluster_size_charts(cluster_data):
         if os.path.exists(enrichment_pie_path):
             st.image(enrichment_pie_path, use_container_width=True)
         else:
-            st.warning(
-                f"Cluster enrichment pie chart not found at: {enrichment_pie_path}"
+            empty_state(
+                "No cluster enrichment chart for this resolution.",
+                "`rule benchmark_clusters` writes `CB-Real__pie_chart.png` next to the "
+                "clustering outputs.",
             )
 
 
@@ -840,72 +901,44 @@ def display_cluster_json(cluster_data, container=st.container()):
         )
 
         # Always show the section header
-        st.markdown("### LLM Cluster Analysis")
+        st.subheader("LLM cluster analysis")
 
         if os.path.exists(cluster_json_path):
             with open(cluster_json_path, "r") as f:
                 c = json.load(f)
-            # Card layout using markdown and Streamlit elements
-            st.markdown(
-                f"""
-                <div style='background-color:#1e1e1e; border-radius:10px; padding:20px; margin-bottom:20px; box-shadow:0 2px 8px #00000040;'>
-                    <div style='display:flex; justify-content:space-between; align-items:center;'>
-                        <div>
-                            <span style='font-size:1.3em; font-weight:bold; color:#e0e0e0;'>Dominant Process:</span>
-                            <span style='font-size:1.3em; color:#60a5fa; font-weight:bold;'>{
-                    c.get("dominant_process", "")
-                }</span>
-                        </div>
-                        <div>
-                            <span style='background:#1e3a8a; color:#93c5fd; border-radius:6px; padding:4px 12px; font-weight:600;'>Confidence: {
-                    c.get("pathway_confidence", "")
-                }</span>
-                        </div>
-                    </div>
-                    <div style='margin-top:10px; margin-bottom:10px; font-size:1.1em; color:#d1d5db;'>
-                        {c.get("summary", "")}
-                    </div>
-                    <div style='margin-top:18px;'>
-                        <span style='font-weight:600; color:#60a5fa;'>Established Genes:</span>
-                        <span style='margin-left:8px;'>{
-                    " ".join(
-                        [
-                            f"<span style='background:#064e3b; color:#6ee7b7; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene}</span>"
-                            for gene in c.get("established_genes", [])
-                        ]
-                    )
-                }</span>
-                    </div>
-                    <div style='margin-top:10px;'>
-                        <span style='font-weight:600; color:#fbbf24;'>Novel Role Genes:</span>
-                        <ul style='margin:0; padding-left:20px;'>
-                        {
-                    "".join(
-                        [
-                            f"<li><span style='background:#78350f; color:#fcd34d; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>"
-                            for gene in c.get("novel_role_genes", [])
-                        ]
-                    )
-                }</ul>
-                    </div>
-                    <div style='margin-top:10px;'>
-                        <span style='font-weight:600; color:#c084fc;'>Uncharacterized Genes:</span>
-                        <ul style='margin:0; padding-left:20px;'>
-                        {
-                    "".join(
-                        [
-                            f"<li><span style='background:#5b21b6; color:#d8b4fe; border-radius:4px; padding:2px 8px; margin-right:4px;'>{gene['gene']}</span> <span style='color:#9ca3af;'>{gene['rationale']}</span></li>"
-                            for gene in c.get("uncharacterized_genes", [])
-                        ]
-                    )
-                }</ul>
-                    </div>
-                </div>
-            """,
-                unsafe_allow_html=True,
+
+            process_col, confidence_col = st.columns([3, 1])
+            process_col.metric("Dominant process", c.get("dominant_process", "—"))
+            confidence_col.metric(
+                "Pathway confidence", str(c.get("pathway_confidence", "—")).title()
             )
+
+            summary = c.get("summary", "")
+            if summary:
+                st.markdown(summary)
+
+            established = c.get("established_genes", [])
+            if established:
+                st.markdown("**Established genes**")
+                st.markdown(" ".join(f":green-badge[{gene}]" for gene in established))
+
+            novel = c.get("novel_role_genes", [])
+            if novel:
+                st.markdown("**Novel role genes**")
+                for gene in novel:
+                    st.markdown(
+                        f":orange-badge[{gene['gene']}] {gene.get('rationale', '')}"
+                    )
+
+            uncharacterized = c.get("uncharacterized_genes", [])
+            if uncharacterized:
+                st.markdown("**Uncharacterized genes**")
+                for gene in uncharacterized:
+                    st.markdown(
+                        f":violet-badge[{gene['gene']}] {gene.get('rationale', '')}"
+                    )
         else:
-            # Show placeholder card when LLM data is not available
+            # Show a hint about where the analysis does exist when it is missing here
             current_cell_class = st.session_state.get("cell_class", "unknown")
             current_resolution = st.session_state.get("leiden_resolution", "unknown")
             channel_combo = st.session_state.get("channel_combo", "")
@@ -915,7 +948,10 @@ def display_cluster_json(cluster_data, container=st.container()):
 
             # Smart context: tailor message based on what's wrong
             if not available:
-                available_text = "No LLM analysis available for this dataset."
+                available_text = (
+                    "The `mozzarellm` step writes `mozzarellm/clusters/cluster_*.json` "
+                    "next to the clustering outputs."
+                )
             else:
                 # Check if current cell class has any LLM data
                 cell_classes_with_llm = set(cc for cc, res in available)
@@ -935,20 +971,10 @@ def display_cluster_json(cluster_data, container=st.container()):
                         f"Available for: {', '.join(sorted(cell_classes_with_llm))}"
                     )
 
-            st.markdown(
-                f"""
-                <div style='background-color:#1e1e1e; border-radius:10px; padding:20px; margin-bottom:20px; box-shadow:0 2px 8px #00000040; border: 1px solid #374151;'>
-                    <div style='color:#9ca3af; font-size:1.1em;'>
-                        <span style='font-size:1.2em;'>ℹ️</span>
-                        LLM analysis is not available for <strong>{current_cell_class}</strong> cells
-                        at resolution <strong>{current_resolution}</strong>.
-                    </div>
-                    <div style='margin-top:12px; color:#6b7280; font-size:0.95em;'>
-                        {available_text}
-                    </div>
-                </div>
-            """,
-                unsafe_allow_html=True,
+            empty_state(
+                f"No LLM analysis for **{current_cell_class}** cells at resolution "
+                f"**{current_resolution}**.",
+                available_text,
             )
 
 
@@ -962,14 +988,14 @@ def display_uniprot_info():
     if gene_rows.empty or "uniprot_entry" not in gene_rows.columns:
         return
 
-    st.write(
-        f"Uniprot Entry: [{gene_rows['uniprot_entry'].values[0]}]({gene_rows['uniprot_link'].values[0]})"
+    st.markdown(
+        f"**UniProt entry:** [{gene_rows['uniprot_entry'].values[0]}]({gene_rows['uniprot_link'].values[0]})"
     )
     function_text = gene_rows["uniprot_function"].values[0]
     if isinstance(function_text, str) and function_text.strip():
-        st.markdown(f"Uniprot Function:\n>{function_text}")
+        st.markdown(f"> {function_text}")
     else:
-        st.write("Uniprot Function: Not available")
+        st.caption("No UniProt function annotation for this gene.")
 
 
 # -- Search/Filter state management --
@@ -1129,8 +1155,9 @@ def apply_all_filters(data):
 
     # Create the radio button with a stable key
     selected_channel_combo = st.sidebar.radio(
-        "**Channel Combo** - *Used to subset features during aggregation*",
+        "Channel combo",
         channel_combo_options,
+        help="Which channels' features the aggregation step kept.",
         index=channel_combo_options.index(st.session_state.channel_combo)
         if st.session_state.channel_combo in channel_combo_options
         else 0,
@@ -1155,8 +1182,9 @@ def apply_all_filters(data):
 
     # Create the radio button with a stable key
     selected_cell_class = st.sidebar.radio(
-        "**Cell Class** - *Used to subset single cell data with classifier provided during aggregation*",
+        "Cell class",
         cell_class_options,
+        help="Single-cell subset chosen by the classifier supplied during aggregation.",
         index=cell_class_options.index(st.session_state.cell_class),
         key="cell_class_radio_main",
         on_change=on_cell_class_change,
@@ -1180,8 +1208,9 @@ def apply_all_filters(data):
 
     # Create the radio button with a stable key
     selected_lr = st.sidebar.radio(
-        """**Leiden Resolution** - *Used in the Leiden clustering algorithm to determine gene clusters*""",
+        "Leiden resolution",
         leiden_options,
+        help="Resolution the Leiden algorithm used to form the gene clusters.",
         index=leiden_options.index(st.session_state.leiden_resolution)
         if st.session_state.leiden_resolution in leiden_options
         else 0,
@@ -1238,21 +1267,24 @@ all_clusters = sorted(
     [str(c) for c in cluster_data["cluster"].unique()], key=lambda x: int(x)
 )
 
-st.sidebar.title("Filters")
+sidebar_filters_header("Pick the clustering run to explore.")
 cluster_data = apply_all_filters(cluster_data)
 cluster_genes = get_cluster_genes(cluster_data, st.session_state.selected_item)
 
 # --- UI Layout ---
-st.title("Cluster Analysis")
-st.markdown(
-    "*Click a cluster to see details, panning and zooming is easily done through the top right of the cluster panel*"
-)
-
 # Add filters section in sidebar FIRST
 # Remove duplicate call to apply_all_filters since it's already called above
 # cluster_data = apply_all_filters(cluster_data)  # This line is removed
 
 # --- Widget Rendering ---
+genes_col, clusters_col, res_col, class_col = st.columns(4)
+genes_col.metric("Genes", f"{cluster_data['gene_symbol_0'].nunique():,}")
+clusters_col.metric("Clusters", f"{cluster_data['cluster'].nunique():,}")
+res_col.metric("Leiden resolution", str(st.session_state.leiden_resolution))
+class_col.metric("Cell class", str(st.session_state.cell_class))
+
+st.divider()
+
 col1, col2 = st.columns(2)
 with col1:
     # Global gene dropdown with placeholder
@@ -1265,8 +1297,9 @@ with col1:
     )
     st.session_state.selected_gene_global = gene_val
     selected_gene = st.selectbox(
-        "Gene Search",
+        "Find a gene",
         options=gene_options,
+        help="Jumps to the gene and selects the cluster it belongs to.",
         index=gene_options.index(gene_val) if gene_val in gene_options else 0,
         key="selected_gene_global",
         on_change=on_global_gene_select,
@@ -1285,8 +1318,9 @@ with col2:
     )
     st.session_state.cluster_dropdown = cluster_val
     st.selectbox(
-        "Cluster Search",
+        "Open a cluster",
         options=cluster_options,
+        help="Opens the cluster detail panel; also set by clicking a point in the embedding.",
         index=cluster_options.index(cluster_val)
         if cluster_val in cluster_options
         else 0,
@@ -1302,6 +1336,10 @@ cluster_adata = get_active_h5ad(cluster_data)
 
 if not st.session_state.selected_item:
     # No cluster selected: Just show the full width cluster plot
+    st.subheader("PHATE embedding")
+    st.caption(
+        "Click a point to open its cluster; pan and zoom from the toolbar above the plot."
+    )
     display_cluster(
         cluster_data,
         cell_class=st.session_state.cell_class,
@@ -1313,8 +1351,12 @@ if not st.session_state.selected_item:
 
 else:
     # Cluster selected: Two columns: plot | detail.
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns([3, 2], gap="large")
     with col1:
+        st.subheader("PHATE embedding")
+        st.caption(
+            "Click a point to open its cluster; pan and zoom from the toolbar above the plot."
+        )
         display_cluster(
             cluster_data, cell_class=cell_class, channel_combo=channel_combo
         )
@@ -1334,26 +1376,13 @@ else:
 
         ## Cluster Info
         # Create two columns for the title and clear button
-        title_col, button_col = st.columns([2, 1])
+        title_col, button_col = st.columns([3, 2], vertical_alignment="bottom")
         with title_col:
-            st.write(f"## Cluster {st.session_state.selected_item}: {len(genes)} genes")
+            st.subheader(f"Cluster {st.session_state.selected_item}")
+            st.caption(f"{len(genes)} genes")
         with button_col:
-            # Add float styling and red color specifically for the Close Cluster button
-            st.markdown(
-                """
-                <style>
-                div[data-testid="stButton"] button {
-                    float: right;
-                    background-color: #dc2626 !important;
-                    border-color: #dc2626 !important;
-                    color: white !important;
-                }
-                </style>
-            """,
-                unsafe_allow_html=True,
-            )
             # Show selected item and clear button if an item is selected
-            if st.button("Close Cluster"):
+            if st.button("Close cluster"):
                 st.session_state.selected_item = None
                 st.session_state.selected_gene = None
                 st.rerun()
@@ -1363,7 +1392,9 @@ else:
         ## Montages
         # Check if gene_montages_root directory exists
         if os.path.exists(gene_montages_root):
-            st.markdown("#### Gene Montages")
+            st.divider()
+            st.subheader("Gene montages")
+            st.caption("Example cells for one gene and guide in this cluster.")
 
             # Cluster gene dropdown
             if cluster_genes:
@@ -1374,14 +1405,15 @@ else:
                 )
                 st.session_state.selected_gene_cluster = gene_val
                 st.selectbox(
-                    "Select a gene to view (within this cluster)",
+                    "Gene",
                     options=cluster_genes,
+                    help="Genes assigned to this cluster.",
                     index=cluster_genes.index(gene_val),
                     key="selected_gene_cluster",
                     on_change=on_cluster_gene_select,
                 )
             else:
-                st.write("No genes found in this cluster.")
+                empty_state("No genes found in this cluster.")
 
             display_uniprot_info()
             gene_significance_chart(cluster_adata, st.session_state.selected_gene)
@@ -1397,8 +1429,9 @@ else:
                     st.session_state.selected_gene = genes[0]
                     st.rerun()
                 else:
-                    st.write("No genes found in this cluster.")
+                    empty_state("No genes found in this cluster.")
         else:
-            st.warning(
-                f"⚠️ WARNING: Gene montages root directory does not exist: {gene_montages_root}"
+            empty_state(
+                "No montages available for this cell class.",
+                "The aggregate step writes example cells to `aggregate/montages/`.",
             )

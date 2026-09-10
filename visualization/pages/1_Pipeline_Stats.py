@@ -5,18 +5,21 @@ import glob
 import streamlit as st
 
 from src.config import BRIEFLOW_OUTPUT_PATH
+from src.theme import empty_state, page_setup
 
-st.set_page_config(
-    page_title="Pipeline Stats - Brieflow Analysis",
-    layout="wide",
+page_setup(
+    "Pipeline Statistics",
+    "📈",
+    "Per-module counts and summaries collected from the run's stats report.",
 )
 
 # Find stats file
 stats_files = glob.glob(os.path.join(BRIEFLOW_OUTPUT_PATH, "*_stats.txt"))
 
 if not stats_files:
-    st.info(
-        "No pipeline stats file found. Run the stats collection step to generate one."
+    empty_state(
+        "No pipeline stats file found.",
+        "The `generate_stats` step writes `*_stats.txt` into the output root.",
     )
     st.stop()
 
@@ -24,8 +27,6 @@ stats_path = stats_files[0]
 
 with open(stats_path, "r") as f:
     stats_content = f.read()
-
-st.title("Pipeline Statistics")
 
 
 # ---------------------------------------------------------------------------
@@ -98,16 +99,19 @@ HEADER_MAP = {
     "CLUSTERING STATISTICS": "Clustering",
 }
 
-for header, body in sections:
-    display_name = HEADER_MAP.get(header, header.title())
-    st.header(display_name)
-    st.markdown(body_to_markdown(body))
-    st.divider()
-
-# Download
-st.download_button(
-    label="Download Stats File",
+st.sidebar.subheader("Report")
+st.sidebar.caption(os.path.basename(stats_path))
+st.sidebar.download_button(
+    label="Download stats file",
     data=stats_content,
     file_name=os.path.basename(stats_path),
     mime="text/plain",
+    use_container_width=True,
 )
+
+for index, (header, body) in enumerate(sections):
+    display_name = HEADER_MAP.get(header, header.title())
+    st.subheader(display_name)
+    st.markdown(body_to_markdown(body))
+    if index < len(sections) - 1:
+        st.divider()

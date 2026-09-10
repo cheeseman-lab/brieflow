@@ -6,8 +6,16 @@ import yaml
 
 from src.config import BRIEFLOW_OUTPUT_PATH, CONFIG_PATH, SCREEN_PATH, load_config
 from src.filesystem import read_table
+from src.theme import empty_state, page_setup
 
-st.set_page_config(page_title="Screen Overview - Brieflow Analysis", layout="wide")
+page_setup(
+    "Screen Overview",
+    "🧬",
+    "What was screened: the screen definition, the perturbation library and the features measured.",
+)
+
+# Number of rows previewed for the library tables
+PREVIEW_ROWS = 50
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -43,8 +51,6 @@ def resolve_path(path):
 # ---------------------------------------------------------------------------
 config = load_config()
 
-st.title("Screen Overview")
-
 # ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
@@ -54,29 +60,34 @@ tab_screen, tab_library, tab_features = st.tabs(
 
 # ========================== Screen Info (raw YAML) =========================
 with tab_screen:
-    st.header("Screen Info")
+    st.caption(os.path.abspath(SCREEN_PATH))
     st.code(load_raw_yaml(SCREEN_PATH), language="yaml")
 
 # ========================== Perturbation Library ===========================
 with tab_library:
-    st.header("Perturbation Library")
-
     # --- Processed barcode library (from config) ---
     barcode_path = resolve_path(config.get("sbs", {}).get("df_barcode_library_fp", ""))
 
     if barcode_path:
         st.subheader("Barcode Library")
+        st.caption(os.path.abspath(barcode_path))
         df_lib = read_table(barcode_path)
 
         n_guides = len(df_lib)
         gene_col = "gene_symbol" if "gene_symbol" in df_lib.columns else None
         n_genes = df_lib[gene_col].nunique() if gene_col else "N/A"
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         col1.metric(
             "Unique Genes", f"{n_genes:,}" if isinstance(n_genes, int) else n_genes
         )
         col2.metric("Total Guides", f"{n_guides:,}")
+        col3.metric(
+            "Guides per Gene",
+            f"{n_guides / n_genes:.1f}"
+            if isinstance(n_genes, int) and n_genes
+            else "—",
+        )
 
         st.download_button(
             label="Download barcode library",
@@ -86,9 +97,15 @@ with tab_library:
             key="download_barcode_lib",
         )
 
-        st.dataframe(df_lib.head(50), use_container_width=True)
+        with st.expander(f"Preview first {PREVIEW_ROWS} rows", expanded=True):
+            st.dataframe(
+                df_lib.head(PREVIEW_ROWS), use_container_width=True, hide_index=True
+            )
     else:
-        st.info("Barcode library not found in config.")
+        empty_state(
+            "No barcode library found.",
+            "Set `sbs.df_barcode_library_fp` in the config to the library the screen used.",
+        )
 
     # --- Raw perturbation library design file (optional) ---
     raw_lib_path = resolve_path(os.environ.get("PERTURBATION_LIBRARY_PATH", ""))
@@ -96,11 +113,12 @@ with tab_library:
     if raw_lib_path:
         st.divider()
         st.subheader("Raw Perturbation Library Design")
+        st.caption(os.path.abspath(raw_lib_path))
         df_raw = read_table(raw_lib_path)
 
-        st.markdown(
-            f"**Source:** `{raw_lib_path}` ({len(df_raw):,} rows, {len(df_raw.columns)} columns)"
-        )
+        col_rows, col_cols = st.columns(2)
+        col_rows.metric("Rows", f"{len(df_raw):,}")
+        col_cols.metric("Columns", f"{len(df_raw.columns):,}")
 
         st.download_button(
             label="Download raw library design",
@@ -110,12 +128,13 @@ with tab_library:
             key="download_raw_lib",
         )
 
-        st.dataframe(df_raw.head(50), use_container_width=True)
+        with st.expander(f"Preview first {PREVIEW_ROWS} rows", expanded=False):
+            st.dataframe(
+                df_raw.head(PREVIEW_ROWS), use_container_width=True, hide_index=True
+            )
 
 # ========================== Features =======================================
 with tab_features:
-    st.header("Features")
-
     # -- Summary table of all feature sets --
     agg_tsvs_dir = os.path.join(BRIEFLOW_OUTPUT_PATH, "aggregate", "tsvs")
     feature_files = []
@@ -149,12 +168,24 @@ with tab_features:
                 }
             )
 
+        st.subheader("Feature Sets")
         st.dataframe(
-            pd.DataFrame(summary_rows), use_container_width=True, hide_index=True
+            pd.DataFrame(summary_rows),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Feature Set": st.column_config.TextColumn(width="large"),
+                "Total Columns": st.column_config.NumberColumn(format="%d"),
+                "Feature Columns": st.column_config.NumberColumn(format="%d"),
+            },
         )
 
         # Download button for selected feature set
-        selected_file = st.selectbox("Select feature set to download", feature_files)
+        selected_file = st.selectbox(
+            "Feature set",
+            feature_files,
+            help="Pick a feature set to download its column list.",
+        )
         fp = os.path.join(agg_tsvs_dir, selected_file)
         cols = list(pd.read_csv(fp, sep="\t", nrows=0).columns)
         feat_cols = [c for c in cols if not c.startswith(METADATA_PREFIXES)]
@@ -173,11 +204,14 @@ with tab_features:
             mime="text/markdown",
         )
     else:
-        st.info("No feature files found. Run the aggregate step first.")
+        empty_state(
+            "No feature files found.",
+            "The aggregate step writes `aggregate/tsvs/*__features_genes.tsv`.",
+        )
 
     # -- Feature description reference --
     st.divider()
-    st.header("Feature Descriptions")
+    st.subheader("Feature Descriptions")
 
     # Allow override via env var, else auto-discover from brieflow repo
     feature_doc_path = os.environ.get("FEATURE_DOC_PATH", "")
@@ -209,4 +243,7 @@ with tab_features:
             key="download_feature_doc",
         )
     else:
-        st.info("Feature documentation not found.")
+        empty_state(
+            "Feature documentation not found.",
+            "Point `FEATURE_DOC_PATH` at `workflow/lib/external/CP_EMULATOR_FEATURES.md`.",
+        )

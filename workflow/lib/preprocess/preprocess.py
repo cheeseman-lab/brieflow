@@ -930,15 +930,21 @@ def read_phenix_index_xml(index_fp):
         wt = re.match(r"(r\d+c\d+)f(\d+)", url.group(1))
         if not wt:
             continue
-        rows.append({
-            "well": wt.group(1),
-            "tile": int(wt.group(2)),
-            "x_pos": float(pos_x.group(1)) * 1e6,
-            "y_pos": float(pos_y.group(1)) * 1e6,
-        })
+        rows.append(
+            {
+                "well": wt.group(1),
+                "tile": int(wt.group(2)),
+                "x_pos": float(pos_x.group(1)) * 1e6,
+                "y_pos": float(pos_y.group(1)) * 1e6,
+            }
+        )
     if not rows:
         return pd.DataFrame(columns=["well", "tile", "x_pos", "y_pos"])
-    return pd.DataFrame(rows).drop_duplicates(subset=["well", "tile"]).reset_index(drop=True)
+    return (
+        pd.DataFrame(rows)
+        .drop_duplicates(subset=["well", "tile"])
+        .reset_index(drop=True)
+    )
 
 
 def extract_metadata(

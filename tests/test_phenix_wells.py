@@ -33,6 +33,7 @@ from lib.shared.hcs import _build_store_index, _find_fields  # noqa: E402
 
 # --- Bug class 1: canonical well split ------------------------------------------
 
+
 @pytest.mark.parametrize(
     "well,expected",
     [
@@ -83,9 +84,9 @@ def test_find_fields_includes_phenix(tmp_path):
     "well,expected",
     [
         ("A1", "A1"),
-        ("A01", "A1"),      # unpadded column
-        ("b12", "B12"),     # row letter uppercased
-        ("r02c02", "r02c02"),   # Phenix: unchanged, NOT "R02C02"
+        ("A01", "A1"),  # unpadded column
+        ("b12", "B12"),  # row letter uppercased
+        ("r02c02", "r02c02"),  # Phenix: unchanged, NOT "R02C02"
         ("r06c10", "r06c10"),
     ],
 )
@@ -98,11 +99,14 @@ def test_well_for_filename_roundtrips_phenix_parquet_name():
     from lib.shared.file_utils import get_filename
 
     well = "r02c02"
-    name = get_filename({"plate": 1, "well": well_for_filename(well)}, "merge_final", "parquet")
+    name = get_filename(
+        {"plate": 1, "well": well_for_filename(well)}, "merge_final", "parquet"
+    )
     assert name == "P-1_W-r02c02__merge_final.parquet"
 
 
 # --- Bug class 2: SBS z-plane convert -------------------------------------------
+
 
 def _tile_df(channels, z_planes, well="r05c04"):
     rows = []
@@ -110,8 +114,13 @@ def _tile_df(channels, z_planes, well="r05c04"):
         for zp in z_planes:
             rows.append(
                 {
-                    "plate": "1", "well": well, "tile": "24", "cycle": "1",
-                    "channel": ch, "z": zp, "sample_fp": f"{ch}_z{zp}.tiff",
+                    "plate": "1",
+                    "well": well,
+                    "tile": "24",
+                    "cycle": "1",
+                    "channel": ch,
+                    "z": zp,
+                    "sample_fp": f"{ch}_z{zp}.tiff",
                 }
             )
     return pd.DataFrame(rows)
@@ -122,9 +131,15 @@ def test_get_sample_fps_multiz_keeps_all_channels_and_planes():
     df = _tile_df(["C", "T", "DAPI"], [1, 2, 3])
     res = get_sample_fps(df, plate="1", channel_order=["C", "T", "DAPI"])
     assert res == [
-        "C_z1.tiff", "C_z2.tiff", "C_z3.tiff",
-        "T_z1.tiff", "T_z2.tiff", "T_z3.tiff",
-        "DAPI_z1.tiff", "DAPI_z2.tiff", "DAPI_z3.tiff",
+        "C_z1.tiff",
+        "C_z2.tiff",
+        "C_z3.tiff",
+        "T_z1.tiff",
+        "T_z2.tiff",
+        "T_z3.tiff",
+        "DAPI_z1.tiff",
+        "DAPI_z2.tiff",
+        "DAPI_z3.tiff",
     ]
 
 
@@ -177,7 +192,12 @@ def test_segmentation_overview_aggregates_per_well(tmp_path, rows, cols, expecte
             for tile in (0, 1):
                 paths.append(
                     _write_stats(
-                        tmp_path / "1" / row / col / str(tile) / "segmentation_stats.tsv",
+                        tmp_path
+                        / "1"
+                        / row
+                        / col
+                        / str(tile)
+                        / "segmentation_stats.tsv",
                         10,
                     )
                 )

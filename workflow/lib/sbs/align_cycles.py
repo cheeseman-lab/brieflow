@@ -31,6 +31,7 @@ def align_cycles(
     manual_channel_mapping=None,
     verbose=False,
     return_metrics=False,
+    compute_qc=False,
 ):
     """Rigid alignment of sequencing cycles and channels.
 
@@ -325,34 +326,36 @@ def align_cycles(
         raise ValueError(f'Method "{method}" not implemented')
 
     # Alignment QC — residual on aligned cycles and base channels
-    if aligned.shape[1] > 0 and (channel_order is None or channel_order[0] == "DAPI"):
-        dapi_residual, _ = calculate_offsets(
-            aligned[:, 0], upsample_factor=upsample_factor
-        )
-        cycle_dapi_shift_residual_max_px = float(np.max(np.abs(dapi_residual)))
-    else:
-        cycle_dapi_shift_residual_max_px = float("nan")
-
-    if base_indices and len(base_indices) > 1:
-        per_cycle_residuals = []
-        for c in range(aligned.shape[0]):
-            intra, _ = calculate_offsets(
-                aligned[c, base_indices], upsample_factor=upsample_factor
+    if compute_qc:
+        if aligned.shape[1] > 0 and (channel_order is None or channel_order[0] == "DAPI"):
+            dapi_residual, _ = calculate_offsets(
+                aligned[:, 0], upsample_factor=upsample_factor
             )
-            per_cycle_residuals.append(float(np.max(np.abs(intra))))
-        intra_cycle_channel_shift_residual_max_px = (
-            float(max(per_cycle_residuals)) if per_cycle_residuals else float("nan")
-        )
-    else:
-        intra_cycle_channel_shift_residual_max_px = float("nan")
+            cycle_dapi_shift_residual_max_px = float(np.max(np.abs(dapi_residual)))
+        else:
+            cycle_dapi_shift_residual_max_px = float("nan")
 
-    print("Alignment QC:")
-    print(
-        f"  cycle_dapi_shift_residual_max_px:           {cycle_dapi_shift_residual_max_px:.4f}  (pass < 1.0)"
-    )
-    print(
-        f"  intra_cycle_channel_shift_residual_max_px:  {intra_cycle_channel_shift_residual_max_px:.4f}  (pass < 1.0)"
-    )
+        if base_indices and len(base_indices) > 1:
+            per_cycle_residuals = []
+            for c in range(aligned.shape[0]):
+                intra, _ = calculate_offsets(
+                    aligned[c, base_indices], upsample_factor=upsample_factor
+                )
+                per_cycle_residuals.append(float(np.max(np.abs(intra))))
+            intra_cycle_channel_shift_residual_max_px = (
+                float(max(per_cycle_residuals)) if per_cycle_residuals else float("nan")
+            )
+        else:
+            intra_cycle_channel_shift_residual_max_px = float("nan")
+
+        print("Alignment QC:")
+        print(
+            f"  cycle_dapi_shift_residual_max_px:           {cycle_dapi_shift_residual_max_px:.4f}  (pass < 1.0)"
+        )
+        print(
+            f"  intra_cycle_channel_shift_residual_max_px:  {intra_cycle_channel_shift_residual_max_px:.4f}  (pass < 1.0)"
+        )
+
     if return_metrics:
         return aligned, (
             offsets_to_metrics(cycle_offsets, "cycle")

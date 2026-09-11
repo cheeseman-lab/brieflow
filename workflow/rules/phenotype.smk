@@ -156,6 +156,8 @@ rule extract_phenotype_cp:
         PHENOTYPE_OUTPUTS["identify_cytoplasm"][0],
         # alignment metrics TSV (offset_y, offset_x)
         PHENOTYPE_OUTPUTS["align_phenotype"][1],
+        # per-cell nuclei counts TSV
+        PHENOTYPE_OUTPUTS["segment_phenotype"][3],
     output:
         PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_cp"],
     params:
@@ -270,6 +272,7 @@ if PHENOTYPE_IMG_FMT == "zarr":
             channels_metadata=config["preprocess"].get("phenotype_channels_metadata", None),
             channel_names=config.get("phenotype", {}).get("channel_names", None),
             modality="phenotype",
+        threads: 8
         script:
             "../scripts/shared/write_hcs_metadata.py"
 

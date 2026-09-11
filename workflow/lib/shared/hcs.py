@@ -1,912 +1,43 @@
-"""HCS (High Content Screening) OME-NGFF metadata-only fusion utilities.
+"""OME-NGFF high-content-screening (HCS) metadata for brieflow plate stores.
 
-After Snakemake jobs write zarr stores directly into the HCS plate hierarchy
-(e.g., aligned_{plate}.zarr/{row}/{col}/{tile}/zarr.json), these functions
-discover what was written and layer the OME-NGFF metadata on top.
+Pipeline rules write zarr arrays straight into the plate hierarchy
+(``aligned_{plate}.zarr/{row}/{col}/{field}``). The functions here read back what
+was written and layer the OME-NGFF plate, well, field and label metadata on top:
+no arrays are moved, copied or symlinked, only ``zarr.json`` files are written.
 
-No symlinks or data copies — only zarr.json metadata files.
+The three public entry points run in order, once per plate store:
+``write_hcs_metadata`` (plate/row/well/labels groups), ``write_field_image_metadata``
+(per-field pixel scale, axis units, channel names, OMERO rendering, label
+annotations) and ``write_channel_intensity_statistics`` (screen-wide per-channel
+intensity percentiles and summary statistics).
 """
 
 import json
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from lib.shared.file_utils import WELL_ROWCOL_PATTERNS, split_well
-
 from iohub.ngff import open_ome_zarr
 from iohub.ngff.display import channel_display_settings
 from iohub.ngff.models import OMEROMeta, RDefsMeta, TransformationMeta
 
+from lib.shared.file_utils import WELL_ROWCOL_PATTERNS
 from lib.shared.image_io import DEFAULT_CHANNEL_COLORS
 
+# Store indices keyed by resolved path, so all passes over a plate share one walk
+_STORE_INDEX_CACHE: dict[str, "_StoreIndex"] = {}
 
-# ---------------------------------------------------------------------------
-# High-level API (used by Snakemake scripts)
-# ---------------------------------------------------------------------------
-
-
-def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
-    """Write OME-NGFF HCS metadata for an existing plate zarr directory.
-
-    Args:
-        plate_zarr_path: Path to the plate zarr directory (e.g., sbs/1.zarr).
-        channels_metadata: Optional list[dict] to embed at plate root under
-        attributes["channels_metadata"].
-    """
-    plate_path = Path(plate_zarr_path)
-    if not plate_path.exists():
-        raise FileNotFoundError(f"Plate zarr directory not found: {plate_path}")
-
-    structure = discover_plate_structure(plate_path)
-    if not structure:
-        print(f"  No fields found in {plate_path}. Skipping metadata.")
-        return
-
-    wells_by_row_col = {}
-    for row, col, _tile in structure:
-        wells_by_row_col[(row, col)] = True  # deduplicate
-
-    # Compute field_count = max number of tiles in any well
-    fields_by_well = {}
-    for row, col, tile in structure:
-        fields_by_well.setdefault((row, col), []).append(tile)
-    field_count = max(len(tiles) for tiles in fields_by_well.values())
-
-    _write_plate_metadata(
-        plate_path,
-        wells_by_row_col,
-        channels_metadata=channels_metadata,
-        field_count=field_count,
-    )
-
-    # Write row-level group metadata
-    for row in sorted(set(rc[0] for rc in wells_by_row_col)):
-        _write_zarr_v3_group_metadata(plate_path / row)
-
-    # Write well-level and field-level metadata
-    for (row, col), tiles in sorted(fields_by_well.items()):
-        well_dir = plate_path / row / col
-        field_indices = sorted(tiles)
-        _write_well_metadata(well_dir, field_indices)
-
-        # Write labels group metadata for fields that have label stores
-        for tile in field_indices:
-            field_dir = well_dir / str(tile)
-            _maybe_write_labels_metadata(field_dir)
-
-
-def discover_plate_structure(plate_zarr_path):
-    """Discover (row, col, tile) by locating tile-level zarr.json files.
-
-    Pass 1 (Option D): plate.zarr/{row}/{col}/{tile}/zarr.json
-    Pass 2 (fallback): any deeper zarr.json (e.g. preprocess cycle level)
-                       plate.zarr/{row}/{col}/{tile}/.../zarr.json
-    """
-    plate_path = Path(plate_zarr_path)
-    results = []
-    seen = set()
-
-    # ---- Pass 1: strict Option D tile marker ----
-    for zjson in sorted(plate_path.rglob("zarr.json")):
-        rel = zjson.relative_to(plate_path)
-        parts = rel.parts
-        if len(parts) != 4 or parts[-1] != "zarr.json":
-            continue
-
-        row, col, tile = parts[0], parts[1], parts[2]
-        if not str(tile).isdigit():
-            continue
-        # Skip zarr.json paths whose (row, col) don't reconstruct to a recognized well.
-        if not any(p.match(f"{row}{col}") for p in WELL_ROWCOL_PATTERNS):
-            continue
-
-        key = (row, col, tile)
-        if key not in seen:
-            seen.add(key)
-            results.append(key)
-
-    if results:
-        return results
-
-    # ---- Pass 2: fallback for preprocess-style extra nesting ----
-    for zjson in sorted(plate_path.rglob("zarr.json")):
-        rel = zjson.relative_to(plate_path)
-        parts = rel.parts
-        if len(parts) < 4 or parts[-1] != "zarr.json":
-            continue
-
-        row, col, tile = parts[0], parts[1], parts[2]
-        if not str(tile).isdigit():
-            continue
-        # Skip zarr.json paths whose (row, col) don't reconstruct to a recognized well.
-        if not any(p.match(f"{row}{col}") for p in WELL_ROWCOL_PATTERNS):
-            continue
-
-        key = (row, col, tile)
-        if key not in seen:
-            seen.add(key)
-            results.append(key)
-
-    return results
-
-
-def patch_store_metadata_with_iohub(
-    store_path: Path,
-    preprocess_root: Path,
-    config_channel_names: list[str] | None = None,
-    modality_config: dict | None = None,
-    channels_metadata: list[dict] | None = None,
-):
-    """Open a plate zarr store in r+ mode and enrich tile-level metadata.
-
-    Patches:
-      - Pixel scale (x/y) from combined_metadata.parquet
-      - Spatial axis units → micrometer
-      - Channel names (rename from c0/c1/… to real names)
-      - OMERO rendering defaults (colors, rdefs, contrast limits)
-      - image-label version on nested label stores
-      - Label coordinate scales (same pixel size as parent image)
-      - segmentation_metadata on label stores
-    """
-    store_type = _parse_store_type(store_path)
-    plate = _parse_plate_from_store_name(store_path)
-    modality = _infer_modality_from_store_path(store_path)
-    pixel_map = _load_pixel_size_map(preprocess_root, modality, plate)
-
-    print(f"[patch] store={store_path}  type={store_type}")
-    print(f"[patch] pixel_map entries={len(pixel_map)}")
-
-    ds = open_ome_zarr(str(store_path), layout="hcs", mode="r+", version="0.5")
-    pos_list = list(ds.positions())
-    print(f"[patch] positions={len(pos_list)}")
-
-    for pos_path, pos in pos_list:
-        parts = pos_path.split("/")
-        if len(parts) != 3:
-            print(f"[patch] skipping unexpected pos_path={pos_path}")
-            continue
-
-        row, col, tile = parts
-        key = (str(row), str(col), str(tile))
-        fallback = (str(row), str(col), "*")
-
-        # --- pixel scale (per-dataset, with downsampling factors) ---
-        px_x = px_y = None
-        if key in pixel_map:
-            px_x, px_y = pixel_map[key]
-        elif fallback in pixel_map:
-            px_x, px_y = pixel_map[fallback]
-
-        if px_x is not None:
-            _set_per_dataset_scales(pos, px_x, px_y)
-
-        # --- channel names ---
-        resolved = _resolve_channel_names_for_store(
-            pos, config_channel_names, store_type
-        )
-        _rename_channels(pos, resolved)
-
-        # --- OMERO rendering defaults (colors, rdefs, contrast limits) ---
-        _build_and_set_omero(pos, resolved, channels_metadata=channels_metadata)
-
-        # --- axis units ---
-        _ensure_axes_units_micrometer(pos)
-
-        pos.dump_meta()
-
-    ds.dump_meta()
-    ds.close()
-
-    # --- Re-inject downsamplingMethod (iohub dump_meta strips it) ---
-    for zj in sorted(store_path.rglob("*/zarr.json")):
-        # Only patch image-group level (has multiscales but not inside labels/)
-        if "labels" in zj.parts:
-            continue
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
-        attrs = meta.get("attributes", {})
-        ome = attrs.get("ome", {})
-        ms_list = ome.get("multiscales", [])
-        if ms_list and "downsamplingMethod" not in ms_list[0]:
-            ms_list[0]["downsamplingMethod"] = "gaussian"
-            zj.write_text(json.dumps(meta, indent=2))
-
-    # --- Direct JSON patching for label stores (iohub doesn't expose these) ---
-    _patch_label_versions(store_path)
-    _patch_label_axis_units(store_path)
-    _patch_label_scales(store_path, pixel_map)
-
-    if modality_config:
-        _patch_segmentation_metadata(store_path, modality_config, channels_metadata)
-
-
-def compute_and_inject_omero_windows(
-    plate_paths: list[Path],
-    low_pct: float = 1.0,
-    high_pct: float = 99.0,
-) -> int:
-    """Compute screen-wide per-channel display windows + statistics and inject into every tile zarr.json.
-
-    Accumulates uint16 histograms across every image tile in every plate
-    store, derives ``window.start`` / ``window.end`` at the given
-    percentile cutpoints, computes per-channel mean / std / median for ML
-    dataloader normalization, and writes both into every image-level
-    zarr.json's ``omero.channels[i]``.
-
-    Args:
-        plate_paths: List of plate.zarr roots to histogram and patch.
-        low_pct: Lower percentile for window.start (default 1.0).
-        high_pct: Upper percentile for window.end (default 99.0).
-
-    Returns:
-        Total number of zarr.json files updated across all plates. Zero if
-        no image tiles were found.
-    """
-    if not plate_paths:
-        return 0
-
-    print(
-        f"\nComputing screen-wide OMERO windows "
-        f"[{low_pct}, {high_pct}]th pct over {len(plate_paths)} store(s)..."
-    )
-    histograms: dict[int, np.ndarray] = {}
-    for plate_path in plate_paths:
-        _accumulate_channel_histograms(plate_path, histograms)
-    if not histograms:
-        print("No image tiles found for window computation; skipping.")
-        return 0
-
-    windows = _windows_from_histograms(histograms, low_pct, high_pct)
-    stats = _stats_from_histograms(histograms)
-    for ch in sorted(windows.keys()):
-        start, end = windows[ch]
-        s = stats[ch]
-        print(
-            f"  channel {ch}: window=({start:.1f}, {end:.1f})  "
-            f"mean={s['mean']:.1f} std={s['std']:.1f} median={s['median']:.1f}"
-        )
-
-    patched_total = 0
-    for plate_path in plate_paths:
-        n = _inject_omero_windows(plate_path, windows, stats=stats)
-        patched_total += n
-        print(f"  {plate_path.name}: patched {n} zarr.json")
-    print(
-        f"OMERO windows + statistics injected into {patched_total} tile zarr.json files."
-    )
-    return patched_total
-
-
-# ---------------------------------------------------------------------------
-# Helpers — well parsing
-# ---------------------------------------------------------------------------
-
-
-def _normalize_channels_metadata(channels_metadata):
-    """Normalize channels_metadata for root zarr.json."""
-    if not channels_metadata:
-        return []
-
-    out = []
-    for ch in channels_metadata:
-        if not isinstance(ch, dict):
-            continue
-
-        entry = dict(ch)
-
-        # Ensure required fields exist
-        name = (entry.get("name") or "").strip()
-        if not name:
-            raise ValueError("channels_metadata entry is missing a non-empty 'name'")
-        entry["name"] = name
-
-        entry.setdefault("description", "")
-        entry.setdefault("channel_type", "fluorescence")
-
-        # Keep biological_annotation only if it has real (non-empty) values, and keep ONLY the keys the user actually filled in
-        bio = entry.get("biological_annotation", None)
-
-        if isinstance(bio, dict):
-            cleaned = {}
-            for k in ("biological_target", "marker", "marker_type", "full_label"):
-                v = bio.get(k, None)
-                if v is None:
-                    continue
-                v = str(v).strip()
-                if v:  # keep only non empty values
-                    cleaned[k] = v
-
-            if cleaned:
-                entry["biological_annotation"] = cleaned
-            else:
-                entry.pop("biological_annotation", None)
-        else:
-            entry.pop("biological_annotation", None)
-
-        out.append(entry)
-
-    for i, entry in enumerate(out):
-        entry.setdefault("index", i)
-
-    return out
-
-
-def _split_well(well_str):
-    """Deprecated shim — use ``lib.shared.file_utils.split_well`` (handles Phenix)."""
-    return split_well(well_str)
-
-
-# ---------------------------------------------------------------------------
-# Helpers — label detection
-# ---------------------------------------------------------------------------
-
-
-def _is_label_store(zarr_path):
-    """Check if a zarr store is a label image by reading its zarr.json."""
-    zarr_json = Path(zarr_path) / "zarr.json"
-    if not zarr_json.exists():
-        return False
-    with open(zarr_json) as f:
-        meta = json.load(f)
-    attrs = meta.get("attributes", {})
-    # image-label may be under ome namespace (v3) or top-level
-    return "image-label" in attrs or "image-label" in attrs.get("ome", {})
-
-
-def _maybe_write_labels_metadata(field_dir):
-    """If a field has label stores, write the labels/ group metadata."""
-    labels_dir = field_dir / "labels"
-    if not labels_dir.is_dir():
-        return
-
-    label_stores = []
-    for child in sorted(labels_dir.iterdir()):
-        if child.is_dir() and child.suffix == ".zarr":
-            label_stores.append(child.stem)
-        elif child.is_dir() and (child / "zarr.json").exists():
-            # Label stored as a named group (not .zarr suffix)
-            if _is_label_store(child):
-                label_stores.append(child.name)
-
-    if label_stores:
-        _write_labels_group_metadata(labels_dir, label_stores)
-
-
-# ---------------------------------------------------------------------------
-# Helpers — metadata writers
-# ---------------------------------------------------------------------------
-
-
-def _write_zarr_v3_group_metadata(path):
-    """Write a minimal zarr v3 group zarr.json file."""
-    metadata = {
-        "zarr_format": 3,
-        "node_type": "group",
-        "attributes": {},
-    }
-    path = Path(path)
-    path.mkdir(parents=True, exist_ok=True)
-    with open(path / "zarr.json", "w") as f:
-        json.dump(metadata, f, indent=2)
-
-
-def _column_order(label):
-    """Sort key for an HCS column label: its digits, so `c10` follows `c9`."""
-    digits = "".join(ch for ch in str(label) if ch.isdigit())
-    return (0, int(digits)) if digits else (1, str(label))
-
-
-def _write_plate_metadata(
-    plate_zarr_path, wells_by_row_col, channels_metadata=None, field_count=1
-):
-    """Write HCS plate-level zarr.json with OME-NGFF plate metadata."""
-    plate_path = Path(plate_zarr_path)
-    plate_path.mkdir(parents=True, exist_ok=True)
-
-    rows = sorted(set(rc[0] for rc in wells_by_row_col.keys()))
-    cols = sorted(set(rc[1] for rc in wells_by_row_col.keys()), key=_column_order)
-
-    plate_name = plate_path.stem  # e.g. "aligned_1"
-
-    plate_metadata = {
-        "zarr_format": 3,
-        "node_type": "group",
-        "attributes": {
-            "ome": {
-                "version": "0.5",
-                "plate": {
-                    "version": "0.5",
-                    "name": plate_name,
-                    "field_count": field_count,
-                    "acquisitions": [{"id": 0}],
-                    "columns": [{"name": c} for c in cols],
-                    "rows": [{"name": r} for r in rows],
-                    "wells": [
-                        {
-                            "path": f"{rc[0]}/{rc[1]}",
-                            "rowIndex": rows.index(rc[0]),
-                            "columnIndex": cols.index(rc[1]),
-                        }
-                        for rc in sorted(wells_by_row_col.keys())
-                    ],
-                },
-            }
-        },
-    }
-
-    norm = _normalize_channels_metadata(channels_metadata)
-    if norm:  # embed into zarr.json if metadata is not empty
-        plate_metadata["attributes"]["channels_metadata"] = norm
-
-    with open(plate_path / "zarr.json", "w") as f:
-        json.dump(plate_metadata, f, indent=2)
-
-
-def _write_well_metadata(well_path, field_indices):
-    """Write HCS well-level zarr.json listing fields (tiles)."""
-    well_dir = Path(well_path)
-    well_dir.mkdir(parents=True, exist_ok=True)
-
-    well_metadata = {
-        "zarr_format": 3,
-        "node_type": "group",
-        "attributes": {
-            "ome": {
-                "version": "0.5",
-                "well": {
-                    "version": "0.5",
-                    "images": [
-                        {"path": str(idx), "acquisition": 0} for idx in field_indices
-                    ],
-                },
-            }
-        },
-    }
-
-    with open(well_dir / "zarr.json", "w") as f:
-        json.dump(well_metadata, f, indent=2)
-
-
-def _write_labels_group_metadata(labels_dir, label_names):
-    """Write labels group zarr.json listing available labels."""
-    labels_dir = Path(labels_dir)
-    labels_dir.mkdir(parents=True, exist_ok=True)
-    metadata = {
-        "zarr_format": 3,
-        "node_type": "group",
-        "attributes": {
-            "ome": {
-                "version": "0.5",
-                "labels": label_names,
-            }
-        },
-    }
-    with open(labels_dir / "zarr.json", "w") as f:
-        json.dump(metadata, f, indent=2)
-
-
-# ---------------------------------------------------------------------------
-# Helpers — store name parsing
-# ---------------------------------------------------------------------------
-
-
-def _parse_plate_from_store_name(store_path: Path) -> str:
-    """aligned_1.zarr -> "1", illumination_corrected_12.zarr -> "12"."""
-    m = re.search(r"_(\d+)\.zarr$", store_path.name)
-    if not m:
-        raise ValueError(f"Could not parse plate from store name: {store_path.name}")
-    return m.group(1)
-
-
-def _parse_store_type(store_path: Path) -> str:
-    """aligned_1.zarr -> "aligned", peaks_1.zarr -> "peaks"."""
-    name = store_path.name  # e.g. "illumination_corrected_1.zarr"
-    m = re.match(r"^(.+?)_\d+\.zarr$", name)
-    if not m:
-        return name.replace(".zarr", "")
-    return m.group(1)
-
-
-def _infer_modality_from_store_path(store_path: Path) -> str:
-    """Return 'sbs' or 'phenotype' based on which appears in the path parts."""
-    parts = store_path.parts
-    if "sbs" in parts:
-        return "sbs"
-    if "phenotype" in parts:
-        return "phenotype"
-    raise ValueError(f"Could not infer modality from path: {store_path}")
-
-
-# ---------------------------------------------------------------------------
-# Helpers — pixel size loading
-# ---------------------------------------------------------------------------
-
-
-def _load_pixel_size_map(
-    preprocess_root: Path, modality: str, plate: str
-) -> dict[tuple[str, str, str], tuple[float, float]]:
-    """Return (row, col, tile) -> (px_x, px_y) in micrometers.
-
-    Reads preprocess/metadata/{modality}/{plate}/{row}/{col}/combined_metadata.parquet.
-    """
-    meta_root = preprocess_root / "metadata" / modality / plate
-    pixel_map: dict[tuple[str, str, str], tuple[float, float]] = {}
-
-    if not meta_root.exists():
-        print(f"[iohub patch] metadata root missing: {meta_root}")
-        return pixel_map
-
-    for fp in meta_root.rglob("combined_metadata.parquet"):
-        rel = fp.relative_to(meta_root)
-        if len(rel.parts) < 3:
-            continue
-        row, col = str(rel.parts[0]), str(rel.parts[1])
-        df = pd.read_parquet(fp)
-
-        if "tile" not in df.columns:
-            if (
-                "pixel_size_x" in df.columns
-                and "pixel_size_y" in df.columns
-                and len(df) > 0
-            ):
-                pixel_map[(row, col, "*")] = (
-                    float(df["pixel_size_x"].iloc[0]),
-                    float(df["pixel_size_y"].iloc[0]),
-                )
-            continue
-
-        for _, r in df.iterrows():
-            tile = str(r["tile"])
-            if pd.isna(r.get("pixel_size_x")) or pd.isna(r.get("pixel_size_y")):
-                continue
-            pixel_map[(row, col, tile)] = (
-                float(r["pixel_size_x"]),
-                float(r["pixel_size_y"]),
-            )
-
-    return pixel_map
-
-
-# ---------------------------------------------------------------------------
-# Helpers — per-store channel name resolution
-# ---------------------------------------------------------------------------
-
-# Single-channel stores whose channel name is the store type itself.
+# Stores whose single channel is the store type itself.
 _SINGLE_CHANNEL_STORES = {"peaks", "standard_deviation"}
 
+# SBS stores stacked (cycle, channel, y, x) by align_cycles: OME C holds cycles, Z stains
+_CYCLE_STACKED_SBS_STORES = {"aligned", "log_filtered", "max_filtered"}
 
-def _resolve_channel_names_for_store(
-    pos, config_channel_names: list[str] | None, store_type: str
-) -> list[str]:
-    """Determine the real channel names for a position in a given store.
-
-    Rules:
-      - Single-channel stores (peaks, standard_deviation) → [store_type]
-      - Multi-channel stores: if config_channel_names count matches the
-        position's channel count, use config names; otherwise keep current.
-    """
-    try:
-        n_channels = len(list(pos.channel_names))
-    except Exception:
-        return []
-
-    if store_type in _SINGLE_CHANNEL_STORES:
-        return [store_type]
-
-    if config_channel_names and len(config_channel_names) == n_channels:
-        return list(config_channel_names)
-
-    # Fallback: keep whatever names the store already has.
-    # iohub may return ints when OMERO metadata is missing — always stringify.
-    try:
-        return [str(n) for n in pos.channel_names]
-    except Exception:
-        return [f"c{i}" for i in range(n_channels)]
-
-
-# ---------------------------------------------------------------------------
-# Helpers — iohub-based metadata patching
-# ---------------------------------------------------------------------------
-
-
-def _get_axis_index_ci(pos, name: str) -> int:
-    """Case-insensitive axis index lookup.
-
-    Handles stores written with either uppercase (TCZYX) or lowercase (tczyx)
-    axis names.
-    """
-    try:
-        return pos.get_axis_index(name.upper())
-    except (ValueError, KeyError):
-        return pos.get_axis_index(name.lower())
-
-
-def _ensure_axes_units_micrometer(pos) -> None:
-    """Set unit='micrometer' on spatial axes via the iohub metadata model.
-
-    Must modify pos.metadata (not pos.zattrs) so changes survive dump_meta().
-    """
-    if not pos.metadata.multiscales:
-        return
-    for ax in pos.metadata.multiscales[0].axes:
-        if ax.name.lower() in ("x", "y", "z"):
-            ax.unit = "micrometer"
-
-
-def _set_per_dataset_scales(pos, px_x: float, px_y: float) -> None:
-    """Set absolute physical pixel scale at each pyramid level.
-
-    For each dataset (pyramid level), the scale is the base pixel size
-    multiplied by the downsampling factor inferred from the array shapes.
-    Clears any FOV-level coordinateTransformations so that the per-dataset
-    transforms are the single source of truth.
-    """
-    ms = pos.metadata.multiscales[0]
-    n_axes = len(ms.axes)
-    y_idx = _get_axis_index_ci(pos, "y")
-    x_idx = _get_axis_index_ci(pos, "x")
-
-    base_shape = pos["0"].shape
-
-    for ds_meta in ms.datasets:
-        level_shape = pos[ds_meta.path].shape
-        factor_y = (
-            base_shape[y_idx] / level_shape[y_idx] if level_shape[y_idx] > 0 else 1.0
-        )
-        factor_x = (
-            base_shape[x_idx] / level_shape[x_idx] if level_shape[x_idx] > 0 else 1.0
-        )
-
-        scale = [1.0] * n_axes
-        scale[y_idx] = px_y * factor_y
-        scale[x_idx] = px_x * factor_x
-
-        ds_meta.coordinate_transformations = [
-            TransformationMeta(type="scale", scale=scale)
-        ]
-
-    # Clear FOV-level transform — pixel size now lives per-dataset.
-    ms.coordinate_transformations = None
-
-
-def _rename_channels(pos, target_names: list[str]) -> None:
-    """Rename channels to *target_names* if they differ from current names."""
-    try:
-        current = list(pos.channel_names)
-    except Exception:
-        return
-
-    n = min(len(current), len(target_names))
-    for i in range(n):
-        old, new = current[i], target_names[i]
-        if old != new:
-            try:
-                pos.rename_channel(old, new)
-            except Exception:
-                pass
-
-
-def _build_and_set_omero(
-    pos,
-    resolved_names: list[str],
-    channels_metadata: list[dict] | None = None,
-) -> None:
-    """Create OMERO rendering metadata (channels + rdefs) on the position.
-
-    Uses iohub's ``channel_display_settings`` for color assignment, with
-    overrides from ``channels_metadata[].color`` config and a default
-    palette fallback for unrecognized channel names. All channels are
-    set to active.
-    """
-    if not resolved_names:
-        return
-
-    # Build color lookup from config if available
-    config_colors = {}
-    if channels_metadata:
-        for ch in channels_metadata:
-            if isinstance(ch, dict) and "color" in ch:
-                config_colors[ch.get("name", "")] = ch["color"]
-
-    channels = []
-    for i, name in enumerate(resolved_names):
-        ch_meta = channel_display_settings(name, clim=None, first_chan=True)
-
-        # Override color: config → iohub (if not white) → default palette
-        if name in config_colors:
-            ch_meta.color = config_colors[name]
-        elif ch_meta.color == "FFFFFF":
-            ch_meta.color = DEFAULT_CHANNEL_COLORS[i % len(DEFAULT_CHANNEL_COLORS)]
-
-        # All channels active
-        ch_meta.active = True
-
-        channels.append(ch_meta)
-
-    pos.metadata.omero = OMEROMeta(
-        version="0.5",
-        channels=channels,
-        rdefs=RDefsMeta(default_t=0, default_z=0),
-    )
-
-
-# ---------------------------------------------------------------------------
-# Helpers — label metadata patching
-# ---------------------------------------------------------------------------
-
-
-def _patch_label_axis_units(store_path: Path) -> None:
-    """Set units on all axes in label store multiscales metadata.
-
-    Always runs regardless of pixel size availability — axis units and
-    pixel scales are independent concerns.
-    """
-    _AXIS_UNITS = {
-        "X": "micrometer",
-        "Y": "micrometer",
-        "Z": "micrometer",
-        "T": "second",
-    }
-    for zj in sorted(store_path.rglob("labels/*/zarr.json")):
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
-
-        attrs = meta.get("attributes", meta)
-        ome = attrs.get("ome", {})
-        ms_list = ome.get("multiscales", attrs.get("multiscales", []))
-        if not ms_list:
-            continue
-
-        changed = False
-        for ax in ms_list[0].get("axes", []):
-            name = ax.get("name", "").upper()
-            if name in _AXIS_UNITS and ax.get("unit") != _AXIS_UNITS[name]:
-                ax["unit"] = _AXIS_UNITS[name]
-                changed = True
-
-        if changed:
-            zj.write_text(json.dumps(meta, indent=2))
-            print(f"[patch] label axis units set: {zj.parent.name}")
-
-
-def _patch_label_scales(
-    store_path: Path,
-    pixel_map: dict[tuple[str, str, str], tuple[float, float]],
-) -> None:
-    """Apply coordinate scales to label stores.
-
-    Labels share the same physical pixel size as their parent image.
-    Uses direct JSON patching (iohub doesn't iterate labels).
-    """
-    for zj in sorted(store_path.rglob("labels/*/zarr.json")):
-        label_dir = zj.parent
-        field_dir = label_dir.parent.parent  # …/labels/{name} → field dir
-
-        # Derive row/col/tile from field path
-        rel = field_dir.relative_to(store_path)
-        parts = rel.parts
-        if len(parts) != 3:
-            continue
-        row, col, tile = parts
-
-        key = (str(row), str(col), str(tile))
-        fallback = (str(row), str(col), "*")
-        px_x = px_y = None
-        if key in pixel_map:
-            px_x, px_y = pixel_map[key]
-        elif fallback in pixel_map:
-            px_x, px_y = pixel_map[fallback]
-        if px_x is None:
-            continue
-
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
-
-        # Navigate to multiscales — may be under ome namespace (v3) or top-level
-        attrs = meta.get("attributes", meta)
-        ome = attrs.get("ome", {})
-        ms_list = ome.get("multiscales", attrs.get("multiscales", []))
-        if not ms_list:
-            continue
-        ms = ms_list[0]
-
-        # Find Y and X axis indices (case-insensitive)
-        axes = ms.get("axes", [])
-        y_idx = x_idx = None
-        for i, ax in enumerate(axes):
-            name = ax.get("name", "").upper()
-            if name == "Y":
-                y_idx = i
-            elif name == "X":
-                x_idx = i
-        if y_idx is None or x_idx is None:
-            continue
-
-        datasets = ms.get("datasets", [])
-        if not datasets:
-            continue
-
-        # Read base (level 0) array shape
-        base_arr_zj = label_dir / datasets[0].get("path", "0") / "zarr.json"
-        base_shape = None
-        if base_arr_zj.exists():
-            try:
-                base_shape = json.loads(base_arr_zj.read_text()).get("shape")
-            except Exception:
-                pass
-        if not base_shape:
-            continue
-
-        # Set per-dataset coordinate transformations
-        for ds in datasets:
-            level_arr_zj = label_dir / ds.get("path", "0") / "zarr.json"
-            level_shape = base_shape
-            if level_arr_zj.exists():
-                try:
-                    level_shape = json.loads(level_arr_zj.read_text()).get(
-                        "shape", base_shape
-                    )
-                except Exception:
-                    pass
-
-            scale = [1.0] * len(axes)
-            fy = (
-                base_shape[y_idx] / level_shape[y_idx]
-                if level_shape[y_idx] > 0
-                else 1.0
-            )
-            fx = (
-                base_shape[x_idx] / level_shape[x_idx]
-                if level_shape[x_idx] > 0
-                else 1.0
-            )
-            scale[y_idx] = px_y * fy
-            scale[x_idx] = px_x * fx
-            ds["coordinateTransformations"] = [{"type": "scale", "scale": scale}]
-
-        zj.write_text(json.dumps(meta, indent=2))
-        print(f"[patch] label scales set: {label_dir.name} in {'/'.join(parts)}")
-
-
-def _patch_label_versions(store_path: Path) -> None:
-    """Walk label stores inside a plate zarr and set image-label.version.
-
-    Label stores live at <store>.zarr/{row}/{col}/{tile}/labels/{name}.zarr/.
-    Their zarr.json should have ``"image-label": {"version": "0.5"}``.
-    This uses direct JSON patching (iohub doesn't iterate labels).
-    """
-    for zj in sorted(store_path.rglob("labels/*/zarr.json")):
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
-        # image-label may be under ome namespace (zarr v3) or top-level attrs
-        attrs = meta.get("attributes", meta)
-        ome = attrs.get("ome", {})
-        il = ome.get("image-label", attrs.get("image-label"))
-        if il is None:
-            continue
-        if il.get("version") != "0.5":
-            il["version"] = "0.5"
-            zj.write_text(json.dumps(meta, indent=2))
-            print(f"[patch] label version set: {zj.parent.name}")
-
-
-# ---------------------------------------------------------------------------
-# Helpers — segmentation metadata
-# ---------------------------------------------------------------------------
-
-# Maps label directory stem to (annotation_type, config key for diameter,
-# config key for source channel index).
+# Label directory stem -> annotation type and the config keys describing it.
 _LABEL_ANNOTATION_MAP = {
     "nuclei": {
         "annotation_type": "nucleus",
@@ -931,193 +62,1077 @@ _LABEL_ANNOTATION_MAP = {
     },
 }
 
+_AXIS_UNITS = {"X": "micrometer", "Y": "micrometer", "Z": "micrometer", "T": "second"}
 
-def _build_segmentation_meta_for_label(
+# Fields histogrammed per store; larger stores use an evenly spaced subsample
+_MAX_HISTOGRAM_FIELDS = 256
+
+
+def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
+    """Write the plate, row, well and labels group metadata of a plate store.
+
+    Args:
+        plate_zarr_path: Path to the plate zarr directory (e.g. sbs/aligned_1.zarr).
+        channels_metadata: Optional list of channel description dicts, embedded at
+            the plate root under ``attributes["channels_metadata"]``.
+
+    Returns:
+        None.
+    """
+    plate_path = Path(plate_zarr_path)
+    if not plate_path.exists():
+        raise FileNotFoundError(f"Plate zarr directory not found: {plate_path}")
+
+    index = _build_store_index(plate_path)
+    fields = _find_fields(index)
+    if not fields:
+        print(f"  No fields found in {plate_path}. Skipping metadata.")
+        return
+
+    fields_by_well = {}
+    for row, col, field in fields:
+        fields_by_well.setdefault((row, col), []).append(field)
+    field_count = max(len(f) for f in fields_by_well.values())
+
+    index.set(
+        "",
+        _plate_metadata(
+            plate_path,
+            sorted(fields_by_well),
+            channels_metadata=channels_metadata,
+            field_count=field_count,
+        ),
+    )
+
+    for row in sorted({row for row, _col in fields_by_well}):
+        index.set(row, _group_metadata())
+
+    for (row, col), field_ids in sorted(fields_by_well.items()):
+        index.set(f"{row}/{col}", _well_metadata(sorted(field_ids)))
+        for field in sorted(field_ids):
+            _write_labels_group(index, f"{row}/{col}/{field}")
+
+    index.flush()
+
+
+def write_field_image_metadata(
+    store_path: Path,
+    preprocess_root: Path,
+    config_channel_names: list[str] | None = None,
+    modality_config: dict | None = None,
+    channels_metadata: list[dict] | None = None,
+    threads: int = 1,
+):
+    """Write the per-field image metadata of a plate store.
+
+    Covers the physical pixel scale of each pyramid level (from the preprocess
+    ``combined_metadata.parquet``), micrometer axis units, real channel names,
+    OMERO rendering defaults, the ``image-label`` version and scale of nested
+    label stores, and the segmentation provenance of each label store.
+
+    Args:
+        store_path: Path to the plate zarr directory.
+        preprocess_root: Preprocess output root holding the acquisition metadata.
+        config_channel_names: Channel names from the modality config, used when
+            their count matches the store's channel count.
+        modality_config: The ``sbs`` or ``phenotype`` config block, used to
+            describe how each label store was segmented.
+        channels_metadata: Optional list of channel description dicts.
+        threads: Worker threads for the per-label object counts.
+
+    Returns:
+        None.
+    """
+    store_type = _parse_store_type(store_path)
+    plate = _parse_plate_from_store_name(store_path)
+    modality = _infer_modality_from_store_path(store_path)
+    pixel_sizes = _load_pixel_size_map(preprocess_root, modality, plate)
+
+    index = _get_store_index(store_path)
+
+    dataset = open_ome_zarr(str(store_path), layout="hcs", mode="r+", version="0.5")
+    for field_path, field in dataset.positions():
+        parts = field_path.split("/")
+        if len(parts) != 3:
+            continue
+        row, col, field_id = parts
+
+        pixel_size = pixel_sizes.get((row, col, field_id)) or pixel_sizes.get(
+            (row, col, "*")
+        )
+        if pixel_size is not None:
+            _set_per_dataset_scales(field, *pixel_size)
+
+        resolved = _resolve_channel_names(
+            field, config_channel_names, store_type, modality
+        )
+        _rename_channels(field, resolved)
+        _set_omero_rendering(field, resolved, channels_metadata=channels_metadata)
+        _set_axes_units_micrometer(field)
+        field.dump_meta()
+
+    dataset.dump_meta()
+    dataset.close()
+
+    # iohub rewrote the plate, well and field zarr.json behind the index.
+    index.reload([rel for rel, _ in index.groups() if rel.count("/") < 3])
+
+    # iohub's dump_meta drops downsamplingMethod from the multiscales block.
+    for rel, meta in index.groups():
+        if not rel or "labels" in rel.split("/"):
+            continue
+        multiscales = meta.get("attributes", {}).get("ome", {}).get("multiscales", [])
+        if multiscales and "downsamplingMethod" not in multiscales[0]:
+            multiscales[0]["downsamplingMethod"] = "gaussian"
+            index.mark_dirty(rel)
+
+    # iohub does not iterate label stores, so these are written as plain JSON.
+    _set_label_versions(index)
+    _set_label_axis_units(index)
+    _set_label_scales(index, pixel_sizes)
+    if modality_config:
+        _write_segmentation_metadata(
+            index, modality_config, channels_metadata, threads=threads
+        )
+
+    print(f"  {store_path.name}: wrote {index.flush()} zarr.json")
+
+
+def write_channel_intensity_statistics(
+    plate_paths: list[Path],
+    low_pct: float = 1.0,
+    high_pct: float = 99.0,
+    threads: int = 1,
+) -> int:
+    """Write screen-wide per-channel intensity statistics into OMERO metadata.
+
+    Accumulates a full-precision uint16 intensity histogram per channel across
+    every image field of every given plate store, then writes the ``low_pct`` /
+    ``high_pct`` percentiles as the OMERO display window and the mean, standard
+    deviation and median as ``statistics`` on each field's ``omero.channels[i]``.
+    The statistics are screen-wide normalization constants, so a dataloader can
+    reuse them without rescanning the images.
+
+    Above ``_MAX_HISTOGRAM_FIELDS`` fields per store an evenly spaced,
+    deterministic subsample of that many fields is histogrammed instead: an
+    unbiased field subsample is accurate to well under a percent for both the
+    display window and the statistics. A coarser pyramid level is deliberately
+    not used, since gaussian downsampling biases the standard deviation.
+
+    Args:
+        plate_paths: Plate zarr roots to histogram and annotate.
+        low_pct: Percentile mapped to the OMERO ``window.start``.
+        high_pct: Percentile mapped to the OMERO ``window.end``.
+        threads: Worker threads for the per-field pixel reads.
+
+    Returns:
+        Number of zarr.json files updated across all plates, zero if no image
+        fields were found.
+    """
+    if not plate_paths:
+        return 0
+
+    print(
+        f"\nComputing screen-wide channel intensity statistics "
+        f"[{low_pct}, {high_pct}]th pct over {len(plate_paths)} store(s)..."
+    )
+    indices = [_get_store_index(path) for path in plate_paths]
+    histograms: dict[int, np.ndarray] = {}
+    for index in indices:
+        _accumulate_channel_histograms(index, histograms, threads=threads)
+    if not histograms:
+        print("No image fields found for intensity statistics; skipping.")
+        return 0
+
+    windows = _windows_from_histograms(histograms, low_pct, high_pct)
+    statistics = _statistics_from_histograms(histograms)
+    for channel in sorted(windows):
+        start, end = windows[channel]
+        stat = statistics[channel]
+        print(
+            f"  channel {channel}: window=({start:.1f}, {end:.1f})  "
+            f"mean={stat['mean']:.1f} std={stat['std']:.1f} median={stat['median']:.1f}"
+        )
+
+    total = 0
+    for index in indices:
+        written = _write_intensity_metadata(index, windows, statistics=statistics)
+        total += written
+        print(f"  {index.root.name}: annotated {written} zarr.json")
+    print(f"Channel intensity statistics written to {total} zarr.json files.")
+    return total
+
+
+def _read_zarr_json(path: Path):
+    """Parse a zarr.json, returning None if it is missing or unreadable."""
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return None
+
+
+class _StoreIndex:
+    """Every zarr.json in a plate store, keyed by path relative to the store root.
+
+    Built with one pruned ``os.scandir`` walk. Array directories are recorded but
+    never descended into, so the chunk directories under each pyramid level are
+    never listed — on a network filesystem that is the difference between
+    thousands of stats and millions. Passes mutate the parsed metadata in memory
+    and ``flush`` writes each changed node back exactly once.
+    """
+
+    def __init__(self, root: Path):
+        self.root = Path(root)
+        self.nodes: dict[str, dict] = {}
+        self.dirty: set[str] = set()
+        self._scan(self.root, "")
+
+    def _scan(self, directory: Path, rel: str) -> None:
+        meta = _read_zarr_json(directory / "zarr.json")
+        if meta is not None:
+            self.nodes[rel] = meta
+            # An array's children are chunk directories; never walk them.
+            if meta.get("node_type") == "array":
+                return
+        try:
+            entries = sorted(os.scandir(directory), key=lambda e: e.name)
+        except OSError:
+            return
+        for entry in entries:
+            if entry.is_dir(follow_symlinks=False):
+                self._scan(
+                    Path(entry.path), f"{rel}/{entry.name}" if rel else entry.name
+                )
+
+    def get(self, rel: str):
+        """Parsed zarr.json for *rel*, or None if the store has no such node."""
+        return self.nodes.get(rel)
+
+    def set(self, rel: str, meta: dict) -> None:
+        """Replace the node at *rel* and mark it for write-back."""
+        self.nodes[rel] = meta
+        self.dirty.add(rel)
+
+    def mark_dirty(self, rel: str) -> None:
+        """Mark an already-mutated node for write-back."""
+        self.dirty.add(rel)
+
+    def reload(self, rels) -> None:
+        """Re-read the named nodes from disk, after an external writer."""
+        for rel in rels:
+            meta = _read_zarr_json(self.path(rel) / "zarr.json")
+            if meta is not None:
+                self.nodes[rel] = meta
+            self.dirty.discard(rel)
+
+    def path(self, rel: str) -> Path:
+        """Absolute directory path of the node at *rel*."""
+        return self.root / rel if rel else self.root
+
+    def groups(self):
+        """(rel, meta) for every group node, in walk order."""
+        return [(r, m) for r, m in self.nodes.items() if m.get("node_type") != "array"]
+
+    def fields(self) -> list[str]:
+        """Rel paths of the field-level image groups: ``{row}/{col}/{field}``."""
+        out = []
+        for rel, meta in self.nodes.items():
+            parts = rel.split("/")
+            if len(parts) != 3 or meta.get("node_type") == "array":
+                continue
+            if not parts[2].isdigit():
+                continue
+            if not any(p.match(f"{parts[0]}{parts[1]}") for p in WELL_ROWCOL_PATTERNS):
+                continue
+            out.append(rel)
+        return sorted(out)
+
+    def label_groups(self) -> list[str]:
+        """Rel paths of label groups: ``{row}/{col}/{field}/labels/{name}``."""
+        return sorted(r for r in self.nodes if r.split("/")[-2:-1] == ["labels"])
+
+    def array_shape(self, rel: str):
+        """``shape`` of the array node at *rel*, or None."""
+        meta = self.nodes.get(rel)
+        return meta.get("shape") if meta else None
+
+    def flush(self) -> int:
+        """Write every dirty node back to disk and return how many were written."""
+        written = 0
+        for rel in sorted(self.dirty):
+            directory = self.path(rel)
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / "zarr.json").write_text(json.dumps(self.nodes[rel], indent=2))
+            written += 1
+        self.dirty.clear()
+        return written
+
+
+def _build_store_index(store_path: Path) -> _StoreIndex:
+    """Walk *store_path* afresh and cache the resulting index."""
+    index = _StoreIndex(Path(store_path))
+    _STORE_INDEX_CACHE[str(Path(store_path).resolve())] = index
+    return index
+
+
+def _get_store_index(store_path: Path) -> _StoreIndex:
+    """Return the cached index for *store_path*, walking the store if needed."""
+    key = str(Path(store_path).resolve())
+    if key not in _STORE_INDEX_CACHE:
+        _STORE_INDEX_CACHE[key] = _StoreIndex(Path(store_path))
+    return _STORE_INDEX_CACHE[key]
+
+
+def _find_fields(index) -> list[tuple[str, str, str]]:
+    """Locate the (row, col, field) acquisitions recorded in a store index.
+
+    Prefers fields written at ``{row}/{col}/{field}``, and falls back to any
+    deeper node under such a prefix, which is how preprocess stores nest cycles.
+    """
+    strict, loose = [], []
+    seen_strict, seen_loose = set(), set()
+
+    for rel in sorted(index.nodes):
+        parts = rel.split("/") if rel else []
+        if len(parts) < 3:
+            continue
+
+        row, col, field = parts[0], parts[1], parts[2]
+        if not str(field).isdigit():
+            continue
+        if not any(p.match(f"{row}{col}") for p in WELL_ROWCOL_PATTERNS):
+            continue
+
+        key = (row, col, field)
+        if len(parts) == 3 and key not in seen_strict:
+            seen_strict.add(key)
+            strict.append(key)
+        if key not in seen_loose:
+            seen_loose.add(key)
+            loose.append(key)
+
+    return strict if strict else loose
+
+
+def _column_order(label):
+    """Sort key for an HCS column label: its digits, so `c10` follows `c9`."""
+    digits = "".join(ch for ch in str(label) if ch.isdigit())
+    return (0, int(digits)) if digits else (1, str(label))
+
+
+def _plate_metadata(plate_zarr_path, wells, channels_metadata=None, field_count=1):
+    """Build the plate-level zarr.json body with OME-NGFF plate metadata."""
+    rows = sorted({row for row, _col in wells})
+    cols = sorted({col for _row, col in wells}, key=_column_order)
+
+    plate_metadata = {
+        "zarr_format": 3,
+        "node_type": "group",
+        "attributes": {
+            "ome": {
+                "version": "0.5",
+                "plate": {
+                    "version": "0.5",
+                    "name": Path(plate_zarr_path).stem,
+                    "field_count": field_count,
+                    "acquisitions": [{"id": 0}],
+                    "columns": [{"name": c} for c in cols],
+                    "rows": [{"name": r} for r in rows],
+                    "wells": [
+                        {
+                            "path": f"{row}/{col}",
+                            "rowIndex": rows.index(row),
+                            "columnIndex": cols.index(col),
+                        }
+                        for row, col in wells
+                    ],
+                },
+            }
+        },
+    }
+
+    normalized = _normalize_channels_metadata(channels_metadata)
+    if normalized:
+        plate_metadata["attributes"]["channels_metadata"] = normalized
+
+    return plate_metadata
+
+
+def _normalize_channels_metadata(channels_metadata):
+    """Normalize the configured channel descriptions for the plate zarr.json."""
+    if not channels_metadata:
+        return []
+
+    out = []
+    for channel in channels_metadata:
+        if not isinstance(channel, dict):
+            continue
+
+        entry = dict(channel)
+        name = (entry.get("name") or "").strip()
+        if not name:
+            raise ValueError("channels_metadata entry is missing a non-empty 'name'")
+        entry["name"] = name
+        entry.setdefault("description", "")
+        entry.setdefault("channel_type", "fluorescence")
+
+        # Keep biological_annotation only where the operator filled something in.
+        annotation = entry.get("biological_annotation")
+        cleaned = {}
+        if isinstance(annotation, dict):
+            for key in ("biological_target", "marker", "marker_type", "full_label"):
+                value = annotation.get(key)
+                if value is None:
+                    continue
+                value = str(value).strip()
+                if value:
+                    cleaned[key] = value
+        if cleaned:
+            entry["biological_annotation"] = cleaned
+        else:
+            entry.pop("biological_annotation", None)
+
+        out.append(entry)
+
+    for i, entry in enumerate(out):
+        entry.setdefault("index", i)
+
+    return out
+
+
+def _group_metadata():
+    """Build a minimal zarr v3 group zarr.json body."""
+    return {
+        "zarr_format": 3,
+        "node_type": "group",
+        "attributes": {},
+    }
+
+
+def _well_metadata(field_ids):
+    """Build the well-level zarr.json body listing the well's fields."""
+    return {
+        "zarr_format": 3,
+        "node_type": "group",
+        "attributes": {
+            "ome": {
+                "version": "0.5",
+                "well": {
+                    "version": "0.5",
+                    "images": [
+                        {"path": str(field), "acquisition": 0} for field in field_ids
+                    ],
+                },
+            }
+        },
+    }
+
+
+def _write_labels_group(index, field_rel: str) -> None:
+    """Stage the ``labels`` group metadata of a field that has label stores."""
+    labels_rel = f"{field_rel}/labels"
+    if labels_rel not in index.nodes and not index.path(labels_rel).is_dir():
+        return
+
+    label_names = []
+    prefix = f"{labels_rel}/"
+    for rel in sorted(index.nodes):
+        if not rel.startswith(prefix) or "/" in rel[len(prefix) :]:
+            continue
+        name = rel.rsplit("/", 1)[1]
+        if name.endswith(".zarr"):
+            label_names.append(name[: -len(".zarr")])
+        elif _is_label_group(index.get(rel)):
+            label_names.append(name)
+
+    if label_names:
+        index.set(labels_rel, _labels_group_metadata(label_names))
+
+
+def _is_label_group(meta) -> bool:
+    """Check whether a parsed zarr.json describes a label image."""
+    if not meta:
+        return False
+    attrs = meta.get("attributes", {})
+    # image-label lives under the ome namespace (v3) or at the top level.
+    return "image-label" in attrs or "image-label" in attrs.get("ome", {})
+
+
+def _labels_group_metadata(label_names):
+    """Build the labels group zarr.json body listing the available labels."""
+    return {
+        "zarr_format": 3,
+        "node_type": "group",
+        "attributes": {
+            "ome": {
+                "version": "0.5",
+                "labels": label_names,
+            }
+        },
+    }
+
+
+def _parse_plate_from_store_name(store_path: Path) -> str:
+    """aligned_1.zarr -> "1", illumination_corrected_12.zarr -> "12"."""
+    match = re.search(r"_(\d+)\.zarr$", store_path.name)
+    if not match:
+        raise ValueError(f"Could not parse plate from store name: {store_path.name}")
+    return match.group(1)
+
+
+def _parse_store_type(store_path: Path) -> str:
+    """aligned_1.zarr -> "aligned", peaks_1.zarr -> "peaks"."""
+    match = re.match(r"^(.+?)_\d+\.zarr$", store_path.name)
+    if not match:
+        return store_path.name.replace(".zarr", "")
+    return match.group(1)
+
+
+def _infer_modality_from_store_path(store_path: Path) -> str:
+    """Return 'sbs' or 'phenotype' based on which appears in the path parts."""
+    parts = store_path.parts
+    if "sbs" in parts:
+        return "sbs"
+    if "phenotype" in parts:
+        return "phenotype"
+    raise ValueError(f"Could not infer modality from path: {store_path}")
+
+
+def _load_pixel_size_map(
+    preprocess_root: Path, modality: str, plate: str
+) -> dict[tuple[str, str, str], tuple[float, float]]:
+    """Return (row, col, field) -> (px_x, px_y) in micrometers.
+
+    Read from preprocess/metadata/{modality}/{plate}/{row}/{col}/combined_metadata.parquet.
+    Acquisitions that record one pixel size per well rather than per field are
+    stored under the field key ``"*"``.
+    """
+    meta_root = preprocess_root / "metadata" / modality / plate
+    pixel_sizes: dict[tuple[str, str, str], tuple[float, float]] = {}
+
+    if not meta_root.exists():
+        print(f"  No acquisition metadata under {meta_root}; pixel sizes unavailable")
+        return pixel_sizes
+
+    for parquet_fp in meta_root.rglob("combined_metadata.parquet"):
+        rel = parquet_fp.relative_to(meta_root)
+        if len(rel.parts) < 3:
+            continue
+        row, col = str(rel.parts[0]), str(rel.parts[1])
+        metadata = pd.read_parquet(parquet_fp)
+
+        if "tile" not in metadata.columns:
+            if (
+                "pixel_size_x" in metadata.columns
+                and "pixel_size_y" in metadata.columns
+                and len(metadata) > 0
+            ):
+                pixel_sizes[(row, col, "*")] = (
+                    float(metadata["pixel_size_x"].iloc[0]),
+                    float(metadata["pixel_size_y"].iloc[0]),
+                )
+            continue
+
+        for _, record in metadata.iterrows():
+            if pd.isna(record.get("pixel_size_x")) or pd.isna(
+                record.get("pixel_size_y")
+            ):
+                continue
+            pixel_sizes[(row, col, str(record["tile"]))] = (
+                float(record["pixel_size_x"]),
+                float(record["pixel_size_y"]),
+            )
+
+    return pixel_sizes
+
+
+def _resolve_channel_names(
+    field, config_channel_names: list[str] | None, store_type: str, modality: str
+) -> list[str]:
+    """Determine the real channel names for one field of a given store.
+
+    Single-channel stores are named after the store type. SBS stores written by
+    ``align_cycles`` carry sequencing cycles on the channel axis (the stains sit
+    on Z), so their channels are named by cycle. Otherwise the configured channel
+    names are used when their count matches the store, and the names already on
+    the store are kept when it does not.
+    """
+    try:
+        n_channels = len(list(field.channel_names))
+    except Exception:
+        return []
+
+    if store_type in _SINGLE_CHANNEL_STORES:
+        return [store_type]
+
+    if modality == "sbs" and store_type in _CYCLE_STACKED_SBS_STORES:
+        return [f"cycle_{i + 1}" for i in range(n_channels)]
+
+    if config_channel_names and len(config_channel_names) == n_channels:
+        return list(config_channel_names)
+
+    # iohub may return ints when OMERO metadata is missing — always stringify.
+    try:
+        return [str(name) for name in field.channel_names]
+    except Exception:
+        return [f"c{i}" for i in range(n_channels)]
+
+
+def _get_axis_index_ci(field, name: str) -> int:
+    """Look up an axis index, tolerating TCZYX or tczyx axis names."""
+    try:
+        return field.get_axis_index(name.upper())
+    except (ValueError, KeyError):
+        return field.get_axis_index(name.lower())
+
+
+def _set_per_dataset_scales(field, px_x: float, px_y: float) -> None:
+    """Set the absolute physical pixel scale at each pyramid level.
+
+    Each level's scale is the base pixel size times the downsampling factor
+    inferred from the array shapes. The field-level transform is cleared so the
+    per-level transforms are the single source of truth.
+    """
+    multiscales = field.metadata.multiscales[0]
+    n_axes = len(multiscales.axes)
+    y_idx = _get_axis_index_ci(field, "y")
+    x_idx = _get_axis_index_ci(field, "x")
+    base_shape = field["0"].shape
+
+    for dataset in multiscales.datasets:
+        level_shape = field[dataset.path].shape
+        factor_y = (
+            base_shape[y_idx] / level_shape[y_idx] if level_shape[y_idx] > 0 else 1.0
+        )
+        factor_x = (
+            base_shape[x_idx] / level_shape[x_idx] if level_shape[x_idx] > 0 else 1.0
+        )
+
+        scale = [1.0] * n_axes
+        scale[y_idx] = px_y * factor_y
+        scale[x_idx] = px_x * factor_x
+        dataset.coordinate_transformations = [
+            TransformationMeta(type="scale", scale=scale)
+        ]
+
+    multiscales.coordinate_transformations = None
+
+
+def _rename_channels(field, target_names: list[str]) -> None:
+    """Rename a field's channels to *target_names* where they differ."""
+    try:
+        current = list(field.channel_names)
+    except Exception:
+        return
+
+    for old, new in zip(current, target_names):
+        if old == new:
+            continue
+        try:
+            field.rename_channel(old, new)
+        except Exception:
+            pass
+
+
+def _set_omero_rendering(
+    field,
+    channel_names: list[str],
+    channels_metadata: list[dict] | None = None,
+) -> None:
+    """Set the OMERO rendering metadata (channel colors and display defaults).
+
+    Colors come from ``channels_metadata[].color`` where configured, otherwise
+    from iohub's per-stain defaults, falling back to the brieflow palette for
+    channel names iohub does not recognize.
+    """
+    if not channel_names:
+        return
+
+    config_colors = {}
+    if channels_metadata:
+        for channel in channels_metadata:
+            if isinstance(channel, dict) and "color" in channel:
+                config_colors[channel.get("name", "")] = channel["color"]
+
+    channels = []
+    for i, name in enumerate(channel_names):
+        settings = channel_display_settings(name, clim=None, first_chan=True)
+        if name in config_colors:
+            settings.color = config_colors[name]
+        elif settings.color == "FFFFFF":
+            settings.color = DEFAULT_CHANNEL_COLORS[i % len(DEFAULT_CHANNEL_COLORS)]
+        settings.active = True
+        channels.append(settings)
+
+    field.metadata.omero = OMEROMeta(
+        version="0.5",
+        channels=channels,
+        rdefs=RDefsMeta(default_t=0, default_z=0),
+    )
+
+
+def _set_axes_units_micrometer(field) -> None:
+    """Set unit='micrometer' on a field's spatial axes.
+
+    Modifies ``field.metadata`` rather than ``field.zattrs`` so the change
+    survives ``dump_meta``.
+    """
+    if not field.metadata.multiscales:
+        return
+    for axis in field.metadata.multiscales[0].axes:
+        if axis.name.lower() in ("x", "y", "z"):
+            axis.unit = "micrometer"
+
+
+def _set_label_versions(index) -> None:
+    """Set ``image-label.version`` on every label store of a plate."""
+    for rel in index.label_groups():
+        meta = index.get(rel)
+        attrs = meta.get("attributes", meta)
+        image_label = attrs.get("ome", {}).get("image-label", attrs.get("image-label"))
+        if image_label is None:
+            continue
+        if image_label.get("version") != "0.5":
+            image_label["version"] = "0.5"
+            index.mark_dirty(rel)
+
+
+def _set_label_axis_units(index) -> None:
+    """Set the axis units on every label store of a plate.
+
+    Runs regardless of pixel size availability — axis units and pixel scales are
+    independent concerns.
+    """
+    for rel in index.label_groups():
+        meta = index.get(rel)
+        attrs = meta.get("attributes", meta)
+        multiscales = attrs.get("ome", {}).get(
+            "multiscales", attrs.get("multiscales", [])
+        )
+        if not multiscales:
+            continue
+
+        changed = False
+        for axis in multiscales[0].get("axes", []):
+            name = axis.get("name", "").upper()
+            if name in _AXIS_UNITS and axis.get("unit") != _AXIS_UNITS[name]:
+                axis["unit"] = _AXIS_UNITS[name]
+                changed = True
+        if changed:
+            index.mark_dirty(rel)
+
+
+def _set_label_scales(
+    index,
+    pixel_sizes: dict[tuple[str, str, str], tuple[float, float]],
+) -> None:
+    """Set the physical pixel scale of every label store of a plate.
+
+    Labels share the physical pixel size of the parent image field.
+    """
+    for rel in index.label_groups():
+        parts = rel.split("/")
+        if len(parts) != 5:
+            continue
+        row, col, field = parts[0], parts[1], parts[2]
+
+        pixel_size = pixel_sizes.get((row, col, field)) or pixel_sizes.get(
+            (row, col, "*")
+        )
+        if pixel_size is None:
+            continue
+        px_x, px_y = pixel_size
+
+        meta = index.get(rel)
+        attrs = meta.get("attributes", meta)
+        multiscales = attrs.get("ome", {}).get(
+            "multiscales", attrs.get("multiscales", [])
+        )
+        if not multiscales:
+            continue
+
+        axes = multiscales[0].get("axes", [])
+        y_idx = x_idx = None
+        for i, axis in enumerate(axes):
+            name = axis.get("name", "").upper()
+            if name == "Y":
+                y_idx = i
+            elif name == "X":
+                x_idx = i
+        if y_idx is None or x_idx is None:
+            continue
+
+        datasets = multiscales[0].get("datasets", [])
+        if not datasets:
+            continue
+        base_shape = index.array_shape(f"{rel}/{datasets[0].get('path', '0')}")
+        if not base_shape:
+            continue
+
+        for dataset in datasets:
+            level_shape = (
+                index.array_shape(f"{rel}/{dataset.get('path', '0')}") or base_shape
+            )
+            factor_y = (
+                base_shape[y_idx] / level_shape[y_idx]
+                if level_shape[y_idx] > 0
+                else 1.0
+            )
+            factor_x = (
+                base_shape[x_idx] / level_shape[x_idx]
+                if level_shape[x_idx] > 0
+                else 1.0
+            )
+
+            scale = [1.0] * len(axes)
+            scale[y_idx] = px_y * factor_y
+            scale[x_idx] = px_x * factor_x
+            dataset["coordinateTransformations"] = [{"type": "scale", "scale": scale}]
+
+        index.mark_dirty(rel)
+
+
+def _build_segmentation_metadata(
     label_stem: str,
     modality_config: dict,
     channels_metadata: list[dict] | None,
 ) -> dict | None:
-    """Build a ``segmentation_metadata`` dict for one label store.
-
-    Returns *None* when the label name is unrecognised or there is
-    insufficient config to build the block.
-    """
+    """Describe how one label store was segmented, or None if unrecognized."""
     info = _LABEL_ANNOTATION_MAP.get(label_stem)
     if info is None:
         return None
 
-    # Build method string as "method.model" (e.g. "cellpose.cyto3")
-    seg_method_base = modality_config.get("segmentation_method", "cellpose")
-    seg_model = modality_config.get("cellpose_model") or modality_config.get(
+    method_base = modality_config.get("segmentation_method", "cellpose")
+    model = modality_config.get("cellpose_model") or modality_config.get(
         "stardist_model"
     )
-    seg_method = f"{seg_method_base}.{seg_model}" if seg_model else seg_method_base
-    source_idx = modality_config.get(info["source_channel_key"])
-    if source_idx is None:
-        source_idx = 0
+    method = f"{method_base}.{model}" if model else method_base
+    source_index = modality_config.get(info["source_channel_key"])
+    if source_index is None:
+        source_index = 0
 
-    # Biological annotation from channels_metadata
-    bio = {}
+    annotation = {}
     if channels_metadata:
-        for ch in channels_metadata:
-            if isinstance(ch, dict) and ch.get("index") == source_idx:
-                ch_bio = ch.get("biological_annotation", {})
-                if isinstance(ch_bio, dict):
-                    for k in (
-                        "biological_target",
-                        "marker",
-                        "marker_type",
-                        "full_label",
-                    ):
-                        v = ch_bio.get(k)
-                        if v:
-                            bio[k] = v
-                break
+        for channel in channels_metadata:
+            if not isinstance(channel, dict) or channel.get("index") != source_index:
+                continue
+            channel_annotation = channel.get("biological_annotation", {})
+            if isinstance(channel_annotation, dict):
+                for key in (
+                    "biological_target",
+                    "marker",
+                    "marker_type",
+                    "full_label",
+                ):
+                    value = channel_annotation.get(key)
+                    if value:
+                        annotation[key] = value
+            break
 
-    # Segmentation parameters (only non-None values)
-    params = {}
+    parameters = {}
     has_flow = has_cellprob = False
-    for pkey in ("diameter_key", "flow_threshold_key", "cellprob_threshold_key"):
-        cfg_key = info.get(pkey)
-        if cfg_key and modality_config.get(cfg_key) is not None:
-            params[cfg_key] = modality_config[cfg_key]
-            if "flow" in pkey:
-                has_flow = True
-            if "cellprob" in pkey:
-                has_cellprob = True
+    for param in ("diameter_key", "flow_threshold_key", "cellprob_threshold_key"):
+        config_key = info.get(param)
+        if config_key and modality_config.get(config_key) is not None:
+            parameters[config_key] = modality_config[config_key]
+            has_flow = has_flow or "flow" in param
+            has_cellprob = has_cellprob or "cellprob" in param
 
-    # For phenotype modality, fall back to shared flow_threshold / cellprob_threshold
-    if not has_flow and "flow_threshold" in modality_config:
-        ft = modality_config["flow_threshold"]
-        if ft is not None:
-            params["flow_threshold"] = ft
-    if not has_cellprob and "cellprob_threshold" in modality_config:
-        ct = modality_config["cellprob_threshold"]
-        if ct is not None:
-            params["cellprob_threshold"] = ct
+    # Phenotype shares one flow / cellprob threshold across label types.
+    if not has_flow and modality_config.get("flow_threshold") is not None:
+        parameters["flow_threshold"] = modality_config["flow_threshold"]
+    if not has_cellprob and modality_config.get("cellprob_threshold") is not None:
+        parameters["cellprob_threshold"] = modality_config["cellprob_threshold"]
 
     return {
         "label_name": label_stem,
         "annotation_type": info["annotation_type"],
         "is_ome_label": True,
-        "source_channel": {"index": source_idx},
-        "biological_annotation": bio,
+        "source_channel": {"index": source_index},
+        "biological_annotation": annotation,
         "segmentation": {
-            "method": seg_method,
+            "method": method,
             "stitching": "none",
-            "parameters": params,
+            "parameters": parameters,
         },
-        "description": f"{info['annotation_type']} segmentation via {seg_method}",
+        "description": f"{info['annotation_type']} segmentation via {method}",
     }
 
 
-def _patch_segmentation_metadata(
-    store_path: Path,
+def _count_label_objects(label_dir: str):
+    """Number of distinct non-background labels in a label store's level-0 array."""
+    import zarr
+
+    try:
+        array = zarr.open(label_dir, mode="r")
+        return int(len(np.unique(array[:])) - 1)
+    except Exception:
+        return None
+
+
+def _write_segmentation_metadata(
+    index,
     modality_config: dict,
     channels_metadata: list[dict] | None,
+    threads: int = 1,
 ) -> None:
-    """Inject ``segmentation_metadata`` into each label store's zarr.json.
+    """Stage ``segmentation_metadata`` on every recognized label store.
 
-    Metadata is placed at ``attributes.segmentation_metadata`` alongside the
-    existing ``attributes.ome`` block.
+    Written at ``attributes.segmentation_metadata`` alongside ``attributes.ome``.
+    The object counts read one label array each, so they are gathered in parallel
+    over *threads* worker threads.
     """
-    for zj in sorted(store_path.rglob("labels/*/zarr.json")):
-        label_dir = zj.parent
-        # label_dir.name is e.g. "nuclei.zarr" → stem is "nuclei"
-        label_stem = label_dir.name.replace(".zarr", "")
-
-        seg_meta = _build_segmentation_meta_for_label(
+    targets = []
+    for rel in index.label_groups():
+        # The label group is named e.g. "nuclei.zarr" or "nuclei".
+        label_stem = rel.rsplit("/", 1)[1].replace(".zarr", "")
+        segmentation = _build_segmentation_metadata(
             label_stem, modality_config, channels_metadata
         )
-        if seg_meta is None:
+        if segmentation is None:
             continue
+        targets.append((rel, segmentation))
 
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
+    array_dirs = [
+        str(index.path(rel) / "0") if index.get(f"{rel}/0") else None
+        for rel, _ in targets
+    ]
+    countable = [d for d in array_dirs if d is not None]
+    counts = dict(
+        zip(countable, _parallel_map(_count_label_objects, countable, threads))
+    )
 
-        # Count labeled objects from the full-resolution array
-        n_cells = None
-        arr_zj = label_dir / "0" / "zarr.json"
-        if arr_zj.exists():
-            try:
-                import zarr
-
-                arr = zarr.open(str(label_dir / "0"), mode="r")
-                n_cells = int(len(np.unique(arr[:])) - 1)  # exclude background (0)
-            except Exception:
-                pass
-        if n_cells is not None:
-            seg_meta["statistics"] = {"n_cells": n_cells}
-
-        attrs = meta.setdefault("attributes", {})
-        attrs["segmentation_metadata"] = seg_meta
-
-        zj.write_text(json.dumps(meta, indent=2))
-        print(f"[patch] segmentation_metadata set: {label_stem} in {label_dir}")
+    for (rel, segmentation), array_dir in zip(targets, array_dirs):
+        n_objects = counts.get(array_dir) if array_dir else None
+        if n_objects is not None:
+            segmentation["statistics"] = {"n_cells": n_objects}
+        index.get(rel).setdefault("attributes", {})["segmentation_metadata"] = (
+            segmentation
+        )
+        index.mark_dirty(rel)
 
 
-# ---------------------------------------------------------------------------
-# Helpers — OMERO display window
-# ---------------------------------------------------------------------------
+def _parallel_map(fn, items, threads: int):
+    """Map *fn* over *items*, in a thread pool when *threads* allows it.
+
+    Threads rather than processes: the per-field work is zarr decompression,
+    which releases the GIL, and forking a process that already holds zarr's async
+    machinery deadlocks.
+    """
+    if threads <= 1 or len(items) <= 1:
+        return [fn(item) for item in items]
+    with ThreadPoolExecutor(max_workers=min(threads, len(items))) as pool:
+        return list(pool.map(fn, items))
 
 
 def _accumulate_channel_histograms(
-    store_path: Path,
+    index,
     histograms: dict[int, np.ndarray],
-    n_bins: int = 65536,
+    threads: int = 1,
 ) -> None:
-    """Add per-channel uint16 histograms from every tile array in ``store_path``.
+    """Add the per-channel intensity histograms of a store's image fields.
 
-    Mutates ``histograms`` in place: channel_idx -> int64 array of length n_bins.
-    Skips label arrays. Loads multiscale level 0 only.
+    Mutates *histograms* in place, channel index -> int64 counts. Only fields
+    that already carry OMERO channels are read, so label arrays are skipped, and
+    above ``_MAX_HISTOGRAM_FIELDS`` an evenly spaced subsample is taken so the
+    pass stays bounded on large screens.
+    """
+    fields = [
+        rel
+        for rel in index.fields()
+        if index.get(rel)
+        .get("attributes", {})
+        .get("ome", {})
+        .get("omero", {})
+        .get("channels")
+        is not None
+    ]
+    if not fields:
+        return
+
+    if len(fields) > _MAX_HISTOGRAM_FIELDS:
+        picks = np.unique(
+            np.linspace(0, len(fields) - 1, _MAX_HISTOGRAM_FIELDS).round().astype(int)
+        )
+        print(
+            f"  {index.root.name}: histogramming {len(picks)} of "
+            f"{len(fields)} fields (evenly spaced subsample)"
+        )
+        fields = [fields[i] for i in picks]
+
+    dirs = [str(index.path(rel)) for rel in fields]
+    n_batches = max(1, min(threads, len(dirs)))
+    batches = [dirs[i::n_batches] for i in range(n_batches)]
+    for result in _parallel_map(_batch_channel_histograms, batches, threads):
+        _merge_histograms(histograms, result)
+
+
+def _batch_channel_histograms(field_dirs, n_bins: int = 65536):
+    """Merged per-channel histograms for a batch of fields.
+
+    Merging inside the worker keeps one accumulator per worker alive instead of
+    one full-resolution histogram set per field.
+    """
+    merged: dict[int, np.ndarray] = {}
+    for field_dir in field_dirs:
+        _merge_histograms(merged, _field_channel_histograms(field_dir, n_bins=n_bins))
+    return merged
+
+
+def _field_channel_histograms(field_dir: str, n_bins: int = 65536):
+    """Per-channel uint16 intensity histograms for one field's level-0 array.
+
+    Reads one chunk row at a time so a whole field is never held in memory.
     """
     import zarr
 
-    for zj in sorted(store_path.rglob("zarr.json")):
-        rel = zj.relative_to(store_path)
-        if "labels" in rel.parts:
-            continue
-        # Tile-level zarr.json sits at plate.zarr/{row}/{col}/{tile}/zarr.json
-        if len(rel.parts) != 4:
-            continue
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
-            continue
-        if (
-            meta.get("attributes", {}).get("ome", {}).get("omero", {}).get("channels")
-            is None
-        ):
-            continue
-        try:
-            grp = zarr.open(str(zj.parent), mode="r")
-            arr = grp["0"][:]
-        except Exception as exc:
-            print(f"[window] could not read {zj.parent}: {exc}")
-            continue
+    try:
+        array = zarr.open(field_dir, mode="r")["0"]
+    except Exception as exc:
+        print(f"  could not read {field_dir}: {exc}")
+        return {}
 
-        # Locate channel axis; image arrays are (T,C,Z,Y,X), (C,Z,Y,X), or (C,Y,X)
-        if arr.ndim == 5:
-            channel_axis = 1
-        elif arr.ndim in (3, 4):
-            channel_axis = 0
-        else:
-            continue
+    # Image arrays are (T,C,Z,Y,X), (C,Z,Y,X), or (C,Y,X).
+    ndim = len(array.shape)
+    if ndim == 5:
+        channel_axis = 1
+    elif ndim in (3, 4):
+        channel_axis = 0
+    else:
+        return {}
 
-        if arr.dtype != np.uint16:
-            arr = np.clip(arr, 0, n_bins - 1).astype(np.uint16)
+    y_axis = ndim - 2
+    n_rows = array.shape[y_axis]
+    step = array.chunks[y_axis] if array.chunks else n_rows
+    step = max(int(step or n_rows), 1)
 
-        n_channels = arr.shape[channel_axis]
-        for ch in range(n_channels):
-            sl = [slice(None)] * arr.ndim
-            sl[channel_axis] = ch
-            counts = np.bincount(arr[tuple(sl)].ravel(), minlength=n_bins)
-            if ch in histograms:
-                histograms[ch] += counts
+    out: dict[int, np.ndarray] = {}
+    for y0 in range(0, n_rows, step):
+        rows = [slice(None)] * ndim
+        rows[y_axis] = slice(y0, min(y0 + step, n_rows))
+        slab = array[tuple(rows)]
+        if slab.dtype != np.uint16:
+            slab = np.clip(slab, 0, n_bins - 1).astype(np.uint16)
+        for channel in range(slab.shape[channel_axis]):
+            selector = [slice(None)] * ndim
+            selector[channel_axis] = channel
+            counts = np.bincount(np.ravel(slab[tuple(selector)]), minlength=n_bins)
+            if channel in out:
+                out[channel] += counts
             else:
-                histograms[ch] = counts
+                out[channel] = counts
+    return out
+
+
+def _merge_histograms(
+    into: dict[int, np.ndarray], other: dict[int, np.ndarray]
+) -> None:
+    """Add *other*'s per-channel counts into *into*."""
+    for channel, counts in other.items():
+        if channel in into:
+            into[channel] += counts
+        else:
+            into[channel] = counts
 
 
 def _windows_from_histograms(
@@ -1127,64 +1142,51 @@ def _windows_from_histograms(
 ) -> dict[int, tuple[float, float]]:
     """Convert per-channel histograms into (start, end) at the given percentiles."""
     windows: dict[int, tuple[float, float]] = {}
-    for ch, hist in histograms.items():
+    for channel, hist in histograms.items():
         cdf = np.cumsum(hist).astype(np.float64)
         total = cdf[-1]
         if total == 0:
-            windows[ch] = (0.0, float(len(hist) - 1))
+            windows[channel] = (0.0, float(len(hist) - 1))
             continue
         cdf /= total
         start = float(np.searchsorted(cdf, low_pct / 100.0))
         end = float(np.searchsorted(cdf, high_pct / 100.0))
         if end <= start:
             end = start + 1.0
-        windows[ch] = (start, end)
+        windows[channel] = (start, end)
     return windows
 
 
-def _stats_from_histograms(
+def _statistics_from_histograms(
     histograms: dict[int, np.ndarray],
 ) -> dict[int, dict[str, float]]:
-    """Per-channel mean / std / median computed from the merged histograms.
-
-    Provided alongside ``window`` so dataloaders have dataset-wide
-    normalization constants without re-scanning the data. Standard ML
-    portability pattern: store stats once, apply at __getitem__ time.
-    """
-    stats: dict[int, dict[str, float]] = {}
-    for ch, hist in histograms.items():
+    """Per-channel mean, standard deviation and median from merged histograms."""
+    statistics: dict[int, dict[str, float]] = {}
+    for channel, hist in histograms.items():
         total = float(hist.sum())
         if total == 0:
-            stats[ch] = {"mean": 0.0, "std": 0.0, "median": 0.0}
+            statistics[channel] = {"mean": 0.0, "std": 0.0, "median": 0.0}
             continue
         bins = np.arange(len(hist), dtype=np.float64)
         mean = float((bins * hist).sum() / total)
-        var = float((hist * (bins - mean) ** 2).sum() / total)
-        std = float(np.sqrt(var))
-
+        variance = float((hist * (bins - mean) ** 2).sum() / total)
         cdf = np.cumsum(hist).astype(np.float64) / total
-        median = float(np.searchsorted(cdf, 0.5))
+        statistics[channel] = {
+            "mean": mean,
+            "std": float(np.sqrt(variance)),
+            "median": float(np.searchsorted(cdf, 0.5)),
+        }
+    return statistics
 
-        stats[ch] = {"mean": mean, "std": std, "median": median}
-    return stats
 
-
-def _inject_omero_windows(
-    store_path: Path,
+def _write_intensity_metadata(
+    index,
     windows: dict[int, tuple[float, float]],
-    stats: dict[int, dict[str, float]] | None = None,
+    statistics: dict[int, dict[str, float]] | None = None,
 ) -> int:
-    """Inject ``window`` (and optional ``statistics``) into every image-level zarr.json.
-
-    Returns the number of zarr.json files updated.
-    """
-    patched = 0
-    for zj in sorted(store_path.rglob("zarr.json")):
-        if "labels" in zj.relative_to(store_path).parts:
-            continue
-        try:
-            meta = json.loads(zj.read_text())
-        except Exception:
+    """Write the display window and statistics into every image-level zarr.json."""
+    for rel, meta in index.groups():
+        if "labels" in rel.split("/"):
             continue
         channels = (
             meta.get("attributes", {}).get("ome", {}).get("omero", {}).get("channels")
@@ -1192,20 +1194,19 @@ def _inject_omero_windows(
         if not channels:
             continue
         changed = False
-        for idx, ch in enumerate(channels):
-            if idx not in windows:
+        for i, channel in enumerate(channels):
+            if i not in windows:
                 continue
-            start, end = windows[idx]
-            ch["window"] = {
+            start, end = windows[i]
+            channel["window"] = {
                 "start": start,
                 "end": end,
                 "min": 0.0,
                 "max": 65535.0,
             }
-            if stats is not None and idx in stats:
-                ch["statistics"] = stats[idx]
+            if statistics is not None and i in statistics:
+                channel["statistics"] = statistics[i]
             changed = True
         if changed:
-            zj.write_text(json.dumps(meta, indent=2))
-            patched += 1
-    return patched
+            index.mark_dirty(rel)
+    return index.flush()

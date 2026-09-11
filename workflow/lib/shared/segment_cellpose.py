@@ -40,6 +40,7 @@ from skimage.util import img_as_ubyte
 from skimage.segmentation import clear_border
 
 from lib.shared.segmentation_utils import (
+    count_nuclei_per_cell,
     image_log_scale,
     reconcile_nuclei_cells,
 )
@@ -200,7 +201,7 @@ def segment_cellpose(
     # Perform cell segmentation using Cellpose
     if cells:
         if return_counts:
-            nuclei, cells, seg_counts = segment_cellpose_rgb(
+            nuclei, cells, seg_counts, nuclei_per_cell = segment_cellpose_rgb(
                 rgb,
                 nuclei_diameter,
                 cell_diameter,
@@ -232,7 +233,7 @@ def segment_cellpose(
         print(f"Number of cells segmented: {counts['final_cells']}")
 
         if return_counts:
-            return nuclei, cells, counts_df
+            return nuclei, cells, counts_df, nuclei_per_cell
         else:
             return nuclei, cells
     else:
@@ -495,9 +496,12 @@ def segment_cellpose_rgb(
     )
 
     # Reconcile nuclei and cells if specified
+    raw_nuclei = nuclei.copy()
     if reconcile:
         print(f"reconciling masks with method how={reconcile}")
         nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
+
+    nuclei_per_cell = count_nuclei_per_cell(raw_nuclei, cells)
 
     counts["final_cells"] = len(np.unique(cells)) - 1
     print(
@@ -505,7 +509,7 @@ def segment_cellpose_rgb(
     )
 
     if return_counts:
-        return nuclei, cells, counts
+        return nuclei, cells, counts, nuclei_per_cell
     else:
         return nuclei, cells
 

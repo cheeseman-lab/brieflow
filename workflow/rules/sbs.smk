@@ -174,6 +174,8 @@ rule extract_sbs_info:
         SBS_OUTPUTS["segment_sbs"][0],
         # alignment metrics TSV
         SBS_OUTPUTS["align_sbs"][1],
+        # per-cell nuclei counts TSV
+        SBS_OUTPUTS["segment_sbs"][3],
     output:
         SBS_OUTPUTS_MAPPED["extract_sbs_info"],
     script:
@@ -297,7 +299,35 @@ rule eval_mapping:
         "../scripts/sbs/eval_mapping.py"
 
 
+# Write HCS plate-level metadata for zarr stores (zarr mode only)
+if SBS_IMG_FMT == "zarr":
+    rule finalize_hcs_sbs:
+        input:
+            SBS_TARGETS_ALL,
+        output:
+            touch(str(SBS_FP / ".hcs_done")),
+        params:
+            plate_zarr_dirs=[
+                str(SBS_FP / f"{store}_{p}.zarr")
+                for p in sorted(sbs_wildcard_combos["plate"].unique())
+                for store in [
+                    "aligned",
+                    "illumination_corrected",
+                    "log_filtered",
+                    "standard_deviation",
+                    "peaks",
+                    "max_filtered",
+                ]
+            ],
+            channels_metadata=config["preprocess"].get("sbs_channels_metadata", None),
+            channel_names=config.get("sbs", {}).get("channel_names", None),
+            modality="sbs",
+        threads: 8
+        script:
+            "../scripts/shared/write_hcs_metadata.py"
+
+
 # rule for all sbs processing steps
 rule all_sbs:
     input:
-        SBS_TARGETS_ALL,
+        SBS_TARGETS_ALL + ([str(SBS_FP / ".hcs_done")] if SBS_IMG_FMT == "zarr" else []),

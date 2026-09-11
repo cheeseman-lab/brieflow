@@ -28,5 +28,15 @@ if len(snakemake.input) > 1:
     for col in metrics_cols:
         phenotype_minimal[col] = alignment_metrics[col].iloc[0]
 
+# Attach the per-cell nuclei count when provided (SBS), defaulting to 1 where a cell has no entry
+if len(snakemake.input) > 2:
+    nuclei_per_cell = pd.read_csv(snakemake.input[2], sep="\t").set_index("cell")
+    phenotype_minimal["num_nuclei"] = (
+        phenotype_minimal["cell"]
+        .map(nuclei_per_cell["num_nuclei"])
+        .fillna(1)
+        .astype(int)
+    )
+
 # save minimal phenotype data
 phenotype_minimal.to_csv(snakemake.output[0], index=False, sep="\t")

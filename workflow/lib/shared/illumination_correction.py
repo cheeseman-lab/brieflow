@@ -25,6 +25,7 @@ def calculate_ic_field(
     threading: bool = False,
     slicer: slice = slice(None),
     sample_fraction: float = 1.0,
+    random_seed: int = None,
 ) -> np.ndarray:
     """Calculate illumination correction field for use with the apply_ic_field.
 
@@ -43,6 +44,7 @@ def calculate_ic_field(
         threading (bool, optional): Whether to use threading for parallel processing. Defaults to False.
         slicer (slice, optional): Slice object to select specific parts of the images.
         sample_fraction (float, optional): Fraction of images to sample for calculation. Defaults to 1.0 (100% of images).
+        random_seed (int, optional): Seed for the file-subsample RNG. None (default) keeps the prior nondeterministic sampling; set an int for a reproducible IC field.
 
     Returns:
         np.ndarray: The calculated illumination correction field.
@@ -50,7 +52,7 @@ def calculate_ic_field(
     # Randomly sample a subset of files if sample_fraction is less than 1.0
     if sample_fraction < 1.0:
         sample_size = int(len(files) * sample_fraction)
-        files = random.sample(files, sample_size)
+        files = random.Random(random_seed).sample(files, sample_size)
 
     # Initialize data variable
     data = read_image(files[0])[slicer] / len(files)

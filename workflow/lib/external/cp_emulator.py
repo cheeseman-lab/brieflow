@@ -627,17 +627,27 @@ def lstsq_slope_all_multichannel(r):
 def cp_colocalization_all_channels(r, mode="multichannel", **kwargs):
     if mode == "multichannel":
         channels = r.intensity_image.shape[-1]
-    else:
-        channels = r.intensity_image_full.shape[-3]
-
-    results = [
-        cp_colocalization(r, first, second, mode=mode, **kwargs)
-        for first, second in combinations(list(range(channels)), 2)
-    ]
-
-    if mode == "multichannel":
+        # Precompute otsu threshold and rankdata once per channel instead of per pair.
+        # Each channel appears in (C-1) pairs; caching cuts calls from 2*C(C,2) → C
+        # (e.g. 12 → 4 for C=4). Algebraically identical to the per-pair computation.
+        V = r.intensity_image[r.image]  # (n_pix, C) masked pixel array
+        _thr = [otsu(V[:, c]) for c in range(channels)]
+        _ranks = [rankdata(V[:, c], method="dense") for c in range(channels)]
+        results = [
+            measure_colocalization(
+                V[:, first], V[:, second],
+                _A_thresh=_thr[first], _B_thresh=_thr[second],
+                _A_ranks=_ranks[first], _B_ranks=_ranks[second],
+            )
+            for first, second in combinations(range(channels), 2)
+        ]
         return np.array(results).flatten(order="F")
     else:
+        channels = r.intensity_image_full.shape[-3]
+        results = [
+            cp_colocalization(r, first, second, mode=mode, **kwargs)
+            for first, second in combinations(range(channels), 2)
+        ]
         return np.concatenate(results)
 
 
@@ -650,7 +660,10 @@ def cp_colocalization(r, first, second, mode="multichannel", **kwargs):
     return measure_colocalization(A, B, **kwargs)
 
 
-def measure_colocalization(A, B, threshold="otsu"):
+def measure_colocalization(
+    A, B, threshold="otsu",
+    _A_thresh=None, _B_thresh=None, _A_ranks=None, _B_ranks=None,
+):
     """Measures overlap, k1/k2, manders, and rank weighted colocalization coefficients.
     References:
     http://www.scian.cl/archivos/uploads/1417893511.1674 starting at slide 35
@@ -658,13 +671,19 @@ def measure_colocalization(A, B, threshold="otsu"):
     co-localization of microscopy images", BMC Bioinformatics, 12:407.
     threshold is either 'otsu' or 'costes' methods, or a float between 0 and 1 defining the
     fraction of the maximum value to be used as the threshold (CellProfiler default=0.15)
+
+    _A_thresh / _B_thresh / _A_ranks / _B_ranks: pre-cached values from
+    cp_colocalization_all_channels. When provided they skip the per-pair otsu
+    and rankdata calls (algebraically identical — same channel, same pixel vector).
     """
     if (A.sum() == 0) | (B.sum() == 0):
         return (np.nan,) * 7
 
     results = []
 
-    if threshold == "otsu":
+    if _A_thresh is not None:
+        A_thresh, B_thresh = _A_thresh, _B_thresh
+    elif threshold == "otsu":
         A_thresh, B_thresh = otsu(A), otsu(B)
     elif threshold == "costes":
         A_thresh, B_thresh = costes_threshold(A, B)
@@ -703,8 +722,11 @@ def measure_colocalization(A, B, threshold="otsu"):
 
     results.extend([M1, M2])
 
-    A_ranks = rankdata(A, method="dense")
-    B_ranks = rankdata(B, method="dense")
+    if _A_ranks is not None:
+        A_ranks, B_ranks = _A_ranks, _B_ranks
+    else:
+        A_ranks = rankdata(A, method="dense")
+        B_ranks = rankdata(B, method="dense")
 
     R = max([A_ranks.max(), B_ranks.max()])
     # weight = ((R-abs(A_ranks-B_ranks))/R)[mask]

@@ -52,7 +52,7 @@ PHENOTYPE_OUTPUTS = {
         PHENOTYPE_FP / get_image_output_path(_tile, "updated_cytoplasms", PHENOTYPE_IMG_FMT, subdirectory="labels"),
     ],
     "extract_phenotype_cp": [
-        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_cp", "tsv", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / "parquets" / get_data_output_path(_tile, "phenotype_cp", "parquet", PHENOTYPE_IMG_FMT),
     ],
     "extract_phenotype_second_objs": [
         PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_second_objs", "tsv", PHENOTYPE_IMG_FMT),
@@ -86,7 +86,7 @@ _phenotype_img_temp = None if PHENOTYPE_IMG_FMT == "zarr" else temp
 _phenotype_label_keep = directory if PHENOTYPE_IMG_FMT == "zarr" else None
 
 PHENOTYPE_OUTPUT_MAPPINGS = {
-    "apply_ic_field_phenotype": _phenotype_img_temp,
+    "apply_ic_field_phenotype": None,  # keep IC-corrected phenotype on disk (was temp) — avoids pre-seg recompute
     "align_phenotype": None,
     "segment_phenotype": [_phenotype_label_keep, _phenotype_label_keep, None, None],
     "identify_cytoplasm": _phenotype_label_keep,

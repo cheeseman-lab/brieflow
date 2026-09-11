@@ -1,6 +1,7 @@
 import gc
 import math
 
+import polars as pl
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pyarrow.dataset as ds
@@ -97,16 +98,8 @@ print(f"Processing data in {num_batches} batch(es), ~{chunk_size} rows per batch
 aligned_output = snakemake.output[0]
 writer = None
 
-# Accumulators for per-construct data collected across batches
-construct_cell_counts = {}  # {construct_id: count}
-construct_gene_map = {}  # {construct_id: gene_name}
-construct_control_map = {}  # {construct_id: control_name_col value (for control id)}
-construct_feature_sums = {}  # {construct_id: [sum of features]}
-construct_feature_counts = {}  # {construct_id: count for averaging}
-# For median, we need all values - store them
-construct_feature_values = {}  # {construct_id: list of feature arrays}
-construct_group_map = {}  # {construct_id: group label}
-
+# Construct-level medians are computed lazily from the aligned parquet with
+# polars after the batch loop, so no per-construct accumulators are needed here.
 # Process each batch
 for batch_idx, indices in enumerate(subset_indices):
     print(
@@ -183,25 +176,6 @@ for batch_idx, indices in enumerate(subset_indices):
     del aligned_table, aligned_batch
     gc.collect()
 
-    # Accumulate construct-level data for median computation
-    print(f"Accumulating construct statistics for batch {batch_idx + 1}...")
-    for construct_id in metadata[pert_id_col].unique():
-        mask = metadata[pert_id_col].values == construct_id
-        construct_features = features[mask]
-        gene_name = metadata.loc[mask, pert_col].iloc[0]
-        control_name = metadata.loc[mask, control_name_col].iloc[0]
-
-        if construct_id not in construct_cell_counts:
-            construct_cell_counts[construct_id] = 0
-            construct_gene_map[construct_id] = gene_name
-            construct_control_map[construct_id] = control_name
-            construct_feature_values[construct_id] = []
-            if group_cols:
-                construct_group_map[construct_id] = group_labels[mask].iloc[0]
-
-        construct_cell_counts[construct_id] += mask.sum()
-        construct_feature_values[construct_id].append(construct_features)
-
     # Clean up batch data
     del metadata, features
     gc.collect()
@@ -211,42 +185,29 @@ if writer is not None:
     writer.close()
 print(f"\nSaved aligned cell data to: {aligned_output}")
 
-# TABLE 1: Construct-level table (one row per sgRNA)
+# TABLE 1: Construct-level table (one row per sgRNA).
+# Computed lazily from the aligned parquet — avoids holding all cell feature
+# vectors in memory across batches.
 print("\n=== Creating construct-level table ===")
 
-construct_rows = []
-for construct_id in construct_cell_counts.keys():
-    # Concatenate all feature arrays for this construct
-    all_features = np.vstack(construct_feature_values[construct_id])
-    # Compute median across all cells; nanmedian because per-well filtering drops
-    # different columns in different wells, so the unified schema carries NaN for
-    # columns absent from a construct's well
-    median_features = np.nanmedian(all_features, axis=0)
+# Lazily aggregate construct-level medians from the aligned parquet with polars.
+# control_name_col drives the control/gene split below; carry it through the
+# aggregation when it is a column distinct from the ones already selected.
+_carry_control = control_name_col not in (pert_id_col, pert_col)
+agg_exprs = [pl.first(pert_col).alias(pert_col), pl.len().alias("cell_count")]
+if _carry_control:
+    agg_exprs.append(pl.first(control_name_col).alias(control_name_col))
+agg_exprs += [pl.median(c).alias(c) for c in feature_cols]
 
-    row = {
-        pert_id_col: construct_id,
-        pert_col: construct_gene_map[construct_id],
-        control_name_col: construct_control_map[construct_id],
-        "cell_count": construct_cell_counts[construct_id],
-    }
-    for i, col in enumerate(feature_cols):
-        row[col] = median_features[i]
-    construct_rows.append(row)
+lf = pl.scan_parquet(aligned_output)
+construct_agg = lf.group_by(pert_id_col).agg(agg_exprs).collect().to_pandas()
 
-# Free memory from accumulated features
-del construct_feature_values
-gc.collect()
-
-construct_table = pd.DataFrame(construct_rows)
-
-# Reorder columns: sgRNA, gene, cell_count, features
-# Dedupe preserving order; control_name_col must survive for the control filter below
-construct_columns = list(
-    dict.fromkeys(
-        [pert_id_col, pert_col, control_name_col, "cell_count"] + feature_cols
-    )
-)
-construct_table = construct_table[construct_columns]
+construct_columns = [pert_id_col, pert_col]
+if _carry_control:
+    construct_columns.append(control_name_col)
+construct_columns += ["cell_count"] + feature_cols
+construct_table = construct_agg[construct_columns].copy()
+construct_table["cell_count"] = construct_table["cell_count"].astype(int)
 
 print(f"Construct table shape: {construct_table.shape}")
 
@@ -299,24 +260,12 @@ if pseudogene_patterns:
     # Import the pseudo-gene grouping function
     from lib.aggregate.bootstrap import create_pseudogene_groups
 
-    if group_cols:
-        pseudogene_groups = []
-        construct_groups = construct_table[pert_id_col].map(construct_group_map)
-        for group_label in sorted(construct_groups.dropna().unique()):
-            group_pseudogenes, _ = create_pseudogene_groups(
-                construct_table[construct_groups == group_label],
-                pseudogene_patterns,
-                pert_col,
-                seed=42,
-            )
-            for pseudogene_group in group_pseudogenes:
-                pseudogene_group["pseudogene_id"] += f"{GROUP_KEY_SEP}{group_label}"
-            pseudogene_groups.extend(group_pseudogenes)
-    else:
-        # Create pseudo-gene groups from construct table
-        pseudogene_groups, remaining_constructs = create_pseudogene_groups(
-            construct_table, pseudogene_patterns, pert_col, seed=42
-        )
+    # Group labels are already folded into pert_col/pert_id_col during batch
+    # processing (a construct's identity is perturbation x group), so pseudo-gene
+    # grouping operates on the construct table directly without a separate group map.
+    pseudogene_groups, remaining_constructs = create_pseudogene_groups(
+        construct_table, pseudogene_patterns, pert_col, seed=42
+    )
 
     pseudogene_rows = []
 

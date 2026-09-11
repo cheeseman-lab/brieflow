@@ -44,16 +44,20 @@ warp_kwargs = {
     if v is not None
 } or None
 
+# Pre-group cell tables by tile once (O(n) instead of O(n_alignments * n_cells)).
+phenotype_by_tile = dict(tuple(phenotype_info.groupby("tile")))
+sbs_by_tile = dict(tuple(sbs_info.groupby("tile")))
+_empty_ph = phenotype_info.iloc[0:0]
+_empty_sbs = sbs_info.iloc[0:0]
+
 # Merge cells across well
 merge_data = []
-for index, alignment_row in fast_alignment_filtered.iterrows():
-    # Determine tiles and sites for merging
+for _index, alignment_row in fast_alignment_filtered.iterrows():
     phenotype_tile = alignment_row["tile"]
     sbs_site = alignment_row["site"]
 
-    # Filter phenotype and sbs info to the relevant well and tile for merging
-    phenotype_info_filtered = phenotype_info[phenotype_info["tile"] == phenotype_tile]
-    sbs_info_filtered = sbs_info[sbs_info["tile"] == sbs_site]
+    phenotype_info_filtered = phenotype_by_tile.get(phenotype_tile, _empty_ph)
+    sbs_info_filtered = sbs_by_tile.get(sbs_site, _empty_sbs)
 
     # Merge cells for row of alignment data
     alignment_row_merge = merge_triangle_hash(

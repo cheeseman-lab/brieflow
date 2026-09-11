@@ -47,13 +47,13 @@ SBS_OUTPUTS = {
         SBS_FP / "tsvs" / get_data_output_path(_tile, "bases", "tsv", SBS_IMG_FMT),
     ],
     "call_reads": [
-        SBS_FP / "tsvs" / get_data_output_path(_tile, "reads", "tsv", SBS_IMG_FMT),
+        SBS_FP / "tsvs" / get_data_output_path(_tile, "reads", "parquet", SBS_IMG_FMT),
     ],
     "call_cells": [
-        SBS_FP / "tsvs" / get_data_output_path(_tile, "cells", "tsv", SBS_IMG_FMT),
+        SBS_FP / "tsvs" / get_data_output_path(_tile, "cells", "parquet", SBS_IMG_FMT),
     ],
     "extract_sbs_info": [
-        SBS_FP / "tsvs" / get_data_output_path(_tile, "sbs_info", "tsv", SBS_IMG_FMT),
+        SBS_FP / "tsvs" / get_data_output_path(_tile, "sbs_info", "parquet", SBS_IMG_FMT),
     ],
     "combine_reads": [
         SBS_FP / "parquets" / get_data_output_path(_well, "reads", "parquet", SBS_IMG_FMT),
@@ -91,12 +91,12 @@ _sbs_img_temp = None if SBS_IMG_FMT == "zarr" else temp
 _sbs_label_keep = directory if SBS_IMG_FMT == "zarr" else None
 
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": None,
-    "log_filter": _sbs_img_temp,
-    "compute_standard_deviation": _sbs_img_temp,
-    "find_peaks": _sbs_img_temp,
-    "max_filter": _sbs_img_temp,
-    "apply_ic_field_sbs": _sbs_img_temp,
+    "align_sbs": None,  # keep on disk so apply_ic_field_sbs is never considered stale
+    "log_filter": None,  # keep pre-seg intermediate on disk (was temp) — avoids per-tile recompute sawtooth
+    "compute_standard_deviation": None,  # keep pre-seg intermediate on disk (was temp) — avoids per-tile recompute sawtooth
+    "find_peaks": None,  # keep pre-seg intermediate on disk (was temp) — avoids per-tile recompute sawtooth
+    "max_filter": None,  # keep pre-seg intermediate on disk (was temp) — avoids per-tile recompute sawtooth
+    "apply_ic_field_sbs": None,  # keep on disk to avoid re-running before segment_sbs
     "segment_sbs": [_sbs_label_keep, _sbs_label_keep, None, None],
     "extract_bases": None,
     "call_reads": None,

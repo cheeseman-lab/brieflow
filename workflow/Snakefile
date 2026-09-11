@@ -26,6 +26,7 @@ wildcard_constraints:
     # Accept both plate-well style (row=letters "A", col=digits "1") AND Opera Phenix
     # numeric wells (row="r02", col="c02"). Segments are "/"-delimited in paths so
     # widening these does not introduce cross-wildcard ambiguity.
+    well=r"[A-Z][0-9]+",
     row=r"[A-Za-z]+\d*",
     col=r"[A-Za-z]*\d+",
     tile=r"[0-9]+",

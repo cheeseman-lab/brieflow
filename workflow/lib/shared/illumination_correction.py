@@ -25,6 +25,7 @@ def calculate_ic_field(
     threading: bool = False,
     slicer: slice = slice(None),
     sample_fraction: float = 1.0,
+    n_jobs: int = 1,
 ) -> np.ndarray:
     """Calculate illumination correction field for use with the apply_ic_field.
 
@@ -43,6 +44,9 @@ def calculate_ic_field(
         threading (bool, optional): Whether to use threading for parallel processing. Defaults to False.
         slicer (slice, optional): Slice object to select specific parts of the images.
         sample_fraction (float, optional): Fraction of images to sample for calculation. Defaults to 1.0 (100% of images).
+        n_jobs (int, optional): Parallel workers for the file-accumulate reads and the per-channel
+            median filter. 1 (default) = serial (identical to prior behavior); >1 parallelizes
+            (bit-identical — read order preserved, float summation order unchanged).
 
     Returns:
         np.ndarray: The calculated illumination correction field.
@@ -57,13 +61,20 @@ def calculate_ic_field(
 
     # Accumulate images using threading or sequential processing, averaging them
     if threading:
-        # Accumulate results in parallel and combine them
-        results = Parallel(n_jobs=-1, require="sharedmem")(
-            delayed(accumulate_image)(file, slicer, np.zeros_like(data), len(files))
-            for file in files[1:]
-        )
-        for result in results:
-            data += result  # Aggregate results from parallel processing
+        # Parallel READ, in-order SUM. Reads (disk-bound) run concurrently in
+        # batches; the += stays in file order so the accumulator is byte-identical
+        # to the sequential path (float summation order preserved). Replaces the
+        # old np.zeros_like-per-file path that peaked at ~n_files*655MB (OOM).
+        N = len(files)
+        rest = files[1:]
+        batch = 16
+        read_frame = lambda f: read_image(f)[slicer]
+        for i in range(0, len(rest), batch):
+            imgs = Parallel(n_jobs=n_jobs, backend="threading")(
+                delayed(read_frame)(f) for f in rest[i : i + batch]
+            )
+            for img in imgs:
+                data += img / N
     else:
         for file in files[1:]:
             data = accumulate_image(file, slicer, data, len(files))
@@ -76,12 +87,17 @@ def calculate_ic_field(
         smooth = int(np.sqrt((data.shape[-1] * data.shape[-2]) / (np.pi * 20)))
 
     selem = morphology.disk(smooth)
-    median_filter = applyIJ(skimage.filters.median)
 
-    # Apply median filter with warning suppression
+    # Apply median filter with warning suppression.
+    # n_jobs>1 parallelizes across channel frames (bit-identical to the serial path).
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        smoothed = median_filter(data, selem, behavior="rank")
+        if n_jobs == 1:
+            smoothed = applyIJ(skimage.filters.median)(data, selem, behavior="rank")
+        else:
+            smoothed = applyIJ_parallel(
+                skimage.filters.median, data, footprint=selem, behavior="rank", n_jobs=n_jobs
+            )
 
     # Rescale channels if requested
     if rescale:

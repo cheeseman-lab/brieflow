@@ -10,7 +10,7 @@ features_basic = {
 }
 
 
-def extract_features(data, labels, wildcards, features=None, multichannel=False):
+def extract_features(data, labels, wildcards, features=None, multichannel=False, n_jobs=1):
     """Extract features from the provided image data within labeled segmentation masks.
 
     Args:
@@ -19,6 +19,8 @@ def extract_features(data, labels, wildcards, features=None, multichannel=False)
         wildcards (dict): Metadata to include in the output table, e.g., well, tile, etc.
         features (dict or None): Features to extract and their defining functions. Default is None.
         multichannel (bool): Flag indicating whether the data has multiple channels.
+        n_jobs (int): Number of parallel threads for per-region computation when multichannel.
+            Defaults to 1 (sequential). Pass snakemake.threads to enable region-level parallelism.
 
     Returns:
         pandas.DataFrame: Table of labeled regions in labels with corresponding feature measurements.
@@ -35,7 +37,10 @@ def extract_features(data, labels, wildcards, features=None, multichannel=False)
         from lib.shared.feature_table_utils import feature_table
 
     # Extract features using the feature table function
-    df = feature_table(data, labels, features)
+    if multichannel:
+        df = feature_table(data, labels, features, n_jobs=n_jobs)
+    else:
+        df = feature_table(data, labels, features)
 
     # Add wildcard metadata to the DataFrame
     for k, v in sorted(wildcards.items()):
@@ -45,7 +50,7 @@ def extract_features(data, labels, wildcards, features=None, multichannel=False)
 
 
 def extract_features_bare(
-    data, labels, features=None, wildcards=None, multichannel=False
+    data, labels, features=None, wildcards=None, multichannel=False, n_jobs=1
 ):
     """Extract features in dictionary and combine with generic region features.
 
@@ -55,6 +60,8 @@ def extract_features_bare(
         features (dict or None): Features to extract and their defining functions. Default is None.
         wildcards (dict or None): Metadata to include in the output table, e.g., well, tile, etc. Default is None.
         multichannel (bool): Flag indicating whether the data has multiple channels.
+        n_jobs (int): Number of parallel threads for per-region computation when multichannel.
+            Defaults to 1 (sequential).
 
     Returns:
         pandas.DataFrame: Table of labeled regions in labels with corresponding feature measurements.
@@ -71,7 +78,10 @@ def extract_features_bare(
         from lib.shared.feature_table_utils import feature_table
 
     # Extract features using the feature table function
-    df = feature_table(data, labels, features)
+    if multichannel:
+        df = feature_table(data, labels, features, n_jobs=n_jobs)
+    else:
+        df = feature_table(data, labels, features)
 
     # Add wildcard metadata to the DataFrame if provided
     if wildcards is not None:

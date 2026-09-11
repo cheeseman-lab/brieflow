@@ -18,7 +18,6 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 
-from lib.aggregate.cell_data_utils import control_mask
 
 CLUSTER_GROUP_PREFIX = "cluster_group_"
 
@@ -47,7 +46,6 @@ PROVIDER_KEY_ENV = {
 def cluster_table_from_h5ad(
     h5ad_path,
     leiden_resolution,
-    control_key=None,
     n_features=5,
     fdr_threshold=None,
     cluster_ids=None,
@@ -58,14 +56,13 @@ def cluster_table_from_h5ad(
     highest and lowest in the ``percentile_rank`` layer, named by
     ``var["feature_name"]`` rather than by index so the model sees real feature
     names. When ``fdr_threshold`` is given and the h5ad carries a bootstrap
-    ``fdr`` layer, only features below that threshold are eligible.
+    ``fdr`` layer, only features below that threshold are eligible. Control
+    perturbations stay in the table; mozzarellm recognizes them by name.
 
     Args:
         h5ad_path (str | Path): Cluster h5ad from ``rule format_cluster_anndata``.
         leiden_resolution (int | float | str): Resolution whose
             ``cluster_group_{res}`` column supplies the cluster assignments.
-        control_key (str | list, optional): Control identifier; matching
-            perturbations are dropped. Defaults to None (keep everything).
         n_features (int, optional): Features per direction. Defaults to 5.
         fdr_threshold (float, optional): Keep only features with an FDR below
             this value. Defaults to None (no FDR filter).
@@ -115,8 +112,6 @@ def cluster_table_from_h5ad(
     )
 
     table = table[table["cluster"].notna()]
-    if control_key is not None:
-        table = table[~control_mask(table["gene_symbol"], control_key)]
     table["cluster"] = table["cluster"].astype(int)
     if cluster_ids is not None:
         table = table[table["cluster"].isin([int(c) for c in cluster_ids])]
@@ -339,7 +334,6 @@ def run_mozzarellm(
     cluster_table = cluster_table_from_h5ad(
         h5ad_path,
         leiden_resolution,
-        control_key=_section(config, "aggregate").get("control_key"),
         n_features=n_features,
         fdr_threshold=fdr_threshold,
         cluster_ids=cluster_ids,

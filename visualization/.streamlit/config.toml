@@ -1,0 +1,37 @@
+[theme]
+base = "light"
+primaryColor = "#2B6E8F"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F6F8"
+textColor = "#1F2A37"
+linkColor = "#2B6E8F"
+borderColor = "#E2E8F0"
+dataframeBorderColor = "#E2E8F0"
+dataframeHeaderBackgroundColor = "#F4F6F8"
+showSidebarBorder = true
+font = "sans-serif"
+headingFont = "sans-serif"
+codeFont = "monospace"
+baseRadius = "medium"
+chartCategoricalColors = [
+    "#2B6E8F",
+    "#C97B3C",
+    "#5B8C5A",
+    "#8E6C9B",
+    "#B55A5A",
+    "#4F7CA3",
+    "#7A8B99",
+    "#A38A4B",
+]
+chartSequentialColors = [
+    "#EDF3F6",
+    "#D5E3EB",
+    "#BAD2DF",
+    "#9CC0D3",
+    "#7CADC5",
+    "#5B99B6",
+    "#3D84A5",
+    "#2B6E8F",
+    "#1F5872",
+    "#144255",
+]

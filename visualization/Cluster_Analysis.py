@@ -37,6 +37,7 @@ from src.config import BRIEFLOW_OUTPUT_PATH, STATIC_ASSET_URL_ROOT, STATIC_ASSET
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from workflow.lib.shared.image_io import read_image
+from workflow.lib.cluster.mozzarellm_io import latest_mozzarellm_run
 
 # =====================
 # CONSTANTS
@@ -87,7 +88,7 @@ SOURCE_INDEX = 3
 
 
 def find_mozzarellm_dirs(channel_combo: str) -> list:
-    """Find every mozzarellm/clusters directory under a channel combo.
+    """Find every mozzarellm run directory holding an annotation under a channel combo.
 
     Globs rather than walking fixed levels because the cluster tree gains a
     compartment_combo level when the run defines compartments.
@@ -95,17 +96,41 @@ def find_mozzarellm_dirs(channel_combo: str) -> list:
     return sorted(
         d
         for d in glob.glob(
-            os.path.join(CLUSTER_ROOT, channel_combo, "**", "mozzarellm", "clusters"),
+            os.path.join(CLUSTER_ROOT, channel_combo, "**", "mozzarellm", "run_*"),
             recursive=True,
         )
-        if os.path.isdir(d)
+        if os.path.isdir(d) and glob.glob(os.path.join(d, "*_clusters.json"))
     )
 
 
 def parse_mozzarellm_dir(mozzarellm_dir: str) -> tuple:
-    """Return the (cell_class, leiden_resolution) a mozzarellm/clusters directory belongs to."""
+    """Return the (cell_class, leiden_resolution) a mozzarellm run directory belongs to."""
     leiden_dir = os.path.dirname(os.path.dirname(mozzarellm_dir))
     return os.path.basename(os.path.dirname(leiden_dir)), os.path.basename(leiden_dir)
+
+
+@st.cache_data
+def load_mozzarellm_run(cluster_dir: str) -> tuple:
+    """Load the newest mozzarellm run for a resolution directory.
+
+    Returns:
+        tuple: (clusters dict keyed by cluster id, per-gene DataFrame). Both are
+        empty when the resolution has no mozzarellm run yet.
+    """
+    run_dir = latest_mozzarellm_run(cluster_dir)
+    if run_dir is None:
+        return {}, pd.DataFrame()
+
+    clusters_json = sorted(run_dir.glob("*_clusters.json"))[-1]
+    with open(clusters_json, "r") as f:
+        clusters = json.load(f).get("clusters", {})
+
+    genes_csv = clusters_json.with_name(
+        clusters_json.name.replace("_clusters.json", "_genes.csv")
+    )
+    genes = pd.read_csv(genes_csv) if genes_csv.exists() else pd.DataFrame()
+
+    return clusters, genes
 
 
 def has_mozzarellm_analysis(channel_combo: str) -> bool:
@@ -879,11 +904,9 @@ def cluster_size_charts(cluster_data):
 
 def get_available_llm_combinations(channel_combo: str) -> list:
     """Find all cell_class/resolution combinations that have LLM data."""
-    return [
-        parse_mozzarellm_dir(d)
-        for d in find_mozzarellm_dirs(channel_combo)
-        if os.listdir(d)
-    ]
+    return sorted(
+        {parse_mozzarellm_dir(d) for d in find_mozzarellm_dirs(channel_combo)}
+    )
 
 
 def display_cluster_json(cluster_data, container=st.container()):
@@ -894,35 +917,43 @@ def display_cluster_json(cluster_data, container=st.container()):
         cluster_dir = get_cluster_dir(cluster_data)
         cluster_id = str(st.session_state.selected_item)
 
-        # Build the path to the individual cluster JSON file in mozzarellm/clusters/
-        mozzarellm_clusters_dir = os.path.join(cluster_dir, "mozzarellm", "clusters")
-        cluster_json_path = os.path.join(
-            mozzarellm_clusters_dir, f"cluster_{cluster_id}.json"
-        )
+        # The newest mozzarellm run holds one JSON for every cluster it annotated
+        clusters, genes = load_mozzarellm_run(cluster_dir)
+        c = clusters.get(cluster_id)
 
         # Always show the section header
         st.subheader("LLM cluster analysis")
 
-        if os.path.exists(cluster_json_path):
-            with open(cluster_json_path, "r") as f:
-                c = json.load(f)
-
+        if c:
             process_col, confidence_col = st.columns([3, 1])
             process_col.metric("Dominant process", c.get("dominant_process", "—"))
             confidence_col.metric(
                 "Pathway confidence", str(c.get("pathway_confidence", "—")).title()
             )
 
+            established = c.get("established_genes", [])
+            novel = c.get("novel_role_genes", [])
+            uncharacterized = c.get("uncharacterized_genes", [])
+            for col, label, count in zip(
+                st.columns(4),
+                ["Genes", "Established", "Novel role", "Uncharacterized"],
+                [
+                    c.get("total_genes_in_cluster", len(established)),
+                    len(established),
+                    len(novel),
+                    len(uncharacterized),
+                ],
+            ):
+                col.metric(label, count)
+
             summary = c.get("summary", "")
             if summary:
                 st.markdown(summary)
 
-            established = c.get("established_genes", [])
             if established:
                 st.markdown("**Established genes**")
                 st.markdown(" ".join(f":green-badge[{gene}]" for gene in established))
 
-            novel = c.get("novel_role_genes", [])
             if novel:
                 st.markdown("**Novel role genes**")
                 for gene in novel:
@@ -930,12 +961,27 @@ def display_cluster_json(cluster_data, container=st.container()):
                         f":orange-badge[{gene['gene']}] {gene.get('rationale', '')}"
                     )
 
-            uncharacterized = c.get("uncharacterized_genes", [])
             if uncharacterized:
                 st.markdown("**Uncharacterized genes**")
                 for gene in uncharacterized:
                     st.markdown(
                         f":violet-badge[{gene['gene']}] {gene.get('rationale', '')}"
+                    )
+
+            if not genes.empty and "cluster_id" in genes.columns:
+                cluster_genes = genes[genes["cluster_id"].astype(str) == cluster_id]
+                if not cluster_genes.empty:
+                    st.markdown("**Per-gene calls**")
+                    st.dataframe(
+                        cluster_genes[
+                            [
+                                col
+                                for col in ["gene", "category", "subclass", "rationale"]
+                                if col in cluster_genes.columns
+                            ]
+                        ],
+                        use_container_width=True,
+                        hide_index=True,
                     )
         else:
             # Show a hint about where the analysis does exist when it is missing here
@@ -947,10 +993,16 @@ def display_cluster_json(cluster_data, container=st.container()):
             available = get_available_llm_combinations(channel_combo)
 
             # Smart context: tailor message based on what's wrong
-            if not available:
+            if clusters:
                 available_text = (
-                    "The `mozzarellm` step writes `mozzarellm/clusters/cluster_*.json` "
-                    "next to the clustering outputs."
+                    f"The newest run annotated clusters "
+                    f"{', '.join(sorted(clusters, key=int))}."
+                )
+            elif not available:
+                available_text = (
+                    "The `mozzarellm` step writes "
+                    "`mozzarellm/run_*/<screen>_clusters.json` next to the "
+                    "clustering outputs."
                 )
             else:
                 # Check if current cell class has any LLM data

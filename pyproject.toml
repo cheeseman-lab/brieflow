@@ -59,6 +59,12 @@ dependencies = [
   "marimo==0.23.6",
 ]
 
+[project.optional-dependencies]
+mozzarellm = [
+  "mozzarellm @ git+https://github.com/cheeseman-lab/mozzarellm.git@cot-mcp",
+  "python-dotenv==1.2.3",
+]
+
 
 [tool.setuptools]
 package-dir = {"" = "workflow"}

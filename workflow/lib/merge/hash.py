@@ -274,7 +274,8 @@ def evaluate_match(
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
         # Use matching triangles to define transformation
-        model = RANSACRegressor(**(ransac_kwargs or {}))
+        # Seed random_state=0 by default for reproducibility; caller can override via ransac_kwargs.
+        model = RANSACRegressor(**{"random_state": 0, **(ransac_kwargs or {})})
         model.fit(X, Y)  # Fit the RANSAC model to the matching centers
 
     rotation = model.estimator_.coef_  # Extract rotation matrix
@@ -551,9 +552,9 @@ def prioritize(well_locations_0, well_locations_1, matches):
         warnings.filterwarnings("ignore")
         # allow testing with subset of tiles
         if a.shape[0] == a.shape[1]:
-            model = RANSACRegressor(min_samples=1)
+            model = RANSACRegressor(min_samples=1, random_state=0)
         else:
-            model = RANSACRegressor()
+            model = RANSACRegressor(random_state=0)
         model.fit(a, b)  # Fit the RANSAC model to the matching coordinates
 
     # Predict coordinates for the first set and calculate distances to the second set

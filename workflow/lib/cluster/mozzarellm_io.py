@@ -71,7 +71,7 @@ def cluster_table_from_h5ad(
 
     Returns:
         pd.DataFrame: Columns ``gene_symbol``, ``cluster``, ``up_features``,
-        ``down_features``, ``phenotypic_strength``.
+        ``down_features``, ``perturbation_auc``.
     """
     adata = ad.read_h5ad(h5ad_path)
     cluster_col = f"{CLUSTER_GROUP_PREFIX}{_resolution_label(leiden_resolution)}"
@@ -102,7 +102,7 @@ def cluster_table_from_h5ad(
             "cluster": adata.obs[cluster_col].to_numpy(),
             "up_features": up_features,
             "down_features": down_features,
-            "phenotypic_strength": pd.to_numeric(
+            "perturbation_auc": pd.to_numeric(
                 adata.obs.get(
                     "perturbation_auc", pd.Series(np.nan, index=adata.obs_names)
                 ),
@@ -243,14 +243,26 @@ def mozzarellm_run_dir(cluster_dir, stamp=None):
 
 
 def latest_mozzarellm_run(cluster_dir):
-    """Return the newest mozzarellm run directory holding a cluster JSON.
+    """Return the mozzarellm run directory a reader should display.
+
+    mozzarellm writes ``latest.json`` beside the run directories after a
+    successful run; that pointer wins, and the newest ``run_*`` holding a
+    cluster JSON is the fallback for runs written before the pointer existed.
 
     Args:
         cluster_dir (str | Path): Resolution directory holding the clustering outputs.
 
     Returns:
-        Path | None: Newest ``run_*`` directory with a ``*_clusters.json``, or None.
+        Path | None: The pointed-to run directory, else the newest ``run_*``
+        with a ``*_clusters.json``, else None.
     """
+    pointer = Path(cluster_dir) / MOZZARELLM_DIR_NAME / "latest.json"
+    if pointer.exists():
+        named = json.loads(pointer.read_text()).get("run_dir")
+        run = pointer.parent / str(named) if named else None
+        if run is not None and run.is_dir() and any(run.glob("*_clusters.json")):
+            return run
+
     runs = [
         run
         for run in sorted(
@@ -270,14 +282,17 @@ def run_mozzarellm(
     leiden_resolution,
     model,
     mode="cot",
-    mcp=False,
-    include_features=True,
+    mcp=True,
+    include_features="auto",
+    include_strength="auto",
     n_features=5,
     fdr_threshold=None,
     temperature=None,
-    max_tokens=16000,
+    max_tokens=64000,
     screen_name=None,
     cluster_ids=None,
+    resume=False,
+    dry_run=False,
 ):
     """Annotate a resolution's clusters with mozzarellm and write the run outputs.
 
@@ -288,35 +303,36 @@ def run_mozzarellm(
         config (dict): Parsed ``config/config.yml``.
         leiden_resolution (int | float | str): Resolution to annotate.
         model (str): Model identifier, e.g. ``claude-sonnet-5``.
-        mode (str, optional): Prompt mode. Defaults to "cot".
-        mcp (bool, optional): Attach mozzarellm's literature tools. Defaults to False.
-        include_features (bool, optional): Feed the up/down feature lists to the
-            model. Defaults to True.
+        mode (str, optional): Prompt mode. Defaults to "cot", mozzarellm's
+            benchmark-selected delivery format.
+        mcp (bool, optional): Attach mozzarellm's PubMed literature tools, which
+            fill in genes whose annotation is blank. Defaults to True, the
+            benchmark-selected configuration.
+        include_features (bool | str, optional): Feed the up/down feature lists
+            to the model. Defaults to "auto" (on when the bundles carry them).
+        include_strength (bool | str, optional): Feed the per-gene perturbation
+            strength ranks to the model. Defaults to "auto" (on when the bundles
+            carry them).
         n_features (int, optional): Features per direction. Defaults to 5.
         fdr_threshold (float, optional): FDR cutoff for eligible features.
             Defaults to None.
         temperature (float, optional): Sampling temperature. Defaults to None
             (the mozzarellm client default).
-        max_tokens (int, optional): Response token budget. Defaults to 16000.
+        max_tokens (int, optional): Response token budget. Defaults to 64000,
+            the ceiling mozzarellm's feature-augmented runs need.
         screen_name (str, optional): Label prefixing the output files. Defaults
             to None (the screen title, else the cluster directory's cell class
             and channel combo).
         cluster_ids (list, optional): Restrict the run to these clusters.
             Defaults to None (every cluster).
+        resume (bool, optional): Reuse clusters already answered in
+            ``run_dir/traces``. Defaults to False.
+        dry_run (bool, optional): Assemble the prompts and report the estimated
+            cost without calling the model. Defaults to False.
 
     Returns:
         dict: The ``analyze_screen`` result, with ``run_dir`` set to the run directory.
-
-    Raises:
-        ValueError: If ``mcp`` and ``include_features`` are both set, which
-            mozzarellm does not support.
     """
-    if mcp and include_features:
-        raise ValueError(
-            "mozzarellm supports include_features only for mode='cot' without MCP; "
-            "set mcp=False or include_features=False"
-        )
-
     try:
         from mozzarellm.clients.llm_api_clients import create_client
         from mozzarellm.pipeline.screen_analysis import (
@@ -328,7 +344,11 @@ def run_mozzarellm(
 
     screen_name = screen_name or _screen_name(screen, cluster_dir)
     output_dir = Path(cluster_dir) / MOZZARELLM_DIR_NAME
-    run_dir = mozzarellm_run_dir(cluster_dir)
+    run_dir = (
+        latest_mozzarellm_run(cluster_dir) or mozzarellm_run_dir(cluster_dir)
+        if resume
+        else mozzarellm_run_dir(cluster_dir)
+    )
     run_dir.mkdir(parents=True, exist_ok=True)
 
     cluster_table = cluster_table_from_h5ad(
@@ -339,12 +359,10 @@ def run_mozzarellm(
         cluster_ids=cluster_ids,
     )
 
-    screen_context_path = run_dir / "screen_context.json"
-    screen_context_path.write_text(
-        json.dumps(
-            screen_context_from_screen(screen, config, leiden_resolution), indent=2
-        ),
-        encoding="utf-8",
+    screen_context = screen_context_from_screen(screen, config, leiden_resolution)
+    # mozzarellm takes the context in memory; the copy on disk is the run's record
+    (run_dir / "screen_context.json").write_text(
+        json.dumps(screen_context, indent=2), encoding="utf-8"
     )
 
     bundles = prepare_screen_bundles(
@@ -352,7 +370,10 @@ def run_mozzarellm(
         cluster_table=cluster_table,
         output_dir=output_dir,
         organism_id=organism_id_from_screen(screen),
-        feature_columns=["up_features", "down_features"] if include_features else None,
+        feature_columns=(
+            None if include_features is False else ["up_features", "down_features"]
+        ),
+        strength_column=None if include_strength is False else "perturbation_auc",
     )
     if cluster_ids is not None:
         wanted = {str(c) for c in cluster_ids}
@@ -370,10 +391,13 @@ def run_mozzarellm(
         cluster_to_bundle_map=bundles,
         client=create_client(**client_kwargs),
         run_dir=run_dir,
-        screen_context_path=screen_context_path,
+        screen_context=screen_context,
         mode=mode,
         mcp=mcp,
         include_features=include_features,
+        include_strength=include_strength,
+        resume=resume,
+        dry_run=dry_run,
     )
     result["run_dir"] = run_dir
 

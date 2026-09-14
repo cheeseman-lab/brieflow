@@ -12,6 +12,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
 
+from lib.shared.compartment_utils import add_compartment_path
 from lib.shared.file_utils import get_filename
 from lib.shared.parquet_io import read_parquet
 

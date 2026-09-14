@@ -4,19 +4,23 @@ The cluster h5ad written by ``rule format_cluster_anndata`` carries everything
 mozzarellm needs -- one row per perturbation, a cluster assignment per Leiden
 resolution, and a percentile-rank layer over the features -- so this module
 reshapes it into the gene/cluster/feature table mozzarellm consumes, builds the
-screen-context JSON from the screen description, and runs the analysis into a
-timestamped run directory next to the clustering outputs.
+screen-context JSON from the screen description, runs the analysis into a run
+directory next to the clustering outputs, and merges what the model returned
+back into the clustering's h5ad.
 """
 
 import json
 import os
 import re
 from datetime import datetime
+from inspect import signature
 from pathlib import Path
 
 import anndata as ad
 import numpy as np
 import pandas as pd
+
+from lib.shared.compartment_utils import get_compartment_combo
 
 
 CLUSTER_GROUP_PREFIX = "cluster_group_"
@@ -24,6 +28,19 @@ CLUSTER_GROUP_PREFIX = "cluster_group_"
 MOZZARELLM_DIR_NAME = "mozzarellm"
 
 RUN_DIR_PREFIX = "run_"
+
+CHANNEL_COMBO_DELIMITER = "_"
+
+DEFAULT_ORGANISM_ID = 9606
+
+# obs column each mozzarellm per-gene call lands in
+GENE_ANNOTATION_COLUMNS = {
+    "mozzarellm_category": "category",
+    "mozzarellm_subclass": "subclass",
+    "mozzarellm_rationale": "rationale",
+}
+
+CLUSTER_ANNOTATION_KEYS = ("dominant_process", "pathway_confidence", "summary")
 
 # run_phate hard-codes its neighbourhood size, so the screen context reports that value
 PHATE_KNN = 10
@@ -119,7 +136,37 @@ def cluster_table_from_h5ad(
     return table.reset_index(drop=True)
 
 
-def screen_context_from_screen(screen, config, leiden_resolution):
+def screen_context_for_combo(
+    screen, config, channel_combo, cell_class, leiden_resolution
+):
+    """Build the screen context for one clustering's channel combo and cell class.
+
+    A clustering is built from one channel combo and one cell class, so the
+    context it gets describes only those channels rather than the screen's full
+    panel. Callers write one of these per row of the mozzarellm combo table.
+
+    Args:
+        screen (dict): Parsed ``screen.yaml``.
+        config (dict): Parsed ``config/config.yml``.
+        channel_combo (str): Underscore-joined channels the clustering used.
+        cell_class (str): Cell class the clustering covers, or "all".
+        leiden_resolution (int | float | str): Resolution being annotated.
+
+    Returns:
+        dict: Screen context ready to be written as JSON.
+    """
+    return screen_context_from_screen(
+        screen,
+        config,
+        leiden_resolution,
+        channel_combo=channel_combo,
+        cell_class=cell_class,
+    )
+
+
+def screen_context_from_screen(
+    screen, config, leiden_resolution, channel_combo=None, cell_class=None
+):
     """Build the mozzarellm screen-context dict from screen.yaml and config.yml.
 
     Every key the mozzarellm template marks "required" is filled, falling back
@@ -129,6 +176,10 @@ def screen_context_from_screen(screen, config, leiden_resolution):
         screen (dict): Parsed ``screen.yaml``.
         config (dict): Parsed ``config/config.yml``.
         leiden_resolution (int | float | str): Resolution being annotated.
+        channel_combo (str, optional): Channels the clustering was built from.
+            Defaults to None (the screen's full channel panel).
+        cell_class (str, optional): Cell class the clustering covers. Defaults
+            to None (unnamed, as for an "all" clustering).
 
     Returns:
         dict: Screen context ready to be written as JSON.
@@ -138,8 +189,7 @@ def screen_context_from_screen(screen, config, leiden_resolution):
     collection = _section(screen, "collection")
     cluster_config = _section(config, "cluster")
 
-    channels = _channel_names(screen, config)
-    channel_text = ", ".join(channels) if channels else "the phenotype"
+    channels = _combo_channels(screen, config, channel_combo)
     gene_selection = library.get("gene_selection") or "pooled sgRNA library"
     number_of_genes = library.get("number_of_genes")
     if number_of_genes:
@@ -149,11 +199,13 @@ def screen_context_from_screen(screen, config, leiden_resolution):
 
     return {
         "assay_type": experiment.get("assay") or "optical pooled screening",
-        "target_phenotype": (
-            "Morphological cell phenotype — shape, texture and intensity features "
-            f"measured across the {channel_text} imaging channels"
-        ),
+        "target_phenotype": _target_phenotype(screen, channels, cell_class),
         "organism": experiment.get("organism") or "Homo sapiens",
+        "organism_ontology_term_id": (
+            str(experiment.get("organism_ontology_term_id"))
+            if experiment.get("organism_ontology_term_id")
+            else f"NCBITaxon:{DEFAULT_ORGANISM_ID}"
+        ),
         "cell_line_or_system": experiment.get("tissue") or "unspecified cell line",
         "perturbation": {
             "type": library.get("vector") or "CRISPR-Cas9 knockout",
@@ -221,25 +273,41 @@ def organism_id_from_screen(screen):
     Returns:
         int: NCBI taxonomy id, e.g. 9606 for ``NCBITaxon:9606``.
     """
-    term = _section(screen, "experiment").get("organism_ontology_term_id")
-    match = re.search(r"(\d+)", str(term or ""))
-
-    return int(match.group(1)) if match else 9606
+    return _taxon_id(_section(screen, "experiment").get("organism_ontology_term_id"))
 
 
-def mozzarellm_run_dir(cluster_dir, stamp=None):
+def organism_id_from_context(screen_context):
+    """Return the NCBI taxonomy id a written screen context carries.
+
+    Lets a job that reads a pre-written context resolve the same taxonomy id the
+    screen description would have given, without reading screen.yaml itself.
+
+    Args:
+        screen_context (dict): Screen context loaded from its JSON.
+
+    Returns:
+        int: NCBI taxonomy id, defaulting to human.
+    """
+    return _taxon_id((screen_context or {}).get("organism_ontology_term_id"))
+
+
+def mozzarellm_run_dir(cluster_dir, stamp=None, run_name=None):
     """Return the run directory a mozzarellm run writes into.
 
     Args:
         cluster_dir (str | Path): Resolution directory holding the clustering outputs.
         stamp (str, optional): Run stamp. Defaults to None (the current time).
+        run_name (str, optional): Fixed run directory name, for callers such as
+            the pipeline rule that need a path snakemake can predict. Defaults
+            to None (a timestamped ``run_<stamp>``).
 
     Returns:
-        Path: ``<cluster_dir>/mozzarellm/run_<stamp>``.
+        Path: ``<cluster_dir>/mozzarellm/<run_name>``, else ``.../run_<stamp>``.
     """
     stamp = stamp or datetime.now().strftime("%Y%m%d_%H%M%S")
+    name = run_name or f"{RUN_DIR_PREFIX}{stamp}"
 
-    return Path(cluster_dir) / MOZZARELLM_DIR_NAME / f"{RUN_DIR_PREFIX}{stamp}"
+    return Path(cluster_dir) / MOZZARELLM_DIR_NAME / name
 
 
 def latest_mozzarellm_run(cluster_dir):
@@ -289,7 +357,11 @@ def run_mozzarellm(
     fdr_threshold=None,
     temperature=None,
     max_tokens=64000,
+    max_workers=None,
     screen_name=None,
+    screen_context=None,
+    organism_id=None,
+    run_name=None,
     cluster_ids=None,
     resume=False,
     dry_run=False,
@@ -299,8 +371,9 @@ def run_mozzarellm(
     Args:
         h5ad_path (str | Path): Cluster h5ad to annotate.
         cluster_dir (str | Path): Resolution directory the run is written under.
-        screen (dict): Parsed ``screen.yaml``.
-        config (dict): Parsed ``config/config.yml``.
+        screen (dict): Parsed ``screen.yaml``. May be empty when ``screen_context``
+            and ``organism_id`` are supplied.
+        config (dict): Parsed ``config/config.yml``. May be empty on the same terms.
         leiden_resolution (int | float | str): Resolution to annotate.
         model (str): Model identifier, e.g. ``claude-sonnet-5``.
         mode (str, optional): Prompt mode. Defaults to "cot", mozzarellm's
@@ -320,9 +393,18 @@ def run_mozzarellm(
             (the mozzarellm client default).
         max_tokens (int, optional): Response token budget. Defaults to 64000,
             the ceiling mozzarellm's feature-augmented runs need.
+        max_workers (int, optional): Clusters to answer concurrently. Defaults
+            to None (mozzarellm's own default); ignored by installs whose
+            ``analyze_screen`` does not take it yet.
         screen_name (str, optional): Label prefixing the output files. Defaults
             to None (the screen title, else the cluster directory's cell class
             and channel combo).
+        screen_context (dict, optional): Context to run with, in place of one
+            built from the screen description. Defaults to None (build it).
+        organism_id (int, optional): NCBI taxonomy id for the UniProt lookups.
+            Defaults to None (the id the screen description declares).
+        run_name (str, optional): Fixed run directory name. Defaults to None
+            (a timestamped directory).
         cluster_ids (list, optional): Restrict the run to these clusters.
             Defaults to None (every cluster).
         resume (bool, optional): Reuse clusters already answered in
@@ -344,11 +426,12 @@ def run_mozzarellm(
 
     screen_name = screen_name or _screen_name(screen, cluster_dir)
     output_dir = Path(cluster_dir) / MOZZARELLM_DIR_NAME
-    run_dir = (
-        latest_mozzarellm_run(cluster_dir) or mozzarellm_run_dir(cluster_dir)
-        if resume
-        else mozzarellm_run_dir(cluster_dir)
-    )
+    if run_name:
+        run_dir = mozzarellm_run_dir(cluster_dir, run_name=run_name)
+    elif resume:
+        run_dir = latest_mozzarellm_run(cluster_dir) or mozzarellm_run_dir(cluster_dir)
+    else:
+        run_dir = mozzarellm_run_dir(cluster_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
 
     cluster_table = cluster_table_from_h5ad(
@@ -359,7 +442,11 @@ def run_mozzarellm(
         cluster_ids=cluster_ids,
     )
 
-    screen_context = screen_context_from_screen(screen, config, leiden_resolution)
+    screen_context = screen_context or screen_context_from_screen(
+        screen, config, leiden_resolution
+    )
+    if organism_id is None:
+        organism_id = organism_id_from_screen(screen)
     # mozzarellm takes the context in memory; the copy on disk is the run's record
     (run_dir / "screen_context.json").write_text(
         json.dumps(screen_context, indent=2), encoding="utf-8"
@@ -369,7 +456,7 @@ def run_mozzarellm(
         screen_name=screen_name,
         cluster_table=cluster_table,
         output_dir=output_dir,
-        organism_id=organism_id_from_screen(screen),
+        organism_id=organism_id,
         feature_columns=(
             None if include_features is False else ["up_features", "down_features"]
         ),
@@ -386,6 +473,14 @@ def run_mozzarellm(
     if api_key:
         client_kwargs["api_key"] = api_key
 
+    analyze_kwargs = {}
+    # max_workers is newer than the pinned mozzarellm, so older installs just run serially
+    if (
+        max_workers is not None
+        and "max_workers" in signature(analyze_screen).parameters
+    ):
+        analyze_kwargs["max_workers"] = max_workers
+
     result = analyze_screen(
         screen_name=screen_name,
         cluster_to_bundle_map=bundles,
@@ -398,10 +493,108 @@ def run_mozzarellm(
         include_strength=include_strength,
         resume=resume,
         dry_run=dry_run,
+        **analyze_kwargs,
     )
     result["run_dir"] = run_dir
 
     return result
+
+
+def annotate_cluster_anndata(
+    h5ad_path,
+    clusters_json_path,
+    genes_csv_path,
+    leiden_resolution,
+    run_name=None,
+    screen_name=None,
+):
+    """Merge a mozzarellm run's calls into the clustering's h5ad.
+
+    The per-gene calls land in ``obs`` as ``mozzarellm_category``,
+    ``mozzarellm_subclass`` and ``mozzarellm_rationale``, blank for
+    perturbations the run left unclassified. The cluster-level calls land in
+    ``uns["mozzarellm"]["clusters"]``, keyed by the cluster label held in the
+    ``uns["mozzarellm"]["cluster_column"]`` obs column, so a reader can go from
+    a perturbation to its cluster's call without the run directory.
+
+    Args:
+        h5ad_path (str | Path): Cluster h5ad from ``rule format_cluster_anndata``.
+        clusters_json_path (str | Path): The run's ``<screen>_clusters.json``.
+        genes_csv_path (str | Path): The run's ``<screen>_genes.csv``.
+        leiden_resolution (int | float | str): Resolution the run annotated.
+        run_name (str, optional): Run directory name, recorded in ``uns``.
+            Defaults to None.
+        screen_name (str, optional): Screen label, recorded in ``uns``. Defaults
+            to None.
+
+    Returns:
+        ad.AnnData: The annotated object, ready to write.
+    """
+    adata = ad.read_h5ad(h5ad_path)
+    cluster_col = f"{CLUSTER_GROUP_PREFIX}{_resolution_label(leiden_resolution)}"
+    if cluster_col not in adata.obs.columns:
+        available = [c for c in adata.obs.columns if c.startswith(CLUSTER_GROUP_PREFIX)]
+        raise KeyError(f"{h5ad_path} has no {cluster_col}; available: {available}")
+
+    genes = pd.read_csv(genes_csv_path)
+    calls = (
+        genes.drop_duplicates(subset="gene").set_index("gene")
+        if "gene" in genes.columns
+        else pd.DataFrame()
+    )
+    obs_genes = pd.Series(pd.Index(adata.obs_names).astype(str), index=adata.obs_names)
+    for column, source in GENE_ANNOTATION_COLUMNS.items():
+        values = calls[source] if source in calls.columns else pd.Series(dtype="object")
+        adata.obs[column] = obs_genes.map(values).fillna("").astype(str)
+
+    clusters = json.loads(Path(clusters_json_path).read_text(encoding="utf-8"))
+    clusters = clusters.get("clusters", clusters)
+    adata.uns["mozzarellm"] = {
+        "run_name": str(run_name or ""),
+        "screen_name": str(screen_name or ""),
+        "leiden_resolution": str(leiden_resolution),
+        "cluster_column": cluster_col,
+        "clusters": {
+            str(cluster_id): {
+                key: str(call.get(key) or "") for key in CLUSTER_ANNOTATION_KEYS
+            }
+            for cluster_id, call in clusters.items()
+        },
+    }
+
+    return adata
+
+
+def mozzarellm_row_value(
+    combos, column, wildcards, split_by_compartment, default_compartment_combo
+):
+    """Return one column of the combo-table row the current job's wildcards select.
+
+    Args:
+        combos (pd.DataFrame): The normalized mozzarellm combo table.
+        column (str): Column to read, e.g. ``screen_context_fp``.
+        wildcards: Snakemake wildcards for the current job.
+        split_by_compartment (bool): Whether compartment-specific paths are enabled.
+        default_compartment_combo (str): Combo to use when splitting is disabled.
+
+    Returns:
+        str: The row's value in ``column``.
+    """
+    selection = {
+        "cell_class": wildcards.cell_class,
+        "channel_combo": wildcards.channel_combo,
+        "compartment_combo": get_compartment_combo(
+            wildcards, split_by_compartment, default_compartment_combo
+        ),
+        "leiden_resolution": wildcards.leiden_resolution,
+    }
+    rows = combos
+    for key, value in selection.items():
+        rows = rows[rows[key].astype(str) == str(value)]
+    if rows.empty:
+        raise KeyError(f"no mozzarellm combo row for {selection}")
+
+    return str(rows.iloc[0][column])
 
 
 def _resolution_label(leiden_resolution):
@@ -451,6 +644,55 @@ def _channel_names(screen, config):
         for channel in phenotype.get("channels") or []
         if isinstance(channel, dict) and channel.get("biological_name")
     ]
+
+
+def _combo_channels(screen, config, channel_combo):
+    """Return the channels a clustering was built from, else the screen's full panel."""
+    if channel_combo:
+        return [
+            channel
+            for channel in str(channel_combo).split(CHANNEL_COMBO_DELIMITER)
+            if channel
+        ]
+
+    return _channel_names(screen, config)
+
+
+def _channel_markers(screen):
+    """Map each phenotype channel's biological name to what screen.yaml says it marks."""
+    return {
+        str(channel["biological_name"]): str(channel.get("marker_of") or "").strip()
+        for channel in _section(screen, "phenotype").get("channels") or []
+        if isinstance(channel, dict) and channel.get("biological_name")
+    }
+
+
+def _target_phenotype(screen, channels, cell_class):
+    """Render the target-phenotype sentence for one channel combo and cell class."""
+    markers = _channel_markers(screen)
+    described = [
+        f"{channel} (marker of {markers[channel]})" if markers.get(channel) else channel
+        for channel in channels
+    ]
+    channel_text = ", ".join(described) if described else "the phenotype"
+    plural = "s" if len(described) > 1 else ""
+    scope = (
+        f" of {cell_class} cells"
+        if cell_class and str(cell_class).lower() != "all"
+        else ""
+    )
+
+    return (
+        "Morphological cell phenotype — shape, texture and intensity features"
+        f"{scope} measured in the {channel_text} imaging channel{plural}"
+    )
+
+
+def _taxon_id(term):
+    """Return the numeric taxonomy id in an ontology term, defaulting to human."""
+    match = re.search(r"(\d+)", str(term or ""))
+
+    return int(match.group(1)) if match else DEFAULT_ORGANISM_ID
 
 
 def _control_text(values, fallback_key, default):

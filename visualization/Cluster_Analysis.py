@@ -37,7 +37,7 @@ from src.config import BRIEFLOW_OUTPUT_PATH, STATIC_ASSET_URL_ROOT, STATIC_ASSET
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from workflow.lib.shared.image_io import read_image
-from workflow.lib.cluster.mozzarellm_io import latest_mozzarellm_run
+from workflow.lib.mozzarellm.annotate_clusters import latest_mozzarellm_run
 
 # =====================
 # CONSTANTS
@@ -53,6 +53,16 @@ CLUSTER_DIR_LEVELS = {
 
 # obs holds one cluster assignment column per leiden resolution
 CLUSTER_GROUP_PREFIX = "cluster_group_"
+
+# the h5ad rule annotate_cluster_anndata writes beside a resolution's clustering outputs
+ANNOTATED_H5AD_NAME = "cluster_annotated.h5ad"
+
+# obs columns rule annotate_cluster_anndata adds, and the gene-table columns they feed
+ANNOTATION_OBS_COLUMNS = {
+    "category": "mozzarellm_category",
+    "subclass": "mozzarellm_subclass",
+    "rationale": "mozzarellm_rationale",
+}
 
 # obs columns the page already carries as a filter, so they stay out of the gene table
 OBS_EXCLUDED_COLUMNS = ["cell_cycle_phase"]
@@ -88,35 +98,48 @@ SOURCE_INDEX = 3
 
 
 def find_mozzarellm_dirs(channel_combo: str) -> list:
-    """Find every mozzarellm run directory holding an annotation under a channel combo.
+    """Find every resolution directory carrying a mozzarellm annotation under a channel combo.
 
     Globs rather than walking fixed levels because the cluster tree gains a
-    compartment_combo level when the run defines compartments.
+    compartment_combo level when the run defines compartments. Both layouts
+    count: the annotated h5ad the mozzarellm stage writes, and the bare run
+    directory that screens annotated before the stage existed still carry.
     """
-    return sorted(
+    root = os.path.join(CLUSTER_ROOT, channel_combo)
+    annotated = glob.glob(os.path.join(root, "**", ANNOTATED_H5AD_NAME), recursive=True)
+    runs = [
         d
-        for d in glob.glob(
-            os.path.join(CLUSTER_ROOT, channel_combo, "**", "mozzarellm", "run_*"),
-            recursive=True,
-        )
+        for d in glob.glob(os.path.join(root, "**", "mozzarellm", "*"), recursive=True)
         if os.path.isdir(d) and glob.glob(os.path.join(d, "*_clusters.json"))
+    ]
+
+    return sorted(
+        {os.path.dirname(p) for p in annotated}
+        | {os.path.dirname(os.path.dirname(d)) for d in runs}
     )
 
 
-def parse_mozzarellm_dir(mozzarellm_dir: str) -> tuple:
-    """Return the (cell_class, leiden_resolution) a mozzarellm run directory belongs to."""
-    leiden_dir = os.path.dirname(os.path.dirname(mozzarellm_dir))
-    return os.path.basename(os.path.dirname(leiden_dir)), os.path.basename(leiden_dir)
+def parse_mozzarellm_dir(cluster_dir: str) -> tuple:
+    """Return the (cell_class, leiden_resolution) a resolution directory belongs to."""
+    return os.path.basename(os.path.dirname(cluster_dir)), os.path.basename(cluster_dir)
 
 
 @st.cache_data
 def load_mozzarellm_run(cluster_dir: str) -> tuple:
-    """Load the newest mozzarellm run for a resolution directory.
+    """Load a resolution's mozzarellm annotation.
+
+    Prefers the annotated h5ad the mozzarellm stage writes, falling back to the
+    newest run directory's JSON/CSV pair so screens annotated before the stage
+    existed still render.
 
     Returns:
         tuple: (clusters dict keyed by cluster id, per-gene DataFrame). Both are
-        empty when the resolution has no mozzarellm run yet.
+        empty when the resolution has no mozzarellm annotation yet.
     """
+    annotated_h5ad = os.path.join(cluster_dir, ANNOTATED_H5AD_NAME)
+    if os.path.exists(annotated_h5ad):
+        return load_annotated_clusters(annotated_h5ad)
+
     run_dir = latest_mozzarellm_run(cluster_dir)
     if run_dir is None:
         return {}, pd.DataFrame()
@@ -131,6 +154,61 @@ def load_mozzarellm_run(cluster_dir: str) -> tuple:
     genes = pd.read_csv(genes_csv) if genes_csv.exists() else pd.DataFrame()
 
     return clusters, genes
+
+
+def load_annotated_clusters(h5ad_path: str) -> tuple:
+    """Rebuild the cluster dict and per-gene table from an annotated cluster h5ad.
+
+    The h5ad keeps the cluster-level calls in ``uns["mozzarellm"]`` and the
+    per-gene calls in obs, so the page's gene lists and counts come back from
+    the obs rows rather than from the run's JSON.
+    """
+    adata = ad.read_h5ad(h5ad_path)
+    annotation = dict(adata.uns.get("mozzarellm", {}))
+    cluster_column = str(annotation.get("cluster_column", ""))
+    if cluster_column not in adata.obs.columns:
+        return {}, pd.DataFrame()
+
+    obs = adata.obs
+    genes = pd.DataFrame(
+        {
+            "gene": obs.index.astype(str),
+            "cluster_id": obs[cluster_column].astype(str),
+            **{
+                column: obs.get(obs_column, "")
+                for column, obs_column in ANNOTATION_OBS_COLUMNS.items()
+            },
+        },
+        index=obs.index,
+    ).reset_index(drop=True)
+    genes = genes[genes["category"].astype(str) != ""]
+
+    clusters = {}
+    for cluster_id, call in dict(annotation.get("clusters", {})).items():
+        cluster_id = str(cluster_id)
+        members = genes[genes["cluster_id"] == cluster_id]
+        clusters[cluster_id] = {
+            **{key: str(value) for key, value in dict(call).items()},
+            "total_genes_in_cluster": int(
+                (obs[cluster_column].astype(str) == cluster_id).sum()
+            ),
+            "established_genes": members.loc[
+                members["category"] == "ESTABLISHED", "gene"
+            ].tolist(),
+            "novel_role_genes": annotated_gene_records(members, "NOVEL_ROLE"),
+            "uncharacterized_genes": annotated_gene_records(members, "UNCHARACTERIZED"),
+        }
+
+    return clusters, genes
+
+
+def annotated_gene_records(members: pd.DataFrame, category: str) -> list:
+    """Return the page's {gene, rationale} records for one mozzarellm category."""
+    selected = members[members["category"] == category]
+    return [
+        {"gene": row["gene"], "rationale": row["rationale"]}
+        for _, row in selected.iterrows()
+    ]
 
 
 def has_mozzarellm_analysis(channel_combo: str) -> bool:
@@ -1000,9 +1078,9 @@ def display_cluster_json(cluster_data, container=st.container()):
                 )
             elif not available:
                 available_text = (
-                    "The `mozzarellm` step writes "
-                    "`mozzarellm/run_*/<screen>_clusters.json` next to the "
-                    "clustering outputs."
+                    "`rule annotate_cluster_anndata` writes "
+                    "`cluster_annotated.h5ad` next to the clustering outputs "
+                    "(older runs: `mozzarellm/run_*/<screen>_clusters.json`)."
                 )
             else:
                 # Check if current cell class has any LLM data

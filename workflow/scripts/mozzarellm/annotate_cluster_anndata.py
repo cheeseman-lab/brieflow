@@ -1,4 +1,4 @@
-from lib.cluster.mozzarellm_io import annotate_cluster_anndata
+from lib.mozzarellm.annotate_cluster_anndata import annotate_cluster_anndata
 
 adata = annotate_cluster_anndata(
     snakemake.input.cluster_anndata,

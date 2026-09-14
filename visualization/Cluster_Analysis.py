@@ -37,7 +37,7 @@ from src.config import BRIEFLOW_OUTPUT_PATH, STATIC_ASSET_URL_ROOT, STATIC_ASSET
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from workflow.lib.shared.image_io import read_image
-from workflow.lib.cluster.mozzarellm_io import latest_mozzarellm_run
+from workflow.lib.mozzarellm.annotate_clusters import latest_mozzarellm_run
 
 # =====================
 # CONSTANTS

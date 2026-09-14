@@ -1,4 +1,4 @@
-from lib.cluster.mozzarellm_io import mozzarellm_row_value
+from lib.mozzarellm.annotate_clusters import mozzarellm_row_value
 from lib.shared.compartment_utils import format_rule_output
 
 
@@ -41,9 +41,11 @@ rule annotate_clusters:
         fdr_threshold=config.get("mozzarellm", {}).get("fdr_threshold", None),
         max_tokens=config.get("mozzarellm", {}).get("max_tokens", 64000),
         max_workers=MOZZARELLM_MAX_WORKERS,
+        max_failed_clusters=MOZZARELLM_MAX_FAILED_CLUSTERS,
     threads: MOZZARELLM_MAX_WORKERS
     resources:
         mem_mb=4000,
+        runtime=MOZZARELLM_RUNTIME,
     retries: 2
     script:
         "../scripts/mozzarellm/annotate_clusters.py"

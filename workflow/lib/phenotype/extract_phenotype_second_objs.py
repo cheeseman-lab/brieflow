@@ -354,9 +354,9 @@ def remove_border(labels, mask, dilate=2):
 foci_features = {
     "foci_count": lambda r: count_labels(r.intensity_image),
     "foci_area": lambda r: (r.intensity_image > 0).sum(),
-    "foci_area_ratio": lambda r: (r.intensity_image > 0).sum() / r.area
-    if r.area > 0
-    else 0,
+    "foci_area_ratio": lambda r: (
+        (r.intensity_image > 0).sum() / r.area if r.area > 0 else 0
+    ),
 }
 
 

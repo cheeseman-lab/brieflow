@@ -63,7 +63,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mozzarellm = [
-  "mozzarellm @ git+https://github.com/cheeseman-lab/mozzarellm.git@3c2d4473254635681e4dce5c4623789da51e0db8",
+  "mozzarellm @ git+https://github.com/cheeseman-lab/mozzarellm.git@398cfda009130ba127a3ef98746c345788aad939",
   "python-dotenv==1.2.3",
 ]
 

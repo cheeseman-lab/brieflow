@@ -54,7 +54,7 @@ def run_mozzarellm(
     screen_context,
     mode="cot",
     mcp=True,
-    annotation_source="affinage",
+    annotation_source="affinage_then_uniprot",
     include_features="auto",
     include_strength="auto",
     n_features=5,
@@ -85,12 +85,17 @@ def run_mozzarellm(
             benchmark-selected configuration.
         annotation_source (str, optional): Which functional annotation the
             evidence bundles carry -- "affinage" (Affinage mechanistic
-            narratives), "uniprot" (UniProt FUNCTION comments), or "both"
-            (each as its own column). Defaults to "affinage", mozzarellm's
-            benchmark-selected source. No source backfills another, so a gene
-            one source has nothing for reaches the model as a visible gap.
-            Stable accessions always come from UniProt, since they are UniProt
-            identifiers.
+            narratives), "uniprot" (UniProt FUNCTION comments), "both" (each as
+            its own column), or "affinage_then_uniprot". Defaults to
+            "affinage_then_uniprot": Affinage for every gene, then UniProt for
+            the genes whose Affinage annotation is absent, empty, or a refusal
+            narrative, so the prompt stays close to pure Affinage while a gene
+            UniProt describes well cannot reach the model blank and be called a
+            dark gene. Each gene carries an ``annotation_source`` field saying
+            which source supplied its text. The three pure sources backfill
+            nothing, so a gene one source has nothing for reaches the model as
+            a visible gap. Stable accessions always come from UniProt, since
+            they are UniProt identifiers.
         include_features (bool | str, optional): Feed the up/down feature lists
             to the model. Defaults to "auto" (on when the bundles carry them).
         include_strength (bool | str, optional): Feed the per-gene perturbation

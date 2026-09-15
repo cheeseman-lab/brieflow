@@ -1,5 +1,15 @@
 from lib.shared.image_io import read_image
 import pandas as pd
+from lib.shared.parquet_io import write_parquet
+
+# Cap BLAS/OMP threads to match Snakemake's reserved CPU budget.
+# Without this, numpy/OpenBLAS spawns threads across all cores regardless
+# of --cores, causing oversubscription when many tiles run concurrently.
+try:
+    from threadpoolctl import threadpool_limits
+    threadpool_limits(limits=snakemake.threads)
+except ImportError:
+    pass
 
 # foci_channel_index intentionally omitted — extract_phenotype_cp_emulator handles foci_channel=None
 for _param_name in ["cp_method", "channel_names"]:
@@ -58,6 +68,7 @@ elif cp_method == "cp_emulator":
         channel_names=snakemake.params.channel_names,
         wildcards=wc,
         custom_features=load_custom_features(custom_feature_definitions),
+        n_jobs=snakemake.threads,
     )
 else:
     raise ValueError(
@@ -78,5 +89,5 @@ phenotype_cp["num_nuclei"] = (
     cell_labels.map(nuclei_per_cell["num_nuclei"]).fillna(1).astype(int)
 )
 
-# save phenotype cp
-phenotype_cp.to_csv(snakemake.output[0], index=False, sep="\t")
+# Save phenotype cp
+write_parquet(phenotype_cp, snakemake.output[0])

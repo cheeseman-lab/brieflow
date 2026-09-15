@@ -81,6 +81,10 @@ if merge_approach == "fast":
             warp_degree=config.get("merge", {}).get("warp_degree"),
             warp_iterations=config.get("merge", {}).get("warp_iterations"),
             warp_smoothing=config.get("merge", {}).get("warp_smoothing"),
+        threads: 1
+        resources:
+            mem_mb=8000,  # tune: holds full well phenotype+sbs info
+            runtime=20,   # minutes
         script:
             "../scripts/merge/fast_merge.py"
 
@@ -347,6 +351,7 @@ rule final_merge:
         MERGE_OUTPUTS_MAPPED["final_merge"][0],
     params:
         approach=config.get("merge", {}).get("approach", "fast"),
+        exclude_markers=config.get("merge", {}).get("exclude_markers"),
     script:
         "../scripts/merge/final_merge.py"
 

@@ -1554,18 +1554,15 @@ def update_config_for_unified_processing(config: dict) -> dict:
 
 
 def _parse_binning_from_nd2(file_path: str) -> Optional[str]:
-    """Parse camera binning from ND2 text_info metadata (best-effort).
+    """Parse XY binning (e.g. '2x2') from an ND2 file's text metadata.
 
-    Args:
-        file_path: Path to the ND2 file.
-
-    Returns:
-        Binning string like '2x2', or None if not found.
+    Reads only the ND2 text-info block (no pixel data), so it is safe to call on
+    large well-based ND2 files without materializing the multi-GB pixel array.
+    Returns None if binning cannot be determined.
     """
     try:
-        img = nd2.imread(str(file_path), xarray=True)
-        md = img.attrs.get("metadata", {})
-        text_info = md.get("text_info", {})
+        with nd2.ND2File(str(file_path)) as f:
+            text_info = f.text_info or {}
         desc = text_info.get("description", "") if isinstance(text_info, dict) else ""
         m = re.search(r"Binning:\s*(\d+)x(\d+)", desc)
         if m:

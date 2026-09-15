@@ -9,6 +9,8 @@ rule apply_ic_field_phenotype:
         ancient(PREPROCESS_OUTPUTS["calculate_ic_phenotype"]),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["apply_ic_field_phenotype"],
+    group:
+        "phenotype_tile"
     script:
         "../scripts/phenotype/apply_ic_field_phenotype.py"
 
@@ -22,6 +24,8 @@ rule align_phenotype:
         PHENOTYPE_OUTPUTS_MAPPED["align_phenotype"][1],  # alignment metrics TSV
     params:
         config=lambda wildcards: get_alignment_params(wildcards, config),
+    group:
+        "phenotype_tile"
     script:
         "../scripts/phenotype/align_phenotype.py"
 
@@ -34,6 +38,13 @@ rule segment_phenotype:
         PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"],
     params:
         config=lambda wildcards: get_segmentation_params("phenotype", config),
+    group:
+        "phenotype_tile"
+    threads: 4
+    resources:
+        gpu=1,
+        mem_mb=16000,  # tune: cellpose model + image
+        runtime=60,    # minutes
     script:
         "../scripts/shared/segment.py"
 
@@ -49,6 +60,8 @@ rule identify_cytoplasm:
         PHENOTYPE_OUTPUTS_MAPPED["identify_cytoplasm"],
     params:
         segment_cells=config.get("phenotype", {}).get("segment_cells", True),
+    group:
+        "phenotype_tile"
     script:
         "../scripts/phenotype/identify_cytoplasm_cellpose.py"
 
@@ -62,6 +75,8 @@ rule extract_phenotype_info:
         PHENOTYPE_OUTPUTS["align_phenotype"][1],
     output:
         PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_info"],
+    group:
+        "phenotype_tile"
     script:
         "../scripts/shared/extract_phenotype_minimal.py"
 
@@ -166,6 +181,13 @@ rule extract_phenotype_cp:
         cp_method=config.get("phenotype", {}).get("cp_method"),
         segment_cells=config.get("phenotype", {}).get("segment_cells", True),
         custom_features=config.get("phenotype", {}).get("custom_features"),
+    group:
+        "phenotype_tile"
+    threads: 4
+    resources:
+        mem_mb=8000,   # tune: widest table in memory
+        runtime=30,    # minutes
+    # thread-cap: set OMP_NUM_THREADS={threads} in cluster profile
     script:
         "../scripts/phenotype/extract_phenotype.py"
 
@@ -200,6 +222,11 @@ rule merge_phenotype:
         segment_cells=config.get("phenotype", {}).get("segment_cells", True),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_cp"],
+    threads: 4
+    resources:
+        mem_mb=8000,   # tune: holds full well phenotype_cp
+        runtime=20,    # minutes
+    # thread-cap: polars uses POLARS_MAX_THREADS (not OMP); set POLARS_MAX_THREADS={threads} in cluster profile
     script:
         "../scripts/phenotype/merge_phenotype.py"
 

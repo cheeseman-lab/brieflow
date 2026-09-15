@@ -119,7 +119,9 @@ def run_mozzarellm(
         organism_id (int, optional): NCBI taxonomy id for the UniProt lookups.
             Defaults to None (the id the screen context declares).
         run_name (str, optional): Fixed run directory name. Defaults to None
-            (a timestamped directory).
+            (a timestamped directory). The evidence bundles are built under the
+            run directory, so the notebook's dry run and the pipeline job of one
+            run share them while a new run starts clean.
         cluster_ids (list, optional): Restrict the run to these clusters.
             Defaults to None (every cluster).
         resume (bool, optional): Reuse clusters already answered in
@@ -146,7 +148,6 @@ def run_mozzarellm(
         raise ImportError(MOZZARELLM_IMPORT_HINT) from e
 
     screen_name = screen_name or _screen_name(cluster_dir)
-    output_dir = Path(cluster_dir) / MOZZARELLM_DIR_NAME
     if run_name:
         run_dir = mozzarellm_run_dir(cluster_dir, run_name=run_name)
     elif resume:
@@ -154,6 +155,8 @@ def run_mozzarellm(
     else:
         run_dir = mozzarellm_run_dir(cluster_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
+    # bundles belong to the run: a new run name builds them with its own settings
+    output_dir = run_dir
 
     cluster_table = cluster_table_from_h5ad(
         h5ad_path,

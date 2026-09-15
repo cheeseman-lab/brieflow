@@ -365,11 +365,6 @@ class TestIORoundtrip:
 # They skip gracefully if the output directory is not present.
 
 _TEST_ANALYSIS = Path(__file__).resolve().parent / "small_test_analysis"
-_TEST_PLATE = 1
-_TEST_WELL = "A1"
-_TEST_CYCLE = 11
-_TEST_TILE_SBS = 0
-_TEST_TILE_PHENOTYPE = 5
 
 
 def _resolve_output_dir() -> Path:
@@ -396,6 +391,36 @@ def _resolve_output_dir() -> Path:
     )
 
 
+def _find_multiscale_groups(root: Path, limit: int = 1) -> list:
+    """Locate OME-NGFF image groups under a pipeline output directory.
+
+    Resolves stores by discovery instead of reconstructing a filename, because
+    the on-disk layout differs by output format: zarr mode writes one HCS plate
+    store per plate (``preprocess/sbs/image_1.zarr/A/1/0``) while tiff mode
+    writes per-tile files. A hardcoded path silently skips in both.
+
+    Args:
+        root: Directory to search, e.g. ``<output>/preprocess/sbs``.
+        limit: Stop after this many image groups.
+
+    Returns:
+        List of directories whose metadata declares ``ome.multiscales``.
+    """
+    found = []
+    if not root.exists():
+        return found
+    for meta_fp in sorted(root.rglob("zarr.json")):
+        try:
+            meta = json.loads(meta_fp.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if "multiscales" in meta.get("attributes", {}).get("ome", {}):
+            found.append(meta_fp.parent)
+            if len(found) >= limit:
+                break
+    return found
+
+
 class TestZarrStructural:
     """Integration tests verifying the structure of zarr outputs produced
     by the Snakemake pipeline (chunk layout, compression, multiscale)."""
@@ -405,138 +430,235 @@ class TestZarrStructural:
         self.root = _resolve_output_dir()
         self.preprocess = self.root / "preprocess"
 
-    def _sbs_zarr_path(self) -> Path:
-        return (
-            self.preprocess
-            / "images"
-            / "sbs"
-            / get_filename(
-                {
-                    "plate": _TEST_PLATE,
-                    "well": _TEST_WELL,
-                    "tile": _TEST_TILE_SBS,
-                    "cycle": _TEST_CYCLE,
-                },
-                "image",
-                "zarr",
-            )
+    def _image_group(self):
+        """Return a converted-image OME-Zarr group, or skip.
+
+        Restricted to the ``convert_sbs`` / ``convert_phenotype`` output. Those
+        are the only writers that thread ``all.zarr_max_levels`` /
+        ``all.zarr_compression``; illumination-correction fields under
+        ``ic_fields/`` use the conservative writer defaults, so asserting a
+        codec or pyramid on them would be wrong.
+        """
+        for subdir in ("sbs", "phenotype"):
+            groups = _find_multiscale_groups(self.preprocess / subdir)
+            if groups:
+                return zarr.open_group(str(groups[0]), mode="r")
+        pytest.skip(
+            f"No converted OME-Zarr image under {self.preprocess}/(sbs|phenotype). "
+            "Run run_brieflow.sh --zarr first."
         )
+
+    @staticmethod
+    def _levels(group) -> list:
+        """Dataset paths declared by the group's multiscales metadata."""
+        return [d["path"] for d in group.attrs["ome"]["multiscales"][0]["datasets"]]
 
     @pytest.mark.integration
     def test_zarr_chunks_are_reasonable(self):
-        """Spatial chunks are square-ish and between 256-2048 px;
-        channel dim is unchunked."""
-        zp = self._sbs_zarr_path()
-        if not zp.exists():
-            pytest.skip("Standard Zarr output not found.")
-
-        arr = zarr.open(str(zp), mode="r")["0"]
-        c_chunk, y_chunk, x_chunk = arr.chunks
-        assert c_chunk == arr.shape[0], "Channel dim should not be chunked"
+        """Spatial chunks are square-ish and 256-2048 px; C and Z unchunked."""
+        arr = self._image_group()["0"]
+        chunks = dict(zip("tczyx"[-arr.ndim :], arr.chunks))
+        shape = dict(zip("tczyx"[-arr.ndim :], arr.shape))
+        for axis in ("c", "z"):
+            if axis in chunks:
+                assert chunks[axis] == shape[axis], f"{axis} dim should not be chunked"
+        y_chunk, x_chunk = chunks["y"], chunks["x"]
         assert 256 <= y_chunk <= 2048, f"Y chunk {y_chunk} out of range"
         assert 256 <= x_chunk <= 2048, f"X chunk {x_chunk} out of range"
         assert max(y_chunk, x_chunk) / min(y_chunk, x_chunk) <= 2.0
 
     @pytest.mark.integration
-    def test_zarr_compression_applied(self):
-        """On-disk size should not wildly exceed uncompressed size."""
-        zp = self._sbs_zarr_path()
-        if not zp.exists():
-            pytest.skip("Standard Zarr output not found.")
+    def test_zarr_compression_codec_is_configured(self):
+        """Every level carries a real Blosc codec, named, not inferred from size.
 
-        arr = zarr.open(str(zp), mode="r")["0"]
-        uncompressed = np.prod(arr.shape) * arr.dtype.itemsize
-        actual = sum(
-            f.stat().st_size for f in (Path(zp) / "0").rglob("*") if f.is_file()
-        )
-        ratio = actual / uncompressed
-        assert ratio < 5.0, f"Compression ratio {ratio:.2f} is unexpectedly high"
+        The previous size-ratio assertion could not fail: uncompressed 16-bit
+        data lands near 1.0, well under the 5.0 threshold it checked.
+        """
+        group = self._image_group()
+        for level in self._levels(group):
+            codecs = [c["name"] for c in group[level].metadata.to_dict()["codecs"]]
+            assert "blosc" in codecs, (
+                f"level {level} has codecs {codecs}; expected Blosc from "
+                "all.zarr_compression. zstd alone means the compressor was dropped."
+            )
 
     @pytest.mark.integration
     def test_omezarr_multiscale_structure(self):
-        """OME-Zarr export has valid multiscales metadata with >=2 levels."""
-        omezarr_path = (
-            self.preprocess
-            / "omezarr"
-            / "sbs"
-            / get_filename(
-                {
-                    "plate": _TEST_PLATE,
-                    "well": _TEST_WELL,
-                    "tile": _TEST_TILE_SBS,
-                    "cycle": _TEST_CYCLE,
-                },
-                "image",
-                "zarr",
-            )
-        )
-        if not omezarr_path.exists():
-            pytest.skip("OME-Zarr export not found.")
-
-        store = zarr.open(str(omezarr_path), mode="r")
-        ome = _ome_metadata(store)
-        ms = ome["multiscales"]
-        assert isinstance(ms, list) and len(ms) > 0
-
-        ms0 = ms[0]
+        """Pipeline output declares a real pyramid and every level exists."""
+        group = self._image_group()
+        ome = group.attrs["ome"]
         assert ome["version"] == "0.5"
+        ms0 = ome["multiscales"][0]
         assert "axes" in ms0
-        datasets = ms0["datasets"]
-        assert len(datasets) >= 2, "Expected >=2 resolution levels"
 
-        for ds in datasets:
-            assert ds["path"] in store
+        levels = self._levels(group)
+        assert len(levels) >= 2, (
+            f"Expected >=2 resolution levels, got {levels}. "
+            "all.zarr_max_levels may not be reaching save_image."
+        )
+        for level in levels:
+            assert level in group
 
     @pytest.mark.integration
-    def test_omezarr_matches_standard_zarr_at_level0(self):
-        """OME-Zarr level-0 pixel data is identical to standard Zarr output."""
-        std = self._sbs_zarr_path()
-        ome = (
-            self.preprocess
-            / "omezarr"
-            / "sbs"
-            / get_filename(
-                {
-                    "plate": _TEST_PLATE,
-                    "well": _TEST_WELL,
-                    "tile": _TEST_TILE_SBS,
-                    "cycle": _TEST_CYCLE,
-                },
-                "image",
-                "zarr",
-            )
-        )
-        if not std.exists() or not ome.exists():
-            pytest.skip("Both standard Zarr and OME-Zarr needed.")
+    def test_level0_full_resolution_and_channels_preserved(self):
+        """Level 0 is not downsampled and C is constant across the pyramid.
 
-        std_data = zarr.open(str(std), mode="r")["0"][:]
-        ome_data = zarr.open(str(ome), mode="r")["0"][:]
-        np.testing.assert_array_equal(std_data, ome_data)
+        Guards the ome_zarr.writer.write_image numpy-path behaviour, which
+        scales the channel axis alongside Y/X (3 -> 2 -> 1) and smooths
+        level 0 rather than writing it verbatim.
+        """
+        group = self._image_group()
+        levels = self._levels(group)
+        shapes = [group[level].shape for level in levels]
+        axes = "tczyx"[-len(shapes[0]) :]
+        c_idx, y_idx, x_idx = axes.index("c"), axes.index("y"), axes.index("x")
+
+        for i, shape in enumerate(shapes[1:], start=1):
+            assert shape[c_idx] == shapes[0][c_idx], (
+                f"level {i} has {shape[c_idx]} channels vs {shapes[0][c_idx]} at "
+                "level 0; the channel axis is being downsampled"
+            )
+            for idx in (y_idx, x_idx):
+                assert shape[idx] == shapes[0][idx] // (2**i), (
+                    f"level {i} axis {axes[idx]} is {shape[idx]}, "
+                    f"expected {shapes[0][idx] // (2**i)}"
+                )
 
     @pytest.mark.integration
     def test_zarr_tiff_equivalence_sbs(self):
-        """Standard Zarr and TIFF outputs have identical pixel data (SBS)."""
-        base = self.preprocess / "images" / "sbs"
-        name_base = get_filename(
-            {
-                "plate": _TEST_PLATE,
-                "well": _TEST_WELL,
-                "tile": _TEST_TILE_SBS,
-                "cycle": _TEST_CYCLE,
-            },
-            "image",
-            "zarr",
-        ).rsplit(".", 1)[0]
+        """Zarr level 0 and the TIFF output hold identical pixel data (SBS)."""
+        tiff_dir = self.preprocess / "images" / "sbs"
+        tiffs = sorted(tiff_dir.glob("*__image.tiff")) if tiff_dir.exists() else []
+        if not tiffs:
+            pytest.skip("No TIFF SBS output; run without --zarr to compare formats.")
 
-        zarr_p = base / f"{name_base}.zarr"
-        tiff_p = base / f"{name_base}.tiff"
-        if not zarr_p.exists() or not tiff_p.exists():
-            pytest.skip("Both formats needed for equivalence test.")
-
-        tiff_data = tiff_imread(str(tiff_p))
-        zarr_data = zarr.open(str(zarr_p), mode="r")["0"][:]
+        group = self._image_group()
+        zarr_data = np.squeeze(group["0"][:])
+        tiff_data = np.squeeze(tiff_imread(str(tiffs[0])))
         assert tiff_data.shape == zarr_data.shape
         np.testing.assert_array_equal(tiff_data, zarr_data)
+
+
+# ===========================================================================
+# Section 6b: Compression and pyramid — unit coverage for the writer
+# ===========================================================================
+
+
+class TestCompressionAndPyramid:
+    """Direct coverage of the codec parameter and explicit pyramid loop."""
+
+    @staticmethod
+    def _codecs(arr):
+        return arr.metadata.to_dict()["codecs"]
+
+    def test_pyramid_levels_and_halving(self, tmp_path):
+        """Each level halves Y/X; the channel axis is never scaled."""
+        out = tmp_path / "pyr.zarr"
+        img = np.random.randint(0, 4000, (2, 256, 256), dtype=np.uint16)
+        write_image_omezarr(
+            img, str(out), axes="cyx", channel_names=["a", "b"], max_levels=4
+        )
+        root = zarr.open_group(str(out), mode="r")
+        datasets = root.attrs["ome"]["multiscales"][0]["datasets"]
+        assert [d["path"] for d in datasets] == ["0", "1", "2", "3"]
+        for i in range(4):
+            assert root[str(i)].shape == (2, 256 // 2**i, 256 // 2**i)
+
+    def test_level0_bit_identical_to_single_level(self, tmp_path):
+        """Adding levels never rewrites level 0."""
+        img = np.random.randint(0, 4000, (2, 200, 200), dtype=np.uint16)
+        single, pyr = tmp_path / "one.zarr", tmp_path / "many.zarr"
+        write_image_omezarr(img, str(single), axes="cyx", max_levels=1)
+        write_image_omezarr(img, str(pyr), axes="cyx", max_levels=5)
+        s0 = zarr.open_group(str(single), mode="r")["0"][:]
+        p0 = zarr.open_group(str(pyr), mode="r")["0"][:]
+        np.testing.assert_array_equal(s0, p0)
+        np.testing.assert_array_equal(img, p0)
+
+    def test_labels_use_nearest_neighbour(self, tmp_path):
+        """Label pyramids never invent values between existing labels."""
+        out = tmp_path / "lab.zarr"
+        lab = np.random.randint(0, 6, (1, 256, 256)).astype(np.uint16)
+        write_image_omezarr(lab, str(out), axes="cyx", is_label=True, max_levels=4)
+        root = zarr.open_group(str(out), mode="r")
+        base = set(np.unique(root["0"][:]).tolist())
+        for i in range(1, 4):
+            assert set(np.unique(root[str(i)][:]).tolist()).issubset(base)
+        assert root.attrs["ome"]["multiscales"][0]["downsamplingMethod"] == "nearest"
+
+    def test_compression_applies_to_every_level(self, tmp_path):
+        """The requested codec reaches every level, not just level 0."""
+        out = tmp_path / "comp.zarr"
+        img = np.random.randint(0, 4000, (2, 128, 128), dtype=np.uint16)
+        write_image_omezarr(
+            img,
+            str(out),
+            axes="cyx",
+            max_levels=3,
+            compression="blosc-zstd-bitshuffle",
+        )
+        root = zarr.open_group(str(out), mode="r")
+        for i in range(3):
+            blosc = [c for c in self._codecs(root[str(i)]) if c["name"] == "blosc"]
+            assert blosc, f"level {i} is not Blosc-compressed"
+            assert blosc[0]["configuration"]["cname"] == "zstd"
+            assert blosc[0]["configuration"]["shuffle"] == "bitshuffle"
+
+    @pytest.mark.parametrize(
+        "spec,cname,shuffle,clevel",
+        [
+            ("blosc-zstd-bitshuffle", "zstd", "bitshuffle", 5),
+            ("blosc-lz4-shuffle", "lz4", "shuffle", 5),
+            ("blosc-zstd", "zstd", "bitshuffle", 5),
+            ("blosc-blosclz-noshuffle", "blosclz", "noshuffle", 5),
+            ("blosc-zstd-bitshuffle:9", "zstd", "bitshuffle", 9),
+        ],
+    )
+    def test_compression_spec_varies_codec(
+        self, tmp_path, spec, cname, shuffle, clevel
+    ):
+        """Codec, shuffle and level are all selectable from the config string."""
+        out = tmp_path / f"{spec.replace(':', '_')}.zarr"
+        img = np.random.randint(0, 4000, (1, 64, 64), dtype=np.uint16)
+        write_image_omezarr(img, str(out), axes="cyx", max_levels=1, compression=spec)
+        arr = zarr.open_group(str(out), mode="r")["0"]
+        cfg = [c for c in self._codecs(arr) if c["name"] == "blosc"][0]["configuration"]
+        assert (cfg["cname"], cfg["shuffle"], cfg["clevel"]) == (cname, shuffle, clevel)
+        np.testing.assert_array_equal(img, arr[:])
+
+    @pytest.mark.parametrize("spec", ["gzip", "blosc", "blosc-zstd-sideways", "lz4"])
+    def test_unknown_compression_spec_raises(self, tmp_path, spec):
+        """A malformed spec fails loudly instead of silently writing raw."""
+        img = np.random.randint(0, 4000, (1, 32, 32), dtype=np.uint16)
+        with pytest.raises(ValueError):
+            write_image_omezarr(
+                img, str(tmp_path / "bad.zarr"), axes="cyx", compression=spec
+            )
+
+    def test_writer_defaults_are_conservative(self, tmp_path):
+        """Writer default stays single-level and uncompressed.
+
+        Callers opt in, so the other save_image callers keep prior behaviour.
+        """
+        out = tmp_path / "default.zarr"
+        img = np.random.randint(0, 4000, (1, 64, 64), dtype=np.uint16)
+        write_image_omezarr(img, str(out), axes="cyx")
+        root = zarr.open_group(str(out), mode="r")
+        assert not any(c["name"] == "blosc" for c in self._codecs(root["0"]))
+        datasets = root.attrs["ome"]["multiscales"][0]["datasets"]
+        assert [d["path"] for d in datasets] == ["0"]
+
+    def test_compression_can_be_disabled(self, tmp_path):
+        """compression='none' falls back to zarr's default codec."""
+        out = tmp_path / "raw.zarr"
+        img = np.random.randint(0, 4000, (1, 64, 64), dtype=np.uint16)
+        write_image_omezarr(img, str(out), axes="cyx", max_levels=1, compression="none")
+        assert not any(
+            c["name"] == "blosc"
+            for c in zarr.open_group(str(out), mode="r")["0"].metadata.to_dict()[
+                "codecs"
+            ]
+        )
 
 
 # ===========================================================================

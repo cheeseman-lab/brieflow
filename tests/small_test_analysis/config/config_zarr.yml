@@ -7,4 +7,6 @@
 all:
   root_fp: brieflow_output_zarr/
   image_format: zarr
-  zarr_max_levels: 1  # Number of pyramid resolution levels (1 = no downsampling)
+  zarr_max_levels: 5  # Pyramid resolution levels; 1 disables downsampling
+  # Codec spec: blosc-<cname>[-<shuffle>][:<clevel>], or "none" for zarr's default.
+  zarr_compression: blosc-zstd-bitshuffle

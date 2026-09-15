@@ -54,6 +54,7 @@ def run_mozzarellm(
     screen_context,
     mode="cot",
     mcp=True,
+    annotation_source="affinage",
     include_features="auto",
     include_strength="auto",
     n_features=5,
@@ -82,6 +83,14 @@ def run_mozzarellm(
         mcp (bool, optional): Attach mozzarellm's PubMed literature tools, which
             fill in genes whose annotation is blank. Defaults to True, the
             benchmark-selected configuration.
+        annotation_source (str, optional): Which functional annotation the
+            evidence bundles carry -- "affinage" (Affinage mechanistic
+            narratives), "uniprot" (UniProt FUNCTION comments), or "both"
+            (each as its own column). Defaults to "affinage", mozzarellm's
+            benchmark-selected source. No source backfills another, so a gene
+            one source has nothing for reaches the model as a visible gap.
+            Stable accessions always come from UniProt, since they are UniProt
+            identifiers.
         include_features (bool | str, optional): Feed the up/down feature lists
             to the model. Defaults to "auto" (on when the bundles carry them).
         include_strength (bool | str, optional): Feed the per-gene perturbation
@@ -152,6 +161,7 @@ def run_mozzarellm(
         cluster_table=cluster_table,
         output_dir=output_dir,
         organism_id=organism_id,
+        source=annotation_source,
         feature_columns=(
             None if include_features is False else ["up_features", "down_features"]
         ),

@@ -400,13 +400,15 @@ def _find_multiscale_groups(root: Path, limit: int = 1) -> list:
     writes per-tile files. A hardcoded path silently skips in both.
 
     Args:
-        root: Directory to search (typically ``<output>/preprocess``).
+        root: Directory to search, e.g. ``<output>/preprocess/sbs``.
         limit: Stop after this many image groups.
 
     Returns:
         List of directories whose metadata declares ``ome.multiscales``.
     """
     found = []
+    if not root.exists():
+        return found
     for meta_fp in sorted(root.rglob("zarr.json")):
         try:
             meta = json.loads(meta_fp.read_text())
@@ -429,14 +431,22 @@ class TestZarrStructural:
         self.preprocess = self.root / "preprocess"
 
     def _image_group(self):
-        """Return the first pipeline-written OME-Zarr image group, or skip."""
-        groups = _find_multiscale_groups(self.preprocess)
-        if not groups:
-            pytest.skip(
-                "No OME-Zarr image group under "
-                f"{self.preprocess}. Run run_brieflow.sh --zarr first."
-            )
-        return zarr.open_group(str(groups[0]), mode="r")
+        """Return a converted-image OME-Zarr group, or skip.
+
+        Restricted to the ``convert_sbs`` / ``convert_phenotype`` output. Those
+        are the only writers that thread ``all.zarr_max_levels`` /
+        ``all.zarr_compression``; illumination-correction fields under
+        ``ic_fields/`` use the conservative writer defaults, so asserting a
+        codec or pyramid on them would be wrong.
+        """
+        for subdir in ("sbs", "phenotype"):
+            groups = _find_multiscale_groups(self.preprocess / subdir)
+            if groups:
+                return zarr.open_group(str(groups[0]), mode="r")
+        pytest.skip(
+            f"No converted OME-Zarr image under {self.preprocess}/(sbs|phenotype). "
+            "Run run_brieflow.sh --zarr first."
+        )
 
     @staticmethod
     def _levels(group) -> list:

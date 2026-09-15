@@ -27,6 +27,8 @@ CLUSTER_GROUP_PREFIX = "cluster_group_"
 
 MOZZARELLM_DIR_NAME = "mozzarellm"
 
+MOZZARELLM_CACHE_DIR_NAME = "mozzarellm_cache"
+
 RUN_DIR_PREFIX = "run_"
 
 DEFAULT_ORGANISM_ID = 9606
@@ -68,6 +70,7 @@ def run_mozzarellm(
     cluster_ids=None,
     resume=False,
     dry_run=False,
+    cache_dir=None,
 ):
     """Annotate a resolution's clusters with mozzarellm and write the run outputs.
 
@@ -123,12 +126,18 @@ def run_mozzarellm(
             ``run_dir/traces``. Defaults to False.
         dry_run (bool, optional): Assemble the prompts and report the estimated
             cost without calling the model. Defaults to False.
+        cache_dir (str | Path, optional): Directory holding the screen's Affinage
+            and UniProt annotation caches. Defaults to None
+            (``<cluster root>/mozzarellm_cache``, shared by every clustering of
+            the screen).
 
     Returns:
         dict: The ``analyze_screen`` result, with ``run_dir`` set to the run directory.
     """
     try:
+        from mozzarellm.clients.affinage_api_client import AffinageClient
         from mozzarellm.clients.llm_api_clients import create_client
+        from mozzarellm.clients.uniprot_api_client import UniProtClient
         from mozzarellm.pipeline.screen_analysis import (
             analyze_screen,
             prepare_screen_bundles,
@@ -161,12 +170,16 @@ def run_mozzarellm(
         json.dumps(screen_context, indent=2), encoding="utf-8"
     )
 
+    # the annotation caches live with the screen, so every clustering and job shares one fetch
+    cache_dir = Path(cache_dir) if cache_dir else mozzarellm_cache_dir(cluster_dir)
     bundles = prepare_screen_bundles(
         screen_name=screen_name,
         cluster_table=cluster_table,
         output_dir=output_dir,
         organism_id=organism_id,
         source=annotation_source,
+        uniprot_client=UniProtClient(cache_path=cache_dir / "uniprot_cache.sqlite3"),
+        affinage_client=AffinageClient(cache_path=cache_dir / "affinage_cache.sqlite3"),
         feature_columns=(
             None if include_features is False else ["up_features", "down_features"]
         ),
@@ -302,6 +315,20 @@ def cluster_group_column(adata, leiden_resolution, h5ad_path=""):
         raise KeyError(f"{h5ad_path} has no {column}; available: {available}")
 
     return column
+
+
+def mozzarellm_cache_dir(cluster_dir):
+    """Return the screen-level annotation cache directory for a resolution directory.
+
+    The tree is ``cluster/<combo>/[<compartment>/]<cell_class>/<res>``, so the
+    cache sits beside the channel combos under the cluster root and is shared by
+    every clustering of the screen.
+    """
+    path = Path(cluster_dir).resolve()
+    roots = [i for i, part in enumerate(path.parts[:-2]) if part == "cluster"]
+    root = Path(*path.parts[: roots[-1] + 1]) if roots else path
+
+    return root / MOZZARELLM_CACHE_DIR_NAME
 
 
 def mozzarellm_run_dir(cluster_dir, stamp=None, run_name=None):

@@ -40,6 +40,7 @@ rule annotate_clusters:
         include_strength=config.get("mozzarellm", {}).get("include_strength", "auto"),
         n_features=config.get("mozzarellm", {}).get("n_features", 5),
         fdr_threshold=config.get("mozzarellm", {}).get("fdr_threshold", None),
+        cache_dir=config.get("mozzarellm", {}).get("cache_dir", None),
         max_tokens=config.get("mozzarellm", {}).get("max_tokens", 64000),
         max_workers=MOZZARELLM_MAX_WORKERS,
         max_failed_clusters=MOZZARELLM_MAX_FAILED_CLUSTERS,

@@ -4,7 +4,11 @@ Uses the unified save_image() I/O layer which dispatches based on output path su
 """
 
 from lib.preprocess.preprocess import convert_to_array, get_data_config
-from lib.shared.image_io import save_image
+from lib.shared.image_io import (
+    DEFAULT_MAX_LEVELS,
+    DEFAULT_ZARR_COMPRESSION,
+    save_image,
+)
 
 # Get data configuration from rule name
 rule_name = snakemake.rule
@@ -30,5 +34,13 @@ image_array = convert_to_array(
 # Get channel names from config for OME metadata (used by zarr, ignored by tiff)
 channel_names = data_config.get("channel_order")
 
-# Save in the format determined by output path extension
-save_image(image_array, snakemake.output[0], channel_names=channel_names)
+# Save in the format determined by output path extension.
+# Pyramid depth and compression are zarr-only; ignored for TIFF output.
+all_config = snakemake.config.get("all", {})
+save_image(
+    image_array,
+    snakemake.output[0],
+    channel_names=channel_names,
+    max_levels=all_config.get("zarr_max_levels", DEFAULT_MAX_LEVELS),
+    compression=all_config.get("zarr_compression", DEFAULT_ZARR_COMPRESSION),
+)

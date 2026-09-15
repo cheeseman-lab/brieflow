@@ -8,11 +8,14 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import dask.array as da
 import numpy as np
+import numcodecs
 import zarr
+from ome_zarr.format import CurrentFormat
 from ome_zarr.scale import Scaler
-from ome_zarr.writer import write_image
+from ome_zarr.writer import write_multiscales_metadata
 from tifffile import imread as tiff_imread
 from tifffile import imwrite as tiff_imwrite
+from zarr.codecs import BloscCodec, BloscShuffle
 
 # Zarr on-disk format version.
 # 3 = Zarr v3 / OME-NGFF v0.5 (zarr.json metadata).
@@ -32,6 +35,75 @@ DEFAULT_CHANNEL_COLORS = [
 ]
 
 PathLike = Union[str, Path]
+
+# Pyramid depth and compression applied by the *preprocess convert* path when
+# config.yml omits all.zarr_max_levels / all.zarr_compression.
+# These are call-site defaults, NOT writer defaults: save_image and
+# write_image_omezarr stay single-level and uncompressed unless asked, so every
+# other save_image caller keeps its existing behavior.
+DEFAULT_MAX_LEVELS = 5
+DEFAULT_ZARR_COMPRESSION = "blosc-zstd-bitshuffle"
+DEFAULT_BLOSC_CLEVEL = 5
+
+# Cap the process-wide c-blosc thread pool so a tile-conversion job doesn't
+# spawn one thread per core on top of Snakemake's own parallelism.
+_BLOSC_NTHREADS = int(os.environ.get("BRIEFLOW_BLOSC_NTHREADS", "4"))
+numcodecs.blosc.set_nthreads(_BLOSC_NTHREADS)
+
+_BLOSC_SHUFFLE = {
+    "noshuffle": BloscShuffle.noshuffle,
+    "shuffle": BloscShuffle.shuffle,
+    "bitshuffle": BloscShuffle.bitshuffle,
+}
+
+
+def _make_compressor(compression: Optional[str]):
+    """Build a zarr-v3 Blosc codec from a ``blosc-<cname>[-<shuffle>][:<clevel>]`` string.
+
+    Any cname and shuffle c-blosc supports can be selected from config without
+    editing this module, e.g. ``blosc-zstd-bitshuffle`` (the preprocess default),
+    ``blosc-lz4-shuffle`` for speed over ratio, or ``blosc-zstd-bitshuffle:9`` to
+    override the compression level. ``shuffle`` defaults to ``bitshuffle`` and
+    ``clevel`` to ``DEFAULT_BLOSC_CLEVEL``.
+
+    Returns None, meaning zarr's default codec, for ``None`` or ``"none"``.
+    Blosc is lossless for every cname, so a write/read roundtrip is always
+    bit-identical.
+
+    Args:
+        compression: Codec spec string, or None/"none" to leave zarr's default.
+
+    Returns:
+        A configured BloscCodec, or None to use zarr's default codec.
+
+    Raises:
+        ValueError: If the spec is malformed or names an unknown shuffle.
+    """
+    if compression is None:
+        return None
+    key = str(compression).strip().lower()
+    if key in ("", "none"):
+        return None
+
+    spec, _, clevel = key.partition(":")
+    parts = spec.split("-")
+    if parts[0] != "blosc" or not 2 <= len(parts) <= 3:
+        raise ValueError(
+            f"Unknown zarr compression {compression!r}; expected 'none' or "
+            "'blosc-<cname>[-<shuffle>][:<clevel>]'"
+        )
+    shuffle = parts[2] if len(parts) == 3 else "bitshuffle"
+    if shuffle not in _BLOSC_SHUFFLE:
+        raise ValueError(
+            f"Unknown blosc shuffle {shuffle!r} in {compression!r}; "
+            f"expected one of {sorted(_BLOSC_SHUFFLE)}"
+        )
+    # BloscCodec rejects an unknown cname itself, so no cname table to maintain.
+    return BloscCodec(
+        cname=parts[1],
+        clevel=int(clevel) if clevel else DEFAULT_BLOSC_CLEVEL,
+        shuffle=_BLOSC_SHUFFLE[shuffle],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -95,8 +167,14 @@ def save_image(
     coarsening_factor: int = 2,
     max_levels: int = 1,
     is_label: bool = False,
+    compression: Optional[str] = None,
 ) -> None:
-    """Save an image to TIFF or OME-Zarr depending on the output path suffix."""
+    """Save an image to TIFF or OME-Zarr depending on the output path suffix.
+
+    Pyramids and compression are opt-in: pass ``max_levels`` / ``compression``
+    (see :func:`_make_compressor` for the accepted strings). The preprocess
+    convert path threads ``all.zarr_max_levels`` / ``all.zarr_compression`` in.
+    """
     out = Path(output_path)
     suffix = out.suffix.lower()
 
@@ -150,6 +228,7 @@ def save_image(
             coarsening_factor=coarsening_factor,
             max_levels=max_levels,
             is_label=is_label,
+            compression=compression,
         )
         return
 
@@ -171,7 +250,7 @@ def write_image_omezarr(
     max_levels: int = 1,
     is_label: bool = False,
     chunk_size: Optional[Tuple[int, ...]] = None,
-    storage_options: Optional[Dict[str, Any]] = None,
+    compression: Optional[str] = None,
 ) -> None:
     """Write an image array to OME-Zarr format with pyramids.
 
@@ -185,10 +264,11 @@ def write_image_omezarr(
             - tuple: (y, x) or (z, y, x) depending on available axes
             - dict: keys from {"x","y","z"} (values can be None)
         coarsening_factor: Factor by which to downscale the image.
-        max_levels: Maximum number of pyramid levels to generate.
+        max_levels: Number of pyramid levels to generate (1 = no downsampling).
         is_label: Whether the image is a label image.
         chunk_size: Tuple for chunking (optional).
-        storage_options: Options for storage backend (optional).
+        compression: Codec spec, ``blosc-<cname>[-<shuffle>][:<clevel>]``, or
+            ``"none"``/None for zarr's default. See :func:`_make_compressor`.
     """
     # Normalize axis names to uppercase (OPS schema convention).
     axes = axes.upper()
@@ -267,20 +347,56 @@ def write_image_omezarr(
     # ome_zarr only recognises lowercase axis names for type inference;
     # pass explicit dicts so uppercase names work without validation errors.
     axes_dicts = _axes_str_to_dicts(axes)
+    dimension_names = [a["name"] for a in axes_dicts]
 
-    write_image(
-        image=image_data,
-        group=root,
-        axes=axes_dicts,
-        coordinate_transformations=coordinate_transformations,
-        scaler=Scaler(
-            method="nearest" if is_label else "gaussian",
-            downscale=coarsening_factor,
-            max_layer=max_levels - 1,
-            labeled=is_label,
-        ),
-        **metadata,
+    compressor = _make_compressor(compression)
+    if chunk_size is None:
+        chunk_size = tuple(c[0] for c in image_data.chunks)
+
+    scaler = Scaler(
+        method="nearest" if is_label else "gaussian",
+        downscale=coarsening_factor,
+        max_layer=max_levels - 1,
+        labeled=is_label,
     )
+
+    # Build and write the pyramid here rather than calling
+    # ome_zarr.writer.write_image, which is not usable on the zarr-v3 stack this
+    # repo pins (zarr 3.x, ome-zarr 0.13.0):
+    #
+    #   * its dask branch silently drops the compressor, so every array lands
+    #     with zarr's default codec (zstd level 0) no matter what is requested;
+    #   * its numpy branch treats the channel axis as spatial, downsampling
+    #     C alongside Y/X (3 -> 2 -> 1) and applying the gaussian to level 0,
+    #     so level 0 is no longer the input.
+    #
+    # Writing each level with da.to_zarr lets us attach a real codec and keeps
+    # level 0 bit-identical to the single-level output.
+    zarr_array_kwargs: Dict[str, Any] = {"dimension_names": dimension_names}
+    if compressor is not None:
+        zarr_array_kwargs["compressors"] = [compressor]
+
+    level = image_data
+    datasets = []
+    for i in range(max_levels):
+        if i > 0:
+            level = scaler.resize_image(level)
+        level_chunks = tuple(min(c, s) for c, s in zip(chunk_size, level.shape))
+        da.to_zarr(
+            arr=level.rechunk(level_chunks),
+            url=root.store,
+            component=str(Path(root.path, str(i))),
+            compute=True,
+            zarr_array_kwargs=zarr_array_kwargs,
+        )
+        datasets.append(
+            {
+                "path": str(i),
+                "coordinateTransformations": coordinate_transformations[i],
+            }
+        )
+
+    write_multiscales_metadata(root, datasets, CurrentFormat(), axes_dicts, **metadata)
 
     # Merge our metadata (omero, image-label) into the ``ome`` namespace
     # that ome_zarr.writer already created for multiscales.  This ensures

@@ -18,6 +18,7 @@ result = run_mozzarellm(
     screen_context,
     mode=snakemake.params.mode,
     mcp=snakemake.params.mcp,
+    annotation_source=snakemake.params.source,
     include_features=snakemake.params.include_features,
     include_strength=snakemake.params.include_strength,
     n_features=snakemake.params.n_features,

@@ -35,6 +35,7 @@ rule annotate_clusters:
         model=config.get("mozzarellm", {}).get("model", "claude-sonnet-5"),
         mode=config.get("mozzarellm", {}).get("mode", "cot"),
         mcp=config.get("mozzarellm", {}).get("mcp", True),
+        source=config.get("mozzarellm", {}).get("source", "affinage"),
         include_features=config.get("mozzarellm", {}).get("include_features", "auto"),
         include_strength=config.get("mozzarellm", {}).get("include_strength", "auto"),
         n_features=config.get("mozzarellm", {}).get("n_features", 5),

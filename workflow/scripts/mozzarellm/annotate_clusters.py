@@ -23,6 +23,7 @@ result = run_mozzarellm(
     include_strength=snakemake.params.include_strength,
     n_features=snakemake.params.n_features,
     fdr_threshold=snakemake.params.fdr_threshold,
+    cache_dir=snakemake.params.cache_dir,
     max_tokens=snakemake.params.max_tokens,
     max_workers=snakemake.params.max_workers,
     screen_name=snakemake.params.screen_name,

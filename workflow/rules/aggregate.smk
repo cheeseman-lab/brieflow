@@ -145,6 +145,7 @@ rule align:
         num_align_batches=config.get("aggregate", {}).get("num_align_batches", 1),
         skip_perturbation_score=config.get("aggregate", {}).get("skip_perturbation_score", True),
         control_name_col=config.get("aggregate", {}).get("control_name_col"),
+        tvn_batch_correction=config.get("aggregate", {}).get("tvn_batch_correction", True),
         drop_cols_threshold=config.get("aggregate", {}).get("drop_cols_threshold"),
     script:
         "../scripts/aggregate/align.py"

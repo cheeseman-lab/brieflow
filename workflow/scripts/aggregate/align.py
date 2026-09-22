@@ -161,11 +161,7 @@ for i, indices in enumerate(subset_indices):
 
     features = pca.transform(features)
 
-    # centerscale_by_batch above already removes the batch effect using every cell, so the
-    # per-batch half of TVN is only worth running when controls are plentiful in each batch:
-    # CORAL fits a covariance over all PCs, which needs far more control cells than a mean.
-    # It is also skipped batch-wise when controls sit in their own batches (a treatment used
-    # as the control key), where only the control batches would be rescaled.
+    # per-batch TVN needs many controls per batch; otherwise fit one TVN on the pooled controls
     tvn_batch_col = "batch_values" if snakemake.params.tvn_batch_correction else None
 
     features = tvn_on_controls(

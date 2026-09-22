@@ -383,8 +383,7 @@ def select_control_indices(
             .groupby(point_keys.str[0][in_reference].to_numpy())
             .apply(list)
         )
-        # a perturbation with no reference arm cannot be scored; it gets an empty
-        # control set and a NaN potential rather than failing the run
+        # a perturbation with no reference arm gets an empty pool and a NaN potential
         scoped_indices = {
             idx: reference_by_perturbation.get(perturbation, [])
             for idx, perturbation in point_keys.str[0].items()

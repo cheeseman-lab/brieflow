@@ -288,10 +288,7 @@ def test_reference_group_spans_several_group_cols():
     assert scoped[0] == [1]
 
 
-# "within_perturbation" is the scope for a screen whose perturbations are not knockouts:
-# every construct is its own control, so `X=ligand` is scored against `X=reference_group`
-# rather than against any control perturbation. control_key plays no part, and a
-# perturbation with no arm in the reference group is unscorable rather than fatal.
+# within_perturbation: `X=ligand` is scored against `X=reference_group`, not a control set
 
 
 def test_within_perturbation_scores_each_point_against_its_own_vehicle_arm():

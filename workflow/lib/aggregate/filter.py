@@ -16,6 +16,7 @@ from sklearn.impute import KNNImputer
 from sklearn.neighbors import LocalOutlierFactor
 
 from lib.aggregate.cell_data_utils import is_reserved_metadata_col
+from lib.shared.parquet_io import pool_dataset
 
 
 def harmonize_pool_schema(
@@ -97,10 +98,8 @@ def harmonize_pool_schema(
 
     threshold_dropped = []
     if drop_cols_threshold is not None and kept_feature_cols:
-        # Pin to one reference schema so pyarrow casts each file instead of auto-unifying.
-        pool = ds.dataset(
-            paths, format="parquet", schema=pq.read_schema(paths[0])
-        ).to_table(columns=kept_feature_cols)
+        # Unify the files' schemas permissively so pyarrow casts each file to it.
+        pool = pool_dataset(paths).to_table(columns=kept_feature_cols)
         # Compute pool-level NaN proportion per column without materializing full pandas.
         total_rows = pool.num_rows
         if total_rows > 0:

@@ -32,6 +32,25 @@ except ImportError:
     _HAS_POLARS = False
 
 
+def pool_dataset(paths: Sequence[Union[str, Path]], **kwargs):
+    """Open per-well parquet files as one pyarrow dataset with a unified schema.
+
+    Wells that filter down to no cells write all-null columns and wells with missing
+    values promote integer columns to double, so the files disagree on types and
+    pyarrow's default schema union refuses to cast between them. Unifying
+    permissively resolves both (null -> the other type, int64 -> double).
+    """
+    import pyarrow as pa
+    import pyarrow.dataset as ds
+    import pyarrow.parquet as pq
+
+    paths = [str(p) for p in paths]
+    schema = pa.unify_schemas(
+        [pq.read_schema(p) for p in paths], promote_options="permissive"
+    )
+    return ds.dataset(paths, format="parquet", schema=schema, **kwargs)
+
+
 def read_parquet(
     path: Union[str, Path],
     columns: Optional[list[str]] = None,

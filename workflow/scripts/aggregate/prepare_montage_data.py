@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lib.aggregate.montage_utils import add_filenames
 from lib.shared.file_utils import get_filename
+from lib.shared.parquet_io import pool_dataset
 
 
 # Validate required params
@@ -17,7 +18,7 @@ output_dir = Path(snakemake.output[0])
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Handle empty input gracefully
-cell_check = ds.dataset(snakemake.input, format="parquet")
+cell_check = pool_dataset(snakemake.input)
 if cell_check.count_rows() == 0:
     print("WARNING: No cells in input, skipping montage data preparation")
     exit(0)
@@ -33,7 +34,7 @@ montage_columns = [
     "j_0",
 ]
 
-cell_data = ds.dataset(snakemake.input, format="parquet")
+cell_data = pool_dataset(snakemake.input)
 cell_data = cell_data.to_table(columns=montage_columns, use_threads=True)
 cell_data = cell_data.to_pandas()
 

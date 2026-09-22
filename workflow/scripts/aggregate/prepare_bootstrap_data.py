@@ -24,6 +24,8 @@ for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:
 perturbation_col = snakemake.params.perturbation_name_col
 perturbation_id_col = snakemake.params.perturbation_id_col or perturbation_col
 control_key = snakemake.params.control_key
+control_scope = snakemake.params.get("bootstrap_control_scope", "pooled")
+reference_group = snakemake.params.get("bootstrap_reference_group", None)
 exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp
 bootstrap_features_fp = snakemake.params.bootstrap_features_fp
@@ -51,8 +53,23 @@ gene_table = pd.read_csv(snakemake.input.gene_table, sep="\t")
 print(f"Construct table shape: {construct_table.shape}")
 print(f"Gene table shape: {gene_table.shape}")
 
-# Filter for control cells (already center-scaled)
-is_control = control_mask(all_features_cells[perturbation_col], control_key)
+# Filter for control cells (already center-scaled). Under within_perturbation every
+# perturbation is its own control, so the pool is every cell in the reference group;
+# bootstrap_construct then keeps the construct's own perturbation from it.
+if control_scope == "within_perturbation":
+    if not group_cols or reference_group is None:
+        raise ValueError(
+            "bootstrap_control_scope 'within_perturbation' needs aggregate group_cols "
+            "and bootstrap_reference_group"
+        )
+    reference_values = all_features_cells[group_cols].astype(str).agg("=".join, axis=1)
+    is_control = reference_values == str(reference_group)
+    print(
+        f"Control pool is the reference group '{reference_group}': "
+        f"{int(is_control.sum())} cells"
+    )
+else:
+    is_control = control_mask(all_features_cells[perturbation_col], control_key)
 control_cells = all_features_cells[is_control]
 print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 
@@ -129,6 +146,32 @@ if exclusion_string is not None:
     construct_mask = construct_mask & ~construct_table[perturbation_col].str.contains(
         exclusion_string, na=False
     )
+if control_scope == "within_perturbation":
+    # a construct whose perturbation has no cells in the reference group has no null
+    # to draw from; leave it out here so no bootstrap job is spawned for it
+    reference_perturbations = set(
+        controls_metadata[perturbation_col].astype(str).str.split("=", n=1).str[0]
+    )
+    has_reference = (
+        construct_table[perturbation_col]
+        .astype(str)
+        .str.split("=", n=1)
+        .str[0]
+        .isin(reference_perturbations)
+    )
+    dropped = sorted(
+        construct_table.loc[construct_mask & ~has_reference, perturbation_col]
+        .astype(str)
+        .str.split("=", n=1)
+        .str[0]
+        .unique()
+    )
+    if dropped:
+        print(
+            f"{len(dropped)} perturbations have no '{reference_group}' arm and are "
+            f"left out of the bootstrap: {dropped}"
+        )
+    construct_mask = construct_mask & has_reference
 
 construct_features_df = construct_table[construct_mask]
 

@@ -66,12 +66,21 @@ def _bootstrap_inner_numba(
     return null_medians
 
 
+BOOTSTRAP_CONTROL_SCOPES = (
+    "pooled",
+    "within_group",
+    "reference_group",
+    "within_perturbation",
+)
+
+
 def select_control_pool(
     controls_df: pd.DataFrame,
     construct_id: str,
     control_scope: str = "pooled",
     reference_group: Optional[str] = None,
     group_cols: Optional[List[str]] = None,
+    perturbation_id: Optional[str] = None,
 ) -> pd.DataFrame:
     """Restrict the bootstrap null pool to the controls a scope names.
 
@@ -79,27 +88,37 @@ def select_control_pool(
     group, so an over-expression library is tested against the unliganded control
     state rather than against controls that saw the same ligand.
 
+    "within_perturbation" goes one step further and makes every perturbation its own
+    control: the null for `X=ligand` is drawn from `X=reference_group`, the same
+    construct in the reference condition. The pool then holds every cell in the
+    reference group rather than the control_key perturbations, and the treatment is
+    the reference condition rather than any perturbation.
+
     Args:
         controls_df (pd.DataFrame): Control cells, perturbation key in the first column.
         construct_id (str): Construct being tested, composite when group_cols is set.
         control_scope (str, optional): "pooled" keeps every control, "within_group"
             keeps controls sharing the construct's own group, "reference_group" keeps
-            controls in `reference_group`. Defaults to "pooled".
-        reference_group (str, optional): Group key the "reference_group" scope pins the
-            pool to; several group_cols join their values with GROUP_KEY_SEP.
-            Defaults to None.
+            controls in `reference_group`, "within_perturbation" keeps cells of the
+            construct's own perturbation in `reference_group`. Defaults to "pooled".
+        reference_group (str, optional): Group key the "reference_group" and
+            "within_perturbation" scopes pin the pool to; several group_cols join
+            their values with GROUP_KEY_SEP. Defaults to None.
         group_cols (list, optional): Columns folded into the composite key.
             Defaults to None.
+        perturbation_id (str, optional): The construct's perturbation-level key, as
+            written in the first column of controls_df; "within_perturbation" matches
+            on it since construct ids carry a guide or barcode instead. Defaults to
+            None, which falls back to construct_id.
 
     Returns:
         pd.DataFrame: Controls the scope selects.
 
     Raises:
-        ValueError: If the scope is unknown, if "reference_group" is requested without
-            group_cols or without a reference_group, or if the selected group matches
-            no control cells.
+        ValueError: If the scope is unknown, if a reference scope is requested without
+            group_cols or without a reference_group, or if the selected pool is empty.
     """
-    if control_scope not in ("pooled", "within_group", "reference_group"):
+    if control_scope not in BOOTSTRAP_CONTROL_SCOPES:
         raise ValueError(f"Unknown bootstrap_control_scope: {control_scope}")
 
     if control_scope == "pooled":
@@ -112,22 +131,30 @@ def select_control_pool(
     else:
         if not group_cols:
             raise ValueError(
-                "bootstrap_control_scope 'reference_group' needs aggregate group_cols; "
+                f"bootstrap_control_scope '{control_scope}' needs aggregate group_cols; "
                 "without them controls carry no group to pin the null to"
             )
         if reference_group is None:
             raise ValueError(
-                "bootstrap_control_scope 'reference_group' requires "
+                f"bootstrap_control_scope '{control_scope}' requires "
                 "bootstrap_reference_group to be set"
             )
         group_key = str(reference_group)
 
-    control_groups = (
-        controls_df.iloc[:, 0].astype(str).str.split(GROUP_KEY_SEP, n=1).str[1]
-    )
+    control_keys = controls_df.iloc[:, 0].astype(str).str.split(GROUP_KEY_SEP, n=1)
+    control_groups = control_keys.str[1]
     group_mask = control_groups == group_key
+
+    if control_scope == "within_perturbation":
+        own_key = str(perturbation_id if perturbation_id is not None else construct_id)
+        own_perturbation = own_key.split(GROUP_KEY_SEP, 1)[0]
+        group_mask &= control_keys.str[0] == own_perturbation
+        label = f"perturbation '{own_perturbation}' in group '{group_key}'"
+    else:
+        label = f"group '{group_key}'"
+
     print(
-        f"Restricting controls to group '{group_key}': {int(group_mask.sum())} of {len(controls_df)} rows"
+        f"Restricting controls to {label}: {int(group_mask.sum())} of {len(controls_df)} rows"
     )
     control_pool = controls_df[group_mask]
     if len(control_pool) == 0:
@@ -137,7 +164,7 @@ def select_control_pool(
                 f"control groups present: {sorted(control_groups.dropna().unique())}"
             )
         raise ValueError(
-            f"No control cells found for group '{group_key}' (construct {construct_id})"
+            f"No control cells found for {label} (construct {construct_id})"
         )
 
     return control_pool

@@ -318,15 +318,22 @@ def select_control_indices(
     so an over-expression library is scored against the unliganded control state rather
     than against a control cloud pooled across every treatment.
 
+    "within_perturbation" makes every perturbation its own control: `X=ligand` is
+    scored against `X=reference_group`, the same perturbation in the reference
+    condition. control_key plays no part in that scope, since the treatment is the
+    reference rather than any perturbation.
+
     Args:
         perturbation_values (pd.Series): Perturbation names, composite when group_cols is set.
         control_key (str | list): Control identifier, or a list of exact names.
         control_scope (str, optional): "pooled" scores every point against all controls,
             "within_group" against controls sharing the point's own group,
-            "reference_group" against controls in `reference_group`. Defaults to "pooled".
-        reference_group (str, optional): Group key the "reference_group" scope pins the
-            null to; several group_cols join their values with GROUP_KEY_SEP.
-            Defaults to None.
+            "reference_group" against controls in `reference_group`,
+            "within_perturbation" against the point's own perturbation in
+            `reference_group`. Defaults to "pooled".
+        reference_group (str, optional): Group key the "reference_group" and
+            "within_perturbation" scopes pin the null to; several group_cols join
+            their values with GROUP_KEY_SEP. Defaults to None.
         group_cols (list, optional): Columns folded into the composite key.
             Defaults to None.
 
@@ -338,7 +345,12 @@ def select_control_indices(
             group_cols, without a reference_group, or against ungrouped perturbation
             names, or if the selected group matches no control rows.
     """
-    if control_scope not in ("pooled", "within_group", "reference_group"):
+    if control_scope not in (
+        "pooled",
+        "within_group",
+        "reference_group",
+        "within_perturbation",
+    ):
         raise ValueError(f"Unknown control_scope: {control_scope}")
 
     is_control = control_mask(perturbation_values, control_key)
@@ -347,8 +359,45 @@ def select_control_indices(
     if control_scope == "pooled":
         return {idx: control_indices for idx in perturbation_values.index}
 
-    point_groups = perturbation_values.astype(str).str.split(GROUP_KEY_SEP, n=1).str[1]
+    point_keys = perturbation_values.astype(str).str.split(GROUP_KEY_SEP, n=1)
+    point_groups = point_keys.str[1]
     control_groups = point_groups[is_control]
+
+    if control_scope == "within_perturbation":
+        if not group_cols or reference_group is None:
+            raise ValueError(
+                "control_scope 'within_perturbation' needs aggregate group_cols and "
+                "control_reference_group; without them points carry no reference to "
+                "pin the null to"
+            )
+        group_key = str(reference_group)
+        in_reference = point_groups == group_key
+        if not in_reference.any():
+            raise ValueError(
+                f"control_reference_group '{group_key}' is absent; "
+                f"groups present: {sorted(point_groups.dropna().unique())}"
+            )
+        reference_by_perturbation = (
+            perturbation_values.index[in_reference]
+            .to_series()
+            .groupby(point_keys.str[0][in_reference].to_numpy())
+            .apply(list)
+        )
+        # a perturbation with no reference arm cannot be scored; it gets an empty
+        # control set and a NaN potential rather than failing the run
+        scoped_indices = {
+            idx: reference_by_perturbation.get(perturbation, [])
+            for idx, perturbation in point_keys.str[0].items()
+        }
+        unscored = sorted(
+            {p for p in point_keys.str[0] if p not in reference_by_perturbation.index}
+        )
+        print(
+            f"Scoring each point against its own perturbation in group '{group_key}': "
+            f"{len(reference_by_perturbation)} perturbations carry a reference arm"
+            + (f"; {len(unscored)} without one get NaN: {unscored}" if unscored else "")
+        )
+        return scoped_indices
 
     if control_scope == "within_group":
         if point_groups.isna().all():

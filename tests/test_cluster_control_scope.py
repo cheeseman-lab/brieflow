@@ -286,3 +286,78 @@ def test_reference_group_spans_several_group_cols():
     )
 
     assert scoped[0] == [1]
+
+
+# "within_perturbation" is the scope for a screen whose perturbations are not knockouts:
+# every construct is its own control, so `X=ligand` is scored against `X=reference_group`
+# rather than against any control perturbation. control_key plays no part, and a
+# perturbation with no arm in the reference group is unscorable rather than fatal.
+
+
+def test_within_perturbation_scores_each_point_against_its_own_vehicle_arm():
+    """Each point's pool is its own perturbation in the reference group, nothing else."""
+    scoped = select_control_indices(
+        PERTURBATIONS,
+        CONTROL_KEY,
+        "within_perturbation",
+        reference_group="Ethanol",
+        group_cols=GROUP_COLS,
+    )
+    for idx, key in PERTURBATIONS.items():
+        perturbation = key.split(GROUP_KEY_SEP)[0]
+        assert [PERTURBATIONS[i] for i in scoped[idx]] == [
+            f"{perturbation}{GROUP_KEY_SEP}Ethanol"
+        ]
+
+
+def test_within_perturbation_ignores_control_key():
+    """The scope is defined by the reference group, so the control key cannot change it."""
+    pools = [
+        select_control_indices(
+            PERTURBATIONS,
+            key,
+            "within_perturbation",
+            reference_group="Ethanol",
+            group_cols=GROUP_COLS,
+        )
+        for key in (CONTROL_KEY, ["NR3C1_5"], "nontargeting")
+    ]
+    assert pools[0] == pools[1] == pools[2]
+
+
+def test_within_perturbation_leaves_an_unreferenced_perturbation_unscored():
+    """A perturbation with no reference arm gets an empty pool, not an exception."""
+    keys = pd.Series(list(KEYS) + ["RARG_3=Retinoic_Acid"], name=PERT_COL)
+    scoped = select_control_indices(
+        keys,
+        CONTROL_KEY,
+        "within_perturbation",
+        reference_group="Ethanol",
+        group_cols=GROUP_COLS,
+    )
+    assert scoped[keys.index[-1]] == []
+
+
+def test_within_perturbation_requires_group_cols_and_a_reference_group():
+    """Without a group to pin to, the scope cannot be resolved and must raise."""
+    for kwargs in (
+        {"reference_group": "Ethanol", "group_cols": []},
+        {"reference_group": None, "group_cols": GROUP_COLS},
+    ):
+        with pytest.raises(ValueError):
+            select_control_indices(
+                PERTURBATIONS, CONTROL_KEY, "within_perturbation", **kwargs
+            )
+
+
+def test_within_perturbation_puts_a_reference_arm_at_zero_distance_from_itself():
+    """An arm in the reference group is its own control, so its potential is zero."""
+    result = calculate_potential_to_nontargeting(
+        _potential(KEYS),
+        CONTROL_KEY,
+        control_scope="within_perturbation",
+        reference_group="Ethanol",
+        group_cols=GROUP_COLS,
+    )
+    vehicle = result[result[PERT_COL].str.endswith(f"{GROUP_KEY_SEP}Ethanol")]
+    assert np.allclose(vehicle["mean_potential_to_nontargeting"], 0.0)

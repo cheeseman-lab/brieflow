@@ -342,6 +342,8 @@ checkpoint prepare_bootstrap_data:
         perturbation_id_col=config.get("aggregate", {}).get("perturbation_id_col"),
         group_cols=config.get("aggregate", {}).get("group_cols", []),
         control_key=config.get("aggregate", {}).get("control_key"),
+        bootstrap_control_scope=config.get("aggregate", {}).get("bootstrap_control_scope", "pooled"),
+        bootstrap_reference_group=config.get("aggregate", {}).get("bootstrap_reference_group", None),
         exclusion_string=config.get("aggregate", {}).get("exclusion_string"),
         bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
         bootstrap_extra_features=config.get("aggregate", {}).get("bootstrap_extra_features", None),

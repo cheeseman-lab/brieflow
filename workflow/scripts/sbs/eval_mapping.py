@@ -34,9 +34,10 @@ else:
     barcodes = get_barcode_list(df_barcode_library)
 
 # Load SBS processing files
-reads = read_parquets(snakemake.input.reads_paths)
+# eval reads only need these cols (barcode match + well/tile/cell grouping).
+reads = read_parquets(snakemake.input.reads_paths, columns=["cell", "well", "tile", "barcode", "Q_min", "peak"])
 cells = read_parquets(snakemake.input.cells_paths)
-sbs_info = read_parquets(snakemake.input.sbs_info_paths)
+sbs_info = read_parquets(snakemake.input.sbs_info_paths, columns=["well", "tile", "cell"])
 
 # Load metadata for spatial heatmap plotting
 metadata = pd.concat(

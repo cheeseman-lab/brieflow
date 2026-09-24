@@ -1,4 +1,5 @@
 from lib.shared.compartment_utils import format_rule_output
+from lib.shared.rule_utils import get_cluster_control_key
 
 
 # bootstrap gene results for the current combo, resolved on the same compartment path
@@ -33,7 +34,7 @@ rule phate_leiden_clustering:
         leiden_resolution=lambda wildcards: wildcards.leiden_resolution,
         phate_distance_metric=config.get("cluster", {}).get("phate_distance_metric", "cosine"),
         perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
-        control_key=config.get("aggregate", {}).get("control_key"),
+        control_key=get_cluster_control_key(config),
         control_scope=config.get("cluster", {}).get("control_scope", "pooled"),
         control_reference_group=config.get("cluster", {}).get("control_reference_group", None),
         group_cols=config.get("aggregate", {}).get("group_cols", []),
@@ -54,7 +55,9 @@ rule benchmark_clusters:
         leiden_resolution=lambda wildcards: wildcards.leiden_resolution,
         phate_distance_metric=config.get("cluster", {}).get("phate_distance_metric", "cosine"),
         perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
-        control_key=config.get("aggregate", {}).get("control_key"),
+        control_key=get_cluster_control_key(config),
+        control_scope=config.get("cluster", {}).get("control_scope", "pooled"),
+        control_reference_group=config.get("cluster", {}).get("control_reference_group", None),
         perturbation_auc_threshold=config.get("cluster", {}).get("perturbation_auc_threshold"),
         string_pair_benchmark_fp=config.get("cluster", {}).get("string_pair_benchmark_fp"),
         corum_group_benchmark_fp=config.get("cluster", {}).get("corum_group_benchmark_fp"),

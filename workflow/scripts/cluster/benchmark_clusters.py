@@ -9,8 +9,10 @@ plt.rcParams.update(
     }
 )
 
-from lib.aggregate.cell_data_utils import control_mask
-from lib.cluster.phate_leiden_clustering import phate_leiden_pipeline
+from lib.cluster.phate_leiden_clustering import (
+    filter_by_perturbation_auc,
+    phate_leiden_pipeline,
+)
 from lib.cluster.benchmark_clusters import (
     run_benchmark_analysis,
     save_json_results,
@@ -27,20 +29,14 @@ for _param_name in ["perturbation_name_col", "control_key"]:
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
 phate_leiden_clustering = pd.read_csv(snakemake.input[1], sep="\t")
 
-if snakemake.params.perturbation_auc_threshold is not None:
-    aggregated_data = aggregated_data[
-        (
-            control_mask(
-                aggregated_data[snakemake.params.perturbation_name_col],
-                snakemake.params.control_key,
-                match="startswith",
-            )
-        )
-        | (
-            aggregated_data["perturbation_auc"]
-            > snakemake.params.perturbation_auc_threshold
-        )
-    ]
+aggregated_data = filter_by_perturbation_auc(
+    aggregated_data,
+    snakemake.params.perturbation_name_col,
+    snakemake.params.control_key,
+    snakemake.params.perturbation_auc_threshold,
+    control_scope=snakemake.params.get("control_scope", "pooled"),
+    reference_group=snakemake.params.get("control_reference_group", None),
+)
 
 # create baseline data by shuffling columns independently
 shuffled_aggregated_data = aggregated_data.copy()

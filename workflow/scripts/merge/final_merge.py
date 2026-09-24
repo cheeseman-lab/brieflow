@@ -1,7 +1,6 @@
 from lib.merge.final_merge import final_merge
 
-# Thin wrapper over the shared streaming merge so every caller uses identical
-# logic (see lib/merge/final_merge.py).
+# Thin wrapper over the streaming out-of-core merge (see lib/merge/final_merge.py).
 final_merge(
     deduplicated_path=snakemake.input[0],
     phenotype_cp_path=snakemake.input[1],

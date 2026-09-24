@@ -82,8 +82,9 @@ def read_parquets(
 
 
 def resolve_table_path(path):
-    """Resolve a per-tile intermediate path to the on-disk file to read,
-    preferring parquet over its tsv sibling.
+    """Resolve a per-tile intermediate path to the on-disk file to read.
+
+    Prefers parquet over its tsv sibling.
 
     `path` may be given with either a .parquet or .tsv suffix. Checks the
     .parquet sibling first, then .tsv. A file counts only if it exists AND is
@@ -100,15 +101,15 @@ def resolve_table_path(path):
 
 
 def read_table(path):
-    """Read a per-tile intermediate as a pandas DataFrame, preferring parquet
-    over its tsv sibling (via resolve_table_path). Raises FileNotFoundError if
-    neither sibling has content. parquet -> read_parquet(); tsv -> pd.read_csv
-    (sep tab)."""
+    """Read a per-tile intermediate as a pandas DataFrame.
+
+    Prefers parquet over its tsv sibling (via resolve_table_path); parquet goes
+    through read_parquet and tsv through pd.read_csv with a tab separator.
+    Raises FileNotFoundError if neither sibling has content.
+    """
     resolved, fmt = resolve_table_path(path)
     if resolved is None:
-        raise FileNotFoundError(
-            f"No non-empty parquet or tsv sibling found for {path}"
-        )
+        raise FileNotFoundError(f"No non-empty parquet or tsv sibling found for {path}")
     if fmt == "parquet":
         return read_parquet(resolved)
     return pd.read_csv(resolved, sep="\t")

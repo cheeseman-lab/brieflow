@@ -223,9 +223,17 @@ def plot_read_mapping_heatmap(
     if df_summary.empty:
         # 0% mapping: all well/tile groups had zero mapped reads; produce placeholder figure
         import matplotlib.pyplot as plt
+
         fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-        ax.text(0.5, 0.5, "0% of reads mapped to library barcodes",
-                ha="center", va="center", fontsize=14, transform=ax.transAxes)
+        ax.text(
+            0.5,
+            0.5,
+            "0% of reads mapped to library barcodes",
+            ha="center",
+            va="center",
+            fontsize=14,
+            transform=ax.transAxes,
+        )
         ax.axis("off")
         return (df_summary, fig) if return_summary else fig
 
@@ -278,11 +286,27 @@ def plot_cell_mapping_heatmap(
     """
     # Mark cells as mapped or unmapped based on provided barcodes or gene symbols
     if mapping_strategy == "barcodes":
-        df_cells["mapped_0"] = df_cells["cell_barcode_0"].isin(barcodes).astype(int) if "cell_barcode_0" in df_cells.columns else 0
-        df_cells["mapped_1"] = df_cells["cell_barcode_1"].isin(barcodes).astype(int) if "cell_barcode_1" in df_cells.columns else 0
+        df_cells["mapped_0"] = (
+            df_cells["cell_barcode_0"].isin(barcodes).astype(int)
+            if "cell_barcode_0" in df_cells.columns
+            else 0
+        )
+        df_cells["mapped_1"] = (
+            df_cells["cell_barcode_1"].isin(barcodes).astype(int)
+            if "cell_barcode_1" in df_cells.columns
+            else 0
+        )
     elif mapping_strategy == "gene symbols":
-        df_cells["mapped_0"] = (~df_cells["gene_symbol_0"].isna()).astype(int) if "gene_symbol_0" in df_cells.columns else 0
-        df_cells["mapped_1"] = (~df_cells["gene_symbol_1"].isna()).astype(int) if "gene_symbol_1" in df_cells.columns else 0
+        df_cells["mapped_0"] = (
+            (~df_cells["gene_symbol_0"].isna()).astype(int)
+            if "gene_symbol_0" in df_cells.columns
+            else 0
+        )
+        df_cells["mapped_1"] = (
+            (~df_cells["gene_symbol_1"].isna()).astype(int)
+            if "gene_symbol_1" in df_cells.columns
+            else 0
+        )
     else:
         raise ValueError(
             f"Invalid mapping strategy: {mapping_strategy}. Choose 'barcodes' or 'gene symbols'."
@@ -653,12 +677,16 @@ def mapping_overview(sbs_info, cells, sort_by="count"):
     # For both count and peak modes, use the actual barcode columns to assess mapping
     # Check if cell_barcode_0 and cell_barcode_1 are valid (not NaN and not empty)
     cells_temp = cells.copy()
-    cells_temp["has_barcode_0"] = (~cells_temp["cell_barcode_0"].isna()) & (
-        cells_temp["cell_barcode_0"] != ""
-    ) if "cell_barcode_0" in cells_temp.columns else False
-    cells_temp["has_barcode_1"] = (~cells_temp["cell_barcode_1"].isna()) & (
-        cells_temp["cell_barcode_1"] != ""
-    ) if "cell_barcode_1" in cells_temp.columns else False
+    cells_temp["has_barcode_0"] = (
+        (~cells_temp["cell_barcode_0"].isna()) & (cells_temp["cell_barcode_0"] != "")
+        if "cell_barcode_0" in cells_temp.columns
+        else False
+    )
+    cells_temp["has_barcode_1"] = (
+        (~cells_temp["cell_barcode_1"].isna()) & (cells_temp["cell_barcode_1"] != "")
+        if "cell_barcode_1" in cells_temp.columns
+        else False
+    )
     cells_temp["barcode_mapping_count"] = cells_temp["has_barcode_0"].astype(
         int
     ) + cells_temp["has_barcode_1"].astype(int)
@@ -707,8 +735,16 @@ def mapping_overview(sbs_info, cells, sort_by="count"):
     )
 
     # Count and calculate percent of cells with 1 gene symbol mapping per well
-    has_gs0 = ~cells["gene_symbol_0"].isna() if "gene_symbol_0" in cells.columns else pd.Series(False, index=cells.index)
-    has_gs1 = ~cells["gene_symbol_1"].isna() if "gene_symbol_1" in cells.columns else pd.Series(False, index=cells.index)
+    has_gs0 = (
+        ~cells["gene_symbol_0"].isna()
+        if "gene_symbol_0" in cells.columns
+        else pd.Series(False, index=cells.index)
+    )
+    has_gs1 = (
+        ~cells["gene_symbol_1"].isna()
+        if "gene_symbol_1" in cells.columns
+        else pd.Series(False, index=cells.index)
+    )
     one_gene_mapping = (
         cells[has_gs0 & ~has_gs1]
         .groupby("well")

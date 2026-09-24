@@ -1,5 +1,6 @@
-"""Combine per-tile intermediates (parquet-or-tsv, prefer parquet) into one
-dtype-normalized pandas DataFrame.
+"""Combine per-tile intermediates into one dtype-normalized pandas DataFrame.
+
+Reads parquet-or-tsv, preferring parquet.
 
 Used by the Snakemake combine script (workflow/scripts/shared/combine_dfs.py)
 so the concat + dtype-normalization logic lives in exactly one place for every
@@ -104,9 +105,7 @@ def _read_concat(paths):
             # compute union_missing from the non-empty (kept) tiles only, else a
             # header-only tile missing e.g. `plate` would wrongly upcast it.
             kept_cols = [set(_col_list(fp, fm)) for fp, fm in kept]
-            union_missing = {
-                c for s in kept_cols for c in df.columns if c not in s
-            }
+            union_missing = {c for s in kept_cols for c in df.columns if c not in s}
             casts = [
                 pl.col(c).cast(pl.Float64)
                 for c in union_missing

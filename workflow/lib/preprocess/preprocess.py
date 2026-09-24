@@ -199,8 +199,7 @@ def extract_metadata_well_nd2(
             print(f"Data type: {images.dtype}")
             print(f"Sizes (by axes): {images.sizes}")
 
-        # Get number of unique XY positions
-        num_positions = images.sizes.get("P", 1)
+        num_positions = nd2_position_count(images)
         z_planes = images.sizes.get("Z", 1)
 
         if verbose:
@@ -861,8 +860,7 @@ def convert_nd2_to_array_well(
             if verbose:
                 print(f"File dimensions: {nd2_obj.sizes}")
 
-            # Get and save 'P' data from the ND2 file
-            tiles = nd2_obj.sizes["P"]
+            tiles = nd2_position_count(nd2_obj)
 
             # Check if we have Z dimension
             if "Z" in nd2_obj.sizes:
@@ -934,6 +932,21 @@ def convert_nd2_to_array_well(
         return result.astype(np.uint16), tiles
     else:
         return result.astype(np.uint16)
+
+
+def nd2_position_count(nd2_file: nd2.ND2File) -> int:
+    """Return the number of XY positions (tiles) in an open ND2 file.
+
+    nd2 omits size-1 axes from ``sizes``, so a file without a ``P`` axis holds a single
+    position and counts as one tile.
+
+    Args:
+        nd2_file: Open ND2 file, or any object exposing an nd2-style ``sizes`` mapping.
+
+    Returns:
+        Number of XY positions in the file.
+    """
+    return nd2_file.sizes.get("P", 1)
 
 
 def convert_ims_to_array(

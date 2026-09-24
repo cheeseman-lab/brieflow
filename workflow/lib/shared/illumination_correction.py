@@ -96,7 +96,11 @@ def calculate_ic_field(
             smoothed = applyIJ(skimage.filters.median)(data, selem, behavior="rank")
         else:
             smoothed = applyIJ_parallel(
-                skimage.filters.median, data, footprint=selem, behavior="rank", n_jobs=n_jobs
+                skimage.filters.median,
+                data,
+                footprint=selem,
+                behavior="rank",
+                n_jobs=n_jobs,
             )
 
     # Rescale channels if requested

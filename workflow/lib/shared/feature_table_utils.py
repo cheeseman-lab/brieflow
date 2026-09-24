@@ -125,9 +125,7 @@ def _compute_region_features(region, funcs):
     return [func(region) for func in funcs]
 
 
-def feature_table_multichannel(
-    data, labels, features, global_features=None, n_jobs=-1
-):
+def feature_table_multichannel(data, labels, features, global_features=None, n_jobs=-1):
     """Apply functions in feature dictionary to regions in data specified by integer labels.
 
     If provided, the global feature dictionary is applied to the full input data and labels.

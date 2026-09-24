@@ -13,6 +13,9 @@ from lib.phenotype.constants import DEFAULT_METADATA_COLS
 # in lib/shared/rule_utils.py), not a glob metacharacter, not regex-special
 GROUP_KEY_SEP = "="
 
+# control-pool scopes shared by the bootstrap null and the cluster potential
+CONTROL_SCOPES = ("pooled", "within_group", "reference_group", "within_perturbation")
+
 
 def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     """Load metadata column names from a file.

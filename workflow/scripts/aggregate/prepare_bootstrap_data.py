@@ -10,10 +10,12 @@ from lib.aggregate.cell_data_utils import (
     load_metadata_cols,
     split_cell_data,
     get_feature_table_cols,
-    control_mask,
-    GROUP_KEY_SEP,
 )
-from lib.aggregate.bootstrap import write_construct_data
+from lib.aggregate.bootstrap import (
+    bootstrap_control_mask,
+    within_perturbation_construct_mask,
+    write_construct_data,
+)
 from lib.shared.parquet_io import read_parquet
 
 # Validate required params
@@ -55,22 +57,14 @@ print(f"Construct table shape: {construct_table.shape}")
 print(f"Gene table shape: {gene_table.shape}")
 
 # Filter for control cells (already center-scaled)
-if control_scope == "within_perturbation":
-    if not group_cols or reference_group is None:
-        raise ValueError(
-            "bootstrap_control_scope 'within_perturbation' needs aggregate group_cols "
-            "and bootstrap_reference_group"
-        )
-    reference_values = (
-        all_features_cells[group_cols].astype(str).agg(GROUP_KEY_SEP.join, axis=1)
-    )
-    is_control = reference_values == str(reference_group)
-    print(
-        f"Control pool is the reference group '{reference_group}': "
-        f"{int(is_control.sum())} cells"
-    )
-else:
-    is_control = control_mask(all_features_cells[perturbation_col], control_key)
+is_control = bootstrap_control_mask(
+    all_features_cells,
+    perturbation_col,
+    control_key,
+    control_scope,
+    reference_group=reference_group,
+    group_cols=group_cols,
+)
 control_cells = all_features_cells[is_control]
 print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 
@@ -148,33 +142,12 @@ if exclusion_string is not None:
         exclusion_string, na=False
     )
 if control_scope == "within_perturbation":
-    # a construct with no reference-group arm has no null, so no bootstrap job is spawned
-    reference_perturbations = set(
-        controls_metadata[perturbation_col]
-        .astype(str)
-        .str.split(GROUP_KEY_SEP, n=1)
-        .str[0]
+    construct_mask = construct_mask & within_perturbation_construct_mask(
+        construct_table,
+        perturbation_col,
+        controls_metadata[perturbation_col],
+        reference_group,
     )
-    has_reference = (
-        construct_table[perturbation_col]
-        .astype(str)
-        .str.split(GROUP_KEY_SEP, n=1)
-        .str[0]
-        .isin(reference_perturbations)
-    )
-    dropped = sorted(
-        construct_table.loc[construct_mask & ~has_reference, perturbation_col]
-        .astype(str)
-        .str.split(GROUP_KEY_SEP, n=1)
-        .str[0]
-        .unique()
-    )
-    if dropped:
-        print(
-            f"{len(dropped)} perturbations have no '{reference_group}' arm and are "
-            f"left out of the bootstrap: {dropped}"
-        )
-    construct_mask = construct_mask & has_reference
 
 construct_features_df = construct_table[construct_mask]
 

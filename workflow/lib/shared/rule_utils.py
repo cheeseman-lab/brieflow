@@ -553,3 +553,17 @@ def get_call_cells_params(config: Dict[str, Any]) -> Dict[str, Any]:
         )
 
     return params
+
+
+def get_cluster_control_key(config: Dict[str, Any]) -> Any:
+    """Get the cluster control key, inheriting the aggregate one when unset or null.
+
+    Args:
+        config (Dict[str, Any]): Configuration dictionary.
+
+    Returns:
+        Any: cluster.control_key if set, else aggregate.control_key.
+    """
+    return config.get("cluster", {}).get("control_key") or config.get(
+        "aggregate", {}
+    ).get("control_key")

@@ -14,7 +14,7 @@ from igraph import Graph
 import leidenalg
 import phate
 
-from lib.aggregate.cell_data_utils import GROUP_KEY_SEP, control_mask
+from lib.aggregate.cell_data_utils import CONTROL_SCOPES, GROUP_KEY_SEP, control_mask
 
 
 def phate_leiden_pipeline(
@@ -305,6 +305,53 @@ def plot_phate_leiden_clusters(
     return fig
 
 
+def filter_by_perturbation_auc(
+    aggregated_data,
+    perturbation_name_col,
+    control_key,
+    auc_threshold,
+    control_scope="pooled",
+    reference_group=None,
+):
+    """Keep control rows and rows whose perturbation_auc clears a threshold.
+
+    Under "within_perturbation" each perturbation's null is its own arm in the
+    reference group, so those arms are kept whatever their AUC; dropping them would
+    leave the treated arms of the same perturbation with an empty pool and a NaN
+    potential.
+
+    Args:
+        aggregated_data (pd.DataFrame): Aggregated points with perturbation_auc.
+        perturbation_name_col (str): Perturbation name column, composite when
+            group_cols is set.
+        control_key (str | list): Control identifier, or a list of exact names.
+        auc_threshold (float | None): Minimum perturbation_auc, exclusive; None keeps
+            every row.
+        control_scope (str, optional): Cluster control scope. Defaults to "pooled".
+        reference_group (str, optional): Group key of the reference condition.
+            Defaults to None.
+
+    Returns:
+        pd.DataFrame: The rows kept.
+    """
+    if auc_threshold is None:
+        return aggregated_data
+
+    perturbations = aggregated_data[perturbation_name_col]
+    keep = control_mask(perturbations, control_key, match="startswith") | (
+        aggregated_data["perturbation_auc"] > auc_threshold
+    )
+    if control_scope == "within_perturbation" and reference_group is not None:
+        groups = perturbations.astype(str).str.split(GROUP_KEY_SEP, n=1).str[1]
+        keep |= groups == str(reference_group)
+    print(
+        f"Filtering aggregated data for perturbation AUC > {auc_threshold}: "
+        f"{int(keep.sum())} of {len(aggregated_data)} rows kept"
+    )
+
+    return aggregated_data[keep]
+
+
 def select_control_indices(
     perturbation_values,
     control_key,
@@ -315,13 +362,14 @@ def select_control_indices(
     """Map every point to the control rows its null is drawn from.
 
     "reference_group" pins the null to one fixed group whatever the point's own group,
-    so an over-expression library is scored against the unliganded control state rather
-    than against a control cloud pooled across every treatment.
+    so a library whose group is a treatment acting on the perturbation is scored against
+    the untreated control state rather than against a control cloud pooled across every
+    treatment.
 
-    "within_perturbation" makes every perturbation its own control: `X=ligand` is
+    "within_perturbation" makes every perturbation its own control: `X=treated` is
     scored against `X=reference_group`, the same perturbation in the reference
-    condition. control_key plays no part in that scope, since the treatment is the
-    reference rather than any perturbation.
+    condition. control_key plays no part in that scope, since the control is the
+    reference condition rather than any perturbation.
 
     Args:
         perturbation_values (pd.Series): Perturbation names, composite when group_cols is set.
@@ -341,16 +389,12 @@ def select_control_indices(
         dict: Point index label mapped to the control index labels scoring it.
 
     Raises:
-        ValueError: If the scope is unknown, if "reference_group" is requested without
-            group_cols, without a reference_group, or against ungrouped perturbation
-            names, or if the selected group matches no control rows.
+        ValueError: If the scope is unknown, if "reference_group" or
+            "within_perturbation" is requested without group_cols or without a
+            reference_group, if "reference_group" is requested against ungrouped
+            perturbation names, or if the selected group matches no rows.
     """
-    if control_scope not in (
-        "pooled",
-        "within_group",
-        "reference_group",
-        "within_perturbation",
-    ):
+    if control_scope not in CONTROL_SCOPES:
         raise ValueError(f"Unknown control_scope: {control_scope}")
 
     is_control = control_mask(perturbation_values, control_key)

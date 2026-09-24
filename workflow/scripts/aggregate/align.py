@@ -161,7 +161,7 @@ for i, indices in enumerate(subset_indices):
 
     features = pca.transform(features)
 
-    # per-batch TVN needs many controls per batch; otherwise fit one TVN on the pooled controls
+    # per-batch TVN needs many controls per batch; False fits one TVN on pooled controls
     tvn_batch_col = "batch_values" if snakemake.params.tvn_batch_correction else None
 
     features = tvn_on_controls(

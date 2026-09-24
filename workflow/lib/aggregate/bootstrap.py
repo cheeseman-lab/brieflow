@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Tuple, List, Dict, Any, Optional, Union
 from scipy.stats import false_discovery_control
 
-from lib.aggregate.cell_data_utils import GROUP_KEY_SEP
+from lib.aggregate.cell_data_utils import CONTROL_SCOPES, GROUP_KEY_SEP, control_mask
 
 
 @numba.njit(cache=True)
@@ -66,14 +66,6 @@ def _bootstrap_inner_numba(
     return null_medians
 
 
-BOOTSTRAP_CONTROL_SCOPES = (
-    "pooled",
-    "within_group",
-    "reference_group",
-    "within_perturbation",
-)
-
-
 def select_control_pool(
     controls_df: pd.DataFrame,
     construct_id: str,
@@ -85,14 +77,16 @@ def select_control_pool(
     """Restrict the bootstrap null pool to the controls a scope names.
 
     "reference_group" pins the null to one fixed group whatever the construct's own
-    group, so an over-expression library is tested against the unliganded control
-    state rather than against controls that saw the same ligand.
+    group, so a library whose group is a treatment acting on the perturbation is
+    tested against the untreated control state rather than against controls that saw
+    the same treatment.
 
     "within_perturbation" goes one step further and makes every perturbation its own
-    control: the null for `X=ligand` is drawn from `X=reference_group`, the same
-    construct in the reference condition. The pool then holds every cell in the
-    reference group rather than the control_key perturbations, and the treatment is
-    the reference condition rather than any perturbation.
+    control: the null for `X=treated` is drawn from `X=reference_group`, the same
+    perturbation in the reference condition. The pool then holds every cell in the
+    reference group rather than the control_key perturbations (see
+    bootstrap_control_mask), and the control is the reference condition rather than
+    any perturbation.
 
     Args:
         controls_df (pd.DataFrame): Control cells, perturbation key in the first column.
@@ -107,18 +101,19 @@ def select_control_pool(
         group_cols (list, optional): Columns folded into the composite key.
             Defaults to None.
         perturbation_id (str, optional): The construct's perturbation-level key, as
-            written in the first column of controls_df; "within_perturbation" matches
-            on it since construct ids carry a guide or barcode instead. Defaults to
-            None, which falls back to construct_id.
+            written in the first column of controls_df. Required by
+            "within_perturbation", which matches on it since construct ids carry a
+            guide or barcode instead. Defaults to None.
 
     Returns:
         pd.DataFrame: Controls the scope selects.
 
     Raises:
         ValueError: If the scope is unknown, if a reference scope is requested without
-            group_cols or without a reference_group, or if the selected pool is empty.
+            group_cols or without a reference_group, if "within_perturbation" is
+            requested without a perturbation_id, or if the selected pool is empty.
     """
-    if control_scope not in BOOTSTRAP_CONTROL_SCOPES:
+    if control_scope not in CONTROL_SCOPES:
         raise ValueError(f"Unknown bootstrap_control_scope: {control_scope}")
 
     if control_scope == "pooled":
@@ -131,8 +126,8 @@ def select_control_pool(
     else:
         if not group_cols:
             raise ValueError(
-                f"bootstrap_control_scope '{control_scope}' needs aggregate group_cols; "
-                "without them controls carry no group to pin the null to"
+                f"bootstrap_control_scope '{control_scope}' needs aggregate "
+                "group_cols; without them controls carry no group to pin the null to"
             )
         if reference_group is None:
             raise ValueError(
@@ -146,16 +141,19 @@ def select_control_pool(
     group_mask = control_groups == group_key
 
     if control_scope == "within_perturbation":
-        own_key = str(perturbation_id if perturbation_id is not None else construct_id)
-        own_perturbation = own_key.split(GROUP_KEY_SEP, 1)[0]
+        if perturbation_id is None:
+            raise ValueError(
+                "bootstrap_control_scope 'within_perturbation' needs the construct's "
+                f"perturbation_id (construct {construct_id})"
+            )
+        own_perturbation = str(perturbation_id).split(GROUP_KEY_SEP, 1)[0]
         group_mask &= control_keys.str[0] == own_perturbation
         label = f"perturbation '{own_perturbation}' in group '{group_key}'"
     else:
         label = f"group '{group_key}'"
 
-    print(
-        f"Restricting controls to {label}: {int(group_mask.sum())} of {len(controls_df)} rows"
-    )
+    n_selected = int(group_mask.sum())
+    print(f"Restricting controls to {label}: {n_selected} of {len(controls_df)} rows")
     control_pool = controls_df[group_mask]
     if len(control_pool) == 0:
         if control_scope == "reference_group":
@@ -168,6 +166,110 @@ def select_control_pool(
         )
 
     return control_pool
+
+
+def bootstrap_control_mask(
+    cells: pd.DataFrame,
+    perturbation_col: str,
+    control_key: Union[str, List[str]],
+    control_scope: str = "pooled",
+    reference_group: Optional[str] = None,
+    group_cols: Optional[List[str]] = None,
+) -> pd.Series:
+    """Flag the cells written to the bootstrap control pool.
+
+    Every scope but "within_perturbation" pools the control_key perturbations and
+    select_control_pool narrows them per construct. "within_perturbation" pools every
+    cell in the reference group instead, since each perturbation's null is its own
+    arm there.
+
+    Args:
+        cells (pd.DataFrame): Single-cell data carrying perturbation_col and the
+            literal group_cols.
+        perturbation_col (str): Perturbation name column.
+        control_key (str | list): Control identifier, or a list of exact names.
+        control_scope (str, optional): Bootstrap control scope. Defaults to "pooled".
+        reference_group (str, optional): Group key of the reference condition; several
+            group_cols join their values with GROUP_KEY_SEP. Defaults to None.
+        group_cols (list, optional): Columns folded into the composite key.
+            Defaults to None.
+
+    Returns:
+        pd.Series: Boolean mask of the cells in the control pool.
+
+    Raises:
+        ValueError: If "within_perturbation" is requested without group_cols or
+            without a reference_group, or if no cell is in the reference group.
+    """
+    if control_scope != "within_perturbation":
+        return control_mask(cells[perturbation_col], control_key)
+
+    if not group_cols or reference_group is None:
+        raise ValueError(
+            "bootstrap_control_scope 'within_perturbation' needs aggregate group_cols "
+            "and bootstrap_reference_group"
+        )
+    groups = cells[list(group_cols)].astype(str).agg(GROUP_KEY_SEP.join, axis=1)
+    in_reference = groups == str(reference_group)
+    if not in_reference.any():
+        raise ValueError(
+            f"bootstrap_reference_group '{reference_group}' matches no cells; "
+            f"groups present: {sorted(groups.unique())}"
+        )
+    print(
+        f"Control pool is the reference group '{reference_group}': "
+        f"{int(in_reference.sum())} cells"
+    )
+
+    return in_reference
+
+
+def within_perturbation_construct_mask(
+    construct_table: pd.DataFrame,
+    perturbation_col: str,
+    control_perturbations: pd.Series,
+    reference_group: str,
+) -> pd.Series:
+    """Flag the constructs a "within_perturbation" bootstrap can test.
+
+    A construct is tested only when its perturbation has an arm in the reference group,
+    since that arm is its null, and only when it is not in the reference group itself:
+    a reference arm drawn against its own cells is a circular test that would also
+    enlarge the multiple-testing correction applied to every other construct.
+
+    Args:
+        construct_table (pd.DataFrame): Construct-level table, composite keys in
+            perturbation_col.
+        perturbation_col (str): Perturbation name column.
+        control_perturbations (pd.Series): Composite perturbation keys of the cells in
+            the control pool, as bootstrap_control_mask selects them.
+        reference_group (str): Group key of the reference condition.
+
+    Returns:
+        pd.Series: Boolean mask aligned with construct_table.
+    """
+    construct_keys = (
+        construct_table[perturbation_col].astype(str).str.split(GROUP_KEY_SEP, n=1)
+    )
+    construct_perturbations = construct_keys.str[0]
+    referenced = set(
+        control_perturbations.astype(str).str.split(GROUP_KEY_SEP, n=1).str[0]
+    )
+    has_reference = construct_perturbations.isin(referenced)
+    is_reference = construct_keys.str[1] == str(reference_group)
+
+    unreferenced = sorted(construct_perturbations[~has_reference].unique())
+    if unreferenced:
+        print(
+            f"{len(unreferenced)} perturbations have no '{reference_group}' arm "
+            f"and are left out of the bootstrap: {unreferenced}"
+        )
+    print(
+        f"{int(is_reference.sum())} constructs in '{reference_group}' are the null "
+        "and are not tested"
+    )
+
+    return has_reference & ~is_reference
 
 
 def get_construct_features(

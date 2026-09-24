@@ -1,5 +1,6 @@
 from lib.shared.image_io import read_image
 import pandas as pd
+from lib.shared.parquet_io import write_parquet
 
 # foci_channel_index intentionally omitted — extract_phenotype_cp_emulator handles foci_channel=None
 for _param_name in ["cp_method", "channel_names"]:
@@ -78,5 +79,5 @@ phenotype_cp["num_nuclei"] = (
     cell_labels.map(nuclei_per_cell["num_nuclei"]).fillna(1).astype(int)
 )
 
-# save phenotype cp
-phenotype_cp.to_csv(snakemake.output[0], index=False, sep="\t")
+# Save phenotype cp
+write_parquet(phenotype_cp, snakemake.output[0])

@@ -81,6 +81,10 @@ if merge_approach == "fast":
             warp_degree=config.get("merge", {}).get("warp_degree"),
             warp_iterations=config.get("merge", {}).get("warp_iterations"),
             warp_smoothing=config.get("merge", {}).get("warp_smoothing"),
+        threads: 1
+        resources:
+            mem_mb=8000,  # tune: holds full well phenotype+sbs info
+            runtime=20,   # minutes
         script:
             "../scripts/merge/fast_merge.py"
 

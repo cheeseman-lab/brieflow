@@ -626,6 +626,16 @@ def lstsq_slope_all_multichannel(r):
 
 def cp_colocalization_all_channels(r, mode="multichannel", **kwargs):
     if mode == "multichannel":
+        # The per-channel cache below is only valid for otsu: costes thresholds are
+        # pair-dependent, so they cannot be hoisted out of the pair loop. Reject
+        # anything else loudly rather than silently returning otsu results.
+        threshold = kwargs.pop("threshold", "otsu")
+        if threshold != "otsu" or kwargs:
+            raise ValueError(
+                "multichannel colocalization only supports threshold='otsu'; "
+                f"got threshold={threshold!r}, extra kwargs={sorted(kwargs)}"
+            )
+
         channels = r.intensity_image.shape[-1]
         # Precompute otsu threshold and rankdata once per channel instead of per pair.
         # Each channel appears in (C-1) pairs; caching cuts calls from 2*C(C,2) → C
@@ -635,9 +645,12 @@ def cp_colocalization_all_channels(r, mode="multichannel", **kwargs):
         _ranks = [rankdata(V[:, c], method="dense") for c in range(channels)]
         results = [
             measure_colocalization(
-                V[:, first], V[:, second],
-                _A_thresh=_thr[first], _B_thresh=_thr[second],
-                _A_ranks=_ranks[first], _B_ranks=_ranks[second],
+                V[:, first],
+                V[:, second],
+                _A_thresh=_thr[first],
+                _B_thresh=_thr[second],
+                _A_ranks=_ranks[first],
+                _B_ranks=_ranks[second],
             )
             for first, second in combinations(range(channels), 2)
         ]
@@ -661,8 +674,13 @@ def cp_colocalization(r, first, second, mode="multichannel", **kwargs):
 
 
 def measure_colocalization(
-    A, B, threshold="otsu",
-    _A_thresh=None, _B_thresh=None, _A_ranks=None, _B_ranks=None,
+    A,
+    B,
+    threshold="otsu",
+    _A_thresh=None,
+    _B_thresh=None,
+    _A_ranks=None,
+    _B_ranks=None,
 ):
     """Measures overlap, k1/k2, manders, and rank weighted colocalization coefficients.
     References:

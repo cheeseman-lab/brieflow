@@ -47,13 +47,13 @@ SBS_OUTPUTS = {
         SBS_FP / "tsvs" / get_data_output_path(_tile, "bases", "tsv", SBS_IMG_FMT),
     ],
     "call_reads": [
-        SBS_FP / "tsvs" / get_data_output_path(_tile, "reads", "tsv", SBS_IMG_FMT),
+        SBS_FP / "tsvs" / get_data_output_path(_tile, "reads", "parquet", SBS_IMG_FMT),
     ],
     "call_cells": [
-        SBS_FP / "tsvs" / get_data_output_path(_tile, "cells", "tsv", SBS_IMG_FMT),
+        SBS_FP / "tsvs" / get_data_output_path(_tile, "cells", "parquet", SBS_IMG_FMT),
     ],
     "extract_sbs_info": [
-        SBS_FP / "tsvs" / get_data_output_path(_tile, "sbs_info", "tsv", SBS_IMG_FMT),
+        SBS_FP / "tsvs" / get_data_output_path(_tile, "sbs_info", "parquet", SBS_IMG_FMT),
     ],
     "combine_reads": [
         SBS_FP / "parquets" / get_data_output_path(_well, "reads", "parquet", SBS_IMG_FMT),

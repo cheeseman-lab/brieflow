@@ -6,6 +6,7 @@ import pandas as pd
 # of --cores, causing oversubscription when many tiles run concurrently.
 try:
     from threadpoolctl import threadpool_limits
+
     threadpool_limits(limits=snakemake.threads)
 except ImportError:
     pass

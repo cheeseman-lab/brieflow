@@ -10,7 +10,9 @@ features_basic = {
 }
 
 
-def extract_features(data, labels, wildcards, features=None, multichannel=False, n_jobs=1):
+def extract_features(
+    data, labels, wildcards, features=None, multichannel=False, n_jobs=1
+):
     """Extract features from the provided image data within labeled segmentation masks.
 
     Args:

@@ -1,6 +1,7 @@
 import pandas as pd
 
 from lib.sbs.call_reads import call_reads
+from lib.shared.parquet_io import write_parquet
 from lib.shared.image_io import read_image
 
 # Load bases data
@@ -31,4 +32,4 @@ reads_data = call_reads(
 )
 
 # Save reads data
-reads_data.to_csv(snakemake.output[0], index=False, sep="\t")
+write_parquet(reads_data, snakemake.output[0])

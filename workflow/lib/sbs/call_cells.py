@@ -6,6 +6,7 @@ Supports single-barcode and multi-barcode protocols with per-barcode quality tra
 import pandas as pd
 import numpy as np
 import Levenshtein
+from functools import lru_cache
 
 from lib.sbs.constants import (
     PREFIX,
@@ -28,6 +29,26 @@ from lib.sbs.constants import (
 )
 
 COLS = [WELL, TILE, CELL]
+
+
+@lru_cache(maxsize=2)
+def _read_barcode_library_cached(fp, sep="\t"):
+    """Parse a barcode-library TSV once per worker process (keyed on path)."""
+    return pd.read_csv(fp, sep=sep)
+
+
+def load_barcode_library(fp, sep="\t"):
+    """Load a barcode library, reusing a per-process parsed cache.
+
+    Args:
+        fp (str): Path to the barcode-library TSV.
+        sep (str, optional): Column separator. Defaults to a tab.
+
+    Returns:
+        pandas.DataFrame: A fresh copy of the parsed library, so callers may
+        mutate the frame without corrupting the cache.
+    """
+    return _read_barcode_library_cached(fp, sep).copy()
 
 
 def call_cells(

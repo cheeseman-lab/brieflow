@@ -1,28 +1,14 @@
 import pandas as pd
-from joblib import Parallel, delayed
 
-from lib.shared.file_utils import validate_dtypes, read_tsv_safe
+from lib.shared.combine_dfs import combine_tile_dfs
 from lib.shared.parquet_io import write_parquet
 
-# Load and concatenate data
-all_dfs = Parallel(n_jobs=snakemake.threads)(
-    delayed(read_tsv_safe)(file) for file in snakemake.input
-)
-valid_dfs = [df for df in all_dfs if not df.empty]
-combined_df = (
-    pd.concat(valid_dfs).reset_index(drop=True) if valid_dfs else pd.DataFrame()
-)
-
-# Validate col types
-# Empty dfs can cause issues with dtype
-combined_df = validate_dtypes(combined_df)
-
-# Coerce numeric-looking object columns to numeric dtypes
-# Prevents schema mismatches (e.g. Int64 vs String) across parquets from different wells
-for col in combined_df.select_dtypes(include="object").columns:
-    converted = pd.to_numeric(combined_df[col], errors="coerce")
-    if converted.notna().sum() >= combined_df[col].notna().sum() * 0.95:
-        combined_df[col] = converted
+# Read per-tile TSVs, concat, and normalize dtypes (shared helper).
+combined_df = combine_tile_dfs(snakemake.input)
+# Helper returns None when no tile yielded a frame (all-empty well); snakemake
+# still requires output[0] be written, so fall back to an empty frame.
+if combined_df is None:
+    combined_df = pd.DataFrame()
 
 # Save the data based on output_type
 output_type = getattr(snakemake.params, "output_type", "parquet")

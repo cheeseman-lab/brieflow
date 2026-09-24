@@ -4,7 +4,6 @@ import warnings
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-import pyarrow.dataset as ds
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 from sklearn.decomposition import PCA

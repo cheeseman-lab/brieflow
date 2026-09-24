@@ -10,7 +10,6 @@ Available filters:
 
 import pandas as pd
 import numpy as np
-import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 from sklearn.impute import KNNImputer
 from sklearn.neighbors import LocalOutlierFactor

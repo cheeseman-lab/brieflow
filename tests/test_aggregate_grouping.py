@@ -39,6 +39,7 @@ from lib.aggregate.cell_data_utils import (  # noqa: E402
     control_mask,
     join_well_annotations,
 )
+from lib.aggregate.eval_aggregate import summarize_cell_data  # noqa: E402
 
 PERT_COL = "gene_symbol_0"
 
@@ -225,3 +226,34 @@ def test_join_well_annotations_preserves_index_for_feature_masking(tmp_path):
     mask = joined["treatment"] == "DMSO"
     assert list(joined[mask]["well"]) == ["A1", "A1"]
     assert list(features[mask]["feature_0"]) == [0.1, 0.3]
+
+
+def test_join_well_annotations_reads_numeric_values_as_text(tmp_path):
+    """A numeric split column (1, 2, 3) must match the text cell_class the combo table
+    carries, or every split except "all" comes out empty without an error."""
+    metadata = pd.DataFrame({"plate": [1, 1], "well": ["A1", "A2"]})
+    fp = _annotations_tsv(
+        tmp_path,
+        [
+            {"plate": 1, "well": "A1", "density": 1},
+            {"plate": 1, "well": "A2", "density": 2},
+        ],
+    )
+
+    joined = join_well_annotations(metadata, fp)
+
+    assert list(joined["density"]) == ["1", "2"]
+    assert (joined["density"] == "1").sum() == 1
+
+
+def test_summarize_cell_data_counts_on_class_col():
+    """Splitting by a well annotation counts cells on that column, not on "class"."""
+    cell_data = pd.DataFrame(
+        {"class": ["x", "x", "y"], "treatment": ["DMSO", "Cort", "Cort"]}
+    )
+
+    by_class = summarize_cell_data(cell_data, ["x"], [])
+    by_treatment = summarize_cell_data(cell_data, ["Cort"], [], class_col="treatment")
+
+    assert by_class.set_index("Stage").loc["x cells", "Count"] == 2
+    assert by_treatment.set_index("Stage").loc["Cort cells", "Count"] == 2

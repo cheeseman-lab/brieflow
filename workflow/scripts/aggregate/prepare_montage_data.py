@@ -1,7 +1,6 @@
 from pathlib import Path
 import multiprocessing
 
-import pyarrow.dataset as ds
 from concurrent.futures import ThreadPoolExecutor
 
 from lib.aggregate.montage_utils import add_filenames

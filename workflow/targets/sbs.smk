@@ -91,12 +91,12 @@ _sbs_img_temp = None if SBS_IMG_FMT == "zarr" else temp
 _sbs_label_keep = directory if SBS_IMG_FMT == "zarr" else None
 
 SBS_OUTPUT_MAPPINGS = {
-    "align_sbs": None,
-    "log_filter": _sbs_img_temp,
-    "compute_standard_deviation": _sbs_img_temp,
-    "find_peaks": _sbs_img_temp,
-    "max_filter": _sbs_img_temp,
-    "apply_ic_field_sbs": _sbs_img_temp,
+    "align_sbs": None,  # keep on disk so apply_ic_field_sbs is never considered stale
+    "log_filter": None,  # keep pre-seg intermediate on disk (was temp) — avoids per-tile recompute sawtooth
+    "compute_standard_deviation": None,  # keep pre-seg intermediate on disk (was temp) — avoids per-tile recompute sawtooth
+    "find_peaks": None,  # keep pre-seg intermediate on disk (was temp) — avoids per-tile recompute sawtooth
+    "max_filter": None,  # keep pre-seg intermediate on disk (was temp) — avoids per-tile recompute sawtooth
+    "apply_ic_field_sbs": None,  # keep on disk to avoid re-running before segment_sbs
     "segment_sbs": [_sbs_label_keep, _sbs_label_keep, None, None],
     "extract_bases": None,
     "call_reads": None,

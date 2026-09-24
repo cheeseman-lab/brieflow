@@ -86,7 +86,7 @@ _phenotype_img_temp = None if PHENOTYPE_IMG_FMT == "zarr" else temp
 _phenotype_label_keep = directory if PHENOTYPE_IMG_FMT == "zarr" else None
 
 PHENOTYPE_OUTPUT_MAPPINGS = {
-    "apply_ic_field_phenotype": _phenotype_img_temp,
+    "apply_ic_field_phenotype": None,  # keep IC-corrected phenotype on disk (was temp) — avoids pre-seg recompute
     "align_phenotype": None,
     "segment_phenotype": [_phenotype_label_keep, _phenotype_label_keep, None, None],
     "identify_cytoplasm": _phenotype_label_keep,

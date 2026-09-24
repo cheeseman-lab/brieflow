@@ -1,5 +1,7 @@
-"""Streaming final merge — attach the full CP phenotype feature table to the
-deduplicated merge via a memory-bounded polars left join.
+"""Streaming, memory-bounded final merge.
+
+Attaches the full CP phenotype feature table to the deduplicated merge via a
+polars left join.
 
 Why not a plain pandas .merge: phenotype_cp is ~3,600 cols x ~1M rows; a pandas
 full-load merge (or a wide batched merge) materializes it several times over and

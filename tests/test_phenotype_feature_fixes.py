@@ -146,10 +146,17 @@ def test_segment_cellpose_default_kwargs(monkeypatch):
 
     sc.segment_cellpose(data, 0, 1, 10, 20, cells=False)
     sc.segment_cellpose(data, 0, 1, 10, 20, cells=True, reconcile=False)
+    # batch_size=32 is this branch's eval batching default -- it changes how many
+    # 224px patches share a forward pass, not the masks.
     assert _FakeModel.calls == [
-        {"flow_threshold": 0.4, "cellprob_threshold": 0},
-        {"flow_threshold": 0.4, "cellprob_threshold": 0},
-        {"flow_threshold": 0.4, "cellprob_threshold": 0, "channels": [2, 3]},
+        {"flow_threshold": 0.4, "cellprob_threshold": 0, "batch_size": 32},
+        {"flow_threshold": 0.4, "cellprob_threshold": 0, "batch_size": 32},
+        {
+            "flow_threshold": 0.4,
+            "cellprob_threshold": 0,
+            "batch_size": 32,
+            "channels": [2, 3],
+        },
     ]
 
     _FakeModel.calls = []
@@ -161,8 +168,13 @@ def test_segment_cellpose_default_kwargs(monkeypatch):
     )
     sc.segment_cellpose(data, 0, 1, 10, 20, cellpose_kwargs=kwargs, reconcile=False)
     assert _FakeModel.calls == [
-        {"flow_threshold": 0.3, "cellprob_threshold": -1},
-        {"flow_threshold": 0.5, "cellprob_threshold": 2, "channels": [2, 3]},
+        {"flow_threshold": 0.3, "cellprob_threshold": -1, "batch_size": 32},
+        {
+            "flow_threshold": 0.5,
+            "cellprob_threshold": 2,
+            "batch_size": 32,
+            "channels": [2, 3],
+        },
     ]
     assert kwargs["nuclei_flow_threshold"] == 0.3
     assert kwargs["cell_cellprob_threshold"] == 2

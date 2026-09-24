@@ -3,7 +3,6 @@ import math
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-import pyarrow.dataset as ds
 import pandas as pd
 import numpy as np
 from pandas.api.types import is_numeric_dtype
@@ -17,6 +16,7 @@ from lib.aggregate.cell_data_utils import (
 )
 from lib.aggregate.bootstrap import create_pseudogene_groups
 from lib.aggregate.filter import harmonize_pool_schema
+from lib.shared.parquet_io import pool_dataset
 
 # Validate required params
 for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:
@@ -55,7 +55,7 @@ if len(non_empty_paths) == 0:
     pd.DataFrame().to_csv(snakemake.output[2], sep="\t", index=False)
     exit(0)
 
-cell_dataset = ds.dataset(non_empty_paths, format="parquet")
+cell_dataset = pool_dataset(non_empty_paths)
 
 # Determine columns
 cell_data_cols = cell_dataset.schema.names

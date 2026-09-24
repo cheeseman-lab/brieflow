@@ -1,8 +1,9 @@
 """Fast parquet I/O using polars with pandas compatibility.
 
 Drop-in replacements for pd.read_parquet / df.to_parquet that use polars
-under the hood for faster reads and writes. All functions accept and return
-pandas DataFrames so downstream code is unchanged.
+under the hood for faster reads and writes. The read/write functions accept and
+return pandas DataFrames so downstream code is unchanged; pool_dataset instead
+returns a lazy pyarrow Dataset over many per-well files.
 
 Usage:
     from lib.shared.parquet_io import read_parquet, write_parquet, read_parquets
@@ -17,6 +18,9 @@ Usage:
 
     # Write (accepts pandas DataFrame)
     write_parquet(df, "output.parquet")
+
+    # Lazy pyarrow Dataset over files whose schemas disagree
+    table = pool_dataset(paths).to_table(columns=["gene", "feature_1"])
 """
 
 from pathlib import Path
@@ -30,6 +34,35 @@ try:
     _HAS_POLARS = True
 except ImportError:
     _HAS_POLARS = False
+
+
+def pool_dataset(paths: Sequence[Union[str, Path]], **kwargs):
+    """Open per-well parquet files as one pyarrow dataset with a unified schema.
+
+    Wells that filter down to no cells write all-null columns and wells with missing
+    values promote integer columns to double, so the files disagree on types and
+    pyarrow's default schema union refuses to cast between them. Unifying
+    permissively resolves both (null -> the other type, int64 -> double).
+
+    The unified schema is the union of every file's columns, in first-file order;
+    a column absent from a file reads as null for that file's rows.
+
+    Args:
+        paths: Parquet file paths to pool.
+        **kwargs: Passed through to pyarrow.dataset.dataset.
+
+    Returns:
+        pyarrow.dataset.Dataset: Dataset over all paths with the unified schema.
+    """
+    import pyarrow as pa
+    import pyarrow.dataset as ds
+    import pyarrow.parquet as pq
+
+    paths = [str(p) for p in paths]
+    schema = pa.unify_schemas(
+        [pq.read_schema(p) for p in paths], promote_options="permissive"
+    )
+    return ds.dataset(paths, format="parquet", schema=schema, **kwargs)
 
 
 def read_parquet(

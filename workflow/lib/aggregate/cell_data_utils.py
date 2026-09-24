@@ -87,13 +87,14 @@ def join_well_annotations(metadata, well_annotations_fp):
         well_annotations_fp (str): Path to a TSV with plate, well, and annotation columns.
 
     Returns:
-        pd.DataFrame: Metadata with the annotation columns added.
+        pd.DataFrame: Metadata with the annotation columns added, read as text.
 
     Raises:
         ValueError: If the map repeats a (plate, well), or if a (plate, well) present in
             the data has no row in the map.
     """
-    annotations = pd.read_csv(well_annotations_fp, sep="\t")
+    # read values as text so a numeric group (1, 2, 3) still matches the text cell_class
+    annotations = pd.read_csv(well_annotations_fp, sep="\t", dtype=str)
     for col in ("plate", "well"):
         if col not in annotations.columns:
             raise ValueError(

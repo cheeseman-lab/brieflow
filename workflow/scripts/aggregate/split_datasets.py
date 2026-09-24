@@ -184,7 +184,8 @@ for _, row in unique_specs.iterrows():
         cell_class_metadata = metadata
         cell_class_features = features
     else:
-        cell_class_mask = metadata[snakemake.params.split_col] == cell_class
+        split_values = metadata[snakemake.params.split_col].astype(str)
+        cell_class_mask = split_values == str(cell_class)
         cell_class_metadata = metadata[cell_class_mask]
         cell_class_features = features[cell_class_mask]
 

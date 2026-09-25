@@ -1,0 +1,57 @@
+# Screen metadata for the small test dataset (https://zenodo.org/records/15276612); "" means not recorded
+
+# Screen Information
+experiment:
+  id: "small_test_analysis"
+  notebook_entries: ""
+  dates:
+    start: ""
+    end: ""
+
+# Cellular Conditions
+cellular:
+  cell_line: ""
+  imaging_timepoint: ""
+  treatment:
+    summary: ""
+    details: ""
+  plates: 1
+  wells_per_plate: 2  # A1, A2
+
+# Sequencing by Synthesis (SBS)
+sbs:
+  cycles: 11
+  cycle_order: "GTAC"  # base order across the four sequencing channels
+  background_channel: "DAPI (cycle 1) for nuclei, C (cycle 11) for cells"
+  library_details:
+    number_of_genes: 5049
+    guides_per_gene: 4
+    other_information: "20,445 sgRNAs in config/barcode_library.tsv: 4 per gene (RGPD5 has 3) plus 250 nontargeting controls"
+
+# Phenotype (PH) Steps
+phenotype:
+  background_channel_cell: "COXIV"
+  background_channel_body: ""
+
+  rounds:
+    - round_number: 1
+      stains:
+        - name: "DAPI"
+          marker_of: "Nuclei"
+          channel: "DAPI"
+        - name: "COXIV"
+          marker_of: "Mitochondria"
+          channel: "GFP"
+        - name: "CENPA"
+          marker_of: "Centromeres"
+          channel: "Cy3"
+        - name: "WGA"
+          marker_of: "Cell membrane"
+          channel: "AF750"
+
+# Data Generated
+data:
+  storage_format: ".nd2"
+  location: "small_test_data/"  # created by small_test_analysis_setup.py
+
+  notes: "SBS imaged at 10x (tiles 0, 2, 32 per well), phenotype at 20x (tiles 2, 5, 141 per well); tile 2 comes from empty_images/ in both"

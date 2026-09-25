@@ -25,6 +25,12 @@ from src.config import BRIEFLOW_OUTPUT_PATH, STATIC_ASSET_URL_ROOT, STATIC_ASSET
 # CONSTANTS
 CLUSTER_ROOT = os.path.join(BRIEFLOW_OUTPUT_PATH, "cluster")
 
+# Cluster directory levels by depth; compartment_combo only with split_by_compartment
+CLUSTER_DIR_LEVELS = {
+    3: ["channel_combo", "cell_class", "leiden_resolution"],
+    4: ["channel_combo", "compartment_combo", "cell_class", "leiden_resolution"],
+}
+
 # Common hover data columns
 HOVER_COLUMNS = ["gene_symbol_0", "cluster", "cell_count", "source"]
 
@@ -100,17 +106,11 @@ def load_cluster_data():
         df["source_full_path"] = file_path
         df["source"] = base_name
         parts = dirname.split(os.sep)
-        for i, part in enumerate(parts):
-            df[f"dir_level_{i}"] = part
-
-        df.rename(
-            columns={
-                "dir_level_0": "channel_combo",
-                "dir_level_1": "cell_class",
-                "dir_level_2": "leiden_resolution",
-            },
-            inplace=True,
+        level_names = CLUSTER_DIR_LEVELS.get(
+            len(parts), [f"dir_level_{i}" for i in range(len(parts))]
         )
+        for name, part in zip(level_names, parts):
+            df[name] = part
 
         dfs.append(df)
 
@@ -552,18 +552,19 @@ def cluster_table(cluster_data):
         st.warning(f"⚠️ WARNING: Source TSV file not found at: {source_tsv}")
 
 
-def feature_table(cell_class, channel_combo):
+def feature_table(cell_class, channel_combo, compartment_combo=None):
     # Feature Data Overview
     st.markdown("## Feature Data Overview")
     st.markdown(
         "Median feature values per gene after center scaling all single cell data on control cells by well."
     )
     # Construct the feature table path
+    compartment = f"_CmCo-{compartment_combo}" if compartment_combo else ""
     feature_table_path = os.path.join(
         BRIEFLOW_OUTPUT_PATH,
         "aggregate",
         "tsvs",
-        f"CeCl-{cell_class}_ChCo-{channel_combo}__features_genes.tsv",
+        f"CeCl-{cell_class}_ChCo-{channel_combo}{compartment}__features_genes.tsv",
     )
     # Load and display the feature table if it exists
     if os.path.exists(feature_table_path):
@@ -587,21 +588,15 @@ def feature_table(cell_class, channel_combo):
         st.warning(f"⚠️ WARNING: Feature table not found at: {feature_table_path}")
 
 
-def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
+def cluster_size_charts(cluster_data):
+    cluster_dir = os.path.dirname(cluster_data["source_full_path"].unique()[0])
     # Create two equal-sized columns
     col1, col2 = st.columns([1, 1])
 
     with col1:
         st.markdown("### Cluster Sizes")
         # Construct the path to the cluster sizes plot
-        cluster_sizes_path = os.path.join(
-            BRIEFLOW_OUTPUT_PATH,
-            "cluster",
-            channel_combo,
-            cell_class,
-            leiden_resolution,
-            "cluster_sizes.png",
-        )
+        cluster_sizes_path = os.path.join(cluster_dir, "cluster_sizes.png")
 
         # Display the plot if it exists
         if os.path.exists(cluster_sizes_path):
@@ -612,14 +607,7 @@ def cluster_size_charts(channel_combo, cell_class, leiden_resolution):
     with col2:
         st.markdown("### Cluster Enrichment")
         # Construct the path to the enrichment pie chart
-        enrichment_pie_path = os.path.join(
-            BRIEFLOW_OUTPUT_PATH,
-            "cluster",
-            channel_combo,
-            cell_class,
-            leiden_resolution,
-            "CB-Real__pie_chart.png",
-        )
+        enrichment_pie_path = os.path.join(cluster_dir, "CB-Real__pie_chart.png")
 
         # Display the plot if it exists
         if os.path.exists(enrichment_pie_path):
@@ -965,10 +953,10 @@ def apply_all_filters(data):
     data = apply_filter(data, "channel_combo", selected_channel_combo)
 
     # Cell Class filter - handle directly
-    cell_class_options = ["all", "Mitotic", "Interphase"]
-    # Initialize cell class in session state if needed
-    if "cell_class" not in st.session_state:
-        st.session_state.cell_class = "all"
+    cell_class_options = sorted(data["cell_class"].unique().tolist())
+    # Fall back to the first cell class the cluster outputs carry
+    if st.session_state.get("cell_class") not in cell_class_options:
+        st.session_state.cell_class = cell_class_options[0]
 
     # Format cell class display label
     def format_cell_class(cc: str) -> str:
@@ -1117,7 +1105,11 @@ with col2:
 
 cell_class = st.session_state.cell_class
 channel_combo = st.session_state.channel_combo
-leiden_resolution = st.session_state.leiden_resolution
+compartment_combo = (
+    cluster_data["compartment_combo"].iloc[0]
+    if "compartment_combo" in cluster_data
+    else None
+)
 
 if not st.session_state.selected_item:
     # No cluster selected: Just show the full width cluster plot
@@ -1127,8 +1119,8 @@ if not st.session_state.selected_item:
         channel_combo=st.session_state.channel_combo,
     )
     cluster_table(cluster_data)
-    feature_table(cell_class, channel_combo)
-    cluster_size_charts(channel_combo, cell_class, leiden_resolution)
+    feature_table(cell_class, channel_combo, compartment_combo)
+    cluster_size_charts(cluster_data)
 
 else:
     # Cluster selected: Two columns: plot | detail.
@@ -1138,8 +1130,8 @@ else:
             cluster_data, cell_class=cell_class, channel_combo=channel_combo
         )
         cluster_table(cluster_data)
-        feature_table(cell_class, channel_combo)
-        cluster_size_charts(channel_combo, cell_class, leiden_resolution)
+        feature_table(cell_class, channel_combo, compartment_combo)
+        cluster_size_charts(cluster_data)
 
     with col2:
         # Selected Gene info

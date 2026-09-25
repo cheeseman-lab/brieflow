@@ -31,7 +31,6 @@ The whole pipeline can also be driven by an agent.
 
 - New to brieflow: read [Brieflow and Brieflow Analysis](0.brieflow_brieflow_analysis.md), then [Installation and Analysis Setup](2.installation_analysis_setup.md), and run the small test.
 - Setting up a screen: [Installation and Analysis Setup](2.installation_analysis_setup.md), [Working with the Notebooks](notebook_editor_setup.md), then [Running a Screen](3.running_modules.md).
-- Coming from the Jupyter notebooks on `main`: [Moving from the Jupyter Notebooks](migrating_from_jupyter.md).
 - Looking up a term or a notebook parameter: the [Glossary](glossary.md) and [Notebook Parameters](notebook_parameters.md).
 
 ## Citing brieflow
@@ -63,7 +62,6 @@ notebook_editor_setup.md
 3.running_modules.md
 4.visualization.md
 brieflow_auto.md
-migrating_from_jupyter.md
 example_analyses.md
 ```
 

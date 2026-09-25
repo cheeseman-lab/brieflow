@@ -29,7 +29,7 @@ conda activate brieflow_SCREEN_NAME
 python -m marimo edit 2_sbs.py
 ```
 
-brieflow pins `marimo==0.23.6`, the version the notebooks were written with.
+brieflow pins `marimo==0.25.0`, the version the notebooks were written with.
 `python -m marimo` guarantees you use the environment's copy; a bare `marimo` can pick up another install earlier on your `PATH`.
 Check with `python -m marimo --version`.
 

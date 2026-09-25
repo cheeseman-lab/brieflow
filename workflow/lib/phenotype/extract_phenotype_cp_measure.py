@@ -185,7 +185,7 @@ def extract_phenotype_cp_measure(
             ]:
                 if mask is not None and np.any(mask > 0):
                     features = get_single_object_features(
-                        channel_data, mask, f"{mask_name}_{channel_name}__"
+                        channel_data, mask, f"{mask_name}_{channel_name}_"
                     )
                     if features:
                         all_features.append(pd.DataFrame(features))
@@ -208,7 +208,7 @@ def extract_phenotype_cp_measure(
                         ch1_data,
                         ch2_data,
                         mask,
-                        f"{mask_name}_{ch1_name}_{ch2_name}_coloc__",
+                        f"{mask_name}_{ch1_name}_{ch2_name}_coloc_",
                     )
                     if features:
                         all_features.append(pd.DataFrame(features))
@@ -229,7 +229,7 @@ def extract_phenotype_cp_measure(
                 and np.any(mask1 > 0)
                 and np.any(mask2 > 0)
             ):
-                features = get_neighbor_features(mask1, mask2, f"{prefix}_neighbor__")
+                features = get_neighbor_features(mask1, mask2, f"{prefix}_neighbor_")
                 if features:
                     all_features.append(pd.DataFrame(features))
 

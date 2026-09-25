@@ -85,7 +85,7 @@ SEGMENT_CELLS (SBS)
   `sbs.segment_cells` · default `True`. Segment cell bodies as well as nuclei. Set `False` when barcode spots are nuclear (DNA barcodes), which is faster.
 
 CELLPOSE_MODEL
-  `sbs.cellpose_model` or `phenotype.cellpose_model` · default `"cyto3"`. Cellpose model: `"cyto3"`, `"cyto2"`, `"cyto"`, `"nuclei"`, or `"cpsam"`, which needs Cellpose 4 and ideally a GPU.
+  `sbs.cellpose_model` or `phenotype.cellpose_model` · default `"cyto3"`. Cellpose model: `"cyto3"`, `"cyto2"`, `"cyto"`, `"nuclei"`, `"cpsam"` (needs Cellpose 4 and ideally a GPU), or a custom model path. With `SEGMENT_CELLS = False` this model segments the nuclei; with `SEGMENT_CELLS = True` nuclei use the `nuclei` model (Cellpose 3) or `cpsam` (Cellpose 4).
 
 GPU (SBS)
   `sbs.gpu` · default `False`. Run SBS segmentation on a GPU, in the notebook and in the pipeline.
@@ -137,7 +137,7 @@ SEGMENT_CELLS (phenotype)
   `phenotype.segment_cells` · default `True`. Segment cells as well as nuclei. `False` gives nuclear features only, faster.
 
 RECONCILE
-  `phenotype.reconcile` (also `sbs.reconcile`) · default `"contained_in_cells"`. How nuclei and cells are paired; see {term}`Reconcile`.
+  `phenotype.reconcile` (also `sbs.reconcile`) · default `"contained_in_cells"`. How nuclei and cells are paired; see {term}`Reconcile`. Cytoplasm features need it set when cells are segmented.
 
 GPU (phenotype)
   Not written directly · default `False`. Use a GPU for the notebook's test segmentations. It also becomes `phenotype.gpu` unless `PIPELINE_GPU` is set.

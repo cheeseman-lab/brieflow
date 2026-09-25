@@ -16,7 +16,7 @@ stats_files = glob.glob(os.path.join(BRIEFLOW_OUTPUT_PATH, "*_stats.txt"))
 
 if not stats_files:
     st.info(
-        "No pipeline stats file found. Run the stats collection step to generate one."
+        "No pipeline stats file found. The analyze notebook (`12.analyze.ipynb`) writes `pipeline_stats.txt` into the output root."
     )
     st.stop()
 

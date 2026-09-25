@@ -115,14 +115,7 @@ def segment_cellpose(
     cell_diameter,
     cellpose_model="cyto3",
     helper_index=None,
-    cellpose_kwargs=dict(
-        flow_threshold=0.4,
-        cellprob_threshold=0,
-        nuclei_flow_threshold=None,
-        nuclei_cellprob_threshold=None,
-        cell_flow_threshold=None,
-        cell_cellprob_threshold=None,
-    ),
+    cellpose_kwargs=None,
     cells=True,
     reconcile="consensus",
     logscale=True,
@@ -142,8 +135,8 @@ def segment_cellpose(
         helper_index (int, optional): Index of helper channel for improved segmentation (CPSAM feature).
             Only used with multi-channel models. Default is None (blank channel).
         cellpose_kwargs (dict, optional): Additional keyword arguments for Cellpose, including:
-            - flow_threshold (float): Default flow threshold for both nuclei and cells if specific ones not provided
-            - cellprob_threshold (float): Default cell probability threshold for both nuclei and cells if specific ones not provided
+            - flow_threshold (float): Default flow threshold for both nuclei and cells if specific ones not provided (default 0.4)
+            - cellprob_threshold (float): Default cell probability threshold for both nuclei and cells if specific ones not provided (default 0)
             - nuclei_flow_threshold (float): Specific flow threshold for nuclei segmentation
             - nuclei_cellprob_threshold (float): Specific cell probability threshold for nuclei segmentation
             - cell_flow_threshold (float): Specific flow threshold for cell segmentation
@@ -158,7 +151,8 @@ def segment_cellpose(
         tuple or numpy.ndarray: If 'cells' is True, returns tuple of nuclei and cell segmentation masks,
         otherwise returns only nuclei segmentation mask. If return_counts is True, includes a dictionary of counts.
     """
-    # Extract log_kwargs from cellpose_kwargs
+    # Copy so the pops below never mutate the caller's dict
+    cellpose_kwargs = dict(cellpose_kwargs or {})
     log_kwargs = cellpose_kwargs.pop("log_kwargs", dict())
 
     # Extract specific thresholds for nuclei and cells

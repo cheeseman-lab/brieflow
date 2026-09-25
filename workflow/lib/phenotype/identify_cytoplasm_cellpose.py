@@ -12,10 +12,17 @@ def identify_cytoplasm_cellpose(nuclei, cells):
 
     Returns:
         ndarray: A 2D array representing the cytoplasm regions.
+
+    Raises:
+        ValueError: If the nuclei and cell masks are not reconciled (label counts differ).
     """
-    # Check if the number of unique labels in nuclei and cells are the same
+    # Each cell is paired with the same-label nucleus, so the masks must be reconciled
     if len(np.unique(nuclei)) != len(np.unique(cells)):
-        return None  # Break out of the function if the masks are not compatible
+        raise ValueError(
+            f"Cannot identify cytoplasms: {len(np.unique(nuclei)) - 1} nuclei vs "
+            f"{len(np.unique(cells)) - 1} cells. Cytoplasm needs reconciled masks; set "
+            "`reconcile` (e.g. 'contained_in_cells' or 'consensus') in the config."
+        )
 
     # Create an empty cytoplasmic mask with the same shape as cells
     cytoplasms = np.zeros(cells.shape)

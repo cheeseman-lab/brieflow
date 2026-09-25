@@ -50,7 +50,9 @@ def calculate_ic_field(
     # Randomly sample a subset of files if sample_fraction is less than 1.0
     if sample_fraction < 1.0:
         sample_size = int(len(files) * sample_fraction)
-        files = random.sample(files, sample_size)
+        # Fixed seed: an unseeded subsample changes the IC field, and every
+        # corrected intensity downstream of it, on every run.
+        files = random.Random(0).sample(files, sample_size)
 
     # Initialize data variable
     data = read_image(files[0])[slicer] / len(files)

@@ -144,7 +144,7 @@ def test_get_sample_fps_multiz_keeps_all_channels_and_planes():
 
 
 def test_get_sample_fps_singlez_unaffected():
-    """1 z per channel (e.g. PoTC): dict-collapse never bit this — still N files."""
+    """1 z per channel: dict-collapse never bit this — still N files."""
     df = _tile_df(["DAPI", "A568", "A488", "A647"], [1])
     res = get_sample_fps(df, plate="1", channel_order=["DAPI", "A568", "A488", "A647"])
     assert res == ["DAPI_z1.tiff", "A568_z1.tiff", "A488_z1.tiff", "A647_z1.tiff"]

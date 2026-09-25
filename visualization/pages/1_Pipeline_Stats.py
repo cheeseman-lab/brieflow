@@ -19,7 +19,7 @@ stats_files = glob.glob(os.path.join(BRIEFLOW_OUTPUT_PATH, "*_stats.txt"))
 if not stats_files:
     empty_state(
         "No pipeline stats file found.",
-        "The `generate_stats` step writes `*_stats.txt` into the output root.",
+        "The analyze notebook (`12_analyze.py`) writes `<screen>_stats.txt` into the output root.",
     )
     st.stop()
 

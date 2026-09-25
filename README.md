@@ -6,7 +6,7 @@
 [![Tests](https://github.com/cheeseman-lab/brieflow/actions/workflows/test_analysis.yml/badge.svg)](https://github.com/cheeseman-lab/brieflow/actions/workflows/test_analysis.yml)
 [![Discord](https://img.shields.io/badge/forum-discord-7289da)](https://discord.gg/yrEh6GP8JJ)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![bioRxiv](https://img.shields.io/badge/bioRxiv-10.1101%2F2025.05.26.656231-b31b1b)](https://doi.org/10.1101/2025.05.26.656231)
+[![Nature Communications](https://img.shields.io/badge/Nat%20Commun-10.1038%2Fs41467--026--73643--7-b31b1b)](https://doi.org/10.1038/s41467-026-73643-7)
 
 ![Brieflow pipeline](images/brieflow_info.png)
 
@@ -34,11 +34,15 @@ If you are interested in contributing please reach out!
 If you use our code please cite this manuscript:
 
 ```
-@ARTICLE
-author={Di Bernardo, Matteo and Kern, Roshan S. and Mallar, Alexa and Nutter-Upham, Andy and Blainey, Paul C. and Cheeseman, Iain},
-title={Brieflow: An Integrated Computational Pipeline for High-Throughput Analysis of Optical Pooled Screening Data},
-year={2025},
-DOI={10.1101/2025.05.26.656231}
+@article{dibernardo2026brieflow,
+  title={Brieflow: an integrated computational pipeline for high-throughput analysis of optical pooled screening data},
+  author={Di Bernardo, Matteo and Kern, Roshan S. and Cepeda Diaz, Ana Karla and Mallar, Alexa and Choi, Samuel J. and Nutter-Upham, Andrew and Lourido, Sebastian and Blainey, Paul C. and Cheeseman, Iain M.},
+  journal={Nature Communications},
+  volume={17},
+  pages={6997},
+  year={2026},
+  doi={10.1038/s41467-026-73643-7}
+}
 ```
 
 ## Contributing

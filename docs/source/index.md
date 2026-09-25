@@ -31,16 +31,15 @@ The whole pipeline can also be driven by an agent.
 
 - New to brieflow: read [Brieflow and Brieflow Analysis](0.brieflow_brieflow_analysis.md), then [Installation and Analysis Setup](2.installation_analysis_setup.md), and run the small test.
 - Setting up a screen: [Installation and Analysis Setup](2.installation_analysis_setup.md), [Working with the Notebooks](notebook_editor_setup.md), then [Running a Screen](3.running_modules.md).
-- Coming from the Jupyter notebooks on `main`: [Moving from the Jupyter Notebooks](migrating_from_jupyter.md).
 - Looking up a term or a notebook parameter: the [Glossary](glossary.md) and [Notebook Parameters](notebook_parameters.md).
 
 ## Citing brieflow
 
 If you use brieflow, please cite the manuscript:
 
-> Di Bernardo M, Kern RS, Mallar A, Nutter-Upham A, Blainey PC, Cheeseman I.
-> Brieflow: An Integrated Computational Pipeline for High-Throughput Analysis of Optical Pooled Screening Data.
-> bioRxiv (2025). [doi:10.1101/2025.05.26.656231](https://doi.org/10.1101/2025.05.26.656231)
+> Di Bernardo M, Kern RS, Cepeda Diaz AK, Mallar A, Choi SJ, Nutter-Upham A, Lourido S, Blainey PC, Cheeseman IM.
+> Brieflow: an integrated computational pipeline for high-throughput analysis of optical pooled screening data.
+> *Nature Communications* 17, 6997 (2026). [doi:10.1038/s41467-026-73643-7](https://doi.org/10.1038/s41467-026-73643-7)
 
 Brieflow is a community project and contributions are welcome; see [Development](5.development.md).
 
@@ -63,7 +62,6 @@ notebook_editor_setup.md
 3.running_modules.md
 4.visualization.md
 brieflow_auto.md
-migrating_from_jupyter.md
 example_analyses.md
 ```
 

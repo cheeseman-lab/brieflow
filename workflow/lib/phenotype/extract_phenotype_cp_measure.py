@@ -1,5 +1,6 @@
 """Core functionality for CellProfiler feature extraction using cp_measure package."""
 
+import warnings
 from tifffile import imread
 from itertools import (
     permutations,
@@ -37,17 +38,17 @@ def get_single_object_features(image, mask, prefix=""):
     """
     results = {}  # initializing dict of extracted features
     measurements = get_core_measurements().items()
-    # Extract all core measurements
-    try:
-        # Extract all core measurements except area features (handled seperately)
-        for name, measure_func in measurements:
+    # Extract all core measurements, one failure never dropping the others
+    for name, measure_func in measurements:
+        try:
             features = measure_func(mask, image)
-            # Add prefix to feature names
-            if prefix:
-                features = {f"{prefix}_{k}": v for k, v in features.items()}
-            results.update(features)
-    except Exception as e:
-        print(f"Warning: Error calling {name} with {mask} and {image}: {str(e)}")
+        except Exception as e:
+            warnings.warn(f"cp_measure {name} failed on {prefix!r}: {e}")
+            continue
+        # Add prefix to feature names
+        if prefix:
+            features = {f"{prefix}_{k}": v for k, v in features.items()}
+        results.update(features)
 
     return results
 
@@ -67,18 +68,16 @@ def get_colocalization_features(image1, image2, mask, prefix=""):
     """
     results = {}  # initializing dict of extracted features
     measurements = get_correlation_measurements().items()
-    # Extract all correlation measurements
-    try:
-        # Extract all correlation measurements
-        for name, measure_func in measurements:
+    # Extract all correlation measurements, one failure never dropping the others
+    for name, measure_func in measurements:
+        try:
             features = measure_func(image1, image2, mask)
-            if prefix:
-                features = {f"{prefix}_{k}": v for k, v in features.items()}
-            results.update(features)
-    except Exception as e:
-        print(
-            f"Warning: Error calling colocalization measurement {name} with {image1}, {image2}, and {mask}: {str(e)}"
-        )
+        except Exception as e:
+            warnings.warn(f"cp_measure {name} failed on {prefix!r}: {e}")
+            continue
+        if prefix:
+            features = {f"{prefix}_{k}": v for k, v in features.items()}
+        results.update(features)
 
     return results
 
@@ -97,21 +96,20 @@ def get_neighbor_features(mask1, mask2, prefix=""):
     """
     results = {}  # initializing dict of extracted features
     measurements = get_multimask_measurements().items()
-    try:
-        # Extract all correlation measurements
-        for name, measure_func in measurements:
+    # Extract all neighbor measurements, one failure never dropping the others
+    for name, measure_func in measurements:
+        try:
             features = measure_func(
                 mask1,
                 mask2,
             )
-            # Add prefix to feature names to ID source
-            if prefix:
-                features = {f"{prefix}_{k}": v for k, v in features.items()}
-            results.update(features)
-    except Exception as e:
-        print(
-            f"Error calling neighbor measurment {name} with {mask1} and {mask2}: {str(e)}"
-        )
+        except Exception as e:
+            warnings.warn(f"cp_measure {name} failed on {prefix!r}: {e}")
+            continue
+        # Add prefix to feature names to ID source
+        if prefix:
+            features = {f"{prefix}_{k}": v for k, v in features.items()}
+        results.update(features)
     return results
 
 

@@ -1380,6 +1380,26 @@ def get_spatial_overlap_candidates(second_obj_regions, cell_masks):
     return candidates
 
 
+def nuclei_centroids_from_table(nuclei_table, label_col="cell"):
+    """Build a nucleus centroid lookup keyed by nucleus label.
+
+    Args:
+        nuclei_table (pandas.DataFrame): Per-nucleus table with 'i' and 'j' centroid
+            columns, such as the phenotype info table.
+        label_col (str): Column holding the nucleus label. The phenotype info table
+            stores it as 'cell'. Default is 'cell'.
+
+    Returns:
+        dict: Mapping of nucleus label to its (i, j) centroid.
+    """
+    return {
+        label: (i, j)
+        for label, i, j in zip(
+            nuclei_table[label_col], nuclei_table["i"], nuclei_table["j"]
+        )
+    }
+
+
 def _postprocess_secondary_objects(
     second_obj_masks,
     cell_masks,
@@ -1417,8 +1437,8 @@ def _postprocess_secondary_objects(
         overlap_threshold (float): Minimum overlap ratio to associate object with cell
             (0.0-1.0).
         nuclei_centroids (dict, DataFrame, or None): Cell nuclei centroids for distance
-            calculations, as {nuclei_id: (i, j)} or a DataFrame with 'i' and 'j'
-            columns.
+            calculations, as {nuclei_id: (i, j)} or a DataFrame with 'cell' (nucleus
+            label), 'i' and 'j' columns.
         max_total_objects (int or None): Failsafe limit on detected objects. Returns
             empty results if exceeded.
         image (ndarray, optional): Multichannel image [channels, height, width]. Only
@@ -1500,10 +1520,7 @@ def _postprocess_secondary_objects(
     nuclei_centroids_dict = None
     if nuclei_centroids is not None:
         if isinstance(nuclei_centroids, pd.DataFrame):
-            nuclei_centroids_dict = {
-                row.get("nuclei_id", idx): (row["i"], row["j"])
-                for idx, row in nuclei_centroids.iterrows()
-            }
+            nuclei_centroids_dict = nuclei_centroids_from_table(nuclei_centroids)
         else:
             nuclei_centroids_dict = nuclei_centroids
 

@@ -121,7 +121,6 @@ rule calculate_ic_sbs:
     params:
         threading=True,
         sample_fraction=config.get("preprocess", {}).get("sample_fraction", 1),
-        random_seed=config.get("preprocess", {}).get("ic_random_seed", None),
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 
@@ -140,7 +139,6 @@ rule calculate_ic_phenotype:
     params:
         threading=True,
         sample_fraction=config.get("preprocess", {}).get("sample_fraction", 1),
-        random_seed=config.get("preprocess", {}).get("ic_random_seed", None),
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 

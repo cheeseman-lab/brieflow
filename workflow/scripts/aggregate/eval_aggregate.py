@@ -5,6 +5,8 @@ import numpy as np
 import pyarrow.parquet as pq
 import pyarrow.dataset as ds
 
+from lib.shared.parquet_io import pool_dataset
+
 plt.rcParams.update(
     {
         "font.family": "sans-serif",
@@ -36,7 +38,7 @@ if len(non_empty_split) == 0:
     plt.close(fig)
     exit(0)
 
-merge_data = ds.dataset(non_empty_split, format="parquet")
+merge_data = pool_dataset(non_empty_split)
 total_rows = merge_data.count_rows()
 # Choose random row indices
 n_sample = min(SUBSET_SIZE, total_rows)

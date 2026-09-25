@@ -4,13 +4,13 @@ import warnings
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-import pyarrow.dataset as ds
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 from sklearn.decomposition import PCA
 import numpy as np
 
 from lib.aggregate.cell_data_utils import load_metadata_cols, split_cell_data
+from lib.shared.parquet_io import pool_dataset
 from lib.aggregate.align import (
     prepare_alignment_data,
     centerscale_by_batch,
@@ -46,7 +46,7 @@ if len(non_empty_paths) == 0:
     exit(0)
 
 # Load full dataset as logical PyArrow dataset (only non-empty files)
-cell_dataset = ds.dataset(non_empty_paths, format="parquet")
+cell_dataset = pool_dataset(non_empty_paths)
 total_rows = cell_dataset.count_rows()
 print(
     f"Number of rows across {len(non_empty_paths)} non-empty parquet files: {total_rows}"
@@ -161,12 +161,15 @@ for i, indices in enumerate(subset_indices):
 
     features = pca.transform(features)
 
+    # per-batch TVN needs many controls per batch; False fits one TVN on pooled controls
+    tvn_batch_col = "batch_values" if snakemake.params.tvn_batch_correction else None
+
     features = tvn_on_controls(
         features,
         metadata,
         snakemake.params.perturbation_name_col,
         snakemake.params.control_key,
-        "batch_values",
+        tvn_batch_col,
         control_col=snakemake.params.control_name_col,
     )
 

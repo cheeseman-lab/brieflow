@@ -354,9 +354,12 @@ def calculate_group_enrichment(
 
     background_genes = set(phate_leiden_clustering[perturbation_col_name])
     group_df = group_benchmark.sort_values(by="group")
+    # keep only screened genes; a group with none would only dilute the FDR
     group_to_genes = {
-        group: set(df["gene_name"]) for group, df in group_df.groupby("group")
+        group: set(df["gene_name"]) & background_genes
+        for group, df in group_df.groupby("group")
     }
+    group_to_genes = {group: genes for group, genes in group_to_genes.items() if genes}
 
     # Get clusters sorted by size (descending) and limit to max_clusters
     cluster_sizes = cluster_df.groupby("cluster").size().sort_values(ascending=False)
@@ -389,7 +392,7 @@ def calculate_group_enrichment(
             pvals.append(p)
 
         # BH correction for each cluster individually
-        fdrs = multipletests(pvals, method="fdr_bh")[1]
+        fdrs = multipletests(pvals, method="fdr_bh")[1] if pvals else []
         enriched = [f"{g}" for g, f in zip(group_ids, fdrs) if f < 0.05]
 
         enriched_rows.append(

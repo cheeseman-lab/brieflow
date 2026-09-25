@@ -1,6 +1,6 @@
 """Regression tests for Opera Phenix rNNcNN well nomenclature + SBS z-plane convert.
 
-Covers the two bug classes fixed for the first Phenix screens (PoTC, zargun):
+Covers the two bug classes fixed for the first Phenix screens:
 
 1. Well->(row,col) derivation must handle both the alphanumeric convention (A1) and
    Opera Phenix (r02c05), via the single canonical `split_well`/`split_well_to_cols`

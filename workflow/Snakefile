@@ -239,3 +239,19 @@ if "cluster" in config:
     include: "targets/cluster.smk"
 if _bool_cfg("cluster_rules_enabled") and config.get("cluster", {}).get("enabled", True) and "cluster" in config:
     include: "rules/cluster.smk"
+
+
+# mozzarellm annotates a chosen subset of the clusterings, so its combo table is its own
+MOZZARELLM_ENABLED = bool(config.get("mozzarellm", {}).get("combo_fp")) and "cluster" in config
+if MOZZARELLM_ENABLED:
+    MOZZARELLM_COMBO_FP = Path(config["mozzarellm"]["combo_fp"])
+    mozzarellm_wildcard_combos = normalize_compartment_combo_table(
+        pd.read_csv(MOZZARELLM_COMBO_FP, sep="\t"),
+        SPLIT_BY_COMPARTMENT,
+        DEFAULT_COMPARTMENT_COMBO,
+    )
+
+    # Include target and rule files
+    include: "targets/mozzarellm.smk"
+if _bool_cfg("mozzarellm_rules_enabled") and config.get("mozzarellm", {}).get("enabled", True) and MOZZARELLM_ENABLED:
+    include: "rules/mozzarellm.smk"

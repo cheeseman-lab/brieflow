@@ -122,8 +122,6 @@ def perturbation_score(
                 control_name_col,
                 batch_cols,
                 minimum_cell_count,
-                perturbation_name_col,
-                control_key,
             )
             for gene, gene_idx, gene_subset_df, original_idx in batch_data
         )

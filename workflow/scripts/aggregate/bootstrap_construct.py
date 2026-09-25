@@ -22,6 +22,7 @@ controls_df = select_control_pool(
     snakemake.params.get("bootstrap_control_scope", "pooled"),
     reference_group=snakemake.params.get("bootstrap_reference_group", None),
     group_cols=snakemake.params.get("group_cols", None),
+    perturbation_id=gene,
 )
 
 controls_arr = controls_df.values

@@ -244,7 +244,7 @@ def evaluate_match(
         vec_centers_0 (pandas.DataFrame): DataFrame containing the first set of vectors and centers.
         vec_centers_1 (pandas.DataFrame): DataFrame containing the second set of vectors and centers.
         threshold_triangle (float, optional): Threshold for matching triangles. Defaults to 0.3.
-        ransac_kwargs (dict, optional): Keyword args forwarded to RANSACRegressor (e.g. random_state). Defaults to None (sklearn defaults).
+        ransac_kwargs (dict, optional): Keyword args forwarded to RANSACRegressor. Defaults to None. A random_state given here is ignored: the seed is fixed at 0 so alignment is reproducible.
 
     Returns:
         tuple:
@@ -274,7 +274,9 @@ def evaluate_match(
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
         # Use matching triangles to define transformation
-        model = RANSACRegressor(**(ransac_kwargs or {}))
+        # random_state is fixed, not configurable: merge alignment must be
+        # reproducible and there is no principled basis for picking a seed.
+        model = RANSACRegressor(**{**(ransac_kwargs or {}), "random_state": 0})
         model.fit(X, Y)  # Fit the RANSAC model to the matching centers
 
     rotation = model.estimator_.coef_  # Extract rotation matrix
@@ -551,9 +553,9 @@ def prioritize(well_locations_0, well_locations_1, matches):
         warnings.filterwarnings("ignore")
         # allow testing with subset of tiles
         if a.shape[0] == a.shape[1]:
-            model = RANSACRegressor(min_samples=1)
+            model = RANSACRegressor(min_samples=1, random_state=0)
         else:
-            model = RANSACRegressor()
+            model = RANSACRegressor(random_state=0)
         model.fit(a, b)  # Fit the RANSAC model to the matching coordinates
 
     # Predict coordinates for the first set and calculate distances to the second set

@@ -1,0 +1,176 @@
+# screen.yaml — description of the experimental setup.
+# Small test dataset (https://zenodo.org/records/15276612); null means not recorded
+
+# =========================================================================
+# collection
+# =========================================================================
+collection:
+  title: null
+  publication_doi: null
+
+# =========================================================================
+# experiment (ontology-tagged for BIA archival)
+# =========================================================================
+experiment:
+  screen_title: "small_test_analysis"             # short slug; matches conda env brieflow_<id>
+  organism_ontology_term_id: "NCBITaxon:9606"     # NCBI taxid — drives SPECIES_ID (UniProt + CORUM/MSigDB/STRING benchmarks). human 9606 · mouse 10090 · rat 10116
+  organism: "Homo sapiens"
+  tissue_ontology_term_id: null                   # e.g. CVCL_0030 for HeLa
+  tissue: null                                    # e.g. "HeLa"
+  tissue_type: "cell line"
+  disease_ontology_term_id: "PATO:0000461"
+  disease: "normal"
+  development_stage_ontology_term_id: "na"
+  development_stage: "na"
+  assay_ontology_term_id: "EFO:0022605"
+  assay: "optical pooled screening"
+  pseudobulk: []
+
+
+# =========================================================================
+# cellular
+# =========================================================================
+cellular:
+  growth_conditions: null
+  plate_type: null
+  imaging_timepoint: null                         # e.g. "78 hours post-transfection"
+  seeding:
+    density_cells_cm2: null
+  induction:
+    duration: ""
+  well_annotations: null                          # per-well conditions table beside this file: plate, well, one column per variable (e.g. "well_annotations.tsv")
+  split_by: null                                  # annotation column whose values each get their own aggregation and clustering (e.g. "experiment")
+
+# =========================================================================
+# library
+# =========================================================================
+library:
+  vector: null
+  gene_selection: null
+  positive_controls: []
+  negative_controls: ["nontargeting"]
+  type: simple                                    # simple | multi  (sgRNA-level vs MAP+RECOMB barcoding)
+  detection_target: null                          # DNA | RNA — DNA barcodes give NUCLEAR spots; RNA (T7-amplified or mRNA) gives NON-NUCLEAR (cytoplasmic) spots. Drives SBS pipeline spot mask + RECONCILE.
+  number_of_genes: 5049
+  raw_design_table_fp: null                       # INPUT path: raw guide RNA design TSV (e.g. "config/barcode_library_design.tsv")
+  # --- simple mode (type: simple): one barcode column ---
+  barcode_col: null                               # sgRNA-sequence column name in raw_design_table_fp (canonical: "sgRNA")
+  # --- multi mode (type: multi): two barcode columns + per-region lengths + sequencing order ---
+  barcode_map_col: null                           # column name for MAP-region barcode sequences (e.g. "iBAR_2")
+  barcode_recomb_col: null                        # column name for RECOMB-region barcode sequences (e.g. "iBAR_1")
+  barcode_length_map: null                        # length of MAP region in cycles (e.g. 12)
+  barcode_length_recomb: null                     # length of RECOMB region in cycles (e.g. 2)
+  sequencing_order: null                          # "map_recomb" (MAP first) | "recomb_map" (RECOMB first) — which region is sequenced first across cycles
+  gene_symbol_col: null                           # canonical: "gene_symbol"
+  gene_id_col: null                               # canonical: "gene_id"
+
+# =========================================================================
+# iss (in-situ sequencing / SBS)
+# =========================================================================
+iss:
+  cycles: 11
+  objective: "10X"                                # e.g. "10X 0.45 NA"
+  chemistry: "four color"                         # "four color" | "combinatorial" — combinatorial requires the combinatorial: block below
+  # combinatorial:                                # COMBINATORIAL CHEMISTRY ONLY — omit entirely for four-color G/T/A/C imaging
+  #   code:                                       # map each base to its ON dye-channels (names must match iss.channels below)
+  #     A: ["Red"]                                #   BASES + EXTRA_CHANNELS are derived from this + iss.channels
+  #     C: ["Green"]
+  #     G: ["Red", "Green"]
+  #     T: []                                     #   empty list = no dye channel ON for this base
+  channels:                                       # one entry per imaging channel
+    - { name: "DAPI", laser_wavelength_nm: 408, exposure_time_ms: null }
+    - { name: "G",    laser_wavelength_nm: null, exposure_time_ms: null }
+    - { name: "T",    laser_wavelength_nm: null, exposure_time_ms: null }
+    - { name: "A",    laser_wavelength_nm: null, exposure_time_ms: null }
+    - { name: "C",    laser_wavelength_nm: null, exposure_time_ms: null }
+  binning: null                                   # 1 (none) | 2 (2x2)  — used with objective for DET_RANGE
+  cycle_order: "GTAC"                             # base order across the 4 sequencing channels
+  background_channel_nucleus:                     # which base channel/cycle to use as nuclear background
+    channel: "DAPI"
+    cycle: 1
+  background_channel_cell:                        # which base channel/cycle to use as cytoplasmic background
+    channel: "C"
+    cycle: 11
+
+# =========================================================================
+# phenotype
+# =========================================================================
+phenotype:
+  objective: "20X"                                # e.g. "20X 0.75 NA"
+  channels:                                       # one entry per phenotype channel
+    # biological_name is what features get named (DAPI_mean, CENPA_mean, …).
+    # fluorophore_token is what appears in the raw filename (DAPI, GFP, A594, A750).
+    # The wizard uses this mapping to skip the F-014 channel-mapping interview prompt.
+    - biological_name: "DAPI"                     # e.g. "DAPI"  -> channels_metadata.name
+      marker_of: "nucleus"                        # e.g. "Nuclei" -> biological_annotation.biological_target
+      description: null                           # free text used verbatim where marker_of would be, e.g. "sialylated glycoRNA at the cell surface, not RNA abundance"; every mozzarellm screen context containing this channel inherits it
+      marker: "DAPI"                              # gene/protein stained, e.g. "HSPA1B" -> biological_annotation.marker
+      marker_type: "dye"                          # "dye" | "antibody" | "endogenous_tag" -> biological_annotation.marker_type
+      fluorophore_token: "DAPI"                   # filename token (e.g. "GFP" stains "COXIV")
+      laser_wavelength_nm: null
+      exposure_time_ms: null
+    - biological_name: "COXIV"
+      marker_of: "mitochondria"
+      description: null
+      marker: "COXIV"
+      marker_type: "antibody"
+      fluorophore_token: "GFP"
+      laser_wavelength_nm: null
+      exposure_time_ms: null
+    - biological_name: "CENPA"
+      marker_of: "centromere"
+      description: null
+      marker: "CENPA"
+      marker_type: "antibody"
+      fluorophore_token: "Cy3"
+      laser_wavelength_nm: null
+      exposure_time_ms: null
+    - biological_name: "WGA"
+      marker_of: "cell_membrane"
+      description: null
+      marker: "WGA"
+      marker_type: "lectin"
+      fluorophore_token: "AF750"
+      laser_wavelength_nm: null
+      exposure_time_ms: null
+  binning: null                                   # 1 (none) | 2 (2x2)
+  segment_cells: true                             # true = segment cells around each nucleus (cellpose cyto); false = nuclei-only feature extraction (skip cellpose cell mask)
+  background_channel_nucleus: "DAPI"              # biological_name of the nuclear-boundary marker (e.g. "DAPI"); 
+  background_channel_cell: "COXIV"                # biological_name of the cell-boundary marker (e.g. "WGA"); required only when segment_cells: true
+  foci_channel: "CENPA"                           # biological_name of the foci/puncta marker (e.g. "gH2AX", "CENPA"); null = no foci pipeline. Drives FOCI_CHANNEL + routes the foci pipeline on/off.
+  second_obj_channel: null                        # biological_name of the secondary object marker (e.g. a pathogen or organelle stain); descriptive only: the notebooks do not read it (the brieflow-auto plugin uses it to prefill SECOND_OBJ_CHANNEL / SECOND_OBJ_DETECTION); secondary objects are switched on by SECOND_OBJ_DETECTION + SECOND_OBJ_CHANNEL in 3_phenotype.py.
+
+# =========================================================================
+# microscope
+# =========================================================================
+microscope:
+  system: null
+
+# =========================================================================
+# pipeline (where brieflow lives + which env runs it)
+# =========================================================================
+pipeline:
+  github: "cheeseman-lab/brieflow"
+  version: null                                   # branch or tag (e.g. "zarr3-merge-main-speed")
+  conda_env: null                                 # e.g. "brieflow_<screen>"
+
+# =========================================================================
+# data (where the raw images are)
+# =========================================================================
+data:
+  storage_format: "nd2"                           # nd2 | tiff | zarr
+  location: "small_test_data/"                    # base path (e.g. /archive/cheeseman/ops_data/<screen>)
+  input_sbs_dir: "small_test_data/sbs"            # raw SBS images dir
+  input_phenotype_dir: "small_test_data/phenotype" # raw phenotype images dir
+
+# =========================================================================
+# additional_notes — free-text operator observations not captured by the
+# structured fields above. Write anything screen-specific and human: imaging
+# anomalies, WHY a cycle was skipped, unusual markers, QC caveats. The wizard
+# surfaces these and may parse intent from them (e.g. a skipped-cycle rationale).
+# =========================================================================
+additional_notes: |
+  Created by small_test_analysis_setup.py. Plate 1, wells A1 and A2. SBS imaged at 10x
+  (tiles 0, 2, 32 per well), phenotype at 20x (tiles 2, 5, 141 per well); tile 2 comes
+  from empty_images/ in both. Library: 20,445 sgRNAs in config/barcode_library.tsv,
+  4 per gene (RGPD5 has 3) plus 250 nontargeting controls.

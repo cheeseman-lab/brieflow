@@ -348,11 +348,17 @@ def get_tile_count_from_well(
     )
 
     # Import here to avoid circular imports
-    from lib.preprocess.preprocess import convert_nd2_to_array_well
+    import nd2
+    from lib.preprocess.preprocess import nd2_position_count
 
-    # Get tile count from the ND2 file
-    _, tile_count = convert_nd2_to_array_well(
-        sample_file, position=0, return_tiles=True, verbose=verbose
-    )
+    if isinstance(sample_file, list):
+        sample_file = sample_file[0]
+
+    # Read the tile count from the ND2 header, without loading pixel data
+    with nd2.ND2File(sample_file) as nd2_file:
+        tile_count = nd2_position_count(nd2_file)
+
+    if verbose:
+        print(f"Tile count from {sample_file}: {tile_count}")
 
     return tile_count

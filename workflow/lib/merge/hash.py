@@ -244,7 +244,7 @@ def evaluate_match(
         vec_centers_0 (pandas.DataFrame): DataFrame containing the first set of vectors and centers.
         vec_centers_1 (pandas.DataFrame): DataFrame containing the second set of vectors and centers.
         threshold_triangle (float, optional): Threshold for matching triangles. Defaults to 0.3.
-        ransac_kwargs (dict, optional): Keyword args forwarded to RANSACRegressor (e.g. random_state). Defaults to None (sklearn defaults).
+        ransac_kwargs (dict, optional): Keyword args forwarded to RANSACRegressor. Defaults to None. A random_state given here is ignored: the seed is fixed at 0 so alignment is reproducible.
 
     Returns:
         tuple:
@@ -274,8 +274,9 @@ def evaluate_match(
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
         # Use matching triangles to define transformation
-        # Seed random_state=0 by default for reproducibility; caller can override via ransac_kwargs.
-        model = RANSACRegressor(**{"random_state": 0, **(ransac_kwargs or {})})
+        # random_state is fixed, not configurable: merge alignment must be
+        # reproducible and there is no principled basis for picking a seed.
+        model = RANSACRegressor(**{**(ransac_kwargs or {}), "random_state": 0})
         model.fit(X, Y)  # Fit the RANSAC model to the matching centers
 
     rotation = model.estimator_.coef_  # Extract rotation matrix

@@ -1,7 +1,8 @@
 # Example Analyses
 
 We include some reference analyses to illustrate how brieflow is used across screening contexts.
-See the `screen.yml` file (`brieflow-analysis/analysis/screen.yml`) in each of these repositories for screen notes regarding channels, plate/well setup, etc.
+See the `analysis/screen.yaml` file in each of these repositories for screen notes regarding channels, plate/well setup, etc.
+Both were analyzed with the Jupyter notebooks of brieflow 1.0.
 
 ## Denali Screen
 

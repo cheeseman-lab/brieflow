@@ -13,8 +13,10 @@ Each test pins one defect:
    Cellpose, and `pop` mutated that shared default and the caller's dict.
 6. cp_measure dropped every measurement after the first failing one in a group.
 7. cp_measure column names carried a triple underscore.
+8. The secondary-object compute module required plotting dependencies to import.
 """
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -201,3 +203,12 @@ def test_cp_measure_column_names():
     assert not any("___" in c for c in df.columns)
     assert any(c.startswith("nucleus_DAPI__") for c in df.columns)
     assert any(c.startswith("cell_neighbor__") for c in df.columns)
+
+
+def test_second_obj_module_imports_without_plotting_deps():
+    code = (
+        "import sys; sys.modules['microfilm'] = None; "
+        "sys.modules['microfilm.microplot'] = None; "
+        "import lib.phenotype.segment_secondary_object"
+    )
+    subprocess.run([sys.executable, "-c", code], cwd=_WORKFLOW, check=True)

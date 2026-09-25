@@ -40,8 +40,6 @@ import pandas as pd
 from scipy import ndimage
 from skimage import filters, morphology, measure, segmentation, feature, exposure
 from skimage.segmentation import mark_boundaries
-from microfilm.microplot import Microimage
-from lib.shared.configuration_utils import create_micropanel
 from lib.shared.segment_cellpose import (
     prepare_cellpose,
     create_cellpose_model,
@@ -814,6 +812,9 @@ def create_second_obj_boundary_visualization(
         matplotlib.figure.Figure: The created micropanel figure showing the cell boundaries (green)
             and secondary object boundaries (magenta) overlaid on the image.
     """
+    from microfilm.microplot import Microimage
+    from lib.shared.configuration_utils import create_micropanel
+
     if channel_names is None or len(channel_names) <= second_obj_channel_index:
         channel_name = f"Channel {second_obj_channel_index}"
     else:
@@ -962,7 +963,8 @@ def create_second_obj_standard_visualization(
     Returns:
         Micropanel: Micropanel object with visualizations.
     """
-    from lib.shared.configuration_utils import random_cmap
+    from microfilm.microplot import Microimage
+    from lib.shared.configuration_utils import create_micropanel, random_cmap
 
     # Build secondary object colormap
     second_obj_cmap = random_cmap(num_colors=len(np.unique(second_obj_masks)))

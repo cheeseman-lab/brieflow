@@ -12,6 +12,7 @@ Each test pins one defect:
 5. `segment_cellpose`'s default `cellpose_kwargs` held `None` thresholds that reached
    Cellpose, and `pop` mutated that shared default and the caller's dict.
 6. cp_measure dropped every measurement after the first failing one in a group.
+7. cp_measure column names carried a triple underscore.
 """
 
 import sys
@@ -184,3 +185,19 @@ def test_cp_measure_failure_keeps_other_measurements(monkeypatch):
             np.ones(cells.shape), cells, "cell_DAPI__"
         )
     assert [k.endswith("Value") for k in features] == [True]
+
+
+def test_cp_measure_column_names():
+    pytest.importorskip("cp_measure")
+    from lib.phenotype.extract_phenotype_cp_measure import extract_phenotype_cp_measure
+
+    nuclei, cells = _two_cells()
+    rng = np.random.default_rng(0)
+    data = rng.random((2, 40, 40))
+    df = extract_phenotype_cp_measure(
+        data, nuclei, cells, channel_names=["DAPI", "GFP"]
+    )
+    assert not df.empty
+    assert not any("___" in c for c in df.columns)
+    assert any(c.startswith("nucleus_DAPI__") for c in df.columns)
+    assert any(c.startswith("cell_neighbor__") for c in df.columns)

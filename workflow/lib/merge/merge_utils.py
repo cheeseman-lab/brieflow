@@ -186,8 +186,8 @@ def plot_merge_example(
             prediction before matching, matching the pipeline (`refine_local_warp`). Defaults None.
         warp_kwargs (dict | None, optional): Keyword args forwarded to `refine_local_warp`. Defaults None.
     """
-    # Create the figure — three panels sharing one matched/unmatched coloring
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 10))
+    # Create the figure — two panels sharing one matched/unmatched coloring
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
 
     # Filter for the specific tile and site
     df_ph_filtered = df_ph[df_ph["tile"] == alignment_vec["tile"]]
@@ -251,56 +251,35 @@ def plot_merge_example(
     ax1.set_title("Aligned overlay (SBS pixel space)")
     ax1.legend(loc="upper right", fontsize=9)
 
-    # Normalize phenotype coordinates into the SBS field for the scaled panels
-    X_norm = (X - X.min(axis=0)) / (X.max(axis=0) - X.min(axis=0))
-    X_scaled = (X_norm * (Y_pred.max(axis=0) - Y_pred.min(axis=0))) + Y_pred.min(axis=0)
-
-    # Panel 2: normalized overlap of phenotype on the SBS field
+    # Panel 2: the same SBS pixel frame as panel 1, minus the residual segments so the
+    # matched/unmatched split stays readable at high cell counts.
+    # Y_pred is the only correct phenotype position here: it carries the fitted affine
+    # model and the local warp when one is enabled. A per-axis min-max rescale of X onto
+    # the Y_pred bounding box cannot represent rotation (and is set by two extreme cells),
+    # so it made well-aligned tiles look offset — don't reintroduce one.
     ax2.scatter(
         Y[:, 0], Y[:, 1], c="lightgray", s=12, alpha=0.15, label=f"SBS field ({n_sbs})"
     )
     ax2.scatter(
         Y_pred[matched_ph_mask, 0],
         Y_pred[matched_ph_mask, 1],
-        c="#c0392b",
-        s=14,
-        alpha=0.3,
-        label=f"aligned SBS matches ({n_matched})",
-    )
-    ax2.scatter(
-        X_scaled[:, 0],
-        X_scaled[:, 1],
-        c="#2f6fb0",
-        s=14,
-        alpha=0.25,
-        label=f"phenotype ({n_ph})",
-    )
-    ax2.set_title("Normalized phenotype relative to SBS")
-    ax2.legend(loc="upper right", fontsize=9)
-
-    # Panel 3: matched vs unmatched phenotype in the normalized frame (no per-cell labels)
-    ax3.scatter(
-        Y[:, 0], Y[:, 1], c="lightgray", s=12, alpha=0.15, label=f"SBS field ({n_sbs})"
-    )
-    ax3.scatter(
-        X_scaled[matched_ph_mask, 0],
-        X_scaled[matched_ph_mask, 1],
         c="#2f6fb0",
         s=14,
         alpha=0.35,
         label=f"matched phenotype ({n_matched})",
     )
-    ax3.scatter(
-        X_scaled[~matched_ph_mask, 0],
-        X_scaled[~matched_ph_mask, 1],
+    ax2.scatter(
+        Y_pred[~matched_ph_mask, 0],
+        Y_pred[~matched_ph_mask, 1],
         marker="*",
         c="#e8b93a",
         s=60,
         alpha=0.9,
         label=f"unmatched phenotype ({n_unmatched})",
     )
-    ax3.set_title("Matched vs unmatched phenotype")
-    ax3.legend(loc="upper right", fontsize=9)
+    ax2.set_aspect("equal")
+    ax2.set_title("Matched vs unmatched phenotype (SBS pixel space)")
+    ax2.legend(loc="upper right", fontsize=9)
 
     plt.tight_layout()
     plt.show()

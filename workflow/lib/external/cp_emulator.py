@@ -669,7 +669,7 @@ def measure_colocalization(A, B, threshold="otsu"):
         A_thresh, B_thresh = otsu(A), otsu(B)
     elif threshold == "costes":
         A_thresh, B_thresh = costes_threshold(A, B)
-    elif ifinstance(threshold, float) & (0 <= threshold <= 1):
+    elif isinstance(threshold, float) & (0 <= threshold <= 1):
         A_thresh, B_thresh = (threshold * A.max(), threshold * B.max())
     else:
         raise ValueError(

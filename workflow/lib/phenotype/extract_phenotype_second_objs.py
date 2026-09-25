@@ -44,7 +44,7 @@ def extract_phenotype_second_objs(
         second_obj_cell_mapping_df (pandas.DataFrame): DataFrame containing the mapping between secondary objects and cells.
         wildcards (dict): Dictionary containing wildcards.
         second_obj_channels (str or list): List of channel indices to consider for secondary object analysis or 'all'.
-        foci_channel (int, optional): Index of the channel containing foci information.
+        foci_channel (int, list, or None, optional): Channel index or list of channel indices for foci detection.
         channel_names (list): List of channel names.
 
     Returns:
@@ -119,18 +119,22 @@ def extract_phenotype_second_objs(
 
     # Extract foci features within secondary objects if foci channel is provided
     if foci_channel is not None:
-        foci = find_foci_in_second_objs(
-            data_phenotype[..., foci_channel, :, :],
-            second_objs,
-            remove_border_foci=True,
+        foci_channels = (
+            [foci_channel] if isinstance(foci_channel, int) else foci_channel
         )
-
-        if foci is not None:
-            dfs.append(
-                extract_features_bare(foci, second_objs, features=foci_features)
-                .set_index("label")
-                .add_prefix(f"second_obj_{channel_names[foci_channel]}_")
+        for fc in foci_channels:
+            foci = find_foci_in_second_objs(
+                data_phenotype[..., fc, :, :],
+                second_objs,
+                remove_border_foci=True,
             )
+
+            if foci is not None:
+                dfs.append(
+                    extract_features_bare(foci, second_objs, features=foci_features)
+                    .set_index("label")
+                    .add_prefix(f"second_obj_{channel_names[fc]}_")
+                )
 
     # Extract secondary object neighbor measurements
     dfs.append(

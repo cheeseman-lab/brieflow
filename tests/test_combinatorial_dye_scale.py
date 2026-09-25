@@ -3,7 +3,7 @@
 The frac caller gates each dye on at a single global fraction of the cycle's total
 intensity. When one dye images dimmer than the others, its fraction in a two-dye base
 state falls under that threshold on every cycle, so the two-dye base is called as the
-one-dye base with no error raised. Measured on a PoTC RPE1 plate: 56% of single-base
+one-dye base with no error raised. Measured on one plate: 56% of single-base
 errors were C called as T, with the Alexa 488 fraction at 0.15-0.17 against a 0.18
 threshold, and rescaling 488 by 1.5 raised exact-library reads from 0.23 to 0.38.
 `dye_scale` rescales a dye before fractions are formed; the caller stays library-blind.
@@ -130,7 +130,7 @@ def test_an_oversized_scale_overcalls_the_dim_dye():
 # --- brightness_regions -------------------------------------------------------
 # A barcode whose two regions are imaged at different brightness: the blank gate compares
 # each cycle to the median over ALL cycles, so cycles in the dim region read as blank. On a
-# PoTC HeLa plate, taking the reference per region raised exact-library reads from 0.44 to
+# real plate, taking the reference per region raised exact-library reads from 0.44 to
 # 0.62 and mapped cells by 21%, with fewer decoy calls.
 BRIGHT = {
     "G": (10, 10, 10),

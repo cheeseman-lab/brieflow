@@ -37,9 +37,9 @@ The whole pipeline can also be driven by an agent.
 
 If you use brieflow, please cite the manuscript:
 
-> Di Bernardo M, Kern RS, Mallar A, Nutter-Upham A, Blainey PC, Cheeseman I.
-> Brieflow: An Integrated Computational Pipeline for High-Throughput Analysis of Optical Pooled Screening Data.
-> bioRxiv (2025). [doi:10.1101/2025.05.26.656231](https://doi.org/10.1101/2025.05.26.656231)
+> Di Bernardo M, Kern RS, Cepeda Diaz AK, Mallar A, Choi SJ, Nutter-Upham A, Lourido S, Blainey PC, Cheeseman IM.
+> Brieflow: an integrated computational pipeline for high-throughput analysis of optical pooled screening data.
+> *Nature Communications* 17, 6997 (2026). [doi:10.1038/s41467-026-73643-7](https://doi.org/10.1038/s41467-026-73643-7)
 
 Brieflow is a community project and contributions are welcome; see [Development](5.development.md).
 

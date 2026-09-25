@@ -251,12 +251,7 @@ def plot_merge_example(
     ax1.set_title("Aligned overlay (SBS pixel space)")
     ax1.legend(loc="upper right", fontsize=9)
 
-    # Panel 2: the same SBS pixel frame as panel 1, minus the residual segments so the
-    # matched/unmatched split stays readable at high cell counts.
-    # Y_pred is the only correct phenotype position here: it carries the fitted affine
-    # model and the local warp when one is enabled. A per-axis min-max rescale of X onto
-    # the Y_pred bounding box cannot represent rotation (and is set by two extreme cells),
-    # so it made well-aligned tiles look offset — don't reintroduce one.
+    # Panel 2: panel 1 without residuals; plot Y_pred, never a min-max rescale of X
     ax2.scatter(
         Y[:, 0], Y[:, 1], c="lightgray", s=12, alpha=0.15, label=f"SBS field ({n_sbs})"
     )

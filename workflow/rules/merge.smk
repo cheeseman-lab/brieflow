@@ -50,7 +50,6 @@ if merge_approach == "fast":
             alignment_flip_y=config.get("merge", {}).get("alignment_flip_y"),
             alignment_rotate_90=config.get("merge", {}).get("alignment_rotate_90"),
             threshold_triangle=config.get("merge", {}).get("threshold_triangle"),
-            ransac_random_state=config.get("merge", {}).get("ransac_random_state"),
             seed_optimize=config.get("merge", {}).get("seed_optimize", False),
             seed_topk=config.get("merge", {}).get("seed_topk"),
         script:

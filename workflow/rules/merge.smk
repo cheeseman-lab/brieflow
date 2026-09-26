@@ -346,6 +346,7 @@ rule final_merge:
         MERGE_OUTPUTS_MAPPED["final_merge"][0],
     params:
         approach=config.get("merge", {}).get("approach", "fast"),
+        exclude_markers=config.get("merge", {}).get("exclude_markers"),
     script:
         "../scripts/merge/final_merge.py"
 

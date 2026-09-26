@@ -29,10 +29,10 @@ def identify_cytoplasm_cellpose(nuclei, cells):
     # therefore left as C — a label-order quirk, preserved here for output parity.)
     #
     # `(nuclei > 0) & (nuclei >= cells)` reproduces that mask exactly in a single
-    # pass, eliminating the O(N_cells * N_pixels) `np.argwhere` loop (~119 s/tile
-    # -> milliseconds). Bit-identity is proven on synthetic masks in
-    # test_identify_cytoplasm_cellpose.py and verified on real plate-4 tiles in
-    # equivalence_identify_cytoplasm.py.
+    # pass, eliminating the O(N_cells * N_pixels) `np.argwhere` loop. Bit-identity
+    # against a verbatim copy of that loop is pinned in
+    # tests/test_identify_cytoplasm_cellpose.py, including the N < C case that a
+    # naive `np.where(nuclei > 0, 0, cells)` gets wrong.
     #
     # relies on nuclei/cells sharing the same label set (true for
     # matched cellpose masks, which reconcile_nuclei_cells relabels to a common

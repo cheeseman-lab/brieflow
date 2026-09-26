@@ -125,17 +125,24 @@ def _compute_region_features(region, funcs):
     return [func(region) for func in funcs]
 
 
-def feature_table_multichannel(data, labels, features, global_features=None, n_jobs=-1):
+def feature_table_multichannel(data, labels, features, global_features=None, n_jobs=1):
     """Apply functions in feature dictionary to regions in data specified by integer labels.
 
     If provided, the global feature dictionary is applied to the full input data and labels.
     Results are combined in a dataframe with one row per label and one column per feature.
 
-    The per-region feature computation is parallelized with joblib threads. The mahotas
-    (haralick, pftas, zernike) and scipy feature functions are C-extensions that release
-    the GIL, so threading achieves real speedup. Setting ``n_jobs=1`` reproduces the
-    original sequential behavior bit-for-bit; on any joblib error the function falls back
-    to the sequential path.
+    Per-region computation can be spread over a joblib thread pool, but **the default
+    ``n_jobs=1`` is the fast path under the pipeline's tile-level parallelism and should
+    not be raised there.** Only part of the per-region work is in GIL-releasing
+    C-extensions (mahotas haralick/pftas/zernike, scipy); the surrounding regionprops
+    attribute access and result assembly are Python, so the pool scales far short of
+    linearly, while the tile pool it steals cores from scales with processes. Measured
+    on 960 tiles / 88 cores via the ``extract_phenotype_cp`` rule: 4 threads per tile
+    (22 tiles concurrent) took 7061.9 s against 1342.8 s for 1 thread per tile (88
+    concurrent) -- ~0.76x the per-tile throughput, not 4x. Raise ``n_jobs`` only when a
+    single tile is being processed on an otherwise idle machine. ``n_jobs=1`` reproduces
+    the original sequential behavior bit-for-bit; on any joblib error the function falls
+    back to the sequential path.
 
     Args:
         data (np.ndarray): Image data.
@@ -143,7 +150,8 @@ def feature_table_multichannel(data, labels, features, global_features=None, n_j
         features (dict): Dictionary of feature names and their corresponding functions.
         global_features (dict, optional): Dictionary of global feature names and their corresponding functions.
         n_jobs (int, optional): Number of parallel threads for per-region computation.
-            Defaults to -1 (all available cores). n_jobs=1 runs sequentially.
+            Defaults to 1 (sequential). -1 uses all cores and will oversubscribe the box
+            if a tile pool is already running.
 
     Returns:
         pd.DataFrame: DataFrame containing extracted features with one row per label and one column per feature.

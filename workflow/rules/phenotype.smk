@@ -11,7 +11,7 @@ rule apply_ic_field_phenotype:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["apply_ic_field_phenotype"],
     group:
-        "phenotype_tile"
+        "phenotype_tile_pre"
     script:
         "../scripts/phenotype/apply_ic_field_phenotype.py"
 
@@ -26,7 +26,7 @@ rule align_phenotype:
     params:
         config=lambda wildcards: get_alignment_params(wildcards, config),
     group:
-        "phenotype_tile"
+        "phenotype_tile_pre"
     script:
         "../scripts/phenotype/align_phenotype.py"
 
@@ -41,8 +41,19 @@ rule segment_phenotype:
         config=lambda wildcards: get_segmentation_params("phenotype", config),
     benchmark:
         PHENOTYPE_FP / "benchmarks" / get_data_output_path(_tile, "segment_phenotype", "tsv", PHENOTYPE_IMG_FMT)
-    group:
-        "phenotype_tile"
+    # Deliberately ungrouped, which is why the tile chain is two groups
+    # ("phenotype_tile_pre" before this rule, "phenotype_tile_post" after) rather
+    # than one. A group job takes the max threads of its members and holds every
+    # member's resources for the whole fused unit, so fusing the GPU step into the
+    # CPU tile chain would (a) drop the entire chain to --cores/4 concurrency and
+    # (b) hold gpu=1 through feature extraction. The two names are also required,
+    # not cosmetic: Snakemake rejects a group whose members depend on an outside
+    # rule that in turn depends on the same group.
+    #
+    # threads is not internal parallelism here — Cellpose runs on the GPU and the
+    # postproc is single-threaded. It reserves cores so the tile pool cannot launch
+    # --cores concurrent Cellpose processes against one GPU when a run forgets
+    # `--resources gpu=N`. Prefer setting that resource; this is the backstop.
     threads: 4
     resources:
         gpu=1,
@@ -64,7 +75,7 @@ rule identify_cytoplasm:
     params:
         segment_cells=config.get("phenotype", {}).get("segment_cells", True),
     group:
-        "phenotype_tile"
+        "phenotype_tile_post"
     script:
         "../scripts/phenotype/identify_cytoplasm_cellpose.py"
 
@@ -79,7 +90,7 @@ rule extract_phenotype_info:
     output:
         PHENOTYPE_OUTPUTS_MAPPED["extract_phenotype_info"],
     group:
-        "phenotype_tile"
+        "phenotype_tile_post"
     script:
         "../scripts/shared/extract_phenotype_minimal.py"
 
@@ -187,8 +198,16 @@ rule extract_phenotype_cp:
     benchmark:
         PHENOTYPE_FP / "benchmarks" / get_data_output_path(_tile, "extract_phenotype_cp", "tsv", PHENOTYPE_IMG_FMT)
     group:
-        "phenotype_tile"
-    threads: 4
+        "phenotype_tile_post"
+    # Keep this at 1. Snakemake runs --cores/threads tiles concurrently, so every
+    # thread reserved here costs a tile slot. The intra-tile alternative is the
+    # joblib `prefer="threads"` pool in feature_table_multichannel, and it is a net
+    # loss: measured on 960 tiles / 88 cores, threads=4 (22 tiles concurrent) took
+    # 7061.9 s vs threads=1 (88 concurrent) 1342.8 s -- 5.3x slower for identical
+    # I/O (90.8 GB read / 52.1 GB written either way), i.e. 4 threads inside a tile
+    # is ~0.76x the throughput of one. Tile-level parallelism is processes and
+    # scales; region-level is GIL-bound and does not.
+    threads: 1
     resources:
         mem_mb=8000,   # tune: widest table in memory
         runtime=30,    # minutes

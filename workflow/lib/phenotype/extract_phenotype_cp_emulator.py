@@ -74,8 +74,10 @@ def extract_phenotype_cp_emulator(
             are extracted. Default is None.
         n_jobs (int, optional): Number of parallel threads for per-region feature
             computation inside each extract_features call. Defaults to 1 (sequential,
-            tile-level parallelism model). Pass snakemake.threads to use region-level
-            parallelism instead (do not combine with a large tile pool).
+            tile-level parallelism model), which is the fast path whenever a tile pool
+            is running: region-level threading measured ~0.76x the throughput of
+            tile-level at 4 threads (see feature_table_multichannel). Raise it only
+            for a single tile on an otherwise idle machine.
 
     Returns:
         pandas.DataFrame: DataFrame containing extracted features with columns ordered as:

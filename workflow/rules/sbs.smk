@@ -1,3 +1,4 @@
+from lib.shared.file_utils import get_data_output_path
 from lib.shared.target_utils import output_to_input
 from lib.shared.rule_utils import get_spot_detection_params, get_segmentation_params, get_call_cells_params
 
@@ -118,6 +119,8 @@ rule segment_sbs:
         SBS_OUTPUTS_MAPPED["segment_sbs"],
     params:
         config=lambda wildcards: get_segmentation_params("sbs", config),
+    benchmark:
+        SBS_FP / "benchmarks" / get_data_output_path(_tile, "segment_sbs", "tsv", SBS_IMG_FMT)
     resources:
         gpu=1,
     script:

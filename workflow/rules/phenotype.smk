@@ -1,3 +1,4 @@
+from lib.shared.file_utils import get_data_output_path
 from lib.shared.target_utils import output_to_input
 from lib.shared.rule_utils import get_alignment_params, get_segmentation_params
 
@@ -38,6 +39,8 @@ rule segment_phenotype:
         PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"],
     params:
         config=lambda wildcards: get_segmentation_params("phenotype", config),
+    benchmark:
+        PHENOTYPE_FP / "benchmarks" / get_data_output_path(_tile, "segment_phenotype", "tsv", PHENOTYPE_IMG_FMT)
     group:
         "phenotype_tile"
     threads: 4
@@ -181,6 +184,8 @@ rule extract_phenotype_cp:
         cp_method=config.get("phenotype", {}).get("cp_method"),
         segment_cells=config.get("phenotype", {}).get("segment_cells", True),
         custom_features=config.get("phenotype", {}).get("custom_features"),
+    benchmark:
+        PHENOTYPE_FP / "benchmarks" / get_data_output_path(_tile, "extract_phenotype_cp", "tsv", PHENOTYPE_IMG_FMT)
     group:
         "phenotype_tile"
     threads: 4
@@ -222,6 +227,8 @@ rule merge_phenotype:
         segment_cells=config.get("phenotype", {}).get("segment_cells", True),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["merge_phenotype_cp"],
+    benchmark:
+        PHENOTYPE_FP / "benchmarks" / get_data_output_path(_well, "merge_phenotype", "tsv", PHENOTYPE_IMG_FMT)
     threads: 4
     resources:
         mem_mb=8000,   # tune: holds full well phenotype_cp

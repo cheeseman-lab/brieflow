@@ -5,7 +5,7 @@ Supports both single-barcode and multi-barcode protocols.
 
 import pandas as pd
 
-from lib.sbs.call_cells import call_cells
+from lib.sbs.call_cells import call_cells, load_barcode_library
 
 # Get configuration from params
 params = snakemake.params.config
@@ -13,8 +13,8 @@ params = snakemake.params.config
 # Load reads data
 reads_data = pd.read_csv(snakemake.input[0], sep="\t")
 
-# Load barcode library
-df_barcode_library = pd.read_csv(params["df_barcode_library_fp"], sep="\t")
+# Load barcode library (cached per worker process — identical for every tile)
+df_barcode_library = load_barcode_library(params["df_barcode_library_fp"])
 
 # Choose calling method based on barcode_type parameter
 barcode_type = params.get("barcode_type", "simple")

@@ -100,7 +100,7 @@ def relabel_array(arr, new_label_dict):
     return arr_[arr]  # Return the relabeled array
 
 
-def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
+def reconcile_nuclei_cells(nuclei, cells, how="consensus", verbose=False):
     """Reconcile nuclei and cells labels based on their overlap.
 
     Args:
@@ -109,6 +109,10 @@ def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
         how (str, optional): Method to reconcile labels.
             - 'consensus': Only keep nucleus-cell pairs where label matches are unique.
             - 'contained_in_cells': Keep multiple nuclei for a single cell but merge them.
+        verbose (bool, optional): Print the per-tile "Nuclei per cell" and
+            "Segmentation QC" diagnostics. Informational only — they do not affect
+            the returned masks. Off by default because the nuclear-solidity QC builds
+            a convex hull per nucleus and is the costliest CPU op in the tile.
 
     Returns:
         tuple: Tuple containing the reconciled nuclei and cells masks.
@@ -142,52 +146,56 @@ def reconcile_nuclei_cells(nuclei, cells, how="consensus"):
         regionprops(nuclei_eroded, intensity_image=cells)
     )
 
-    # Always get the multiple nuclei mapping for analysis
+    # Cell->nuclei mapping. Computed once with keep_multiple=True; the consensus
+    # single-value map is derived from it below (the entries holding exactly one
+    # nucleus), which is identical to a keep_multiple=False pass but saves a second
+    # full regionprops(cells, ...) scan per tile.
     cell_map_multiple = get_unique_label_map(
         regionprops(cells, intensity_image=nuclei_eroded), keep_multiple=True
     )
 
-    # Count cells with multiple nuclei
-    nuclei_per_cell = defaultdict(int)
-    for cell_label, nuclei_labels in cell_map_multiple.items():
-        nuclei_per_cell[len(nuclei_labels)] += 1
+    if verbose:
+        # Diagnostics only (stdout); they do not affect the returned masks. The
+        # nuclear-solidity QC builds a convex hull per nucleus — the costliest CPU
+        # op in the tile — so the whole block is gated off by default.
+        nuclei_per_cell = defaultdict(int)
+        for cell_label, nuclei_labels in cell_map_multiple.items():
+            nuclei_per_cell[len(nuclei_labels)] += 1
 
-    # Print statistics
-    print("\nNuclei per cell statistics:")
-    print("--------------------------")
-    for num_nuclei, count in sorted(nuclei_per_cell.items()):
-        print(f"Cells with {num_nuclei} nuclei: {count}")
-    print("--------------------------\n")
+        print("\nNuclei per cell statistics:")
+        print("--------------------------")
+        for num_nuclei, count in sorted(nuclei_per_cell.items()):
+            print(f"Cells with {num_nuclei} nuclei: {count}")
+        print("--------------------------\n")
 
-    # Segmentation QC
-    n_total = sum(nuclei_per_cell.values())
-    cells_with_1_nucleus_frac = nuclei_per_cell.get(1, 0) / n_total if n_total else 0.0
-    cell_areas = np.array([r.area for r in regionprops(cells)])
-    cell_area_cv = (
-        float(np.std(cell_areas) / np.mean(cell_areas))
-        if cell_areas.size
-        else float("nan")
-    )
-    nuclear_solidities = np.array([r.solidity for r in regionprops(nuclei)])
-    mean_nuclear_solidity = (
-        float(np.mean(nuclear_solidities)) if nuclear_solidities.size else float("nan")
-    )
+        n_total = sum(nuclei_per_cell.values())
+        cells_with_1_nucleus_frac = (
+            nuclei_per_cell.get(1, 0) / n_total if n_total else 0.0
+        )
+        cell_areas = np.array([r.area for r in regionprops(cells)])
+        cell_area_cv = (
+            float(np.std(cell_areas) / np.mean(cell_areas))
+            if cell_areas.size
+            else float("nan")
+        )
+        nuclear_solidities = np.array([r.solidity for r in regionprops(nuclei)])
+        mean_nuclear_solidity = (
+            float(np.mean(nuclear_solidities))
+            if nuclear_solidities.size
+            else float("nan")
+        )
 
-    print("Segmentation QC:")
-    print(
-        f"  cells_with_1_nucleus_frac: {cells_with_1_nucleus_frac:.4f}  (pass > 0.95)"
-    )
-    print(f"  cell_area_cv:              {cell_area_cv:.4f}  (pass < 0.6)")
-    print(f"  mean_nuclear_solidity:     {mean_nuclear_solidity:.4f}  (pass > 0.9)")
+        print("Segmentation QC:")
+        print(
+            f"  cells_with_1_nucleus_frac: {cells_with_1_nucleus_frac:.4f}  (pass > 0.95)"
+        )
+        print(f"  cell_area_cv:              {cell_area_cv:.4f}  (pass < 0.6)")
+        print(f"  mean_nuclear_solidity:     {mean_nuclear_solidity:.4f}  (pass > 0.9)")
 
     if how == "contained_in_cells":
-        cell_map = get_unique_label_map(
-            regionprops(cells, intensity_image=nuclei_eroded), keep_multiple=True
-        )
+        cell_map = cell_map_multiple
     else:
-        cell_map = get_unique_label_map(
-            regionprops(cells, intensity_image=nuclei_eroded)
-        )
+        cell_map = {k: v[0] for k, v in cell_map_multiple.items() if len(v) == 1}
 
     # Keep only nucleus-cell pairs with matching labels
     keep = []

@@ -122,6 +122,13 @@ rule calculate_ic_sbs:
     params:
         threading=True,
         sample_fraction=config.get("preprocess", {}).get("sample_fraction", 1),
+    # Only low-count rules carry `benchmark:`. Snakemake's BenchmarkTimer polls
+    # once per second for its first 30 samples and each poll calls psutil
+    # memory_full_info() on the job and every child -- a /proc/<pid>/smaps walk.
+    # Harmless for a handful of jobs; on a 960-job rule at 88-wide it cost 25%
+    # wall (1574 s -> 1964 s on phenotype post-seg, identical I/O, scheduler CPU
+    # 2% -> 298%). There is no flag to switch benchmarking off, so the per-tile
+    # rules deliberately have none -- add one temporarily when profiling.
     benchmark:
         PREPROCESS_FP / "benchmarks" / get_data_output_path(_pp_sbs_ic, "calculate_ic_sbs", "tsv", IMG_FMT)
     threads: config.get("preprocess", {}).get("ic_n_jobs", 8)

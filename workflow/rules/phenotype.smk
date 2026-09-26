@@ -39,8 +39,6 @@ rule segment_phenotype:
         PHENOTYPE_OUTPUTS_MAPPED["segment_phenotype"],
     params:
         config=lambda wildcards: get_segmentation_params("phenotype", config),
-    benchmark:
-        PHENOTYPE_FP / "benchmarks" / get_data_output_path(_tile, "segment_phenotype", "tsv", PHENOTYPE_IMG_FMT)
     # Deliberately ungrouped, which is why the tile chain is two groups
     # ("phenotype_tile_pre" before this rule, "phenotype_tile_post" after) rather
     # than one. A group job takes the max threads of its members and holds every
@@ -195,8 +193,6 @@ rule extract_phenotype_cp:
         cp_method=config.get("phenotype", {}).get("cp_method"),
         segment_cells=config.get("phenotype", {}).get("segment_cells", True),
         custom_features=config.get("phenotype", {}).get("custom_features"),
-    benchmark:
-        PHENOTYPE_FP / "benchmarks" / get_data_output_path(_tile, "extract_phenotype_cp", "tsv", PHENOTYPE_IMG_FMT)
     group:
         "phenotype_tile_post"
     # Keep this at 1. Snakemake runs --cores/threads tiles concurrently, so every

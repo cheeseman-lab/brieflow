@@ -31,6 +31,29 @@ from lib.sbs.constants import (
 COLS = [WELL, TILE, CELL]
 
 
+@lru_cache(maxsize=2)
+def _read_barcode_library_cached(fp, sep="\t"):
+    """Parse a barcode-library TSV once per worker process (keyed on path)."""
+    return pd.read_csv(fp, sep=sep)
+
+
+def load_barcode_library(fp, sep="\t"):
+    """Load a barcode library, reusing a per-process parsed cache.
+
+    The library is identical for every tile in a run, so the per-tile
+    ``read_csv`` is pure repeated work. Returns a fresh copy each call so
+    callers may mutate the frame without corrupting the cache.
+
+    Args:
+        fp (str): Path to the barcode-library table.
+        sep (str, optional): Field separator. Defaults to tab.
+
+    Returns:
+        pandas.DataFrame: Parsed barcode library, safe to mutate.
+    """
+    return _read_barcode_library_cached(fp, sep).copy()
+
+
 def call_cells(
     reads_data,
     df_barcode_library=None,

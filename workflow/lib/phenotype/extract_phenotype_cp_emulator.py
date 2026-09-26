@@ -287,9 +287,7 @@ def extract_phenotype_cp_emulator(
 
     # Add wildcards metadata at the END (they'll be reordered later)
     for k, v in sorted(wildcards.items()):
-        # wildcards are strings; plate/tile must stay int so parquet-preserved
-        # dtypes match the int64 'tile' in metadata merges (old TSV read_csv coerced implicitly)
-        result_df[k] = int(v) if k in ("plate", "tile") else v
+        result_df[k] = v
 
     # Apply column ordering
     result_df = order_dataframe_columns(result_df)

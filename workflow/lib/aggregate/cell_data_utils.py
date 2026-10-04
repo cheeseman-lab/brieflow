@@ -229,6 +229,11 @@ def split_cell_data(
 def channel_combo_subset(features, channel_combo, all_channels):
     """Filter features to include only columns from specified channel combination.
 
+    A column belongs to a channel when the channel name appears in it as whole
+    "_"-delimited tokens, longest name first, so "LIPID" does not claim "LIPID_Low"
+    columns and "DAPI" does not claim "DAPI2" columns. A column is removed when it
+    names any channel outside the combination.
+
     Args:
         features (pd.DataFrame): DataFrame containing feature data.
         channel_combo (list): List of channels to include.
@@ -238,21 +243,87 @@ def channel_combo_subset(features, channel_combo, all_channels):
         pd.DataFrame: DataFrame with features filtered to include only
             columns from the specified channel combination.
     """
-    # Find channels to remove (those not in channel_combo)
-    channels_to_remove = [ch for ch in all_channels if ch not in channel_combo]
+    channels_to_remove = {ch for ch in all_channels if ch not in channel_combo}
 
-    # Get all column names
-    columns = features.columns.tolist()
-
-    # Find columns to remove (those containing removed channel names)
-    columns_to_remove = [
-        col for col in columns if any(ch in col for ch in channels_to_remove)
+    columns_to_keep = [
+        col
+        for col in features.columns
+        if not channels_to_remove.intersection(column_channels(col, all_channels))
     ]
 
-    # Keep all columns except those from removed channels
-    columns_to_keep = [col for col in columns if col not in columns_to_remove]
-
     return features[columns_to_keep]
+
+
+def parse_channel_combo(channel_combo, all_channels):
+    """Split a "_"-joined channel combination string into known channel names.
+
+    Channel names may themselves contain "_", so the string is matched against
+    the known names (longest first) instead of being split on the delimiter.
+
+    Args:
+        channel_combo (str): Channel combination string, e.g. "DAPI_LIPID_Low_WGA".
+        all_channels (list): List of all available channel names.
+
+    Returns:
+        list: Channel names in the order they appear in the combination.
+
+    Raises:
+        ValueError: If the string cannot be fully parsed into known channel names.
+    """
+    names = sorted(set(all_channels), key=len, reverse=True)
+
+    def _parse(rest):
+        if rest == "":
+            return []
+        for name in names:
+            if rest == name or rest.startswith(name + "_"):
+                tail = _parse(rest[len(name) + 1 :])
+                if tail is not None:
+                    return [name] + tail
+        return None
+
+    parsed = _parse(channel_combo)
+    if parsed is None:
+        rest = channel_combo
+        while True:
+            name = next(
+                (n for n in names if rest == n or rest.startswith(n + "_")), None
+            )
+            if name is None:
+                break
+            rest = rest[len(name) + 1 :]
+        raise ValueError(
+            f"Channel combo '{channel_combo}' cannot be parsed into known channels "
+            f"{list(all_channels)}; unmatched text: '{rest}'"
+        )
+    return parsed
+
+
+def column_channels(column, all_channels):
+    """Return the channel names a feature column refers to.
+
+    Args:
+        column (str): Feature column name, e.g. "cell_correlation_DAPI_LIPID_Low".
+        all_channels (list): List of all available channel names.
+
+    Returns:
+        list: Channel names found as whole "_"-delimited tokens, longest match first.
+    """
+    tokens = str(column).split("_")
+    names = sorted(
+        (name.split("_") for name in set(all_channels)), key=len, reverse=True
+    )
+    found = []
+    i = 0
+    while i < len(tokens):
+        for name in names:
+            if tokens[i : i + len(name)] == name:
+                found.append("_".join(name))
+                i += len(name)
+                break
+        else:
+            i += 1
+    return found
 
 
 def get_feature_table_cols(feature_cols, extra_tags=None):

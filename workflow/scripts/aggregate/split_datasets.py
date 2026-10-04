@@ -10,6 +10,7 @@ from lib.aggregate.cell_data_utils import (
     load_metadata_cols,
     split_cell_data,
     channel_combo_subset,
+    parse_channel_combo,
     join_well_annotations,
     compartment_combo_subset,
 )
@@ -189,7 +190,7 @@ for _, row in unique_specs.iterrows():
         cell_class_metadata = metadata[cell_class_mask]
         cell_class_features = features[cell_class_mask]
 
-    channel_combo_list = channel_combo.split("_")
+    channel_combo_list = parse_channel_combo(channel_combo, all_channels)
     compartment_combo_list = compartment_combo.split("-")
 
     filtered = channel_combo_subset(

@@ -783,13 +783,15 @@ def visualize_sbs_alignment(
 
 
 def plot_cycle_alignment_overlay(
-    aligned, channel_names, crop_size=300, cycle_labels=None
+    aligned, channel_names, crop_size=300, cycle_labels=None, upsample_factor=2
 ):
     """Overlay every cycle's DAPI (green) on the first cycle's DAPI (magenta), one panel per cycle.
 
     Aligned cycles look white or grey; a misaligned cycle shows every nucleus twice, once
-    magenta and once green, so a single off cycle stands out. Without a DAPI channel the
-    maximum over the base channels of each cycle is used.
+    magenta and once green, so a single off cycle stands out. Each title gives the cycle's
+    measured shift (dy, dx px) against the first cycle and the colored fraction (see
+    `colored_fraction`). Without a DAPI channel the maximum over the base channels of each
+    cycle is used.
 
     Args:
         aligned (np.ndarray): Aligned SBS data (CYCLE, CHANNEL, I, J).
@@ -797,6 +799,7 @@ def plot_cycle_alignment_overlay(
         crop_size (int, optional): Side of the centered crop shown, in pixels. Defaults to 300.
         cycle_labels (list[int], optional): Cycle number shown for each row of aligned.
             Defaults to 1..n.
+        upsample_factor (int, optional): Subpixel factor for the shift estimate. Defaults to 2.
 
     Returns:
         matplotlib.figure.Figure: The figure, or None with fewer than two cycles.
@@ -810,9 +813,14 @@ def plot_cycle_alignment_overlay(
         bases = [i for i, ch in enumerate(channel_names) if ch in ("G", "T", "A", "C")]
         images = aligned[:, bases].max(axis=1)
         what = "max of base channels"
+    shifts, _ = calculate_offsets(images, upsample_factor=upsample_factor)
     images = center_crop(images, crop_size)
     panels = [
-        (images[0], images[c], f"cycle {cycle_labels[c]} vs {cycle_labels[0]}")
+        (
+            images[0],
+            images[c],
+            f"cycle {cycle_labels[c]} vs {cycle_labels[0]}: {_fmt(shifts[c])}",
+        )
         for c in range(1, n_cycles)
     ]
     return plot_overlay_grid(
@@ -837,7 +845,8 @@ def plot_channel_alignment_overlay(
     green spot of an aligned channel sits on a magenta spot and looks white; spots of
     other sequences stay magenta. A shifted channel or cycle shows green spots beside
     their magenta partners. Each panel title gives the measured shift (dy, dx px), or
-    n/a when it cannot be estimated.
+    n/a when it cannot be estimated, and the fraction of green spot pixels with no
+    magenta partner.
 
     Args:
         aligned (np.ndarray): Aligned SBS data (CYCLE, CHANNEL, I, J).
@@ -884,6 +893,8 @@ def plot_channel_alignment_overlay(
         ncols=len(base_indices),
         panel_size=2.6,
         percentiles=SPOT_DISPLAY_PERCENTILES,
+        colored="moving",
+        fraction_percentiles=(0, 100),
         suptitle="Within cycles: channel spots green, spots of the other cycles magenta "
         "(white = aligned; shift dy, dx px)",
     )

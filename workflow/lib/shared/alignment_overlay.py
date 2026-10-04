@@ -29,20 +29,67 @@ def magenta_green_overlay(reference, moving, percentiles=(1, 99.5)):
     return np.stack([ref, mov, ref], axis=-1)
 
 
+def colored_fraction(overlay, mask=None, basis="both", min_signal=0.25):
+    """Fraction of signal pixels in an overlay that are colored rather than white or grey.
+
+    A pixel is colored when one image is less than half as bright as the other there. Aligned
+    copies of the same structure give a value near 0; a shift makes both copies colored.
+    Images of different stains or resolutions are not white even when aligned, so the
+    fraction is only meaningful for two images of the same structure.
+
+    Args:
+        overlay (np.ndarray): RGB overlay from `magenta_green_overlay`.
+        mask (np.ndarray, optional): Boolean mask of the pixels to count. Defaults to None (all).
+        basis (str, optional): "both" counts pixels where either image is bright; "moving"
+            counts only pixels where the green image is bright and asks whether magenta is
+            missing there, for references that hold more objects than the moving image.
+            Defaults to "both".
+        min_signal (float, optional): Stretched intensity a pixel needs to count as signal.
+            Defaults to 0.25.
+
+    Returns:
+        float: Colored fraction in [0, 1], or nan when no pixel has signal.
+    """
+    ref, mov = overlay[..., 0], overlay[..., 1]
+    if basis == "moving":
+        keep = mov >= min_signal
+        colored = ref < 0.5 * mov
+    else:
+        signal = np.maximum(ref, mov)
+        keep = signal >= min_signal
+        colored = np.minimum(ref, mov) < 0.5 * signal
+    if mask is not None:
+        keep &= mask
+    if not keep.any():
+        return float("nan")
+    return float(colored[keep].mean())
+
+
 def plot_overlay_grid(
-    panels, ncols=4, panel_size=3.5, suptitle=None, percentiles=(1, 99.5)
+    panels,
+    ncols=4,
+    panel_size=3.5,
+    suptitle=None,
+    percentiles=(1, 99.5),
+    colored="both",
+    fraction_percentiles=None,
 ):
     """Plot a grid of magenta/green overlays with one title per panel.
 
     Args:
-        panels (list[tuple[np.ndarray, np.ndarray, str]]): (reference, moving, title)
-            per panel.
+        panels (list[tuple]): (reference, moving, title) or (reference, moving, title, mask)
+            per panel; the mask limits the colored fraction to part of the panel.
         ncols (int, optional): Panels per row. Defaults to 4.
         panel_size (float, optional): Width and height of each panel in inches.
             Defaults to 3.5.
         suptitle (str, optional): Figure title. Defaults to None.
         percentiles (tuple[float, float], optional): Contrast percentiles passed to
             `magenta_green_overlay`. Defaults to (1, 99.5).
+        colored (str or None, optional): Basis of the colored fraction appended to each
+            title (see `colored_fraction`), or None to leave it out. Defaults to "both".
+        fraction_percentiles (tuple[float, float], optional): Contrast percentiles of the
+            overlay the colored fraction is computed on, when it should differ from the
+            display. Defaults to None (same as percentiles).
 
     Returns:
         matplotlib.figure.Figure: The figure, or None if there are no panels.
@@ -62,9 +109,14 @@ def plot_overlay_grid(
     )
     for ax in axes.ravel():
         ax.axis("off")
-    for ax, (reference, moving, title) in zip(axes.ravel(), panels):
+    for ax, (reference, moving, title, *mask) in zip(axes.ravel(), panels):
         overlay = magenta_green_overlay(reference, moving, percentiles)
         ax.imshow(overlay, interpolation="nearest")
+        if colored:
+            if fraction_percentiles is not None:
+                overlay = magenta_green_overlay(reference, moving, fraction_percentiles)
+            fraction = colored_fraction(overlay, mask[0] if mask else None, colored)
+            title = f"{title}\n{fraction:.0%} colored"
         ax.set_title(title, fontsize=9)
     if suptitle:
         fig.suptitle(suptitle, fontsize=11)

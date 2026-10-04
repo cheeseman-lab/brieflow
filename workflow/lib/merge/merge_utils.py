@@ -288,7 +288,10 @@ def plot_merge_alignment_overlay(
 
     The phenotype image is resampled through the tile-site affine model the merge uses, so
     a good alignment shows white or grey nuclei and a bad one shows every nucleus twice.
-    Shows the full SBS tile and a crop centered on the phenotype tile's footprint.
+    Shows the full SBS tile and a crop centered on the phenotype tile's footprint, titled
+    with the residual shift (dy, dx SBS px) of the mapped phenotype image. No colored
+    fraction is shown: the two images differ in resolution and staining, so aligned nuclei
+    are not all white.
 
     Args:
         sbs_dapi (np.ndarray): 2D SBS DAPI image of the site.
@@ -302,7 +305,7 @@ def plot_merge_alignment_overlay(
     Returns:
         matplotlib.figure.Figure: The figure, or None if the pair has no alignment.
     """
-    from scipy import ndimage
+    from skimage.registration import phase_cross_correlation
 
     match = alignment_df[
         (alignment_df["tile"] == ph_tile) & (alignment_df["site"] == sbs_site)
@@ -313,13 +316,16 @@ def plot_merge_alignment_overlay(
     rotation = np.asarray(match.iloc[0]["rotation"], dtype=float)
     translation = np.asarray(match.iloc[0]["translation"], dtype=float)
 
-    # the merge model maps phenotype (i, j) to SBS (i, j) as X @ rotation.T + translation
-    rows, cols = np.indices(sbs_dapi.shape)
-    sbs_coords = np.stack([rows.ravel(), cols.ravel()], axis=1).astype(float)
-    ph_coords = (sbs_coords - translation) @ np.linalg.inv(rotation.T)
-    ph_in_sbs = ndimage.map_coordinates(
-        np.asarray(ph_dapi, dtype=np.float32), ph_coords.T, order=1, cval=0.0
-    ).reshape(sbs_dapi.shape)
+    ph_in_sbs = map_phenotype_to_sbs(ph_dapi, sbs_dapi.shape, rotation, translation)
+    footprint = (
+        map_phenotype_to_sbs(
+            np.ones(ph_dapi.shape, dtype=np.float32),
+            sbs_dapi.shape,
+            rotation,
+            translation,
+        )
+        > 0.5
+    )
 
     # zoom on the phenotype tile's footprint, which covers only part of the SBS site
     center = np.array(ph_dapi.shape) / 2 @ rotation.T + translation
@@ -330,22 +336,57 @@ def plot_merge_alignment_overlay(
     )
     zoom = (slice(y0, y0 + 2 * half), slice(x0, x0 + 2 * half))
 
+    shift = phase_cross_correlation(
+        np.where(footprint, ph_in_sbs, 0)[zoom],
+        np.where(footprint, sbs_dapi, 0)[zoom].astype(np.float32),
+        upsample_factor=2,
+        normalization=None,
+    )[0]
+
     fig = plot_overlay_grid(
         [
-            (sbs_dapi, ph_in_sbs, "full SBS tile"),
+            (sbs_dapi, ph_in_sbs, "full SBS tile", footprint),
             (
                 sbs_dapi[zoom],
                 ph_in_sbs[zoom],
-                f"{2 * half} px around the phenotype tile",
+                f"{2 * half} px around the phenotype tile: "
+                f"residual ({shift[0]:+.1f}, {shift[1]:+.1f})",
+                footprint[zoom],
             ),
         ],
         ncols=2,
         panel_size=6,
+        colored=None,
         suptitle=f"PH tile {ph_tile} → SBS site {sbs_site}: SBS DAPI magenta, "
         "phenotype DAPI green (white = aligned)",
     )
     plt.show()
     return fig
+
+
+def map_phenotype_to_sbs(ph_image, sbs_shape, rotation, translation):
+    """Resample a phenotype image into SBS pixel space with the merge's affine model.
+
+    Args:
+        ph_image (np.ndarray): 2D phenotype image.
+        sbs_shape (tuple[int, int]): Shape of the SBS image.
+        rotation (np.ndarray): 2x2 matrix of the model (phenotype (i, j) to SBS (i, j)).
+        translation (np.ndarray): Translation of the model, in SBS pixels.
+
+    Returns:
+        np.ndarray: Phenotype image in SBS pixel space, 0 outside the phenotype tile.
+    """
+    from scipy import ndimage
+
+    # the merge model maps phenotype (i, j) to SBS (i, j) as X @ rotation.T + translation
+    rows, cols = np.indices(sbs_shape)
+    sbs_coords = np.stack([rows.ravel(), cols.ravel()], axis=1).astype(float)
+    ph_coords = (sbs_coords - np.asarray(translation, dtype=float)) @ np.linalg.inv(
+        np.asarray(rotation, dtype=float).T
+    )
+    return ndimage.map_coordinates(
+        np.asarray(ph_image, dtype=np.float32), ph_coords.T, order=1, cval=0.0
+    ).reshape(sbs_shape)
 
 
 def load_merge_dapi_pair(

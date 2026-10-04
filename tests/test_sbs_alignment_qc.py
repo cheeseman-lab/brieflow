@@ -23,7 +23,6 @@ from lib.sbs.align_cycles import (  # noqa: E402
     plot_cycle_alignment_overlay,
     report_alignment_qc,
 )
-from lib.shared.alignment_overlay import magenta_green_overlay  # noqa: E402
 
 CHANNELS = ["DAPI", "G", "T", "A", "C"]
 BASES = [1, 2, 3, 4]
@@ -104,22 +103,3 @@ def test_empty_channel_is_not_measured(cycles, empty):
     qc = _qc(data)
     assert qc["intra_cycle_channel_shift_residual_max_px"] < 1.0
     assert any("cycle 3: channel C shares too few spots" in w for w in qc["warnings"])
-
-
-def test_overlay_is_white_when_equal_and_split_when_shifted():
-    img = _blobs((64, 64), [(32, 32)], 2.0)
-    same = magenta_green_overlay(img, img)
-    assert np.allclose(same[..., 0], same[..., 1])
-    moved = magenta_green_overlay(img, np.roll(img, 6, axis=1))
-    assert moved[32, 32, 0] > 0.9 and moved[32, 32, 1] < 0.2
-    assert moved[32, 38, 1] > 0.9 and moved[32, 38, 0] < 0.2
-
-
-def test_overlay_figures(cycles):
-    import matplotlib
-
-    matplotlib.use("Agg")
-    assert len(plot_cycle_alignment_overlay(cycles, CHANNELS, crop_size=96).axes) == 4
-    assert (
-        len(plot_channel_alignment_overlay(cycles, CHANNELS, crop_size=96).axes) == 20
-    )

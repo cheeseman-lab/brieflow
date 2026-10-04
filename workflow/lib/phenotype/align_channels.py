@@ -59,10 +59,9 @@ def align_phenotype_channels(
         stack = False
 
     # Calculate alignment offsets using phase cross-correlation
-    windowed = apply_window(data_[[target, source]], window)
-    offsets, _ = calculate_offsets(windowed, upsample_factor=upsample_factor)
-
-    final_offset = offsets[1]
+    final_offset = phenotype_channel_shift(
+        data_, target, source, window, upsample_factor
+    )
 
     # Handle riders and create full offsets array
     if not isinstance(riders, list):
@@ -261,3 +260,126 @@ def visualize_phenotype_alignment(
 
     plt.tight_layout()
     return fig
+
+
+def plot_phenotype_alignment_overlay(
+    image,
+    target,
+    source,
+    channel_names,
+    riders=None,
+    window=2,
+    upsample_factor=2,
+    crop_size=300,
+):
+    """Overlay the source channel (green) on the target channel (magenta) before and after alignment.
+
+    The shift is measured and applied exactly as `align_phenotype_channels` does, on the
+    image before alignment, so the view does not depend on channels removed afterwards.
+    Before alignment a misaligned source shows every object twice; after it the overlay
+    should be white or grey. Titles give the measured shift and the remaining shift (dy,
+    dx px) and the colored fraction; riders follow the source's shift.
+
+    Args:
+        image (np.ndarray): Phenotype image before alignment, (CHANNEL, I, J) or
+            (STACK, CHANNEL, I, J).
+        target (int): Index of the target (reference) channel.
+        source (int): Index of the source channel aligned to the target.
+        channel_names (list[str] or dict[int, str]): Channel names by index; a dict needs
+            only the target, source and riders.
+        riders (list[int], optional): Channels that follow the source's shift. Defaults to None.
+        window (int, optional): Alignment window, as in `align_phenotype_channels`. Defaults to 2.
+        upsample_factor (int, optional): Subpixel factor, as in `align_phenotype_channels`.
+            Defaults to 2.
+        crop_size (int, optional): Side of the centered crop shown, in pixels. Defaults to 300.
+
+    Returns:
+        matplotlib.figure.Figure: Two panels, before and after alignment.
+    """
+    from lib.shared.alignment_overlay import center_crop, plot_overlay_grid
+
+    data = image.max(axis=0) if image.ndim == 4 else image
+    shift = phenotype_channel_shift(data, target, source, window, upsample_factor)
+    pair = data[[target, source]]
+    after = apply_offsets(pair, np.array([[0, 0], shift]))
+    residual = phenotype_channel_shift(after, 0, 1, window, upsample_factor)
+    names = [channel_names[i] for i in riders or []]
+    carried = f" (riders {', '.join(names)} follow the source)" if names else ""
+    return plot_overlay_grid(
+        [
+            (
+                center_crop(pair[0], crop_size),
+                center_crop(pair[1], crop_size),
+                f"before: shift {_fmt_shift(shift)}",
+            ),
+            (
+                center_crop(after[0], crop_size),
+                center_crop(after[1], crop_size),
+                f"after: residual {_fmt_shift(residual)}",
+            ),
+        ],
+        ncols=2,
+        panel_size=5,
+        suptitle=f"{channel_names[target]} magenta, {channel_names[source]} green"
+        f"{carried} (white = aligned)",
+    )
+
+
+def plot_phenotype_channel_overlay(
+    image, reference, moving, channel_names, crop_size=300
+):
+    """Overlay one phenotype channel (green) on another (magenta) as a sanity check.
+
+    Without channel alignment, DAPI against the cell-boundary channel shows whether nuclei
+    sit inside their cells; the two stains differ, so the overlay is not expected to be white
+    and no shift is measured.
+
+    Args:
+        image (np.ndarray): Phenotype image, (CHANNEL, I, J) or (STACK, CHANNEL, I, J).
+        reference (int): Index of the channel shown in magenta.
+        moving (int): Index of the channel shown in green.
+        channel_names (list[str]): Channel names of image.
+        crop_size (int, optional): Side of the centered crop shown, in pixels. Defaults to 300.
+
+    Returns:
+        matplotlib.figure.Figure: One panel.
+    """
+    from lib.shared.alignment_overlay import center_crop, plot_overlay_grid
+
+    data = image.max(axis=0) if image.ndim == 4 else image
+    return plot_overlay_grid(
+        [
+            (
+                center_crop(data[reference], crop_size),
+                center_crop(data[moving], crop_size),
+                f"{channel_names[reference]} magenta, {channel_names[moving]} green",
+            )
+        ],
+        ncols=1,
+        panel_size=5,
+        colored=None,
+        suptitle="No channel alignment configured: nuclei should sit inside cells",
+    )
+
+
+def phenotype_channel_shift(data, target, source, window=2, upsample_factor=2):
+    """Shift (dy, dx) of the source channel against the target, as `align_phenotype_channels` measures it.
+
+    Args:
+        data (np.ndarray): Phenotype image (CHANNEL, I, J).
+        target (int): Index of the target channel.
+        source (int): Index of the source channel.
+        window (int, optional): Alignment window. Defaults to 2.
+        upsample_factor (int, optional): Subpixel factor. Defaults to 2.
+
+    Returns:
+        np.ndarray: The (dy, dx) shift.
+    """
+    windowed = apply_window(data[[target, source]], window)
+    offsets, _ = calculate_offsets(windowed, upsample_factor=upsample_factor)
+    return np.asarray(offsets[1], dtype=float)
+
+
+def _fmt_shift(shift):
+    """Format a (dy, dx) shift."""
+    return f"({shift[0]:+.1f}, {shift[1]:+.1f})"

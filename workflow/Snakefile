@@ -30,6 +30,9 @@ wildcard_constraints:
     col=r"[A-Za-z]*\d+",
     tile=r"[0-9]+",
     plate=r"[0-9]+",
+    # TIFF basenames are "_"-delimited (P-1_W-A1_T-0__reads.parquet); without this
+    # {well} also matches "A1_T-0" and per-tile outputs alias the per-well rules.
+    well=r"[^_/]+",
 SPLIT_BY_COMPARTMENT = config.get("aggregate", {}).get(
     "split_by_compartment", False
 )

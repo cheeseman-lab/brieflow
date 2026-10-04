@@ -25,6 +25,13 @@ Site
 Cycle
   One round of in situ sequencing chemistry, which reads one base of every barcode. An SBS experiment with N cycles reads the first N bases.
 
+Alignment overlay
+Magenta/green overlay
+  A check of image alignment by eye: the reference image is shown in magenta and the image being checked in green, added together, each stretched by its own percentiles. Where the two agree the overlay is white or grey; where they are misaligned every object appears twice, magenta and green, offset by the shift. The SBS notebook shows one for each cycle against the first cycle and one for each base channel against the spots of the other cycles; the merge notebook shows one for each phenotype tile against its SBS site.
+
+Alignment QC
+  The per-tile check printed by the SBS alignment step. `cycle_dapi_shift_residual_max_px` is the largest DAPI shift of any cycle against the first cycle after alignment; `intra_cycle_channel_shift_residual_max_px` is the largest shift of a base channel against the other base channels of its cycle, measured on spot images against the spots of the other cycles. Both pass below 1 pixel. A per-cycle table and a warning name every cycle or channel that is off, or that shares too few spots to measure; a single off cycle or channel is named but left out of the intra-cycle value, which fails only when most cycles are off.
+
 SBS
 Sequencing by synthesis
   The in situ sequencing arm of a screen: the imaging cycles that read each cell's barcode, and the brieflow module that aligns those cycles, finds spots, calls reads and assigns barcodes to cells.
@@ -94,7 +101,7 @@ Merge
 
 ```{glossary}
 Channel combo
-  A set of phenotype channels whose features are aggregated and clustered together, named by joining the channels with `_` (for example `DAPI_COXIV_CENPA_WGA`). Set in the aggregate notebook as `CHANNEL_COMBOS`; each gets its own output directory.
+  A set of phenotype channels whose features are aggregated and clustered together, named by joining the channels with `_` (for example `DAPI_COXIV_CENPA_WGA`). Channel names may themselves contain `_`; the combo is read back by matching it against the channel names. Set in the aggregate notebook as `CHANNEL_COMBOS`; each gets its own output directory.
 
 Compartment combo
   A set of compartments whose features are aggregated together when `SPLIT_BY_COMPARTMENT` is on, named by joining them with `-` (for example `cell-nucleus-cytoplasm`). Every channel combo is paired with every compartment combo.
@@ -110,7 +117,7 @@ Aggregate
   The module that turns merged single cells into per-perturbation profiles: filtering, missing-value handling, perturbation scoring, PCA and TVN alignment, then a median or mean per construct and per gene, plus optional bootstrap statistics.
 
 Perturbation score
-  A per-cell score of how strongly a cell shows its perturbation's phenotype, from a logistic regression separating that perturbation's cells from controls. Aggregate can keep only cells above a probability or percentile threshold, and the regression's AUC per perturbation (`perturbation_auc`) lets cluster drop weak perturbations with `PERTURBATION_AUC_THRESHOLD`.
+  A per-cell score of how strongly a cell shows its perturbation's phenotype, from a cross-validated logistic regression separating that perturbation's cells from controls on its top differential features, which are selected inside each fold. Aggregate can keep only cells above a probability or percentile threshold, and the regression's AUC per perturbation (`perturbation_auc`) lets cluster drop weak perturbations with `PERTURBATION_AUC_THRESHOLD`.
 
 TVN
 Typical variation normalization

@@ -20,6 +20,7 @@ from skimage.measure import regionprops
 
 
 from lib.merge.fast_merge import build_linear_model, refine_local_warp, match_cells
+from lib.shared.alignment_overlay import plot_overlay_grid
 
 
 def plot_combined_tile_grid(
@@ -278,6 +279,118 @@ def plot_merge_example(
 
     plt.tight_layout()
     plt.show()
+
+
+def plot_merge_alignment_overlay(
+    sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_site, crop_size=400
+):
+    """Overlay phenotype DAPI mapped into SBS pixel space (green) on SBS DAPI (magenta).
+
+    The phenotype image is resampled through the tile-site affine model the merge uses, so
+    a good alignment shows white or grey nuclei and a bad one shows every nucleus twice.
+    Shows the full SBS tile and a crop centered on the phenotype tile's footprint.
+
+    Args:
+        sbs_dapi (np.ndarray): 2D SBS DAPI image of the site.
+        ph_dapi (np.ndarray): 2D phenotype DAPI image of the tile.
+        alignment_df (pandas.DataFrame): Initial alignment with tile, site, rotation and
+            translation columns.
+        ph_tile (int): Phenotype tile.
+        sbs_site (int): SBS site (tile).
+        crop_size (int, optional): Side of the zoomed crop, in SBS pixels. Defaults to 400.
+
+    Returns:
+        matplotlib.figure.Figure: The figure, or None if the pair has no alignment.
+    """
+    from scipy import ndimage
+
+    match = alignment_df[
+        (alignment_df["tile"] == ph_tile) & (alignment_df["site"] == sbs_site)
+    ]
+    if match.empty:
+        print(f"  No alignment for PH tile {ph_tile} and SBS site {sbs_site}")
+        return None
+    rotation = np.asarray(match.iloc[0]["rotation"], dtype=float)
+    translation = np.asarray(match.iloc[0]["translation"], dtype=float)
+
+    # the merge model maps phenotype (i, j) to SBS (i, j) as X @ rotation.T + translation
+    rows, cols = np.indices(sbs_dapi.shape)
+    sbs_coords = np.stack([rows.ravel(), cols.ravel()], axis=1).astype(float)
+    ph_coords = (sbs_coords - translation) @ np.linalg.inv(rotation.T)
+    ph_in_sbs = ndimage.map_coordinates(
+        np.asarray(ph_dapi, dtype=np.float32), ph_coords.T, order=1, cval=0.0
+    ).reshape(sbs_dapi.shape)
+
+    # zoom on the phenotype tile's footprint, which covers only part of the SBS site
+    center = np.array(ph_dapi.shape) / 2 @ rotation.T + translation
+    half = min(crop_size, *sbs_dapi.shape) // 2
+    y0, x0 = (
+        int(np.clip(round(c) - half, 0, n - 2 * half))
+        for c, n in zip(center, sbs_dapi.shape)
+    )
+    zoom = (slice(y0, y0 + 2 * half), slice(x0, x0 + 2 * half))
+
+    fig = plot_overlay_grid(
+        [
+            (sbs_dapi, ph_in_sbs, "full SBS tile"),
+            (
+                sbs_dapi[zoom],
+                ph_in_sbs[zoom],
+                f"{2 * half} px around the phenotype tile",
+            ),
+        ],
+        ncols=2,
+        panel_size=6,
+        suptitle=f"PH tile {ph_tile} → SBS site {sbs_site}: SBS DAPI magenta, "
+        "phenotype DAPI green (white = aligned)",
+    )
+    plt.show()
+    return fig
+
+
+def load_merge_dapi_pair(
+    root_fp, plate, well, ph_tile, sbs_site, image_format, ph_channels, sbs_channels
+):
+    """Load the SBS and phenotype DAPI images of one tile-site pair for the merge overlay.
+
+    Reads the aligned images (first SBS cycle) and falls back to the illumination-corrected
+    images when the aligned ones were not kept.
+
+    Args:
+        root_fp (str | Path): Brieflow output root.
+        plate (int | str): Plate.
+        well (str): Well, e.g. "A1".
+        ph_tile (int): Phenotype tile.
+        sbs_site (int): SBS site (tile).
+        image_format (str): "tiff" or "zarr".
+        ph_channels (list[str]): Phenotype channel names; DAPI is used, else the first.
+        sbs_channels (list[str]): SBS channel names; DAPI is used, else the first.
+
+    Returns:
+        tuple[np.ndarray | None, np.ndarray | None]: (sbs_dapi, ph_dapi); None for an image
+            that is not found.
+    """
+    from lib.shared.file_utils import get_image_output_path
+    from lib.shared.image_io import read_image
+
+    def _dapi(module, tile, channels):
+        location = {"plate": plate, "well": well, "tile": tile}
+        index = channels.index("DAPI") if "DAPI" in channels else 0
+        for name in ("aligned", "illumination_corrected"):
+            path = (
+                Path(root_fp)
+                / module
+                / get_image_output_path(location, name, image_format)
+            )
+            if path.exists():
+                image = read_image(path)
+                return image.reshape(-1, *image.shape[-2:])[index]
+        return None
+
+    return (
+        _dapi("sbs", sbs_site, list(sbs_channels)),
+        _dapi("phenotype", ph_tile, list(ph_channels)),
+    )
 
 
 def preview_mask_transformations(

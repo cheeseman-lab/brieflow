@@ -546,10 +546,12 @@ def plot_merge_alignment_overlay(sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_s
     """Overlay phenotype DAPI mapped into SBS pixel space (green) on SBS DAPI (magenta).
 
     The phenotype DAPI image is resampled through the tile-site affine model the merge
-    uses and shown over the phenotype tile's footprint only, brightness-matched for display
-    (see `magenta_green_overlay`). Nuclei in both images read white or grey, a shift leaves
-    magenta and green fringes, and a nucleus found in one image only stays fully magenta or
-    green. The title gives the residual shift (dy, dx SBS px) of the mapped phenotype image.
+    uses. The left panel shows the whole SBS site in grey for context, with the phenotype
+    tile outlined and the overlay drawn inside it; the right panel zooms on the tile. Inside
+    the tile both images are brightness-matched for display (see `magenta_green_overlay`):
+    nuclei in both images read white or grey, a shift leaves magenta and green fringes, and a
+    nucleus found in one image only stays fully magenta or green. The zoom's title gives the
+    residual shift (dy, dx SBS px) of the mapped phenotype image.
 
     Args:
         sbs_dapi (np.ndarray): 2D SBS DAPI image of the site.
@@ -599,16 +601,46 @@ def plot_merge_alignment_overlay(sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_s
     )[0]
     overlay = magenta_green_overlay(sbs, ph) * inside[..., None]
 
-    fig, ax = plt.subplots(figsize=(6.5, 7), layout="constrained")
-    ax.imshow(overlay, interpolation="nearest")
-    ax.set_title(
-        f"residual shift ({shift[0]:+.1f}, {shift[1]:+.1f}) SBS px", fontsize=10
+    # context: SBS DAPI in grey, with the overlay pasted inside the footprint
+    low, high = np.percentile(sbs_dapi, (1, 99.5))
+    grey = np.clip((sbs_dapi.astype(np.float32) - low) / max(high - low, 1e-6), 0, 1)
+    context = np.repeat(grey[..., None], 3, axis=-1)
+    context[box] = np.where(inside[..., None], overlay, context[box])
+    corners = np.array(
+        [[0, 0], [0, ph_dapi.shape[1]], ph_dapi.shape, [ph_dapi.shape[0], 0], [0, 0]],
+        dtype=float,
     )
-    ax.axis("off")
+    outline = corners @ rotation.T + translation
+
+    fig, (ax_context, ax_zoom) = plt.subplots(
+        1, 2, figsize=(13, 7), layout="constrained"
+    )
+    ax_context.imshow(context, interpolation="nearest")
+    ax_context.plot(outline[:, 1], outline[:, 0], color="yellow", lw=0.8)
+    ax_context.add_patch(
+        mpatches.Rectangle(
+            (box[1].start, box[0].start),
+            box[1].stop - box[1].start,
+            box[0].stop - box[0].start,
+            fill=False,
+            edgecolor="cyan",
+            lw=0.8,
+            ls="--",
+        )
+    )
+    ax_context.set_title(
+        "SBS site (grey); yellow = phenotype tile, cyan = zoom", fontsize=10
+    )
+    ax_zoom.imshow(overlay, interpolation="nearest")
+    ax_zoom.set_title(
+        f"zoom: residual shift ({shift[0]:+.1f}, {shift[1]:+.1f}) SBS px", fontsize=10
+    )
+    for ax in (ax_context, ax_zoom):
+        ax.axis("off")
     fig.suptitle(
-        f"PH tile {ph_tile} → SBS site {sbs_site}, phenotype footprint: white/grey = nucleus "
-        "in both (aligned);\nmagenta/green fringes = shift; fully magenta or green = in "
-        "one image only",
+        f"PH tile {ph_tile} → SBS site {sbs_site}. Inside the phenotype tile: SBS DAPI "
+        "magenta, phenotype DAPI green;\nwhite/grey = nucleus in both (aligned), "
+        "magenta/green fringes = shift, fully magenta or green = in one image only",
         fontsize=10,
     )
     plt.show()

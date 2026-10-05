@@ -1,9 +1,9 @@
 """Every magenta/green alignment overlay recovers an injected shift and shows it in color.
 
-For each path (SBS cycles, SBS channel grid, merge, phenotype channels) an image is rolled
-by a known (dy, dx): the shift in the panel title must match it, the shifted cycle or
-channel must be flagged, and the colored fraction (DAPI and phenotype titles, merge image)
-must be higher than for the aligned images.
+For each path (SBS cycles, flagged SBS channels, merge, phenotype channels) an image is
+rolled by a known (dy, dx): the shift in the panel title must match it, the shifted cycle
+or channel must be flagged, the shifted cycle's spot match must drop, and the colored
+fraction (DAPI and phenotype titles, merge image) must be higher than for the aligned images.
 """
 
 import re

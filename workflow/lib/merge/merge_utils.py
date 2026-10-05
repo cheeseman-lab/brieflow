@@ -548,11 +548,10 @@ def plot_merge_alignment_overlay(sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_s
     The phenotype DAPI image is resampled through the tile-site affine model the merge
     uses. The left panel shows the whole SBS site for context: SBS DAPI in magenta outside
     the outlined phenotype tile (SBS-only signal) and the overlay inside it; the right panel
-    zooms on the tile. Inside
-    the tile both images are brightness-matched for display (see `magenta_green_overlay`):
-    nuclei in both images read white or grey, a shift leaves magenta and green fringes, and a
-    nucleus found in one image only stays fully magenta or green. The zoom's title gives the
-    residual shift (dy, dx SBS px) of the mapped phenotype image.
+    zooms on the tile. Inside the tile both images are brightness-matched for display (see
+    `magenta_green_overlay`): nuclei in both images read white or grey, a shift leaves magenta
+    and green fringes, and a nucleus found in one image only stays fully magenta or green.
+    The zoom's title gives the residual shift (dy, dx SBS px) of the mapped phenotype image.
 
     Args:
         sbs_dapi (np.ndarray): 2D SBS DAPI image of the site.

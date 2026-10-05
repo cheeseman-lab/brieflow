@@ -876,7 +876,8 @@ def plot_flagged_channel_overlays(
         max_panels (int, optional): Most panels shown, largest shift first. Defaults to 4.
 
     Returns:
-        matplotlib.figure.Figure: The figure, or None when no channel is flagged.
+        matplotlib.figure.Figure: The figure, or None when no channel is flagged or
+            selected.
     """
     import matplotlib.pyplot as plt
 

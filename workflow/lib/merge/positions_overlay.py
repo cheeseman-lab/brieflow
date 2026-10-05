@@ -77,14 +77,14 @@ def positions_image_qc(
         seam_panels,
         ncols=6,
         panel_size=2.6,
-        colored="both",
+        colored=True,
         suptitle="Tile seams: tile A magenta, tile B green (white = aligned)",
     )
     cross_fig = plot_overlay_grid(
         cross_panels,
         ncols=4,
         panel_size=4,
-        colored=None,
+        colored=False,
         suptitle="Phenotype DAPI mapped into SBS tiles: SBS magenta, phenotype green "
         "(white = aligned)",
     )

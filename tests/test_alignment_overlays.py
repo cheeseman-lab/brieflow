@@ -1,9 +1,9 @@
 """Every magenta/green alignment overlay recovers an injected shift and shows it in color.
 
 For each path (SBS cycles, SBS channel grid, merge, phenotype channels) an image is rolled
-by a known (dy, dx): the shift in the panel title must match it, and the panel's colored
-fraction (printed in the title, except for merge) must be clearly higher than for the
-aligned images.
+by a known (dy, dx): the shift in the panel title must match it, the shifted cycle or
+channel must be flagged, and the colored fraction (DAPI and phenotype titles, merge image)
+must be higher than for the aligned images.
 """
 
 import re
@@ -28,8 +28,8 @@ from lib.phenotype.align_channels import (  # noqa: E402
     plot_phenotype_channel_overlay,
 )
 from lib.sbs.align_cycles import (  # noqa: E402
-    plot_channel_alignment_overlay,
     plot_cycle_alignment_overlay,
+    plot_flagged_channel_overlays,
 )
 from lib.shared.alignment_overlay import (  # noqa: E402
     colored_fraction,
@@ -87,30 +87,60 @@ def test_colored_fraction_white_vs_doubled():
     assert np.isnan(colored_fraction(magenta_green_overlay(img * 0, img * 0)))
 
 
-def test_sbs_cycle_overlay(sbs_cycles):
+def _titles(fig):
+    return [ax.get_title() for ax in fig.axes]
+
+
+def test_sbs_cycle_overlay_aligned(sbs_cycles):
+    fig = plot_cycle_alignment_overlay(sbs_cycles, CHANNELS, crop_size=96)
+    titles = _titles(fig)
+    assert len(titles) == 2 * (len(sbs_cycles) - 1)
+    assert not any("OFF" in t for t in titles)
+    assert "all cycles within 1 px" in fig._suptitle.get_text()
+    assert plot_flagged_channel_overlays(sbs_cycles, CHANNELS) is None
+
+
+def test_sbs_cycle_overlay_shifted_cycle(sbs_cycles):
     data = sbs_cycles.copy()
     data[2] = np.roll(sbs_cycles[2], SHIFT, axis=(-2, -1))
-    fig = plot_cycle_alignment_overlay(data, CHANNELS, crop_size=160)
-    aligned_title, _ = _panel(fig, 0)
-    shifted_title, overlay = _panel(fig, 1)
-    assert "cycle 3" in shifted_title
-    assert np.allclose(_title_shift(shifted_title), SHIFT, atol=0.6)
-    assert np.allclose(_title_shift(aligned_title), (0, 0), atol=0.6)
-    assert _title_fraction(shifted_title) > _title_fraction(aligned_title) + 0.1
-    assert colored_fraction(overlay) == pytest.approx(
-        _title_fraction(shifted_title), abs=0.01
-    )
+    aligned_dapi = _titles(
+        plot_cycle_alignment_overlay(sbs_cycles, CHANNELS, crop_size=96)
+    )[2]
+    fig = plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96)
+    titles = _titles(fig)
+    assert [t for t in titles if "OFF" in t] == titles[2:4]
+    dapi, bases = titles[2:4]
+    assert dapi.startswith("cycle 3 DAPI") and bases.startswith("cycle 3 bases")
+    assert np.allclose(_title_shift(dapi), SHIFT, atol=0.6)
+    assert np.allclose(_title_shift(bases), SHIFT, atol=0.6)
+    assert _title_fraction(dapi) > _title_fraction(aligned_dapi) + 0.05
+    assert "off: cycle 3" in fig._suptitle.get_text()
 
 
-def test_sbs_channel_overlay(sbs_cycles):
+def test_sbs_flagged_channel_overlay(sbs_cycles):
     data = sbs_cycles.copy()
     data[0, 2] = np.roll(sbs_cycles[0, 2], SHIFT, axis=(0, 1))
-    fig = plot_channel_alignment_overlay(data, CHANNELS, crop_size=160)
-    aligned_title, _ = _panel(fig, 0)
-    shifted_title, _ = _panel(fig, 1)
-    assert "cycle 1 T" in shifted_title
-    assert np.allclose(_title_shift(shifted_title), SHIFT, atol=0.6)
-    assert _title_fraction(shifted_title) > _title_fraction(aligned_title) + 0.3
+    assert not any(
+        "OFF" in t for t in _titles(plot_cycle_alignment_overlay(data, CHANNELS))
+    )
+    titles = _titles(plot_flagged_channel_overlays(data, CHANNELS, crop_size=96))
+    assert len(titles) == 1 and titles[0].startswith("cycle 1 T")
+    assert np.allclose(_title_shift(titles[0]), SHIFT, atol=0.6)
+
+
+def test_sbs_flagged_channel_overlays_capped(sbs_cycles):
+    data = sbs_cycles.copy()
+    data[:, 4] = np.roll(sbs_cycles[:, 4], (2, 2), axis=(-2, -1))
+    titles = _titles(plot_flagged_channel_overlays(data, CHANNELS, max_panels=2))
+    assert len(titles) == 2 and all(" C: " in t for t in titles)
+
+
+def test_sbs_cycle_overlay_without_per_cycle_dapi(sbs_cycles):
+    data = sbs_cycles.copy()
+    data[:, 0] = sbs_cycles[0, 0]
+    titles = _titles(plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96))
+    assert len(titles) == len(sbs_cycles) - 1
+    assert all(" bases: " in t for t in titles)
 
 
 def test_merge_overlay():

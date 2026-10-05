@@ -375,7 +375,7 @@ def plot_phenotype_channel_overlay(
         ],
         ncols=1,
         panel_size=5,
-        colored=None,
+        colored=False,
         suptitle="No channel alignment configured: nuclei should sit inside cells",
     )
 

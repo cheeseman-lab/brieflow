@@ -617,7 +617,7 @@ def plot_merge_alignment_overlay(
         ],
         ncols=2,
         panel_size=6,
-        colored=None,
+        colored=False,
         suptitle=f"PH tile {ph_tile} → SBS site {sbs_site}: SBS DAPI magenta, "
         "phenotype DAPI green (white = aligned)",
     )

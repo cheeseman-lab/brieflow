@@ -294,9 +294,10 @@ def plot_phenotype_alignment_overlay(
 
     The shift is measured and applied exactly as `align_phenotype_channels` does, on the
     image before alignment, so the view does not depend on channels removed afterwards.
-    Before alignment a misaligned source shows every object twice; after it the overlay
-    should be white or grey. Titles give the measured shift and the remaining shift (dy,
-    dx px) and the colored fraction; riders follow the source's shift.
+    Both channels are brightness-matched for display (see `magenta_green_overlay`): after
+    alignment objects should read white or grey, and a shift leaves magenta and green
+    fringes. Titles give the measured shift and the remaining shift (dy, dx px) and the
+    share of signal in one channel only; riders follow the source's shift.
 
     Args:
         image (np.ndarray): Phenotype image before alignment, (CHANNEL, I, J) or
@@ -338,8 +339,9 @@ def plot_phenotype_alignment_overlay(
         ],
         ncols=2,
         panel_size=5,
-        suptitle=f"{channel_names[target]} magenta, {channel_names[source]} green"
-        f"{carried} (white = aligned)",
+        window=61,
+        suptitle=f"{channel_names[target]} magenta, {channel_names[source]} green{carried}:"
+        " white/grey = aligned, magenta/green fringes = shift",
     )
 
 
@@ -349,8 +351,8 @@ def plot_phenotype_channel_overlay(
     """Overlay one phenotype channel (green) on another (magenta) as a sanity check.
 
     Without channel alignment, DAPI against the cell-boundary channel shows whether nuclei
-    sit inside their cells; the two stains differ, so the overlay is not expected to be white
-    and no shift is measured.
+    sit inside their cells. The stains differ, so the overlay is not expected to be white and
+    no shift is measured.
 
     Args:
         image (np.ndarray): Phenotype image, (CHANNEL, I, J) or (STACK, CHANNEL, I, J).
@@ -376,7 +378,8 @@ def plot_phenotype_channel_overlay(
         ncols=1,
         panel_size=5,
         colored=False,
-        suptitle="No channel alignment configured: nuclei should sit inside cells",
+        suptitle="No channel alignment configured: nuclei (magenta) should sit inside "
+        "cells (green)",
     )
 
 

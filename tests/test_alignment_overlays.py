@@ -55,7 +55,7 @@ def _title_shift(title):
 
 
 def _title_fraction(title):
-    return float(re.search(r"(\d+)% colored", title).group(1)) / 100
+    return float(re.search(r"(\d+)% in one", title).group(1)) / 100
 
 
 def _panel(fig, i):
@@ -79,11 +79,17 @@ def sbs_cycles():
     return data * 1000 + 100
 
 
-def test_colored_fraction_white_vs_doubled():
-    img = _blobs((64, 64), [(32, 32)], 2.0)
-    assert colored_fraction(magenta_green_overlay(img, img)) == 0.0
-    moved = magenta_green_overlay(img, np.roll(img, 6, axis=1))
-    assert colored_fraction(moved) > 0.8
+def test_overlay_white_when_aligned_despite_brightness():
+    rng = np.random.default_rng(3)
+    centers = [(30, 30), (60, 66), (100, 40)]
+    img = _blobs((128, 128), centers, 5.0)
+    dim = sum(
+        w * _blobs((128, 128), [p], 5.0) for w, p in zip((0.1, 0.4, 0.25), centers)
+    )
+    noise = rng.normal(0, 0.01, img.shape)
+    assert colored_fraction(magenta_green_overlay(img + noise, dim + noise)) < 0.05
+    moved = magenta_green_overlay(img + noise, np.roll(dim, 5, axis=1) + noise)
+    assert colored_fraction(moved) > 0.3
     assert np.isnan(colored_fraction(magenta_green_overlay(img * 0, img * 0)))
 
 
@@ -96,6 +102,8 @@ def test_sbs_cycle_overlay_aligned(sbs_cycles):
     titles = _titles(fig)
     assert len(titles) == 2 * (len(sbs_cycles) - 1)
     assert not any("OFF" in t for t in titles)
+    assert all(_title_fraction(t) <= 0.05 for t in titles if " DAPI" in t)
+    assert not any("%" in t for t in titles if " bases" in t)
     assert "all cycles within 1 px" in fig._suptitle.get_text()
     assert plot_flagged_channel_overlays(sbs_cycles, CHANNELS) is None
 
@@ -113,7 +121,8 @@ def test_sbs_cycle_overlay_shifted_cycle(sbs_cycles):
     assert dapi.startswith("cycle 3 DAPI") and bases.startswith("cycle 3 bases")
     assert np.allclose(_title_shift(dapi), SHIFT, atol=0.6)
     assert np.allclose(_title_shift(bases), SHIFT, atol=0.6)
-    assert _title_fraction(dapi) > _title_fraction(aligned_dapi) + 0.05
+    assert _title_fraction(aligned_dapi) <= 0.05
+    assert _title_fraction(dapi) >= 0.1
     assert "off: cycle 3" in fig._suptitle.get_text()
 
 
@@ -155,14 +164,12 @@ def test_merge_overlay():
         {"tile": [5], "site": [0], "rotation": [rotation], "translation": [translation]}
     )
     bad = good.assign(translation=[translation + np.array(SHIFT, dtype=float)])
-    figs = [
-        plot_merge_alignment_overlay(sbs, ph, df, 5, 0, crop_size=100)
-        for df in (good, bad)
-    ]
-    (good_title, good_overlay), (bad_title, bad_overlay) = (_panel(f, 1) for f in figs)
+    figs = [plot_merge_alignment_overlay(sbs, ph, df, 5, 0) for df in (good, bad)]
+    (good_title, good_overlay), (bad_title, bad_overlay) = (_panel(f, 0) for f in figs)
     assert np.allclose(_title_shift(good_title), (0, 0), atol=0.6)
     assert np.allclose(_title_shift(bad_title), SHIFT, atol=0.6)
-    assert colored_fraction(bad_overlay) > colored_fraction(good_overlay) + 0.3
+    assert colored_fraction(good_overlay) <= 0.05
+    assert colored_fraction(bad_overlay) >= 0.3
 
 
 def test_phenotype_overlay():
@@ -180,7 +187,7 @@ def test_phenotype_overlay():
     (before, _), (after, _) = _panel(fig, 0), _panel(fig, 1)
     assert np.allclose(_title_shift(before), SHIFT, atol=0.6)
     assert np.allclose(_title_shift(after), (0, 0), atol=0.6)
-    assert _title_fraction(before) > _title_fraction(after) + 0.3
+    assert _title_fraction(after) <= 0.05 and _title_fraction(before) >= 0.3
     assert "GFP" in fig._suptitle.get_text()
     _, metrics = align_phenotype_channels(image, 0, 2, riders=[3], return_metrics=True)
     assert np.allclose(metrics["offset"], _title_shift(before))

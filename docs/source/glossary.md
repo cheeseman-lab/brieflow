@@ -27,7 +27,7 @@ Cycle
 
 Alignment overlay
 Magenta/green overlay
-  A check of image alignment by eye: the reference image in magenta and the image being checked in green, added together. Aligned images look white or grey; a shift makes every object appear twice, magenta and green. Panel titles give the measured shift and, where both images show the same structure, the colored fraction (the share of signal pixels where one image is much brighter than the other; near 0 when aligned). Shown in the SBS, phenotype and merge notebooks.
+  A check of image alignment by eye: the reference image in magenta and the image being checked in green, added together after matching their brightness for display. Aligned objects look white or grey; a shift leaves magenta and green fringes; an object in only one image stays fully magenta or green. Panel titles give the measured shift and, where both images show the same objects, the share of signal in one image only (near 0 when aligned). Shown in the SBS, phenotype and merge notebooks.
 
 Alignment QC
   The per-tile check printed by the SBS alignment step: `cycle_dapi_shift_residual_max_px` (largest DAPI shift of a cycle against the first cycle) and `intra_cycle_channel_shift_residual_max_px` (largest shift of a base channel against the other channels of its cycle), both passing below 1 pixel, plus a per-cycle table and warnings naming any cycle or channel that is off. A single off cycle or channel is named but does not fail the tile.

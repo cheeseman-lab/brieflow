@@ -833,7 +833,12 @@ def visualize_sbs_alignment(
 
 
 def plot_cycle_alignment_overlay(
-    aligned, channel_names, cycle_labels=None, upsample_factor=2, crop_size=300
+    aligned,
+    channel_names,
+    cycles=None,
+    cycle_labels=None,
+    upsample_factor=2,
+    crop_size=300,
 ):
     """Show each cycle's alignment in one compact row: DAPI and sequencing spots.
 
@@ -847,9 +852,14 @@ def plot_cycle_alignment_overlay(
     marked off when a shift reaches `ALIGNMENT_PASS_PX` or `cycle_spot_match` flags it.
     Crops show the same nucleus- and spot-rich region in every row.
 
+    The numbers are computed and printed as a table for every cycle; only the rows drawn
+    are limited to cycles, and off cycles are always drawn.
+
     Args:
         aligned (np.ndarray): Aligned SBS data (CYCLE, CHANNEL, I, J).
         channel_names (list[str]): Channel names of aligned.
+        cycles (list[int] or str, optional): Cycle numbers (as in cycle_labels) to draw, or
+            "all". Defaults to None: the second, middle and last cycle.
         cycle_labels (list[int], optional): Cycle number shown for each row of aligned.
             Defaults to 1..n.
         upsample_factor (int, optional): Subpixel factor for the shift estimates. Defaults to 2.
@@ -880,18 +890,30 @@ def plot_cycle_alignment_overlay(
         dots = np.stack([_dot_image(p, aligned.shape[-2:]) for p in match["spots"]])
         spot_window = _busiest_crop(dots.sum(axis=0), crop_size)
     columns = (dapi is not None) + (match is not None)
+    print("Cycle alignment (DAPI vs first cycle; spots vs all other cycles):")
+    for c in range(n_cycles):
+        dapi_text = _fmt(dapi_shifts[c]) if dapi is not None else "-"
+        spot_text = (
+            f"{_fmt(base_shifts[c])}  {match['matched'][c]:.0%} matched  "
+            f"n={match['counts'][c]}"
+            if match is not None
+            else "-"
+        )
+        status = "  OFF" if off[c] else ""
+        print(f"  cycle {cycle_labels[c]}: DAPI {dapi_text}  spots {spot_text}{status}")
+    shown = _selected_cycles(cycles, cycle_labels, off)
 
     fig, axes = plt.subplots(
-        n_cycles,
+        len(shown),
         columns,
-        figsize=(max(3.6 * columns, 7.0), 3.5 * n_cycles + 1.0),
+        figsize=(max(3.6 * columns, 7.0), 3.5 * len(shown) + 1.2),
         squeeze=False,
         layout="constrained",
     )
-    for c in range(n_cycles):
+    for row, c in enumerate(shown):
         color = "red" if off[c] else "black"
         mark = "  OFF" if off[c] else ""
-        panels = list(axes[c])
+        panels = list(axes[row])
         if dapi is not None:
             ax = panels.pop(0)
             ax.axis("off")
@@ -930,7 +952,9 @@ def plot_cycle_alignment_overlay(
         if flagged
         else f"all cycles within {ALIGNMENT_PASS_PX:g} px, spots matched"
     )
+    shown_labels = ", ".join(str(cycle_labels[c]) for c in shown)
     fig.suptitle(
+        f"Showing cycles {shown_labels} of {n_cycles}; off cycles always shown\n"
         f"DAPI: cycle k green on cycle {cycle_labels[0]} magenta, white = aligned\n"
         "Spots: cycle k green on all other cycles magenta, white = matched,\n"
         f"magenta only = not detected in cycle k. {status}",
@@ -942,21 +966,28 @@ def plot_cycle_alignment_overlay(
 def plot_flagged_channel_overlays(
     aligned,
     channel_names,
+    cycles=None,
+    channels=None,
     cycle_labels=None,
     upsample_factor=2,
     crop_size=300,
     max_panels=4,
 ):
-    """Overlay the base channels that `report_alignment_qc` flags within their cycle.
+    """Overlay base channels on the spots of the other cycles: flagged ones always, plus a selection.
 
-    Each flagged channel's spots (green) are shown on the spots of the other cycles
-    (magenta), cropped to a spot-rich region; its spots appear beside their magenta
+    Each channel's spots (green) are shown on the spots of the other cycles (magenta),
+    cropped to a spot-rich region; a shifted channel's spots appear beside their magenta
     partners. Titles give the channel's shift (dy, dx px) against the other channels of its
-    cycle.
+    cycle. Channels that `report_alignment_qc` flags within their cycle are always shown
+    (largest shift first, at most max_panels); channels and cycles add more panels.
 
     Args:
         aligned (np.ndarray): Aligned SBS data (CYCLE, CHANNEL, I, J).
         channel_names (list[str]): Channel names of aligned.
+        cycles (list[int] or str, optional): Cycle numbers (as in cycle_labels) for the
+            extra panels, or "all". Defaults to None: all cycles when channels is given.
+        channels (list[str] or str, optional): Base channels for the extra panels, or
+            "all". Defaults to None: flagged channels only.
         cycle_labels (list[int], optional): Cycle number shown for each row of aligned.
             Defaults to 1..n.
         upsample_factor (int, optional): Subpixel factor for the shift estimates. Defaults to 2.
@@ -977,10 +1008,17 @@ def plot_flagged_channel_overlays(
         "residuals"
     ]
     size = np.nan_to_num(np.abs(residuals).max(axis=-1), nan=0.0)
-    flagged = np.argwhere(size >= ALIGNMENT_PASS_PX)
-    if not len(flagged):
+    flagged = np.argwhere(size >= ALIGNMENT_PASS_PX).tolist()
+    flagged = sorted(flagged, key=lambda ck: -size[ck[0], ck[1]])[:max_panels]
+    extra = []
+    if channels is not None:
+        names = [channel_names[b] for b in base_indices]
+        wanted = names if channels == "all" else list(channels)
+        rows = _selected_cycles(cycles or "all", cycle_labels, np.zeros(n_cycles, bool))
+        extra = [[c, names.index(ch)] for c in rows for ch in wanted]
+    panels = flagged + [ck for ck in extra if ck not in flagged]
+    if not panels:
         return None
-    flagged = sorted(flagged.tolist(), key=lambda ck: -size[ck[0], ck[1]])[:max_panels]
 
     channels = np.stack(
         [
@@ -988,14 +1026,19 @@ def plot_flagged_channel_overlays(
             for c in range(n_cycles)
         ]
     )
+    ncols = min(len(panels), len(base_indices))
+    nrows = int(np.ceil(len(panels) / ncols))
     fig, axes = plt.subplots(
-        1,
-        len(flagged),
-        figsize=(max(3.6 * len(flagged), 6.0), 4.0),
+        nrows,
+        ncols,
+        figsize=(max(3.6 * ncols, 6.0), 3.8 * nrows + 0.6),
         squeeze=False,
         layout="constrained",
     )
-    for ax, (c, k) in zip(axes[0], flagged):
+    for ax in axes.ravel():
+        ax.axis("off")
+    for ax, (c, k) in zip(axes.ravel(), panels):
+        is_flagged = [c, k] in flagged
         others = [o for o in range(n_cycles) if o != c]
         if others:
             reference = channels[others].max(axis=(0, 1))
@@ -1008,13 +1051,14 @@ def plot_flagged_channel_overlays(
         ax.imshow(overlay, interpolation="nearest")
         ax.set_title(
             f"cycle {cycle_labels[c]} {channel_names[base_indices[k]]}: "
-            f"{_fmt(residuals[c, k])}",
+            f"{_fmt(residuals[c, k])}{'  OFF' if is_flagged else ''}",
             fontsize=9,
-            color="red",
+            color="red" if is_flagged else "black",
         )
         ax.axis("off")
     fig.suptitle(
-        "Flagged channels: channel spots green, spots of the other cycles magenta;\n"
+        "Flagged channels always shown. Channel spots green, spots of the other cycles "
+        "magenta;\n"
         "green beside magenta = shifted (other sequences stay magenta)",
         fontsize=10,
     )
@@ -1081,6 +1125,23 @@ def _merged_base_spots(aligned, channel_names):
             for c in range(len(aligned))
         ]
     )
+
+
+def _selected_cycles(cycles, cycle_labels, off):
+    """Row indices to draw: the requested cycles (default second, middle, last) plus off ones."""
+    n_cycles = len(cycle_labels)
+    if cycles == "all":
+        chosen = set(range(n_cycles))
+    elif cycles is None:
+        chosen = {min(1, n_cycles - 1), n_cycles // 2, n_cycles - 1}
+    else:
+        unknown = set(cycles) - set(cycle_labels)
+        if unknown:
+            raise ValueError(
+                f"Unknown cycles {sorted(unknown)}; cycles are {cycle_labels}"
+            )
+        chosen = {cycle_labels.index(label) for label in cycles}
+    return sorted(chosen | set(np.flatnonzero(off).tolist()))
 
 
 def _union_spots(channels, threshold):

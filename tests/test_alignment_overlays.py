@@ -116,7 +116,7 @@ def test_spot_match_aligned_with_dim_channel(sbs_cycles):
 
 
 def test_sbs_cycle_overlay_aligned(sbs_cycles):
-    fig = plot_cycle_alignment_overlay(sbs_cycles, CHANNELS, crop_size=96)
+    fig = plot_cycle_alignment_overlay(sbs_cycles, CHANNELS, crop_size=96, cycles="all")
     titles = _titles(fig)
     assert len(titles) == 2 * len(sbs_cycles)
     assert not any("OFF" in t for t in titles)
@@ -132,7 +132,7 @@ def test_sbs_cycle_overlay_shifted_cycle(sbs_cycles):
     match = cycle_spot_match(data, CHANNELS)
     assert match["flagged"].tolist() == [False, False, True, False]
     assert match["matched"][2] <= 0.2
-    fig = plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96)
+    fig = plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96, cycles="all")
     titles = _titles(fig)
     assert [t for t in titles if "OFF" in t] == _row(titles, 2)
     dapi, spots = _row(titles, 2)
@@ -141,6 +141,46 @@ def test_sbs_cycle_overlay_shifted_cycle(sbs_cycles):
     assert _title_fraction(dapi) >= 0.1
     assert _matched(spots) <= 0.2
     assert "off: cycle 3" in fig._suptitle.get_text()
+
+
+def test_sbs_cycle_overlay_default_selection(sbs_cycles, capsys):
+    fig = plot_cycle_alignment_overlay(sbs_cycles, CHANNELS, crop_size=96)
+    titles = _titles(fig)
+    assert [t.split(":")[0] for t in titles] == [
+        f"cycle {c} {v}" for c in (2, 3, 4) for v in ("DAPI", "spots")
+    ]
+    assert "Showing cycles 2, 3, 4 of 4" in fig._suptitle.get_text()
+    table = capsys.readouterr().out
+    assert all(f"cycle {c}:" in table for c in range(1, 5))
+
+
+def test_sbs_cycle_overlay_adds_off_cycles(sbs_cycles):
+    data = sbs_cycles.copy()
+    data[2] = np.roll(sbs_cycles[2], SHIFT, axis=(-2, -1))
+    fig = plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96, cycles=[2])
+    titles = _titles(fig)
+    assert [t.split(":")[0] for t in titles] == [
+        "cycle 2 DAPI",
+        "cycle 2 spots",
+        "cycle 3 DAPI",
+        "cycle 3 spots",
+    ]
+    assert "OFF" in titles[2] and "Showing cycles 2, 3 of 4" in fig._suptitle.get_text()
+    with pytest.raises(ValueError, match="Unknown cycles"):
+        plot_cycle_alignment_overlay(data, CHANNELS, cycles=[9])
+
+
+def test_channel_overlays_selection_keeps_flagged(sbs_cycles):
+    data = sbs_cycles.copy()
+    data[0, 2] = np.roll(sbs_cycles[0, 2], SHIFT, axis=(0, 1))
+    fig = plot_flagged_channel_overlays(data, CHANNELS, cycles=[2], channels=["G"])
+    titles = _titles(fig)
+    assert titles[0].startswith("cycle 1 T") and "OFF" in titles[0]
+    assert titles[1].startswith("cycle 2 G") and "OFF" not in titles[1]
+    every = plot_flagged_channel_overlays(
+        sbs_cycles, CHANNELS, cycles="all", channels="all"
+    )
+    assert len([ax for ax in every.axes if ax.images]) == 4 * len(sbs_cycles)
 
 
 def test_spot_count_flags_collapsed_cycle(sbs_cycles):
@@ -172,7 +212,7 @@ def test_sbs_cycle_overlay_without_per_cycle_dapi(sbs_cycles):
     data = sbs_cycles.copy()
     data[:, 0] = sbs_cycles[0, 0]
     titles = _titles(plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96))
-    assert len(titles) == len(sbs_cycles)
+    assert len(titles) == 3
     assert all(" spots: " in t for t in titles)
 
 

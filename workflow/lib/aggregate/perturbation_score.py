@@ -14,6 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.metrics import roc_auc_score
+from sklearn.pipeline import make_pipeline
 
 from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
 from lib.aggregate.cell_data_utils import (
@@ -151,6 +152,10 @@ def calculate_perturbation_scores(
 ) -> tuple[pd.Series, float]:
     """Calculate per-cell perturbation scores via 5-fold out-of-fold logistic regression with top-k feature selection.
 
+    Feature selection is fit inside each cross-validation fold, so the held-out cells never
+    inform which features are used and the out-of-fold AUC is unbiased (about 0.5 with no
+    phenotype, at any cell count).
+
     AUROC guide:
       - < 0.6  → basically noise; don't filter (return NaN scores and keep all cells)
       - 0.6-0.75 → weak/moderate separation; filter cautiously
@@ -183,10 +188,8 @@ def calculate_perturbation_scores(
     )
     X_all = cell_data[feature_cols].to_numpy()
 
-    # select top-k differential features (ANOVA F-test)
+    # top-k differential features (ANOVA F-test), selected inside each fold
     k = min(n_differential_features, X_all.shape[1])
-    selector = SelectKBest(score_func=f_classif, k=k).fit(X_all, y)
-    X = selector.transform(X_all)
 
     # make number of splits based on cell count
     if cell_data.shape[0] < minimum_cell_count * 2:
@@ -194,9 +197,12 @@ def calculate_perturbation_scores(
     else:
         n_splits = 10
 
-    clf = LogisticRegression(max_iter=2000, class_weight="balanced", solver="liblinear")
+    clf = make_pipeline(
+        SelectKBest(score_func=f_classif, k=k),
+        LogisticRegression(max_iter=2000, class_weight="balanced", solver="liblinear"),
+    )
     cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=0)
-    scores = cross_val_predict(clf, X, y, cv=cv, method="predict_proba")[:, 1]
+    scores = cross_val_predict(clf, X_all, y, cv=cv, method="predict_proba")[:, 1]
 
     auc = roc_auc_score(y, scores)
 

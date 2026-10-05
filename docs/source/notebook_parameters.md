@@ -70,7 +70,7 @@ ALIGNMENT_METHOD
   `sbs.alignment_method` · default `None` (chosen automatically). How cycles are aligned: `"DAPI"` when every cycle has DAPI, otherwise `"sbs_mean"` (mean of the base channels).
 
 SKIP_CYCLES
-  Feeds `sbs.skip_cycles_indices` · default `None`. Cycle numbers to leave out, for example a failed cycle. The {term}`alignment QC <Alignment QC>` and the between-cycle overlay name a cycle that is off.
+  Feeds `sbs.skip_cycles_indices` · default `None`. Cycle numbers to leave out, for example a failed cycle.
 
 SPOT_DETECTION_METHOD
   `sbs.spot_detection_method` · default `"standard"`. `"standard"` finds spots from the standard deviation across cycles; `"spotiflow"` uses the Spotiflow deep-learning detector on one cycle.

@@ -546,8 +546,9 @@ def plot_merge_alignment_overlay(sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_s
     """Overlay phenotype DAPI mapped into SBS pixel space (green) on SBS DAPI (magenta).
 
     The phenotype DAPI image is resampled through the tile-site affine model the merge
-    uses. The left panel shows the whole SBS site in grey for context, with the phenotype
-    tile outlined and the overlay drawn inside it; the right panel zooms on the tile. Inside
+    uses. The left panel shows the whole SBS site for context: SBS DAPI in magenta outside
+    the outlined phenotype tile (SBS-only signal) and the overlay inside it; the right panel
+    zooms on the tile. Inside
     the tile both images are brightness-matched for display (see `magenta_green_overlay`):
     nuclei in both images read white or grey, a shift leaves magenta and green fringes, and a
     nucleus found in one image only stays fully magenta or green. The zoom's title gives the
@@ -601,10 +602,12 @@ def plot_merge_alignment_overlay(sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_s
     )[0]
     overlay = magenta_green_overlay(sbs, ph) * inside[..., None]
 
-    # context: SBS DAPI in grey, with the overlay pasted inside the footprint
+    # context: SBS DAPI in magenta (SBS only), with the overlay pasted inside the footprint
     low, high = np.percentile(sbs_dapi, (1, 99.5))
-    grey = np.clip((sbs_dapi.astype(np.float32) - low) / max(high - low, 1e-6), 0, 1)
-    context = np.repeat(grey[..., None], 3, axis=-1)
+    sbs_scaled = np.clip(
+        (sbs_dapi.astype(np.float32) - low) / max(high - low, 1e-6), 0, 1
+    )
+    context = np.stack([sbs_scaled, np.zeros_like(sbs_scaled), sbs_scaled], axis=-1)
     context[box] = np.where(inside[..., None], overlay, context[box])
     corners = np.array(
         [[0, 0], [0, ph_dapi.shape[1]], ph_dapi.shape, [ph_dapi.shape[0], 0], [0, 0]],
@@ -629,7 +632,8 @@ def plot_merge_alignment_overlay(sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_s
         )
     )
     ax_context.set_title(
-        "SBS site (grey); yellow = phenotype tile, cyan = zoom", fontsize=10
+        "SBS site: magenta outside the yellow phenotype tile = SBS only; cyan = zoom",
+        fontsize=10,
     )
     ax_zoom.imshow(overlay, interpolation="nearest")
     ax_zoom.set_title(

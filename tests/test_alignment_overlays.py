@@ -167,7 +167,8 @@ def test_merge_overlay():
     figs = [plot_merge_alignment_overlay(sbs, ph, df, 5, 0) for df in (good, bad)]
     (good_title, good_overlay), (bad_title, bad_overlay) = (_panel(f, 1) for f in figs)
     context = figs[0].axes[0].images[0].get_array()
-    assert np.allclose(context[0, 0, 0], context[0, 0, 1])
+    outside = np.asarray(context[:38])
+    assert outside[..., 1].max() == 0 and np.allclose(outside[..., 0], outside[..., 2])
     assert np.allclose(_title_shift(good_title), (0, 0), atol=0.6)
     assert np.allclose(_title_shift(bad_title), SHIFT, atol=0.6)
     assert colored_fraction(good_overlay) <= 0.05

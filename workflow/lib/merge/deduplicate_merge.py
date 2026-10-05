@@ -36,8 +36,8 @@ def deduplicate_cells(
         Filter output to cells with unambiguous single gene mappings
     return_stats : bool, default False
         Return deduplication statistics alongside deduplicated data
-    approach : {"fast", "stitch"}, default "fast"
-        Determines cell identification column strategy
+    approach : {"fast", "positions", "stitch"}, default "fast"
+        Determines cell identification column strategy ("positions" uses the fast keys)
     pheno_id_cols : str or list of str, optional
         Column(s) uniquely identifying phenotype cells. Auto-determined if None
     sbs_id_cols : str or list of str, optional

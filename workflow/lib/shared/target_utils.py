@@ -228,6 +228,8 @@ def get_merge_targets_by_approach(config):
             "stitch_merge",
             "summarize_stitch",
         ]
+    elif approach == "positions":
+        approach_targets = ["positions_merge"]
     else:
         # Fast approach targets (default)
         approach_targets = ["fast_alignment", "fast_merge"]

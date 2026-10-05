@@ -65,6 +65,15 @@ def colored_fraction(overlay, mask=None, basis="both", min_signal=0.25):
     return float(colored[keep].mean())
 
 
+def center_crop(image, crop_size):
+    """Return the centered crop_size x crop_size window of the last two axes."""
+    height, width = image.shape[-2:]
+    crop_size = min(crop_size, height, width)
+    y0 = (height - crop_size) // 2
+    x0 = (width - crop_size) // 2
+    return image[..., y0 : y0 + crop_size, x0 : x0 + crop_size]
+
+
 def plot_overlay_grid(
     panels,
     ncols=4,
@@ -121,15 +130,6 @@ def plot_overlay_grid(
     if suptitle:
         fig.suptitle(suptitle, fontsize=11)
     return fig
-
-
-def center_crop(image, crop_size):
-    """Return the centered crop_size x crop_size window of the last two axes."""
-    height, width = image.shape[-2:]
-    crop_size = min(crop_size, height, width)
-    y0 = (height - crop_size) // 2
-    x0 = (width - crop_size) // 2
-    return image[..., y0 : y0 + crop_size, x0 : x0 + crop_size]
 
 
 def _stretch(image, percentiles):

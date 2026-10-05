@@ -130,6 +130,24 @@ def align_phenotype_channels(
     return aligned
 
 
+def phenotype_channel_shift(data, target, source, window=2, upsample_factor=2):
+    """Shift (dy, dx) of the source channel against the target, as `align_phenotype_channels` measures it.
+
+    Args:
+        data (np.ndarray): Phenotype image (CHANNEL, I, J).
+        target (int): Index of the target channel.
+        source (int): Index of the source channel.
+        window (int, optional): Alignment window. Defaults to 2.
+        upsample_factor (int, optional): Subpixel factor. Defaults to 2.
+
+    Returns:
+        np.ndarray: The (dy, dx) shift.
+    """
+    windowed = apply_window(data[[target, source]], window)
+    offsets, _ = calculate_offsets(windowed, upsample_factor=upsample_factor)
+    return np.asarray(offsets[1], dtype=float)
+
+
 def visualize_phenotype_alignment(
     aligned_data, channel_names, viz_channels, crop_size=300
 ):
@@ -360,24 +378,6 @@ def plot_phenotype_channel_overlay(
         colored=None,
         suptitle="No channel alignment configured: nuclei should sit inside cells",
     )
-
-
-def phenotype_channel_shift(data, target, source, window=2, upsample_factor=2):
-    """Shift (dy, dx) of the source channel against the target, as `align_phenotype_channels` measures it.
-
-    Args:
-        data (np.ndarray): Phenotype image (CHANNEL, I, J).
-        target (int): Index of the target channel.
-        source (int): Index of the source channel.
-        window (int, optional): Alignment window. Defaults to 2.
-        upsample_factor (int, optional): Subpixel factor. Defaults to 2.
-
-    Returns:
-        np.ndarray: The (dy, dx) shift.
-    """
-    windowed = apply_window(data[[target, source]], window)
-    offsets, _ = calculate_offsets(windowed, upsample_factor=upsample_factor)
-    return np.asarray(offsets[1], dtype=float)
 
 
 def _fmt_shift(shift):

@@ -23,610 +23,6 @@ from lib.merge.fast_merge import build_linear_model, refine_local_warp, match_ce
 from lib.shared.alignment_overlay import plot_overlay_grid
 
 
-def plot_combined_tile_grid(
-    ph_metadata,
-    sbs_metadata,
-    ph_image_dims=(2960, 2960),
-    sbs_image_dims=(1480, 1480),
-    figsize=None,
-):
-    """Plots a combined grid of X-Y positions for PH and SBS datasets as rectangles.
-
-    Tile sizes are calculated dynamically from pixel_size metadata if available,
-    otherwise estimated from coordinate spacing. Labels are centered inside tiles
-    with auto-scaled font sizes.
-
-    Args:
-        ph_metadata (pd.DataFrame): DataFrame containing PH metadata with columns:
-            'x_pos', 'y_pos', 'tile', and optionally 'pixel_size_x'.
-        sbs_metadata (pd.DataFrame): DataFrame containing SBS metadata with columns:
-            'x_pos', 'y_pos', 'tile', and optionally 'pixel_size_x'.
-        ph_image_dims (tuple, optional): Phenotype image dimensions (height, width)
-            in pixels. Used with pixel_size to calculate tile size. Defaults to (2960, 2960).
-        sbs_image_dims (tuple, optional): SBS image dimensions (height, width)
-            in pixels. Used with pixel_size to calculate tile size. Defaults to (1480, 1480).
-        figsize (tuple, optional): Figure size. If None, auto-calculated based on
-            data extent. Defaults to None.
-
-    Returns:
-        matplotlib.figure.Figure: The figure object containing the plot.
-    """
-    # Calculate tile sizes
-    if "pixel_size_x" in ph_metadata.columns:
-        ph_tile_size = ph_image_dims[0] * ph_metadata["pixel_size_x"].iloc[0]
-    else:
-        ph_tile_size = _estimate_tile_size_from_coords(ph_metadata)
-
-    if "pixel_size_x" in sbs_metadata.columns:
-        sbs_tile_size = sbs_image_dims[0] * sbs_metadata["pixel_size_x"].iloc[0]
-    else:
-        sbs_tile_size = _estimate_tile_size_from_coords(sbs_metadata)
-
-    # Auto-calculate figure size based on data extent
-    all_x = pd.concat([ph_metadata["x_pos"], sbs_metadata["x_pos"]])
-    all_y = pd.concat([ph_metadata["y_pos"], sbs_metadata["y_pos"]])
-    x_range = all_x.max() - all_x.min() + max(ph_tile_size, sbs_tile_size)
-    y_range = all_y.max() - all_y.min() + max(ph_tile_size, sbs_tile_size)
-    aspect = x_range / y_range if y_range > 0 else 1
-
-    if figsize is None:
-        figsize = (min(24, 14 * aspect), 14)
-
-    fig, ax = plt.subplots(figsize=figsize, dpi=300)
-
-    # Draw PH tiles as rectangles with labels
-    for _, row in ph_metadata.iterrows():
-        rect = mpatches.Rectangle(
-            (row["x_pos"], row["y_pos"]),
-            ph_tile_size,
-            ph_tile_size,
-            linewidth=0.5,
-            edgecolor="black",
-            facecolor="white",
-            alpha=0.7,
-        )
-        ax.add_patch(rect)
-        # Label centered in tile
-        ax.text(
-            row["x_pos"] + ph_tile_size / 2,
-            row["y_pos"] + ph_tile_size / 2,
-            str(int(row["tile"])),
-            ha="center",
-            va="center",
-            fontsize=_auto_fontsize(ph_tile_size, x_range),
-            color="black",
-        )
-
-    # Draw SBS tiles as rectangles with labels
-    for _, row in sbs_metadata.iterrows():
-        rect = mpatches.Rectangle(
-            (row["x_pos"], row["y_pos"]),
-            sbs_tile_size,
-            sbs_tile_size,
-            linewidth=0.5,
-            edgecolor="darkred",
-            facecolor="red",
-            alpha=0.4,
-        )
-        ax.add_patch(rect)
-        ax.text(
-            row["x_pos"] + sbs_tile_size / 2,
-            row["y_pos"] + sbs_tile_size / 2,
-            str(int(row["tile"])),
-            ha="center",
-            va="center",
-            fontsize=_auto_fontsize(sbs_tile_size, x_range),
-            color="darkred",
-            fontweight="bold",
-        )
-
-    # Create legend patches
-    ph_patch = mpatches.Patch(
-        facecolor="white", edgecolor="black", alpha=0.7, label="PH"
-    )
-    sbs_patch = mpatches.Patch(
-        facecolor="red", edgecolor="darkred", alpha=0.4, label="SBS"
-    )
-    ax.legend(handles=[ph_patch, sbs_patch], fontsize=12, loc="upper right")
-
-    ax.set_aspect("equal")
-    ax.autoscale()
-    ax.set_xlabel("X Position (µm)", fontsize=14)
-    ax.set_ylabel("Y Position (µm)", fontsize=14)
-    ax.set_title("Combined Tile Grid - PH (white) & SBS (red)", fontsize=16)
-
-    plt.tight_layout()
-    return fig
-
-
-def _auto_fontsize(tile_size, plot_range, min_size=4, max_size=10):
-    """Calculate font size based on tile size relative to plot range.
-
-    Args:
-        tile_size (float): Size of the tile in plot coordinates.
-        plot_range (float): Total range of the plot (max - min).
-        min_size (int, optional): Minimum font size. Defaults to 4.
-        max_size (int, optional): Maximum font size. Defaults to 10.
-
-    Returns:
-        float: Calculated font size.
-    """
-    fraction = tile_size / plot_range
-    size = min_size + (max_size - min_size) * min(1, fraction * 20)
-    return max(min_size, min(max_size, size))
-
-
-def _estimate_tile_size_from_coords(metadata):
-    """Estimate tile size from coordinate spacing.
-
-    Args:
-        metadata (pd.DataFrame): DataFrame with 'x_pos' and 'y_pos' columns.
-
-    Returns:
-        float: Estimated tile size based on median spacing between adjacent tiles.
-    """
-    sorted_x = metadata["x_pos"].sort_values().diff().dropna()
-    sorted_y = metadata["y_pos"].sort_values().diff().dropna()
-    # Use median of non-zero diffs as spacing
-    x_spacing = sorted_x[sorted_x > 0].median()
-    y_spacing = sorted_y[sorted_y > 0].median()
-    return min(x_spacing, y_spacing) if pd.notna(x_spacing) else 1000
-
-
-def plot_merge_example(
-    df_ph, df_sbs, alignment_vec, threshold=2, local_refinement=None, warp_kwargs=None
-):
-    """Visualizes the merge process for a single tile-site pair.
-
-    Args:
-        df_ph (pandas.DataFrame): Phenotype data with 'i', 'j' columns.
-        df_sbs (pandas.DataFrame): SBS data with 'i', 'j' columns.
-        alignment_vec (dict): Contains 'rotation' and 'translation' for alignment.
-        threshold (float, optional): Distance threshold for matching points. Defaults to 2.
-        local_refinement (str | bool | None, optional): Warp model to apply to the affine
-            prediction before matching, matching the pipeline (`refine_local_warp`). Defaults None.
-        warp_kwargs (dict | None, optional): Keyword args forwarded to `refine_local_warp`. Defaults None.
-    """
-    # Create the figure — two panels sharing one matched/unmatched coloring
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
-
-    # Filter for the specific tile and site
-    df_ph_filtered = df_ph[df_ph["tile"] == alignment_vec["tile"]]
-    df_sbs_filtered = df_sbs[df_sbs["tile"] == alignment_vec["site"]]
-
-    X = df_ph_filtered[["i", "j"]].values
-    Y = df_sbs_filtered[["i", "j"]].values
-
-    # Predict phenotype coordinates into SBS space, optionally warped (mirrors the pipeline)
-    model = build_linear_model(alignment_vec["rotation"], alignment_vec["translation"])
-    Y_pred = model.predict(X)
-    if local_refinement:
-        wk = dict(warp_kwargs or {})
-        if isinstance(local_refinement, str):
-            wk.setdefault("model", local_refinement)
-        Y_pred = refine_local_warp(X, Y, Y_pred, threshold, **wk)
-
-    # Mutual nearest-neighbor match — the same 1:1 rule merge_sbs_phenotype uses
-    sbs_ix, ph_ix, match_distances = match_cells(Y, Y_pred, threshold)
-    n_ph, n_sbs, n_matched = len(X), len(Y), len(ph_ix)
-    matched_ph_mask = np.zeros(n_ph, dtype=bool)
-    matched_ph_mask[ph_ix] = True
-    n_unmatched = int((~matched_ph_mask).sum())
-    frac_ph = n_matched / n_ph if n_ph else 0.0
-    median_residual = float(np.median(match_distances)) if n_matched else float("nan")
-    doubles = n_matched - len(np.unique(ph_ix))
-
-    # Header carries the merge stats so each preview is self-describing
-    fig.suptitle(
-        f"PH tile {alignment_vec['tile']} ↔ SBS site {alignment_vec['site']}   |   "
-        f"{n_matched} matched   |   {frac_ph * 100:.0f}% phenotype   |   "
-        f"{median_residual:.2f} px median residual   |   {doubles} doubles",
-        fontsize=16,
-    )
-
-    # Panel 1: matched/unmatched phenotype in the real SBS pixel frame, with residual segments
-    ax1.scatter(
-        Y[:, 0], Y[:, 1], c="lightgray", s=8, alpha=0.3, label=f"SBS field ({n_sbs})"
-    )
-    for k in range(n_matched):
-        p, q = Y_pred[ph_ix[k]], Y[sbs_ix[k]]
-        ax1.plot([p[0], q[0]], [p[1], q[1]], "k-", alpha=0.3, linewidth=0.5)
-    ax1.scatter(
-        Y_pred[matched_ph_mask, 0],
-        Y_pred[matched_ph_mask, 1],
-        c="#2f6fb0",
-        s=14,
-        alpha=0.7,
-        label=f"matched phenotype ({n_matched})",
-    )
-    ax1.scatter(
-        Y_pred[~matched_ph_mask, 0],
-        Y_pred[~matched_ph_mask, 1],
-        marker="*",
-        c="#e8b93a",
-        s=45,
-        alpha=0.9,
-        label=f"unmatched phenotype ({n_unmatched})",
-    )
-    ax1.set_aspect("equal")
-    ax1.set_title("Aligned overlay (SBS pixel space)")
-    ax1.legend(loc="upper right", fontsize=9)
-
-    # Panel 2: panel 1 without residuals; plot Y_pred, never a min-max rescale of X
-    ax2.scatter(
-        Y[:, 0], Y[:, 1], c="lightgray", s=12, alpha=0.15, label=f"SBS field ({n_sbs})"
-    )
-    ax2.scatter(
-        Y_pred[matched_ph_mask, 0],
-        Y_pred[matched_ph_mask, 1],
-        c="#2f6fb0",
-        s=14,
-        alpha=0.35,
-        label=f"matched phenotype ({n_matched})",
-    )
-    ax2.scatter(
-        Y_pred[~matched_ph_mask, 0],
-        Y_pred[~matched_ph_mask, 1],
-        marker="*",
-        c="#e8b93a",
-        s=60,
-        alpha=0.9,
-        label=f"unmatched phenotype ({n_unmatched})",
-    )
-    ax2.set_aspect("equal")
-    ax2.set_title("Matched vs unmatched phenotype (SBS pixel space)")
-    ax2.legend(loc="upper right", fontsize=9)
-
-    plt.tight_layout()
-    plt.show()
-
-
-def plot_merge_alignment_overlay(
-    sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_site, crop_size=400
-):
-    """Overlay phenotype DAPI mapped into SBS pixel space (green) on SBS DAPI (magenta).
-
-    The phenotype image is resampled through the tile-site affine model the merge uses, so
-    a good alignment shows white or grey nuclei and a bad one shows every nucleus twice.
-    Shows the full SBS tile and a crop centered on the phenotype tile's footprint, titled
-    with the residual shift (dy, dx SBS px) of the mapped phenotype image. No colored
-    fraction is shown: the two images differ in resolution and staining, so aligned nuclei
-    are not all white.
-
-    Args:
-        sbs_dapi (np.ndarray): 2D SBS DAPI image of the site.
-        ph_dapi (np.ndarray): 2D phenotype DAPI image of the tile.
-        alignment_df (pandas.DataFrame): Initial alignment with tile, site, rotation and
-            translation columns.
-        ph_tile (int): Phenotype tile.
-        sbs_site (int): SBS site (tile).
-        crop_size (int, optional): Side of the zoomed crop, in SBS pixels. Defaults to 400.
-
-    Returns:
-        matplotlib.figure.Figure: The figure, or None if the pair has no alignment.
-    """
-    from skimage.registration import phase_cross_correlation
-
-    match = alignment_df[
-        (alignment_df["tile"] == ph_tile) & (alignment_df["site"] == sbs_site)
-    ]
-    if match.empty:
-        print(f"  No alignment for PH tile {ph_tile} and SBS site {sbs_site}")
-        return None
-    rotation = np.asarray(match.iloc[0]["rotation"], dtype=float)
-    translation = np.asarray(match.iloc[0]["translation"], dtype=float)
-
-    ph_in_sbs = map_phenotype_to_sbs(ph_dapi, sbs_dapi.shape, rotation, translation)
-    footprint = (
-        map_phenotype_to_sbs(
-            np.ones(ph_dapi.shape, dtype=np.float32),
-            sbs_dapi.shape,
-            rotation,
-            translation,
-        )
-        > 0.5
-    )
-
-    # zoom on the phenotype tile's footprint, which covers only part of the SBS site
-    center = np.array(ph_dapi.shape) / 2 @ rotation.T + translation
-    half = min(crop_size, *sbs_dapi.shape) // 2
-    y0, x0 = (
-        int(np.clip(round(c) - half, 0, n - 2 * half))
-        for c, n in zip(center, sbs_dapi.shape)
-    )
-    zoom = (slice(y0, y0 + 2 * half), slice(x0, x0 + 2 * half))
-
-    shift = phase_cross_correlation(
-        np.where(footprint, ph_in_sbs, 0)[zoom],
-        np.where(footprint, sbs_dapi, 0)[zoom].astype(np.float32),
-        upsample_factor=2,
-        normalization=None,
-    )[0]
-
-    fig = plot_overlay_grid(
-        [
-            (sbs_dapi, ph_in_sbs, "full SBS tile", footprint),
-            (
-                sbs_dapi[zoom],
-                ph_in_sbs[zoom],
-                f"{2 * half} px around the phenotype tile: "
-                f"residual ({shift[0]:+.1f}, {shift[1]:+.1f})",
-                footprint[zoom],
-            ),
-        ],
-        ncols=2,
-        panel_size=6,
-        colored=None,
-        suptitle=f"PH tile {ph_tile} → SBS site {sbs_site}: SBS DAPI magenta, "
-        "phenotype DAPI green (white = aligned)",
-    )
-    plt.show()
-    return fig
-
-
-def map_phenotype_to_sbs(ph_image, sbs_shape, rotation, translation):
-    """Resample a phenotype image into SBS pixel space with the merge's affine model.
-
-    Args:
-        ph_image (np.ndarray): 2D phenotype image.
-        sbs_shape (tuple[int, int]): Shape of the SBS image.
-        rotation (np.ndarray): 2x2 matrix of the model (phenotype (i, j) to SBS (i, j)).
-        translation (np.ndarray): Translation of the model, in SBS pixels.
-
-    Returns:
-        np.ndarray: Phenotype image in SBS pixel space, 0 outside the phenotype tile.
-    """
-    from scipy import ndimage
-
-    # the merge model maps phenotype (i, j) to SBS (i, j) as X @ rotation.T + translation
-    rows, cols = np.indices(sbs_shape)
-    sbs_coords = np.stack([rows.ravel(), cols.ravel()], axis=1).astype(float)
-    ph_coords = (sbs_coords - np.asarray(translation, dtype=float)) @ np.linalg.inv(
-        np.asarray(rotation, dtype=float).T
-    )
-    return ndimage.map_coordinates(
-        np.asarray(ph_image, dtype=np.float32), ph_coords.T, order=1, cval=0.0
-    ).reshape(sbs_shape)
-
-
-def load_merge_dapi_pair(
-    root_fp, plate, well, ph_tile, sbs_site, image_format, ph_channels, sbs_channels
-):
-    """Load the SBS and phenotype DAPI images of one tile-site pair for the merge overlay.
-
-    Reads the aligned images (first SBS cycle) and falls back to the illumination-corrected
-    images when the aligned ones were not kept.
-
-    Args:
-        root_fp (str | Path): Brieflow output root.
-        plate (int | str): Plate.
-        well (str): Well, e.g. "A1".
-        ph_tile (int): Phenotype tile.
-        sbs_site (int): SBS site (tile).
-        image_format (str): "tiff" or "zarr".
-        ph_channels (list[str]): Phenotype channel names; DAPI is used, else the first.
-        sbs_channels (list[str]): SBS channel names; DAPI is used, else the first.
-
-    Returns:
-        tuple[np.ndarray | None, np.ndarray | None]: (sbs_dapi, ph_dapi); None for an image
-            that is not found.
-    """
-    from lib.shared.file_utils import get_image_output_path
-    from lib.shared.image_io import read_image
-
-    def _dapi(module, tile, channels):
-        location = {"plate": plate, "well": well, "tile": tile}
-        index = channels.index("DAPI") if "DAPI" in channels else 0
-        for name in ("aligned", "illumination_corrected"):
-            path = (
-                Path(root_fp)
-                / module
-                / get_image_output_path(location, name, image_format)
-            )
-            if path.exists():
-                image = read_image(path)
-                return image.reshape(-1, *image.shape[-2:])[index]
-        return None
-
-    return (
-        _dapi("sbs", sbs_site, list(sbs_channels)),
-        _dapi("phenotype", ph_tile, list(ph_channels)),
-    )
-
-
-def preview_mask_transformations(
-    metadata,
-    root_fp=None,
-    data_type="phenotype",
-    mask_type="nuclei",
-    num_tiles=15,
-    flipud=False,
-    fliplr=False,
-    rot90=0,
-    figsize=(20, 10),
-):
-    """Preview mask transformations (flipud, fliplr, rot90) on the first N tiles.
-
-    Arranged according to coordinate-based stitching estimates.
-    """
-    if root_fp is None:
-        root_fp = Path("/lab/ops_analysis/lourido/nebo-analysis/analysis/analysis_root")
-    else:
-        root_fp = Path(root_fp)
-
-    # Select only the first N tiles to preview
-    first_tiles = metadata.head(num_tiles).copy()
-    well = first_tiles["well"].iloc[0]
-
-    print(
-        f"Testing transformations on first {len(first_tiles)} {data_type} tiles ({mask_type} masks)"
-    )
-    print(f"Transformation: flipud={flipud}, fliplr={fliplr}, rot90={rot90}")
-
-    # --- determine pixel scaling from metadata or fallback ---
-    if data_type == "sbs":
-        tile_size = (1200, 1200)
-        fov_um = 1560.0
-    else:
-        tile_size = (2400, 2400)
-        fov_um = 260.0
-
-    # Use pixel size from metadata if available
-    if "pixel_size_x" in first_tiles.columns and "pixel_size_y" in first_tiles.columns:
-        pixel_size_um = first_tiles["pixel_size_x"].iloc[0]
-        pixels_per_micron = 1.0 / pixel_size_um
-    else:
-        pixels_per_micron = tile_size[0] / fov_um
-
-    # --- compute pixel positions for preview tiles ---
-    coords_um = first_tiles[["x_pos", "y_pos"]].values
-    x_min, y_min = coords_um.min(axis=0)
-    translations = {}
-    for idx, row in first_tiles.iterrows():
-        x_pos, y_pos = row["x_pos"], row["y_pos"]
-        pixel_x = int((x_pos - x_min) * pixels_per_micron)
-        pixel_y = int((y_pos - y_min) * pixels_per_micron)
-        translations[f"{row['well']}/{row['tile']}"] = [pixel_y, pixel_x]
-
-    # Store centroids instead of full tiles
-    original_centroids = []
-    transformed_centroids = []
-    files_found = 0
-
-    for _, row in first_tiles.iterrows():
-        try:
-            filename = (
-                f"P-{row['plate']}_W-{row['well']}_T-{row['tile']}__{mask_type}.tiff"
-            )
-            tile_path = root_fp / data_type / "images" / filename
-
-            if tile_path.exists():
-                try:
-                    import tifffile
-
-                    tile_data = tifffile.imread(str(tile_path))
-                except ImportError:
-                    from PIL import Image
-
-                    tile_data = np.array(Image.open(str(tile_path)))
-                files_found += 1
-
-                if tile_data.ndim > 2:
-                    if tile_data.shape[0] < 10:  # channels-first
-                        tile_data = np.max(tile_data, axis=0)
-                    else:
-                        tile_data = (
-                            tile_data[..., 0]
-                            if tile_data.shape[-1] < 10
-                            else tile_data[0]
-                        )
-            else:
-                tile_data = np.zeros(tile_size, dtype=np.uint16)
-                tile_data[100:150, 100:150] = row["tile"] % 255
-
-            # Get tile offset
-            y_offset, x_offset = translations[f"{row['well']}/{row['tile']}"]
-
-            # Extract centroids from original tile
-            props = regionprops(tile_data.astype(int))
-            if len(props) > 0:
-                centroids = np.array(
-                    [
-                        [p.centroid[0] + y_offset, p.centroid[1] + x_offset]
-                        for p in props
-                    ]
-                )
-                original_centroids.append(centroids)
-
-            # Apply transformations
-            transformed_tile = tile_data.copy()
-            if rot90 > 0:
-                transformed_tile = np.rot90(transformed_tile, k=rot90)
-            if flipud:
-                transformed_tile = np.flipud(transformed_tile)
-            if fliplr:
-                transformed_tile = np.fliplr(transformed_tile)
-
-            # Extract centroids from transformed tile
-            props_trans = regionprops(transformed_tile.astype(int))
-            if len(props_trans) > 0:
-                centroids_trans = np.array(
-                    [
-                        [p.centroid[0] + y_offset, p.centroid[1] + x_offset]
-                        for p in props_trans
-                    ]
-                )
-                transformed_centroids.append(centroids_trans)
-
-        except Exception as e:
-            print(f"Error loading tile {row['tile']}: {e}")
-
-    print(f"Successfully loaded {files_found}/{len(first_tiles)} mask files")
-
-    # Combine all centroids
-    all_original = (
-        np.vstack(original_centroids)
-        if original_centroids
-        else np.array([]).reshape(0, 2)
-    )
-    all_transformed = (
-        np.vstack(transformed_centroids)
-        if transformed_centroids
-        else np.array([]).reshape(0, 2)
-    )
-
-    # --- compute overall axis limits ---
-    if len(all_original) > 0:
-        y_min_plot = min(all_original[:, 0].min(), all_transformed[:, 0].min())
-        y_max_plot = max(all_original[:, 0].max(), all_transformed[:, 0].max())
-        x_min_plot = min(all_original[:, 1].min(), all_transformed[:, 1].min())
-        x_max_plot = max(all_original[:, 1].max(), all_transformed[:, 1].max())
-    else:
-        y_min_plot, y_max_plot = 0, tile_size[0]
-        x_min_plot, x_max_plot = 0, tile_size[1]
-
-    # --- plot side by side ---
-    fig, axes = plt.subplots(1, 2, figsize=figsize)
-
-    for ax, centroids, title in zip(
-        axes,
-        [all_original, all_transformed],
-        [
-            "Original Tiles",
-            f"Transformed (flipud={flipud}, fliplr={fliplr}, rot90={rot90})",
-        ],
-    ):
-        ax.set_title(title, fontsize=14, weight="bold")
-        ax.set_aspect("equal")
-
-        if len(centroids) > 0:
-            ax.scatter(
-                centroids[:, 1],
-                centroids[:, 0],
-                s=10,
-                alpha=0.6,
-                c="red",
-                edgecolors="none",
-            )
-
-        # Set axis limits
-        ax.set_xlim(x_min_plot, x_max_plot)
-        ax.set_ylim(y_min_plot, y_max_plot)
-        ax.invert_yaxis()  # Match image coordinate convention
-        ax.set_xlabel("X (pixels)", fontsize=12)
-        ax.set_ylabel("Y (pixels)", fontsize=12)
-        ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.show()
-
-    print(
-        f"Total objects: {len(all_original)} (original), {len(all_transformed)} (transformed)"
-    )
-
-    return {"flipud": flipud, "fliplr": fliplr, "rot90": rot90}
-
-
 def align_metadata(
     df1,
     df2,
@@ -828,6 +224,122 @@ def filter_low_score_seeds(pairs_df, score_col="score", k=3.0, min_keep=5):
     return kept
 
 
+def plot_combined_tile_grid(
+    ph_metadata,
+    sbs_metadata,
+    ph_image_dims=(2960, 2960),
+    sbs_image_dims=(1480, 1480),
+    figsize=None,
+):
+    """Plots a combined grid of X-Y positions for PH and SBS datasets as rectangles.
+
+    Tile sizes are calculated dynamically from pixel_size metadata if available,
+    otherwise estimated from coordinate spacing. Labels are centered inside tiles
+    with auto-scaled font sizes.
+
+    Args:
+        ph_metadata (pd.DataFrame): DataFrame containing PH metadata with columns:
+            'x_pos', 'y_pos', 'tile', and optionally 'pixel_size_x'.
+        sbs_metadata (pd.DataFrame): DataFrame containing SBS metadata with columns:
+            'x_pos', 'y_pos', 'tile', and optionally 'pixel_size_x'.
+        ph_image_dims (tuple, optional): Phenotype image dimensions (height, width)
+            in pixels. Used with pixel_size to calculate tile size. Defaults to (2960, 2960).
+        sbs_image_dims (tuple, optional): SBS image dimensions (height, width)
+            in pixels. Used with pixel_size to calculate tile size. Defaults to (1480, 1480).
+        figsize (tuple, optional): Figure size. If None, auto-calculated based on
+            data extent. Defaults to None.
+
+    Returns:
+        matplotlib.figure.Figure: The figure object containing the plot.
+    """
+    # Calculate tile sizes
+    if "pixel_size_x" in ph_metadata.columns:
+        ph_tile_size = ph_image_dims[0] * ph_metadata["pixel_size_x"].iloc[0]
+    else:
+        ph_tile_size = _estimate_tile_size_from_coords(ph_metadata)
+
+    if "pixel_size_x" in sbs_metadata.columns:
+        sbs_tile_size = sbs_image_dims[0] * sbs_metadata["pixel_size_x"].iloc[0]
+    else:
+        sbs_tile_size = _estimate_tile_size_from_coords(sbs_metadata)
+
+    # Auto-calculate figure size based on data extent
+    all_x = pd.concat([ph_metadata["x_pos"], sbs_metadata["x_pos"]])
+    all_y = pd.concat([ph_metadata["y_pos"], sbs_metadata["y_pos"]])
+    x_range = all_x.max() - all_x.min() + max(ph_tile_size, sbs_tile_size)
+    y_range = all_y.max() - all_y.min() + max(ph_tile_size, sbs_tile_size)
+    aspect = x_range / y_range if y_range > 0 else 1
+
+    if figsize is None:
+        figsize = (min(24, 14 * aspect), 14)
+
+    fig, ax = plt.subplots(figsize=figsize, dpi=300)
+
+    # Draw PH tiles as rectangles with labels
+    for _, row in ph_metadata.iterrows():
+        rect = mpatches.Rectangle(
+            (row["x_pos"], row["y_pos"]),
+            ph_tile_size,
+            ph_tile_size,
+            linewidth=0.5,
+            edgecolor="black",
+            facecolor="white",
+            alpha=0.7,
+        )
+        ax.add_patch(rect)
+        # Label centered in tile
+        ax.text(
+            row["x_pos"] + ph_tile_size / 2,
+            row["y_pos"] + ph_tile_size / 2,
+            str(int(row["tile"])),
+            ha="center",
+            va="center",
+            fontsize=_auto_fontsize(ph_tile_size, x_range),
+            color="black",
+        )
+
+    # Draw SBS tiles as rectangles with labels
+    for _, row in sbs_metadata.iterrows():
+        rect = mpatches.Rectangle(
+            (row["x_pos"], row["y_pos"]),
+            sbs_tile_size,
+            sbs_tile_size,
+            linewidth=0.5,
+            edgecolor="darkred",
+            facecolor="red",
+            alpha=0.4,
+        )
+        ax.add_patch(rect)
+        ax.text(
+            row["x_pos"] + sbs_tile_size / 2,
+            row["y_pos"] + sbs_tile_size / 2,
+            str(int(row["tile"])),
+            ha="center",
+            va="center",
+            fontsize=_auto_fontsize(sbs_tile_size, x_range),
+            color="darkred",
+            fontweight="bold",
+        )
+
+    # Create legend patches
+    ph_patch = mpatches.Patch(
+        facecolor="white", edgecolor="black", alpha=0.7, label="PH"
+    )
+    sbs_patch = mpatches.Patch(
+        facecolor="red", edgecolor="darkred", alpha=0.4, label="SBS"
+    )
+    ax.legend(handles=[ph_patch, sbs_patch], fontsize=12, loc="upper right")
+
+    ax.set_aspect("equal")
+    ax.autoscale()
+    ax.set_xlabel("X Position (µm)", fontsize=14)
+    ax.set_ylabel("Y Position (µm)", fontsize=14)
+    ax.set_title("Combined Tile Grid - PH (white) & SBS (red)", fontsize=16)
+
+    plt.tight_layout()
+    return fig
+
+
 def fast_merge_example(
     ph_tile,
     sbs_site,
@@ -875,3 +387,491 @@ def fast_merge_example(
     except Exception as e:
         print(f"  Error plotting: {str(e)}")
         return False
+
+
+def plot_merge_example(
+    df_ph, df_sbs, alignment_vec, threshold=2, local_refinement=None, warp_kwargs=None
+):
+    """Visualizes the merge process for a single tile-site pair.
+
+    Args:
+        df_ph (pandas.DataFrame): Phenotype data with 'i', 'j' columns.
+        df_sbs (pandas.DataFrame): SBS data with 'i', 'j' columns.
+        alignment_vec (dict): Contains 'rotation' and 'translation' for alignment.
+        threshold (float, optional): Distance threshold for matching points. Defaults to 2.
+        local_refinement (str | bool | None, optional): Warp model to apply to the affine
+            prediction before matching, matching the pipeline (`refine_local_warp`). Defaults None.
+        warp_kwargs (dict | None, optional): Keyword args forwarded to `refine_local_warp`. Defaults None.
+    """
+    # Create the figure — two panels sharing one matched/unmatched coloring
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
+
+    # Filter for the specific tile and site
+    df_ph_filtered = df_ph[df_ph["tile"] == alignment_vec["tile"]]
+    df_sbs_filtered = df_sbs[df_sbs["tile"] == alignment_vec["site"]]
+
+    X = df_ph_filtered[["i", "j"]].values
+    Y = df_sbs_filtered[["i", "j"]].values
+
+    # Predict phenotype coordinates into SBS space, optionally warped (mirrors the pipeline)
+    model = build_linear_model(alignment_vec["rotation"], alignment_vec["translation"])
+    Y_pred = model.predict(X)
+    if local_refinement:
+        wk = dict(warp_kwargs or {})
+        if isinstance(local_refinement, str):
+            wk.setdefault("model", local_refinement)
+        Y_pred = refine_local_warp(X, Y, Y_pred, threshold, **wk)
+
+    # Mutual nearest-neighbor match — the same 1:1 rule merge_sbs_phenotype uses
+    sbs_ix, ph_ix, match_distances = match_cells(Y, Y_pred, threshold)
+    n_ph, n_sbs, n_matched = len(X), len(Y), len(ph_ix)
+    matched_ph_mask = np.zeros(n_ph, dtype=bool)
+    matched_ph_mask[ph_ix] = True
+    n_unmatched = int((~matched_ph_mask).sum())
+    frac_ph = n_matched / n_ph if n_ph else 0.0
+    median_residual = float(np.median(match_distances)) if n_matched else float("nan")
+    doubles = n_matched - len(np.unique(ph_ix))
+
+    # Header carries the merge stats so each preview is self-describing
+    fig.suptitle(
+        f"PH tile {alignment_vec['tile']} ↔ SBS site {alignment_vec['site']}   |   "
+        f"{n_matched} matched   |   {frac_ph * 100:.0f}% phenotype   |   "
+        f"{median_residual:.2f} px median residual   |   {doubles} doubles",
+        fontsize=16,
+    )
+
+    # Panel 1: matched/unmatched phenotype in the real SBS pixel frame, with residual segments
+    ax1.scatter(
+        Y[:, 0], Y[:, 1], c="lightgray", s=8, alpha=0.3, label=f"SBS field ({n_sbs})"
+    )
+    for k in range(n_matched):
+        p, q = Y_pred[ph_ix[k]], Y[sbs_ix[k]]
+        ax1.plot([p[0], q[0]], [p[1], q[1]], "k-", alpha=0.3, linewidth=0.5)
+    ax1.scatter(
+        Y_pred[matched_ph_mask, 0],
+        Y_pred[matched_ph_mask, 1],
+        c="#2f6fb0",
+        s=14,
+        alpha=0.7,
+        label=f"matched phenotype ({n_matched})",
+    )
+    ax1.scatter(
+        Y_pred[~matched_ph_mask, 0],
+        Y_pred[~matched_ph_mask, 1],
+        marker="*",
+        c="#e8b93a",
+        s=45,
+        alpha=0.9,
+        label=f"unmatched phenotype ({n_unmatched})",
+    )
+    ax1.set_aspect("equal")
+    ax1.set_title("Aligned overlay (SBS pixel space)")
+    ax1.legend(loc="upper right", fontsize=9)
+
+    # Panel 2: panel 1 without residuals; plot Y_pred, never a min-max rescale of X
+    ax2.scatter(
+        Y[:, 0], Y[:, 1], c="lightgray", s=12, alpha=0.15, label=f"SBS field ({n_sbs})"
+    )
+    ax2.scatter(
+        Y_pred[matched_ph_mask, 0],
+        Y_pred[matched_ph_mask, 1],
+        c="#2f6fb0",
+        s=14,
+        alpha=0.35,
+        label=f"matched phenotype ({n_matched})",
+    )
+    ax2.scatter(
+        Y_pred[~matched_ph_mask, 0],
+        Y_pred[~matched_ph_mask, 1],
+        marker="*",
+        c="#e8b93a",
+        s=60,
+        alpha=0.9,
+        label=f"unmatched phenotype ({n_unmatched})",
+    )
+    ax2.set_aspect("equal")
+    ax2.set_title("Matched vs unmatched phenotype (SBS pixel space)")
+    ax2.legend(loc="upper right", fontsize=9)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def load_merge_dapi_pair(
+    root_fp, plate, well, ph_tile, sbs_site, image_format, ph_channels, sbs_channels
+):
+    """Load the SBS and phenotype DAPI images of one tile-site pair for the merge overlay.
+
+    Reads the aligned images (first SBS cycle) and falls back to the illumination-corrected
+    images when the aligned ones were not kept.
+
+    Args:
+        root_fp (str | Path): Brieflow output root.
+        plate (int | str): Plate.
+        well (str): Well, e.g. "A1".
+        ph_tile (int): Phenotype tile.
+        sbs_site (int): SBS site (tile).
+        image_format (str): "tiff" or "zarr".
+        ph_channels (list[str]): Phenotype channel names; DAPI is used, else the first.
+        sbs_channels (list[str]): SBS channel names; DAPI is used, else the first.
+
+    Returns:
+        tuple[np.ndarray | None, np.ndarray | None]: (sbs_dapi, ph_dapi); None for an image
+            that is not found.
+    """
+    from lib.shared.file_utils import get_image_output_path
+    from lib.shared.image_io import read_image
+
+    def _dapi(module, tile, channels):
+        location = {"plate": plate, "well": well, "tile": tile}
+        index = channels.index("DAPI") if "DAPI" in channels else 0
+        for name in ("aligned", "illumination_corrected"):
+            path = (
+                Path(root_fp)
+                / module
+                / get_image_output_path(location, name, image_format)
+            )
+            if path.exists():
+                image = read_image(path)
+                return image.reshape(-1, *image.shape[-2:])[index]
+        return None
+
+    return (
+        _dapi("sbs", sbs_site, list(sbs_channels)),
+        _dapi("phenotype", ph_tile, list(ph_channels)),
+    )
+
+
+def plot_merge_alignment_overlay(
+    sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_site, crop_size=400
+):
+    """Overlay phenotype DAPI mapped into SBS pixel space (green) on SBS DAPI (magenta).
+
+    The phenotype image is resampled through the tile-site affine model the merge uses, so
+    a good alignment shows white or grey nuclei and a bad one shows every nucleus twice.
+    Shows the full SBS tile and a crop centered on the phenotype tile's footprint, titled
+    with the residual shift (dy, dx SBS px) of the mapped phenotype image. No colored
+    fraction is shown: the two images differ in resolution and staining, so aligned nuclei
+    are not all white.
+
+    Args:
+        sbs_dapi (np.ndarray): 2D SBS DAPI image of the site.
+        ph_dapi (np.ndarray): 2D phenotype DAPI image of the tile.
+        alignment_df (pandas.DataFrame): Initial alignment with tile, site, rotation and
+            translation columns.
+        ph_tile (int): Phenotype tile.
+        sbs_site (int): SBS site (tile).
+        crop_size (int, optional): Side of the zoomed crop, in SBS pixels. Defaults to 400.
+
+    Returns:
+        matplotlib.figure.Figure: The figure, or None if the pair has no alignment.
+    """
+    from skimage.registration import phase_cross_correlation
+
+    match = alignment_df[
+        (alignment_df["tile"] == ph_tile) & (alignment_df["site"] == sbs_site)
+    ]
+    if match.empty:
+        print(f"  No alignment for PH tile {ph_tile} and SBS site {sbs_site}")
+        return None
+    rotation = np.asarray(match.iloc[0]["rotation"], dtype=float)
+    translation = np.asarray(match.iloc[0]["translation"], dtype=float)
+
+    ph_in_sbs = map_phenotype_to_sbs(ph_dapi, sbs_dapi.shape, rotation, translation)
+    footprint = (
+        map_phenotype_to_sbs(
+            np.ones(ph_dapi.shape, dtype=np.float32),
+            sbs_dapi.shape,
+            rotation,
+            translation,
+        )
+        > 0.5
+    )
+
+    # zoom on the phenotype tile's footprint, which covers only part of the SBS site
+    center = np.array(ph_dapi.shape) / 2 @ rotation.T + translation
+    half = min(crop_size, *sbs_dapi.shape) // 2
+    y0, x0 = (
+        int(np.clip(round(c) - half, 0, n - 2 * half))
+        for c, n in zip(center, sbs_dapi.shape)
+    )
+    zoom = (slice(y0, y0 + 2 * half), slice(x0, x0 + 2 * half))
+
+    shift = phase_cross_correlation(
+        np.where(footprint, ph_in_sbs, 0)[zoom],
+        np.where(footprint, sbs_dapi, 0)[zoom].astype(np.float32),
+        upsample_factor=2,
+        normalization=None,
+    )[0]
+
+    fig = plot_overlay_grid(
+        [
+            (sbs_dapi, ph_in_sbs, "full SBS tile", footprint),
+            (
+                sbs_dapi[zoom],
+                ph_in_sbs[zoom],
+                f"{2 * half} px around the phenotype tile: "
+                f"residual ({shift[0]:+.1f}, {shift[1]:+.1f})",
+                footprint[zoom],
+            ),
+        ],
+        ncols=2,
+        panel_size=6,
+        colored=None,
+        suptitle=f"PH tile {ph_tile} → SBS site {sbs_site}: SBS DAPI magenta, "
+        "phenotype DAPI green (white = aligned)",
+    )
+    plt.show()
+    return fig
+
+
+def map_phenotype_to_sbs(ph_image, sbs_shape, rotation, translation):
+    """Resample a phenotype image into SBS pixel space with the merge's affine model.
+
+    Args:
+        ph_image (np.ndarray): 2D phenotype image.
+        sbs_shape (tuple[int, int]): Shape of the SBS image.
+        rotation (np.ndarray): 2x2 matrix of the model (phenotype (i, j) to SBS (i, j)).
+        translation (np.ndarray): Translation of the model, in SBS pixels.
+
+    Returns:
+        np.ndarray: Phenotype image in SBS pixel space, 0 outside the phenotype tile.
+    """
+    from scipy import ndimage
+
+    # the merge model maps phenotype (i, j) to SBS (i, j) as X @ rotation.T + translation
+    rows, cols = np.indices(sbs_shape)
+    sbs_coords = np.stack([rows.ravel(), cols.ravel()], axis=1).astype(float)
+    ph_coords = (sbs_coords - np.asarray(translation, dtype=float)) @ np.linalg.inv(
+        np.asarray(rotation, dtype=float).T
+    )
+    return ndimage.map_coordinates(
+        np.asarray(ph_image, dtype=np.float32), ph_coords.T, order=1, cval=0.0
+    ).reshape(sbs_shape)
+
+
+def preview_mask_transformations(
+    metadata,
+    root_fp=None,
+    data_type="phenotype",
+    mask_type="nuclei",
+    num_tiles=15,
+    flipud=False,
+    fliplr=False,
+    rot90=0,
+    figsize=(20, 10),
+):
+    """Preview mask transformations (flipud, fliplr, rot90) on the first N tiles.
+
+    Arranged according to coordinate-based stitching estimates.
+    """
+    if root_fp is None:
+        root_fp = Path("/lab/ops_analysis/lourido/nebo-analysis/analysis/analysis_root")
+    else:
+        root_fp = Path(root_fp)
+
+    # Select only the first N tiles to preview
+    first_tiles = metadata.head(num_tiles).copy()
+    well = first_tiles["well"].iloc[0]
+
+    print(
+        f"Testing transformations on first {len(first_tiles)} {data_type} tiles ({mask_type} masks)"
+    )
+    print(f"Transformation: flipud={flipud}, fliplr={fliplr}, rot90={rot90}")
+
+    # --- determine pixel scaling from metadata or fallback ---
+    if data_type == "sbs":
+        tile_size = (1200, 1200)
+        fov_um = 1560.0
+    else:
+        tile_size = (2400, 2400)
+        fov_um = 260.0
+
+    # Use pixel size from metadata if available
+    if "pixel_size_x" in first_tiles.columns and "pixel_size_y" in first_tiles.columns:
+        pixel_size_um = first_tiles["pixel_size_x"].iloc[0]
+        pixels_per_micron = 1.0 / pixel_size_um
+    else:
+        pixels_per_micron = tile_size[0] / fov_um
+
+    # --- compute pixel positions for preview tiles ---
+    coords_um = first_tiles[["x_pos", "y_pos"]].values
+    x_min, y_min = coords_um.min(axis=0)
+    translations = {}
+    for idx, row in first_tiles.iterrows():
+        x_pos, y_pos = row["x_pos"], row["y_pos"]
+        pixel_x = int((x_pos - x_min) * pixels_per_micron)
+        pixel_y = int((y_pos - y_min) * pixels_per_micron)
+        translations[f"{row['well']}/{row['tile']}"] = [pixel_y, pixel_x]
+
+    # Store centroids instead of full tiles
+    original_centroids = []
+    transformed_centroids = []
+    files_found = 0
+
+    for _, row in first_tiles.iterrows():
+        try:
+            filename = (
+                f"P-{row['plate']}_W-{row['well']}_T-{row['tile']}__{mask_type}.tiff"
+            )
+            tile_path = root_fp / data_type / "images" / filename
+
+            if tile_path.exists():
+                try:
+                    import tifffile
+
+                    tile_data = tifffile.imread(str(tile_path))
+                except ImportError:
+                    from PIL import Image
+
+                    tile_data = np.array(Image.open(str(tile_path)))
+                files_found += 1
+
+                if tile_data.ndim > 2:
+                    if tile_data.shape[0] < 10:  # channels-first
+                        tile_data = np.max(tile_data, axis=0)
+                    else:
+                        tile_data = (
+                            tile_data[..., 0]
+                            if tile_data.shape[-1] < 10
+                            else tile_data[0]
+                        )
+            else:
+                tile_data = np.zeros(tile_size, dtype=np.uint16)
+                tile_data[100:150, 100:150] = row["tile"] % 255
+
+            # Get tile offset
+            y_offset, x_offset = translations[f"{row['well']}/{row['tile']}"]
+
+            # Extract centroids from original tile
+            props = regionprops(tile_data.astype(int))
+            if len(props) > 0:
+                centroids = np.array(
+                    [
+                        [p.centroid[0] + y_offset, p.centroid[1] + x_offset]
+                        for p in props
+                    ]
+                )
+                original_centroids.append(centroids)
+
+            # Apply transformations
+            transformed_tile = tile_data.copy()
+            if rot90 > 0:
+                transformed_tile = np.rot90(transformed_tile, k=rot90)
+            if flipud:
+                transformed_tile = np.flipud(transformed_tile)
+            if fliplr:
+                transformed_tile = np.fliplr(transformed_tile)
+
+            # Extract centroids from transformed tile
+            props_trans = regionprops(transformed_tile.astype(int))
+            if len(props_trans) > 0:
+                centroids_trans = np.array(
+                    [
+                        [p.centroid[0] + y_offset, p.centroid[1] + x_offset]
+                        for p in props_trans
+                    ]
+                )
+                transformed_centroids.append(centroids_trans)
+
+        except Exception as e:
+            print(f"Error loading tile {row['tile']}: {e}")
+
+    print(f"Successfully loaded {files_found}/{len(first_tiles)} mask files")
+
+    # Combine all centroids
+    all_original = (
+        np.vstack(original_centroids)
+        if original_centroids
+        else np.array([]).reshape(0, 2)
+    )
+    all_transformed = (
+        np.vstack(transformed_centroids)
+        if transformed_centroids
+        else np.array([]).reshape(0, 2)
+    )
+
+    # --- compute overall axis limits ---
+    if len(all_original) > 0:
+        y_min_plot = min(all_original[:, 0].min(), all_transformed[:, 0].min())
+        y_max_plot = max(all_original[:, 0].max(), all_transformed[:, 0].max())
+        x_min_plot = min(all_original[:, 1].min(), all_transformed[:, 1].min())
+        x_max_plot = max(all_original[:, 1].max(), all_transformed[:, 1].max())
+    else:
+        y_min_plot, y_max_plot = 0, tile_size[0]
+        x_min_plot, x_max_plot = 0, tile_size[1]
+
+    # --- plot side by side ---
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+    for ax, centroids, title in zip(
+        axes,
+        [all_original, all_transformed],
+        [
+            "Original Tiles",
+            f"Transformed (flipud={flipud}, fliplr={fliplr}, rot90={rot90})",
+        ],
+    ):
+        ax.set_title(title, fontsize=14, weight="bold")
+        ax.set_aspect("equal")
+
+        if len(centroids) > 0:
+            ax.scatter(
+                centroids[:, 1],
+                centroids[:, 0],
+                s=10,
+                alpha=0.6,
+                c="red",
+                edgecolors="none",
+            )
+
+        # Set axis limits
+        ax.set_xlim(x_min_plot, x_max_plot)
+        ax.set_ylim(y_min_plot, y_max_plot)
+        ax.invert_yaxis()  # Match image coordinate convention
+        ax.set_xlabel("X (pixels)", fontsize=12)
+        ax.set_ylabel("Y (pixels)", fontsize=12)
+        ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
+
+    print(
+        f"Total objects: {len(all_original)} (original), {len(all_transformed)} (transformed)"
+    )
+
+    return {"flipud": flipud, "fliplr": fliplr, "rot90": rot90}
+
+
+def _auto_fontsize(tile_size, plot_range, min_size=4, max_size=10):
+    """Calculate font size based on tile size relative to plot range.
+
+    Args:
+        tile_size (float): Size of the tile in plot coordinates.
+        plot_range (float): Total range of the plot (max - min).
+        min_size (int, optional): Minimum font size. Defaults to 4.
+        max_size (int, optional): Maximum font size. Defaults to 10.
+
+    Returns:
+        float: Calculated font size.
+    """
+    fraction = tile_size / plot_range
+    size = min_size + (max_size - min_size) * min(1, fraction * 20)
+    return max(min_size, min(max_size, size))
+
+
+def _estimate_tile_size_from_coords(metadata):
+    """Estimate tile size from coordinate spacing.
+
+    Args:
+        metadata (pd.DataFrame): DataFrame with 'x_pos' and 'y_pos' columns.
+
+    Returns:
+        float: Estimated tile size based on median spacing between adjacent tiles.
+    """
+    sorted_x = metadata["x_pos"].sort_values().diff().dropna()
+    sorted_y = metadata["y_pos"].sort_values().diff().dropna()
+    # Use median of non-zero diffs as spacing
+    x_spacing = sorted_x[sorted_x > 0].median()
+    y_spacing = sorted_y[sorted_y > 0].median()
+    return min(x_spacing, y_spacing) if pd.notna(x_spacing) else 1000

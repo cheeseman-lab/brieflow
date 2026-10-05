@@ -28,6 +28,7 @@ from lib.phenotype.align_channels import (  # noqa: E402
     plot_phenotype_channel_overlay,
 )
 from lib.sbs.align_cycles import (  # noqa: E402
+    cycle_spot_match,
     plot_cycle_alignment_overlay,
     plot_flagged_channel_overlays,
 )
@@ -75,6 +76,7 @@ def sbs_cycles():
         base = rng.integers(0, 4, size=len(spots))
         for k in range(4):
             data[c, 1 + k] = _blobs(shape, spots[base == k], 1.2)
+    data[:, 4] *= 0.2
     data += rng.normal(0, 0.02, size=data.shape).astype(np.float32)
     return data * 1000 + 100
 
@@ -97,13 +99,29 @@ def _titles(fig):
     return [ax.get_title() for ax in fig.axes]
 
 
+def _row(titles, c, columns=2):
+    """Titles of the panels in the row of cycle index c."""
+    return titles[c * columns : (c + 1) * columns]
+
+
+def _matched(title):
+    return float(re.search(r"(\d+)% within 1 px", title).group(1)) / 100
+
+
+def test_spot_match_aligned_with_dim_channel(sbs_cycles):
+    match = cycle_spot_match(sbs_cycles, CHANNELS)
+    assert (match["matched"] >= 0.9).all()
+    assert not match["flagged"].any()
+    assert match["counts"].min() >= 0.8 * match["counts"].max()
+
+
 def test_sbs_cycle_overlay_aligned(sbs_cycles):
     fig = plot_cycle_alignment_overlay(sbs_cycles, CHANNELS, crop_size=96)
     titles = _titles(fig)
-    assert len(titles) == 2 * (len(sbs_cycles) - 1)
+    assert len(titles) == 2 * len(sbs_cycles)
     assert not any("OFF" in t for t in titles)
-    assert all(_title_fraction(t) <= 0.05 for t in titles if " DAPI" in t)
-    assert not any("%" in t for t in titles if " bases" in t)
+    assert all(_title_fraction(t) <= 0.05 for t in titles if " DAPI: (" in t)
+    assert all(_matched(t) >= 0.9 for t in titles if " spots: " in t)
     assert "all cycles within 1 px" in fig._suptitle.get_text()
     assert plot_flagged_channel_overlays(sbs_cycles, CHANNELS) is None
 
@@ -111,27 +129,33 @@ def test_sbs_cycle_overlay_aligned(sbs_cycles):
 def test_sbs_cycle_overlay_shifted_cycle(sbs_cycles):
     data = sbs_cycles.copy()
     data[2] = np.roll(sbs_cycles[2], SHIFT, axis=(-2, -1))
-    aligned_dapi = _titles(
-        plot_cycle_alignment_overlay(sbs_cycles, CHANNELS, crop_size=96)
-    )[2]
+    match = cycle_spot_match(data, CHANNELS)
+    assert match["flagged"].tolist() == [False, False, True, False]
+    assert match["matched"][2] <= 0.2
     fig = plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96)
     titles = _titles(fig)
-    assert [t for t in titles if "OFF" in t] == titles[2:4]
-    dapi, bases = titles[2:4]
-    assert dapi.startswith("cycle 3 DAPI") and bases.startswith("cycle 3 bases")
+    assert [t for t in titles if "OFF" in t] == _row(titles, 2)
+    dapi, spots = _row(titles, 2)
     assert np.allclose(_title_shift(dapi), SHIFT, atol=0.6)
-    assert np.allclose(_title_shift(bases), SHIFT, atol=0.6)
-    assert _title_fraction(aligned_dapi) <= 0.05
+    assert np.allclose(_title_shift(spots), SHIFT, atol=0.6)
     assert _title_fraction(dapi) >= 0.1
+    assert _matched(spots) <= 0.2
     assert "off: cycle 3" in fig._suptitle.get_text()
+
+
+def test_spot_count_flags_collapsed_cycle(sbs_cycles):
+    data = sbs_cycles.copy()
+    rng = np.random.default_rng(4)
+    keep = _blobs(data.shape[-2:], rng.uniform(8, 184, size=(30, 2)), 1.2) * 1000
+    data[1, 1:] = 100 + rng.normal(0, 20, size=data[1, 1:].shape) + keep
+    match = cycle_spot_match(data, CHANNELS)
+    assert match["flagged"][1]
+    assert match["counts"][1] < 0.5 * np.median(match["counts"])
 
 
 def test_sbs_flagged_channel_overlay(sbs_cycles):
     data = sbs_cycles.copy()
     data[0, 2] = np.roll(sbs_cycles[0, 2], SHIFT, axis=(0, 1))
-    assert not any(
-        "OFF" in t for t in _titles(plot_cycle_alignment_overlay(data, CHANNELS))
-    )
     titles = _titles(plot_flagged_channel_overlays(data, CHANNELS, crop_size=96))
     assert len(titles) == 1 and titles[0].startswith("cycle 1 T")
     assert np.allclose(_title_shift(titles[0]), SHIFT, atol=0.6)
@@ -148,8 +172,8 @@ def test_sbs_cycle_overlay_without_per_cycle_dapi(sbs_cycles):
     data = sbs_cycles.copy()
     data[:, 0] = sbs_cycles[0, 0]
     titles = _titles(plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96))
-    assert len(titles) == len(sbs_cycles) - 1
-    assert all(" bases: " in t for t in titles)
+    assert len(titles) == len(sbs_cycles)
+    assert all(" spots: " in t for t in titles)
 
 
 def test_merge_overlay():

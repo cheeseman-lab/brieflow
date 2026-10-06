@@ -183,7 +183,7 @@ THRESHOLD
   `merge.threshold` · default `None`. Maximum distance between a phenotype cell and an SBS cell for them to match, for example `2`.
 
 FLIPUD, FLIPLR, ROT90
-  `merge.flipud`, `merge.fliplr`, `merge.rot90` · default `False`, `False`, `0`. Tile orientation relative to the stage, used by the `positions` approach: a vertical flip, a horizontal flip, then `ROT90` counterclockwise quarter turns (as `numpy.rot90`). Set them to the orientation the positions QC reports as best when it warns.
+  `merge.flipud`, `merge.fliplr`, `merge.rot90` · default `False`, `False`, `0`. Tile orientation relative to the stage, used by the `positions` approach: a vertical flip, a horizontal flip, then `ROT90` counterclockwise quarter turns (as `numpy.rot90`). When the fit warns that another orientation lines up the tile overlaps better, set them to the one it names.
 ```
 
 ## Classify (`7_classify.py`)

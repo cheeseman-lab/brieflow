@@ -94,13 +94,13 @@ Mapping rate
   How much of the SBS signal matches the barcode library. The read mapping rate is the fraction of reads above the read threshold whose sequence is a library barcode; the cell mapping rate is the fraction of cells whose barcode maps to one library entry. The SBS notebook and `sbs/eval/` plot both.
 
 Merge
-  The module that assigns each phenotype cell its SBS cell, and so its barcode. The default `fast` approach aligns each phenotype tile to SBS sites by hashing triangles of nuclear centroids, refines the fit with a RANSAC regression seeded at 0, matches cells within a distance threshold and removes duplicate matches; the {term}`positions approach <Positions merge>` matches from tile positions and centroids.
+  The module that assigns each phenotype cell its SBS cell, and so its barcode. The default `fast` approach aligns each phenotype tile to SBS sites by hashing triangles of nuclear centroids, refines the fit with a RANSAC regression, matches cells within a distance threshold and removes duplicate matches; the {term}`positions approach <Positions merge>` matches from tile positions and centroids.
 
 Positions merge
-  The `positions` merge approach. Each cell is placed in one micrometre frame from its tile's stage position and its centroid; a camera model per microscope (scale, rotation, radial lens distortion) and a phenotype-to-SBS offset are fitted to all cells of the well, then a shift per tile absorbs stage repeatability, using a tile's own cells only when enough of them agree. Copies of a cell imaged by two overlapping tiles are reduced to the most central one, and cells are matched one-to-one as mutual nearest neighbours within `THRESHOLD`. The merge notebook shows {term}`tile overlap <Tile overlap>` and phenotype-in-SBS {term}`overlays <Alignment overlay>` of the fitted placement for checking by eye.
+  The `positions` merge approach. Each cell is placed in one micrometre frame from its tile's stage position and its centroid. A camera model per microscope (scale, rotation, lens distortion), one phenotype-to-SBS offset and a small shift per tile are fitted to all cells of the well. A cell imaged in a {term}`tile overlap <Tile overlap>` is kept once, and cells are matched one-to-one as mutual nearest neighbours within `THRESHOLD`. The merge notebook shows tile-overlap and phenotype-in-SBS {term}`overlays <Alignment overlay>` of the fitted placement for checking by eye.
 
 Tile overlap
-  The strip two neighbouring tiles of one imaging run both cover. The positions merge uses cells imaged in both to tie each camera to the stage, keeps one copy of each, and its overlay of the two tiles' images there shows whether they are placed correctly (white when aligned).
+  The strip two neighbouring tiles of one imaging run both cover. The positions merge uses the cells imaged in both to fit each camera and keeps one copy of each. Its overlay of the two tiles' images there shows whether they are placed correctly (white when aligned).
 ```
 
 ## Aggregation and statistics

@@ -14,7 +14,6 @@ merge_data = validate_dtypes(read_parquet(snakemake.input[0]))
 sbs_cells = validate_dtypes(read_parquet(snakemake.input[1]))
 phenotype_min_cp = validate_dtypes(read_parquet(snakemake.input[2]))
 
-approach = snakemake.params.approach
 phenotype_dimensions = tuple(snakemake.params.phenotype_dimensions or (2960, 2960))
 sbs_dimensions = tuple(snakemake.params.sbs_dimensions or (1480, 1480))
 
@@ -65,16 +64,15 @@ merge_formatted = merge_formatted.merge(
     on=["tile", "cell_0"],
 )
 
-# Attach global pixel coords from tile-local coords (stitch approach derives these in stitch_merge)
-if approach in ("fast", "positions"):
-    phenotype_metadata = pd.read_parquet(snakemake.input.phenotype_metadata)
-    sbs_metadata = pd.read_parquet(snakemake.input.sbs_metadata)
-    merge_formatted = attach_global_pixel_coords(
-        merge_formatted, phenotype_metadata, phenotype_dimensions, suffix="0"
-    )
-    merge_formatted = attach_global_pixel_coords(
-        merge_formatted, sbs_metadata, sbs_dimensions, suffix="1"
-    )
+# Attach global pixel coords from tile-local coords
+phenotype_metadata = pd.read_parquet(snakemake.input.phenotype_metadata)
+sbs_metadata = pd.read_parquet(snakemake.input.sbs_metadata)
+merge_formatted = attach_global_pixel_coords(
+    merge_formatted, phenotype_metadata, phenotype_dimensions, suffix="0"
+)
+merge_formatted = attach_global_pixel_coords(
+    merge_formatted, sbs_metadata, sbs_dimensions, suffix="1"
+)
 
 # Save formatted merge data
 write_parquet(merge_formatted, snakemake.output[0])

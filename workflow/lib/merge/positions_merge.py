@@ -455,10 +455,10 @@ def um_to_tile_pixel(placement, tile, xy, iterations=4):
 
 
 def orient_local(i, j, dimensions, flipud=False, fliplr=False, rot90=0):
-    """Map local pixel coordinates the way `augment_tile` maps the tile image.
+    """Map local pixel coordinates the way flipping and rotating the tile image moves them.
 
     Applies the vertical flip, then the horizontal flip, then `rot90` counterclockwise
-    quarter turns (`numpy.rot90`), so positions and stitched previews agree.
+    quarter turns (`numpy.rot90`), as the tile image would be transformed.
 
     Args:
         i (numpy.ndarray): Row coordinates.

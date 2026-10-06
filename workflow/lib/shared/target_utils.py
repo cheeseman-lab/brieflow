@@ -213,22 +213,22 @@ def get_merge_targets_by_approach(config):
     Returns:
         list: List of target names for the configured merge approach.
     """
-    approach = config.get("merge", {}).get("approach", "fast")
+    approach = config.get("merge", {}).get("approach") or "fast"
 
     # Core targets that are always needed
     core_targets = ["format_merge", "deduplicate_merge", "final_merge", "eval_merge"]
 
     if approach == "stitch":
-        approach_targets = [
-            "estimate_stitch_phenotype",
-            "estimate_stitch_sbs",
-            "stitch_phenotype",
-            "stitch_sbs",
-            "stitch_alignment",
-            "stitch_merge",
-            "summarize_stitch",
-        ]
-    elif approach == "positions":
+        raise ValueError(
+            "merge.approach 'stitch' was removed: it placed cells about one nucleus off at high "
+            "magnification and did not run on the zarr layout. Use merge.approach: positions, "
+            "which needs no initial sites (set merge.flipud/fliplr/rot90 as before)."
+        )
+    if approach not in ("fast", "positions"):
+        raise ValueError(
+            f"merge.approach must be 'fast' or 'positions', got {approach!r}"
+        )
+    if approach == "positions":
         approach_targets = ["positions_merge"]
     else:
         # Fast approach targets (default)

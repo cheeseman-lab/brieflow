@@ -7,6 +7,7 @@ downsampled nuclei mosaic of the whole well. Every image is placed with the fitt
 and a placement error shows every nucleus twice.
 """
 
+import time
 from pathlib import Path
 
 import numpy as np
@@ -15,8 +16,13 @@ from scipy import ndimage
 from scipy.spatial import cKDTree
 from skimage.registration import phase_cross_correlation
 
-from lib.merge.positions_merge import tile_pixel_to_um, um_to_tile_pixel
-from lib.shared.file_utils import split_well
+from lib.merge.merge_utils import align_metadata
+from lib.merge.positions_merge import (
+    positions_merge,
+    tile_pixel_to_um,
+    um_to_tile_pixel,
+)
+from lib.shared.file_utils import get_image_output_path, split_well
 from lib.shared.alignment_overlay import (
     colored_fraction,
     magenta_green_overlay,
@@ -29,6 +35,110 @@ CROSS_INNER_FRACTION = 0.7
 MOSAIC_MAX_PX = 3000
 SEAM_WARN_PX = 2.0
 MIN_CONTRAST = 1.0
+
+
+def positions_merge_well(
+    phenotype_info,
+    sbs_info,
+    phenotype_metadata,
+    sbs_metadata,
+    plate,
+    well,
+    phenotype_dimensions,
+    sbs_dimensions,
+    threshold=2,
+    flipud=False,
+    fliplr=False,
+    rot90=0,
+    phenotype_pixel_size=None,
+    sbs_pixel_size=None,
+    alignment=None,
+    templates=None,
+    dapi_index=None,
+):
+    """Run the positions merge for one well with its QC row and image readouts.
+
+    This is what the `positions_merge` rule runs and what the merge notebook previews, so
+    both use the same metadata alignment, pixel-size fallbacks, readouts and status.
+
+    Args:
+        phenotype_info (pandas.DataFrame): Phenotype cells (`tile`, `cell`, `i`, `j`).
+        sbs_info (pandas.DataFrame): SBS cells, same columns.
+        phenotype_metadata (pandas.DataFrame): One row per phenotype tile.
+        sbs_metadata (pandas.DataFrame): One row per SBS tile.
+        plate (str): Plate.
+        well (str): Well.
+        phenotype_dimensions (tuple): Phenotype tile (height, width) in pixels.
+        sbs_dimensions (tuple): SBS tile (height, width) in pixels.
+        threshold (float): Maximum match distance in SBS pixels.
+        flipud (bool): Tile rows run against stage y.
+        fliplr (bool): Tile columns run against stage x.
+        rot90 (int): Counterclockwise quarter turns between tile and stage axes.
+        phenotype_pixel_size (float | None): Fallback um/pixel when metadata has none.
+        sbs_pixel_size (float | None): Fallback um/pixel when metadata has none.
+        alignment (dict, optional): `metadata_align`, `flip_x`, `flip_y`, `rotate_90`; when any
+            is set the stage frames are aligned with `align_metadata`, as `fast_alignment` does.
+        templates (dict, optional): `{"labels": {modality: template}, "images": {...}}` per-tile
+            path templates (see `image_path_templates`); None skips the image readouts.
+        dapi_index (dict, optional): Per modality, DAPI channel index. Defaults to 0.
+
+    Returns:
+        tuple: (merge DataFrame, one-row QC DataFrame, image readout DataFrame, dict of
+            figures "seams", "cross", "mosaic").
+    """
+    alignment = alignment or {}
+    flips = {key: alignment.get(key) for key in ("flip_x", "flip_y", "rotate_90")}
+    if alignment.get("metadata_align") or any(flips.values()):
+        phenotype_metadata, sbs_metadata, _ = align_metadata(
+            phenotype_metadata, sbs_metadata, x_col="x_pos", y_col="y_pos", **flips
+        )
+    merged, qc, placement = positions_merge(
+        phenotype_info,
+        sbs_info,
+        phenotype_metadata,
+        sbs_metadata,
+        phenotype_dimensions=phenotype_dimensions,
+        sbs_dimensions=sbs_dimensions,
+        threshold=threshold,
+        flipud=flipud,
+        fliplr=fliplr,
+        rot90=rot90,
+        phenotype_pixel_size=phenotype_pixel_size,
+        sbs_pixel_size=sbs_pixel_size,
+    )
+    records = pd.DataFrame(
+        columns=["kind", "tile_a", "tile_b", "residual_px", "colored_fraction"]
+    )
+    figures = {}
+    if placement is not None and templates:
+        start = time.time()
+        paths = {
+            kind: {
+                name: tile_image_paths(
+                    template, placement[name]["tiles"].index, plate, well
+                )
+                for name, template in by_name.items()
+            }
+            for kind, by_name in templates.items()
+        }
+        records, figures = positions_image_qc(
+            placement,
+            paths["labels"],
+            paths["images"],
+            {name: (dapi_index or {}).get(name) or 0 for name in ("phenotype", "sbs")},
+            {
+                "phenotype": phenotype_info["tile"].value_counts(),
+                "sbs": sbs_info["tile"].value_counts(),
+            },
+        )
+        for key, value in summarize_image_qc(records).items():
+            qc[key] = value
+        qc["image_qc_seconds"] = round(time.time() - start, 1)
+        if qc["image_qc_warning"].iloc[0] and qc["status"].iloc[0] == "ok":
+            qc["status"] = "image_qc_warning"
+    qc.insert(0, "well", well)
+    qc.insert(0, "plate", plate)
+    return merged, qc, records, figures
 
 
 def positions_image_qc(
@@ -94,45 +204,6 @@ def positions_image_qc(
         "cross": cross_fig,
         "mosaic": mosaic_fig,
     }
-
-
-def tile_image_paths(template, tiles, plate, well):
-    """Format a per-tile output path template for every tile that exists on disk.
-
-    Args:
-        template (str): Path template with `{plate}`, `{well}` or `{row}`/`{col}`, and `{tile}`.
-        tiles (Iterable[int]): Tile ids.
-        plate (str): Plate.
-        well (str): Well.
-
-    Returns:
-        dict: {tile: path}.
-    """
-    row, col = split_well(str(well))
-    paths = {}
-    for tile in tiles:
-        path = str(template).format(plate=plate, well=well, row=row, col=col, tile=tile)
-        if Path(path).exists():
-            paths[tile] = path
-    return paths
-
-
-def save_figures(figures, paths):
-    """Save the readout figures, writing a placeholder for any that could not be drawn.
-
-    Args:
-        figures (dict): Figures keyed "seams", "cross", "mosaic" (missing or None allowed).
-        paths (Sequence[str]): Output PNG paths, in that order.
-    """
-    import matplotlib.pyplot as plt
-
-    for key, path in zip(("seams", "cross", "mosaic"), paths):
-        fig = figures.get(key)
-        if fig is None:
-            fig = plt.figure(figsize=(4, 1))
-            fig.text(0.5, 0.5, "image readout not available", ha="center", va="center")
-        fig.savefig(path, dpi=100)
-        plt.close(fig)
 
 
 def summarize_image_qc(records):
@@ -405,6 +476,72 @@ def well_mosaic(placement, paths):
         np.maximum.at(canvas[..., channel], (row[keep], col[keep]), 1.0)
     rgb = np.stack([canvas[..., 0], canvas[..., 1], canvas[..., 0]], axis=-1)
     return rgb, um_per_px
+
+
+def image_path_templates(root_fp, image_format):
+    """Per-tile nuclei-label and aligned-image path templates of a screen.
+
+    Args:
+        root_fp (str | Path): The screen's `all.root_fp`.
+        image_format (str): `"tiff"` or `"zarr"`.
+
+    Returns:
+        dict: `{"labels": {modality: template}, "images": {modality: template}}`.
+    """
+    tile = {"plate": "{plate}", "well": "{well}", "tile": "{tile}"}
+    return {
+        kind: {
+            name: str(
+                Path(root_fp)
+                / name
+                / get_image_output_path(tile, info, image_format, subdirectory=sub)
+            )
+            for name in ("phenotype", "sbs")
+        }
+        for kind, info, sub in (
+            ("labels", "nuclei", "labels"),
+            ("images", "aligned", None),
+        )
+    }
+
+
+def tile_image_paths(template, tiles, plate, well):
+    """Format a per-tile output path template for every tile that exists on disk.
+
+    Args:
+        template (str): Path template with `{plate}`, `{well}` or `{row}`/`{col}`, and `{tile}`.
+        tiles (Iterable[int]): Tile ids.
+        plate (str): Plate.
+        well (str): Well.
+
+    Returns:
+        dict: {tile: path}.
+    """
+    row, col = split_well(str(well))
+    paths = {}
+    for tile in tiles:
+        path = str(template).format(plate=plate, well=well, row=row, col=col, tile=tile)
+        if Path(path).exists():
+            paths[tile] = path
+    return paths
+
+
+def save_figures(figures, paths):
+    """Save the readout figures, writing a placeholder for any that could not be drawn.
+
+    Args:
+        figures (dict): Figures keyed "seams", "cross", "mosaic" (missing or None allowed).
+        paths (Sequence[str]): Output PNG paths, in that order.
+    """
+    import matplotlib.pyplot as plt
+
+    for key, path in zip(("seams", "cross", "mosaic"), paths):
+        fig = figures.get(key)
+        if fig is None:
+            fig = plt.figure(figsize=(4, 1))
+            fig.text(0.5, 0.5, "image readout not available", ha="center", va="center")
+        fig.savefig(path, dpi=100)
+        plt.close(fig)
 
 
 def read_plane(path, channel=0, cycle=0, step=1):

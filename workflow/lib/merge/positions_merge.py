@@ -186,109 +186,6 @@ def positions_merge(
     return merged, pd.DataFrame([qc]), placement
 
 
-def tile_pixel_to_um(placement, tile, pixels):
-    """Map raw pixel coordinates (i, j) of one tile to the shared frame in um.
-
-    Args:
-        placement (dict): One modality's entry of the placement returned by `positions_merge`.
-        tile (int): Tile id.
-        pixels (numpy.ndarray): (n, 2) raw (i, j) coordinates.
-
-    Returns:
-        numpy.ndarray: (n, 2) x/y positions in um.
-    """
-    pixels = np.atleast_2d(np.asarray(pixels, dtype=float))
-    i, j, (height, width) = orient_local(
-        pixels[:, 0], pixels[:, 1], placement["dimensions"], *placement["orientation"]
-    )
-    half = np.array([(width - 1) / 2, (height - 1) / 2])
-    u = np.column_stack([j, i]) - half
-    xy = u @ placement["matrix"].T
-    xy = xy + _radial_terms(u, half, placement["pixel_size"]) @ placement["radial"]
-    row = placement["tiles"].loc[tile]
-    return (
-        xy
-        + np.array([row["x_pos"] + row["dx"], row["y_pos"] + row["dy"]])
-        + placement["offset"]
-    )
-
-
-def um_to_tile_pixel(placement, tile, xy, iterations=4):
-    """Inverse of `tile_pixel_to_um`: positions in um to raw (i, j) of one tile.
-
-    Args:
-        placement (dict): One modality's placement.
-        tile (int): Tile id.
-        xy (numpy.ndarray): (n, 2) positions in um.
-        iterations (int): Fixed-point iterations for the radial term.
-
-    Returns:
-        numpy.ndarray: (n, 2) raw (i, j) coordinates.
-    """
-    xy = np.atleast_2d(np.asarray(xy, dtype=float))
-    probe = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
-    linear = dict(placement, radial=np.zeros(2))
-    base = tile_pixel_to_um(linear, tile, probe)
-    a = np.column_stack([base[1] - base[0], base[2] - base[0]])
-    pixels = np.linalg.solve(a, (xy - base[0]).T).T
-    for _ in range(iterations):
-        bend = tile_pixel_to_um(placement, tile, pixels) - tile_pixel_to_um(
-            linear, tile, pixels
-        )
-        pixels = np.linalg.solve(a, (xy - bend - base[0]).T).T
-    return pixels
-
-
-def filter_tile_metadata(metadata, cycle=None, channel=None):
-    """Reduce combined metadata to one row per tile.
-
-    Args:
-        metadata (pandas.DataFrame): Combined metadata, possibly one row per channel or cycle.
-        cycle (int | None): Keep only this `cycle` when given.
-        channel (str | None): Keep only this `channel` when given.
-
-    Returns:
-        pandas.DataFrame: One row per (plate, well, tile).
-    """
-    if cycle is not None and "cycle" in metadata.columns:
-        metadata = metadata[metadata["cycle"] == cycle]
-    if channel is not None:
-        metadata = metadata[metadata["channel"] == channel]
-    return metadata.drop_duplicates(subset=["plate", "well", "tile"]).reset_index(
-        drop=True
-    )
-
-
-def orient_local(i, j, dimensions, flipud=False, fliplr=False, rot90=0):
-    """Map local pixel coordinates the way `augment_tile` maps the tile image.
-
-    Applies the vertical flip, then the horizontal flip, then `rot90` counterclockwise
-    quarter turns (`numpy.rot90`), so positions and stitched previews agree.
-
-    Args:
-        i (numpy.ndarray): Row coordinates.
-        j (numpy.ndarray): Column coordinates.
-        dimensions (tuple): Tile (height, width) before transformation.
-        flipud (bool): Flip rows.
-        fliplr (bool): Flip columns.
-        rot90 (int): Counterclockwise quarter turns.
-
-    Returns:
-        tuple: (i, j, (height, width)) after transformation.
-    """
-    i = np.asarray(i, dtype=float)
-    j = np.asarray(j, dtype=float)
-    height, width = dimensions
-    if flipud:
-        i = height - 1 - i
-    if fliplr:
-        j = width - 1 - j
-    for _ in range(int(rot90) % 4):
-        i, j = width - 1 - j, i
-        height, width = width, height
-    return i, j, (height, width)
-
-
 def coarse_translation(points_0, points_1):
     """Estimate the translation from points_0 to points_1 by density cross-correlation.
 
@@ -450,26 +347,6 @@ def fit_tile_shifts(ph, ph_points, sbs, sbs_points):
     return tables
 
 
-def mutual_nearest_pairs(points_0, points_1, max_distance):
-    """Pair points that are each other's nearest neighbour closer than max_distance.
-
-    Args:
-        points_0 (numpy.ndarray): (n, 2) positions.
-        points_1 (numpy.ndarray): (m, 2) positions.
-        max_distance (float): Strict upper bound on the pair distance.
-
-    Returns:
-        numpy.ndarray: (k, 3) rows of (index into points_0, index into points_1, distance).
-    """
-    dist, idx = cKDTree(points_1).query(points_0, distance_upper_bound=max_distance)
-    keep = np.isfinite(dist) & (dist < max_distance)
-    i0 = np.flatnonzero(keep)
-    i1 = idx[keep]
-    _, back = cKDTree(points_0).query(points_1[i1])
-    mutual = back == i0
-    return np.column_stack([i0[mutual], i1[mutual], dist[keep][mutual]])
-
-
 def deduplicate_overlap(points, tiles, centrality, radius=DEDUP_RADIUS_UM):
     """Keep one record per cell imaged by several overlapping tiles.
 
@@ -502,6 +379,109 @@ def deduplicate_overlap(points, tiles, centrality, radius=DEDUP_RADIUS_UM):
     keep[members] = False
     keep[winners] = True
     return keep
+
+
+def mutual_nearest_pairs(points_0, points_1, max_distance):
+    """Pair points that are each other's nearest neighbour closer than max_distance.
+
+    Args:
+        points_0 (numpy.ndarray): (n, 2) positions.
+        points_1 (numpy.ndarray): (m, 2) positions.
+        max_distance (float): Strict upper bound on the pair distance.
+
+    Returns:
+        numpy.ndarray: (k, 3) rows of (index into points_0, index into points_1, distance).
+    """
+    dist, idx = cKDTree(points_1).query(points_0, distance_upper_bound=max_distance)
+    keep = np.isfinite(dist) & (dist < max_distance)
+    i0 = np.flatnonzero(keep)
+    i1 = idx[keep]
+    _, back = cKDTree(points_0).query(points_1[i1])
+    mutual = back == i0
+    return np.column_stack([i0[mutual], i1[mutual], dist[keep][mutual]])
+
+
+def tile_pixel_to_um(placement, tile, pixels):
+    """Map raw pixel coordinates (i, j) of one tile to the shared frame in um.
+
+    Args:
+        placement (dict): One modality's entry of the placement returned by `positions_merge`.
+        tile (int): Tile id.
+        pixels (numpy.ndarray): (n, 2) raw (i, j) coordinates.
+
+    Returns:
+        numpy.ndarray: (n, 2) x/y positions in um.
+    """
+    pixels = np.atleast_2d(np.asarray(pixels, dtype=float))
+    i, j, (height, width) = orient_local(
+        pixels[:, 0], pixels[:, 1], placement["dimensions"], *placement["orientation"]
+    )
+    half = np.array([(width - 1) / 2, (height - 1) / 2])
+    u = np.column_stack([j, i]) - half
+    xy = u @ placement["matrix"].T
+    xy = xy + _radial_terms(u, half, placement["pixel_size"]) @ placement["radial"]
+    row = placement["tiles"].loc[tile]
+    return (
+        xy
+        + np.array([row["x_pos"] + row["dx"], row["y_pos"] + row["dy"]])
+        + placement["offset"]
+    )
+
+
+def um_to_tile_pixel(placement, tile, xy, iterations=4):
+    """Inverse of `tile_pixel_to_um`: positions in um to raw (i, j) of one tile.
+
+    Args:
+        placement (dict): One modality's placement.
+        tile (int): Tile id.
+        xy (numpy.ndarray): (n, 2) positions in um.
+        iterations (int): Fixed-point iterations for the radial term.
+
+    Returns:
+        numpy.ndarray: (n, 2) raw (i, j) coordinates.
+    """
+    xy = np.atleast_2d(np.asarray(xy, dtype=float))
+    probe = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+    linear = dict(placement, radial=np.zeros(2))
+    base = tile_pixel_to_um(linear, tile, probe)
+    a = np.column_stack([base[1] - base[0], base[2] - base[0]])
+    pixels = np.linalg.solve(a, (xy - base[0]).T).T
+    for _ in range(iterations):
+        bend = tile_pixel_to_um(placement, tile, pixels) - tile_pixel_to_um(
+            linear, tile, pixels
+        )
+        pixels = np.linalg.solve(a, (xy - bend - base[0]).T).T
+    return pixels
+
+
+def orient_local(i, j, dimensions, flipud=False, fliplr=False, rot90=0):
+    """Map local pixel coordinates the way `augment_tile` maps the tile image.
+
+    Applies the vertical flip, then the horizontal flip, then `rot90` counterclockwise
+    quarter turns (`numpy.rot90`), so positions and stitched previews agree.
+
+    Args:
+        i (numpy.ndarray): Row coordinates.
+        j (numpy.ndarray): Column coordinates.
+        dimensions (tuple): Tile (height, width) before transformation.
+        flipud (bool): Flip rows.
+        fliplr (bool): Flip columns.
+        rot90 (int): Counterclockwise quarter turns.
+
+    Returns:
+        tuple: (i, j, (height, width)) after transformation.
+    """
+    i = np.asarray(i, dtype=float)
+    j = np.asarray(j, dtype=float)
+    height, width = dimensions
+    if flipud:
+        i = height - 1 - i
+    if fliplr:
+        j = width - 1 - j
+    for _ in range(int(rot90) % 4):
+        i, j = width - 1 - j, i
+        height, width = width, height
+    return i, j, (height, width)
 
 
 def seam_agreement(info, metadata, dimensions, pixel_size, orientation):
@@ -552,61 +532,24 @@ def seam_agreement(info, metadata, dimensions, pixel_size, orientation):
     return float(close.sum() / len(seam))
 
 
-def _pair_medians(a, b, offsets, kind):
-    """Median offset per tile pair, kept only with enough agreeing pairs."""
-    frame = pd.DataFrame({"a": a, "b": b, "dx": offsets[:, 0], "dy": offsets[:, 1]})
-    frame = frame[frame["a"] != frame["b"]]
-    grouped = frame.groupby(["a", "b"])
-    med = grouped[["dx", "dy"]].transform("median")
-    frame["dev"] = np.hypot(frame["dx"] - med["dx"], frame["dy"] - med["dy"])
-    out = (
-        frame.groupby(["a", "b"])
-        .agg(
-            dx=("dx", "median"),
-            dy=("dy", "median"),
-            n=("dx", "size"),
-            mad=("dev", "median"),
-        )
-        .reset_index()
+def filter_tile_metadata(metadata, cycle=None, channel=None):
+    """Reduce combined metadata to one row per tile.
+
+    Args:
+        metadata (pandas.DataFrame): Combined metadata, possibly one row per channel or cycle.
+        cycle (int | None): Keep only this `cycle` when given.
+        channel (str | None): Keep only this `channel` when given.
+
+    Returns:
+        pandas.DataFrame: One row per (plate, well, tile).
+    """
+    if cycle is not None and "cycle" in metadata.columns:
+        metadata = metadata[metadata["cycle"] == cycle]
+    if channel is not None:
+        metadata = metadata[metadata["channel"] == channel]
+    return metadata.drop_duplicates(subset=["plate", "well", "tile"]).reset_index(
+        drop=True
     )
-    out = out[
-        (out["n"] >= TILE_SHIFT_MIN_PAIRS) & (out["mad"] <= TILE_SHIFT_MAX_MAD_UM)
-    ]
-    return out.assign(kind=kind)
-
-
-def _solve_tile_shifts(obs, n_tiles):
-    """Sparse least squares for shift_a - shift_b = offset (b minus a), weak prior toward zero."""
-    m = len(obs)
-    weight = np.sqrt(np.minimum(obs["n"].to_numpy(float), 100.0))
-    rows = np.concatenate([np.arange(m), np.arange(m), m + np.arange(n_tiles)])
-    cols = np.concatenate(
-        [obs["a"].to_numpy(), obs["b"].to_numpy(), np.arange(n_tiles)]
-    )
-    vals = np.concatenate([weight, -weight, np.full(n_tiles, TILE_SHIFT_PRIOR_WEIGHT)])
-    design = coo_matrix((vals, (rows, cols)), shape=(m + n_tiles, n_tiles)).tocsr()
-    out = np.zeros((n_tiles, 2))
-    for dim, column in enumerate(("dx", "dy")):
-        target = np.concatenate([obs[column].to_numpy() * weight, np.zeros(n_tiles)])
-        out[:, dim] = lsqr(design, target, atol=1e-8, btol=1e-8)[0]
-    return out
-
-
-def _point_shifts(table, placed):
-    """Expand a per-tile shift table to one (dx, dy) row per cell."""
-    return table[["dx", "dy"]].to_numpy(float)[
-        placed["tile_table"].index.get_indexer(placed["tiles"])
-    ]
-
-
-def _cells_per_tile(placed):
-    """Median number of cells per tile, counting tiles without cells as zero."""
-    counts = (
-        pd.Series(placed["tiles"])
-        .value_counts()
-        .reindex(placed["tile_table"].index, fill_value=0)
-    )
-    return float(counts.median())
 
 
 def _place_cells(info, metadata, dimensions, orientation, pixel_size):
@@ -757,6 +700,63 @@ def _seam_pairs(placed, points, radius):
         )
         a, b = a[whole], b[whole]
     return a, b
+
+
+def _pair_medians(a, b, offsets, kind):
+    """Median offset per tile pair, kept only with enough agreeing pairs."""
+    frame = pd.DataFrame({"a": a, "b": b, "dx": offsets[:, 0], "dy": offsets[:, 1]})
+    frame = frame[frame["a"] != frame["b"]]
+    grouped = frame.groupby(["a", "b"])
+    med = grouped[["dx", "dy"]].transform("median")
+    frame["dev"] = np.hypot(frame["dx"] - med["dx"], frame["dy"] - med["dy"])
+    out = (
+        frame.groupby(["a", "b"])
+        .agg(
+            dx=("dx", "median"),
+            dy=("dy", "median"),
+            n=("dx", "size"),
+            mad=("dev", "median"),
+        )
+        .reset_index()
+    )
+    out = out[
+        (out["n"] >= TILE_SHIFT_MIN_PAIRS) & (out["mad"] <= TILE_SHIFT_MAX_MAD_UM)
+    ]
+    return out.assign(kind=kind)
+
+
+def _solve_tile_shifts(obs, n_tiles):
+    """Sparse least squares for shift_a - shift_b = offset (b minus a), weak prior toward zero."""
+    m = len(obs)
+    weight = np.sqrt(np.minimum(obs["n"].to_numpy(float), 100.0))
+    rows = np.concatenate([np.arange(m), np.arange(m), m + np.arange(n_tiles)])
+    cols = np.concatenate(
+        [obs["a"].to_numpy(), obs["b"].to_numpy(), np.arange(n_tiles)]
+    )
+    vals = np.concatenate([weight, -weight, np.full(n_tiles, TILE_SHIFT_PRIOR_WEIGHT)])
+    design = coo_matrix((vals, (rows, cols)), shape=(m + n_tiles, n_tiles)).tocsr()
+    out = np.zeros((n_tiles, 2))
+    for dim, column in enumerate(("dx", "dy")):
+        target = np.concatenate([obs[column].to_numpy() * weight, np.zeros(n_tiles)])
+        out[:, dim] = lsqr(design, target, atol=1e-8, btol=1e-8)[0]
+    return out
+
+
+def _point_shifts(table, placed):
+    """Expand a per-tile shift table to one (dx, dy) row per cell."""
+    return table[["dx", "dy"]].to_numpy(float)[
+        placed["tile_table"].index.get_indexer(placed["tiles"])
+    ]
+
+
+def _cells_per_tile(placed):
+    """Median number of cells per tile, counting tiles without cells as zero."""
+    counts = (
+        pd.Series(placed["tiles"])
+        .value_counts()
+        .reindex(placed["tile_table"].index, fill_value=0)
+    )
+    return float(counts.median())
 
 
 def _scale_rotation(matrix):

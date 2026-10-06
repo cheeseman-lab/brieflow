@@ -37,18 +37,21 @@ DEFAULT_CHANNEL_COLORS = [
 PathLike = Union[str, Path]
 
 # Pyramid depth and compression applied by the *preprocess convert* path when
-# config.yml omits all.zarr_max_levels / all.zarr_compression.
-# These are call-site defaults, NOT writer defaults: save_image and
-# write_image_omezarr stay single-level and uncompressed unless asked, so every
-# other save_image caller keeps its existing behavior.
-DEFAULT_MAX_LEVELS = 5
+# Fallbacks for the convert path when a config omits all.zarr_max_levels /
+# all.zarr_compression. DEFAULT_MAX_LEVELS is 1 so a config that sets neither
+# key writes exactly what it wrote before this change; the shipped configs opt
+# in to a pyramid explicitly. These are call-site defaults, NOT writer
+# defaults: save_image and write_image_omezarr stay single-level and
+# uncompressed unless asked, so every other save_image caller is unaffected.
+DEFAULT_MAX_LEVELS = 1
 DEFAULT_ZARR_COMPRESSION = "blosc-zstd-bitshuffle"
 DEFAULT_BLOSC_CLEVEL = 5
 
 # Cap the process-wide c-blosc thread pool so a tile-conversion job doesn't
-# spawn one thread per core on top of Snakemake's own parallelism.
-_BLOSC_NTHREADS = int(os.environ.get("BRIEFLOW_BLOSC_NTHREADS", "4"))
-numcodecs.blosc.set_nthreads(_BLOSC_NTHREADS)
+# spawn one thread per core on top of Snakemake's own parallelism. Applied
+# where the codec is built rather than at import, so importing this module has
+# no global side effect.
+_BLOSC_NTHREADS = 4
 
 _BLOSC_SHUFFLE = {
     "noshuffle": BloscShuffle.noshuffle,
@@ -98,6 +101,7 @@ def _make_compressor(compression: Optional[str]):
             f"Unknown blosc shuffle {shuffle!r} in {compression!r}; "
             f"expected one of {sorted(_BLOSC_SHUFFLE)}"
         )
+    numcodecs.blosc.set_nthreads(_BLOSC_NTHREADS)
     # BloscCodec rejects an unknown cname itself, so no cname table to maintain.
     return BloscCodec(
         cname=parts[1],
@@ -353,11 +357,15 @@ def write_image_omezarr(
     if chunk_size is None:
         chunk_size = tuple(c[0] for c in image_data.chunks)
 
+    # Scaler.resize_image reads ``order``, never ``method``: it always calls
+    # skimage resize(order=self.order, mode="reflect", anti_aliasing=False).
+    # order=0 is nearest-neighbour, required for labels so downsampling cannot
+    # invent IDs absent from the input. Passing method= here would be inert.
     scaler = Scaler(
-        method="nearest" if is_label else "gaussian",
         downscale=coarsening_factor,
         max_layer=max_levels - 1,
         labeled=is_label,
+        order=0 if is_label else 1,
     )
 
     # Build and write the pyramid here rather than calling
@@ -398,8 +406,8 @@ def write_image_omezarr(
 
     write_multiscales_metadata(root, datasets, CurrentFormat(), axes_dicts, **metadata)
 
-    # Merge our metadata (omero, image-label) into the ``ome`` namespace
-    # that ome_zarr.writer already created for multiscales.  This ensures
+    # Merge our metadata (omero, image-label) into the ``ome`` namespace that
+    # write_multiscales_metadata created above for multiscales.  This ensures
     # iohub (and any OME-NGFF v0.5 reader) finds them at
     # attributes.ome.omero / attributes.ome.image-label.
     ome_attrs = dict(root.attrs.get("ome", {}))
@@ -408,9 +416,11 @@ def write_image_omezarr(
             ome_attrs[k] = v
 
     # Record downsamplingMethod on multiscales (OPS schema RECOMMENDED).
+    # Must name what Scaler actually ran (see the order= note above). This was
+    # previously hardcoded "gaussian", an operation no code path performed.
     ms = ome_attrs.get("multiscales", [])
     if ms:
-        ms[0]["downsamplingMethod"] = "nearest" if is_label else "gaussian"
+        ms[0]["downsamplingMethod"] = "nearest" if is_label else "linear"
 
     root.attrs["ome"] = ome_attrs
 

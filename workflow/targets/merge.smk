@@ -35,87 +35,6 @@ MERGE_OUTPUTS = {
             {"plate": "{plate}", "well": "{well}"}, "positions_mosaic", "png"
         ),
     ],
-    "estimate_stitch_phenotype": [
-        MERGE_FP
-        / "stitch_configs"
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_stitch_config", "yml"
-        ),
-    ],
-    "estimate_stitch_sbs": [
-        MERGE_FP
-        / "stitch_configs" 
-        / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "sbs_stitch_config", "yml"
-        ),
-    ],
-    "stitch_phenotype": [
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_cell_positions", "parquet"
-        ),  # [0] - phenotype_cell_positions (always)
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_tile_qc", "png"
-        ),  # [1] - phenotype_qc_plot (always)
-        MERGE_FP / "images" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_stitched_image", "npy"
-        ),  # [2] - phenotype_stitched_image (conditional - may be empty file)
-        MERGE_FP / "images" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_stitched_mask", "npy"
-        ),  # [3] - phenotype_stitched_mask (conditional - may be empty file)
-    ],  
-    "stitch_sbs": [
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "sbs_cell_positions", "parquet"
-        ),  # [0] - sbs_cell_positions (always)
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "sbs_tile_qc", "png"
-        ),  # [1] - sbs_qc_plot (always)
-        MERGE_FP / "images" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_image", "npy"
-        ),  # [2] - sbs_stitched_image (conditional - may be empty file)
-        MERGE_FP / "images" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "sbs_stitched_mask", "npy"
-        ),  # [3] - sbs_stitched_mask (conditional - may be empty file)
-    ],
-    "stitch_alignment": [
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_scaled", "parquet"
-        ),  # [0] - scaled_phenotype_positions
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_triangles", "parquet"
-        ),  # [1] - phenotype_triangles
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "sbs_triangles", "parquet"
-        ),  # [2] - sbs_triangles
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "alignment", "parquet"
-        ),  # [3] - alignment_params
-        MERGE_FP / "tsvs" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "alignment_summary", "tsv"
-        ),  # [4] - alignment_summary
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "phenotype_transformed", "parquet"
-        ),  # [5] - transformed_phenotype_positions
-    ],
-    "stitch_merge": [
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "raw_matches", "parquet"
-        ),  # [0] - raw_matches
-        MERGE_FP / "parquets" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "merged_cells", "parquet"
-        ),  # [1] - merged_cells
-        MERGE_FP / "tsvs" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "merge_summary", "tsv"
-        ),  # [2] - merge_summary
-    ],
-    "summarize_stitch": [
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}"}, "alignment_summaries", "tsv"
-        ),  # [0] - aggregated alignment summaries (stitch only)
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}"}, "cell_merge_summaries", "tsv"
-        ),  # [1] - aggregated cell merge summaries (stitch only)
-    ],
     "format_merge": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merge_formatted", "parquet"
@@ -173,13 +92,6 @@ MERGE_OUTPUT_MAPPINGS = {
     "fast_alignment": None,
     "fast_merge": None,
     "positions_merge": None,
-    "estimate_stitch_phenotype": temp,
-    "estimate_stitch_sbs": temp,
-    "stitch_phenotype": [temp, None, temp, temp],
-    "stitch_sbs": [None, None, temp, temp],
-    "stitch_alignment": [temp, temp, temp, temp, temp, None],
-    "stitch_merge": [temp, None, temp],
-    "summarize_stitch": None,
     "format_merge": None,
     "deduplicate_merge": [temp, None, temp, temp],
     "final_merge": None,

@@ -691,9 +691,10 @@ def preview_mask_transformations(
     Arranged according to coordinate-based stitching estimates.
     """
     if root_fp is None:
-        root_fp = Path("/lab/ops_analysis/lourido/nebo-analysis/analysis/analysis_root")
-    else:
-        root_fp = Path(root_fp)
+        raise ValueError(
+            "root_fp is required: the analysis root that holds the mask outputs"
+        )
+    root_fp = Path(root_fp)
 
     # Select only the first N tiles to preview
     first_tiles = metadata.head(num_tiles).copy()

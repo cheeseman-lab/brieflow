@@ -771,7 +771,7 @@ def plot_cycle_alignment_overlay(
         dots = np.stack([_dot_image(p, aligned.shape[-2:]) for p in match["spots"]])
         spot_window = _busiest_crop(dots.sum(axis=0), crop_size)
     columns = (dapi is not None) + (match is not None)
-    print("Cycle alignment (DAPI vs first cycle; spots vs all other cycles):")
+    print("Cycle alignment (shifts vs first cycle; spot match vs all other cycles):")
     for c in range(n_cycles):
         dapi_text = _fmt(dapi_shifts[c]) if dapi is not None else "-"
         spot_text = (

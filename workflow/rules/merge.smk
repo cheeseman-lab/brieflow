@@ -84,6 +84,69 @@ if merge_approach == "fast":
             "../scripts/merge/fast_merge.py"
 
 
+if merge_approach == "positions":
+    rule positions_merge:
+        input:
+            ancient(lambda wildcards: output_to_input(
+                PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+            ancient(lambda wildcards: output_to_input(
+                PREPROCESS_OUTPUTS["combine_metadata_sbs"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+            ancient(lambda wildcards: output_to_input(
+                PHENOTYPE_OUTPUTS["combine_phenotype_info"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+            ancient(lambda wildcards: output_to_input(
+                SBS_OUTPUTS["combine_sbs_info"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+        output:
+            MERGE_OUTPUTS_MAPPED["positions_merge"][0],
+            MERGE_OUTPUTS_MAPPED["positions_merge"][1],
+            MERGE_OUTPUTS_MAPPED["positions_merge"][2],
+            MERGE_OUTPUTS_MAPPED["positions_merge"][3],
+            MERGE_OUTPUTS_MAPPED["positions_merge"][4],
+            MERGE_OUTPUTS_MAPPED["positions_merge"][5],
+        params:
+            plate=lambda wildcards: wildcards.plate,
+            well=lambda wildcards: wildcards.well,
+            threshold=config.get("merge", {}).get("threshold"),
+            phenotype_dimensions=config.get("merge", {}).get("phenotype_dimensions"),
+            sbs_dimensions=config.get("merge", {}).get("sbs_dimensions"),
+            flipud=config.get("merge", {}).get("flipud", False),
+            fliplr=config.get("merge", {}).get("fliplr", False),
+            rot90=config.get("merge", {}).get("rot90", 0),
+            sbs_metadata_cycle=config.get("merge", {}).get("sbs_metadata_cycle"),
+            sbs_metadata_channel=config.get("merge", {}).get("sbs_metadata_channel"),
+            ph_metadata_channel=config.get("merge", {}).get("ph_metadata_channel"),
+            metadata_align=config.get("merge", {}).get("metadata_align", False),
+            alignment_flip_x=config.get("merge", {}).get("alignment_flip_x"),
+            alignment_flip_y=config.get("merge", {}).get("alignment_flip_y"),
+            alignment_rotate_90=config.get("merge", {}).get("alignment_rotate_90"),
+            phenotype_pixel_size=config.get("merge", {}).get("phenotype_pixel_size"),
+            sbs_pixel_size=config.get("merge", {}).get("sbs_pixel_size"),
+            image_qc=config.get("merge", {}).get("positions_image_qc", True),
+            phenotype_label_template=lambda wildcards: str(PHENOTYPE_OUTPUTS["segment_phenotype"][0]),
+            sbs_label_template=lambda wildcards: str(SBS_OUTPUTS["segment_sbs"][0]),
+            phenotype_image_template=lambda wildcards: str(PHENOTYPE_OUTPUTS["align_phenotype"][0]),
+            sbs_image_template=lambda wildcards: str(SBS_OUTPUTS["align_sbs"][0]),
+            phenotype_dapi_index=config.get("phenotype", {}).get("dapi_index"),
+            sbs_dapi_index=config.get("sbs", {}).get("dapi_index"),
+        script:
+            "../scripts/merge/positions_merge.py"
+
+
 if merge_approach == "stitch":
     rule estimate_stitch_phenotype:
         input:
@@ -266,11 +329,10 @@ if merge_approach == "stitch":
 
 rule format_merge:
     input:
-        lambda wildcards: (
-            MERGE_OUTPUTS["stitch_merge"][1]
-            if config.get("merge", {}).get("approach", "fast") == "stitch"
-            else MERGE_OUTPUTS["fast_merge"][0]
-        ),
+        lambda wildcards: {
+            "stitch": MERGE_OUTPUTS["stitch_merge"][1],
+            "positions": MERGE_OUTPUTS["positions_merge"][0],
+        }.get(config.get("merge", {}).get("approach", "fast"), MERGE_OUTPUTS["fast_merge"][0]),
         ancient(lambda wildcards: output_to_input(
             SBS_OUTPUTS["combine_cells"],
             wildcards={"plate": wildcards.plate, "well": wildcards.well},

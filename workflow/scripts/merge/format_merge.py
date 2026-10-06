@@ -65,8 +65,8 @@ merge_formatted = merge_formatted.merge(
     on=["tile", "cell_0"],
 )
 
-# Attach global pixel coords for the fast approach (stitch approach derives these in stitch_merge)
-if approach == "fast":
+# Attach global pixel coords from tile-local coords (stitch approach derives these in stitch_merge)
+if approach in ("fast", "positions"):
     phenotype_metadata = pd.read_parquet(snakemake.input.phenotype_metadata)
     sbs_metadata = pd.read_parquet(snakemake.input.sbs_metadata)
     merge_formatted = attach_global_pixel_coords(

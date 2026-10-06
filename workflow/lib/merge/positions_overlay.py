@@ -1,6 +1,6 @@
 """Image readouts that show whether a positions merge placed the tiles correctly.
 
-The merge itself reads no images. These readouts read a bounded sample afterwards: seam
+The merge itself reads no images. These readouts read a bounded sample afterwards: tile-overlap
 strips of neighbouring tiles of one modality, phenotype DAPI mapped into SBS tiles, and a
 downsampled nuclei mosaic of the whole well. Every image is placed with the fitted
 `tile_pixel_to_um`, so aligned structures come out white in the magenta/green overlays
@@ -29,12 +29,22 @@ from lib.shared.alignment_overlay import (
     plot_overlay_grid,
 )
 
-N_SEAMS = 20
-N_CROSS = 4
-CROSS_INNER_FRACTION = 0.7
+N_TILE_OVERLAPS = 20
+N_PHENOTYPE_IN_SBS = 4
+PHENOTYPE_IN_SBS_INNER_FRACTION = 0.7
 MOSAIC_MAX_PX = 3000
-SEAM_WARN_UM = 1.5
+OVERLAP_WARN_UM = 1.5
 MIN_CONTRAST = 1.0
+READOUT_COLUMNS = [
+    "kind",
+    "tile_a",
+    "tile_b",
+    "residual_dy_px",
+    "residual_dx_px",
+    "residual_px",
+    "residual_um",
+    "colored_fraction",
+]
 
 
 def positions_merge_well(
@@ -83,8 +93,9 @@ def positions_merge_well(
         dapi_index (dict, optional): Per modality, DAPI channel index. Defaults to 0.
 
     Returns:
-        tuple: (merge DataFrame, one-row QC DataFrame, image readout DataFrame, dict of
-            figures "seams", "cross", "mosaic").
+        tuple: (merge DataFrame, one-row QC DataFrame, placement (see `positions_merge`;
+            None when there are too few cells), image readout DataFrame, dict of figures
+            "tile_overlaps", "phenotype_in_sbs", "mosaic").
     """
     alignment = alignment or {}
     flips = {key: alignment.get(key) for key in ("flip_x", "flip_y", "rotate_90")}
@@ -106,32 +117,20 @@ def positions_merge_well(
         phenotype_pixel_size=phenotype_pixel_size,
         sbs_pixel_size=sbs_pixel_size,
     )
-    records = pd.DataFrame(
-        columns=[
-            "kind",
-            "tile_a",
-            "tile_b",
-            "residual_px",
-            "residual_um",
-            "colored_fraction",
-        ]
-    )
+    records = pd.DataFrame(columns=READOUT_COLUMNS)
     figures = {}
     if placement is not None and templates:
         start = time.time()
-        paths = {
-            kind: {
-                name: tile_image_paths(
-                    template, placement[name]["tiles"].index, plate, well
-                )
-                for name, template in by_name.items()
-            }
-            for kind, by_name in templates.items()
-        }
+        label_paths, image_paths = overlay_image_paths(
+            templates,
+            {name: placement[name]["tiles"].index for name in ("phenotype", "sbs")},
+            plate,
+            well,
+        )
         records, figures = positions_image_qc(
             placement,
-            paths["labels"],
-            paths["images"],
+            label_paths,
+            image_paths,
             {name: (dapi_index or {}).get(name) or 0 for name in ("phenotype", "sbs")},
             {
                 "phenotype": phenotype_info["tile"].value_counts(),
@@ -145,13 +144,13 @@ def positions_merge_well(
             qc["status"] = "image_qc_warning"
     qc.insert(0, "well", well)
     qc.insert(0, "plate", plate)
-    return merged, qc, records, figures
+    return merged, qc, placement, records, figures
 
 
 def positions_image_qc(
     placement, label_paths, image_paths, dapi_index, cell_counts=None
 ):
-    """Seam, cross-modality and mosaic readouts for one well.
+    """Tile-overlap, phenotype-in-SBS and mosaic readouts for one well.
 
     Args:
         placement (dict): Placement returned by `positions_merge`.
@@ -159,68 +158,57 @@ def positions_image_qc(
         image_paths (dict): Per modality, {tile: path of the aligned image}.
         dapi_index (dict): Per modality, channel index of DAPI in the aligned image.
         cell_counts (dict, optional): Per modality, pandas.Series of cells per tile, used
-            to include the sparsest tiles in the seam sample.
+            to include the sparsest tiles in the tile-overlap sample.
 
     Returns:
-        tuple: (DataFrame with one row per readout, dict of figures "seams", "cross" and
-            "mosaic", each None when nothing could be drawn).
+        tuple: (DataFrame with one row per readout, dict of figures "tile_overlaps",
+            "phenotype_in_sbs" and "mosaic", each None when nothing could be drawn).
     """
-    records, seam_panels = [], []
-    for name in ("phenotype", "sbs"):
-        counts = (cell_counts or {}).get(name)
-        for tile_a, tile_b in sample_seams(placement[name], N_SEAMS, counts):
-            record, panel = seam_overlay(
-                placement[name],
-                image_paths.get(name, {}),
-                label_paths[name],
-                dapi_index.get(name, 0),
-                tile_a,
-                tile_b,
-            )
-            record["residual_um"] = (
-                record["residual_px"] * placement[name]["pixel_size"]
-            )
-            records.append({"kind": f"seam_{name}", **record})
-            if panel is not None:
-                seam_panels.append(panel)
-    cross_panels = []
-    for ph_tile, sbs_tile in sample_cross_pairs(
-        placement, N_CROSS, (cell_counts or {}).get("phenotype")
-    ):
-        record, panel = cross_modality_overlay(
-            placement, image_paths, label_paths, dapi_index, ph_tile, sbs_tile
-        )
-        record["residual_um"] = record["residual_px"] * placement["sbs"]["pixel_size"]
-        records.append({"kind": "cross_modality", **record})
-        if panel is not None:
-            cross_panels.append(panel)
-    seam_fig = plot_overlay_grid(
-        seam_panels,
-        ncols=6,
-        panel_size=2.6,
-        colored=True,
-        suptitle="Tile seams: tile A magenta, tile B green (white = aligned)",
+    candidates = overlay_candidates(placement, cell_counts)
+    overlap_records, overlap_fig = plot_tile_overlaps(
+        placement, candidates["tile_overlaps"], label_paths, image_paths, dapi_index
     )
-    cross_fig = plot_overlay_grid(
-        cross_panels,
-        ncols=4,
-        panel_size=4,
-        colored=False,
-        suptitle="Phenotype DAPI mapped into SBS tiles: SBS magenta, phenotype green "
-        "(white = aligned)",
+    in_sbs_records, in_sbs_fig = plot_phenotype_in_sbs(
+        placement, candidates["phenotype_in_sbs"], label_paths, image_paths, dapi_index
     )
-    mosaic_fig = plot_mosaics(placement, label_paths)
-    return pd.DataFrame(records), {
-        "seams": seam_fig,
-        "cross": cross_fig,
-        "mosaic": mosaic_fig,
+    records = pd.concat([overlap_records, in_sbs_records], ignore_index=True)
+    return records, {
+        "tile_overlaps": overlap_fig,
+        "phenotype_in_sbs": in_sbs_fig,
+        "mosaic": plot_mosaics(placement, label_paths),
     }
+
+
+def overlay_candidates(placement, cell_counts=None):
+    """Tile pairs to check by eye: tile overlaps of each modality and phenotype-in-SBS pairs.
+
+    Args:
+        placement (dict): Placement returned by `positions_merge`.
+        cell_counts (dict, optional): Per modality, pandas.Series of cells per tile, used
+            to include the sparsest tiles in the tile-overlap sample.
+
+    Returns:
+        dict: `"tile_overlaps"`: list of (modality, tile_a, tile_b), spread over the well;
+            `"phenotype_in_sbs"`: list of (phenotype tile, SBS tile).
+    """
+    counts = cell_counts or {}
+    overlaps = [
+        (name, tile_a, tile_b)
+        for name in ("phenotype", "sbs")
+        for tile_a, tile_b in sample_tile_overlaps(
+            placement[name], N_TILE_OVERLAPS, counts.get(name)
+        )
+    ]
+    in_sbs = sample_phenotype_in_sbs_pairs(
+        placement, N_PHENOTYPE_IN_SBS, counts.get("phenotype")
+    )
+    return {"tile_overlaps": overlaps, "phenotype_in_sbs": in_sbs}
 
 
 def summarize_image_qc(records):
     """Median residual and colored fraction per readout kind, for the merge QC row.
 
-    Warns when a median residual exceeds `SEAM_WARN_UM` micrometres, so the threshold means
+    Warns when a median residual exceeds `OVERLAP_WARN_UM` micrometres, so the threshold means
     the same at every magnification.
 
     Args:
@@ -238,14 +226,18 @@ def summarize_image_qc(records):
         out[f"{kind}_colored_median"] = float(group["colored_fraction"].median())
     out["image_qc_warning"] = bool(
         any(
-            out.get(f"{kind}_residual_median_um", 0) > SEAM_WARN_UM
-            for kind in ("seam_phenotype", "seam_sbs", "cross_modality")
+            out.get(f"{kind}_residual_median_um", 0) > OVERLAP_WARN_UM
+            for kind in (
+                "tile_overlap_phenotype",
+                "tile_overlap_sbs",
+                "phenotype_in_sbs",
+            )
         )
     )
     return out
 
 
-def sample_seams(placement, n, cell_counts=None):
+def sample_tile_overlaps(placement, n, cell_counts=None):
     """Pick neighbouring tile pairs spread over the well, including corners and sparse tiles.
 
     Args:
@@ -281,7 +273,7 @@ def sample_seams(placement, n, cell_counts=None):
     ]
 
 
-def sample_cross_pairs(placement, n, cell_counts=None):
+def sample_phenotype_in_sbs_pairs(placement, n, cell_counts=None):
     """Pick phenotype tiles spread over the well and the SBS tile nearest each one.
 
     Keeps to the inner part of the well, away from the well edge, and prefers phenotype tiles
@@ -303,7 +295,7 @@ def sample_cross_pairs(placement, n, cell_counts=None):
     xy = ph[["x_pos", "y_pos"]].to_numpy(float)
     center = xy.mean(axis=0)
     radius = np.hypot(*(xy - center).T)
-    inner = radius <= CROSS_INNER_FRACTION * radius.max()
+    inner = radius <= PHENOTYPE_IN_SBS_INNER_FRACTION * radius.max()
     if inner.sum() >= n:
         ph, xy = ph[inner], xy[inner]
     if len(xy) == 0:
@@ -319,7 +311,9 @@ def sample_cross_pairs(placement, n, cell_counts=None):
     return [(int(ph.index[i]), int(sbs.index[j])) for i, j in zip(chosen, nearest)]
 
 
-def seam_overlay(placement, image_paths, label_paths, dapi_index, tile_a, tile_b):
+def tile_overlap_overlay(
+    placement, image_paths, label_paths, dapi_index, tile_a, tile_b
+):
     """Overlay the overlap of two tiles of one modality, tile B resampled into tile A.
 
     Uses the DAPI channel of the aligned images, or nuclei labels when images are not on disk.
@@ -354,11 +348,11 @@ def seam_overlay(placement, image_paths, label_paths, dapi_index, tile_a, tile_b
     ref = a[window]
     record.update(_residual(ref, mov, mask))
     record["colored_fraction"] = colored_fraction(magenta_green_overlay(ref, mov), mask)
-    title = f"seam {tile_a}|{tile_b}: {record['residual_px']:.1f} px"
+    title = f"tiles {tile_a}|{tile_b}: {record['residual_px']:.1f} px"
     return record, (ref, mov, title, mask)
 
 
-def cross_modality_overlay(
+def phenotype_in_sbs_overlay(
     placement, image_paths, label_paths, dapi_index, ph_tile, sbs_tile
 ):
     """Overlay phenotype DAPI mapped into SBS pixel space on SBS DAPI.
@@ -420,10 +414,81 @@ def cross_modality_overlay(
     return record, (ref, mov, title, mask)
 
 
+def plot_tile_overlaps(placement, pairs, label_paths, image_paths, dapi_index):
+    """Overlay the overlap strips of neighbouring tiles of one modality.
+
+    Args:
+        placement (dict): Placement returned by `positions_merge`.
+        pairs (list[tuple]): (modality, tile_a, tile_b) from `overlay_candidates`.
+        label_paths (dict): Per modality, {tile: nuclei label path}.
+        image_paths (dict): Per modality, {tile: aligned image path}.
+        dapi_index (dict): Per modality, DAPI channel index.
+
+    Returns:
+        tuple: (DataFrame with one row per pair, figure or None).
+    """
+    records, panels = [], []
+    for name, tile_a, tile_b in pairs:
+        record, panel = tile_overlap_overlay(
+            placement[name],
+            image_paths.get(name, {}),
+            label_paths.get(name, {}),
+            dapi_index.get(name, 0),
+            tile_a,
+            tile_b,
+        )
+        record["residual_um"] = record["residual_px"] * placement[name]["pixel_size"]
+        records.append({"kind": f"tile_overlap_{name}", **record})
+        if panel is not None:
+            reference, moving, title, mask = panel
+            panels.append((reference, moving, f"{name} {title}", mask))
+    figure = plot_overlay_grid(
+        panels,
+        ncols=6,
+        panel_size=2.6,
+        colored=True,
+        suptitle="Tile overlaps: tile A magenta, tile B green (white = aligned)",
+    )
+    return pd.DataFrame(records, columns=READOUT_COLUMNS), figure
+
+
+def plot_phenotype_in_sbs(placement, pairs, label_paths, image_paths, dapi_index):
+    """Overlay phenotype DAPI mapped into SBS tiles on SBS DAPI.
+
+    Args:
+        placement (dict): Placement returned by `positions_merge`.
+        pairs (list[tuple]): (phenotype tile, SBS tile) from `overlay_candidates`.
+        label_paths (dict): Per modality, {tile: nuclei label path}.
+        image_paths (dict): Per modality, {tile: aligned image path}.
+        dapi_index (dict): Per modality, DAPI channel index.
+
+    Returns:
+        tuple: (DataFrame with one row per pair, figure or None).
+    """
+    records, panels = [], []
+    for ph_tile, sbs_tile in pairs:
+        record, panel = phenotype_in_sbs_overlay(
+            placement, image_paths, label_paths, dapi_index, ph_tile, sbs_tile
+        )
+        record["residual_um"] = record["residual_px"] * placement["sbs"]["pixel_size"]
+        records.append({"kind": "phenotype_in_sbs", **record})
+        if panel is not None:
+            panels.append(panel)
+    figure = plot_overlay_grid(
+        panels,
+        ncols=4,
+        panel_size=4,
+        colored=False,
+        suptitle="Phenotype DAPI mapped into SBS tiles: SBS magenta, phenotype green "
+        "(white = aligned)",
+    )
+    return pd.DataFrame(records, columns=READOUT_COLUMNS), figure
+
+
 def plot_mosaics(placement, label_paths):
     """Downsampled nuclei mosaics of the well, one panel per modality.
 
-    Tiles alternate magenta and green in a checkerboard, so seams show white where the two
+    Tiles alternate magenta and green in a checkerboard, so tile overlaps show white where the two
     tiles agree and doubled nuclei where they do not.
 
     Args:
@@ -523,6 +588,31 @@ def image_path_templates(root_fp, image_format):
     }
 
 
+def overlay_image_paths(templates, tiles, plate, well):
+    """Nuclei-label and aligned-image paths on disk for the given tiles of each modality.
+
+    Args:
+        templates (dict): `{"labels": {modality: template}, "images": {...}}`, see
+            `image_path_templates`.
+        tiles (dict): Per modality, the tile ids to look up.
+        plate (str): Plate.
+        well (str): Well.
+
+    Returns:
+        tuple: (label paths, image paths), each `{modality: {tile: path}}`.
+    """
+    found = {
+        kind: {
+            name: tile_image_paths(
+                templates[kind][name], tiles.get(name, []), plate, well
+            )
+            for name in ("phenotype", "sbs")
+        }
+        for kind in ("labels", "images")
+    }
+    return found["labels"], found["images"]
+
+
 def tile_image_paths(template, tiles, plate, well):
     """Format a per-tile output path template for every tile that exists on disk.
 
@@ -548,12 +638,12 @@ def save_figures(figures, paths):
     """Save the readout figures, writing a placeholder for any that could not be drawn.
 
     Args:
-        figures (dict): Figures keyed "seams", "cross", "mosaic" (missing or None allowed).
+        figures (dict): Figures keyed "tile_overlaps", "phenotype_in_sbs", "mosaic" (missing or None allowed).
         paths (Sequence[str]): Output PNG paths, in that order.
     """
     import matplotlib.pyplot as plt
 
-    for key, path in zip(("seams", "cross", "mosaic"), paths):
+    for key, path in zip(("tile_overlaps", "phenotype_in_sbs", "mosaic"), paths):
         fig = figures.get(key)
         if fig is None:
             fig = plt.figure(figsize=(4, 1))

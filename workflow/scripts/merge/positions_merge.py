@@ -33,7 +33,7 @@ if snakemake.params.image_qc:
         },
     }
 
-merge_data, merge_qc, image_records, figures = positions_merge_well(
+merge_data, merge_qc, _, image_records, figures = positions_merge_well(
     phenotype_info,
     sbs_info,
     phenotype_metadata,
@@ -61,13 +61,13 @@ merge_data, merge_qc, image_records, figures = positions_merge_well(
     },
 )
 
+# Fit status goes to the log; eval_merge evaluates the merge as for the fast approach
 print(merge_qc.T.to_string(header=False))
 if merge_qc["status"].iloc[0] != "ok":
-    print(
-        f"WARNING: positions merge status is {merge_qc['status'].iloc[0]}; check the QC table"
-    )
+    print(f"WARNING: positions merge status is {merge_qc['status'].iloc[0]}")
 
 write_parquet(merge_data, snakemake.output[0])
-merge_qc.to_csv(snakemake.output[1], sep="\t", index=False)
-image_records.to_csv(snakemake.output[2], sep="\t", index=False)
-save_figures(figures, snakemake.output[3:6])
+if templates is not None:
+    merge_qc.to_csv(snakemake.output[1], sep="\t", index=False)
+    image_records.to_csv(snakemake.output[2], sep="\t", index=False)
+    save_figures(figures, snakemake.output[3:6])

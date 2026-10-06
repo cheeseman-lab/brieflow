@@ -1,7 +1,7 @@
 """Tests for the positions-merge image readouts (`lib/merge/positions_overlay.py`).
 
 Synthetic DAPI and nuclei-label tiles are rendered from one random nucleus field at known
-stage positions, so a correct placement must line seams and modalities up exactly, and a
+stage positions, so a correct placement must line tile overlaps and modalities up exactly, and a
 shift injected into one tile must be read back as that shift.
 """
 
@@ -24,10 +24,10 @@ if str(_WORKFLOW) not in sys.path:
 
 from lib.merge import positions_overlay  # noqa: E402
 from lib.merge.positions_overlay import (  # noqa: E402
-    cross_modality_overlay,
+    phenotype_in_sbs_overlay,
     read_plane,
     save_figures,
-    seam_overlay,
+    tile_overlap_overlay,
     tile_image_paths,
     well_mosaic,
 )
@@ -89,10 +89,10 @@ def screen(tmp_path):
     return paths, ph_centers, sbs_centers
 
 
-def test_seam_strip_is_the_overlap_and_aligned(screen):
+def test_tile_overlap_strip_is_placed_and_aligned(screen):
     paths, ph_centers, _ = screen
     place = placement(ph_centers, PH_PX)
-    record, panel = seam_overlay(place, paths["phenotype"], {}, 0, 0, 1)
+    record, panel = tile_overlap_overlay(place, paths["phenotype"], {}, 0, 0, 1)
     ref, mov, _, mask = panel
     assert ref.shape[0] == TILE
     assert abs(ref.shape[1] - 0.2 * TILE) <= 2
@@ -103,22 +103,22 @@ def test_seam_strip_is_the_overlap_and_aligned(screen):
 def test_injected_shift_is_read_back(screen):
     paths, ph_centers, _ = screen
     place = placement(ph_centers, PH_PX, shifts={1: (3 * PH_PX, 0.0)})
-    record, _ = seam_overlay(place, paths["phenotype"], {}, 0, 0, 1)
+    record, _ = tile_overlap_overlay(place, paths["phenotype"], {}, 0, 0, 1)
     assert record["residual_px"] == pytest.approx(3, abs=1)
     assert abs(record["residual_dx_px"]) == pytest.approx(3, abs=1)
-    aligned, _ = seam_overlay(
+    aligned, _ = tile_overlap_overlay(
         placement(ph_centers, PH_PX), paths["phenotype"], {}, 0, 0, 1
     )
     assert record["colored_fraction"] > aligned["colored_fraction"] + 0.2
 
 
-def test_cross_modality_crop_covers_the_phenotype_tile(screen):
+def test_phenotype_in_sbs_crop_covers_the_phenotype_tile(screen):
     paths, ph_centers, sbs_centers = screen
     place = {
         "phenotype": placement(ph_centers, PH_PX),
         "sbs": placement(sbs_centers, SBS_PX),
     }
-    record, panel = cross_modality_overlay(
+    record, panel = phenotype_in_sbs_overlay(
         place, paths, {}, {"phenotype": 0, "sbs": 0}, 0, 0
     )
     ref, _, _, _ = panel
@@ -127,7 +127,7 @@ def test_cross_modality_crop_covers_the_phenotype_tile(screen):
     assert record["residual_px"] == pytest.approx(0, abs=1)
 
 
-def test_cross_modality_uses_labels_on_both_sides_when_an_image_is_missing(
+def test_phenotype_in_sbs_uses_labels_on_both_sides_when_an_image_is_missing(
     screen, tmp_path
 ):
     paths, ph_centers, sbs_centers = screen
@@ -146,7 +146,7 @@ def test_cross_modality_uses_labels_on_both_sides_when_an_image_is_missing(
         "sbs": placement(sbs_centers, SBS_PX),
     }
     images = {"phenotype": paths["phenotype"], "sbs": {}}
-    record, panel = cross_modality_overlay(place, images, labels, {}, 0, 0)
+    record, panel = phenotype_in_sbs_overlay(place, images, labels, {}, 0, 0)
     ref, mov, _, _ = panel
     assert set(np.unique(ref)) <= {0.0, 1.0}
     assert record["residual_px"] == pytest.approx(0, abs=1)
@@ -175,7 +175,9 @@ def test_read_plane_and_paths(tmp_path):
 
 
 def test_save_figures_writes_placeholders(tmp_path):
-    out = [tmp_path / f"{k}.png" for k in ("seams", "cross", "mosaic")]
+    out = [
+        tmp_path / f"{k}.png" for k in ("tile_overlaps", "phenotype_in_sbs", "mosaic")
+    ]
     save_figures({}, out)
     assert all(p.exists() and p.stat().st_size > 0 for p in out)
 
@@ -185,7 +187,7 @@ def test_summary_warns_on_micrometres_not_pixels():
 
     records = pd.DataFrame(
         {
-            "kind": ["seam_phenotype"] * 3 + ["cross_modality"],
+            "kind": ["tile_overlap_phenotype"] * 3 + ["phenotype_in_sbs"],
             "residual_px": [5.0, 6.0, 5.0, 0.0],
             "residual_um": [0.8, 1.0, 0.8, 0.0],
             "colored_fraction": [0.1, 0.1, 0.1, np.nan],
@@ -194,3 +196,20 @@ def test_summary_warns_on_micrometres_not_pixels():
     assert not summarize_image_qc(records)["image_qc_warning"]
     records["residual_um"] = [8.0, 9.0, 8.0, 0.0]
     assert summarize_image_qc(records)["image_qc_warning"]
+
+
+def test_view_helpers_draw_requested_pairs(screen):
+    from lib.merge.positions_overlay import plot_phenotype_in_sbs, plot_tile_overlaps
+
+    paths, ph_centers, sbs_centers = screen
+    place = {
+        "phenotype": placement(ph_centers, PH_PX),
+        "sbs": placement(sbs_centers, SBS_PX),
+    }
+    records, fig = plot_tile_overlaps(
+        place, [("phenotype", 0, 1)], {}, {"phenotype": paths["phenotype"]}, {}
+    )
+    assert list(records["kind"]) == ["tile_overlap_phenotype"] and fig is not None
+    assert records["residual_um"].iloc[0] == pytest.approx(0, abs=0.5 * PH_PX)
+    records, fig = plot_phenotype_in_sbs(place, [(0, 0)], {}, paths, {})
+    assert list(records["kind"]) == ["phenotype_in_sbs"] and fig is not None

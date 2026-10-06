@@ -24,7 +24,8 @@ segmentation_overview_df.to_csv(snakemake.output[0], sep="\t", index=False)
 
 
 # load cell data
-cells = read_parquets(snakemake.input.cells_paths)
+# plot_cell_density_heatmap only groups by well,tile.
+cells = read_parquets(snakemake.input.cells_paths, columns=["well", "tile"])
 
 # Load metadata for spatial heatmap plotting
 metadata = pd.concat(

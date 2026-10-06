@@ -1,7 +1,10 @@
 import pandas as pd
 
-# Load the datasets
-phenotype_data = pd.read_csv(snakemake.input[0], sep="\t")
+from lib.shared.parquet_io import read_parquet, write_parquet
+
+# Load the datasets. extract_phenotype_cp now writes parquet; identify_second_objs
+# still writes a tsv.
+phenotype_data = read_parquet(snakemake.input[0])
 
 # Load the combined secondary object file and extract cell summary data
 combined_second_obj_df = pd.read_csv(snakemake.input[1], sep="\t")
@@ -57,7 +60,7 @@ else:
     )
 
 # Save the merged dataset
-merged_data.to_csv(snakemake.output[0], sep="\t", index=False)
+write_parquet(merged_data, snakemake.output[0])
 print(
     f"Final dataset has {len(merged_data)} rows and {len(merged_data.columns)} columns"
 )

@@ -30,6 +30,12 @@ wildcard_constraints:
     col=r"[A-Za-z]*\d+",
     tile=r"[0-9]+",
     plate=r"[0-9]+",
+    # TIFF filenames are "_"-delimited (P-1_W-A1_T-0__reads.parquet), so an
+    # unconstrained {well} also matches "A1_T-0" and a per-tile output collides
+    # with the per-well rule that writes the same basename. Excluding "_" (and
+    # "/" for the zarr layout) is what keeps the two levels distinguishable when
+    # they share a directory.
+    well=r"[^_/]+",
 SPLIT_BY_COMPARTMENT = config.get("aggregate", {}).get(
     "split_by_compartment", False
 )

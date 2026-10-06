@@ -33,7 +33,7 @@ N_SEAMS = 20
 N_CROSS = 4
 CROSS_INNER_FRACTION = 0.7
 MOSAIC_MAX_PX = 3000
-SEAM_WARN_PX = 2.0
+SEAM_WARN_UM = 1.5
 MIN_CONTRAST = 1.0
 
 
@@ -107,7 +107,14 @@ def positions_merge_well(
         sbs_pixel_size=sbs_pixel_size,
     )
     records = pd.DataFrame(
-        columns=["kind", "tile_a", "tile_b", "residual_px", "colored_fraction"]
+        columns=[
+            "kind",
+            "tile_a",
+            "tile_b",
+            "residual_px",
+            "residual_um",
+            "colored_fraction",
+        ]
     )
     figures = {}
     if placement is not None and templates:
@@ -170,6 +177,9 @@ def positions_image_qc(
                 tile_a,
                 tile_b,
             )
+            record["residual_um"] = (
+                record["residual_px"] * placement[name]["pixel_size"]
+            )
             records.append({"kind": f"seam_{name}", **record})
             if panel is not None:
                 seam_panels.append(panel)
@@ -180,6 +190,7 @@ def positions_image_qc(
         record, panel = cross_modality_overlay(
             placement, image_paths, label_paths, dapi_index, ph_tile, sbs_tile
         )
+        record["residual_um"] = record["residual_px"] * placement["sbs"]["pixel_size"]
         records.append({"kind": "cross_modality", **record})
         if panel is not None:
             cross_panels.append(panel)
@@ -209,6 +220,9 @@ def positions_image_qc(
 def summarize_image_qc(records):
     """Median residual and colored fraction per readout kind, for the merge QC row.
 
+    Warns when a median residual exceeds `SEAM_WARN_UM` micrometres, so the threshold means
+    the same at every magnification.
+
     Args:
         records (pandas.DataFrame): Rows from `positions_image_qc`.
 
@@ -220,13 +234,13 @@ def summarize_image_qc(records):
         out[f"{kind}_n"] = int(group["residual_px"].notna().sum())
         out[f"{kind}_residual_median_px"] = float(group["residual_px"].median())
         out[f"{kind}_residual_max_px"] = float(group["residual_px"].max())
+        out[f"{kind}_residual_median_um"] = float(group["residual_um"].median())
         out[f"{kind}_colored_median"] = float(group["colored_fraction"].median())
     out["image_qc_warning"] = bool(
         any(
-            out.get(f"seam_{m}_residual_median_px", 0) > SEAM_WARN_PX
-            for m in ("phenotype", "sbs")
+            out.get(f"{kind}_residual_median_um", 0) > SEAM_WARN_UM
+            for kind in ("seam_phenotype", "seam_sbs", "cross_modality")
         )
-        or out.get("cross_modality_residual_median_px", 0) > SEAM_WARN_PX
     )
     return out
 
@@ -349,7 +363,8 @@ def cross_modality_overlay(
 ):
     """Overlay phenotype DAPI mapped into SBS pixel space on SBS DAPI.
 
-    Falls back to nuclei labels when an aligned image is not on disk.
+    Uses nuclei labels for both modalities when either aligned image is not on disk, so the
+    two panels always show the same kind of image.
 
     Args:
         placement (dict): Placement returned by `positions_merge`.
@@ -370,8 +385,11 @@ def cross_modality_overlay(
         "residual_px": np.nan,
         "colored_fraction": np.nan,
     }
+    tiles = {"phenotype": ph_tile, "sbs": sbs_tile}
+    if not all(tile in image_paths.get(name, {}) for name, tile in tiles.items()):
+        image_paths = {}
     planes = {}
-    for name, tile in (("phenotype", ph_tile), ("sbs", sbs_tile)):
+    for name, tile in tiles.items():
         planes[name] = _read_dapi_or_labels(
             image_paths.get(name, {}),
             label_paths.get(name, {}),

@@ -127,6 +127,31 @@ def test_cross_modality_crop_covers_the_phenotype_tile(screen):
     assert record["residual_px"] == pytest.approx(0, abs=1)
 
 
+def test_cross_modality_uses_labels_on_both_sides_when_an_image_is_missing(
+    screen, tmp_path
+):
+    paths, ph_centers, sbs_centers = screen
+    points = nuclei()
+    labels = {"phenotype": {}, "sbs": {}}
+    for name, centers, px in (
+        ("phenotype", ph_centers, PH_PX),
+        ("sbs", sbs_centers, SBS_PX),
+    ):
+        for tile, center in centers.items():
+            path = tmp_path / f"{name}_{tile}_labels.tiff"
+            tifffile.imwrite(path, render(points, center, px, labels=True))
+            labels[name][tile] = str(path)
+    place = {
+        "phenotype": placement(ph_centers, PH_PX),
+        "sbs": placement(sbs_centers, SBS_PX),
+    }
+    images = {"phenotype": paths["phenotype"], "sbs": {}}
+    record, panel = cross_modality_overlay(place, images, labels, {}, 0, 0)
+    ref, mov, _, _ = panel
+    assert set(np.unique(ref)) <= {0.0, 1.0}
+    assert record["residual_px"] == pytest.approx(0, abs=1)
+
+
 def test_mosaic_size_is_bounded(screen, monkeypatch, tmp_path):
     points = nuclei()
     labels = tmp_path / "labels_0.tiff"
@@ -153,3 +178,19 @@ def test_save_figures_writes_placeholders(tmp_path):
     out = [tmp_path / f"{k}.png" for k in ("seams", "cross", "mosaic")]
     save_figures({}, out)
     assert all(p.exists() and p.stat().st_size > 0 for p in out)
+
+
+def test_summary_warns_on_micrometres_not_pixels():
+    from lib.merge.positions_overlay import summarize_image_qc
+
+    records = pd.DataFrame(
+        {
+            "kind": ["seam_phenotype"] * 3 + ["cross_modality"],
+            "residual_px": [5.0, 6.0, 5.0, 0.0],
+            "residual_um": [0.8, 1.0, 0.8, 0.0],
+            "colored_fraction": [0.1, 0.1, 0.1, np.nan],
+        }
+    )
+    assert not summarize_image_qc(records)["image_qc_warning"]
+    records["residual_um"] = [8.0, 9.0, 8.0, 0.0]
+    assert summarize_image_qc(records)["image_qc_warning"]

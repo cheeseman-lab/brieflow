@@ -19,8 +19,6 @@ if str(_WORKFLOW) not in sys.path:
 
 from lib.sbs.align_cycles import (  # noqa: E402
     channel_shift_residuals,
-    plot_channel_alignment_overlay,
-    plot_cycle_alignment_overlay,
     report_alignment_qc,
 )
 

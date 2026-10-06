@@ -20,7 +20,7 @@ from skimage.measure import regionprops
 
 
 from lib.merge.fast_merge import build_linear_model, refine_local_warp, match_cells
-from lib.shared.alignment_overlay import plot_overlay_grid
+from lib.shared.alignment_overlay import magenta_green_overlay
 
 
 def align_metadata(
@@ -542,17 +542,16 @@ def load_merge_dapi_pair(
     )
 
 
-def plot_merge_alignment_overlay(
-    sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_site, crop_size=400
-):
+def plot_merge_alignment_overlay(sbs_dapi, ph_dapi, alignment_df, ph_tile, sbs_site):
     """Overlay phenotype DAPI mapped into SBS pixel space (green) on SBS DAPI (magenta).
 
-    The phenotype image is resampled through the tile-site affine model the merge uses, so
-    a good alignment shows white or grey nuclei and a bad one shows every nucleus twice.
-    Shows the full SBS tile and a crop centered on the phenotype tile's footprint, titled
-    with the residual shift (dy, dx SBS px) of the mapped phenotype image. No colored
-    fraction is shown: the two images differ in resolution and staining, so aligned nuclei
-    are not all white.
+    The phenotype DAPI image is resampled through the tile-site affine model the merge
+    uses. The left panel shows the whole SBS site for context: SBS DAPI in magenta outside
+    the outlined phenotype tile (SBS-only signal) and the overlay inside it; the right panel
+    zooms on the tile. Inside the tile both images are brightness-matched for display (see
+    `magenta_green_overlay`): nuclei in both images read white or grey, a shift leaves magenta
+    and green fringes, and a nucleus found in one image only stays fully magenta or green.
+    The zoom's title gives the residual shift (dy, dx SBS px) of the mapped phenotype image.
 
     Args:
         sbs_dapi (np.ndarray): 2D SBS DAPI image of the site.
@@ -561,7 +560,6 @@ def plot_merge_alignment_overlay(
             translation columns.
         ph_tile (int): Phenotype tile.
         sbs_site (int): SBS site (tile).
-        crop_size (int, optional): Side of the zoomed crop, in SBS pixels. Defaults to 400.
 
     Returns:
         matplotlib.figure.Figure: The figure, or None if the pair has no alignment.
@@ -587,39 +585,66 @@ def plot_merge_alignment_overlay(
         )
         > 0.5
     )
-
-    # zoom on the phenotype tile's footprint, which covers only part of the SBS site
-    center = np.array(ph_dapi.shape) / 2 @ rotation.T + translation
-    half = min(crop_size, *sbs_dapi.shape) // 2
-    y0, x0 = (
-        int(np.clip(round(c) - half, 0, n - 2 * half))
-        for c, n in zip(center, sbs_dapi.shape)
+    rows, cols = (
+        np.flatnonzero(footprint.any(axis=1)),
+        np.flatnonzero(footprint.any(axis=0)),
     )
-    zoom = (slice(y0, y0 + 2 * half), slice(x0, x0 + 2 * half))
+    box = (slice(rows[0], rows[-1] + 1), slice(cols[0], cols[-1] + 1))
+    inside = footprint[box]
+    sbs, ph = (_fill_outside(image[box], inside) for image in (sbs_dapi, ph_in_sbs))
 
     shift = phase_cross_correlation(
-        np.where(footprint, ph_in_sbs, 0)[zoom],
-        np.where(footprint, sbs_dapi, 0)[zoom].astype(np.float32),
+        np.where(inside, ph, 0),
+        np.where(inside, sbs, 0),
         upsample_factor=2,
         normalization=None,
     )[0]
+    overlay = magenta_green_overlay(sbs, ph) * inside[..., None]
 
-    fig = plot_overlay_grid(
-        [
-            (sbs_dapi, ph_in_sbs, "full SBS tile", footprint),
-            (
-                sbs_dapi[zoom],
-                ph_in_sbs[zoom],
-                f"{2 * half} px around the phenotype tile: "
-                f"residual ({shift[0]:+.1f}, {shift[1]:+.1f})",
-                footprint[zoom],
-            ),
-        ],
-        ncols=2,
-        panel_size=6,
-        colored=None,
-        suptitle=f"PH tile {ph_tile} → SBS site {sbs_site}: SBS DAPI magenta, "
-        "phenotype DAPI green (white = aligned)",
+    # context: SBS DAPI in magenta (SBS only), with the overlay pasted inside the footprint
+    low, high = np.percentile(sbs_dapi, (1, 99.5))
+    sbs_scaled = np.clip(
+        (sbs_dapi.astype(np.float32) - low) / max(high - low, 1e-6), 0, 1
+    )
+    context = np.stack([sbs_scaled, np.zeros_like(sbs_scaled), sbs_scaled], axis=-1)
+    context[box] = np.where(inside[..., None], overlay, context[box])
+    corners = np.array(
+        [[0, 0], [0, ph_dapi.shape[1]], ph_dapi.shape, [ph_dapi.shape[0], 0], [0, 0]],
+        dtype=float,
+    )
+    outline = corners @ rotation.T + translation
+
+    fig, (ax_context, ax_zoom) = plt.subplots(
+        1, 2, figsize=(13, 7), layout="constrained"
+    )
+    ax_context.imshow(context, interpolation="nearest")
+    ax_context.plot(outline[:, 1], outline[:, 0], color="yellow", lw=0.8)
+    ax_context.add_patch(
+        mpatches.Rectangle(
+            (box[1].start, box[0].start),
+            box[1].stop - box[1].start,
+            box[0].stop - box[0].start,
+            fill=False,
+            edgecolor="cyan",
+            lw=0.8,
+            ls="--",
+        )
+    )
+    ax_context.set_title(
+        "SBS site: magenta outside the yellow phenotype tile = SBS only; cyan = zoom",
+        fontsize=10,
+    )
+    ax_zoom.imshow(overlay, interpolation="nearest")
+    ax_zoom.set_title(
+        f"zoom: residual shift ({shift[0]:+.1f}, {shift[1]:+.1f}) SBS px", fontsize=10
+    )
+    for ax in (ax_context, ax_zoom):
+        ax.axis("off")
+    fig.suptitle(
+        f"PH tile {ph_tile} → SBS site {sbs_site}. Inside the phenotype tile: SBS DAPI "
+        "magenta, phenotype DAPI green;\nwhite/grey = nucleus in both (aligned), "
+        "magenta/green fringes = shift, fully magenta or green = in one image only",
+        fontsize=10,
     )
     plt.show()
     return fig
@@ -666,9 +691,10 @@ def preview_mask_transformations(
     Arranged according to coordinate-based stitching estimates.
     """
     if root_fp is None:
-        root_fp = Path("/lab/ops_analysis/lourido/nebo-analysis/analysis/analysis_root")
-    else:
-        root_fp = Path(root_fp)
+        raise ValueError(
+            "root_fp is required: the analysis root that holds the mask outputs"
+        )
+    root_fp = Path(root_fp)
 
     # Select only the first N tiles to preview
     first_tiles = metadata.head(num_tiles).copy()
@@ -875,3 +901,10 @@ def _estimate_tile_size_from_coords(metadata):
     x_spacing = sorted_x[sorted_x > 0].median()
     y_spacing = sorted_y[sorted_y > 0].median()
     return min(x_spacing, y_spacing) if pd.notna(x_spacing) else 1000
+
+
+def _fill_outside(image, inside):
+    """Image with pixels outside the footprint set to the footprint's median, for display."""
+    image = np.asarray(image, dtype=np.float32).copy()
+    image[~inside] = np.median(image[inside])
+    return image

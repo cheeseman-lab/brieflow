@@ -1,63 +1,81 @@
 """Magenta/green overlays for checking image alignment by eye.
 
-The reference image is shown in magenta and the moving image in green, blended
-additively. Where the two images agree the overlay is white or grey; where they are
-misaligned every object appears twice, once magenta and once green, so the size and
-direction of a shift can be read off the image.
+The reference image is magenta and the moving image green, added together. For display
+only, each image is normalized by its local maximum over a window about one object wide,
+and the moving image is histogram-matched to the reference, so objects of different
+brightness in the two images (fading stain, different scopes) look alike. Aligned objects
+then read white or grey, a shift leaves magenta and green fringes, and an object present in
+only one image stays fully magenta or green.
 """
 
 import numpy as np
 
 
-def magenta_green_overlay(reference, moving, percentiles=(1, 99.5)):
-    """Blend a reference (magenta) and a moving (green) image into an RGB overlay.
-
-    Each image is contrast-stretched between its own percentiles, so both colors are
-    comparable even when the two images have different intensity ranges.
+def magenta_green_overlay(reference, moving, window=31):
+    """Overlay a reference (magenta) and a moving (green) image, brightness-matched for display.
 
     Args:
-        reference (np.ndarray): 2D reference image, shown in magenta.
-        moving (np.ndarray): 2D moving image, shown in green; same shape as reference.
-        percentiles (tuple[float, float], optional): Lower and upper percentiles used to
-            stretch each image to [0, 1]. Defaults to (1, 99.5).
+        reference (np.ndarray): 2D reference image.
+        moving (np.ndarray): 2D moving image, same shape as reference.
+        window (int, optional): Local-normalization window in pixels, about one object
+            wide (see `normalize_for_display`). Defaults to 31.
 
     Returns:
         np.ndarray: RGB image (Y, X, 3) with values in [0, 1].
     """
-    ref = _stretch(reference, percentiles)
-    mov = _stretch(moving, percentiles)
+    from skimage.exposure import match_histograms
+
+    ref = normalize_for_display(reference, window)
+    mov = match_histograms(normalize_for_display(moving, window), ref)
     return np.stack([ref, mov, ref], axis=-1)
 
 
-def colored_fraction(overlay, mask=None, basis="both", min_signal=0.25):
-    """Fraction of signal pixels in an overlay that are colored rather than white or grey.
+def normalize_for_display(image, window=31):
+    """Scale an image to [0, 1] by its local maximum, for display only.
 
-    A pixel is colored when one image is less than half as bright as the other there. Aligned
-    copies of the same structure give a value near 0; a shift makes both copies colored.
-    Images of different stains or resolutions are not white even when aligned, so the
-    fraction is only meaningful for two images of the same structure.
+    The image is lightly smoothed and its background (5th percentile) removed, then each
+    pixel is divided by the maximum within window pixels, so every object peaks near 1
+    whatever its brightness. Otsu's threshold is the smallest divisor, so background noise
+    is not stretched up.
+
+    Args:
+        image (np.ndarray): 2D image.
+        window (int, optional): Window in pixels, about one object wide. Defaults to 31.
+
+    Returns:
+        np.ndarray: Normalized image in [0, 1].
+    """
+    from scipy import ndimage
+    from skimage.filters import threshold_otsu
+
+    smooth = ndimage.gaussian_filter(np.asarray(image, dtype=np.float32), 1.0)
+    smooth = np.clip(smooth - np.percentile(smooth, 5), 0, None)
+    if not smooth.any():
+        return smooth
+    local_max = ndimage.maximum_filter(smooth, size=window)
+    return np.clip(smooth / np.maximum(local_max, threshold_otsu(smooth)), 0, 1)
+
+
+def colored_fraction(overlay, mask=None, min_signal=0.25):
+    """Share of signal in an overlay that is in only one of the two images.
+
+    A pixel counts as signal when either normalized image reaches min_signal, and as one
+    image only when the other is less than half as bright there. Near 0 when the objects
+    coincide; a shift raises it. Objects present in only one image also count.
 
     Args:
         overlay (np.ndarray): RGB overlay from `magenta_green_overlay`.
         mask (np.ndarray, optional): Boolean mask of the pixels to count. Defaults to None (all).
-        basis (str, optional): "both" counts pixels where either image is bright; "moving"
-            counts only pixels where the green image is bright and asks whether magenta is
-            missing there, for references that hold more objects than the moving image.
-            Defaults to "both".
-        min_signal (float, optional): Stretched intensity a pixel needs to count as signal.
+        min_signal (float, optional): Normalized value a pixel needs to count as signal.
             Defaults to 0.25.
 
     Returns:
-        float: Colored fraction in [0, 1], or nan when no pixel has signal.
+        float: Fraction in [0, 1], or nan when there is no signal.
     """
     ref, mov = overlay[..., 0], overlay[..., 1]
-    if basis == "moving":
-        keep = mov >= min_signal
-        colored = ref < 0.5 * mov
-    else:
-        signal = np.maximum(ref, mov)
-        keep = signal >= min_signal
-        colored = np.minimum(ref, mov) < 0.5 * signal
+    signal = np.maximum(ref, mov)
+    keep = signal >= min_signal
+    colored = np.minimum(ref, mov) < 0.5 * signal
     if mask is not None:
         keep &= mask
     if not keep.any():
@@ -75,13 +93,7 @@ def center_crop(image, crop_size):
 
 
 def plot_overlay_grid(
-    panels,
-    ncols=4,
-    panel_size=3.5,
-    suptitle=None,
-    percentiles=(1, 99.5),
-    colored="both",
-    fraction_percentiles=None,
+    panels, ncols=4, panel_size=3.5, suptitle=None, colored=True, window=31
 ):
     """Plot a grid of magenta/green overlays with one title per panel.
 
@@ -92,13 +104,10 @@ def plot_overlay_grid(
         panel_size (float, optional): Width and height of each panel in inches.
             Defaults to 3.5.
         suptitle (str, optional): Figure title. Defaults to None.
-        percentiles (tuple[float, float], optional): Contrast percentiles passed to
-            `magenta_green_overlay`. Defaults to (1, 99.5).
-        colored (str or None, optional): Basis of the colored fraction appended to each
-            title (see `colored_fraction`), or None to leave it out. Defaults to "both".
-        fraction_percentiles (tuple[float, float], optional): Contrast percentiles of the
-            overlay the colored fraction is computed on, when it should differ from the
-            display. Defaults to None (same as percentiles).
+        colored (bool, optional): Append the colored fraction (see `colored_fraction`) to
+            each title. Defaults to True.
+        window (int, optional): Display normalization window passed to
+            `magenta_green_overlay`. Defaults to 31.
 
     Returns:
         matplotlib.figure.Figure: The figure, or None if there are no panels.
@@ -119,23 +128,12 @@ def plot_overlay_grid(
     for ax in axes.ravel():
         ax.axis("off")
     for ax, (reference, moving, title, *mask) in zip(axes.ravel(), panels):
-        overlay = magenta_green_overlay(reference, moving, percentiles)
+        overlay = magenta_green_overlay(reference, moving, window)
         ax.imshow(overlay, interpolation="nearest")
         if colored:
-            if fraction_percentiles is not None:
-                overlay = magenta_green_overlay(reference, moving, fraction_percentiles)
-            fraction = colored_fraction(overlay, mask[0] if mask else None, colored)
-            title = f"{title}\n{fraction:.0%} colored"
+            fraction = colored_fraction(overlay, mask[0] if mask else None)
+            title = f"{title}\n{fraction:.0%} in one image only"
         ax.set_title(title, fontsize=9)
     if suptitle:
         fig.suptitle(suptitle, fontsize=11)
     return fig
-
-
-def _stretch(image, percentiles):
-    """Scale an image to [0, 1] between its own lower and upper percentiles."""
-    image = np.asarray(image, dtype=np.float32)
-    low, high = np.percentile(image, percentiles)
-    if high <= low:
-        return np.zeros_like(image)
-    return np.clip((image - low) / (high - low), 0, 1)

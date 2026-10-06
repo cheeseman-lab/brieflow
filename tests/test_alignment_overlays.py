@@ -1,9 +1,9 @@
 """Every magenta/green alignment overlay recovers an injected shift and shows it in color.
 
-For each path (SBS cycles, SBS channel grid, merge, phenotype channels) an image is rolled
-by a known (dy, dx): the shift in the panel title must match it, and the panel's colored
-fraction (printed in the title, except for merge) must be clearly higher than for the
-aligned images.
+For each path (SBS cycles, flagged SBS channels, merge, phenotype channels) an image is
+rolled by a known (dy, dx): the shift in the panel title must match it, the shifted cycle
+or channel must be flagged, the shifted cycle's spot match must drop, and the colored
+fraction (DAPI and phenotype titles, merge image) must be higher than for the aligned images.
 """
 
 import re
@@ -28,8 +28,9 @@ from lib.phenotype.align_channels import (  # noqa: E402
     plot_phenotype_channel_overlay,
 )
 from lib.sbs.align_cycles import (  # noqa: E402
-    plot_channel_alignment_overlay,
+    cycle_spot_match,
     plot_cycle_alignment_overlay,
+    plot_flagged_channel_overlays,
 )
 from lib.shared.alignment_overlay import (  # noqa: E402
     colored_fraction,
@@ -55,7 +56,7 @@ def _title_shift(title):
 
 
 def _title_fraction(title):
-    return float(re.search(r"(\d+)% colored", title).group(1)) / 100
+    return float(re.search(r"(\d+)% in one", title).group(1)) / 100
 
 
 def _panel(fig, i):
@@ -75,42 +76,144 @@ def sbs_cycles():
         base = rng.integers(0, 4, size=len(spots))
         for k in range(4):
             data[c, 1 + k] = _blobs(shape, spots[base == k], 1.2)
+    data[:, 4] *= 0.2
     data += rng.normal(0, 0.02, size=data.shape).astype(np.float32)
     return data * 1000 + 100
 
 
-def test_colored_fraction_white_vs_doubled():
-    img = _blobs((64, 64), [(32, 32)], 2.0)
-    assert colored_fraction(magenta_green_overlay(img, img)) == 0.0
-    moved = magenta_green_overlay(img, np.roll(img, 6, axis=1))
-    assert colored_fraction(moved) > 0.8
+def test_overlay_white_when_aligned_despite_brightness():
+    rng = np.random.default_rng(3)
+    centers = [(30, 30), (60, 66), (100, 40)]
+    img = _blobs((128, 128), centers, 5.0)
+    dim = sum(
+        w * _blobs((128, 128), [p], 5.0) for w, p in zip((0.1, 0.4, 0.25), centers)
+    )
+    noise = rng.normal(0, 0.01, img.shape)
+    assert colored_fraction(magenta_green_overlay(img + noise, dim + noise)) < 0.05
+    moved = magenta_green_overlay(img + noise, np.roll(dim, 5, axis=1) + noise)
+    assert colored_fraction(moved) > 0.3
     assert np.isnan(colored_fraction(magenta_green_overlay(img * 0, img * 0)))
 
 
-def test_sbs_cycle_overlay(sbs_cycles):
+def _titles(fig):
+    return [ax.get_title() for ax in fig.axes]
+
+
+def _row(titles, c, columns=2):
+    """Titles of the panels in the row of cycle index c."""
+    return titles[c * columns : (c + 1) * columns]
+
+
+def _matched(title):
+    return float(re.search(r"(\d+)% within 1 px", title).group(1)) / 100
+
+
+def test_spot_match_aligned_with_dim_channel(sbs_cycles):
+    match = cycle_spot_match(sbs_cycles, CHANNELS)
+    assert (match["matched"] >= 0.9).all()
+    assert not match["flagged"].any()
+    assert match["counts"].min() >= 0.8 * match["counts"].max()
+
+
+def test_sbs_cycle_overlay_aligned(sbs_cycles):
+    fig = plot_cycle_alignment_overlay(sbs_cycles, CHANNELS, crop_size=96, cycles="all")
+    titles = _titles(fig)
+    assert len(titles) == 2 * len(sbs_cycles)
+    assert not any("OFF" in t for t in titles)
+    assert all(_title_fraction(t) <= 0.05 for t in titles if " DAPI: (" in t)
+    assert all(_matched(t) >= 0.9 for t in titles if " spots: " in t)
+    assert "all cycles within 1 px" in fig._suptitle.get_text()
+    assert plot_flagged_channel_overlays(sbs_cycles, CHANNELS) is None
+
+
+def test_sbs_cycle_overlay_shifted_cycle(sbs_cycles):
     data = sbs_cycles.copy()
     data[2] = np.roll(sbs_cycles[2], SHIFT, axis=(-2, -1))
-    fig = plot_cycle_alignment_overlay(data, CHANNELS, crop_size=160)
-    aligned_title, _ = _panel(fig, 0)
-    shifted_title, overlay = _panel(fig, 1)
-    assert "cycle 3" in shifted_title
-    assert np.allclose(_title_shift(shifted_title), SHIFT, atol=0.6)
-    assert np.allclose(_title_shift(aligned_title), (0, 0), atol=0.6)
-    assert _title_fraction(shifted_title) > _title_fraction(aligned_title) + 0.1
-    assert colored_fraction(overlay) == pytest.approx(
-        _title_fraction(shifted_title), abs=0.01
-    )
+    match = cycle_spot_match(data, CHANNELS)
+    assert match["flagged"].tolist() == [False, False, True, False]
+    assert match["matched"][2] <= 0.2
+    fig = plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96, cycles="all")
+    titles = _titles(fig)
+    assert [t for t in titles if "OFF" in t] == _row(titles, 2)
+    dapi, spots = _row(titles, 2)
+    assert np.allclose(_title_shift(dapi), SHIFT, atol=0.6)
+    assert np.allclose(_title_shift(spots), SHIFT, atol=0.6)
+    assert _title_fraction(dapi) >= 0.1
+    assert _matched(spots) <= 0.2
+    assert "off: cycle 3" in fig._suptitle.get_text()
 
 
-def test_sbs_channel_overlay(sbs_cycles):
+def test_sbs_cycle_overlay_default_selection(sbs_cycles, capsys):
+    fig = plot_cycle_alignment_overlay(sbs_cycles, CHANNELS, crop_size=96)
+    titles = _titles(fig)
+    assert [t.split(":")[0] for t in titles] == [
+        f"cycle {c} {v}" for c in (2, 3, 4) for v in ("DAPI", "spots")
+    ]
+    assert "Showing cycles 2, 3, 4 of 4" in fig._suptitle.get_text()
+    table = capsys.readouterr().out
+    assert all(f"cycle {c}:" in table for c in range(1, 5))
+
+
+def test_sbs_cycle_overlay_adds_off_cycles(sbs_cycles):
+    data = sbs_cycles.copy()
+    data[2] = np.roll(sbs_cycles[2], SHIFT, axis=(-2, -1))
+    fig = plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96, cycles=[2])
+    titles = _titles(fig)
+    assert [t.split(":")[0] for t in titles] == [
+        "cycle 2 DAPI",
+        "cycle 2 spots",
+        "cycle 3 DAPI",
+        "cycle 3 spots",
+    ]
+    assert "OFF" in titles[2] and "Showing cycles 2, 3 of 4" in fig._suptitle.get_text()
+    with pytest.raises(ValueError, match="Unknown cycles"):
+        plot_cycle_alignment_overlay(data, CHANNELS, cycles=[9])
+
+
+def test_channel_overlays_selection_keeps_flagged(sbs_cycles):
     data = sbs_cycles.copy()
     data[0, 2] = np.roll(sbs_cycles[0, 2], SHIFT, axis=(0, 1))
-    fig = plot_channel_alignment_overlay(data, CHANNELS, crop_size=160)
-    aligned_title, _ = _panel(fig, 0)
-    shifted_title, _ = _panel(fig, 1)
-    assert "cycle 1 T" in shifted_title
-    assert np.allclose(_title_shift(shifted_title), SHIFT, atol=0.6)
-    assert _title_fraction(shifted_title) > _title_fraction(aligned_title) + 0.3
+    fig = plot_flagged_channel_overlays(data, CHANNELS, cycles=[2], channels=["G"])
+    titles = _titles(fig)
+    assert titles[0].startswith("cycle 1 T") and "OFF" in titles[0]
+    assert titles[1].startswith("cycle 2 G") and "OFF" not in titles[1]
+    every = plot_flagged_channel_overlays(
+        sbs_cycles, CHANNELS, cycles="all", channels="all"
+    )
+    assert len([ax for ax in every.axes if ax.images]) == 4 * len(sbs_cycles)
+
+
+def test_spot_count_flags_collapsed_cycle(sbs_cycles):
+    data = sbs_cycles.copy()
+    rng = np.random.default_rng(4)
+    keep = _blobs(data.shape[-2:], rng.uniform(8, 184, size=(30, 2)), 1.2) * 1000
+    data[1, 1:] = 100 + rng.normal(0, 20, size=data[1, 1:].shape) + keep
+    match = cycle_spot_match(data, CHANNELS)
+    assert match["flagged"][1]
+    assert match["counts"][1] < 0.5 * np.median(match["counts"])
+
+
+def test_sbs_flagged_channel_overlay(sbs_cycles):
+    data = sbs_cycles.copy()
+    data[0, 2] = np.roll(sbs_cycles[0, 2], SHIFT, axis=(0, 1))
+    titles = _titles(plot_flagged_channel_overlays(data, CHANNELS, crop_size=96))
+    assert len(titles) == 1 and titles[0].startswith("cycle 1 T")
+    assert np.allclose(_title_shift(titles[0]), SHIFT, atol=0.6)
+
+
+def test_sbs_flagged_channel_overlays_capped(sbs_cycles):
+    data = sbs_cycles.copy()
+    data[:, 4] = np.roll(sbs_cycles[:, 4], (2, 2), axis=(-2, -1))
+    titles = _titles(plot_flagged_channel_overlays(data, CHANNELS, max_panels=2))
+    assert len(titles) == 2 and all(" C: " in t for t in titles)
+
+
+def test_sbs_cycle_overlay_without_per_cycle_dapi(sbs_cycles):
+    data = sbs_cycles.copy()
+    data[:, 0] = sbs_cycles[0, 0]
+    titles = _titles(plot_cycle_alignment_overlay(data, CHANNELS, crop_size=96))
+    assert len(titles) == 3
+    assert all(" spots: " in t for t in titles)
 
 
 def test_merge_overlay():
@@ -125,14 +228,15 @@ def test_merge_overlay():
         {"tile": [5], "site": [0], "rotation": [rotation], "translation": [translation]}
     )
     bad = good.assign(translation=[translation + np.array(SHIFT, dtype=float)])
-    figs = [
-        plot_merge_alignment_overlay(sbs, ph, df, 5, 0, crop_size=100)
-        for df in (good, bad)
-    ]
+    figs = [plot_merge_alignment_overlay(sbs, ph, df, 5, 0) for df in (good, bad)]
     (good_title, good_overlay), (bad_title, bad_overlay) = (_panel(f, 1) for f in figs)
+    context = figs[0].axes[0].images[0].get_array()
+    outside = np.asarray(context[:38])
+    assert outside[..., 1].max() == 0 and np.allclose(outside[..., 0], outside[..., 2])
     assert np.allclose(_title_shift(good_title), (0, 0), atol=0.6)
     assert np.allclose(_title_shift(bad_title), SHIFT, atol=0.6)
-    assert colored_fraction(bad_overlay) > colored_fraction(good_overlay) + 0.3
+    assert colored_fraction(good_overlay) <= 0.05
+    assert colored_fraction(bad_overlay) >= 0.3
 
 
 def test_phenotype_overlay():
@@ -150,7 +254,7 @@ def test_phenotype_overlay():
     (before, _), (after, _) = _panel(fig, 0), _panel(fig, 1)
     assert np.allclose(_title_shift(before), SHIFT, atol=0.6)
     assert np.allclose(_title_shift(after), (0, 0), atol=0.6)
-    assert _title_fraction(before) > _title_fraction(after) + 0.3
+    assert _title_fraction(after) <= 0.05 and _title_fraction(before) >= 0.3
     assert "GFP" in fig._suptitle.get_text()
     _, metrics = align_phenotype_channels(image, 0, 2, riders=[3], return_metrics=True)
     assert np.allclose(metrics["offset"], _title_shift(before))

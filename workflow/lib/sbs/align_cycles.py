@@ -17,12 +17,18 @@ from lib.shared.align import (
     filter_percentiles,
     offsets_to_metrics,
 )
-from lib.shared.alignment_overlay import center_crop, plot_overlay_grid
+from lib.shared.alignment_overlay import colored_fraction, magenta_green_overlay
 
 # a cycle or channel shifted by at least this many pixels is reported as off
 ALIGNMENT_PASS_PX = 1.0
-# spot images are stretched between these percentiles so background noise stays dark
-SPOT_DISPLAY_PERCENTILES = (99, 99.95)
+# display normalization windows (px), about one nucleus and one spot wide
+DAPI_WINDOW = 31
+SPOT_WINDOW = 7
+# a cycle is flagged when its matched spot fraction is this far below the median cycle
+SPOT_MATCH_DROP = 0.2
+# or when it has fewer spots than this fraction of the median cycle
+SPOT_COUNT_RATIO = 0.5
+BASE_CHANNELS = ("G", "T", "A", "C")
 
 
 def align_cycles(
@@ -663,241 +669,282 @@ def channel_shift_residuals(aligned, base_indices, upsample_factor=2):
     return {"shifts": shifts, "cycle_shifts": cycle_shifts, "residuals": residuals}
 
 
-def visualize_sbs_alignment(
-    aligned_data, channel_names, dapi_cycle, viz_channels, crop_size=300
-):
-    """Visualize SBS cycle alignment with DAPI reference and RGB base channel overlay.
+def cycle_spot_match(aligned, channel_names, threshold=0.4, tolerance=1.0):
+    """Match each cycle's spots to the spots of all other cycles.
 
-    Shows 3 locations (corner, center, random) with:
-    - Grayscale DAPI background (anatomical reference)
-    - RGB overlay of base channels from different cycles
-    Color fringing in bases indicates misalignment across cycles.
-
-    Args:
-        aligned_data (np.ndarray): Aligned image array (CYCLE, CHANNEL, Y, X).
-        channel_names (list): List of channel names.
-        dapi_cycle (int): Cycle index for DAPI reference.
-        viz_channels (list): List of (cycle_idx, channel_name) tuples for RGB overlay.
-            Must have exactly 3 elements for R, G, B channels.
-        crop_size (int, optional): Size of zoomed crops in pixels. Defaults to 300.
-
-    Returns:
-        matplotlib.figure.Figure: Figure with 3 panels showing alignment at different locations,
-            or None if there's an error.
-
-    Example:
-        >>> fig = visualize_sbs_alignment(
-        ...     aligned,
-        ...     ["DAPI", "G", "T", "A", "C"],
-        ...     dapi_cycle=0,
-        ...     viz_channels=[(0, "G"), (5, "T"), (10, "A")],
-        ...     crop_size=300
-        ... )
-        >>> plt.show()
-    """
-    import matplotlib.pyplot as plt
-
-    if len(viz_channels) != 3:
-        print(
-            f"Error: Need exactly 3 channels for RGB overlay, got {len(viz_channels)}"
-        )
-        return None
-
-    n_cycles, n_channels, height, width = aligned_data.shape
-
-    # Get DAPI reference
-    if dapi_cycle >= n_cycles:
-        print(f"Error: DAPI cycle {dapi_cycle} out of range (max {n_cycles - 1})")
-        return None
-    if "DAPI" not in channel_names:
-        print(f"Error: DAPI channel not found in {channel_names}")
-        return None
-
-    dapi_idx = channel_names.index("DAPI")
-    dapi_data = aligned_data[dapi_cycle, dapi_idx]
-
-    # Parse base channels for RGB overlay
-    rgb_data = []
-    rgb_labels = []
-    for cycle_idx, ch_name in viz_channels:
-        if cycle_idx >= n_cycles:
-            print(f"Error: Cycle {cycle_idx} out of range (max {n_cycles - 1})")
-            return None
-        if ch_name not in channel_names:
-            print(f"Error: Channel '{ch_name}' not found in {channel_names}")
-            return None
-        ch_idx = channel_names.index(ch_name)
-        rgb_data.append(aligned_data[cycle_idx, ch_idx])
-        rgb_labels.append(f"C{cycle_idx + 1}-{ch_name}")
-
-    # Define 3 crop locations
-    np.random.seed(42)
-    locations = [
-        ("Top-Left Corner", 50, 50),
-        ("Center", (height - crop_size) // 2, (width - crop_size) // 2),
-        (
-            "Random Location",
-            np.random.randint(50, height - crop_size - 50),
-            np.random.randint(50, width - crop_size - 50),
-        ),
-    ]
-
-    # Create figure with 1 row x 3 columns
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-
-    for col_idx, (location_name, y_start, x_start) in enumerate(locations):
-        y_end = y_start + crop_size
-        x_end = x_start + crop_size
-
-        # Create composite: DAPI (grayscale) + RGB overlay (bases)
-        composite = np.zeros((crop_size, crop_size, 3))
-
-        # Add DAPI as grayscale background
-        dapi_crop = dapi_data[y_start:y_end, x_start:x_end]
-        p2, p98 = np.percentile(dapi_crop, [2, 98])
-        dapi_norm = np.clip((dapi_crop - p2) / (p98 - p2 + 1e-8), 0, 1)
-        # Set DAPI in all RGB channels for grayscale
-        composite[:, :, 0] = dapi_norm
-        composite[:, :, 1] = dapi_norm
-        composite[:, :, 2] = dapi_norm
-
-        # Overlay base channels as RGB
-        for i, img_data in enumerate(rgb_data):
-            crop = img_data[y_start:y_end, x_start:x_end]
-            p2, p98 = np.percentile(crop, [2, 98])
-            crop_norm = np.clip((crop - p2) / (p98 - p2 + 1e-8), 0, 1)
-            # Add to composite (additive blending)
-            composite[:, :, i] = np.clip(composite[:, :, i] + crop_norm * 0.7, 0, 1)
-
-        axes[col_idx].imshow(composite)
-        axes[col_idx].set_title(
-            f"{location_name}\n"
-            + f"DAPI: C{dapi_cycle + 1} (gray) | "
-            + f"R={rgb_labels[0]}, G={rgb_labels[1]}, B={rgb_labels[2]}",
-            fontsize=10,
-        )
-        axes[col_idx].axis("off")
-
-    plt.tight_layout()
-    return fig
-
-
-def plot_cycle_alignment_overlay(
-    aligned, channel_names, crop_size=300, cycle_labels=None, upsample_factor=2
-):
-    """Overlay every cycle's DAPI (green) on the first cycle's DAPI (magenta), one panel per cycle.
-
-    Aligned cycles look white or grey; a misaligned cycle shows every nucleus twice, once
-    magenta and once green, so a single off cycle stands out. Each title gives the cycle's
-    measured shift (dy, dx px) against the first cycle and the colored fraction (see
-    `colored_fraction`). Without a DAPI channel the maximum over the base channels of each
-    cycle is used.
+    Per cycle and base channel, the background is removed with a white top-hat and the
+    channel is scaled by its own 99.9th percentile (dye balance); spots are local maxima
+    above threshold. The union over G/T/A/C, with spots within 2 px merged, is the cycle's
+    spot set. Every sequencing spot is lit in some channel every cycle, so in an aligned
+    tile most spots of a cycle lie within tolerance of a spot in another cycle; dim spots
+    are not detected in every cycle, so the fraction is high but not 1. A cycle is flagged
+    when its matched fraction is more than `SPOT_MATCH_DROP` below the median of the cycles,
+    or its spot count is below `SPOT_COUNT_RATIO` times the median count.
 
     Args:
         aligned (np.ndarray): Aligned SBS data (CYCLE, CHANNEL, I, J).
         channel_names (list[str]): Channel names of aligned.
-        crop_size (int, optional): Side of the centered crop shown, in pixels. Defaults to 300.
+        threshold (float, optional): Spot threshold as a fraction of each channel's 99.9th
+            percentile. Defaults to 0.4.
+        tolerance (float, optional): Matching distance in pixels. Defaults to 1.0.
+
+    Returns:
+        dict: `spots` (list of (N, 2) arrays per cycle), `counts`, `matched` (fraction of
+            each cycle's spots within tolerance of a spot in another cycle) and `flagged`
+            (bool per cycle); None without base channels or with one cycle.
+    """
+    from scipy.spatial import cKDTree
+
+    bases = [i for i, ch in enumerate(channel_names) if ch in BASE_CHANNELS]
+    n_cycles = aligned.shape[0]
+    if not bases or n_cycles < 2:
+        return None
+    spots = [_union_spots(aligned[c, bases], threshold) for c in range(n_cycles)]
+    counts = np.array([len(points) for points in spots])
+    matched = np.zeros(n_cycles)
+    for c in range(n_cycles):
+        others = np.concatenate([spots[o] for o in range(n_cycles) if o != c])
+        if len(spots[c]) and len(others):
+            distance, _ = cKDTree(others).query(spots[c])
+            matched[c] = np.mean(distance <= tolerance)
+    flagged = (matched < np.median(matched) - SPOT_MATCH_DROP) | (
+        counts < SPOT_COUNT_RATIO * np.median(counts)
+    )
+    return {"spots": spots, "counts": counts, "matched": matched, "flagged": flagged}
+
+
+def plot_cycle_alignment_overlay(
+    aligned,
+    channel_names,
+    cycles=None,
+    cycle_labels=None,
+    upsample_factor=2,
+    crop_size=300,
+):
+    """Show each cycle's alignment in one compact row: DAPI and sequencing spots.
+
+    DAPI column (when DAPI was imaged in every cycle): cycle k (green) on the first cycle
+    (magenta), brightness-matched for display (see `magenta_green_overlay`); aligned nuclei
+    read white or grey and a shift leaves fringes. Spots column: cycle k's spots (green dots)
+    on the spots of all other cycles (magenta dots), from `cycle_spot_match`; a matched spot
+    is white and a rolony not detected in cycle k stays magenta. Titles give the measured
+    shift (dy, dx px), the DAPI colored fraction (see `colored_fraction`), and the share of
+    cycle k's spots within 1 px of a spot in another cycle with the spot count. A cycle is
+    marked off when a shift reaches `ALIGNMENT_PASS_PX` or `cycle_spot_match` flags it.
+    Crops show the same nucleus- and spot-rich region in every row.
+
+    The numbers are computed and printed as a table for every cycle; only the rows drawn
+    are limited to cycles, and off cycles are always drawn.
+
+    Args:
+        aligned (np.ndarray): Aligned SBS data (CYCLE, CHANNEL, I, J).
+        channel_names (list[str]): Channel names of aligned.
+        cycles (list[int] or str, optional): Cycle numbers (as in cycle_labels) to draw, or
+            "all". Defaults to None: the second, middle and last cycle.
         cycle_labels (list[int], optional): Cycle number shown for each row of aligned.
             Defaults to 1..n.
-        upsample_factor (int, optional): Subpixel factor for the shift estimate. Defaults to 2.
+        upsample_factor (int, optional): Subpixel factor for the shift estimates. Defaults to 2.
+        crop_size (int, optional): Side of each crop, in pixels. Defaults to 300.
 
     Returns:
         matplotlib.figure.Figure: The figure, or None with fewer than two cycles.
     """
+    import matplotlib.pyplot as plt
+
     n_cycles = aligned.shape[0]
+    if n_cycles < 2:
+        return None
     cycle_labels = list(cycle_labels or range(1, n_cycles + 1))
-    if "DAPI" in channel_names:
-        images = aligned[:, channel_names.index("DAPI")]
-        what = "DAPI"
-    else:
-        bases = [i for i, ch in enumerate(channel_names) if ch in ("G", "T", "A", "C")]
-        images = aligned[:, bases].max(axis=1)
-        what = "max of base channels"
-    shifts, _ = calculate_offsets(images, upsample_factor=upsample_factor)
-    images = center_crop(images, crop_size)
-    panels = [
-        (
-            images[0],
-            images[c],
-            f"cycle {cycle_labels[c]} vs {cycle_labels[0]}: {_fmt(shifts[c])}",
+    off = np.zeros(n_cycles, dtype=bool)
+    dapi = _per_cycle_dapi(aligned, channel_names)
+    if dapi is not None:
+        dapi_shifts, _ = calculate_offsets(dapi, upsample_factor=upsample_factor)
+        off |= np.abs(dapi_shifts).max(axis=1) >= ALIGNMENT_PASS_PX
+        dapi_window = _busiest_crop(dapi[0], crop_size)
+    match = cycle_spot_match(aligned, channel_names)
+    if match is not None:
+        base_shifts, _ = calculate_offsets(
+            _merged_base_spots(aligned, channel_names), upsample_factor=upsample_factor
         )
-        for c in range(1, n_cycles)
-    ]
-    return plot_overlay_grid(
-        panels,
-        ncols=4,
-        suptitle=f"Between cycles: {what}, cycle {cycle_labels[0]} magenta, "
-        "cycle k green (white = aligned)",
+        off |= np.abs(base_shifts).max(axis=1) >= ALIGNMENT_PASS_PX
+        off |= match["flagged"]
+        dots = np.stack([_dot_image(p, aligned.shape[-2:]) for p in match["spots"]])
+        spot_window = _busiest_crop(dots.sum(axis=0), crop_size)
+    columns = (dapi is not None) + (match is not None)
+    print("Cycle alignment (shifts vs first cycle; spot match vs all other cycles):")
+    for c in range(n_cycles):
+        dapi_text = _fmt(dapi_shifts[c]) if dapi is not None else "-"
+        spot_text = (
+            f"{_fmt(base_shifts[c])}  {match['matched'][c]:.0%} matched  "
+            f"n={match['counts'][c]}"
+            if match is not None
+            else "-"
+        )
+        status = "  OFF" if off[c] else ""
+        print(f"  cycle {cycle_labels[c]}: DAPI {dapi_text}  spots {spot_text}{status}")
+    shown = _selected_cycles(cycles, cycle_labels, off)
+
+    fig, axes = plt.subplots(
+        len(shown),
+        columns,
+        figsize=(max(3.6 * columns, 7.0), 3.5 * len(shown) + 1.2),
+        squeeze=False,
+        layout="constrained",
     )
+    for row, c in enumerate(shown):
+        color = "red" if off[c] else "black"
+        mark = "  OFF" if off[c] else ""
+        panels = list(axes[row])
+        if dapi is not None:
+            ax = panels.pop(0)
+            ax.axis("off")
+            if c == 0:
+                ax.set_title(f"cycle {cycle_labels[0]} DAPI: reference", fontsize=9)
+            else:
+                overlay = magenta_green_overlay(
+                    dapi[0][dapi_window], dapi[c][dapi_window], DAPI_WINDOW
+                )
+                ax.imshow(overlay, interpolation="nearest")
+                ax.set_title(
+                    f"cycle {cycle_labels[c]} DAPI: {_fmt(dapi_shifts[c])}{mark}\n"
+                    f"{colored_fraction(overlay):.0%} in one cycle only",
+                    fontsize=9,
+                    color=color,
+                )
+        if match is not None:
+            ax = panels.pop(0)
+            others = np.delete(dots, c, axis=0).max(axis=0)
+            overlay = np.stack(
+                [others[spot_window], dots[c][spot_window], others[spot_window]],
+                axis=-1,
+            )
+            ax.imshow(overlay, interpolation="nearest")
+            ax.set_title(
+                f"cycle {cycle_labels[c]} spots: {_fmt(base_shifts[c])}{mark}\n"
+                f"{match['matched'][c]:.0%} within 1 px of another cycle, "
+                f"n={match['counts'][c]}",
+                fontsize=9,
+                color=color,
+            )
+            ax.axis("off")
+    flagged = [cycle_labels[c] for c in np.flatnonzero(off)]
+    status = (
+        f"off: cycle {', '.join(map(str, flagged))}"
+        if flagged
+        else f"all cycles within {ALIGNMENT_PASS_PX:g} px, spots matched"
+    )
+    shown_labels = ", ".join(str(cycle_labels[c]) for c in shown)
+    fig.suptitle(
+        f"Showing cycles {shown_labels} of {n_cycles}; off cycles always shown\n"
+        f"DAPI: cycle k green on cycle {cycle_labels[0]} magenta, white = aligned\n"
+        "Spots: cycle k green on all other cycles magenta, white = matched,\n"
+        f"magenta only = not detected in cycle k. {status}",
+        fontsize=10,
+    )
+    return fig
 
 
-def plot_channel_alignment_overlay(
+def plot_flagged_channel_overlays(
     aligned,
     channel_names,
-    crop_size=100,
+    cycles=None,
+    channels=None,
     cycle_labels=None,
     upsample_factor=2,
+    crop_size=300,
+    max_panels=4,
 ):
-    """Overlay each base channel's spots (green) on the shared spot map (magenta).
+    """Overlay base channels on the spots of the other cycles: flagged ones always, plus a selection.
 
-    One row per cycle and one column per base channel. The magenta reference is the spot
-    map of the other cycles (the reference used by `channel_shift_residuals`), so every
-    green spot of an aligned channel sits on a magenta spot and looks white; spots of
-    other sequences stay magenta. A shifted channel or cycle shows green spots beside
-    their magenta partners. Each panel title gives the measured shift (dy, dx px), or
-    n/a when it cannot be estimated, and the fraction of green spot pixels with no
-    magenta partner.
+    Each channel's spots (green) are shown on the spots of the other cycles (magenta),
+    cropped to a spot-rich region; a shifted channel's spots appear beside their magenta
+    partners. Titles give the channel's shift (dy, dx px) against the other channels of its
+    cycle. Channels that `report_alignment_qc` flags within their cycle are always shown
+    (largest shift first, at most max_panels); channels and cycles add more panels.
 
     Args:
         aligned (np.ndarray): Aligned SBS data (CYCLE, CHANNEL, I, J).
         channel_names (list[str]): Channel names of aligned.
-        crop_size (int, optional): Side of the centered crop shown, in pixels. Defaults to 100.
+        cycles (list[int] or str, optional): Cycle numbers (as in cycle_labels) for the
+            extra panels, or "all". Defaults to None: all cycles when channels is given.
+        channels (list[str] or str, optional): Base channels for the extra panels, or
+            "all". Defaults to None: flagged channels only.
         cycle_labels (list[int], optional): Cycle number shown for each row of aligned.
             Defaults to 1..n.
-        upsample_factor (int, optional): Subpixel factor for the shift estimate. Defaults to 2.
+        upsample_factor (int, optional): Subpixel factor for the shift estimates. Defaults to 2.
+        crop_size (int, optional): Side of each crop, in pixels. Defaults to 300.
+        max_panels (int, optional): Most panels shown, largest shift first. Defaults to 4.
 
     Returns:
-        matplotlib.figure.Figure: The figure, or None without base channels.
+        matplotlib.figure.Figure: The figure, or None when no channel is flagged or
+            selected.
     """
-    base_indices = [
-        i for i, ch in enumerate(channel_names) if ch in ("G", "T", "A", "C")
-    ]
-    if not base_indices:
-        return None
+    import matplotlib.pyplot as plt
+
+    base_indices = [i for i, ch in enumerate(channel_names) if ch in BASE_CHANNELS]
     n_cycles = aligned.shape[0]
+    if not base_indices or (n_cycles < 2 and len(base_indices) < 2):
+        return None
     cycle_labels = list(cycle_labels or range(1, n_cycles + 1))
-    shifts = channel_shift_residuals(aligned, base_indices, upsample_factor)["shifts"]
-    spots = np.stack(
+    residuals = channel_shift_residuals(aligned, base_indices, upsample_factor)[
+        "residuals"
+    ]
+    size = np.nan_to_num(np.abs(residuals).max(axis=-1), nan=0.0)
+    flagged = np.argwhere(size >= ALIGNMENT_PASS_PX).tolist()
+    flagged = sorted(flagged, key=lambda ck: -size[ck[0], ck[1]])[:max_panels]
+    extra = []
+    if channels is not None:
+        names = [channel_names[b] for b in base_indices]
+        wanted = names if channels == "all" else list(channels)
+        rows = _selected_cycles(cycles or "all", cycle_labels, np.zeros(n_cycles, bool))
+        extra = [[c, names.index(ch)] for c in rows for ch in wanted]
+    panels = flagged + [ck for ck in extra if ck not in flagged]
+    if not panels:
+        return None
+
+    channels = np.stack(
         [
-            [_spot_image(center_crop(aligned[c, b], crop_size)) for b in base_indices]
+            [_background_subtracted(aligned[c, b]) for b in base_indices]
             for c in range(n_cycles)
         ]
     )
-    panels = []
-    for c in range(n_cycles):
-        others = [o for o in range(n_cycles) if o != c]
-        for k, b in enumerate(base_indices):
-            if others:
-                reference = spots[others].max(axis=(0, 1))
-            else:
-                reference = np.delete(spots[c], k, axis=0).max(axis=0)
-            panels.append(
-                (
-                    reference,
-                    spots[c, k],
-                    f"cycle {cycle_labels[c]} {channel_names[b]}: {_fmt(shifts[c, k])}",
-                )
-            )
-    return plot_overlay_grid(
-        panels,
-        ncols=len(base_indices),
-        panel_size=2.6,
-        percentiles=SPOT_DISPLAY_PERCENTILES,
-        colored="moving",
-        fraction_percentiles=(0, 100),
-        suptitle="Within cycles: channel spots green, spots of the other cycles magenta "
-        "(white = aligned; shift dy, dx px)",
+    ncols = min(len(panels), len(base_indices))
+    nrows = int(np.ceil(len(panels) / ncols))
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(max(3.6 * ncols, 6.0), 3.8 * nrows + 0.6),
+        squeeze=False,
+        layout="constrained",
     )
+    for ax in axes.ravel():
+        ax.axis("off")
+    for ax, (c, k) in zip(axes.ravel(), panels):
+        is_flagged = [c, k] in flagged
+        others = [o for o in range(n_cycles) if o != c]
+        if others:
+            reference = channels[others].max(axis=(0, 1))
+        else:
+            reference = np.delete(channels[c], k, axis=0).max(axis=0)
+        window = _busiest_crop(channels[c, k], crop_size)
+        overlay = magenta_green_overlay(
+            _grow(reference[window]), _grow(channels[c, k][window]), SPOT_WINDOW
+        )
+        ax.imshow(overlay, interpolation="nearest")
+        ax.set_title(
+            f"cycle {cycle_labels[c]} {channel_names[base_indices[k]]}: "
+            f"{_fmt(residuals[c, k])}{'  OFF' if is_flagged else ''}",
+            fontsize=9,
+            color="red" if is_flagged else "black",
+        )
+        ax.axis("off")
+    fig.suptitle(
+        "Flagged channels always shown. Channel spots green, spots of the other cycles "
+        "magenta;\n"
+        "green beside magenta = shifted (other sequences stay magenta)",
+        fontsize=10,
+    )
+    return fig
 
 
 def _spot_image(image, sigma=1.0):
@@ -937,3 +984,92 @@ def _fmt(shift):
     if not np.all(np.isfinite(shift)):
         return "n/a"
     return f"({shift[0]:+.1f}, {shift[1]:+.1f})"
+
+
+def _per_cycle_dapi(aligned, channel_names):
+    """DAPI of every cycle, or None without DAPI or when it was imaged in one cycle only."""
+    if "DAPI" not in channel_names:
+        return None
+    dapi = aligned[:, channel_names.index("DAPI")]
+    if all(np.array_equal(dapi[c], dapi[0]) for c in range(1, len(dapi))):
+        return None
+    return dapi
+
+
+def _merged_base_spots(aligned, channel_names):
+    """Per-cycle maximum of the base channels' spot images, or None without base channels."""
+    bases = [i for i, ch in enumerate(channel_names) if ch in BASE_CHANNELS]
+    if not bases:
+        return None
+    return np.stack(
+        [
+            np.max([_spot_image(aligned[c, b]) for b in bases], axis=0)
+            for c in range(len(aligned))
+        ]
+    )
+
+
+def _selected_cycles(cycles, cycle_labels, off):
+    """Row indices to draw: the requested cycles (default second, middle, last) plus off ones."""
+    n_cycles = len(cycle_labels)
+    if cycles == "all":
+        chosen = set(range(n_cycles))
+    elif cycles is None:
+        chosen = {min(1, n_cycles - 1), n_cycles // 2, n_cycles - 1}
+    else:
+        unknown = set(cycles) - set(cycle_labels)
+        if unknown:
+            raise ValueError(
+                f"Unknown cycles {sorted(unknown)}; cycles are {cycle_labels}"
+            )
+        chosen = {cycle_labels.index(label) for label in cycles}
+    return sorted(chosen | set(np.flatnonzero(off).tolist()))
+
+
+def _union_spots(channels, threshold):
+    """Spots of one cycle: per-channel local maxima after top-hat and dye balance, merged."""
+    peaks = np.zeros(channels.shape[-2:], dtype=bool)
+    for channel in channels:
+        tophat = ndimage.white_tophat(np.asarray(channel, dtype=np.float32), size=9)
+        scale = np.percentile(tophat, 99.9)
+        if scale <= 0:
+            continue
+        smooth = ndimage.gaussian_filter(tophat / scale, 1.0)
+        peaks |= (smooth == ndimage.maximum_filter(smooth, size=5)) & (
+            smooth >= threshold
+        )
+    labels, n = ndimage.label(ndimage.binary_dilation(peaks))
+    if not n:
+        return np.zeros((0, 2))
+    return np.array(ndimage.center_of_mass(peaks, labels, range(1, n + 1)))
+
+
+def _dot_image(points, shape):
+    """Image with a small dot (3x3 px) at each point."""
+    image = np.zeros(shape, dtype=np.float32)
+    rows, cols = np.round(points).astype(int).T if len(points) else ([], [])
+    image[rows, cols] = 1.0
+    return ndimage.maximum_filter(image, size=3)
+
+
+def _background_subtracted(image, sigma=10.0):
+    """Image minus a broad Gaussian background, clipped at zero."""
+    image = np.asarray(image, dtype=np.float32)
+    return np.clip(image - ndimage.gaussian_filter(image, sigma), 0, None)
+
+
+def _grow(image, size=3):
+    """Grey dilation, so a spot shifted by a pixel between cycles still overlaps itself."""
+    return ndimage.maximum_filter(image, size=size)
+
+
+def _busiest_crop(image, crop_size):
+    """Slices of the crop_size window with the most signal."""
+    size = min(crop_size, *image.shape)
+    density = ndimage.uniform_filter(np.asarray(image, dtype=np.float32), size=size)
+    half = size // 2
+    inner = density[
+        half : image.shape[0] - size + half + 1, half : image.shape[1] - size + half + 1
+    ]
+    y, x = np.unravel_index(np.argmax(inner), inner.shape)
+    return slice(y, y + size), slice(x, x + size)

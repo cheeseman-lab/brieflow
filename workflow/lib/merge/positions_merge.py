@@ -33,15 +33,15 @@ TILE_SHIFT_RADII_UM = (8.0, 4.0, 4.0)
 TILE_SHIFT_MIN_PAIRS = 5
 TILE_SHIFT_MAX_MAD_UM = 2.0
 TILE_SHIFT_PRIOR_WEIGHT = 0.1
-SEAM_MIN_CELLS = 50
-SEAM_MIN_AREA_RATIO = 0.9
+OVERLAP_MIN_CELLS = 50
+OVERLAP_MIN_AREA_RATIO = 0.9
 DEDUP_RADIUS_UM = 6.0
 COARSE_BIN_UM = 10.0
 COARSE_MAX_SHIFT_UM = 500.0
 COARSE_MIN_PEAK_RATIO = 3.0
-SEAM_SEARCH_UM = 25.0
-SEAM_TOLERANCE_UM = 3.0
-SEAM_WARN_RATIO = 0.8
+OVERLAP_SEARCH_UM = 25.0
+OVERLAP_TOLERANCE_UM = 3.0
+OVERLAP_WARN_RATIO = 0.8
 LOW_MATCH_RATE = 0.2
 CAMERA_SCALE_RANGE = (0.8, 1.25)
 ORIENTATIONS = [
@@ -241,7 +241,7 @@ def fit_camera_model(ph, sbs, initial_shift):
         "radial": {"phenotype": np.zeros(2), "sbs": np.zeros(2)},
     }
     n_pairs, residual, fit_failed = 0, np.nan, False
-    seam_pairs = {"phenotype": 0, "sbs": 0}
+    overlap_pairs = {"phenotype": 0, "sbs": 0}
     for radius in ICP_RADII_UM:
         q = _apply_model(ph, model, "phenotype")
         s = _apply_model(sbs, model, "sbs")
@@ -250,12 +250,12 @@ def fit_camera_model(ph, sbs, initial_shift):
         if ok.sum() < 10:
             break
         n_pairs, residual = int(ok.sum()), float(np.median(dist[ok]))
-        seams = {
-            "phenotype": _seam_pairs(ph, q, radius),
-            "sbs": _seam_pairs(sbs, s, radius),
+        overlaps = {
+            "phenotype": _overlap_pairs(ph, q, radius),
+            "sbs": _overlap_pairs(sbs, s, radius),
         }
-        seam_pairs = {name: len(pair[0]) for name, pair in seams.items()}
-        candidate = _solve_camera(ph, np.flatnonzero(ok), sbs, idx[ok], seams)
+        overlap_pairs = {name: len(pair[0]) for name, pair in overlaps.items()}
+        candidate = _solve_camera(ph, np.flatnonzero(ok), sbs, idx[ok], overlaps)
         if not _plausible(candidate, ph, sbs):
             fit_failed = True
             break
@@ -263,8 +263,8 @@ def fit_camera_model(ph, sbs, initial_shift):
     qc = {
         "icp_pairs": n_pairs,
         "icp_median_residual_um": residual,
-        "phenotype_seam_pairs": seam_pairs["phenotype"],
-        "sbs_seam_pairs": seam_pairs["sbs"],
+        "phenotype_overlap_pairs": overlap_pairs["phenotype"],
+        "sbs_overlap_pairs": overlap_pairs["sbs"],
         "translation_x_um": float(model["t"][0]),
         "translation_y_um": float(model["t"][1]),
     }
@@ -283,7 +283,7 @@ def fit_tile_shifts(ph, ph_points, sbs, sbs_points):
 
     One sparse least-squares solve over all tiles of both modalities. Each observation is the
     median offset between two tiles: phenotype-to-SBS nearest neighbours, or the two copies of
-    cells in a seam of one modality. A tile pair only counts with at least
+    cells in a tile overlap of one modality. A tile pair only counts with at least
     `TILE_SHIFT_MIN_PAIRS` pairs agreeing within `TILE_SHIFT_MAX_MAD_UM`, so sparse tiles
     contribute nothing unreliable; a weak prior keeps tiles without observations at the
     well-level model. Relinearised over `TILE_SHIFT_RADII_UM`.
@@ -297,7 +297,7 @@ def fit_tile_shifts(ph, ph_points, sbs, sbs_points):
     Returns:
         dict: Per modality, a DataFrame indexed by tile with `x_pos`, `y_pos`, `dx`, `dy`
             (um) and `source`: "own" (tied to the other modality by its own cells),
-            "neighbour" (tied only through seams with neighbouring tiles) or "global".
+            "neighbour" (tied only through tile overlaps with neighbouring tiles) or "global".
     """
     n_ph = len(ph["tile_table"])
     keys = {"phenotype": ph["tile_table"].index, "sbs": sbs["tile_table"].index}
@@ -319,27 +319,29 @@ def fit_tile_shifts(ph, ph_points, sbs, sbs_points):
             )
         )
         for placed, points, base in ((ph, ph_xy, 0), (sbs, sbs_xy, n_ph)):
-            a, b = _seam_pairs(placed, points, radius)
+            a, b = _overlap_pairs(placed, points, radius)
             index = placed["tile_table"].index
             obs.append(
                 _pair_medians(
                     base + index.get_indexer(placed["tiles"][a]),
                     base + index.get_indexer(placed["tiles"][b]),
                     points[b] - points[a],
-                    "seam",
+                    "overlap",
                 )
             )
         obs = pd.concat(obs, ignore_index=True)
         shift += _solve_tile_shifts(obs, len(shift))
     cross_tiles = set(obs.loc[obs["kind"] == "cross", ["a", "b"]].to_numpy().ravel())
-    seam_tiles = set(obs.loc[obs["kind"] == "seam", ["a", "b"]].to_numpy().ravel())
+    overlap_tiles = set(
+        obs.loc[obs["kind"] == "overlap", ["a", "b"]].to_numpy().ravel()
+    )
     tables = {}
     for name, placed, base in (("phenotype", ph, 0), ("sbs", sbs, n_ph)):
         rows = base + np.arange(len(keys[name]))
         source = np.where(
             [r in cross_tiles for r in rows],
             "own",
-            np.where([r in seam_tiles for r in rows], "neighbour", "global"),
+            np.where([r in overlap_tiles for r in rows], "neighbour", "global"),
         )
         tables[name] = placed["tile_table"].assign(
             dx=shift[rows, 0], dy=shift[rows, 1], source=source
@@ -484,12 +486,12 @@ def orient_local(i, j, dimensions, flipud=False, fliplr=False, rot90=0):
     return i, j, (height, width)
 
 
-def seam_agreement(info, metadata, dimensions, pixel_size, orientation):
+def overlap_agreement(info, metadata, dimensions, pixel_size, orientation):
     """Score how well cells seen by two overlapping tiles coincide under an orientation.
 
     For every cell owned by a neighbouring tile, the nearest cell of that tile is found.
     Under the right orientation the displacements of one tile pair agree; the score is the
-    fraction within `SEAM_TOLERANCE_UM` of their tile pair's median displacement.
+    fraction within `OVERLAP_TOLERANCE_UM` of their tile pair's median displacement.
 
     Args:
         info (pandas.DataFrame): Cells with `tile`, `i`, `j`.
@@ -504,13 +506,15 @@ def seam_agreement(info, metadata, dimensions, pixel_size, orientation):
     placed = _place_cells(info, metadata, dimensions, orientation, pixel_size)
     xy = _nominal_xy(placed)
     tiles = placed["tiles"]
-    seam = np.flatnonzero(~placed["owned"])
-    if len(seam) < SEAM_MIN_CELLS:
+    shared_cells = np.flatnonzero(~placed["owned"])
+    if len(shared_cells) < OVERLAP_MIN_CELLS:
         return float("nan")
     rows = []
-    for other, members in pd.Series(seam).groupby(placed["owner"][seam]):
+    for other, members in pd.Series(shared_cells).groupby(
+        placed["owner"][shared_cells]
+    ):
         dist, idx = cKDTree(xy[tiles == other]).query(
-            xy[members.values], distance_upper_bound=SEAM_SEARCH_UM
+            xy[members.values], distance_upper_bound=OVERLAP_SEARCH_UM
         )
         ok = np.isfinite(dist)
         disp = xy[tiles == other][idx[ok]] - xy[members.values[ok]]
@@ -527,9 +531,9 @@ def seam_agreement(info, metadata, dimensions, pixel_size, orientation):
     disp = pd.concat(rows, ignore_index=True)
     med = disp.groupby(["src", "dst"])[["dx", "dy"]].transform("median")
     close = (
-        np.hypot(disp["dx"] - med["dx"], disp["dy"] - med["dy"]) <= SEAM_TOLERANCE_UM
+        np.hypot(disp["dx"] - med["dx"], disp["dy"] - med["dy"]) <= OVERLAP_TOLERANCE_UM
     )
-    return float(close.sum() / len(seam))
+    return float(close.sum() / len(shared_cells))
 
 
 def filter_tile_metadata(metadata, cycle=None, channel=None):
@@ -635,11 +639,11 @@ def _radial_terms(u, half, pixel_size):
     return pixel_size * np.stack([u * r2[:, None], u * (r2**2)[:, None]], axis=2)
 
 
-def _solve_camera(ph, ph_index, sbs, sbs_index, seams):
+def _solve_camera(ph, ph_index, sbs, sbs_index, overlaps):
     """Least-squares solve of both cameras, radial terms and translation.
 
     Unknowns: C_ph (4), C_sbs (4), t (2), k_ph (2), k_sbs (2). Cross-modality rows equate the
-    two placements of a nearest-neighbour pair; seam rows equate two copies of one cell.
+    two placements of a nearest-neighbour pair; tile-overlap rows equate two copies of one cell.
     """
     blocks, targets = [], []
 
@@ -662,7 +666,7 @@ def _solve_camera(ph, ph_index, sbs, sbs_index, seams):
         block[:, 8 + dim] = 1.0
         blocks.append(block)
         targets.append(delta[:, dim])
-    for (name, (a, b)), c_col, k_col in zip(seams.items(), (0, 4), (10, 12)):
+    for (name, (a, b)), c_col, k_col in zip(overlaps.items(), (0, 4), (10, 12)):
         placed = ph if name == "phenotype" else sbs
         rows_a = rows(placed, a, 1.0, c_col, k_col)
         rows_b = rows(placed, b, -1.0, c_col, k_col)
@@ -679,23 +683,25 @@ def _solve_camera(ph, ph_index, sbs, sbs_index, seams):
     }
 
 
-def _seam_pairs(placed, points, radius):
+def _overlap_pairs(placed, points, radius):
     """Pairs (a, b) of records of one cell seen by two tiles: a not owned, b in the owner tile."""
-    seam = np.flatnonzero(~placed["owned"])
-    if len(seam) == 0:
+    shared_cells = np.flatnonzero(~placed["owned"])
+    if len(shared_cells) == 0:
         return np.zeros(0, dtype=int), np.zeros(0, dtype=int)
-    dist, idx = cKDTree(points).query(points[seam], k=4, distance_upper_bound=radius)
+    dist, idx = cKDTree(points).query(
+        points[shared_cells], k=4, distance_upper_bound=radius
+    )
     found = np.isfinite(dist) & (
         placed["tiles"][np.minimum(idx, len(points) - 1)]
-        == placed["owner"][seam][:, None]
+        == placed["owner"][shared_cells][:, None]
     )
     has = found.any(axis=1)
     first = np.argmax(found, axis=1)
-    a, b = seam[has], idx[np.flatnonzero(has), first[has]]
+    a, b = shared_cells[has], idx[np.flatnonzero(has), first[has]]
     if placed["area"] is not None:
         # a copy cut by its tile border has a smaller area and a centroid pulled inward
         area_a, area_b = placed["area"][a], placed["area"][b]
-        whole = np.minimum(area_a, area_b) >= SEAM_MIN_AREA_RATIO * np.maximum(
+        whole = np.minimum(area_a, area_b) >= OVERLAP_MIN_AREA_RATIO * np.maximum(
             area_a, area_b
         )
         a, b = a[whole], b[whole]
@@ -778,9 +784,9 @@ def _pixel_size(metadata, fallback, name):
 
 
 def _orientation_qc(info, metadata, dimensions, pixel_size, orientation, name):
-    """Seam agreement of the configured orientation against the best of all eight."""
+    """Tile-overlap agreement of the configured orientation against the best of all eight."""
     scores = {
-        o: seam_agreement(info, metadata, dimensions, pixel_size, o)
+        o: overlap_agreement(info, metadata, dimensions, pixel_size, o)
         for o in ORIENTATIONS
     }
     configured = _canonical(orientation)
@@ -789,11 +795,11 @@ def _orientation_qc(info, metadata, dimensions, pixel_size, orientation, name):
     warn = bool(
         np.isfinite(conf_score)
         and np.isfinite(scores[best])
-        and conf_score < SEAM_WARN_RATIO * scores[best]
+        and conf_score < OVERLAP_WARN_RATIO * scores[best]
     )
     return {
-        f"{name}_seam_agreement": conf_score,
-        f"{name}_seam_agreement_best": scores[best],
+        f"{name}_overlap_agreement": conf_score,
+        f"{name}_overlap_agreement_best": scores[best],
         f"{name}_best_orientation": "flipud={},fliplr={},rot90={}".format(*best),
         f"{name}_orientation_warning": warn,
     }

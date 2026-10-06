@@ -112,12 +112,7 @@ if merge_approach == "positions":
                 metadata_combos=merge_wildcard_combos,
             )),
         output:
-            MERGE_OUTPUTS_MAPPED["positions_merge"][0],
-            MERGE_OUTPUTS_MAPPED["positions_merge"][1],
-            MERGE_OUTPUTS_MAPPED["positions_merge"][2],
-            MERGE_OUTPUTS_MAPPED["positions_merge"][3],
-            MERGE_OUTPUTS_MAPPED["positions_merge"][4],
-            MERGE_OUTPUTS_MAPPED["positions_merge"][5],
+            MERGE_OUTPUTS_MAPPED["positions_merge"],
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
@@ -136,7 +131,7 @@ if merge_approach == "positions":
             alignment_rotate_90=config.get("merge", {}).get("alignment_rotate_90"),
             phenotype_pixel_size=config.get("merge", {}).get("phenotype_pixel_size"),
             sbs_pixel_size=config.get("merge", {}).get("sbs_pixel_size"),
-            image_qc=config.get("merge", {}).get("positions_image_qc", True),
+            image_qc=config.get("merge", {}).get("positions_image_qc", False),
             phenotype_label_template=lambda wildcards: str(PHENOTYPE_OUTPUTS["segment_phenotype"][0]),
             sbs_label_template=lambda wildcards: str(SBS_OUTPUTS["segment_sbs"][0]),
             phenotype_image_template=lambda wildcards: str(PHENOTYPE_OUTPUTS["align_phenotype"][0]),

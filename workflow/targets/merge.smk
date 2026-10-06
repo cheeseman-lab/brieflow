@@ -19,22 +19,23 @@ MERGE_OUTPUTS = {
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "positions_merge", "parquet"
         ),
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "positions_merge_qc", "tsv"
-        ),
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "positions_image_qc", "tsv"
-        ),
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "positions_seams", "png"
-        ),
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "positions_cross_modality", "png"
-        ),
-        MERGE_FP / "eval" / get_filename(
-            {"plate": "{plate}", "well": "{well}"}, "positions_mosaic", "png"
-        ),
-    ],
+    ]
+    + (
+        [
+            MERGE_FP / "eval" / get_filename(
+                {"plate": "{plate}", "well": "{well}"}, name, ext
+            )
+            for name, ext in (
+                ("positions_merge_qc", "tsv"),
+                ("positions_image_qc", "tsv"),
+                ("positions_tile_overlaps", "png"),
+                ("positions_phenotype_in_sbs", "png"),
+                ("positions_mosaic", "png"),
+            )
+        ]
+        if config.get("merge", {}).get("positions_image_qc", False)
+        else []
+    ),
     "format_merge": [
         MERGE_FP / "parquets" / get_filename(
             {"plate": "{plate}", "well": "{well}"}, "merge_formatted", "parquet"

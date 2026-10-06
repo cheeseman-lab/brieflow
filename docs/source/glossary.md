@@ -97,7 +97,10 @@ Merge
   The module that assigns each phenotype cell its SBS cell, and so its barcode. The default `fast` approach aligns each phenotype tile to SBS sites by hashing triangles of nuclear centroids, refines the fit with a RANSAC regression seeded at 0, matches cells within a distance threshold and removes duplicate matches; the {term}`positions approach <Positions merge>` matches from tile positions and centroids.
 
 Positions merge
-  The `positions` merge approach. Each cell is placed in one micrometre frame from its tile's stage position and its centroid; a camera model per microscope (scale, rotation, radial lens distortion) and a phenotype-to-SBS offset are fitted to all cells of the well, then a shift per tile absorbs stage repeatability, using a tile's own cells only when enough of them agree. Copies of a cell imaged by two overlapping tiles are reduced to the most central one, and cells are matched one-to-one as mutual nearest neighbours within `THRESHOLD`. Seam, phenotype-in-SBS and mosaic {term}`overlays <Alignment overlay>` of the fitted placement are written per well for checking by eye.
+  The `positions` merge approach. Each cell is placed in one micrometre frame from its tile's stage position and its centroid; a camera model per microscope (scale, rotation, radial lens distortion) and a phenotype-to-SBS offset are fitted to all cells of the well, then a shift per tile absorbs stage repeatability, using a tile's own cells only when enough of them agree. Copies of a cell imaged by two overlapping tiles are reduced to the most central one, and cells are matched one-to-one as mutual nearest neighbours within `THRESHOLD`. The merge notebook shows {term}`tile overlap <Tile overlap>` and phenotype-in-SBS {term}`overlays <Alignment overlay>` of the fitted placement for checking by eye.
+
+Tile overlap
+  The strip two neighbouring tiles of one imaging run both cover. The positions merge uses cells imaged in both to tie each camera to the stage, keeps one copy of each, and its overlay of the two tiles' images there shows whether they are placed correctly (white when aligned).
 ```
 
 ## Aggregation and statistics

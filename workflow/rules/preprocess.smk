@@ -1,6 +1,5 @@
 from lib.preprocess.file_utils import get_sample_fps, get_inputs_for_metadata_extraction
 from lib.preprocess.preprocess import get_data_config, include_tile_in_input, get_expansion_values
-from lib.shared.file_utils import get_data_output_path
 from lib.shared.target_utils import output_to_input
 
 
@@ -122,16 +121,6 @@ rule calculate_ic_sbs:
     params:
         threading=True,
         sample_fraction=config.get("preprocess", {}).get("sample_fraction", 1),
-    # Only low-count rules carry `benchmark:`. Snakemake's BenchmarkTimer polls
-    # once per second for its first 30 samples and each poll calls psutil
-    # memory_full_info() on the job and every child -- a /proc/<pid>/smaps walk.
-    # Harmless for a handful of jobs; on a 960-job rule at 88-wide it cost 25%
-    # wall (1574 s -> 1964 s on phenotype post-seg, identical I/O, scheduler CPU
-    # 2% -> 298%). There is no flag to switch benchmarking off, so the per-tile
-    # rules deliberately have none -- add one temporarily when profiling.
-    benchmark:
-        PREPROCESS_FP / "benchmarks" / get_data_output_path(_pp_sbs_ic, "calculate_ic_sbs", "tsv", IMG_FMT)
-    threads: config.get("preprocess", {}).get("ic_n_jobs", 8)
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 
@@ -150,9 +139,6 @@ rule calculate_ic_phenotype:
     params:
         threading=True,
         sample_fraction=config.get("preprocess", {}).get("sample_fraction", 1),
-    benchmark:
-        PREPROCESS_FP / "benchmarks" / get_data_output_path(_pp_phen_ic, "calculate_ic_phenotype", "tsv", IMG_FMT)
-    threads: config.get("preprocess", {}).get("ic_n_jobs", 8)
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 

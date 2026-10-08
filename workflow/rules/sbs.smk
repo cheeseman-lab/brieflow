@@ -118,13 +118,6 @@ rule segment_sbs:
         SBS_OUTPUTS_MAPPED["segment_sbs"],
     params:
         config=lambda wildcards: get_segmentation_params("sbs", config),
-    # threads is not internal parallelism here — Cellpose runs on the GPU. As on
-    # segment_phenotype, it reserves cores so the tile pool cannot launch --cores
-    # concurrent Cellpose processes against one GPU when a run forgets
-    # `--resources gpu=N`. Prefer setting that resource; this is the backstop.
-    threads: 4
-    resources:
-        gpu=1,
     script:
         "../scripts/shared/segment.py"
 

@@ -6,7 +6,7 @@ ic_field = calculate_ic_field(
     snakemake.input,
     threading=snakemake.params.threading,
     sample_fraction=snakemake.params.sample_fraction,
-    n_jobs=snakemake.threads,
+    n_jobs=-1,
 )
 
 # Save IC field (supports both TIFF and Zarr based on output path)

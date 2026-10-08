@@ -36,21 +36,12 @@ DEFAULT_CHANNEL_COLORS = [
 
 PathLike = Union[str, Path]
 
-# Pyramid depth and compression applied by the *preprocess convert* path when
-# Fallbacks for the convert path when a config omits all.zarr_max_levels /
-# all.zarr_compression. DEFAULT_MAX_LEVELS is 1 so a config that sets neither
-# key writes exactly what it wrote before this change; the shipped configs opt
-# in to a pyramid explicitly. These are call-site defaults, NOT writer
-# defaults: save_image and write_image_omezarr stay single-level and
-# uncompressed unless asked, so every other save_image caller is unaffected.
+# Convert-path fallbacks when all.zarr_max_levels / all.zarr_compression are unset.
 DEFAULT_MAX_LEVELS = 1
 DEFAULT_ZARR_COMPRESSION = "blosc-zstd-bitshuffle"
 DEFAULT_BLOSC_CLEVEL = 5
 
-# Cap the process-wide c-blosc thread pool so a tile-conversion job doesn't
-# spawn one thread per core on top of Snakemake's own parallelism. Applied
-# where the codec is built rather than at import, so importing this module has
-# no global side effect.
+# c-blosc thread cap, applied in _make_compressor so importing has no side effect.
 _BLOSC_NTHREADS = 4
 
 _BLOSC_SHUFFLE = {
@@ -72,6 +63,10 @@ def _make_compressor(compression: Optional[str]):
     Returns None, meaning zarr's default codec, for ``None`` or ``"none"``.
     Blosc is lossless for every cname, so a write/read roundtrip is always
     bit-identical.
+
+    Also caps the process-wide c-blosc thread pool at ``_BLOSC_NTHREADS`` so a
+    tile-conversion job does not spawn one thread per core on top of Snakemake's
+    own parallelism.
 
     Args:
         compression: Codec spec string, or None/"none" to leave zarr's default.
@@ -273,6 +268,19 @@ def write_image_omezarr(
         chunk_size: Tuple for chunking (optional).
         compression: Codec spec, ``blosc-<cname>[-<shuffle>][:<clevel>]``, or
             ``"none"``/None for zarr's default. See :func:`_make_compressor`.
+
+    Notes:
+        The pyramid is built here, level by level with ``da.to_zarr``, rather
+        than through ``ome_zarr.writer.write_image``. On the pinned zarr-v3
+        stack (zarr 3.x, ome-zarr 0.13.0) that writer's dask branch drops the
+        compressor, and its numpy branch downsamples the channel axis with Y/X
+        and smooths level 0. Writing each level directly keeps level 0
+        bit-identical to the input and attaches the codec to every level.
+
+        ``Scaler.resize_image`` reads ``order`` and ignores ``method``, so
+        labels are downsampled with ``order=0`` (nearest-neighbour), which
+        cannot invent IDs absent from the input; images use ``order=1``.
+        ``downsamplingMethod`` in the multiscales metadata names that choice.
     """
     # Normalize axis names to uppercase (OPS schema convention).
     axes = axes.upper()
@@ -357,10 +365,7 @@ def write_image_omezarr(
     if chunk_size is None:
         chunk_size = tuple(c[0] for c in image_data.chunks)
 
-    # Scaler.resize_image reads ``order``, never ``method``: it always calls
-    # skimage resize(order=self.order, mode="reflect", anti_aliasing=False).
-    # order=0 is nearest-neighbour, required for labels so downsampling cannot
-    # invent IDs absent from the input. Passing method= here would be inert.
+    # order=0 is nearest-neighbour; Scaler ignores method=, so labels need it here.
     scaler = Scaler(
         downscale=coarsening_factor,
         max_layer=max_levels - 1,
@@ -368,18 +373,7 @@ def write_image_omezarr(
         order=0 if is_label else 1,
     )
 
-    # Build and write the pyramid here rather than calling
-    # ome_zarr.writer.write_image, which is not usable on the zarr-v3 stack this
-    # repo pins (zarr 3.x, ome-zarr 0.13.0):
-    #
-    #   * its dask branch silently drops the compressor, so every array lands
-    #     with zarr's default codec (zstd level 0) no matter what is requested;
-    #   * its numpy branch treats the channel axis as spatial, downsampling
-    #     C alongside Y/X (3 -> 2 -> 1) and applying the gaussian to level 0,
-    #     so level 0 is no longer the input.
-    #
-    # Writing each level with da.to_zarr lets us attach a real codec and keeps
-    # level 0 bit-identical to the single-level output.
+    # Per-level writes instead of ome_zarr's write_image; see the docstring for why.
     zarr_array_kwargs: Dict[str, Any] = {"dimension_names": dimension_names}
     if compressor is not None:
         zarr_array_kwargs["compressors"] = [compressor]
@@ -406,18 +400,13 @@ def write_image_omezarr(
 
     write_multiscales_metadata(root, datasets, CurrentFormat(), axes_dicts, **metadata)
 
-    # Merge our metadata (omero, image-label) into the ``ome`` namespace that
-    # write_multiscales_metadata created above for multiscales.  This ensures
-    # iohub (and any OME-NGFF v0.5 reader) finds them at
-    # attributes.ome.omero / attributes.ome.image-label.
+    # Put omero/image-label under the ``ome`` key write_multiscales_metadata created.
     ome_attrs = dict(root.attrs.get("ome", {}))
     if metadata:
         for k, v in metadata.items():
             ome_attrs[k] = v
 
-    # Record downsamplingMethod on multiscales (OPS schema RECOMMENDED).
-    # Must name what Scaler actually ran (see the order= note above). This was
-    # previously hardcoded "gaussian", an operation no code path performed.
+    # downsamplingMethod must name what Scaler ran (it used to claim "gaussian").
     ms = ome_attrs.get("multiscales", [])
     if ms:
         ms[0]["downsamplingMethod"] = "nearest" if is_label else "linear"

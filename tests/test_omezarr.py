@@ -576,12 +576,13 @@ class TestCompressionAndPyramid:
         np.testing.assert_array_equal(img, p0)
 
     def test_labels_use_nearest_neighbour(self, tmp_path):
-        """Label pyramids never invent values between existing labels."""
+        """Label pyramids never invent values between existing labels.
+
+        The IDs are spaced far apart on purpose: with 0..5 packed together,
+        bilinear interpolation truncates back onto a member of the set and the
+        subset assertion passes even with order=1, so the test could not fail.
+        """
         out = tmp_path / "lab.zarr"
-        # IDs must be far apart: with 0..5 packed together, bilinear
-        # interpolation truncates back onto a member of the set and the
-        # subset assertion below passes even when order=1, i.e. it cannot
-        # fail. Spaced IDs make an interpolated value provably not an ID.
         lab = np.random.choice(
             np.array([0, 100, 200, 300], dtype=np.uint16), (1, 256, 256)
         )

@@ -34,8 +34,7 @@ image_array = convert_to_array(
 # Get channel names from config for OME metadata (used by zarr, ignored by tiff)
 channel_names = data_config.get("channel_order")
 
-# Save in the format determined by output path extension.
-# Pyramid depth and compression are zarr-only; ignored for TIFF output.
+# Format follows the output extension; pyramid depth and codec apply to zarr only.
 all_config = snakemake.config.get("all", {})
 save_image(
     image_array,

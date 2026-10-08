@@ -6,6 +6,10 @@ import numpy as np
 def identify_cytoplasm_cellpose(nuclei, cells):
     """Identifies and isolates the cytoplasm region in an image based on the provided nuclei and cells masks.
 
+    The result equals the former per-label loop, which wrote each cell label C in
+    ascending order and then zeroed the same-label nucleus: a pixel is zeroed only
+    when it carries a nucleus label N that is also a cell label, with N >= C.
+
     Args:
         nuclei (ndarray): A 2D array representing the nuclei regions.
         cells (ndarray): A 2D array representing the cells regions.
@@ -24,27 +28,10 @@ def identify_cytoplasm_cellpose(nuclei, cells):
             "`reconcile` (e.g. 'contained_in_cells' or 'consensus') in the config."
         )
 
-    # Create an empty cytoplasmic mask with the same shape as cells
-    cytoplasms = np.zeros(cells.shape)
-
-    # Iterate over each unique cell label
-    for cell_label in np.unique(cells):
-        # Skip if the cell label is 0 (background)
-        if cell_label == 0:
-            continue
-
-        # Find the corresponding nucleus label for this cell
-        nucleus_label = cell_label
-
-        # Get the coordinates of the nucleus and cell regions
-        nucleus_coords = np.argwhere(nuclei == nucleus_label)
-        cell_coords = np.argwhere(cells == cell_label)
-
-        # Update the cytoplasmic mask with the cell region
-        cytoplasms[cell_coords[:, 0], cell_coords[:, 1]] = cell_label
-
-        # Remove the nucleus region from the cytoplasmic mask
-        cytoplasms[nucleus_coords[:, 0], nucleus_coords[:, 1]] = 0
+    # Vectorized form of the old loop; bit-identity pinned in test_identify_cytoplasm_cellpose.py
+    cytoplasms = np.where(
+        (nuclei > 0) & (nuclei >= cells) & np.isin(nuclei, cells), 0, cells
+    )
 
     # Calculate the number of identified cytoplasms (excluding background label)
     num_cytoplasm_segmented = len(np.unique(cytoplasms)) - 1

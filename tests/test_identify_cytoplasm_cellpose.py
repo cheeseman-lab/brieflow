@@ -7,7 +7,7 @@ nucleus was re-written by the later cell pass and survived as C. The vectorized
 expression has to reproduce that quirk, not the intent, or masks shift.
 
 The reference below is a verbatim copy of the pre-refactor loop. If someone
-"cleans up" the `>=` to `==`, or reorders it, these fail.
+"cleans up" the `>=` to `==`, drops the `np.isin` term, or reorders it, these fail.
 """
 
 import sys
@@ -70,18 +70,46 @@ def _smaller_nucleus_over_larger_cell():
     return nuclei, cells
 
 
+def _same_count_different_labels():
+    """Same number of labels, different label sets -- passes the count gate.
+
+    Nucleus 3 has no cell 3, so the loop never zeroes it and it survives as cell 2.
+    Without the `np.isin` term, `nuclei >= cells` would zero it.
+    """
+    nuclei = np.zeros((10, 10), dtype=int)
+    cells = np.zeros((10, 10), dtype=int)
+    cells[1:4, 1:4] = 1
+    cells[6:9, 6:9] = 2
+    nuclei[2:3, 2:3] = 1
+    nuclei[7:8, 7:8] = 3
+    return nuclei, cells
+
+
 @pytest.mark.parametrize(
-    "fixture", [_aligned, _smaller_nucleus_over_larger_cell], ids=lambda f: f.__name__
+    "fixture",
+    [_aligned, _smaller_nucleus_over_larger_cell, _same_count_different_labels],
+    ids=lambda f: f.__name__,
 )
 def test_matches_the_pre_refactor_loop(fixture):
     nuclei, cells = fixture()
-    assert set(np.unique(nuclei).tolist()) == set(np.unique(cells).tolist()), (
-        "fixture must satisfy the shared-label-set precondition"
-    )
 
     out = identify_cytoplasm_cellpose(nuclei, cells)
     np.testing.assert_array_equal(out, _reference_loop(nuclei, cells))
     assert out.dtype == _reference_loop(nuclei, cells).dtype
+
+
+def test_randomized_matches_the_pre_refactor_loop():
+    """Equal label counts, label sets drawn so they often differ."""
+    rng = np.random.default_rng(0)
+    for _ in range(500):
+        k = int(rng.integers(1, 8))
+        nucleus_labels = np.append(0, rng.choice(np.arange(1, k + 3), k, replace=False))
+        nuclei = rng.choice(nucleus_labels, (12, 12))
+        cells = rng.integers(0, k + 1, (12, 12))
+        if len(np.unique(nuclei)) != len(np.unique(cells)):
+            continue
+        out = identify_cytoplasm_cellpose(nuclei, cells)
+        np.testing.assert_array_equal(out, _reference_loop(nuclei, cells))
 
 
 def test_the_quirk_fixture_actually_exercises_the_quirk():
@@ -93,15 +121,12 @@ def test_the_quirk_fixture_actually_exercises_the_quirk():
     )
 
 
-def test_mismatched_label_sets_raise():
-    """The gate is set equality, not count equality -- same count, different labels."""
+def test_mismatched_label_counts_raise():
     nuclei = np.zeros((10, 10), dtype=int)
     cells = np.zeros((10, 10), dtype=int)
     cells[1:4, 1:4] = 1
     cells[6:9, 6:9] = 2
     nuclei[2:3, 2:3] = 1
-    nuclei[7:8, 7:8] = 3  # same number of unique labels, different label set
 
-    assert len(np.unique(nuclei)) == len(np.unique(cells))
     with pytest.raises(ValueError, match="reconciled masks"):
         identify_cytoplasm_cellpose(nuclei, cells)

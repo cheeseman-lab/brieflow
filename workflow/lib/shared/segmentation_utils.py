@@ -146,18 +146,12 @@ def reconcile_nuclei_cells(nuclei, cells, how="consensus", verbose=False):
         regionprops(nuclei_eroded, intensity_image=cells)
     )
 
-    # Cell->nuclei mapping. Computed once with keep_multiple=True; the consensus
-    # single-value map is derived from it below (the entries holding exactly one
-    # nucleus), which is identical to a keep_multiple=False pass but saves a second
-    # full regionprops(cells, ...) scan per tile.
+    # Computed once; the consensus map below is derived from it instead of a second scan
     cell_map_multiple = get_unique_label_map(
         regionprops(cells, intensity_image=nuclei_eroded), keep_multiple=True
     )
 
     if verbose:
-        # Diagnostics only (stdout); they do not affect the returned masks. The
-        # nuclear-solidity QC builds a convex hull per nucleus — the costliest CPU
-        # op in the tile — so the whole block is gated off by default.
         nuclei_per_cell = defaultdict(int)
         for cell_label, nuclei_labels in cell_map_multiple.items():
             nuclei_per_cell[len(nuclei_labels)] += 1

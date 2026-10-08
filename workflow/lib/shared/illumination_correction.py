@@ -45,8 +45,9 @@ def calculate_ic_field(
         slicer (slice, optional): Slice object to select specific parts of the images.
         sample_fraction (float, optional): Fraction of images to sample for calculation. Defaults to 1.0 (100% of images).
         n_jobs (int, optional): Parallel workers for the file-accumulate reads and the per-channel
-            median filter. 1 (default) = serial (identical to prior behavior); >1 parallelizes
-            (bit-identical — read order preserved, float summation order unchanged).
+            median filter. 1 (default) = serial; -1 uses all allocated CPUs. Bit-identical
+            either way (read order and float summation order are preserved), and memory
+            stays bounded by the 16-file read batch.
 
     Returns:
         np.ndarray: The calculated illumination correction field.
@@ -62,10 +63,7 @@ def calculate_ic_field(
 
     # Accumulate images using threading or sequential processing, averaging them
     if threading:
-        # Parallel READ, in-order SUM. Reads (disk-bound) run concurrently in
-        # batches; the += stays in file order so the accumulator is byte-identical
-        # to the sequential path (float summation order preserved). Replaces the
-        # old np.zeros_like-per-file path that peaked at ~n_files*655MB (OOM).
+        # Batched parallel reads, in-order sum: byte-identical to the sequential path
         N = len(files)
         rest = files[1:]
         batch = 16
@@ -89,8 +87,7 @@ def calculate_ic_field(
 
     selem = morphology.disk(smooth)
 
-    # Apply median filter with warning suppression.
-    # n_jobs>1 parallelizes across channel frames (bit-identical to the serial path).
+    # Apply median filter with warning suppression
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         if n_jobs == 1:

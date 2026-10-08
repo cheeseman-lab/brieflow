@@ -8,19 +8,25 @@ hamming-1 lookup index. The correction contract has to be identical either way:
 3. A read beyond max_distance of every barcode is returned unchanged.
 4. A read equidistant from two barcodes is ambiguous and returned unchanged --
    silently picking one would assign reads to the wrong perturbation.
+
+_reference_error_correct_reads is a verbatim copy of the pre-index implementation;
+the randomized test checks the new function against it.
 """
 
+import random
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+import pytest
 
 # Import the way the pipeline does at runtime (workflow/ on path -> top-level `lib`).
 _WORKFLOW = Path(__file__).resolve().parents[1] / "workflow"
 if str(_WORKFLOW) not in sys.path:
     sys.path.insert(0, str(_WORKFLOW))
 
-from lib.sbs.call_cells import error_correct_reads  # noqa: E402
+from lib.sbs.call_cells import _barcode_distance_matrix, error_correct_reads  # noqa: E402
 
 LIBRARY = pd.Series(["AAAAAAAAAAAA", "CCCCCCCCCCCC", "GGGGGGGGGGGG"])
 
@@ -57,3 +63,81 @@ def test_ambiguous_reads_are_not_corrected():
     out = correct(["AAAAAAAAAAAA"], library=library)  # 1 edit from both
 
     assert out.iloc[0] == "AAAAAAAAAAAA"
+
+
+def _reference_error_correct_reads(
+    reads, reference, max_distance=2, distance_metric="hamming"
+):
+    """Verbatim pre-index implementation."""
+    dist_to_ref = _barcode_distance_matrix(
+        reads.to_list(),
+        reference.to_list(),
+        distance_metric=distance_metric,
+    )
+
+    min_dist_to_ref = dist_to_ref.min(axis=1)
+    unique_dist = np.array(
+        [
+            np.sum(dist_to_ref[x] == min_dist_to_ref[x]) == 1
+            for x in range(dist_to_ref.shape[0])
+        ]
+    )
+
+    corrected_subset = unique_dist & (min_dist_to_ref <= max_distance)
+    corrected_barcodes = reference.loc[
+        dist_to_ref[corrected_subset].argmin(axis=1)
+    ].values
+
+    corrected_reads = reads.copy()
+    corrected_reads.loc[corrected_subset] = corrected_barcodes
+    return corrected_reads
+
+
+def _random_case(rng):
+    """Short barcodes so collisions, duplicates, N and length mismatches are common."""
+    length = rng.randint(3, 5)
+    library = ["".join(rng.choices("ACGT", k=length)) for _ in range(rng.randint(1, 8))]
+    if rng.random() < 0.3:
+        library.append(
+            rng.choice(library)
+        )  # duplicate, as in a library truncated to read length
+    reads = []
+    for _ in range(rng.randint(1, 12)):
+        read = list(rng.choice(library))
+        for _ in range(rng.randint(0, 2)):
+            read[rng.randrange(length)] = rng.choice("ACGTN")
+        if rng.random() < 0.1:
+            read = read[:-1] if rng.random() < 0.5 else read + ["A"]
+        reads.append("".join(read))
+    return pd.Series(reads), pd.Series(library)
+
+
+@pytest.mark.parametrize("max_distance", [1, 2])
+def test_randomized_matches_reference(max_distance):
+    rng = random.Random(0)
+    for _ in range(3000):
+        reads, library = _random_case(rng)
+        expected = _reference_error_correct_reads(reads, library, max_distance)
+        actual = error_correct_reads(reads, library, max_distance)
+        assert actual.tolist() == expected.tolist(), (reads.tolist(), library.tolist())
+
+
+def test_duplicate_library_barcode_is_ambiguous():
+    out = correct(["AAAAAAAAAAAC"], library=pd.Series(["AAAAAAAAAAAA", "AAAAAAAAAAAA"]))
+
+    assert out.iloc[0] == "AAAAAAAAAAAC"
+
+
+def test_reads_with_n_are_corrected_by_hamming_distance():
+    out = correct(["AAAAAAAAAAAN"])
+
+    assert out.iloc[0] == "AAAAAAAAAAAA"
+
+
+@pytest.mark.parametrize("max_distance", [1, 2])
+def test_nan_read_raises_like_reference(max_distance):
+    reads = pd.Series(["AAAAAAAAAAAA", np.nan])
+    with pytest.raises(TypeError):
+        _reference_error_correct_reads(reads, LIBRARY, max_distance)
+    with pytest.raises(TypeError):
+        error_correct_reads(reads, LIBRARY, max_distance)

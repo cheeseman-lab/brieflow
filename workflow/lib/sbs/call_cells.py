@@ -6,6 +6,7 @@ Supports single-barcode and multi-barcode protocols with per-barcode quality tra
 import pandas as pd
 import numpy as np
 import Levenshtein
+from collections import Counter
 from functools import lru_cache
 
 from lib.sbs.constants import (
@@ -29,29 +30,6 @@ from lib.sbs.constants import (
 )
 
 COLS = [WELL, TILE, CELL]
-
-
-@lru_cache(maxsize=2)
-def _read_barcode_library_cached(fp, sep="\t"):
-    """Parse a barcode-library TSV once per worker process (keyed on path)."""
-    return pd.read_csv(fp, sep=sep)
-
-
-def load_barcode_library(fp, sep="\t"):
-    """Load a barcode library, reusing a per-process parsed cache.
-
-    The library is identical for every tile in a run, so the per-tile
-    ``read_csv`` is pure repeated work. Returns a fresh copy each call so
-    callers may mutate the frame without corrupting the cache.
-
-    Args:
-        fp (str): Path to the barcode-library table.
-        sep (str, optional): Field separator. Defaults to tab.
-
-    Returns:
-        pandas.DataFrame: Parsed barcode library, safe to mutate.
-    """
-    return _read_barcode_library_cached(fp, sep).copy()
 
 
 def call_cells(
@@ -543,27 +521,26 @@ def call_cells_add_UMIs(df_cells, df_UMI, cols=None):
 
 # Sentinel for ambiguous matches (read is within max_distance of 2+ barcodes)
 _AMBIGUOUS = object()
+_ACGT = frozenset("ACGT")
 
 
 @lru_cache(maxsize=4)
 def _build_hamming1_index(barcodes_tuple):
     """Build a {neighbor_str: barcode} lookup for all 1-edit Hamming neighbors.
 
-    Cached per unique barcode set (keyed on a tuple of sorted barcodes).
-    Returns a dict where values are either a barcode string (unique match)
-    or _AMBIGUOUS (read is equidistant to 2+ barcodes).
+    Cached per barcode library (keyed on a sorted tuple that keeps duplicates).
+    Values are a barcode string (unique match) or _AMBIGUOUS (the neighbor is
+    1 edit from 2+ barcodes, or from a barcode listed more than once).
     """
     index = {}
-    alphabet = "ACGT"
-    for barcode in barcodes_tuple:
+    for barcode, count in Counter(barcodes_tuple).items():
         for i, base in enumerate(barcode):
-            for sub in alphabet:
+            for sub in "ACGT":
                 if sub == base:
                     continue
                 neighbor = barcode[:i] + sub + barcode[i + 1 :]
-                if neighbor in index:
-                    if index[neighbor] != barcode:
-                        index[neighbor] = _AMBIGUOUS  # collision
+                if count > 1 or neighbor in index:
+                    index[neighbor] = _AMBIGUOUS
                 else:
                     index[neighbor] = barcode
     return index
@@ -572,36 +549,40 @@ def _build_hamming1_index(barcodes_tuple):
 def error_correct_reads(reads, reference, max_distance=2, distance_metric="hamming"):
     """Error correct reads against a reference set of barcodes.
 
-    For Hamming distance 1 (the common production case), uses a precomputed
-    1-edit index for O(1) lookup per unique read instead of O(N*M) distance
-    matrix. Falls back to the distance-matrix path for max_distance > 1 or
-    non-Hamming metrics.
+    Only corrects when there is a unique closest match within max_distance.
+    For Hamming distance 1 with a fixed-length library, reads that are pure
+    A/C/G/T of the library length use a precomputed 1-edit index; every other
+    read takes the distance-matrix path.
+
+    Args:
+        reads: Series with reads to correct.
+        reference: Series with reference barcodes.
+        max_distance: Maximum edit distance for correction.
+        distance_metric: "hamming" or "levenshtein".
+
+    Returns:
+        Series with corrected reads.
     """
     reference_list = reference.to_list()
     reference_set = set(reference_list)
-
-    # Fast path: Hamming-1 with precomputed index
-    if distance_metric == "hamming" and max_distance == 1:
-        barcodes_tuple = tuple(sorted(reference_set))
-        index = _build_hamming1_index(barcodes_tuple)
-
-        unique_reads = pd.unique(reads)
-        correction = {}
-        for read in unique_reads:
-            if read in reference_set:
-                correction[read] = read  # exact match
-            else:
-                match = index.get(read)
-                if match is None or match is _AMBIGUOUS:
-                    correction[read] = read  # no unique match — leave unchanged
-                else:
-                    correction[read] = match  # unique 1-edit correction
-        return reads.map(correction)
-
-    # Slow path: generic distance matrix (unchanged)
+    lengths = {len(barcode) for barcode in reference_list}
     unique_reads = pd.unique(reads)
     correction = {r: r for r in unique_reads}
+
     unmapped = [r for r in unique_reads if r not in reference_set]
+    if distance_metric == "hamming" and max_distance == 1 and len(lengths) == 1:
+        (length,) = lengths
+        index = _build_hamming1_index(tuple(sorted(reference_list)))
+        indexable = [
+            isinstance(r, str) and len(r) == length and _ACGT.issuperset(r)
+            for r in unmapped
+        ]
+        for read in (r for r, ok in zip(unmapped, indexable) if ok):
+            match = index.get(read)
+            if match is not None and match is not _AMBIGUOUS:
+                correction[read] = match
+        unmapped = [r for r, ok in zip(unmapped, indexable) if not ok]
+
     if unmapped:
         dist_to_ref = _barcode_distance_matrix(
             unmapped,

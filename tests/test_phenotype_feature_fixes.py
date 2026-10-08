@@ -146,8 +146,7 @@ def test_segment_cellpose_default_kwargs(monkeypatch):
 
     sc.segment_cellpose(data, 0, 1, 10, 20, cells=False)
     sc.segment_cellpose(data, 0, 1, 10, 20, cells=True, reconcile=False)
-    # batch_size=32 is this branch's eval batching default -- it changes how many
-    # 224px patches share a forward pass, not the masks.
+    # batch_size=32 changes how many patches share a forward pass, not the masks
     assert _FakeModel.calls == [
         {"flow_threshold": 0.4, "cellprob_threshold": 0, "batch_size": 32},
         {"flow_threshold": 0.4, "cellprob_threshold": 0, "batch_size": 32},

@@ -167,6 +167,9 @@ SECOND_OBJ_METHOD
 ## Merge (`5_merge.py`)
 
 ```{glossary}
+MERGE_APPROACH
+  `merge.approach` · default `"fast"`. `"fast"` or `"positions"`; the notebook runs only the chosen approach's section. Choose the {term}`positions approach <Positions merge>` at high phenotype magnification or when tiles hold too few cells for `fast`.
+
 INITIAL_SITES_APPROACH
   Not written · default `None`. How the starting tile pairs are given: `"auto"` finds a phenotype tile for each of `INITIAL_SBS_TILES` from stage coordinates; `"manual"` takes explicit `INITIAL_SITES`.
 
@@ -179,8 +182,8 @@ DET_RANGE
 THRESHOLD
   `merge.threshold` · default `None`. Maximum distance between a phenotype cell and an SBS cell for them to match, for example `2`.
 
-STITCH
-  Writes `merge.approach` (`"stitch"` if `True`, else `"fast"`) · default `False`. Use the stitch approach when no good initial sites can be found.
+FLIPUD, FLIPLR, ROT90
+  `merge.flipud`, `merge.fliplr`, `merge.rot90` · default `False`, `False`, `0`. Tile orientation relative to the stage, used by the `positions` approach: a vertical flip, a horizontal flip, then `ROT90` counterclockwise quarter turns (as `numpy.rot90`). When the fit warns that another orientation lines up the tile overlaps better, set them to the one it names.
 ```
 
 ## Classify (`7_classify.py`)

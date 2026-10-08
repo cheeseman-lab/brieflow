@@ -91,191 +91,69 @@ if merge_approach == "fast":
             "../scripts/merge/fast_merge.py"
 
 
-if merge_approach == "stitch":
-    rule estimate_stitch_phenotype:
+if merge_approach == "positions":
+    rule positions_merge:
         input:
-            phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
+            ancient(lambda wildcards: output_to_input(
+                PREPROCESS_OUTPUTS["combine_metadata_phenotype"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+            ancient(lambda wildcards: output_to_input(
+                PREPROCESS_OUTPUTS["combine_metadata_sbs"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+            ancient(lambda wildcards: output_to_input(
+                PHENOTYPE_OUTPUTS["combine_phenotype_info"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
+            ancient(lambda wildcards: output_to_input(
+                SBS_OUTPUTS["combine_sbs_info"],
+                wildcards={"plate": wildcards.plate, "well": wildcards.well},
+                expansion_values=_merge_well_expand,
+                metadata_combos=merge_wildcard_combos,
+            )),
         output:
-            phenotype_stitch_config=MERGE_OUTPUTS_MAPPED["estimate_stitch_phenotype"][0],
-        params:
-            plate=lambda wildcards: wildcards.plate,
-            well=lambda wildcards: wildcards.well,
-            flipud=config.get("merge", {}).get("flipud", False),
-            fliplr=config.get("merge", {}).get("fliplr", False),
-            rot90=config.get("merge", {}).get("rot90", 0),
-            data_type="phenotype",
-            phenotype_pixel_size=config.get("merge", {}).get("phenotype_pixel_size"),
-        script:
-            "../scripts/merge/estimate_stitch.py"
-
-
-    rule estimate_stitch_sbs:
-        input:
-            sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
-            phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
-        output:
-            sbs_stitch_config=MERGE_OUTPUTS_MAPPED["estimate_stitch_sbs"][0],
-        params:
-            plate=lambda wildcards: wildcards.plate,
-            well=lambda wildcards: wildcards.well,
-            flipud=config.get("merge", {}).get("flipud", False),
-            fliplr=config.get("merge", {}).get("fliplr", False),
-            rot90=config.get("merge", {}).get("rot90", 0),
-            data_type="sbs",
-            sbs_metadata_cycle=config.get("merge", {}).get("sbs_metadata_cycle"),
-            sbs_metadata_channel=config.get("merge", {}).get("sbs_metadata_channel"),
-            sbs_pixel_size=config.get("merge", {}).get("sbs_pixel_size"),
-            alignment_flip_x=config.get("merge", {}).get("alignment_flip_x"),
-            alignment_flip_y=config.get("merge", {}).get("alignment_flip_y"),
-            alignment_rotate_90=config.get("merge", {}).get("alignment_rotate_90"),
-        script:
-            "../scripts/merge/estimate_stitch.py"
-
-
-    rule stitch_phenotype:
-        input:
-            phenotype_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_phenotype"]),
-            phenotype_stitch_config=MERGE_OUTPUTS["estimate_stitch_phenotype"][0],
-            phenotype_tiles=lambda wildcards: output_to_input(
-                PHENOTYPE_OUTPUTS["align_phenotype"][0],
-                wildcards=wildcards,
-                expansion_values=["tile"],
-                metadata_combos=phenotype_wildcard_combos,
-                ancient_output=True,
-            ),
-            phenotype_masks=lambda wildcards: output_to_input(
-                PHENOTYPE_OUTPUTS["segment_phenotype"][0],
-                wildcards=wildcards,
-                expansion_values=["tile"],
-                metadata_combos=phenotype_wildcard_combos,
-                ancient_output=True,
-            ),
-        output:
-            phenotype_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][0],
-            phenotype_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][1],  
-            phenotype_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][2], 
-            phenotype_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_phenotype"][3], 
-        params:
-            plate=lambda wildcards: wildcards.plate,
-            well=lambda wildcards: wildcards.well,
-            data_type="phenotype",
-            flipud=config.get("merge", {}).get("flipud", False),
-            fliplr=config.get("merge", {}).get("fliplr", False),
-            rot90=config.get("merge", {}).get("rot90", 0),
-            stitched_image=config.get("merge", {}).get("stitched_image", True),
-            ph_metadata_channel=config.get("merge", {}).get("ph_metadata_channel"),
-        script:
-            "../scripts/merge/stitch.py"
-
-
-    rule stitch_sbs:
-        input:
-            sbs_metadata=ancient(PREPROCESS_OUTPUTS["combine_metadata_sbs"]),
-            sbs_stitch_config=MERGE_OUTPUTS["estimate_stitch_sbs"][0],
-            sbs_tiles=lambda wildcards: output_to_input(
-                SBS_OUTPUTS["align_sbs"],
-                wildcards=wildcards,
-                expansion_values=["tile"],
-                metadata_combos=sbs_wildcard_combos,
-                ancient_output=True,
-            ),
-            sbs_masks=lambda wildcards: output_to_input(
-                SBS_OUTPUTS["segment_sbs"][0],
-                wildcards=wildcards,
-                expansion_values=["tile"],
-                metadata_combos=sbs_wildcard_combos,
-                ancient_output=True,
-            ),
-        output:
-            sbs_cell_positions=MERGE_OUTPUTS_MAPPED["stitch_sbs"][0],
-            sbs_qc_plot=MERGE_OUTPUTS_MAPPED["stitch_sbs"][1],
-            sbs_stitched_image=MERGE_OUTPUTS_MAPPED["stitch_sbs"][2],
-            sbs_stitched_mask=MERGE_OUTPUTS_MAPPED["stitch_sbs"][3], 
-        params:
-            plate=lambda wildcards: wildcards.plate,
-            well=lambda wildcards: wildcards.well,
-            data_type="sbs",
-            flipud=config.get("merge", {}).get("flipud", False),
-            fliplr=config.get("merge", {}).get("fliplr", False),
-            rot90=config.get("merge", {}).get("rot90", 0),
-            overlap_fraction=config.get("merge", {}).get("overlap_fraction"),
-            stitched_image=config.get("merge", {}).get("stitched_image", True),
-            sbs_metadata_cycle=config.get("merge", {}).get("sbs_metadata_cycle"),
-            sbs_metadata_channel=config.get("merge", {}).get("sbs_metadata_channel"),
-        script:
-            "../scripts/merge/stitch.py"
-
-
-    rule stitch_alignment:
-        input:
-            phenotype_positions=MERGE_OUTPUTS["stitch_phenotype"][0],
-            sbs_positions=MERGE_OUTPUTS["stitch_sbs"][0],
-        output:
-            scaled_phenotype_positions=MERGE_OUTPUTS_MAPPED["stitch_alignment"][0],      
-            phenotype_triangles=MERGE_OUTPUTS_MAPPED["stitch_alignment"][1],             
-            sbs_triangles=MERGE_OUTPUTS_MAPPED["stitch_alignment"][2],                   
-            alignment_params=MERGE_OUTPUTS_MAPPED["stitch_alignment"][3],                
-            alignment_summary=MERGE_OUTPUTS_MAPPED["stitch_alignment"][4],
-            transformed_phenotype_positions=MERGE_OUTPUTS_MAPPED["stitch_alignment"][5],
-        params:
-            plate=lambda wildcards: wildcards.plate,
-            well=lambda wildcards: wildcards.well,
-            score=config.get("merge", {}).get("score"),
-        script:
-            "../scripts/merge/stitch_alignment.py"
-
-
-    rule stitch_merge:
-        input:
-            scaled_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][0],
-            sbs_positions=MERGE_OUTPUTS["stitch_sbs"][0],  # sbs_cell_positions
-            alignment_params=MERGE_OUTPUTS["stitch_alignment"][3],
-            transformed_phenotype_positions=MERGE_OUTPUTS["stitch_alignment"][5],
-        output:
-            raw_matches=MERGE_OUTPUTS_MAPPED["stitch_merge"][0],
-            merged_cells=MERGE_OUTPUTS_MAPPED["stitch_merge"][1],
-            merge_summary=MERGE_OUTPUTS_MAPPED["stitch_merge"][2],
+            MERGE_OUTPUTS_MAPPED["positions_merge"],
         params:
             plate=lambda wildcards: wildcards.plate,
             well=lambda wildcards: wildcards.well,
             threshold=config.get("merge", {}).get("threshold"),
-            score=config.get("merge", {}).get("score"),
+            phenotype_dimensions=config.get("merge", {}).get("phenotype_dimensions"),
+            sbs_dimensions=config.get("merge", {}).get("sbs_dimensions"),
+            flipud=config.get("merge", {}).get("flipud", False),
+            fliplr=config.get("merge", {}).get("fliplr", False),
+            rot90=config.get("merge", {}).get("rot90", 0),
+            sbs_metadata_cycle=config.get("merge", {}).get("sbs_metadata_cycle"),
+            sbs_metadata_channel=config.get("merge", {}).get("sbs_metadata_channel"),
+            ph_metadata_channel=config.get("merge", {}).get("ph_metadata_channel"),
+            metadata_align=config.get("merge", {}).get("metadata_align", False),
+            alignment_flip_x=config.get("merge", {}).get("alignment_flip_x"),
+            alignment_flip_y=config.get("merge", {}).get("alignment_flip_y"),
+            alignment_rotate_90=config.get("merge", {}).get("alignment_rotate_90"),
+            phenotype_pixel_size=config.get("merge", {}).get("phenotype_pixel_size"),
+            sbs_pixel_size=config.get("merge", {}).get("sbs_pixel_size"),
+            image_qc=config.get("merge", {}).get("positions_image_qc", False),
+            phenotype_label_template=lambda wildcards: str(PHENOTYPE_OUTPUTS["segment_phenotype"][0]),
+            sbs_label_template=lambda wildcards: str(SBS_OUTPUTS["segment_sbs"][0]),
+            phenotype_image_template=lambda wildcards: str(PHENOTYPE_OUTPUTS["align_phenotype"][0]),
+            sbs_image_template=lambda wildcards: str(SBS_OUTPUTS["align_sbs"][0]),
+            phenotype_dapi_index=config.get("phenotype", {}).get("dapi_index"),
+            sbs_dapi_index=config.get("sbs", {}).get("dapi_index"),
         script:
-            "../scripts/merge/stitch_merge.py"
-
-    rule summarize_stitch:
-        input:
-            alignment_summary_paths=lambda wildcards: output_to_input(
-                MERGE_OUTPUTS["stitch_alignment"][4],
-                wildcards=wildcards,
-                expansion_values=["well"],
-                metadata_combos=merge_wildcard_combos,
-            ),
-            merge_summary_paths=lambda wildcards: output_to_input(
-                MERGE_OUTPUTS["stitch_merge"][2],
-                wildcards=wildcards,
-                expansion_values=["well"],
-                metadata_combos=merge_wildcard_combos,
-            ),
-        output:
-            alignment_summaries=MERGE_OUTPUTS_MAPPED["summarize_stitch"][0],
-            cell_merge_summaries=MERGE_OUTPUTS_MAPPED["summarize_stitch"][1],
-        params:
-            plate=lambda wildcards: wildcards.plate,
-            wells=lambda wildcards: [
-                str(combo["well"])
-                for combo in merge_wildcard_combos.to_dict('records')
-                if str(combo["plate"]) == str(wildcards.plate)
-            ],
-        script:
-            "../scripts/merge/summarize_stitch.py"
+            "../scripts/merge/positions_merge.py"
 
 
 rule format_merge:
     input:
         lambda wildcards: (
-            MERGE_OUTPUTS["stitch_merge"][1]
-            if config.get("merge", {}).get("approach", "fast") == "stitch"
+            MERGE_OUTPUTS["positions_merge"][0]
+            if config.get("merge", {}).get("approach", "fast") == "positions"
             else MERGE_OUTPUTS["fast_merge"][0]
         ),
         ancient(lambda wildcards: output_to_input(
@@ -305,7 +183,6 @@ rule format_merge:
     output:
         MERGE_OUTPUTS_MAPPED["format_merge"][0],
     params:
-        approach=config.get("merge", {}).get("approach", "fast"),
         phenotype_dimensions=config.get("merge", {}).get("phenotype_dimensions"),
         sbs_dimensions=config.get("merge", {}).get("sbs_dimensions"),
     script:
@@ -333,7 +210,6 @@ rule deduplicate_merge:
         final_sbs_matching_rates=MERGE_OUTPUTS_MAPPED["deduplicate_merge"][2],
         final_phenotype_matching_rates=MERGE_OUTPUTS_MAPPED["deduplicate_merge"][3],
     params:
-        approach=config.get("merge", {}).get("approach", "fast"),
         sbs_dedup_prior=config.get("merge", {}).get("sbs_dedup_prior"),
         pheno_dedup_prior=config.get("merge", {}).get("pheno_dedup_prior"),
     script:
@@ -351,8 +227,6 @@ rule final_merge:
         )),
     output:
         MERGE_OUTPUTS_MAPPED["final_merge"][0],
-    params:
-        approach=config.get("merge", {}).get("approach", "fast"),
     script:
         "../scripts/merge/final_merge.py"
 

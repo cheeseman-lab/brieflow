@@ -25,6 +25,13 @@ Site
 Cycle
   One round of in situ sequencing chemistry, which reads one base of every barcode. An SBS experiment with N cycles reads the first N bases.
 
+Alignment overlay
+Magenta/green overlay
+  A check of image alignment by eye: the reference image in magenta and the image being checked in green, added together after matching their brightness for display. Aligned objects look white or grey; a shift leaves magenta and green fringes; an object in only one image stays fully magenta or green. Panel titles give the measured shift and, where both images show the same objects, the share of signal in one image only (near 0 when aligned). Shown in the SBS, phenotype and merge notebooks.
+
+Alignment QC
+  The per-tile check printed by the SBS alignment step: `cycle_dapi_shift_residual_max_px` (largest DAPI shift of a cycle against the first cycle) and `intra_cycle_channel_shift_residual_max_px` (largest shift of a base channel against the other channels of its cycle), both passing below 1 pixel, plus a per-cycle table and warnings naming any cycle or channel that is off. A single off cycle or channel is named but does not fail the tile.
+
 SBS
 Sequencing by synthesis
   The in situ sequencing arm of a screen: the imaging cycles that read each cell's barcode, and the brieflow module that aligns those cycles, finds spots, calls reads and assigns barcodes to cells.
@@ -87,14 +94,20 @@ Mapping rate
   How much of the SBS signal matches the barcode library. The read mapping rate is the fraction of reads above the read threshold whose sequence is a library barcode; the cell mapping rate is the fraction of cells whose barcode maps to one library entry. The SBS notebook and `sbs/eval/` plot both.
 
 Merge
-  The module that assigns each phenotype cell its SBS cell, and so its barcode. The default `fast` approach aligns each phenotype tile to SBS sites by hashing triangles of nuclear centroids, refines the fit with a RANSAC regression seeded at 0, matches cells within a distance threshold and removes duplicate matches; the `stitch` approach stitches whole wells first.
+  The module that assigns each phenotype cell its SBS cell, and so its barcode. The default `fast` approach aligns each phenotype tile to SBS sites by hashing triangles of nuclear centroids, refines the fit with a RANSAC regression, matches cells within a distance threshold and removes duplicate matches; the {term}`positions approach <Positions merge>` matches from tile positions and centroids.
+
+Positions merge
+  The `positions` merge approach. Each cell is placed in one micrometre frame from its tile's stage position and its centroid. A camera model per microscope (scale, rotation, lens distortion), one phenotype-to-SBS offset and a small shift per tile are fitted to all cells of the well. A cell imaged in a {term}`tile overlap <Tile overlap>` is kept once, and cells are matched one-to-one as mutual nearest neighbours within `THRESHOLD`. The merge notebook shows tile-overlap and phenotype-in-SBS {term}`overlays <Alignment overlay>` of the fitted placement for checking by eye.
+
+Tile overlap
+  The strip two neighbouring tiles of one imaging run both cover. The positions merge uses the cells imaged in both to fit each camera and keeps one copy of each. Its overlay of the two tiles' images there shows whether they are placed correctly (white when aligned).
 ```
 
 ## Aggregation and statistics
 
 ```{glossary}
 Channel combo
-  A set of phenotype channels whose features are aggregated and clustered together, named by joining the channels with `_` (for example `DAPI_COXIV_CENPA_WGA`). Set in the aggregate notebook as `CHANNEL_COMBOS`; each gets its own output directory.
+  A set of phenotype channels whose features are aggregated and clustered together, named by joining the channels with `_` (for example `DAPI_COXIV_CENPA_WGA`). Channel names may themselves contain `_`; the combo is read back by matching it against the channel names. Set in the aggregate notebook as `CHANNEL_COMBOS`; each gets its own output directory.
 
 Compartment combo
   A set of compartments whose features are aggregated together when `SPLIT_BY_COMPARTMENT` is on, named by joining them with `-` (for example `cell-nucleus-cytoplasm`). Every channel combo is paired with every compartment combo.
@@ -110,7 +123,7 @@ Aggregate
   The module that turns merged single cells into per-perturbation profiles: filtering, missing-value handling, perturbation scoring, PCA and TVN alignment, then a median or mean per construct and per gene, plus optional bootstrap statistics.
 
 Perturbation score
-  A per-cell score of how strongly a cell shows its perturbation's phenotype, from a logistic regression separating that perturbation's cells from controls. Aggregate can keep only cells above a probability or percentile threshold, and the regression's AUC per perturbation (`perturbation_auc`) lets cluster drop weak perturbations with `PERTURBATION_AUC_THRESHOLD`.
+  A per-cell score of how strongly a cell shows its perturbation's phenotype, from a cross-validated logistic regression separating that perturbation's cells from controls on its top differential features, which are selected inside each fold. Aggregate can keep only cells above a probability or percentile threshold, and the regression's AUC per perturbation (`perturbation_auc`) lets cluster drop weak perturbations with `PERTURBATION_AUC_THRESHOLD`.
 
 TVN
 Typical variation normalization

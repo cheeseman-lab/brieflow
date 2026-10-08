@@ -45,51 +45,25 @@ def feature_table(data, labels, features, global_features=None):
     return pd.DataFrame(results)
 
 
-def _assemble_feature_results(regions, features, per_region_raw):
-    """Assemble the results defaultdict from precomputed per-region feature outputs.
+def feature_table_multichannel(data, labels, features, global_features=None):
+    """Apply functions in feature dictionary to regions in data specified by integer labels.
 
-    This mirrors the original sequential assembly logic exactly (same column names,
-    same ordering, same scalar/iterable handling) but consumes precomputed function
-    outputs instead of calling the feature functions itself.
-
-    Args:
-        regions (list): List of region properties objects.
-        features (dict): Dictionary of feature names and their corresponding functions.
-        per_region_raw (list): per_region_raw[region_index][feature_index] holds the raw
-            output of features[feature_index] applied to regions[region_index].
-
-    Returns:
-        collections.defaultdict: Mapping of column name to list of values.
-    """
-    feats = list(features.keys())
-    n = len(regions)
-    results = defaultdict(list)
-
-    for fi, feature in enumerate(feats):
-        result_0 = per_region_raw[0][fi]
-        if isinstance(result_0, Iterable):
-            if len(result_0) == 1:
-                results[feature] = [per_region_raw[ri][fi][0] for ri in range(n)]
-            else:
-                for ri in range(n):
-                    for index, value in enumerate(per_region_raw[ri][fi]):
-                        results[f"{feature}_{index}"].append(value)
-        else:
-            results[feature] = [per_region_raw[ri][fi] for ri in range(n)]
-
-    return results
-
-
-def _feature_table_multichannel_sequential(regions, features):
-    """Sequential per-region feature computation (identical to the original loop).
+    If provided, the global feature dictionary is applied to the full input data and labels.
+    Results are combined in a dataframe with one row per label and one column per feature.
 
     Args:
-        regions (list): List of region properties objects.
+        data (np.ndarray): Image data.
+        labels (np.ndarray): Labeled segmentation mask defining objects to extract features from.
         features (dict): Dictionary of feature names and their corresponding functions.
+        global_features (dict, optional): Dictionary of global feature names and their corresponding functions.
 
     Returns:
-        collections.defaultdict: Mapping of column name to list of values.
+        pd.DataFrame: DataFrame containing extracted features with one row per label and one column per feature.
     """
+    # Extract regions from the labeled segmentation mask
+    regions = regionprops_multichannel(labels, intensity_image=data)
+
+    # Initialize a defaultdict to store feature values
     results = defaultdict(list)
 
     # Loop through each feature and compute features for each region
@@ -108,79 +82,6 @@ def _feature_table_multichannel_sequential(regions, features):
         else:
             # If the result is not iterable, apply the function to each region and append the result to the corresponding feature list
             results[feature] = list(map(func, regions))
-
-    return results
-
-
-def _compute_region_features(region, funcs):
-    """Apply every feature function to a single region.
-
-    Args:
-        region: A region properties object.
-        funcs (list): List of feature functions.
-
-    Returns:
-        list: Raw output of each function applied to the region, in order.
-    """
-    return [func(region) for func in funcs]
-
-
-def feature_table_multichannel(data, labels, features, global_features=None, n_jobs=1):
-    """Apply functions in feature dictionary to regions in data specified by integer labels.
-
-    If provided, the global feature dictionary is applied to the full input data and labels.
-    Results are combined in a dataframe with one row per label and one column per feature.
-
-    Per-region computation can be spread over a joblib thread pool, but **the default
-    ``n_jobs=1`` is the fast path under the pipeline's tile-level parallelism and should
-    not be raised there.** Only part of the per-region work is in GIL-releasing
-    C-extensions (mahotas haralick/pftas/zernike, scipy); the surrounding regionprops
-    attribute access and result assembly are Python, so the pool scales far short of
-    linearly, while the tile pool it steals cores from scales with processes. Measured
-    on 960 tiles / 88 cores via the ``extract_phenotype_cp`` rule: 4 threads per tile
-    (22 tiles concurrent) took 7061.9 s against 1342.8 s for 1 thread per tile (88
-    concurrent) -- ~0.76x the per-tile throughput, not 4x. Raise ``n_jobs`` only when a
-    single tile is being processed on an otherwise idle machine. ``n_jobs=1`` reproduces
-    the original sequential behavior bit-for-bit; on any joblib error the function falls
-    back to the sequential path.
-
-    Args:
-        data (np.ndarray): Image data.
-        labels (np.ndarray): Labeled segmentation mask defining objects to extract features from.
-        features (dict): Dictionary of feature names and their corresponding functions.
-        global_features (dict, optional): Dictionary of global feature names and their corresponding functions.
-        n_jobs (int, optional): Number of parallel threads for per-region computation.
-            Defaults to 1 (sequential). -1 uses all cores and will oversubscribe the box
-            if a tile pool is already running.
-
-    Returns:
-        pd.DataFrame: DataFrame containing extracted features with one row per label and one column per feature.
-    """
-    # Extract regions from the labeled segmentation mask
-    regions = regionprops_multichannel(labels, intensity_image=data)
-
-    # 0-region guard — original indexed regions[0] and raised IndexError
-    if len(regions) == 0:
-        results = defaultdict(list)
-        if global_features:
-            for feature, func in global_features.items():
-                results[feature] = func(data, labels)
-        return pd.DataFrame(results)
-
-    if n_jobs == 1:
-        results = _feature_table_multichannel_sequential(regions, features)
-    else:
-        try:
-            from joblib import Parallel, delayed
-
-            funcs = list(features.values())
-            per_region_raw = Parallel(n_jobs=n_jobs, prefer="threads")(
-                delayed(_compute_region_features)(region, funcs) for region in regions
-            )
-            results = _assemble_feature_results(regions, features, per_region_raw)
-        except Exception:
-            # Fall back to the sequential implementation on any joblib/threading error
-            results = _feature_table_multichannel_sequential(regions, features)
 
     # If global features are provided, compute them and add them to the results
     if global_features:

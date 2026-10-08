@@ -37,7 +37,6 @@ def extract_phenotype_cp_emulator(
     foci_channel=None,
     channel_names=["dapi", "tubulin", "gh2ax", "phalloidin"],
     custom_features=None,
-    n_jobs=1,
 ):
     """Extract phenotype features from CellProfiler-like data with multi-channel functionality.
 
@@ -72,12 +71,6 @@ def extract_phenotype_cp_emulator(
             multichannel image, so a feature indexes channels in channel_names order
             regardless of the compartment channel selections. If None, no custom features
             are extracted. Default is None.
-        n_jobs (int, optional): Number of parallel threads for per-region feature
-            computation inside each extract_features call. Defaults to 1 (sequential,
-            tile-level parallelism model), which is the fast path whenever a tile pool
-            is running: region-level threading measured ~0.76x the throughput of
-            tile-level at 4 threads (see feature_table_multichannel). Raise it only
-            for a single tile on an otherwise idle machine.
 
     Returns:
         pandas.DataFrame: DataFrame containing extracted features with columns ordered as:
@@ -161,7 +154,6 @@ def extract_phenotype_cp_emulator(
             dict(),
             features,
             multichannel=True,
-            n_jobs=n_jobs,
         )
         .rename(columns=nucleus_columns)
         .set_index("label")
@@ -178,7 +170,6 @@ def extract_phenotype_cp_emulator(
                 dict(),
                 features,
                 multichannel=True,
-                n_jobs=n_jobs,
             )
             .rename(columns=cell_columns)
             .set_index("label")
@@ -195,7 +186,6 @@ def extract_phenotype_cp_emulator(
                 dict(),
                 features,
                 multichannel=True,
-                n_jobs=n_jobs,
             )
             .rename(columns=cytoplasmic_columns)
             .set_index("label")

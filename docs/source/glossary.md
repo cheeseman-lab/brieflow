@@ -154,21 +154,22 @@ Benchmarks
   Reference gene sets used to score clusterings: CORUM protein complexes, KEGG pathways (group benchmarks) and STRING interactions (pair benchmarks) for the organism set by `SPECIES_ID`. Each resolution is scored against the real benchmark and a shuffled one.
 
 MozzareLLM
-  A [package](https://github.com/cheeseman-lab/mozzarellm) that asks a language model to name the process behind each gene cluster and to classify each gene in it, run by `flow.sh mozzarellm` on the clusterings chosen in `12_analyze.py`.
+  A [package](https://github.com/cheeseman-lab/mozzarellm) that asks a language model to name the process behind each gene cluster and to classify each gene in it, run by `flow.sh mozzarellm` on the clusterings chosen in `7_analyze.py`.
 ```
 
 ## Configuration and running
 
 ```{glossary}
 screen.yaml
-  The description of the screen in `analysis/screen.yaml`: organism and cell line, library, SBS and phenotype channels and stains, microscope, and where the raw data lives. The pipeline does not read it; `12_analyze.py` builds MozzareLLM screen contexts from it, the visualizer shows it, and brieflow-auto derives notebook parameters from it.
+  The description of the screen in `analysis/screen.yaml`: organism and cell line, library, SBS and phenotype channels and stains, microscope, and where the raw data lives. The pipeline does not read it; `7_analyze.py` builds MozzareLLM screen contexts from it, the visualizer shows it, and brieflow-auto derives notebook parameters from it.
 
 config.yml
   `analysis/config/config.yml`, the single Snakemake config for a screen. Each notebook writes its own section (`all`, `preprocess`, `sbs`, `phenotype`, `merge`, `classify`, `aggregate`, `cluster`, `mozzarellm`); `flow.sh` passes the file to Snakemake.
 
+Parameter cell
 Marker block
 Operator parameters
-  The cells of a notebook between `# === OPERATOR PARAMETERS ===` and `# === END OPERATOR PARAMETERS ===`, holding the UPPERCASE values a person (or brieflow-auto) sets. Everything else in the notebook is derived from them.
+  A notebook cell named `params_<topic>` (for example `params_segmentation`) that holds only the UPPERCASE values a person (or brieflow-auto) sets, one plain assignment per line. Everything else in the notebook is derived from them. Notebooks from before the 0–7 numbering mark the same values with `# === OPERATOR PARAMETERS ===` comment fences instead.
 
 flow.sh module
   A name passed to `analysis/flow.sh` that runs one part of the pipeline: `preprocess`, `sbs`, `phenotype`, `merge`, `aggregate`, `cluster`, `mozzarellm`, `viz`, or `all` for preprocess through cluster.

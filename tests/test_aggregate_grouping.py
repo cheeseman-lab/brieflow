@@ -79,7 +79,7 @@ def test_group_cols_empty_reproduces_single_key_aggregate():
 
 
 def test_positional_call_still_binds_method_not_group_cols():
-    """group_cols must sit after method: 8_aggregate.py calls aggregate() positionally.
+    """group_cols must sit after method: 5_aggregate.py calls aggregate() positionally.
 
     Inserting it before method silently bound AGG_METHOD ("median") to group_cols, and
     list("median") splatted into single characters -> KeyError: 'm'.

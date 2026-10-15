@@ -10,7 +10,7 @@ The brieflow-auto repository is currently private; ask the Cheeseman lab for acc
 
 ## What it does
 
-1. **You describe the screen once.** `/brieflow-setup` provisions the host (optionally a cloud VM), stages the raw data, clones the screen repository, builds the conda environment and helps you write {term}`screen.yaml`.
+1. **You describe the screen once.** `/brieflow-setup` provisions the host (optionally a cloud VM), stages the raw data, clones the screen repository, builds the conda environment and stages the {term}`screen.yaml` you filled in. Setup stops and lists any required field left blank; it does not write the file for you.
 2. **You answer a short interview.** Every notebook {term}`operator parameter <Marker block>` is resolved from one source: `screen.yaml`, a lab default, a probe of the raw data (file patterns, channel order, tile counts), an agent-tuned sweep, or a question to you. A value left blank in `screen.yaml` is asked, never guessed. Answers and their provenance are recorded in `.brieflow/interview.json`.
 3. **You approve a launch review.** Before any compute is spent, the runner writes `.brieflow/launch_review.html`: the phases in range, every active parameter grouped by where its value came from, remaining gaps, the disk needed per phase, and the compute target. The run starts only when you re-run with `--approved` against the review you read.
 4. **The agent runs each phase.** For every phase in range it configures the notebook in a live marimo kernel (sweeping parameters on a test tile where the notebook calls for tuning), runs a static preflight check of the config against brieflow's own rule code, submits the module and monitors it, recovers from classified failures (more memory after an out-of-memory kill, a higher open-file limit, a wait after filesystem latency), and gates the phase on its `eval/` QC outputs before moving on.
@@ -34,7 +34,7 @@ Then, on the machine that holds the data (a cluster login node, a workstation or
 
 | Command | Use |
 |---|---|
-| `/brieflow-setup` | First-time onboarding: host, raw data, screen repository, environment and `screen.yaml` |
+| `/brieflow-setup` | First-time onboarding: host, raw data, screen repository, environment, and staging your `screen.yaml` |
 | `/brieflow-notebook` | Configure and run one phase notebook interactively, and export its HTML |
 | `/brieflow-run` | Run the screen through the per-phase cycle, for all phases or a range (`--only`, `--from`, `--through`) |
 | `/brieflow-status` | Read-only status of jobs, progress and recent failures |

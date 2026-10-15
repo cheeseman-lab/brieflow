@@ -29,6 +29,9 @@ IMAGE_FORMAT
 SBS_IMAGES_DIR_FP, PHENOTYPE_IMAGES_DIR_FP
   Not written; they feed the sample tables (`preprocess.sbs_samples_fp`, `preprocess.phenotype_samples_fp`) · default `None`. Directories holding the raw SBS and phenotype files. Leave one as `None` to process only the other arm.
 
+WELL_ANNOTATIONS_FP (preprocess)
+  Not written; it filters the sample tables · default `None`. Table of the wells to analyze (TSV or CSV with `plate` and `well`; the same {term}`per-well annotations <Per-well annotations>` table aggregate reads). When set, only the listed wells enter the sample tables, so no later module processes the others. Its plate and well values must match the ones parsed from the file names.
+
 SBS_PATH_PATTERN, PHENOTYPE_PATH_PATTERN
   Not written; they build the sample tables · default `None`. Regular expressions matched against each file path, with one capture group per entry of `SBS_PATH_METADATA` / `PHENOTYPE_PATH_METADATA` (at least plate, well and tile, plus cycle for SBS). The notebook shows the table they produce; check it lists every file.
 

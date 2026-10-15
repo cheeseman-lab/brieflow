@@ -134,6 +134,7 @@ phenotype:
       laser_wavelength_nm: null
       exposure_time_ms: null
   binning: null                                   # 1 (none) | 2 (2x2)
+  channels_imaged_together: true                  # true = every field imaged in all channels before the stage moved; false = separate passes, aligned
   segment_cells: true                             # true = segment cells around each nucleus (cellpose cyto); false = nuclei-only feature extraction (skip cellpose cell mask)
   background_channel_nucleus: "DAPI"              # biological_name of the nuclear-boundary marker (e.g. "DAPI"); 
   background_channel_cell: "COXIV"                # biological_name of the cell-boundary marker (e.g. "WGA"); required only when segment_cells: true

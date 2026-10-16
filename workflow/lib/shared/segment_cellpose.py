@@ -29,6 +29,7 @@ for incompatible model/version combinations.
 """
 
 import sys
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -55,6 +56,12 @@ except (AttributeError, ValueError):
 CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
 
 
+# Patches per forward pass; changes speed, not the result. Override via cellpose_kwargs
+_SEG_BATCH_SIZE = 32
+
+
+# Per worker process: build each Cellpose model once, reuse across tiles
+@lru_cache(maxsize=8)
 def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
     r"""Create a CellposeModel with version-aware initialization.
 
@@ -438,6 +445,9 @@ def segment_cellpose_rgb(
     if cell_kwargs is None:
         cell_kwargs = kwargs.copy()
 
+    nuclei_kwargs = {"batch_size": _SEG_BATCH_SIZE, **nuclei_kwargs}
+    cell_kwargs = {"batch_size": _SEG_BATCH_SIZE, **cell_kwargs}
+
     counts = {}
 
     # Segment nuclei using nuclei-specific parameters
@@ -535,6 +545,7 @@ def segment_cellpose_nuclei_rgb(
 
     # Segment nuclei using CellposeModel from the RGB image
     # Pass only blue channel (DAPI) for nuclei segmentation
+    kwargs = {"batch_size": _SEG_BATCH_SIZE, **kwargs}
     nuclei, _, _ = model.eval(rgb[2], diameter=nuclei_diameter, **kwargs)
 
     # Print the number of nuclei found before and after removing edges

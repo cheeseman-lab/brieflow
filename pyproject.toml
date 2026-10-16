@@ -54,6 +54,7 @@ dependencies = [
   "anndata==0.12.10",
   "ome-zarr==0.13.0",
   "zarr==3.1.6",
+  "numcodecs==0.16.5",
   "dask[array]==2026.1.1",
   "fsspec==2026.2.0",
   "iohub==0.3.0",

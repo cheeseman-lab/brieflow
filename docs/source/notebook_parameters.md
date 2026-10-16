@@ -29,6 +29,9 @@ IMAGE_FORMAT
 SBS_IMAGES_DIR_FP, PHENOTYPE_IMAGES_DIR_FP
   Not written; they feed the sample tables (`preprocess.sbs_samples_fp`, `preprocess.phenotype_samples_fp`) · default `None`. Directories holding the raw SBS and phenotype files. Leave one as `None` to process only the other arm.
 
+WELL_ANNOTATIONS_FP (preprocess)
+  Not written; it filters the sample tables · default `None`. Table of the wells to analyze (TSV or CSV with `plate` and `well`; the same {term}`per-well annotations <Per-well annotations>` table aggregate reads). When set, only the listed wells enter the sample tables, so no later module processes the others. Its plate and well values must match the ones parsed from the file names.
+
 SBS_PATH_PATTERN, PHENOTYPE_PATH_PATTERN
   Not written; they build the sample tables · default `None`. Regular expressions matched against each file path, with one capture group per entry of `SBS_PATH_METADATA` / `PHENOTYPE_PATH_METADATA` (at least plate, well and tile, plus cycle for SBS). The notebook shows the table they produce; check it lists every file.
 
@@ -57,7 +60,7 @@ SBS_CHANNELS_METADATA, PHENOTYPE_CHANNELS_METADATA
   `preprocess.sbs_channels_metadata`, `preprocess.phenotype_channels_metadata` · default `None`. One dictionary per channel (name, index, type, description, optional biological annotation), written into the OME-Zarr plate metadata. Same length and order as the channel names.
 ```
 
-## SBS (`2_sbs.py`)
+## SBS (`1_sbs.py`)
 
 ```{glossary}
 CHANNEL_NAMES (SBS)
@@ -118,7 +121,7 @@ ERROR_CORRECT, MAX_DISTANCE
   `sbs.error_correct`, `sbs.max_distance` · defaults `False`, `None`. Allow a called barcode to be corrected to a library barcode up to `MAX_DISTANCE` bases away. Can be used with combinatorial `frac` (start at `1`); must stay `False` with `merfish`.
 ```
 
-## Phenotype (`3_phenotype.py`)
+## Phenotype (`2_phenotype.py`)
 
 ```{glossary}
 CHANNEL_NAMES (phenotype)
@@ -164,7 +167,7 @@ SECOND_OBJ_METHOD
   `phenotype.second_obj_method` · default `"threshold"`. `"threshold"`, `"cellpose"` or `"stardist"`, each with its own size filter and method settings in the notebook.
 ```
 
-## Merge (`5_merge.py`)
+## Merge (`3_merge.py`)
 
 ```{glossary}
 MERGE_APPROACH
@@ -186,7 +189,7 @@ FLIPUD, FLIPLR, ROT90
   `merge.flipud`, `merge.fliplr`, `merge.rot90` · default `False`, `False`, `0`. Tile orientation relative to the stage, used by the `positions` approach: a vertical flip, a horizontal flip, then `ROT90` counterclockwise quarter turns (as `numpy.rot90`). When the fit warns that another orientation lines up the tile overlaps better, set them to the one it names.
 ```
 
-## Classify (`7_classify.py`)
+## Classify (`4_classify.py`)
 
 ```{glossary}
 TRAINING_DATA_SOURCE
@@ -202,7 +205,7 @@ CONFIDENCE_THRESHOLDS
   `classify.confidence_thresholds`. Per-class confidence thresholds keyed by class number, each `{"threshold": float, "mode": str}`; the mode (`"exclude"` or `"reassign"`) sets how a prediction below the threshold is handled.
 ```
 
-## Aggregate (`8_aggregate.py`)
+## Aggregate (`5_aggregate.py`)
 
 ```{glossary}
 WELL_ANNOTATIONS_FP
@@ -254,7 +257,7 @@ NUM_SIMS
   `aggregate.num_sims` · default `None`. Number of {term}`bootstrap <Bootstrap scoring>` simulations, for example `100000`. The bootstrap runs only for the cell classes and channel combos listed in `BOOTSTRAP_CELL_CLASS` and `BOOTSTRAP_CHANNEL_COMBO`.
 ```
 
-## Cluster (`10_cluster.py`)
+## Cluster (`6_cluster.py`)
 
 ```{glossary}
 MIN_CELL_CUTOFFS
@@ -279,7 +282,7 @@ FINAL_LEIDEN_RESOLUTIONS
   `cluster.leiden_resolutions` · default `None`. The Leiden resolutions the pipeline clusters and benchmarks; each gets its own output directory.
 ```
 
-## Analyze and MozzareLLM (`12_analyze.py`)
+## Analyze and MozzareLLM (`7_analyze.py`)
 
 ```{glossary}
 CHANNEL_COMBO, CELL_CLASS, LEIDEN_RESOLUTION

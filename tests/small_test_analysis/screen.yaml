@@ -50,19 +50,19 @@ library:
   positive_controls: []
   negative_controls: ["nontargeting"]
   type: simple                                    # simple | multi  (sgRNA-level vs MAP+RECOMB barcoding)
-  detection_target: null                          # DNA | RNA — DNA barcodes give NUCLEAR spots; RNA (T7-amplified or mRNA) gives NON-NUCLEAR (cytoplasmic) spots. Drives SBS pipeline spot mask + RECONCILE.
+  detection_target: RNA                           # DNA | RNA — DNA barcodes give NUCLEAR spots; RNA (T7-amplified or mRNA) gives NON-NUCLEAR (cytoplasmic) spots. Drives SBS pipeline spot mask + RECONCILE.
   number_of_genes: 5049
-  raw_design_table_fp: null                       # INPUT path: raw guide RNA design TSV (e.g. "config/barcode_library_design.tsv")
+  raw_design_table_fp: "config/barcode_library.tsv"  # INPUT path: raw guide RNA design TSV (e.g. "config/barcode_library_design.tsv")
   # --- simple mode (type: simple): one barcode column ---
-  barcode_col: null                               # sgRNA-sequence column name in raw_design_table_fp (canonical: "sgRNA")
+  barcode_col: "protospacer_sequence"             # column in raw_design_table_fp that holds each guide's barcode sequence
   # --- multi mode (type: multi): two barcode columns + per-region lengths + sequencing order ---
   barcode_map_col: null                           # column name for MAP-region barcode sequences (e.g. "iBAR_2")
   barcode_recomb_col: null                        # column name for RECOMB-region barcode sequences (e.g. "iBAR_1")
   barcode_length_map: null                        # length of MAP region in cycles (e.g. 12)
   barcode_length_recomb: null                     # length of RECOMB region in cycles (e.g. 2)
   sequencing_order: null                          # "map_recomb" (MAP first) | "recomb_map" (RECOMB first) — which region is sequenced first across cycles
-  gene_symbol_col: null                           # canonical: "gene_symbol"
-  gene_id_col: null                               # canonical: "gene_id"
+  gene_symbol_col: "gene_symbol"                  # column in raw_design_table_fp that holds each guide's gene symbol
+  gene_id_col: "gene_id"                          # column in raw_design_table_fp that holds a gene identifier
 
 # =========================================================================
 # iss (in-situ sequencing / SBS)
@@ -134,11 +134,12 @@ phenotype:
       laser_wavelength_nm: null
       exposure_time_ms: null
   binning: null                                   # 1 (none) | 2 (2x2)
+  channels_imaged_together: true                  # true = every field imaged in all channels before the stage moved; false = separate passes, aligned
   segment_cells: true                             # true = segment cells around each nucleus (cellpose cyto); false = nuclei-only feature extraction (skip cellpose cell mask)
   background_channel_nucleus: "DAPI"              # biological_name of the nuclear-boundary marker (e.g. "DAPI"); 
   background_channel_cell: "COXIV"                # biological_name of the cell-boundary marker (e.g. "WGA"); required only when segment_cells: true
   foci_channel: "CENPA"                           # biological_name of the foci/puncta marker (e.g. "gH2AX", "CENPA"); null = no foci pipeline. Drives FOCI_CHANNEL + routes the foci pipeline on/off.
-  second_obj_channel: null                        # biological_name of the secondary object marker (e.g. a pathogen or organelle stain); descriptive only: the notebooks do not read it (the brieflow-auto plugin uses it to prefill SECOND_OBJ_CHANNEL / SECOND_OBJ_DETECTION); secondary objects are switched on by SECOND_OBJ_DETECTION + SECOND_OBJ_CHANNEL in 3_phenotype.py.
+  second_obj_channel: null                        # biological_name of the secondary object marker (e.g. a pathogen or organelle stain); descriptive only: the notebooks do not read it (the brieflow-auto plugin uses it to prefill SECOND_OBJ_CHANNEL / SECOND_OBJ_DETECTION); secondary objects are switched on by SECOND_OBJ_DETECTION + SECOND_OBJ_CHANNEL in 2_phenotype.py.
 
 # =========================================================================
 # microscope
@@ -152,7 +153,7 @@ microscope:
 pipeline:
   github: "cheeseman-lab/brieflow"
   version: null                                   # branch or tag (e.g. "zarr3-merge-main-speed")
-  conda_env: null                                 # e.g. "brieflow_<screen>"
+  conda_env: "brieflow_small_test_analysis"       # e.g. "brieflow_<screen>"
 
 # =========================================================================
 # data (where the raw images are)

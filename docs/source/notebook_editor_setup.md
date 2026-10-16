@@ -26,7 +26,7 @@ Notebooks use paths relative to `analysis/` (for example `config/config.yml`), s
 ```bash
 cd analysis
 conda activate brieflow_SCREEN_NAME
-python -m marimo edit 2_sbs.py
+python -m marimo edit 1_sbs.py
 ```
 
 brieflow pins `marimo==0.25.0`, the version the notebooks were written with.
@@ -40,7 +40,7 @@ Request an interactive session with your cluster's `srun` (add a GPU partition a
 
 ```bash
 cd analysis
-python -m marimo edit 3_phenotype.py --headless --host 0.0.0.0 --port 2718
+python -m marimo edit 2_phenotype.py --headless --host 0.0.0.0 --port 2718
 ```
 
 marimo prints a URL with an access token.
@@ -57,7 +57,7 @@ If marimo runs on the login node instead (light notebooks only), VS Code's Remot
 marimo notebooks are reactive: each cell is a function, the variables it returns are visible to other cells, and when a cell changes, every cell that uses its variables reruns.
 In a brieflow notebook:
 
-- The values you set live in {term}`operator parameter <Marker block>` cells, between `# === OPERATOR PARAMETERS ===` and `# === END OPERATOR PARAMETERS ===`.
+- The values you set live in {term}`parameter cells <Parameter cell>`, the cells named `params_<topic>`; each holds only plain assignments.
   Cells marked **SET PARAMETERS** explain each one; [Notebook Parameters](notebook_parameters.md) collects the important ones.
 - Test cells below them run the pipeline's own library functions on one test tile or well, so you see the effect of a value before committing to it.
 - The notebook's last cell adds its section to the config (`config["sbs"] = {...}`) and rewrites `config/config.yml`.
@@ -74,7 +74,7 @@ Every later notebook reads the existing config and replaces only its own section
 Re-running the preprocess notebook after later phases are configured therefore drops their sections; re-run those notebooks afterwards, or keep a copy of `config/config.yml`.
 ```
 
-To keep a readable record of a configured notebook, `python -m marimo export html 2_sbs.py -o 2_sbs.html` runs it top to bottom and saves the output; this also rewrites its config section.
+To keep a readable record of a configured notebook, `python -m marimo export html 1_sbs.py -o 1_sbs.html` runs it top to bottom and saves the output; this also rewrites its config section.
 
 ## Running flow.sh from the terminal
 

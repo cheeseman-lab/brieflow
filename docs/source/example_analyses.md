@@ -4,7 +4,7 @@ Cheeseman lab screens analyzed with brieflow through at least the cluster phase;
 Each repository is a copy of the [brieflow-analysis](https://github.com/cheeseman-lab/brieflow-analysis) template: `analysis/` holds the notebooks, the configuration and `screen.yaml`.
 
 - **Jupyter**: numbered `*.ipynb` notebooks on brieflow `main`, TIFF outputs.
-- **marimo**: `0_preprocess.py` … `12_analyze.py` on brieflow 1.5.0 (`zarr3`), {term}`OME-Zarr` outputs.
+- **marimo**: `0_preprocess.py` … `7_analyze.py` on brieflow 1.5.0 (`zarr3`), {term}`OME-Zarr` outputs.
 
 The first three screens were analyzed with earlier brieflow releases; the marimo screens run brieflow 1.5.0, and Damavand and Jannu were driven end to end by [brieflow-auto](brieflow_auto.md).
 Versions are the brieflow commit each repository pins.

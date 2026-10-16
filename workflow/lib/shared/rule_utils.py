@@ -304,34 +304,59 @@ def get_montage_inputs(
     return output_files
 
 
+def list_bootstrap_constructs(
+    bootstrap_data_dir: Union[str, Path],
+) -> Dict[str, List[str]]:
+    """Map each gene to its constructs from the bootstrap checkpoint directory.
+
+    Args:
+        bootstrap_data_dir (Union[str, Path]): Directory of `{gene}__{construct}__construct_data.tsv`
+            files written by prepare_bootstrap_data.
+
+    Returns:
+        Dict[str, List[str]]: Gene to its construct ids, in sorted file order.
+    """
+    constructs_by_gene = {}
+    for construct_file in sorted(
+        glob.glob(f"{bootstrap_data_dir}/*__construct_data.tsv")
+    ):
+        construct_filename = Path(construct_file).stem.replace("__construct_data", "")
+        if "__" in construct_filename:
+            gene, construct = construct_filename.split("__")[:2]
+        else:
+            try:
+                construct_data = pd.read_csv(construct_file, sep="\t")
+                gene = str(construct_data["gene"].iloc[0])
+                construct = str(construct_data["construct_id"].iloc[0])
+            except Exception:
+                continue
+        constructs_by_gene.setdefault(gene, []).append(construct)
+    return constructs_by_gene
+
+
 def get_bootstrap_inputs(
     checkpoint,
-    construct_nulls_pattern: Union[str, Path],
     construct_pvals_pattern: Union[str, Path],
-    gene_nulls_pattern: Union[str, Path],
     gene_pvals_pattern: Union[str, Path],
     cell_class: str,
     channel_combo: str,
     compartment_combo: str,
     split_by_compartment: bool,
 ) -> List[str]:
-    """Get all bootstrap inputs for completion flag.
+    """Get every per-gene bootstrap output for the completion flag.
 
     Args:
         checkpoint: Checkpoint object containing bootstrap data directory information.
-        construct_nulls_pattern (Union[str, Path]): Template string for construct null files.
-        construct_pvals_pattern (Union[str, Path]): Template string for construct p-value files.
-        gene_nulls_pattern (Union[str, Path]): Template string for gene null files.
-        gene_pvals_pattern (Union[str, Path]): Template string for gene p-value files.
+        construct_pvals_pattern (Union[str, Path]): Template string for a gene's construct p-value file.
+        gene_pvals_pattern (Union[str, Path]): Template string for a gene's p-value file.
         cell_class (str): Cell class for bootstrap analysis.
         channel_combo (str): Channel combination for bootstrap analysis.
         compartment_combo (str): Compartment combination for bootstrap analysis.
         split_by_compartment (bool): Whether compartment-specific paths are enabled.
 
     Returns:
-        List[str]: List of all bootstrap output file paths for both constructs and genes.
+        List[str]: Construct and gene p-value file paths, two per gene.
     """
-    # Get all construct data files from checkpoint
     checkpoint_wildcards = {
         "cell_class": cell_class,
         "channel_combo": channel_combo,
@@ -340,153 +365,17 @@ def get_bootstrap_inputs(
         checkpoint_wildcards["compartment_combo"] = compartment_combo
     bootstrap_data_dir = checkpoint.get(**checkpoint_wildcards).output[0]
 
-    construct_files = glob.glob(f"{bootstrap_data_dir}/*__construct_data.tsv")
-
     outputs = []
-    genes_seen = set()
-
-    for construct_file in construct_files:
-        # Extract gene__construct from filename
-        construct_filename = Path(construct_file).stem.replace("__construct_data", "")
-
-        # Parse using double underscore separator: gene__construct
-        if "__" in construct_filename:
-            parts = construct_filename.split("__")
-            gene = parts[0]  # Full gene name (can contain underscores)
-            construct = parts[1]  # Construct ID
-        else:
-            # Fallback: read from file
-            try:
-                construct_data = pd.read_csv(construct_file, sep="\t")
-                gene = construct_data["gene"].iloc[0]
-                construct = construct_data["construct_id"].iloc[0]
-            except:
-                continue
-
-        # Add construct outputs
-        outputs.extend(
-            [
-                str(construct_nulls_pattern).format(
+    for gene in list_bootstrap_constructs(bootstrap_data_dir):
+        for pattern in (construct_pvals_pattern, gene_pvals_pattern):
+            outputs.append(
+                str(pattern).format(
                     cell_class=cell_class,
                     channel_combo=channel_combo,
                     compartment_combo=compartment_combo,
                     gene=gene,
-                    construct=construct,
-                ),
-                str(construct_pvals_pattern).format(
-                    cell_class=cell_class,
-                    channel_combo=channel_combo,
-                    compartment_combo=compartment_combo,
-                    gene=gene,
-                    construct=construct,
-                ),
-            ]
-        )
-
-        # Add gene outputs (avoid duplicates)
-        if gene not in genes_seen:
-            genes_seen.add(gene)
-            outputs.extend(
-                [
-                    str(gene_nulls_pattern).format(
-                        cell_class=cell_class,
-                        channel_combo=channel_combo,
-                        compartment_combo=compartment_combo,
-                        gene=gene,
-                    ),
-                    str(gene_pvals_pattern).format(
-                        cell_class=cell_class,
-                        channel_combo=channel_combo,
-                        compartment_combo=compartment_combo,
-                        gene=gene,
-                    ),
-                ]
+                )
             )
-
-    return outputs
-
-
-def get_bootstrap_construct_outputs(
-    checkpoint,
-    construct_nulls_pattern: Union[str, Path],
-    construct_pvals_pattern: Union[str, Path],
-    cell_class: str,
-    channel_combo: str,
-    compartment_combo: str,
-    split_by_compartment: bool,
-) -> List[str]:
-    """Get all construct bootstrap outputs for completion flag.
-
-    Args:
-        checkpoint: Checkpoint object containing bootstrap data directory information.
-        construct_nulls_pattern (Union[str, Path]): Template string for construct null
-            distribution files with format placeholders for cell_class, channel_combo,
-            gene, and construct.
-        construct_pvals_pattern (Union[str, Path]): Template string for construct p-value
-            files with format placeholders for cell_class, channel_combo, gene, and construct.
-        cell_class (str): Cell class identifier for bootstrap analysis (e.g., 'live', 'dead').
-        channel_combo (str): Channel combination identifier for bootstrap analysis
-            (e.g., 'dapi_tubulin', 'all_channels').
-        compartment_combo (str): Compartment combination identifier for bootstrap analysis
-            (e.g., 'cell-nucleus-cytoplasm', 'nucleus').
-        split_by_compartment (bool): Whether compartment-specific paths are enabled.
-
-    Returns:
-        List[str]: List of all construct bootstrap output file paths, including both
-            null distribution files and p-value files for each construct found in
-            the checkpoint directory.
-    """
-    # Get all construct data files from checkpoint
-    checkpoint_wildcards = {
-        "cell_class": cell_class,
-        "channel_combo": channel_combo,
-    }
-    if split_by_compartment:
-        checkpoint_wildcards["compartment_combo"] = compartment_combo
-    bootstrap_data_dir = checkpoint.get(**checkpoint_wildcards).output[0]
-
-    construct_files = glob.glob(f"{bootstrap_data_dir}/*__construct_data.tsv")
-
-    outputs = []
-
-    for construct_file in construct_files:
-        # Extract gene__construct from filename
-        construct_filename = Path(construct_file).stem.replace("__construct_data", "")
-
-        # Parse using double underscore separator: gene__construct
-        if "__" in construct_filename:
-            parts = construct_filename.split("__")
-            gene = parts[0]  # Full gene name (can contain underscores)
-            construct = parts[1]  # Construct ID
-        else:
-            # Fallback: read from file
-            try:
-                construct_data = pd.read_csv(construct_file, sep="\t")
-                gene = construct_data["gene"].iloc[0]
-                construct = construct_data["construct_id"].iloc[0]
-            except:
-                continue
-
-        # Add construct outputs
-        outputs.extend(
-            [
-                str(construct_nulls_pattern).format(
-                    cell_class=cell_class,
-                    channel_combo=channel_combo,
-                    compartment_combo=compartment_combo,
-                    gene=gene,
-                    construct=construct,
-                ),
-                str(construct_pvals_pattern).format(
-                    cell_class=cell_class,
-                    channel_combo=channel_combo,
-                    compartment_combo=compartment_combo,
-                    gene=gene,
-                    construct=construct,
-                ),
-            ]
-        )
-
     return outputs
 
 

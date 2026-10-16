@@ -137,7 +137,7 @@ Control scope
   Which controls form the null that a point is compared with, in the aggregate bootstrap (`BOOTSTRAP_CONTROL_SCOPE`) and in cluster's distance to controls (`CONTROL_SCOPE`). `pooled` uses all controls; `within_group` uses controls in the point's own `GROUP_COLS` group; `reference_group` uses controls in the named reference group, such as the vehicle; `within_perturbation` uses the point's own perturbation in the reference group, so each treated arm is scored against its own vehicle arm and the control key plays no part.
 
 Bootstrap scoring
-  Statistical testing of each construct and gene against a null built by repeatedly sampling control cells: each simulation draws one control construct and takes the median of a sample of its cells, and a feature's two-tailed p-value is how often the null medians are more extreme than the observed one, followed by FDR correction.
+  Statistical testing of each construct and gene against a null built by repeatedly sampling control cells: each simulation draws one control construct and takes the median of a sample of its cells, a gene's null is the median of its constructs' nulls in each simulation, and a feature's two-tailed p-value is how often the null medians are more extreme than the observed one, followed by FDR correction. The null medians are counted as they are simulated and are not saved.
 ```
 
 ## Clustering and annotation

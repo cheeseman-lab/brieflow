@@ -1,6 +1,6 @@
 from lib.shared.compartment_utils import get_compartment_combo, format_rule_output
 from lib.shared.target_utils import output_to_input, map_wildcard_outputs
-from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs, get_bootstrap_construct_outputs
+from lib.shared.rule_utils import get_montage_inputs, get_bootstrap_inputs
 
 
 # Aggregate secondary object features into cell-level data
@@ -304,10 +304,8 @@ else:
 # BOOTSTRAP STATISTICAL TESTING
 # Bootstrap analysis is performed dynamically based on construct data
 # 1. Prepare bootstrap data and create checkpoint
-# 2. Bootstrap individual constructs in parallel
-# 3. Create completion flag for construct bootstrap
-# 4. Aggregate construct results to gene level
-# 5. Combine all results and create final outputs
+# 2. Bootstrap each gene and its constructs in one job, keeping only p-values
+# 3. Combine all results and create final outputs
 
 # Prepare bootstrap data and create checkpoint
 checkpoint prepare_bootstrap_data:
@@ -351,10 +349,15 @@ checkpoint prepare_bootstrap_data:
         "../scripts/aggregate/prepare_bootstrap_data.py"
 
 
-# Bootstrap individual constructs
-rule bootstrap_construct:
+# Bootstrap each gene and its constructs
+rule bootstrap_gene:
     input:
-        construct_data=BOOTSTRAP_OUTPUTS["construct_data"],
+        bootstrap_data_dir=lambda wildcards: format_rule_output(
+            BOOTSTRAP_OUTPUTS["bootstrap_data_dir"],
+            wildcards,
+            SPLIT_BY_COMPARTMENT,
+            DEFAULT_COMPARTMENT_COMBO,
+        ),
         controls_arr=lambda wildcards: format_rule_output(
             BOOTSTRAP_OUTPUTS["controls_arr"],
             wildcards,
@@ -373,40 +376,6 @@ rule bootstrap_construct:
             SPLIT_BY_COMPARTMENT,
             DEFAULT_COMPARTMENT_COMBO,
         ),
-    output:
-        BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
-        BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
-    params:
-        num_sims=config.get("aggregate", {}).get("num_sims", 100000),
-        bootstrap_control_scope=config.get("aggregate", {}).get("bootstrap_control_scope", "pooled"),
-        bootstrap_reference_group=config.get("aggregate", {}).get("bootstrap_reference_group", None),
-        group_cols=config.get("aggregate", {}).get("group_cols", []),
-    script:
-        "../scripts/aggregate/bootstrap_construct.py"
-
-
-# Create completion flag for construct bootstrap
-rule construct_bootstrap_complete:
-    input:
-        lambda wildcards: get_bootstrap_construct_outputs(
-            checkpoints.prepare_bootstrap_data,
-            BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
-            BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
-            wildcards.cell_class,
-            wildcards.channel_combo,
-            get_compartment_combo(
-                wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
-            ),
-            SPLIT_BY_COMPARTMENT,
-        ),
-    output:
-        touch(BOOTSTRAP_OUTPUTS["construct_bootstrap_flag"]),
-
-
-# Aggregate construct results to gene level
-rule bootstrap_gene:
-    input:
-        construct_flag=BOOTSTRAP_OUTPUTS["construct_bootstrap_flag"],
         gene_table=lambda wildcards: format_rule_output(
             AGGREGATE_OUTPUTS["generate_feature_table"][2],
             wildcards,
@@ -414,21 +383,14 @@ rule bootstrap_gene:
             DEFAULT_COMPARTMENT_COMBO,
         ),
     output:
-        BOOTSTRAP_OUTPUTS["bootstrap_gene_nulls"],
-        BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
+        construct_pvals=BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
+        gene_pvals=BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
     params:
         num_sims=config.get("aggregate", {}).get("num_sims", 100000),
         perturbation_name_col=config.get("aggregate", {}).get("perturbation_name_col"),
-        construct_nulls_pattern=lambda wildcards: format_rule_output(
-            BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
-            wildcards,
-            SPLIT_BY_COMPARTMENT,
-            DEFAULT_COMPARTMENT_COMBO,
-            gene=wildcards.gene,
-            construct="{construct}",
-        ),
-        bootstrap_features_fp=config.get("aggregate", {}).get("bootstrap_features_fp", None),
-        bootstrap_extra_features=config.get("aggregate", {}).get("bootstrap_extra_features", None),
+        bootstrap_control_scope=config.get("aggregate", {}).get("bootstrap_control_scope", "pooled"),
+        bootstrap_reference_group=config.get("aggregate", {}).get("bootstrap_reference_group", None),
+        group_cols=config.get("aggregate", {}).get("group_cols", []),
     script:
         "../scripts/aggregate/bootstrap_gene.py"
 
@@ -438,9 +400,7 @@ rule initiate_bootstrap:
     input:
         lambda wildcards: get_bootstrap_inputs(
             checkpoints.prepare_bootstrap_data,
-            BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"],
             BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"],
-            BOOTSTRAP_OUTPUTS["bootstrap_gene_nulls"],
             BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"],
             wildcards.cell_class,
             wildcards.channel_combo,
@@ -462,13 +422,13 @@ rule combine_bootstrap:
         BOOTSTRAP_OUTPUTS["combined_gene_results"],
     params:
         constructs_dir=lambda wildcards: format_rule_output(
-            BOOTSTRAP_OUTPUTS["bootstrap_construct_nulls"].parent,
+            BOOTSTRAP_OUTPUTS["bootstrap_construct_pvals"].parent,
             wildcards,
             SPLIT_BY_COMPARTMENT,
             DEFAULT_COMPARTMENT_COMBO,
         ),
         genes_dir=lambda wildcards: format_rule_output(
-            BOOTSTRAP_OUTPUTS["bootstrap_gene_nulls"].parent,
+            BOOTSTRAP_OUTPUTS["bootstrap_gene_pvals"].parent,
             wildcards,
             SPLIT_BY_COMPARTMENT,
             DEFAULT_COMPARTMENT_COMBO,

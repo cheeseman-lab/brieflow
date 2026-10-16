@@ -6,6 +6,8 @@ functions for data preparation, feature selection, bootstrap simulation, and
 p-value calculation at both construct and gene levels.
 """
 
+import zlib
+
 import numpy as np
 import pandas as pd
 import random
@@ -16,54 +18,8 @@ from scipy.stats import false_discovery_control
 
 from lib.aggregate.cell_data_utils import CONTROL_SCOPES, GROUP_KEY_SEP, control_mask
 
-
-@numba.njit(cache=True)
-def _bootstrap_inner_numba(
-    controls_features: np.ndarray,
-    pool_lookup: np.ndarray,
-    pool_starts: np.ndarray,
-    pool_ends: np.ndarray,
-    sample_size: int,
-    num_sims: int,
-) -> np.ndarray:
-    """Inner JIT loop for run_construct_bootstrap.
-
-    Pre-Python equivalent: pick a random row from `controls_features` to seed
-    the pool, then sample `sample_size` rows with replacement from that pool,
-    and take the median per feature. Repeat `num_sims` times.
-
-    Pulled out of `run_construct_bootstrap` so the inner loop can be Numba-
-    compiled — measured ~50× speedup over the pure-Python equivalent on
-    baker-scale construct/control sizes.
-
-    Args:
-        controls_features (np.ndarray): (n_rows, n_features) controls features,
-            sorted by control_id so each pool occupies a contiguous slice.
-        pool_lookup (np.ndarray): (n_rows,) maps each row to its pool index.
-        pool_starts (np.ndarray): Start row index of each pool.
-        pool_ends (np.ndarray): End row index (exclusive) of each pool.
-        sample_size (int): Number of rows sampled per simulation.
-        num_sims (int): Number of bootstrap simulations.
-
-    Returns:
-        np.ndarray: (num_sims, n_features) median values per simulation.
-    """
-    n_rows, n_features = controls_features.shape
-    null_medians = np.empty((num_sims, n_features), dtype=np.float64)
-    for i in range(num_sims):
-        seed_row = np.random.randint(0, n_rows)
-        pool_idx = pool_lookup[seed_row]
-        start = pool_starts[pool_idx]
-        end = pool_ends[pool_idx]
-        pool_size = end - start
-        sample = np.empty((sample_size, n_features), dtype=np.float64)
-        for k in range(sample_size):
-            row_idx = start + np.random.randint(0, pool_size)
-            for j in range(n_features):
-                sample[k, j] = controls_features[row_idx, j]
-        for j in range(n_features):
-            null_medians[i, j] = np.median(sample[:, j])
-    return null_medians
+# Simulations per block; fixed so a gene's p-values do not depend on its size
+BOOTSTRAP_BLOCK_SIMS = 1000
 
 
 def select_control_pool(
@@ -465,101 +421,231 @@ def calculate_pvals(
     Returns:
         np.ndarray: Array of two-tailed p-values for each feature.
     """
-    # Calculate one-tailed p-values
-    pvals_one_tail = (null_medians_arr > observed_medians).mean(axis=0)
-
-    # Convert to two-tailed by taking minimum and doubling
-    pvals_two_tail = np.array([1 - x if x > 0.5 else x for x in pvals_one_tail])
-    pvals_two_tail = pvals_two_tail * 2
-
-    return pvals_two_tail
+    exceed_counts = (null_medians_arr > observed_medians).sum(axis=0)
+    return pvals_from_exceed_counts(exceed_counts, null_medians_arr.shape[0])
 
 
-def run_construct_bootstrap(
-    construct_id: str,
-    construct_features_arr: np.ndarray,
-    controls_arr: np.ndarray,
-    sample_size: int,
+def run_gene_bootstrap(
+    construct_observed: np.ndarray,
+    construct_controls: List[np.ndarray],
+    sample_sizes: List[int],
+    gene_observed: np.ndarray,
     num_sims: int,
+    seed: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Run bootstrap analysis for a single construct.
+    """Bootstrap every construct of one gene and the gene itself, keeping only exceed counts.
+
+    Each construct's null draws `sample_size` control cells with replacement from the
+    pool of one control perturbation (picked with probability proportional to its size)
+    and takes the per-feature median. The gene's null is, simulation by simulation, the
+    median across its constructs' nulls. Simulations run in blocks so memory stays
+    bounded, and only the count of null medians above the observed value is kept, so no
+    null distribution is written or held beyond one block.
 
     Args:
-        construct_id (str): Identifier for the construct to analyze.
-        construct_features_arr (np.ndarray): Array containing all construct features
-            where first column contains construct IDs and remaining columns contain features.
-        controls_arr (np.ndarray): Array of control data where first column contains
-            control IDs and remaining columns contain features.
-        sample_size (int): Sample size for each bootstrap simulation.
-        num_sims (int): Number of bootstrap simulations to run.
+        construct_observed (np.ndarray): (n_constructs, n_features) observed construct medians.
+        construct_controls (List[np.ndarray]): Per construct, its control pool: first
+            column the control perturbation id, remaining columns the features.
+        sample_sizes (List[int]): Per construct, cells sampled per simulation.
+        gene_observed (np.ndarray): (n_features,) observed gene medians.
+        num_sims (int): Number of bootstrap simulations.
+        seed (int): Seed for the simulation random state, see `bootstrap_seed`.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: A tuple containing:
-            - null_medians_arr: Array of null distribution medians from all simulations.
-              Shape: (num_sims, n_features)
-            - p_vals: Array of p-values for each feature. Shape: (n_features,)
+        Tuple[np.ndarray, np.ndarray]: Two-tailed p-values, (n_constructs, n_features)
+            for the constructs and (n_features,) for the gene.
 
     Raises:
-        ValueError: If bootstrap simulation fails due to constant values across simulations.
+        ValueError: If a block of simulations returns constant values.
     """
-    # Get observed medians for this construct
-    observed_medians = get_construct_features(construct_id, construct_features_arr)
+    construct_observed = np.asarray(construct_observed, dtype=np.float64)
+    gene_observed = np.asarray(gene_observed, dtype=np.float64)
+    n_constructs, n_features = construct_observed.shape
+    pools = [_control_pool_arrays(controls) for controls in construct_controls]
+    block_size = min(num_sims, BOOTSTRAP_BLOCK_SIMS)
+    nulls = np.empty((n_constructs, block_size, n_features), dtype=np.float64)
+    construct_exceed = np.zeros((n_constructs, n_features), dtype=np.int64)
+    gene_exceed = np.zeros(n_features, dtype=np.int64)
 
-    # Build pool ranges from control_ids (sorted to be contiguous), plus a
-    # row→pool lookup so pool selection is weighted by pool size (mirroring
-    # the original "pick a random row, use its control_id" semantics).
+    _seed_numba(seed)
+    done = 0
+    while done < num_sims:
+        n = min(block_size, num_sims - done)
+        for c, (features_t, pool_lookup, pool_starts, pool_ends) in enumerate(pools):
+            block = nulls[c, :n]
+            _bootstrap_block_numba(
+                features_t, pool_lookup, pool_starts, pool_ends, sample_sizes[c], block
+            )
+            _check_simulations(block)
+            construct_exceed[c] += (block > construct_observed[c]).sum(axis=0)
+        gene_nulls = np.median(nulls[:, :n], axis=0)
+        gene_exceed += (gene_nulls > gene_observed).sum(axis=0)
+        done += n
+
+    return (
+        pvals_from_exceed_counts(construct_exceed, num_sims),
+        pvals_from_exceed_counts(gene_exceed, num_sims),
+    )
+
+
+def read_id_keyed_tsv(fp: Union[str, Path]) -> pd.DataFrame:
+    """Read a bootstrap input table indexed by its first column, read as strings.
+
+    Construct ids are compared as strings with the ids in the checkpoint filenames, so
+    the id column is never type-inferred (a numeric-looking id keeps its leading zeros).
+
+    Args:
+        fp (Union[str, Path]): Tab-separated table with the id in its first column.
+
+    Returns:
+        pd.DataFrame: The table indexed by the string id column.
+    """
+    id_col = pd.read_csv(fp, sep="\t", nrows=0).columns[0]
+    return pd.read_csv(fp, sep="\t", dtype={id_col: str}).set_index(id_col)
+
+
+def pvals_from_exceed_counts(exceed_counts: np.ndarray, num_sims: int) -> np.ndarray:
+    """Convert counts of null medians above the observed value into two-tailed p-values.
+
+    Args:
+        exceed_counts (np.ndarray): Per feature, how many simulations exceeded the
+            observed median.
+        num_sims (int): Number of simulations the counts were taken over.
+
+    Returns:
+        np.ndarray: Two-tailed p-values, same shape as `exceed_counts`.
+    """
+    pvals_one_tail = np.asarray(exceed_counts, dtype=np.float64) / num_sims
+    return np.where(pvals_one_tail > 0.5, 1 - pvals_one_tail, pvals_one_tail) * 2
+
+
+def bootstrap_seed(gene_id: str) -> int:
+    """Stable seed for one gene's simulations, so a rerun reproduces its p-values.
+
+    Args:
+        gene_id (str): Gene (or composite gene key) being tested.
+
+    Returns:
+        int: 32-bit seed derived from the gene id.
+    """
+    return zlib.crc32(str(gene_id).encode("utf-8"))
+
+
+def _control_pool_arrays(
+    controls_arr: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Lay out a control pool for the simulation kernel.
+
+    Rows are sorted by control id so each control perturbation occupies a contiguous
+    slice, and features are stored feature-major for cache-friendly sampling.
+
+    Args:
+        controls_arr (np.ndarray): Control id in the first column, features after.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: (n_features, n_rows)
+            features, row-to-pool lookup, pool start rows, pool end rows (exclusive).
+    """
     control_ids = controls_arr[:, 0]
     controls_features = controls_arr[:, 1:].astype(np.float64)
     sort_order = np.argsort(control_ids, kind="stable")
-    controls_features_sorted = np.ascontiguousarray(controls_features[sort_order])
+    features_t = np.ascontiguousarray(controls_features[sort_order].T)
     _, counts = np.unique(control_ids[sort_order], return_counts=True)
     pool_ends = np.cumsum(counts).astype(np.int64)
     pool_starts = np.empty_like(pool_ends)
     pool_starts[0] = 0
     pool_starts[1:] = pool_ends[:-1]
-    pool_lookup = np.empty(controls_features_sorted.shape[0], dtype=np.int64)
-    for p, (s, e) in enumerate(zip(pool_starts, pool_ends)):
-        pool_lookup[s:e] = p
-
-    null_medians_arr = _bootstrap_inner_numba(
-        controls_features_sorted,
-        pool_lookup,
-        pool_starts,
-        pool_ends,
-        sample_size,
-        num_sims,
-    )
-
-    # Modified verification for single feature case
-    if null_medians_arr.shape[1] == 1:
-        # For single feature, check if all values are identical (which would be weird)
-        all_identical = len(np.unique(null_medians_arr)) == 1
-        if all_identical:
-            raise ValueError("All bootstrap simulations returned identical values")
-    else:
-        # Original verification for multiple features
-        all_same = np.max(null_medians_arr, axis=1) == np.min(null_medians_arr, axis=1)
-        if len(null_medians_arr[all_same]) > 0:
-            raise ValueError(
-                "Bootstrap simulation failed - some simulations returned constant values"
-            )
-
-    # Calculate p-values
-    p_vals = calculate_pvals(null_medians_arr, observed_medians)
-
-    return null_medians_arr, p_vals
+    pool_lookup = np.repeat(np.arange(len(counts), dtype=np.int64), counts)
+    return features_t, pool_lookup, pool_starts, pool_ends
 
 
-def load_construct_null_arrays(file_paths: List[str]) -> List[np.ndarray]:
-    """Load multiple construct null distribution arrays.
+def _check_simulations(null_medians: np.ndarray) -> None:
+    """Raise if a block of simulations returned constant values.
 
     Args:
-        file_paths (List[str]): List of file paths to null distribution numpy arrays.
+        null_medians (np.ndarray): (n_sims, n_features) null medians of one block.
 
-    Returns:
-        List[np.ndarray]: List of loaded numpy arrays containing null distributions.
+    Raises:
+        ValueError: If the simulations are degenerate.
     """
-    return [np.load(path, allow_pickle=False) for path in file_paths]
+    if null_medians.shape[1] == 1:
+        if null_medians.shape[0] > 1 and len(np.unique(null_medians)) == 1:
+            raise ValueError("All bootstrap simulations returned identical values")
+    elif np.any(np.max(null_medians, axis=1) == np.min(null_medians, axis=1)):
+        raise ValueError(
+            "Bootstrap simulation failed - some simulations returned constant values"
+        )
+
+
+@numba.njit(cache=True)
+def _seed_numba(seed):
+    np.random.seed(seed)
+
+
+@numba.njit(cache=True)
+def _bootstrap_block_numba(
+    features_t, pool_lookup, pool_starts, pool_ends, sample_size, out
+):
+    """Fill `out` (n_sims, n_features) with null medians, one simulation per row.
+
+    Each simulation picks a random control row to choose its pool, samples
+    `sample_size` rows with replacement from that pool, and takes the median of
+    each feature, as np.median does (NaN if any sampled value is NaN).
+    """
+    n_features, n_rows = features_t.shape
+    rows = np.empty(sample_size, dtype=np.int64)
+    buf = np.empty(sample_size, dtype=np.float64)
+    for i in range(out.shape[0]):
+        seed_row = np.random.randint(0, n_rows)
+        pool_idx = pool_lookup[seed_row]
+        start = pool_starts[pool_idx]
+        pool_size = pool_ends[pool_idx] - start
+        for k in range(sample_size):
+            rows[k] = start + np.random.randint(0, pool_size)
+        for j in range(n_features):
+            has_nan = False
+            for k in range(sample_size):
+                value = features_t[j, rows[k]]
+                buf[k] = value
+                if np.isnan(value):
+                    has_nan = True
+            out[i, j] = np.nan if has_nan else _median_inplace(buf)
+
+
+@numba.njit(cache=True)
+def _median_inplace(buf):
+    """Median of `buf` by in-place selection; reorders `buf`."""
+    n = buf.shape[0]
+    k = n // 2
+    lo = 0
+    hi = n - 1
+    while lo < hi:
+        pivot = buf[k]
+        i = lo
+        j = hi
+        while i <= j:
+            while buf[i] < pivot:
+                i += 1
+            while pivot < buf[j]:
+                j -= 1
+            if i <= j:
+                tmp = buf[i]
+                buf[i] = buf[j]
+                buf[j] = tmp
+                i += 1
+                j -= 1
+        if j < k:
+            lo = i
+        if k < i:
+            hi = j
+    upper = buf[k]
+    if n % 2 == 1:
+        return upper
+    lower = buf[0]
+    for t in range(1, k):
+        if buf[t] > lower:
+            lower = buf[t]
+    return (lower + upper) / 2
 
 
 def apply_multiple_hypothesis_correction(

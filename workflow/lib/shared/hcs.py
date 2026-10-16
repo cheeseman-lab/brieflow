@@ -111,6 +111,7 @@ def write_hcs_metadata(plate_zarr_path, channels_metadata=None):
         index.set(f"{row}/{col}", _well_metadata(sorted(field_ids)))
         for field in sorted(field_ids):
             _write_labels_group(index, f"{row}/{col}/{field}")
+            _write_nested_field_image(index, f"{row}/{col}/{field}")
 
     index.flush()
 
@@ -547,6 +548,39 @@ def _write_labels_group(index, field_rel: str) -> None:
 
     if label_names:
         index.set(labels_rel, _labels_group_metadata(label_names))
+
+
+def _write_nested_field_image(index, field_rel: str) -> None:
+    """Make a field whose images nest one level down (preprocess cycles) an OME image.
+
+    HCS readers open ``{row}/{col}/{field}`` as an image, and the well schema only
+    allows single-segment field paths, so the field group carries a copy of its
+    first nested image's metadata with the dataset paths re-rooted. The other
+    nested images stay where they are and open directly.
+    """
+    if _has_multiscales(index.get(field_rel)):
+        return
+    prefix = f"{field_rel}/"
+    nested = [
+        rel
+        for rel in index.nodes
+        if rel.startswith(prefix)
+        and rel[len(prefix) :].isdigit()
+        and _has_multiscales(index.get(rel))
+    ]
+    if not nested:
+        return
+    first = min(nested, key=lambda rel: int(rel[len(prefix) :]))
+    meta = json.loads(json.dumps(index.get(first)))
+    for multiscale in meta["attributes"]["ome"]["multiscales"]:
+        for dataset in multiscale["datasets"]:
+            dataset["path"] = f"{first[len(prefix) :]}/{dataset['path']}"
+    index.set(field_rel, meta)
+
+
+def _has_multiscales(meta) -> bool:
+    """Check whether a parsed zarr.json describes an OME image."""
+    return bool(meta) and "multiscales" in meta.get("attributes", {}).get("ome", {})
 
 
 def _is_label_group(meta) -> bool:

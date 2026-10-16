@@ -161,8 +161,8 @@ pipeline:
 data:
   storage_format: "nd2"                           # nd2 | tiff | zarr
   location: "small_test_data/"                    # base path (e.g. /archive/cheeseman/ops_data/<screen>)
-  input_sbs_dir: "small_test_data/sbs"            # raw SBS images dir
-  input_phenotype_dir: "small_test_data/phenotype" # raw phenotype images dir
+  input_sbs_dir: "small_test_data/sbs"            # raw SBS images dir (plate_<N>/c<M>/ below it)
+  input_phenotype_dir: "small_test_data/phenotype" # raw phenotype images dir (plate_<N>/round_<M>/ below it)
 
 # =========================================================================
 # additional_notes — free-text operator observations not captured by the
@@ -173,5 +173,7 @@ data:
 additional_notes: |
   Created by small_test_analysis_setup.py. Plate 1, wells A1 and A2. SBS imaged at 10x
   (tiles 0, 2, 32 per well), phenotype at 20x (tiles 2, 5, 141 per well); tile 2 comes
-  from empty_images/ in both. Library: 20,445 sgRNAs in config/barcode_library.tsv,
-  4 per gene (RGPD5 has 3) plus 250 nontargeting controls.
+  from empty_images/ in both. The download is flat, so the setup script symlinks it into
+  sbs/plate_1/c<N>/ and phenotype/plate_1/round_1/, the layout every screen uses.
+  Library: 20,445 sgRNAs in config/barcode_library.tsv, 4 per gene (RGPD5 has 3) plus
+  250 nontargeting controls.

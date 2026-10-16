@@ -26,6 +26,9 @@ ROOT_FP
 IMAGE_FORMAT
   `all.image_format` · default `"zarr"`. Output layout for the whole run: `"zarr"` for {term}`OME-Zarr` stores, `"tiff"` for one TIFF per tile. Choose once, before preprocess runs; switching later means re-running from preprocess.
 
+ZARR_MAX_LEVELS
+  `all.zarr_max_levels` · default `1`. Resolution levels written for each converted raw image in `"zarr"` mode; `1` writes no pyramid. More levels make large tiles quick to browse in napari and cost disk (5 levels added ~16% on the small test). Pixels at full resolution never change. Ignored in `"tiff"` mode.
+
 SBS_IMAGES_DIR_FP, PHENOTYPE_IMAGES_DIR_FP
   Not written; they feed the sample tables (`preprocess.sbs_samples_fp`, `preprocess.phenotype_samples_fp`) · default `None`. Directories holding the raw SBS and phenotype files. Leave one as `None` to process only the other arm.
 

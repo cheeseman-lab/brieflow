@@ -39,6 +39,7 @@ def segment_stardist(
     reconcile="consensus",
     return_counts=False,
     gpu=False,
+    verbose=False,
 ):
     """Segment cells using StarDist algorithm with separate parameters for nuclei and cells.
 
@@ -56,6 +57,7 @@ def segment_stardist(
             - cell_nms_threshold: Specific NMS threshold for cell segmentation
         cells: Whether to segment both nuclei and cells or just nuclei
         reconcile: Method for reconciling nuclei and cells
+        verbose (bool, optional): Print the reconcile QC block (nuclei per cell, Segmentation QC). Default is False.
         return_counts: Whether to return counts of nuclei and cells
         gpu: Whether to use GPU for segmentation
 
@@ -100,6 +102,7 @@ def segment_stardist(
                 cyto,
                 model_type=model_type,
                 reconcile=reconcile,
+                verbose=verbose,
                 return_counts=True,
                 gpu=gpu,
                 nuclei_kwargs=nuclei_kwargs,
@@ -113,6 +116,7 @@ def segment_stardist(
                 cyto,
                 model_type=model_type,
                 reconcile=reconcile,
+                verbose=verbose,
                 gpu=gpu,
                 nuclei_kwargs=nuclei_kwargs,
                 cell_kwargs=cell_kwargs,
@@ -167,6 +171,7 @@ def segment_stardist_multichannel(
     gpu=False,
     nuclei_kwargs=None,
     cell_kwargs=None,
+    verbose=False,
     **kwargs,
 ):
     """Segment nuclei and cells using the StarDist algorithm with separate parameters.
@@ -176,6 +181,7 @@ def segment_stardist_multichannel(
         cyto: Cytoplasmic channel data
         model_type: StarDist model type to use
         reconcile: Method for reconciling nuclei and cells
+        verbose (bool, optional): Print the reconcile QC block (nuclei per cell, Segmentation QC). Default is False.
         remove_edges: Whether to remove edges from the masks
         return_counts: Whether to return counts of nuclei and cells
         gpu: Whether to use GPU for segmentation
@@ -242,7 +248,9 @@ def segment_stardist_multichannel(
     raw_nuclei = nuclei.copy()
     if reconcile:
         print(f"reconciling masks with method how={reconcile}")
-        nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
+        nuclei, cells = reconcile_nuclei_cells(
+            nuclei, cells, how=reconcile, verbose=verbose
+        )
 
     nuclei_per_cell = count_nuclei_per_cell(raw_nuclei, cells)
 

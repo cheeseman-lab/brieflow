@@ -36,9 +36,10 @@ DEFAULT_CHANNEL_COLORS = [
 
 PathLike = Union[str, Path]
 
-# Convert-path fallbacks when all.zarr_max_levels / all.zarr_compression are unset.
+# Convert-path pyramid depth when all.zarr_max_levels is unset.
 DEFAULT_MAX_LEVELS = 1
-DEFAULT_ZARR_COMPRESSION = "blosc-zstd-bitshuffle"
+# Codec for converted raw images; byte shuffle beat bitshuffle on 3 of 4 lab cameras (16-bit).
+CONVERT_ZARR_COMPRESSION = "blosc-zstd-shuffle"
 DEFAULT_BLOSC_CLEVEL = 5
 
 # c-blosc thread cap, applied in _make_compressor so importing has no side effect.
@@ -172,7 +173,7 @@ def save_image(
 
     Pyramids and compression are opt-in: pass ``max_levels`` / ``compression``
     (see :func:`_make_compressor` for the accepted strings). The preprocess
-    convert path threads ``all.zarr_max_levels`` / ``all.zarr_compression`` in.
+    convert path threads ``all.zarr_max_levels`` and ``CONVERT_ZARR_COMPRESSION`` in.
     """
     out = Path(output_path)
     suffix = out.suffix.lower()

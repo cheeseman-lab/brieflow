@@ -20,6 +20,56 @@ import matplotlib.colors as mcolors
 
 from lib.merge.fast_merge import build_linear_model, refine_local_warp, match_cells
 from lib.shared.alignment_overlay import magenta_green_overlay
+from lib.shared.image_io import read_image
+
+TILE_DIMENSION_SOURCES = {"phenotype": "aligned", "sbs": "nuclei"}
+
+
+def get_tile_dimensions(root_fp, modality, image_format="tiff", plate=None, well=None):
+    """Read the (height, width) of one processed tile of a modality.
+
+    Phenotype reads an aligned image and SBS a nuclei mask (aligned SBS images are
+    temporary in TIFF runs), so the phase must have run before merge is configured.
+
+    Args:
+        root_fp (str | Path): Analysis output root (config["all"]["root_fp"]).
+        modality (str): "phenotype" or "sbs".
+        image_format (str): "tiff" or "zarr" (config["all"]["image_format"]).
+        plate (str | int, optional): TIFF only: restrict the search to this plate.
+        well (str, optional): TIFF only: restrict the search to this well.
+
+    Returns:
+        tuple[int, int]: Tile height and width in pixels.
+
+    Raises:
+        ValueError: If the modality is unknown or no processed tile exists yet.
+    """
+    if modality not in TILE_DIMENSION_SOURCES:
+        raise ValueError(f"modality must be one of {sorted(TILE_DIMENSION_SOURCES)}")
+    modality_fp = Path(root_fp) / modality
+    label = "SBS" if modality == "sbs" else modality
+    missing = (
+        f"No {label} tiles found; run `bash flow.sh {modality}` first "
+        "so the tile size can be read"
+    )
+    if image_format == "zarr":
+        for store in sorted(modality_fp.glob("aligned_*.zarr")):
+            tiles = sorted(
+                p
+                for p in store.rglob("*/zarr.json")
+                if "labels" not in p.relative_to(store).parts and p.parents[3] == store
+            )
+            if tiles:
+                return tuple(int(n) for n in read_image(tiles[0]).shape[-2:])
+        raise ValueError(missing)
+    prefix = ("P-*" if plate is None else f"P-{plate}") + (
+        "_W-*" if well is None else f"_W-{well}"
+    )
+    suffix = TILE_DIMENSION_SOURCES[modality]
+    images = sorted((modality_fp / "images").glob(f"{prefix}_*__{suffix}.tiff"))
+    if not images:
+        raise ValueError(missing)
+    return tuple(int(n) for n in read_image(images[0]).shape[-2:])
 
 
 def align_metadata(

@@ -45,7 +45,6 @@ def align_cycles(
     manual_channel_mapping=None,
     verbose=False,
     return_metrics=False,
-    compute_qc=False,
 ):
     """Rigid alignment of sequencing cycles and channels.
 
@@ -80,14 +79,11 @@ def align_cycles(
             Example: [["DAPI", "G", "T", "A", "C"], ["DAPI", "G", "T", "A", "C"], ["DAPI", "GFP", "G", "T", "A", "C", "AF750"]]
             for a 3-cycle dataset where the third cycle has additional GFP and AF750 channels.
             Defaults to None.
-        verbose (bool, optional): If True, print detailed alignment information including
-            calculated offsets for each cycle. Useful for debugging alignment issues.
-            Defaults to False.
+        verbose (bool, optional): If True, print the calculated offsets for each cycle
+            and the alignment QC report (report_alignment_qc, a second alignment pass).
+            Notebooks pass True; pipeline runs keep the default False.
         return_metrics (bool, optional): If True, also return a dict of per-cycle alignment
             offset metrics keyed offset_y_cycle{i}/offset_x_cycle{i}. Defaults to False.
-        compute_qc (bool, optional): If True, print the alignment QC report
-            (report_alignment_qc). Off by default because it costs a second alignment
-            pass and only produces printed diagnostics. Defaults to False.
 
     Returns:
         np.ndarray: SBS image aligned across cycles.
@@ -344,7 +340,7 @@ def align_cycles(
         raise ValueError(f'Method "{method}" not implemented')
 
     # Alignment QC: per-cycle DAPI residual and per-cycle, per-channel spot shifts
-    if compute_qc:
+    if verbose:
         cycle_labels = [i + 1 for i in range(n_input_cycles) if i not in skip_cycles]
         report_alignment_qc(
             aligned,

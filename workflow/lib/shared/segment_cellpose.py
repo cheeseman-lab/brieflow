@@ -128,6 +128,7 @@ def segment_cellpose(
     logscale=True,
     return_counts=False,
     gpu=False,
+    verbose=False,
 ):
     """Segment cells using Cellpose algorithm.
 
@@ -150,6 +151,7 @@ def segment_cellpose(
             - cell_cellprob_threshold (float): Specific cell probability threshold for cell segmentation
         cells (bool, optional): Whether to segment both nuclei and cells or just nuclei.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
+        verbose (bool, optional): Print the reconcile QC block (nuclei per cell, Segmentation QC). Default is False.
         logscale (bool, optional): Whether to apply logarithmic transformation to image data.
         return_counts (bool, optional): Whether to return counts of nuclei and cells. Default is False.
         gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
@@ -208,6 +210,7 @@ def segment_cellpose(
                 cell_diameter,
                 cellpose_model=cellpose_model,
                 reconcile=reconcile,
+                verbose=verbose,
                 return_counts=True,
                 gpu=gpu,
                 nuclei_kwargs=nuclei_kwargs,
@@ -222,6 +225,7 @@ def segment_cellpose(
                 cell_diameter,
                 cellpose_model=cellpose_model,
                 reconcile=reconcile,
+                verbose=verbose,
                 gpu=gpu,
                 nuclei_kwargs=nuclei_kwargs,
                 cell_kwargs=cell_kwargs,
@@ -405,6 +409,7 @@ def segment_cellpose_rgb(
     gpu=False,
     nuclei_kwargs=None,
     cell_kwargs=None,
+    verbose=False,
     **kwargs,
 ):
     """Segment nuclei and cells using the Cellpose algorithm from an RGB image.
@@ -417,6 +422,7 @@ def segment_cellpose_rgb(
             Default is 'cyto3'. Cellpose 3.x: Use 'cyto3', 'nuclei', 'cyto2'.
             Cellpose 4.x: Use 'cpsam' only.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is 'consensus'.
+        verbose (bool, optional): Print the reconcile QC block (nuclei per cell, Segmentation QC). Default is False.
         remove_edges (bool, optional): Whether to remove nuclei and cells touching the image edges. Default is True.
         return_counts (bool, optional): Whether to return counts of nuclei and cells before reconciliation. Default is False.
         gpu (bool, optional): Whether to use GPU for segmentation. Default is False.
@@ -503,7 +509,9 @@ def segment_cellpose_rgb(
     raw_nuclei = nuclei.copy()
     if reconcile:
         print(f"reconciling masks with method how={reconcile}")
-        nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
+        nuclei, cells = reconcile_nuclei_cells(
+            nuclei, cells, how=reconcile, verbose=verbose
+        )
 
     nuclei_per_cell = count_nuclei_per_cell(raw_nuclei, cells)
 

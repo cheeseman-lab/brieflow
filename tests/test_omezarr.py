@@ -435,7 +435,7 @@ class TestZarrStructural:
 
         Restricted to the ``convert_sbs`` / ``convert_phenotype`` output. Those
         are the only writers that thread ``all.zarr_max_levels`` /
-        ``all.zarr_compression``; illumination-correction fields under
+        ``CONVERT_ZARR_COMPRESSION``; illumination-correction fields under
         ``ic_fields/`` use the conservative writer defaults, so asserting a
         codec or pyramid on them would be wrong.
         """
@@ -479,7 +479,7 @@ class TestZarrStructural:
             codecs = [c["name"] for c in group[level].metadata.to_dict()["codecs"]]
             assert "blosc" in codecs, (
                 f"level {level} has codecs {codecs}; expected Blosc from "
-                "all.zarr_compression. zstd alone means the compressor was dropped."
+                "CONVERT_ZARR_COMPRESSION. zstd alone means the compressor was dropped."
             )
 
     @pytest.mark.integration

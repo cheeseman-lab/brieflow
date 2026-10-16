@@ -88,6 +88,35 @@ def create_samples_df(images_fp, sample_pattern, metadata, metadata_order_type):
     return samples_df
 
 
+def filter_samples_to_wells(samples_df, wells_fp, label="samples"):
+    """Keep only the samples whose plate and well are listed in a wells table.
+
+    Args:
+        samples_df (DataFrame): Samples dataframe from create_samples_df, with plate and well columns.
+        wells_fp (str or Path): TSV or CSV with plate and well columns, one row per well to analyze
+            (other columns, such as per-well conditions, are ignored).
+        label (str): Name used in the printed summary, e.g. "SBS".
+
+    Returns:
+        DataFrame: The samples from listed wells, index reset.
+
+    Raises:
+        ValueError: No sample's plate and well appear in the table.
+    """
+    table = pd.read_csv(wells_fp, sep=None, engine="python", dtype=str)
+    listed = set(table["plate"].str.strip() + "/" + table["well"].str.strip())
+    keys = samples_df["plate"].astype(str) + "/" + samples_df["well"].astype(str)
+    keep = keys.isin(listed)
+    if not keep.any():
+        raise ValueError(
+            f"No {label} well is listed in {wells_fp}; compare its plate and well values with the file names"
+        )
+    print(
+        f"{label}: keeping {keys[keep].nunique()} of {keys.nunique()} imaged wells listed in {wells_fp}"
+    )
+    return samples_df[keep].reset_index(drop=True)
+
+
 def create_micropanel(microimages, num_cols=2, figscaling=6, add_channel_label=True):
     """Creates a Micropanel from a list of Microimages.
 

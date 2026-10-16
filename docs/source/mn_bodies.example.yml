@@ -1,0 +1,160 @@
+# Example five-round MN settings, calibrated to one pilot; adjust to your data.
+# Sizes are pixels at the current image resolution.
+# Add this phenotype overlay to your screen config; retain normal preprocess/SBS settings.
+# Every round retains its DAPI channel. Do not register these channels upstream.
+# Absolute artifact thresholds were calibrated on the supplied 16-bit TIFF intensities.
+phenotype:
+  segment_cells: false
+  second_obj_detection: false
+  align: false
+  channel_names: &id001
+  - DAPI_primary
+  - BP1
+  - RNP_primary
+  - H2AK119ub
+  - DAPI_round2
+  - PolII_Ser5Ph
+  - H3K27ac
+  - DAPI_round3
+  - H3K9me2
+  - FLAG
+  - DAPI_round4
+  - Nascent
+  - PolII_Ser2Ph
+  - DAPI_round5
+  - RNP_fifth
+  dapi_index: 0
+  cyto_index: 0
+  segmentation_method: cellpose
+  cellpose_model: cpsam
+  nuclei_diameter: 70
+  cell_diameter: 70
+  gpu: true
+  nuclei_flow_threshold: 0.4
+  nuclei_cellprob_threshold: 0.0
+  mn_bodies:
+    enabled: true
+    channel_names: *id001
+    rounds:
+      primary:
+        dapi: DAPI_primary
+        markers:
+          BP1: BP1
+          RNP_primary: RNP_primary
+          H2AK119ub: H2AK119ub
+      round2:
+        dapi: DAPI_round2
+        markers:
+          PolII_Ser5Ph: PolII_Ser5Ph
+          H3K27ac: H3K27ac
+      round3:
+        dapi: DAPI_round3
+        markers:
+          H3K9me2: H3K9me2
+          FLAG: FLAG
+      round4:
+        dapi: DAPI_round4
+        markers:
+          Nascent: Nascent
+          PolII_Ser2Ph: PolII_Ser2Ph
+      round5:
+        dapi: DAPI_round5
+        markers:
+          RNP_fifth: RNP_fifth
+    saturation_value: 65535
+    registration:
+      max_shift_px: 128
+      minimum_dapi_correlation: 0.95
+      maximum_regional_residual_px: 2
+    objects:
+      bp1:
+        feature_diameter: 24
+        diameter_min: 3
+        diameter_max: 50
+        adaptive_window: 50
+        threshold_smoothing_scale: 1.3
+        declump_smoothing_size: 5
+        seed_min_distance: 3
+        trim_fraction: 0.05
+        deviations: 3
+        threshold_correction: 1
+        fill_holes: true
+      rnp_primary:
+        feature_diameter: 24
+        diameter_min: 3
+        diameter_max: 50
+        adaptive_window: 40
+        threshold_smoothing_scale: 1.2
+        declump_smoothing_size: 3
+        seed_min_distance: 2
+        trim_fraction: 0.05
+        deviations: 3
+        threshold_correction: 1
+        fill_holes: true
+      rnp_fifth:
+        feature_diameter: 24
+        diameter_min: 3
+        diameter_max: 50
+        adaptive_window: 40
+        threshold_smoothing_scale: 1.2
+        declump_smoothing_size: 3
+        seed_min_distance: 2
+        trim_fraction: 0.05
+        deviations: 3
+        threshold_correction: 1
+        fill_holes: true
+      reporter:
+        feature_diameter: 24
+        diameter_min: 3
+        diameter_max: 40
+        adaptive_window: 40
+        threshold_smoothing_scale: 1.3
+        declump_smoothing_size: 5
+        seed_min_distance: 3
+        trim_fraction: 0.05
+        deviations: 4
+        threshold_correction: 1
+        fill_holes: true
+    nucleoli:
+      feature_diameter: 40
+      diameter_min: 5
+      diameter_max: 60
+      adaptive_window: 60
+      deviations: 2
+      smoothing_scale: 2
+      boundary_margin: 3
+      max_parent_fraction: 0.4
+      method: relative_depletion
+      depletion_fraction: 0.65
+    reporter:
+      minimum_mean_enrichment: 1.5
+      minimum_peak_enrichment: 2.5
+      minimum_overlap_fraction: 0.2
+    consensus:
+      # Apply these tests to the REFINED footprint; 70 px is unchanged.
+      # Previously rescued objects may fall below the area cutoff after trimming.
+      minimum_enrichment: 5.0
+      minimum_area_px: 70.0
+    bp1_boundary:
+      # Runs after focus/nucleolar/reporter detection and before MN definition.
+      # Keep pixels >= background + 0.30 * max(smoothed within-focus P90 - background, 0).
+      # This is an intensity fraction, not a target area-removal fraction.
+      enabled: true
+      method: relative_contrast
+      threshold: 0.30
+      smoothing_sigma: 0.7
+      ring_inner: 2
+      ring_outer: 8
+      minimum_background_pixels: 30
+    H3K9me2_artifacts:
+      seed_intensity: 30000
+      seed_local_ratio: 4
+      background_sigma: 10
+      grow_intensity: 12000
+      grow_local_ratio: 1.8
+      saturation_value: 65535
+      saturated_local_ratio: 2
+      halo_pixels: 1
+    measurement:
+      minimum_baseline_pixels: 50
+      minimum_baseline_fraction: 0.2

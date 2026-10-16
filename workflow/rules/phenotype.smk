@@ -1,6 +1,8 @@
 from lib.shared.target_utils import output_to_input
 from lib.shared.rule_utils import get_alignment_params, get_segmentation_params
 
+if config["phenotype"].get("mn_bodies", {}).get("enabled", False):
+    include: "mn_bodies.smk"
 
 # Apply illumination correction field
 rule apply_ic_field_phenotype:
@@ -147,7 +149,9 @@ if config["phenotype"].get("second_obj_detection", False):
 rule extract_phenotype_cp:
     input:
         # aligned phenotype image
-        PHENOTYPE_OUTPUTS["align_phenotype"][0],
+        MN_FILES["export_mn_registered_image"]["registered_image"]
+        if config["phenotype"].get("mn_bodies", {}).get("enabled", False)
+        else PHENOTYPE_OUTPUTS["align_phenotype"][0],
         # nuclei segmentation map
         PHENOTYPE_OUTPUTS["segment_phenotype"][0],
         # cells segmentation map
@@ -185,7 +189,9 @@ if config["phenotype"].get("second_obj_detection", False):
 rule merge_phenotype:
     input:
         lambda wildcards: output_to_input(
-            PHENOTYPE_OUTPUTS["merge_second_objs_phenotype_cp"]
+            PHENOTYPE_OUTPUTS["merge_mn_phenotype"]
+            if config["phenotype"].get("mn_bodies", {}).get("enabled", False)
+            else PHENOTYPE_OUTPUTS["merge_second_objs_phenotype_cp"]
             if config["phenotype"].get("second_obj_detection", False)
             else PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
             wildcards=wildcards,

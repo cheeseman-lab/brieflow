@@ -195,6 +195,9 @@ PHENOTYPE_OUTPUT_MAPPINGS = {
     "eval_features": None,
 }
 
+if config["phenotype"].get("mn_bodies", {}).get("enabled", False):
+    include: "mn_bodies.smk"
+
 # Determine which outputs to include based on config
 PHENOTYPE_SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", False)
 

@@ -35,5 +35,6 @@ Brieflow is a community-driven project, and we welcome contributions from anyone
 4.visualization.md
 5.development.md
 example_analyses.md
+mn_bodies.md
 config_glossary.md
 ```

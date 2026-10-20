@@ -220,6 +220,8 @@ rule final_merge:
         )),
     output:
         MERGE_OUTPUTS_MAPPED["final_merge"][0],
+    params:
+        exclude_markers=config.get("merge", {}).get("exclude_markers"),
     script:
         "../scripts/merge/final_merge.py"
 

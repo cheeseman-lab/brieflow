@@ -300,6 +300,11 @@ def do_frac_call(df_bases, cycles=12, combinatorial=None):
     e.g. ``[[1, 7], [8, 12]]``) takes the blank state's brightness reference within
     each region rather than across all cycles, for barcodes whose regions are imaged
     at different brightness. Cycles outside every region keep the global reference.
+
+    ``combinatorial.ambiguous_call`` set to ``"N"`` calls a cycle whose dye state is
+    equally near two or more bases (e.g. all three dyes on, C and A tied) ``N``
+    instead of the first tied base in code order. An ``N`` cycle has quality 0 and is
+    left out of ``Q_min``; ``call_cells`` can resolve it (``n_wildcard``).
     """
     dye, dye_labels, base_chars, templates = _combinatorial_setup(
         df_bases, combinatorial
@@ -341,6 +346,16 @@ def do_frac_call(df_bases, cycles=12, combinatorial=None):
         :, :, 0
     ]
     quality_scores = confidence.min(axis=2) * np.where(chosen_distance == 0, 1.0, 0.5)
+    ambiguous_call = combinatorial.get("ambiguous_call")
+    if ambiguous_call not in (None, "nearest", "N"):
+        raise ValueError(
+            f"combinatorial.ambiguous_call must be 'N' or 'nearest', got {ambiguous_call!r}."
+        )
+    if ambiguous_call == "N":
+        tied = (distance == chosen_distance[:, :, None]).sum(axis=2) > 1
+        called_bases = np.where(tied, "N", called_bases)
+        quality_scores = np.where(tied, 0.0, quality_scores)
+        barcodes = ["".join(row) for row in called_bases]
     return _format_combinatorial_reads(df_bases, cycles, barcodes, quality_scores)
 
 
@@ -491,6 +506,16 @@ def _format_combinatorial_reads(df_bases, cycles, barcodes, quality_scores):
     df_reads = df_reads.assign(
         Q_min=lambda frame: frame.filter(regex=r"Q_\d+").min(axis=1)
     )
+    if any("N" in barcode for barcode in barcodes):
+        # Q_min is over called cycles; an N cycle is a no-call, not a low-quality call
+        no_call = np.array(
+            [[base == "N" for base in barcode[:cycles]] for barcode in barcodes]
+        )
+        df_reads["Q_min"] = (
+            pd.DataFrame(np.where(no_call, np.nan, quality_scores[:, :cycles]))
+            .min(axis=1)
+            .to_numpy()
+        )
     return df_reads.drop([CYCLE, CHANNEL, INTENSITY], axis=1)
 
 

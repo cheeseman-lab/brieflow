@@ -514,6 +514,7 @@ def _format_combinatorial_reads(df_bases, cycles, barcodes, quality_scores):
         df_reads["Q_min"] = (
             pd.DataFrame(np.where(no_call, np.nan, quality_scores[:, :cycles]))
             .min(axis=1)
+            .fillna(0.0)
             .to_numpy()
         )
     return df_reads.drop([CYCLE, CHANNEL, INTENSITY], axis=1)

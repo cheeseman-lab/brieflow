@@ -131,3 +131,9 @@ def test_n_in_the_recombination_half_is_unknown_not_a_mismatch():
     assert bool(_cells("ACGTTNAA", 1).no_recomb_0.iloc[0]) is True
     assert bool(_cells("ACGTCNAA", 1).no_recomb_0.iloc[0]) is False
     assert pd.isna(_cells("ACGTTNAA", 0).no_recomb_0.iloc[0])
+
+
+def test_all_n_read_has_zero_q_min():
+    r = reads(["XXXX"], ambiguous_call="N")
+    assert r.loc[0, "barcode"] == "NNNN"
+    assert r.loc[0, "Q_min"] == 0

@@ -405,6 +405,7 @@ def get_call_cells_params(config: Dict[str, Any]) -> Dict[str, Any]:
         "max_distance": sbs_config.get("max_distance", 2),
         "n_barcodes": sbs_config.get("n_barcodes", 2),
         "barcode_info_cols": sbs_config.get("barcode_info_cols", None),
+        "n_wildcard": sbs_config.get("n_wildcard", 0),
     }
 
     if barcode_type == "simple":
@@ -434,6 +435,7 @@ def get_call_cells_params(config: Dict[str, Any]) -> Dict[str, Any]:
                 "prefix_recomb": sbs_config.get("prefix_recomb", "prefix_recomb"),
                 "recomb_filter_col": sbs_config.get("recomb_filter_col", None),
                 "recomb_q_thresh": sbs_config.get("recomb_q_thresh", 0.1),
+                "recomb_max_n": sbs_config.get("recomb_max_n", 0),
             }
         )
     else:

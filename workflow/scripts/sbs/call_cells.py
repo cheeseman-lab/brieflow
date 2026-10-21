@@ -32,11 +32,13 @@ if barcode_type == "multi":
         prefix_recomb=params["prefix_recomb"],
         recomb_filter_col=params["recomb_filter_col"],
         recomb_q_thresh=params["recomb_q_thresh"],
+        recomb_max_n=params.get("recomb_max_n", 0),
         error_correct=params["error_correct"],
         sort_calls=params["sort_calls"],
         max_distance=params["max_distance"],
         n_barcodes=params["n_barcodes"],
         barcode_info_cols=params["barcode_info_cols"],
+        n_wildcard=params.get("n_wildcard", 0),
     )
 else:
     cells_data = call_cells(
@@ -49,6 +51,7 @@ else:
         sort_calls=params["sort_calls"],
         max_distance=params["max_distance"],
         n_barcodes=params["n_barcodes"],
+        n_wildcard=params.get("n_wildcard", 0),
     )
 
 # Save cells data

@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import Levenshtein
 from collections import Counter
+from itertools import combinations
 from functools import lru_cache
 
 from lib.sbs.constants import (
@@ -53,6 +54,8 @@ def call_cells(
     n_barcodes=2,
     barcode_info_cols=None,
     df_UMI=None,
+    n_wildcard=0,
+    recomb_max_n=0,
     **kwargs,
 ):
     """Call cells from sequencing reads.
@@ -82,6 +85,11 @@ def call_cells(
         n_barcodes: Number of ranked barcodes to store per cell. Default 2.
         barcode_info_cols: Library columns to merge (defaults to gene_symbol, gene_id).
         df_UMI: Optional UMI reads DataFrame.
+        n_wildcard: A barcode with 1..n_wildcard no-call (N) cycles is resolved to the one
+            library barcode that agrees at every other cycle; left as is when none or several do.
+        recomb_max_n: N cycles in the recombination barcode are unknown, not mismatches: up to
+            this many are skipped when comparing it with the expected one; with more the read
+            is left unchecked (no_recomb NaN).
         kwargs: Additional arguments for error correction.
 
     Returns:
@@ -168,6 +176,11 @@ def call_cells(
             **kwargs,
         )
 
+    if n_wildcard and df_barcode_library is not None:
+        df_reads[barcode_column] = resolve_wildcards(
+            df_reads[barcode_column], df_barcode_library[library_key], n_wildcard
+        )
+
     # === STEP 4: Map reads to library ===
 
     if df_barcode_library is not None:
@@ -197,6 +210,17 @@ def call_cells(
         no_recomb[both_valid] = (
             expected_recomb[both_valid].values == actual_recomb[both_valid].values
         )
+        n_calls = actual_recomb.fillna("").str.count("N")
+        for index in np.flatnonzero(both_valid.to_numpy() & (n_calls.to_numpy() > 0)):
+            if n_calls.iloc[index] > recomb_max_n:
+                no_recomb[index] = pd.NA
+            else:
+                no_recomb[index] = all(
+                    a == "N" or a == b
+                    for a, b in zip(
+                        actual_recomb.iloc[index], expected_recomb.iloc[index]
+                    )
+                )
         df_mapped["no_recomb"] = no_recomb
         df_mapped.loc[~df_mapped.mapped, "no_recomb"] = np.nan
         if recomb_filter_col is not None:
@@ -445,7 +469,18 @@ def prep_multi_reads(
         else:
             df["Q_recomb"] = pd.Series([np.nan] * len(df))
     else:
-        df["Q_recomb"] = df[recomb_q_cols].min(axis=1)
+        q_recomb = df[recomb_q_cols]
+        no_call = df[prefix_recomb].fillna("").str.contains("N")
+        if no_call.any():
+            # an N cycle is a no-call, compared as unknown in STEP 5 rather than as low quality
+            mask = np.array(
+                [
+                    [base == "N" for base in s.ljust(len(recomb_q_cols))]
+                    for s in df[prefix_recomb].fillna("")
+                ]
+            )
+            q_recomb = q_recomb.mask(mask)
+        df["Q_recomb"] = q_recomb.min(axis=1)
 
     return df
 
@@ -522,6 +557,27 @@ def call_cells_add_UMIs(df_cells, df_UMI, cols=None):
 # Sentinel for ambiguous matches (read is within max_distance of 2+ barcodes)
 _AMBIGUOUS = object()
 _ACGT = frozenset("ACGT")
+
+
+def resolve_wildcards(reads, reference, max_n):
+    """Resolve barcodes with 1..max_n N cycles to the one reference barcode agreeing at every other cycle."""
+    index = {}
+    for barcode in pd.Series(reference).dropna().astype(str).unique():
+        for k in range(1, max_n + 1):
+            for positions in combinations(range(len(barcode)), k):
+                key = "".join(
+                    "N" if i in positions else c for i, c in enumerate(barcode)
+                )
+                index[key] = barcode if key not in index else None
+    return pd.Series(
+        [
+            index.get(read) or read
+            if isinstance(read, str) and 0 < read.count("N") <= max_n
+            else read
+            for read in reads
+        ],
+        index=reads.index,
+    )
 
 
 @lru_cache(maxsize=4)

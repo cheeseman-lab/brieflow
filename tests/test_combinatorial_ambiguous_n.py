@@ -2,7 +2,7 @@
 
 With the C = 488 + 568, A = 488 + 647 code, a cycle with all three dyes over the
 fraction gate is one dye from both C and A, and the nearest-template call took
-the first in code order, C. Measured on ten two-colour PoTC plates: 33-94% of C
+the first in code order, C. Measured on ten two-colour screen plates: 33-94% of C
 calls were such cycles, their true base (leave-one-out against the library)
 followed the library's base mix, and image crops showed nuclear haze rather
 than spots. `ambiguous_call: N` calls them N instead; `n_wildcard` lets a read

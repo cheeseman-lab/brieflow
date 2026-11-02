@@ -4,10 +4,6 @@
 It drives the same marimo notebooks, `config/config.yml` and `flow.sh` described in these docs; it adds the bookkeeping, checks and recovery a person would otherwise do by hand.
 Using it is optional, and a screen can move between it and the manual workflow at any point.
 
-```{note}
-The brieflow-auto repository is currently private; ask the Cheeseman lab for access.
-```
-
 ## What it does
 
 1. **You describe the screen once.** `/brieflow-setup` provisions the host (optionally a cloud VM), stages the raw data, clones the screen repository, builds the conda environment and stages the {term}`screen.yaml` you filled in. Setup stops and lists any required field left blank; it does not write the file for you.

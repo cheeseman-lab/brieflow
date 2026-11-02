@@ -1,7 +1,7 @@
 # Brieflow
 
 [![Release](https://img.shields.io/github/v/release/cheeseman-lab/brieflow)](https://github.com/cheeseman-lab/brieflow/releases)
-[![Python](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/downloads/)
 [![Documentation](https://img.shields.io/badge/docs-brieflow.readthedocs.io-brightgreen)](https://brieflow.readthedocs.io)
 [![Tests](https://github.com/cheeseman-lab/brieflow/actions/workflows/test_analysis.yml/badge.svg)](https://github.com/cheeseman-lab/brieflow/actions/workflows/test_analysis.yml)
 [![Discord](https://img.shields.io/badge/forum-discord-7289da)](https://discord.gg/yrEh6GP8JJ)

@@ -10,10 +10,6 @@ on:
 jobs:
   test-analysis:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        output: [tiff, zarr]
 
     steps:
       - name: Checkout code
@@ -85,12 +81,12 @@ jobs:
           conda activate brieflow_ci
           python small_test_analysis_setup.py
 
-      # Run Brieflow on the small test, in this job's output format
-      - name: Run Brieflow (${{ matrix.output }})
+      # Run Brieflow on the small test (OME-Zarr output; TIFF is checked against it before each release)
+      - name: Run Brieflow (zarr)
         shell: bash -l {0}
         working-directory: tests/small_test_analysis
         run: |
           conda activate brieflow_ci
           mkdir -p "$PWD/tmp"
           export TMPDIR="$PWD/tmp"
-          if [ "${{ matrix.output }}" = "zarr" ]; then bash run_brieflow.sh --zarr; else bash run_brieflow.sh; fi
+          bash run_brieflow.sh --zarr

@@ -2,17 +2,22 @@ name: Test Analysis
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, zarr3]
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test-analysis:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        output: [tiff, zarr]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Free disk space (max safe)
         run: |
@@ -47,7 +52,7 @@ jobs:
 
       # Set up Conda
       - name: Set up Conda
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: 3.12
@@ -80,19 +85,12 @@ jobs:
           conda activate brieflow_ci
           python small_test_analysis_setup.py
 
-      # Run Brieflow
-      - name: Run Brieflow
+      # Run Brieflow on the small test, in this job's output format
+      - name: Run Brieflow (${{ matrix.output }})
         shell: bash -l {0}
         working-directory: tests/small_test_analysis
         run: |
           conda activate brieflow_ci
           mkdir -p "$PWD/tmp"
           export TMPDIR="$PWD/tmp"
-          sh run_brieflow.sh
-
-      # Run Pytest
-      - name: Run pytest
-        shell: bash -l {0}
-        run: |
-          conda activate brieflow_ci
-          pytest
+          if [ "${{ matrix.output }}" = "zarr" ]; then bash run_brieflow.sh --zarr; else bash run_brieflow.sh; fi

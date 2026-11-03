@@ -3,6 +3,7 @@
 import pandas as pd
 from joblib import Parallel, delayed
 from lib.shared.file_utils import validate_dtypes, read_tsv_safe
+from lib.shared.parquet_io import write_parquet
 
 # Load all metadata files
 all_dfs = Parallel(n_jobs=snakemake.threads)(
@@ -13,7 +14,7 @@ all_dfs = Parallel(n_jobs=snakemake.threads)(
 combined_df = pd.concat([df for df in all_dfs if not df.empty], ignore_index=True)
 
 # Filter by well if well parameter is provided
-well_filter = getattr(snakemake.params, "well", None)
+well_filter = snakemake.params.well
 if well_filter and "well" in combined_df.columns:
     combined_df = combined_df[combined_df["well"].astype(str) == str(well_filter)]
     print(f"Filtered metadata to {len(combined_df)} rows for well {well_filter}")
@@ -24,7 +25,7 @@ combined_df = validate_dtypes(combined_df)
 # Save the data based on file extension
 output_path = snakemake.output[0]
 if output_path.endswith(".parquet"):
-    combined_df.to_parquet(output_path, engine="pyarrow")
+    write_parquet(combined_df, output_path)
 elif output_path.endswith(".tsv"):
     combined_df.to_csv(output_path, sep="\t", index=False)
 elif output_path.endswith(".csv"):

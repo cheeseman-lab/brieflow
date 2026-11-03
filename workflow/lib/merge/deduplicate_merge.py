@@ -16,7 +16,6 @@ def deduplicate_cells(
     df,
     mapped_single_gene=False,
     return_stats=False,
-    approach="fast",
     pheno_id_cols=None,
     sbs_id_cols=None,
     sbs_dedup_prior=None,
@@ -36,12 +35,10 @@ def deduplicate_cells(
         Filter output to cells with unambiguous single gene mappings
     return_stats : bool, default False
         Return deduplication statistics alongside deduplicated data
-    approach : {"fast", "stitch"}, default "fast"
-        Determines cell identification column strategy
     pheno_id_cols : str or list of str, optional
-        Column(s) uniquely identifying phenotype cells. Auto-determined if None
+        Column(s) uniquely identifying phenotype cells. Defaults to plate, well, tile, cell_0
     sbs_id_cols : str or list of str, optional
-        Column(s) uniquely identifying SBS cells. Auto-determined if None
+        Column(s) uniquely identifying SBS cells. Defaults to plate, well, site, cell_1
     sbs_dedup_prior : dict
         Sorting priorities for step 1. Keys are column names, values are ascending
         sort order (True/False). Required parameter - see examples below
@@ -60,14 +57,10 @@ def deduplicate_cells(
         If sbs_dedup_prior or pheno_dedup_prior is not specified
 
     """
-    # Determine cell identification columns based on merge approach
+    # Identify cells by tile and label
     if pheno_id_cols is None or sbs_id_cols is None:
-        if approach == "stitch":
-            pheno_id_cols = "stitched_cell_id_0"
-            sbs_id_cols = "stitched_cell_id_1"
-        else:  # fast approach
-            pheno_id_cols = ["plate", "well", "tile", "cell_0"]
-            sbs_id_cols = ["plate", "well", "site", "cell_1"]
+        pheno_id_cols = ["plate", "well", "tile", "cell_0"]
+        sbs_id_cols = ["plate", "well", "site", "cell_1"]
 
     # Validate required deduplication priorities
     if sbs_dedup_prior is None:

@@ -10,29 +10,28 @@ plt.rcParams.update(
 
 from lib.cluster.cluster_eval import plot_cluster_sizes
 from lib.cluster.phate_leiden_clustering import (
+    filter_by_perturbation_auc,
     phate_leiden_pipeline,
     plot_phate_leiden_clusters,
     calculate_potential_to_nontargeting,
 )
 
+# Validate required params
+for _param_name in ["perturbation_name_col", "control_key"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # load aggregated data
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
 
-if snakemake.params.perturbation_auc_threshold is not None:
-    print(
-        f"Filtering aggregated data for perturbation AUC > {snakemake.params.perturbation_auc_threshold}"
-    )
-    aggregated_data = aggregated_data[
-        (
-            aggregated_data[snakemake.params.perturbation_name_col].str.startswith(
-                snakemake.params.control_key
-            )
-        )
-        | (
-            aggregated_data["perturbation_auc"]
-            > snakemake.params.perturbation_auc_threshold
-        )
-    ]
+aggregated_data = filter_by_perturbation_auc(
+    aggregated_data,
+    snakemake.params.perturbation_name_col,
+    snakemake.params.control_key,
+    snakemake.params.perturbation_auc_threshold,
+    control_scope=snakemake.params.get("control_scope", "pooled"),
+    reference_group=snakemake.params.get("control_reference_group", None),
+)
 
 # cluster aggregated data
 phate_leiden_clustering, potential_df = phate_leiden_pipeline(
@@ -46,20 +45,21 @@ phate_leiden_clustering, potential_df = phate_leiden_pipeline(
 uniprot_data = pd.read_csv(snakemake.params.uniprot_data_fp, sep="\t")
 # Expand the rows of the uniprot data to deal with synonyms and homologs
 uniprot_data = uniprot_data.dropna(subset=["gene_names"])
-expanded_rows = []
-for _, row in uniprot_data.iterrows():
-    gene_names = row["gene_names"].split()
-    for position, gene in enumerate(gene_names):
-        expanded_rows.append(
-            {
-                "gene_name": gene,
-                "position": position,
-                "uniprot_entry": row["entry"],
-                "uniprot_function": row["function"],
-                "uniprot_link": row["link"],
-            }
-        )
-expanded_df = pd.DataFrame(expanded_rows)
+expanded_df = (
+    uniprot_data.assign(gene_name=uniprot_data["gene_names"].str.split())
+    .explode("gene_name")
+    .rename(
+        columns={
+            "entry": "uniprot_entry",
+            "function": "uniprot_function",
+            "link": "uniprot_link",
+        }
+    )
+)
+expanded_df["position"] = expanded_df.groupby(level=0).cumcount()
+expanded_df = expanded_df[
+    ["gene_name", "position", "uniprot_entry", "uniprot_function", "uniprot_link"]
+]
 uniprot_data = expanded_df.sort_values(["gene_name", "position"]).drop_duplicates(
     "gene_name", keep="first"
 )
@@ -73,7 +73,11 @@ phate_leiden_clustering = phate_leiden_clustering.merge(
 
 # calculate potential to nontargeting
 average_distance_df = calculate_potential_to_nontargeting(
-    potential_df, snakemake.params.control_key
+    potential_df,
+    snakemake.params.control_key,
+    control_scope=snakemake.params.get("control_scope", "pooled"),
+    reference_group=snakemake.params.get("control_reference_group", None),
+    group_cols=snakemake.params.get("group_cols", None),
 )
 
 # merge clustering data with potential_df

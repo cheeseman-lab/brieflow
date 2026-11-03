@@ -196,7 +196,7 @@ def initial_alignment(
         well_triangles_0 (pandas.DataFrame): Hashed Delaunay triangulation for all tiles in dataset 0. Produced by concatenating outputs of `find_triangles` for individual tiles of a single well. Must include a `tile` column.
         well_triangles_1 (pandas.DataFrame): Hashed Delaunay triangulation for all sites in dataset 1. Produced by concatenating outputs of `find_triangles` for individual sites of a single well. Must include a `site` column.
         initial_sites (int | list[tuple[int, int]], optional): If an integer, specifies the number of sites sampled from `df_1` for initial brute-force matching of tiles to build the alignment model. If a list of 2-tuples, represents known (tile, site) matches to initialize the alignment model. At least 5 pairs are recommended.
-        evaluate_kwargs (dict, optional): Keyword args forwarded to `evaluate_match` (threshold_triangle, ransac_kwargs). Defaults to None.
+        evaluate_kwargs (dict, optional): Keyword args forwarded to `evaluate_match` (threshold_triangle). Defaults to None.
 
     Returns:
         pandas.DataFrame: Table of possible (tile, site) matches, including rotation and translation transformations. Includes all tested matches, which should be filtered by `score` and `determinant` to retain valid matches.
@@ -234,7 +234,6 @@ def evaluate_match(
     vec_centers_0,
     vec_centers_1,
     threshold_triangle=0.3,
-    ransac_kwargs=None,
 ):
     """Evaluates the match between two sets of vectors and centers.
 
@@ -244,7 +243,6 @@ def evaluate_match(
         vec_centers_0 (pandas.DataFrame): DataFrame containing the first set of vectors and centers.
         vec_centers_1 (pandas.DataFrame): DataFrame containing the second set of vectors and centers.
         threshold_triangle (float, optional): Threshold for matching triangles. Defaults to 0.3.
-        ransac_kwargs (dict, optional): Keyword args forwarded to RANSACRegressor (e.g. random_state). Defaults to None (sklearn defaults).
 
     Returns:
         tuple:
@@ -273,8 +271,8 @@ def evaluate_match(
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
-        # Use matching triangles to define transformation
-        model = RANSACRegressor(**(ransac_kwargs or {}))
+        # Use matching triangles to define transformation; fixed seed for reproducibility
+        model = RANSACRegressor(random_state=0)
         model.fit(X, Y)  # Fit the RANSAC model to the matching centers
 
     rotation = model.estimator_.coef_  # Extract rotation matrix
@@ -327,13 +325,20 @@ def nearest_neighbors(V_0, V_1):
             - numpy.ndarray: Indices of the nearest neighbors in `V_1`.
             - numpy.ndarray: Distances between the nearest neighbors.
     """
-    Y = cdist(V_0, V_1, metric="sqeuclidean")  # Compute squared Euclidean distances
-    distances = np.sqrt(
-        Y.min(axis=1)
-    )  # Compute the smallest distances and take the square root
-    ix_0 = np.arange(V_0.shape[0])  # Indices of V_0
-    ix_1 = Y.argmin(axis=1)  # Indices of nearest neighbors in V_1
-    return ix_0, ix_1, distances  # Return indices and distances
+    from scipy.spatial import cKDTree
+
+    # Use KDTree for large point sets (O(n log n) vs O(n^2) for cdist)
+    if V_0.shape[0] > 500 or V_1.shape[0] > 500:
+        tree = cKDTree(V_1)
+        distances, ix_1 = tree.query(V_0, k=1)
+        ix_0 = np.arange(V_0.shape[0])
+        return ix_0, ix_1, distances
+
+    Y = cdist(V_0, V_1, metric="sqeuclidean")
+    distances = np.sqrt(Y.min(axis=1))
+    ix_0 = np.arange(V_0.shape[0])
+    ix_1 = Y.argmin(axis=1)
+    return ix_0, ix_1, distances
 
 
 def multistep_alignment(
@@ -369,8 +374,8 @@ def multistep_alignment(
             brute force matching to build a global alignment model. If a list of 2-tuples, represents known
             (tile, site) matches to start building the model. Defaults to 8.
         n_jobs (int, optional): Number of parallel jobs to deploy using joblib. Defaults to None.
-        evaluate_kwargs (dict, optional): Keyword args forwarded to `evaluate_match` (threshold_triangle,
-            ransac_kwargs). Defaults to None.
+        evaluate_kwargs (dict, optional): Keyword args forwarded to `evaluate_match` (threshold_triangle).
+            Defaults to None.
 
     Returns:
         pandas.DataFrame: Table of possible (tile, site) matches with corresponding rotation and translation
@@ -544,9 +549,9 @@ def prioritize(well_locations_0, well_locations_1, matches):
         warnings.filterwarnings("ignore")
         # allow testing with subset of tiles
         if a.shape[0] == a.shape[1]:
-            model = RANSACRegressor(min_samples=1)
+            model = RANSACRegressor(min_samples=1, random_state=0)
         else:
-            model = RANSACRegressor()
+            model = RANSACRegressor(random_state=0)
         model.fit(a, b)  # Fit the RANSAC model to the matching coordinates
 
     # Predict coordinates for the first set and calculate distances to the second set

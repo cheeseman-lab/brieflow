@@ -149,6 +149,16 @@ AGGREGATE_OUTPUTS = {
             "png",
         ),
     ],
+    # One AnnData per channel_combo, combining all cell classes
+    "format_singlecell_anndata": [
+        AGGREGATE_FP
+        / "anndata"
+        / get_filename(
+            {"channel_combo": "{channel_combo}", **AGGREGATE_COMPARTMENT_METADATA},
+            "singlecell",
+            "h5ad",
+        ),
+    ],
 }
 
 AGGREGATE_OUTPUT_MAPPINGS = {
@@ -160,10 +170,11 @@ AGGREGATE_OUTPUT_MAPPINGS = {
     "aggregate": None,
     "eval_aggregate": None,
     "generate_feature_table": None,
+    "format_singlecell_anndata": None,
 }
 
 # Determine which outputs to include based on config
-AGGREGATE_SECOND_OBJ_DETECTION = config["phenotype"].get("second_obj_detection", False)
+AGGREGATE_SECOND_OBJ_DETECTION = config.get("phenotype", {}).get("second_obj_detection", False)
 
 if not AGGREGATE_SECOND_OBJ_DETECTION:
     # Filter out secondary object rules when disabled
@@ -197,38 +208,65 @@ AGGREGATE_TARGETS_ALL = outputs_to_targets(
 
 # Define montage outputs
 # These are special because we dynamically derive outputs
-MONTAGE_OUTPUTS = {
-    "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__montage_data",
-    "montage_data": AGGREGATE_FP
-    / "montages"
-    / "{cell_class}__montage_data"
-    / get_filename(
-        {"gene": "{gene}", "sgrna": "{sgrna}"},
-        "montage_data",
-        "tsv",
-    ),
-    "montage": AGGREGATE_FP
-    / "montages"
-    / "{cell_class}__montages"
-    / "{gene}"
-    / "{sgrna}"
-    / get_filename(
-        {"channel": "{channel}"},
-        "montage",
-        "png",
-    ),
-    "montage_overlay": AGGREGATE_FP
-    / "montages"
-    / "{cell_class}__montages"
-    / "{gene}"
-    / "{sgrna}"
-    / get_filename(
-        {},
-        "overlay_montage",
-        "tiff",
-    ),
-    "montage_flag": AGGREGATE_FP / "montages" / "{cell_class}__montages_complete.flag",
-}
+if IMG_FMT == "zarr":
+    # Zarr mode: individual crops in examples.zarr store
+    MONTAGE_OUTPUTS = {
+        "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__montage_data",
+        "montage_data": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montage_data"
+        / get_filename(
+            {"gene": "{gene}", "sgrna": "{sgrna}"},
+            "montage_data",
+            "tsv",
+        ),
+        "examples_zarr": AGGREGATE_FP / "montages" / "{cell_class}__examples.zarr",
+        "montage_crop_flag": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montages"
+        / "{gene}"
+        / "{sgrna}"
+        / ".crop_done",
+        "montage_flag": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montages_complete.flag",
+    }
+else:
+    # TIFF mode: PNG per channel + TIFF overlay
+    MONTAGE_OUTPUTS = {
+        "montage_data_dir": AGGREGATE_FP / "montages" / "{cell_class}__montage_data",
+        "montage_data": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montage_data"
+        / get_filename(
+            {"gene": "{gene}", "sgrna": "{sgrna}"},
+            "montage_data",
+            "tsv",
+        ),
+        "montage": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montages"
+        / "{gene}"
+        / "{sgrna}"
+        / get_filename(
+            {"channel": "{channel}"},
+            "montage",
+            "png",
+        ),
+        "montage_overlay": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montages"
+        / "{gene}"
+        / "{sgrna}"
+        / get_filename(
+            {},
+            "overlay_montage",
+            "tiff",
+        ),
+        "montage_flag": AGGREGATE_FP
+        / "montages"
+        / "{cell_class}__montages_complete.flag",
+    }
 cell_classes = aggregate_wildcard_combos["cell_class"].unique()
 generate_montages = config.get("aggregate", {}).get("generate_montages", True)
 MONTAGE_TARGETS_ALL = (
@@ -284,30 +322,17 @@ BOOTSTRAP_OUTPUTS = {
         "sample_sizes", "tsv"
     ),
 
-    # Construct-level outputs
-    "bootstrap_construct_nulls": AGGREGATE_FP
-    / "bootstrap"
-    / f"{BOOTSTRAP_COMBO_STEM}__constructs"
-    / "{gene}__{construct}__nulls.npy",
+    # Per-gene outputs: one row per construct, and the gene itself
     "bootstrap_construct_pvals": AGGREGATE_FP
     / "bootstrap"
     / f"{BOOTSTRAP_COMBO_STEM}__constructs"
-    / "{gene}__{construct}__pvals.tsv",
-
-    # Gene-level outputs
-    "bootstrap_gene_nulls": AGGREGATE_FP
-    / "bootstrap"
-    / f"{BOOTSTRAP_COMBO_STEM}__genes"
-    / "{gene}__nulls.npy",
+    / "{gene}__pvals.tsv",
     "bootstrap_gene_pvals": AGGREGATE_FP
     / "bootstrap"
     / f"{BOOTSTRAP_COMBO_STEM}__genes"
     / "{gene}__pvals.tsv",
 
-    # Completion flags
-    "construct_bootstrap_flag": AGGREGATE_FP
-    / "bootstrap"
-    / f"{BOOTSTRAP_COMBO_STEM}__construct_bootstrap_complete.flag",
+    # Completion flag
     "bootstrap_flag": AGGREGATE_FP
     / "bootstrap"
     / f"{BOOTSTRAP_COMBO_STEM}__bootstrap_complete.flag",

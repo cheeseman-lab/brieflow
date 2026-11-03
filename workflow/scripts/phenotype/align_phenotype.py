@@ -1,11 +1,11 @@
 import pandas as pd
-from tifffile import imread, imwrite
 
 from lib.phenotype.align_channels import align_phenotype_channels
 from lib.shared.align import apply_custom_offsets
+from lib.shared.image_io import read_image, save_image
 
 # Load image data
-image_data = imread(snakemake.input[0])
+image_data = read_image(snakemake.input[0])
 
 # Get the alignment config
 align_config = snakemake.params.config
@@ -77,19 +77,15 @@ else:
     all_metrics["offset_y"] = 0
     all_metrics["offset_x"] = 0
 
-# Save the aligned/unaligned data as a .tiff file
-imwrite(snakemake.output[0], aligned_data)
+# Save the aligned/unaligned data
+save_image(aligned_data, snakemake.output[0])
 
-# Save alignment metrics to TSV (one row per tile)
+# Save alignment metrics to TSV (one row per tile); synthesize 'well' from 'row'+'col' in zarr mode
+wc = dict(snakemake.wildcards)
+if "row" in wc and "col" in wc and "well" not in wc:
+    wc["well"] = wc["row"] + wc["col"]
 metrics_df = pd.DataFrame(
-    [
-        {
-            "plate": snakemake.wildcards.plate,
-            "well": snakemake.wildcards.well,
-            "tile": snakemake.wildcards.tile,
-            **all_metrics,
-        }
-    ]
+    [{"plate": wc["plate"], "well": wc["well"], "tile": wc["tile"], **all_metrics}]
 )
 metrics_df.to_csv(snakemake.output[1], index=False, sep="\t")
 print(f"Alignment metrics saved to {snakemake.output[1]}")

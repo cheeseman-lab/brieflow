@@ -1,9 +1,10 @@
-from tifffile import imread, imwrite
 import numpy as np
 import pandas as pd
 
+from lib.shared.image_io import read_image, save_image
+
 # Load illumination corrected data
-aligned_data = imread(snakemake.input[0])
+aligned_data = read_image(snakemake.input[0])
 
 # Get configuration from params
 params = snakemake.params.config
@@ -17,7 +18,7 @@ if method == "cellpose":
     from lib.shared.segment_cellpose import segment_cellpose
 
     if segment_cells:
-        nuclei_data, cells_data, counts_df = segment_cellpose(
+        nuclei_data, cells_data, counts_df, nuclei_per_cell = segment_cellpose(
             data=aligned_data,
             dapi_index=params["dapi_index"],
             cyto_index=params["cyto_index"],
@@ -67,7 +68,7 @@ elif method == "stardist":
     from lib.shared.segment_stardist import segment_stardist
 
     if segment_cells:
-        nuclei_data, cells_data, counts_df = segment_stardist(
+        nuclei_data, cells_data, counts_df, nuclei_per_cell = segment_stardist(
             data=aligned_data,
             dapi_index=params["dapi_index"],
             cyto_index=params["cyto_index"],
@@ -111,7 +112,7 @@ elif method == "watershed":
     from lib.shared.segment_watershed import segment_watershed
 
     if segment_cells:
-        nuclei_data, cells_data, counts_df = segment_watershed(
+        nuclei_data, cells_data, counts_df, nuclei_per_cell = segment_watershed(
             data=aligned_data,
             nuclei_threshold=params["threshold_dapi"],
             nuclei_area_min=params["nuclei_area_min"],
@@ -137,9 +138,19 @@ else:
         f"Unknown segmentation method: {method}. Choose one of: cellpose, stardist, watershed"
     )
 
+# Ensure label arrays are uint32 (supports >65535 labels; spec-compliant)
+nuclei_data = nuclei_data.astype(np.uint32)
+cells_data = cells_data.astype(np.uint32)
+
 # Save segmented nuclei data
-imwrite(snakemake.output[0], nuclei_data)
+save_image(nuclei_data, snakemake.output[0], is_label=True)
 # Save segmented cells data
-imwrite(snakemake.output[1], cells_data)
+save_image(cells_data, snakemake.output[1], is_label=True)
 # Save counts data
 counts_df.to_csv(snakemake.output[2], index=False, sep="\t")
+# Save per-cell nuclei counts (empty when cells are not segmented)
+nuclei_per_cell_df = pd.DataFrame(
+    sorted(nuclei_per_cell.items()) if segment_cells else [],
+    columns=["cell", "num_nuclei"],
+)
+nuclei_per_cell_df.to_csv(snakemake.output[3], index=False, sep="\t")

@@ -28,7 +28,7 @@ from skimage.morphology import (
 from skimage.feature import peak_local_max
 from skimage.filters import threshold_local, gaussian, rank
 
-from lib.shared.segmentation_utils import reconcile_nuclei_cells
+from lib.shared.segmentation_utils import count_nuclei_per_cell, reconcile_nuclei_cells
 from scipy import ndimage as ndi
 from skimage.util import img_as_ubyte
 
@@ -44,6 +44,7 @@ def segment_watershed(
     radius=15,
     return_counts=False,
     reconcile=None,
+    verbose=False,
 ):
     """Segment cells using watershed method.
 
@@ -58,6 +59,7 @@ def segment_watershed(
         radius (float, optional): Radius of disk for local thresholding. Default is 15.
         return_counts (bool, optional): Whether to return counts of nuclei and cells. Default is False.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is None.
+        verbose (bool, optional): Print the reconcile QC block (nuclei per cell, Segmentation QC). Default is False.
 
     Returns:
         tuple or numpy.ndarray: If 'cells' is True, returns tuple of nuclei and cell segmentation masks,
@@ -98,15 +100,20 @@ def segment_watershed(
     counts["cells"] = len(np.unique(cells)) - 1  # Subtract 1 to exclude background
 
     # Reconcile nuclei and cells if specified
+    raw_nuclei = nuclei.copy()
     if reconcile:
         print(f"reconciling masks with method how={reconcile}")
-        nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
+        nuclei, cells = reconcile_nuclei_cells(
+            nuclei, cells, how=reconcile, verbose=verbose
+        )
         counts["reconciled_nuclei"] = len(np.unique(nuclei)) - 1
         counts["reconciled_cells"] = len(np.unique(cells)) - 1
 
+    nuclei_per_cell = count_nuclei_per_cell(raw_nuclei, cells)
+
     if return_counts:
         counts_df = pd.DataFrame([counts])
-        return nuclei, cells, counts_df
+        return nuclei, cells, counts_df, nuclei_per_cell
     else:
         return nuclei, cells
 
@@ -158,8 +165,7 @@ def segment_nuclei(data, threshold, area_min, area_max, smooth=1.35, radius=15):
     num_nuclei_segmented = len(np.unique(nuclei)) - 1
     print(f"Number of nuclei segmented: {num_nuclei_segmented}")
 
-    # Convert nuclei array to uint16 dtype and return
-    return nuclei.astype(np.uint16)
+    return nuclei
 
 
 def segment_cells(data, nuclei, threshold, add_nuclei=True):
@@ -249,7 +255,7 @@ def find_cells(nuclei, mask, remove_boundary_cells=True):
         # Set labels of boundary-touching cells to 0
         cells.flat[np.in1d(cells, np.unique(cut))] = 0
 
-    return cells.astype(np.uint16)
+    return cells
 
 
 def find_nuclei(
@@ -385,7 +391,7 @@ def apply_watershed(img, smooth=4):
     # Apply watershed algorithm to the distance transform
     result = watershed(-distance, markers, mask=img)
 
-    return result.astype(np.uint16)
+    return result
 
 
 def binarize(image, radius, min_size):

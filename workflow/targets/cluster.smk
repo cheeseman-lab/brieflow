@@ -80,12 +80,19 @@ CLUSTER_OUTPUTS = {
             {"cluster_benchmark": "Shuffled"}, "enrichment_bar_chart", "png"
         ),
     ],
+    "format_cluster_anndata": [
+        CLUSTER_OUTPUT_BASE
+        / "{cell_class}"
+        / "h5ad"
+        / get_filename({}, "cluster", "h5ad"),
+    ],
 }
 
 CLUSTER_OUTPUT_MAPPINGS = {
     "clean_aggregate": None,
     "phate_leiden_clustering": None,
     "benchmark_clusters": None,
+    "format_cluster_anndata": None,
 }
 
 

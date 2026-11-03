@@ -2,9 +2,10 @@ name: Test Analysis
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, zarr3]
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test-analysis:
@@ -12,7 +13,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Free disk space (max safe)
         run: |
@@ -47,10 +48,10 @@ jobs:
 
       # Set up Conda
       - name: Set up Conda
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
-          python-version: 3.11
+          python-version: 3.12
           channels: conda-forge
 
       # Set up environment
@@ -58,7 +59,7 @@ jobs:
         shell: bash -l {0}
         run: |
           # Create conda environment
-          conda create -n brieflow_ci -c conda-forge python=3.11 uv pip -y
+          conda create -n brieflow_ci -c conda-forge python=3.12 uv pip -y
           conda activate brieflow_ci
           
           # Install Python dependencies with uv
@@ -80,19 +81,12 @@ jobs:
           conda activate brieflow_ci
           python small_test_analysis_setup.py
 
-      # Run Brieflow
-      - name: Run Brieflow
+      # Run Brieflow on the small test (OME-Zarr output; TIFF is checked against it before each release)
+      - name: Run Brieflow (zarr)
         shell: bash -l {0}
         working-directory: tests/small_test_analysis
         run: |
           conda activate brieflow_ci
           mkdir -p "$PWD/tmp"
           export TMPDIR="$PWD/tmp"
-          sh run_brieflow.sh
-
-      # Run Pytest
-      - name: Run pytest
-        shell: bash -l {0}
-        run: |
-          conda activate brieflow_ci
-          pytest
+          bash run_brieflow.sh --zarr

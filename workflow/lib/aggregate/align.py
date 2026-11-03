@@ -11,6 +11,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from scipy import linalg
 
+from lib.aggregate.cell_data_utils import control_mask
+
 
 def prepare_alignment_data(
     metadata, features, batch_cols, pert_col, control_key, pert_id_col
@@ -22,7 +24,7 @@ def prepare_alignment_data(
         features (pd.DataFrame): DataFrame containing feature data.
         batch_cols (list): List of column names used to generate batch values.
         pert_col (str): Column name representing perturbation labels.
-        control_key (str): Key for identifying control samples in the metadata.
+        control_key (str | list): Key for identifying control samples in the metadata.
         pert_id_col (str): Column name for perturbation IDs.
 
     Returns:
@@ -40,9 +42,11 @@ def prepare_alignment_data(
 
     # Add unique number suffix to perturbation names based on pert_id_col
     if control_key is not None and pert_col is not None and pert_id_col is not None:
-        control_mask = metadata[pert_col] == control_key
-        metadata.loc[control_mask, pert_col] = (
-            control_key + "_" + metadata.loc[control_mask, pert_id_col].astype(str)
+        mask = control_mask(metadata[pert_col], control_key, match="startswith")
+        metadata.loc[mask, pert_col] = (
+            metadata.loc[mask, pert_col].astype(str)
+            + "_"
+            + metadata.loc[mask, pert_id_col].astype(str)
         )
 
     # Extract feature data
@@ -129,9 +133,10 @@ def embed_by_pca(
     features = centerscale_by_batch(features, metadata, batch_col)
     if features.shape[0] > 50000:
         sample = features[:50000]
-        pca_estimate = PCA(n_components=variance_or_ncomp).fit(sample)
-        variance_or_ncomp = pca_estimate.n_components_
-    features = PCA(n_components=variance_or_ncomp).fit_transform(features)
+        pca = PCA(n_components=variance_or_ncomp).fit(sample)
+        features = pca.transform(features)
+    else:
+        features = PCA(n_components=variance_or_ncomp).fit_transform(features)
     return features
 
 
@@ -139,7 +144,7 @@ def tvn_on_controls(
     embeddings: np.ndarray,
     metadata: pd.DataFrame,
     pert_col: str,
-    control_key: str,
+    control_key: str | list,
     batch_col: str | None = None,
     control_col: str | None = None,
 ) -> np.ndarray:
@@ -151,7 +156,7 @@ def tvn_on_controls(
         embeddings (np.ndarray): The embeddings to be normalized.
         metadata (pd.DataFrame): The metadata containing information about the samples.
         pert_col (str): The column name in the metadata DataFrame that represents the perturbation labels.
-        control_key (str): The control perturbation label.
+        control_key (str | list): The control perturbation label.
         batch_col (str, optional): Column name in the metadata DataFrame representing the batch labels
             to be used for CORAL normalization. Defaults to None.
         control_col (str, optional): Column name to use for identifying control cells.
@@ -162,7 +167,9 @@ def tvn_on_controls(
         np.ndarray: The normalized embeddings.
     """
     lookup_col = control_col if control_col is not None else pert_col
-    ctrl_ind = metadata[lookup_col].str.startswith(control_key).to_list()
+    ctrl_ind = control_mask(
+        metadata[lookup_col], control_key, match="startswith"
+    ).to_list()
     n_controls = sum(ctrl_ind)
     if n_controls == 0:
         print("Warning: no control cells found, skipping TVN normalization")
@@ -178,11 +185,16 @@ def tvn_on_controls(
         embeddings.shape[1]
     )
     if batch_col is not None:
+        # Pre-compute target matrix power once (expensive operation)
+        target_cov_sqrt = linalg.fractional_matrix_power(target_cov, 0.5)
         batches = metadata[batch_col].unique()
         for batch in batches:
             batch_ind = metadata[batch_col] == batch
             batch_control_ind = (
-                batch_ind & (metadata[lookup_col].str.startswith(control_key)).to_list()
+                batch_ind
+                & control_mask(
+                    metadata[lookup_col], control_key, match="startswith"
+                ).to_list()
             )
             n_controls = np.sum(batch_control_ind)
             if n_controls < embeddings.shape[1]:
@@ -204,9 +216,7 @@ def tvn_on_controls(
             embeddings[batch_ind] = np.matmul(
                 embeddings[batch_ind], source_cov_inv_sqrt
             )
-            embeddings[batch_ind] = np.matmul(
-                embeddings[batch_ind], linalg.fractional_matrix_power(target_cov, 0.5)
-            )
+            embeddings[batch_ind] = np.matmul(embeddings[batch_ind], target_cov_sqrt)
     return embeddings
 
 
@@ -257,7 +267,7 @@ def centerscale_on_controls(
     embeddings: np.ndarray,
     metadata: pd.DataFrame,
     pert_col: str,
-    control_key: str,
+    control_key: str | list,
     batch_col: str | None = None,
     method: str = "standard",
     control_col: str | None = None,
@@ -270,7 +280,7 @@ def centerscale_on_controls(
         embeddings (numpy.ndarray): The embeddings to be aligned.
         metadata (pandas.DataFrame): The metadata containing information about the embeddings.
         pert_col (str): The column in the metadata containing perturbation information.
-        control_key (str): The key for non-targeting controls in the metadata.
+        control_key (str | list): The key for non-targeting controls in the metadata.
         batch_col (str, optional): Column name in the metadata representing the batch labels.
             Defaults to None.
         method (str, optional): Scaling method to use. Options are "standard" (mean/std)
@@ -293,7 +303,7 @@ def centerscale_on_controls(
 
     # boolean mask for "control" rows uses startswith on stringified column, handles NaNs
     lookup_col = control_col if control_col is not None else pert_col
-    ctrl_mask_all = metadata[lookup_col].astype(str).str.startswith(control_key)
+    ctrl_mask_all = control_mask(metadata[lookup_col], control_key, match="startswith")
 
     if batch_col is not None:
         for batch in metadata[batch_col].unique():

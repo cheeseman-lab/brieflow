@@ -1,21 +1,35 @@
+from lib.shared.image_io import read_image
 import pandas as pd
-from tifffile import imread
 
-# load inputs
-data_phenotype = imread(snakemake.input[0])
-nuclei = imread(snakemake.input[1])
-cells = imread(snakemake.input[2])
-cytoplasms = imread(snakemake.input[3])
+# foci_channel_index intentionally omitted — extract_phenotype_cp_emulator handles foci_channel=None
+for _param_name in ["cp_method", "channel_names"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
+# Load inputs
+data_phenotype = read_image(snakemake.input[0])
+nuclei = read_image(snakemake.input[1])
+cells = read_image(snakemake.input[2])
+cytoplasms = read_image(snakemake.input[3])
 
 # Check if cell segmentation is enabled - if not, pass None to skip cell/cytoplasm features
-segment_cells = snakemake.params.get("segment_cells", True)
+segment_cells = snakemake.params.segment_cells
 if not segment_cells:
     cells = None
     cytoplasms = None
 
 cp_method = snakemake.params.cp_method
+custom_feature_definitions = getattr(snakemake.params, "custom_features", None)
+
+# Build wildcards dict, synthesizing 'well' from 'row'+'col' in zarr mode
+wc = dict(snakemake.wildcards)
+if "row" in wc and "col" in wc and "well" not in wc:
+    wc["well"] = wc["row"] + wc["col"]
 
 if cp_method == "cp_measure":
+    if custom_feature_definitions:
+        raise ValueError("Custom phenotype features require cp_method 'cp_emulator'")
+
     from lib.phenotype.extract_phenotype_cp_measure import (
         extract_phenotype_cp_measure,
     )
@@ -29,6 +43,7 @@ if cp_method == "cp_measure":
         channel_names=snakemake.params.channel_names,
     )
 elif cp_method == "cp_emulator":
+    from lib.phenotype.custom_features import load_custom_features
     from lib.phenotype.extract_phenotype_cp_emulator import (
         extract_phenotype_cp_emulator,
     )
@@ -41,7 +56,8 @@ elif cp_method == "cp_emulator":
         cytoplasms=cytoplasms,
         foci_channel=snakemake.params.foci_channel_index,
         channel_names=snakemake.params.channel_names,
-        wildcards=snakemake.wildcards,
+        wildcards=wc,
+        custom_features=load_custom_features(custom_feature_definitions),
     )
 else:
     raise ValueError(
@@ -53,6 +69,14 @@ alignment_metrics = pd.read_csv(snakemake.input[4], sep="\t")
 offset_cols = [c for c in alignment_metrics.columns if c.startswith("offset_")]
 for col in offset_cols:
     phenotype_cp[col] = alignment_metrics[col].iloc[0]
+
+# Attach the per-cell nuclei count, defaulting to 1 where a cell has no entry
+nuclei_per_cell = pd.read_csv(snakemake.input[5], sep="\t").set_index("cell")
+# an empty tile yields a frame with no columns at all
+cell_labels = phenotype_cp["label"] if "label" in phenotype_cp else pd.Series(dtype=int)
+phenotype_cp["num_nuclei"] = (
+    cell_labels.map(nuclei_per_cell["num_nuclei"]).fillna(1).astype(int)
+)
 
 # save phenotype cp
 phenotype_cp.to_csv(snakemake.output[0], index=False, sep="\t")

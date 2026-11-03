@@ -11,19 +11,32 @@ from lib.aggregate.cell_data_utils import (
     split_cell_data,
     get_feature_table_cols,
 )
-from lib.aggregate.bootstrap import write_construct_data
+from lib.aggregate.bootstrap import (
+    bootstrap_control_mask,
+    within_perturbation_construct_mask,
+    write_construct_data,
+)
+from lib.shared.parquet_io import read_parquet
+
+# Validate required params
+for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
 
 # Get parameters
 perturbation_col = snakemake.params.perturbation_name_col
 perturbation_id_col = snakemake.params.perturbation_id_col or perturbation_col
 control_key = snakemake.params.control_key
+control_scope = snakemake.params.get("bootstrap_control_scope", "pooled")
+reference_group = snakemake.params.get("bootstrap_reference_group", None)
 exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp
-bootstrap_features_fp = snakemake.params.get("bootstrap_features_fp", None)
+bootstrap_features_fp = snakemake.params.bootstrap_features_fp
 bootstrap_extra_features = snakemake.params.get("bootstrap_extra_features", None)
+group_cols = list(snakemake.params.get("group_cols", None) or [])
 
 print("Loading single-cell features data...")
-all_features_cells = pd.read_parquet(snakemake.input.features_singlecell)
+all_features_cells = read_parquet(snakemake.input.features_singlecell)
 print(f"Features data shape: {all_features_cells.shape}")
 
 # Handle empty input gracefully
@@ -44,15 +57,32 @@ print(f"Construct table shape: {construct_table.shape}")
 print(f"Gene table shape: {gene_table.shape}")
 
 # Filter for control cells (already center-scaled)
-control_mask = all_features_cells[perturbation_col].str.contains(control_key, na=False)
-control_cells = all_features_cells[control_mask]
+is_control = bootstrap_control_mask(
+    all_features_cells,
+    perturbation_col,
+    control_key,
+    control_scope,
+    reference_group=reference_group,
+    group_cols=group_cols,
+)
+control_cells = all_features_cells[is_control]
 print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 
 # Load metadata columns and split control cell data
-use_classifier = snakemake.params.get("use_classifier", False)
+use_classifier = snakemake.params.use_classifier
 metadata_cols = load_metadata_cols(
     metadata_cols_fp, include_classification_cols=use_classifier
 )
+# group cols are literal columns in the single-cell data, but folded into the
+# composite key in the construct/gene tables
+missing_group_cols = [
+    col for col in group_cols if col not in all_features_cells.columns
+]
+if missing_group_cols:
+    raise ValueError(
+        f"aggregate group_cols not found in cell data: {missing_group_cols}"
+    )
+metadata_cols += [col for col in group_cols if col not in metadata_cols]
 # Add batch_values to metadata_cols (created by prepare_alignment_data in upstream scripts)
 if "batch_values" not in metadata_cols:
     metadata_cols.append("batch_values")
@@ -110,6 +140,13 @@ construct_mask = pd.Series([True] * len(construct_table))
 if exclusion_string is not None:
     construct_mask = construct_mask & ~construct_table[perturbation_col].str.contains(
         exclusion_string, na=False
+    )
+if control_scope == "within_perturbation":
+    construct_mask = construct_mask & within_perturbation_construct_mask(
+        construct_table,
+        perturbation_col,
+        controls_metadata[perturbation_col],
+        reference_group,
     )
 
 construct_features_df = construct_table[construct_mask]

@@ -107,14 +107,14 @@ def output_to_input(
     Returns:
         list: A list of expanded and/or filtered file paths as strings.
     """
-    # Get a single string output from a list
+    # Normalize "output" to a single template (str/Path). Many call sites pass a single
+    # Path template (not a list), so we handle both.
     if isinstance(output, list):
-        if len(output) == 1:
-            output = output[0]
-        else:
+        if len(output) != 1:
             raise ValueError(
-                "Expected a single string for 'output', but received a list with multiple items."
+                "Expected a single template for 'output', but received a list with multiple items."
             )
+        output = output[0]
 
     if metadata_combos is None:
         # Directly expand paths when metadata_combos is not provided
@@ -124,21 +124,40 @@ def output_to_input(
         mask = pd.Series(True, index=metadata_combos.index)
         for key, value in wildcards.items():
             # Convert both sides to string to ensure matching types
-            mask &= metadata_combos[key].astype(str) == str(value)
+            if key in metadata_combos.columns:
+                mask &= metadata_combos[key].astype(str) == str(value)
 
         filtered_combos = metadata_combos[mask]
 
         # Extract relevant expansion values
-        expansion_dicts = filtered_combos[expansion_values].to_dict(orient="records")
+        if not expansion_values:
+            # No expansion requested — emit one empty combo per matching row so
+            # the template gets expanded once per (already fully-bound) wildcard
+            # set. (Avoids pandas to_dict(orient="records") returning [] on a
+            # zero-column frame.)
+            expansion_dicts = [{} for _ in range(len(filtered_combos))]
+        else:
+            selected_cols_df = filtered_combos[expansion_values]
+            if len(expansion_values) == 1:
+                expansion_dicts = [
+                    {expansion_values[0]: value}
+                    for value in selected_cols_df.iloc[:, 0]
+                ]
+            else:
+                expansion_dicts = selected_cols_df.to_dict(orient="records")
 
-        # Expand paths using Snakemake's expand function
-        expanded_paths = [
-            expand(str(output), **wildcards, **subset_values, **combo)
-            for combo in expansion_dicts
-        ]
+        expanded_paths = []
+        for combo in expansion_dicts:
+            all_wildcards_for_expand = {}
+            all_wildcards_for_expand.update(wildcards)  # fixed wildcards
+            all_wildcards_for_expand.update(subset_values)  # subset wildcards
+            all_wildcards_for_expand.update(combo)  # expansion wildcards
 
-        # Flatten nested lists of paths
-        expanded_paths = [path for sublist in expanded_paths for path in sublist]
+            expanded_paths.extend(expand(str(output), **all_wildcards_for_expand))
+
+        # Flatten nested lists of paths (if expand returns list of lists)
+        if any(isinstance(i, list) for i in expanded_paths):
+            expanded_paths = [path for sublist in expanded_paths for path in sublist]
 
         # Remove duplicates while preserving order
         expanded_paths = list(dict.fromkeys(expanded_paths))
@@ -194,21 +213,23 @@ def get_merge_targets_by_approach(config):
     Returns:
         list: List of target names for the configured merge approach.
     """
-    approach = config.get("merge", {}).get("approach", "fast")
+    approach = config.get("merge", {}).get("approach") or "fast"
 
     # Core targets that are always needed
     core_targets = ["format_merge", "deduplicate_merge", "final_merge", "eval_merge"]
 
     if approach == "stitch":
-        approach_targets = [
-            "estimate_stitch_phenotype",
-            "estimate_stitch_sbs",
-            "stitch_phenotype",
-            "stitch_sbs",
-            "stitch_alignment",
-            "stitch_merge",
-            "summarize_stitch",
-        ]
+        raise ValueError(
+            "merge.approach 'stitch' was removed: it placed cells about one nucleus off at high "
+            "magnification and did not run on the zarr layout. Use merge.approach: positions, "
+            "which needs no initial sites (set merge.flipud/fliplr/rot90 as before)."
+        )
+    if approach not in ("fast", "positions"):
+        raise ValueError(
+            f"merge.approach must be 'fast' or 'positions', got {approach!r}"
+        )
+    if approach == "positions":
+        approach_targets = ["positions_merge"]
     else:
         # Fast approach targets (default)
         approach_targets = ["fast_alignment", "fast_merge"]

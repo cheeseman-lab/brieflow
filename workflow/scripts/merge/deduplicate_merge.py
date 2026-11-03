@@ -2,12 +2,13 @@
 
 This script performs two-step deduplication of merged phenotype-SBS cell mappings,
 evaluates cell retention rates, and generates quality control metrics for the
-merge process. Supports both tile-based and stitched image approaches.
+merge process.
 """
 
 import pandas as pd
 
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.merge.deduplicate_merge import (
     deduplicate_cells,
     check_matching_rates,
@@ -15,12 +16,11 @@ from lib.merge.deduplicate_merge import (
 )
 
 # Load input datasets with data type validation
-merge_formatted = validate_dtypes(pd.read_parquet(snakemake.input[0]))
-sbs_cells = validate_dtypes(pd.read_parquet(snakemake.input[1]))
-phenotype_min_cp = validate_dtypes(pd.read_parquet(snakemake.input[2]))
+merge_formatted = validate_dtypes(read_parquet(snakemake.input[0]))
+sbs_cells = validate_dtypes(read_parquet(snakemake.input[1]))
+phenotype_min_cp = validate_dtypes(read_parquet(snakemake.input[2]))
 
 # Extract configuration parameters
-approach = snakemake.params.approach
 sbs_dedup_prior = snakemake.params.sbs_dedup_prior
 pheno_dedup_prior = snakemake.params.pheno_dedup_prior
 
@@ -29,7 +29,6 @@ merge_deduplicated, deduplication_stats = deduplicate_cells(
     merge_formatted,
     mapped_single_gene=False,
     return_stats=True,
-    approach=approach,
     sbs_dedup_prior=sbs_dedup_prior,
     pheno_dedup_prior=pheno_dedup_prior,
 )
@@ -52,7 +51,7 @@ if distance_analysis:
 
 # Export deduplication statistics
 deduplication_stats.to_csv(snakemake.output.deduplication_stats, sep="\t", index=False)
-merge_deduplicated.to_parquet(snakemake.output.deduplicated_data)
+write_parquet(merge_deduplicated, snakemake.output.deduplicated_data)
 
 # Calculate and export SBS matching statistics
 sbs_rates = check_matching_rates(

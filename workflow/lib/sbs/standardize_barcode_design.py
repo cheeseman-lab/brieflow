@@ -5,9 +5,11 @@ into the format expected by the SBS pipeline. Includes gene validation and annot
 functions for quality control.
 """
 
-import pandas as pd
+import io
 import warnings
-from typing import Optional, List, Callable
+from typing import Callable, List, Optional
+
+import pandas as pd
 
 
 def standardize_barcode_design(
@@ -31,6 +33,7 @@ def standardize_barcode_design(
     nontargeting_format: str = "nontargeting_{prefix}",
     nontargeting_pattern_map: Optional[dict] = None,
     uniprot_data_path: str = None,
+    gene_mapping_path: Optional[str] = None,
     verbose: bool = True,
 ) -> pd.DataFrame:
     """Standardize a barcode design table for use with SBS analysis.
@@ -41,20 +44,22 @@ def standardize_barcode_design(
 
     Args:
         df_design (pd.DataFrame): Input barcode design table
-        prefix_map (str): Name of column containing barcode sequences for mapping (default: "sgRNA")
+        prefix_map (str): Name of column containing barcode sequences for mapping (default: "sgRNA").
+            If None, auto-detects from canonical names ('barcode', 'sgRNA').
         prefix_recomb (str, optional): Name of column containing barcodes used to calculate recombination (optional)
         gene_symbol_col (str, optional): Name of column containing gene symbols.
-            If None, will create empty gene_symbol column
+            If None, auto-detects 'gene_symbol' column when present; otherwise creates empty gene_symbol column.
         gene_id_col (str, optional): Name of column containing gene IDs.
-            Optional - only included if user wants additional gene identifiers
+            If None, auto-detects 'gene_id' column when present; otherwise omitted.
         prefix_map_func (callable, optional): Custom function to generate prefixes for mapping that match
             experimental read structure. Function should take a row and return the prefix string.
         prefix_recomb_func (callable, optional): Custom function to generate prefixes for recombination that match
             experimental read structure. Function should take a row and return the prefix string.
-        map_prefix_length (int, optional): Total bases to extract BEFORE skipping cycles for prefix_map.
+        map_prefix_length (int): Total bases to extract BEFORE skipping cycles for prefix_map.
             Final length = map_prefix_length - len(skip_cycles_map).
             Example: For 10 final bases skipping [2,3,4], set map_prefix_length=13.
-            Ignored if prefix_map_func is provided.
+            Required when neither prefix_map_func nor skip_cycles_map is provided —
+            None is rejected with ValueError to prevent silent SINGLE_MAP_RATE=0.
         recomb_prefix_length (int, optional): Total bases to extract BEFORE skipping cycles for prefix_recomb.
             Final length = recomb_prefix_length - len(skip_cycles_recomb).
             Ignored if prefix_recomb_func is provided.
@@ -79,6 +84,8 @@ def standardize_barcode_design(
             }
             If None, uses default nontargeting_format for all patterns
         uniprot_data_path (str): Path to UniProt annotation file (REQUIRED for gene validation)
+        gene_mapping_path (str, optional): Path to TSV file with gene_symbol, entrez_id,
+            and ensembl_gene_id columns. If provided, fills in missing gene identifiers.
         verbose (bool): Whether to print processing information (default: True)
 
     Returns:
@@ -108,6 +115,35 @@ def standardize_barcode_design(
     # Create a copy to avoid modifying original
     df = df_design.copy()
 
+    # Auto-detect barcode column if not supplied (canonical names: 'barcode', 'sgRNA')
+    if prefix_map is None:
+        for candidate in ("barcode", "sgRNA"):
+            if candidate in df.columns:
+                prefix_map = candidate
+                if verbose:
+                    print(
+                        f"Auto-detected barcode column '{prefix_map}' from design table"
+                    )
+                break
+        if prefix_map is None:
+            raise ValueError(
+                "prefix_map (barcode column) is required (got None) and could not be "
+                "auto-detected. Expected one of {'barcode', 'sgRNA'} in design table. "
+                f"Available columns: {list(df.columns)}"
+            )
+
+    # Auto-detect gene_symbol column if not supplied (canonical name: 'gene_symbol')
+    if gene_symbol_col is None and "gene_symbol" in df.columns:
+        gene_symbol_col = "gene_symbol"
+        if verbose:
+            print("Auto-detected gene_symbol column 'gene_symbol' from design table")
+
+    # Auto-detect gene_id column if not supplied (canonical name: 'gene_id')
+    if gene_id_col is None and "gene_id" in df.columns:
+        gene_id_col = "gene_id"
+        if verbose:
+            print("Auto-detected gene_id column 'gene_id' from design table")
+
     # Validate required barcode column exists
     if prefix_map not in df.columns:
         raise ValueError(
@@ -121,6 +157,9 @@ def standardize_barcode_design(
         df = filter_func(df)
         if verbose:
             print(f"Applied custom filter: {initial_count} → {len(df)} entries")
+
+    # Preserve full sgRNA sequence as protospacer_sequence before any truncation
+    df["protospacer_sequence"] = df[prefix_map].astype(str)
 
     # Rename barcode column to standard name "prefix_map"
     if prefix_map != "prefix_map":
@@ -204,13 +243,12 @@ def standardize_barcode_design(
     else:
         # Use map_prefix_length for prefix_map
         if map_prefix_length is None:
-            # Use full barcode length as default
-            barcode_lengths = df["prefix_map"].astype(str).str.len()
-            map_prefix_length = int(barcode_lengths.mode()[0])  # Most common length
-            if verbose:
-                print(
-                    f"Using full barcode length ({map_prefix_length}) for 'prefix_map'"
-                )
+            raise ValueError(
+                "map_prefix_length is required (got None). "
+                "Auto-derive from barcode library (e.g. len(SBS_CYCLES)) or set explicitly. "
+                "Silent fallback to full barcode length produces SINGLE_MAP_RATE=0 on "
+                "downstream call_cells when reads are shorter than the library prefixes."
+            )
         df["prefix_map"] = df["prefix_map"].astype(str).str[:map_prefix_length]
         if verbose:
             print(
@@ -294,16 +332,61 @@ def standardize_barcode_design(
                 f"Consider reviewing gene symbols or removing these entries."
             )
 
+    # Resolve gene identifiers (fill in missing Ensembl/Entrez IDs)
+    if gene_mapping_path is not None:
+        df = resolve_gene_ids(
+            df,
+            gene_mapping_path=gene_mapping_path,
+            verbose=verbose,
+        )
+
+    # Replace gene_id with Ensembl ID (spec-compliant)
+    if "ensembl_gene_id" in df.columns:
+        df["gene_id"] = df["ensembl_gene_id"]
+        df = df.drop(columns=["ensembl_gene_id"])
+
+    # Derive role and control_type from nontargeting patterns
+    nontargeting_mask = df["gene_symbol"].str.contains(
+        "nontargeting|non-targeting|sg_nt", case=False, na=False
+    )
+    df["role"] = "targeting"
+    df.loc[nontargeting_mask, "role"] = "control"
+    df["control_type"] = ""
+    df.loc[nontargeting_mask, "control_type"] = "non-targeting"
+
+    # Add PAM (constant for Cas9)
+    df["protospacer_adjacent_motif"] = "3' NGG"
+
     # Organize columns based on mode
     if "prefix_recomb" in df.columns:
-        # Multi mode: keep prefix_map and prefix_recomb
-        required_cols = ["prefix_map", "gene_symbol", "uniprot_entry", "prefix_recomb"]
+        # Multi mode
+        required_cols = [
+            "prefix_map",
+            "gene_symbol",
+            "gene_id",
+            "role",
+            "control_type",
+            "protospacer_sequence",
+            "protospacer_adjacent_motif",
+            "uniprot_entry",
+            "prefix_recomb",
+        ]
     else:
-        # Simple mode: keep prefix only
-        required_cols = ["prefix", "gene_symbol", "uniprot_entry"]
+        # Simple mode
+        required_cols = [
+            "prefix",
+            "gene_symbol",
+            "gene_id",
+            "role",
+            "control_type",
+            "protospacer_sequence",
+            "protospacer_adjacent_motif",
+            "uniprot_entry",
+        ]
 
-    if "gene_id" in df.columns:
-        required_cols.insert(2, "gene_id")
+    # Only keep required columns that actually exist in the dataframe
+    # (e.g. gene_id is optional and may not be present)
+    required_cols = [col for col in required_cols if col in df.columns]
 
     if keep_extra_cols:
         # Keep additional columns that might be useful
@@ -459,6 +542,282 @@ def load_and_process_uniprot_data(
         raise ValueError(
             f"Error processing UniProt data from {uniprot_data_path}: {str(e)}"
         )
+
+
+def get_gene_mapping(
+    gene_symbols: Optional[List[str]] = None,
+    species: str = "hsapiens",
+    ensembl_release: int = 110,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Fetch gene ID mapping (symbol -> Entrez -> Ensembl) via Ensembl REST API.
+
+    Uses the Ensembl archive REST API pinned to a specific release to ensure
+    reproducible gene ID resolution. Falls back to MyGene.info if the Ensembl
+    API is unavailable.
+
+    Args:
+        gene_symbols: List of gene symbols to look up. If None, returns empty
+            DataFrame (use a pre-downloaded TSV file for full genome mapping).
+        species: Species shorthand (default: "hsapiens").
+            Common values: "hsapiens", "mmusculus", "drerio".
+        ensembl_release: Ensembl release number to pin to (default: 110).
+        verbose: Whether to print progress information.
+
+    Returns:
+        DataFrame with columns: gene_symbol, entrez_id, ensembl_gene_id.
+    """
+    import requests
+
+    # Ensembl archive URLs by release number
+    ENSEMBL_ARCHIVES = {
+        110: "jul2023",
+        109: "feb2023",
+        111: "jan2024",
+        112: "may2024",
+        113: "oct2024",
+    }
+
+    # Species name mapping for Ensembl REST API
+    ENSEMBL_SPECIES = {
+        "hsapiens": "homo_sapiens",
+        "mmusculus": "mus_musculus",
+        "drerio": "danio_rerio",
+    }
+
+    if gene_symbols is None:
+        if verbose:
+            print(
+                "No gene symbols provided. Pass gene_symbols= for targeted lookup, "
+                "or provide a pre-downloaded TSV file."
+            )
+        return pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
+
+    symbols = [s for s in gene_symbols if s and not str(s).startswith("nontargeting")]
+    if not symbols:
+        return pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
+
+    archive_tag = ENSEMBL_ARCHIVES.get(ensembl_release)
+    if archive_tag is None:
+        warnings.warn(
+            f"No archive URL for Ensembl release {ensembl_release}. "
+            f"Available: {sorted(ENSEMBL_ARCHIVES.keys())}. Using current release."
+        )
+        base_url = "https://rest.ensembl.org"
+    else:
+        base_url = f"https://{archive_tag}.rest.ensembl.org"
+
+    species_name = ENSEMBL_SPECIES.get(species, species)
+
+    if verbose:
+        print(
+            f"Fetching gene mapping via Ensembl REST API "
+            f"(release {ensembl_release}, {species_name})..."
+        )
+
+    import time
+
+    def _fetch_chunk(chunk, chunk_label):
+        """POST a single chunk to Ensembl REST; returns dict or {} on failure."""
+        for attempt in range(3):
+            try:
+                resp = requests.post(
+                    f"{base_url}/lookup/symbol/{species_name}",
+                    json={"symbols": chunk},
+                    headers={"Content-Type": "application/json"},
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                return resp.json()
+            except (requests.RequestException, ValueError) as e:
+                if attempt < 2:
+                    time.sleep(2**attempt)
+                else:
+                    warnings.warn(
+                        f"Ensembl REST API request failed for {chunk_label} "
+                        f"after 3 attempts: {e}. Skipping {len(chunk)} symbols."
+                    )
+        return {}
+
+    # Bulk symbol lookup — POST endpoint works best with ~200 symbols per request
+    rows = []
+    chunk_size = 200
+    n_chunks = (len(symbols) + chunk_size - 1) // chunk_size
+    for chunk_idx, i in enumerate(range(0, len(symbols), chunk_size)):
+        chunk = symbols[i : i + chunk_size]
+        if verbose and n_chunks > 1:
+            print(f"  Chunk {chunk_idx + 1}/{n_chunks} ({len(chunk)} symbols)...")
+
+        data = _fetch_chunk(chunk, f"chunk {chunk_idx + 1}/{n_chunks}")
+        for symbol in chunk:
+            info = data.get(symbol)
+            if info is None or isinstance(info, str):
+                continue
+            ensembl_id = info.get("id", "")
+            rows.append(
+                {
+                    "gene_symbol": symbol,
+                    "entrez_id": "",
+                    "ensembl_gene_id": ensembl_id,
+                }
+            )
+
+    # Second pass: retry any symbols that got no result (catches transient API failures)
+    resolved = {r["gene_symbol"] for r in rows}
+    unresolved_symbols = [s for s in symbols if s not in resolved]
+    if unresolved_symbols:
+        if verbose:
+            print(
+                f"  Retrying {len(unresolved_symbols)} unresolved symbols in smaller batches..."
+            )
+        retry_chunk_size = 50
+        for i in range(0, len(unresolved_symbols), retry_chunk_size):
+            chunk = unresolved_symbols[i : i + retry_chunk_size]
+            data = _fetch_chunk(chunk, f"retry batch {i // retry_chunk_size + 1}")
+            for symbol in chunk:
+                info = data.get(symbol)
+                if info is None or isinstance(info, str):
+                    continue
+                ensembl_id = info.get("id", "")
+                rows.append(
+                    {
+                        "gene_symbol": symbol,
+                        "entrez_id": "",
+                        "ensembl_gene_id": ensembl_id,
+                    }
+                )
+
+    df = (
+        pd.DataFrame(rows)
+        if rows
+        else pd.DataFrame(columns=["gene_symbol", "entrez_id", "ensembl_gene_id"])
+    )
+
+    # Drop rows with missing gene symbol or ensembl ID
+    df = df.dropna(subset=["gene_symbol", "ensembl_gene_id"])
+    df = df[df["gene_symbol"] != ""]
+    df = df[df["ensembl_gene_id"] != ""]
+
+    # Deduplicate: keep first mapping per gene_symbol
+    df = df.drop_duplicates(subset=["gene_symbol"], keep="first")
+
+    # Warn about unresolved symbols
+    resolved_symbols = set(df["gene_symbol"])
+    unresolved = [s for s in symbols if s not in resolved_symbols]
+    if unresolved and verbose:
+        warnings.warn(
+            f"{len(unresolved)} gene(s) could not be resolved in Ensembl "
+            f"release {ensembl_release}: {unresolved[:10]}"
+            + (f" ... and {len(unresolved) - 10} more" if len(unresolved) > 10 else "")
+        )
+
+    if verbose:
+        print(
+            f"Gene mapping: {len(df)} genes with Ensembl IDs, "
+            f"{(df['entrez_id'] != '').sum()} with Entrez IDs"
+        )
+
+    return df
+
+
+def resolve_gene_ids(
+    df: pd.DataFrame,
+    gene_mapping_path: str,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Fill in missing gene identifiers from a reference mapping file.
+
+    The barcode library may arrive with any combination of gene_symbol,
+    gene_id (Entrez), and ensembl_gene_id. This function loads a reference
+    mapping and fills in whichever columns are missing.
+
+    The reference file must be a TSV with columns:
+        gene_symbol, entrez_id, ensembl_gene_id
+
+    Logic:
+        - If ensembl_gene_id is already present and starts with ENSG, keep it
+        - If gene_id (Entrez) is present, look up ensembl_gene_id
+        - If only gene_symbol is present, look up both IDs
+        - Non-targeting controls get "non-targeting" for all ID fields
+
+    Args:
+        df: DataFrame with at least a gene_symbol column.
+        gene_mapping_path: Path to a TSV with gene_symbol, entrez_id,
+            and ensembl_gene_id columns.
+        verbose: Whether to print progress information.
+
+    Returns:
+        DataFrame with ensembl_gene_id and gene_id columns added/filled.
+    """
+    result = df.copy()
+
+    # Load reference mapping
+    ref = pd.read_csv(gene_mapping_path, sep="\t", dtype=str)
+    required = {"gene_symbol", "entrez_id", "ensembl_gene_id"}
+    missing = required - set(ref.columns)
+    if missing:
+        raise ValueError(
+            f"Gene mapping file must have columns {sorted(required)}. "
+            f"Missing: {sorted(missing)}"
+        )
+
+    # Build lookup dicts
+    symbol_to_ensembl = dict(zip(ref["gene_symbol"], ref["ensembl_gene_id"]))
+    symbol_to_entrez = dict(zip(ref["gene_symbol"], ref["entrez_id"]))
+    entrez_to_ensembl = dict(zip(ref["entrez_id"], ref["ensembl_gene_id"]))
+
+    # Detect non-targeting controls
+    nontargeting_mask = result["gene_symbol"].str.contains(
+        "nontargeting|non-targeting|sg_nt", case=False, na=False
+    )
+
+    # --- Ensure ensembl_gene_id column exists ---
+    if "ensembl_gene_id" not in result.columns:
+        result["ensembl_gene_id"] = None
+
+    # --- Fill ensembl_gene_id from gene_id (Entrez) where missing ---
+    needs_ensembl = result["ensembl_gene_id"].isna() & ~nontargeting_mask
+    if "gene_id" in result.columns and needs_ensembl.any():
+        entrez_mapped = (
+            result.loc[needs_ensembl, "gene_id"].astype(str).map(entrez_to_ensembl)
+        )
+        result.loc[needs_ensembl, "ensembl_gene_id"] = entrez_mapped
+
+    # --- Fill ensembl_gene_id from gene_symbol where still missing ---
+    still_needs = result["ensembl_gene_id"].isna() & ~nontargeting_mask
+    if still_needs.any():
+        symbol_mapped = result.loc[still_needs, "gene_symbol"].map(symbol_to_ensembl)
+        result.loc[still_needs, "ensembl_gene_id"] = symbol_mapped
+
+    # --- Fill gene_id (Entrez) from gene_symbol where missing ---
+    if "gene_id" not in result.columns:
+        result["gene_id"] = None
+    needs_entrez = result["gene_id"].isna() & ~nontargeting_mask
+    if needs_entrez.any():
+        result.loc[needs_entrez, "gene_id"] = result.loc[
+            needs_entrez, "gene_symbol"
+        ].map(symbol_to_entrez)
+
+    # --- Non-targeting controls ---
+    result.loc[nontargeting_mask, "ensembl_gene_id"] = "non-targeting"
+    result.loc[nontargeting_mask, "gene_id"] = result.loc[
+        nontargeting_mask, "gene_id"
+    ].fillna("non-targeting")
+
+    if verbose:
+        total = len(result)
+        ensembl_mapped = result["ensembl_gene_id"].notna().sum()
+        entrez_mapped = result["gene_id"].notna().sum()
+        print(
+            f"Gene ID resolution: {ensembl_mapped}/{total} Ensembl, "
+            f"{entrez_mapped}/{total} Entrez"
+        )
+        unmapped = result[result["ensembl_gene_id"].isna() & ~nontargeting_mask]
+        if len(unmapped) > 0:
+            examples = list(unmapped["gene_symbol"].unique()[:5])
+            print(f"  {len(unmapped)} rows could not be mapped: {examples}")
+
+    return result
 
 
 def standardize_nontargeting_controls(

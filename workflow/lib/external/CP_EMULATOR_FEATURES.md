@@ -20,7 +20,7 @@ Extracted from `intensity_features_multichannel`. These measure pixel intensity 
 
 | Feature | Description | Formula/Method |
 |---------|-------------|----------------|
-| `int` | Integrated intensity | Sum of all pixel intensities in the region |
+| `integrated` | Integrated intensity | Sum of all pixel intensities in the region |
 | `mean` | Mean intensity | Average pixel intensity |
 | `std` | Standard deviation | Standard deviation of pixel intensities |
 | `max` | Maximum intensity | Maximum pixel value in region |
@@ -39,7 +39,7 @@ Computed on boundary pixels only (using inner boundary with connectivity=2):
 
 | Feature | Description |
 |---------|-------------|
-| `int_edge` | Sum of edge pixel intensities |
+| `integrated_edge` | Sum of edge pixel intensities |
 | `mean_edge` | Mean of edge pixel intensities |
 | `std_edge` | Standard deviation of edge pixels |
 | `max_edge` | Maximum edge pixel intensity |
@@ -260,7 +260,7 @@ Not every feature documented above is tested by the aggregate bootstrap. By defa
 |----------|------------|----------|
 | Intensity | name **ends with** | `mean`, `int`, `mass_displacement`, `mean_edge`, `std_edge`, `mean_frac_0`, `mean_frac_3` |
 | Shape | name **ends with** | `area`, `solidity`, `form_factor`, `eccentricity` |
-| Overlap | substring **anywhere** | `manders` |
+| Overlap | substring **anywhere** | `manders`, `correlation` |
 
 **Excluded by default:** texture (PFTAS and Haralick), granularity, most intensity-distribution features, Zernike and Hu moments, radius and Feret diameter, neighbor features, foci features, and every non-`nucleus`/`cell` compartment.
 

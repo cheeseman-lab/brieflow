@@ -7,6 +7,15 @@ and filtering features based on channel combinations.
 
 import pandas as pd
 
+from lib.phenotype.constants import DEFAULT_METADATA_COLS
+
+# joins a perturbation to its group values; not "__" (the filename separator parsed
+# in lib/shared/rule_utils.py), not a glob metacharacter, not regex-special
+GROUP_KEY_SEP = "="
+
+# control-pool scopes shared by the bootstrap null and the cluster potential
+CONTROL_SCOPES = ("pooled", "within_group", "reference_group", "within_perturbation")
+
 
 def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     """Load metadata column names from a file.
@@ -25,12 +34,115 @@ def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
         metadata_cols += [
             "class",
             "confidence",
+            "cell_stage_confidence",
         ]
 
     return metadata_cols
 
 
+def control_mask(perturbation_values, control_key, match="contains"):
+    """Flag control perturbations, ignoring any group suffix on a composite key.
+
+    Matching the whole composite would let a group value satisfy control_key, silently
+    labelling perturbed cells as controls (e.g. control_key "DMSO" matching "MYC=DMSO").
+    Stripping the suffix is a no-op when group_cols is unset.
+
+    A list control_key matches exactly against any element, for libraries whose controls
+    share no usable prefix (an ORF screen's EGFP_1 and H2B-EGFP_1). A string keeps the
+    caller's historical convention, so existing screens are unaffected.
+
+    Args:
+        perturbation_values (pd.Series): Perturbation names, composite or plain.
+        control_key (str | list): Control identifier, or a list of exact names.
+        match (str, optional): How a string key matches, "contains" or "startswith".
+            Ignored for a list. Defaults to "contains".
+
+    Returns:
+        pd.Series: Boolean mask of control rows.
+    """
+    perturbations = perturbation_values.astype(str).str.split(GROUP_KEY_SEP, n=1).str[0]
+
+    if isinstance(control_key, (list, tuple, set)):
+        keys = set(control_key)
+        # prepare_alignment_data uniquifies controls to <name>_<pert_id>, so an exact
+        # match alone would stop seeing them downstream of that rename
+        renamed = perturbations.str.startswith(tuple(f"{key}_" for key in keys))
+
+        return perturbations.isin(keys) | renamed
+    if match == "startswith":
+        return perturbations.str.startswith(control_key, na=False)
+
+    return perturbations.str.contains(control_key, na=False)
+
+
+def join_well_annotations(metadata, well_annotations_fp):
+    """Join per-well annotations onto cell metadata for splitting or grouping.
+
+    Annotations are experimental variables assigned by plate map rather than derived
+    from images, e.g. treatment, confluency, or timepoint. Keyed on (plate, well) so a
+    multi-plate screen can carry a different map per plate.
+
+    Args:
+        metadata (pd.DataFrame): Cell metadata containing plate and well columns.
+        well_annotations_fp (str): Path to a TSV with plate, well, and annotation columns.
+
+    Returns:
+        pd.DataFrame: Metadata with the annotation columns added, read as text.
+
+    Raises:
+        ValueError: If the map repeats a (plate, well), or if a (plate, well) present in
+            the data has no row in the map.
+    """
+    # read values as text so a numeric group (1, 2, 3) still matches the text cell_class
+    annotations = pd.read_csv(well_annotations_fp, sep="\t", dtype=str)
+    for col in ("plate", "well"):
+        if col not in annotations.columns:
+            raise ValueError(
+                f"{well_annotations_fp} is missing required column '{col}'"
+            )
+
+    # a repeated well would multiply cells through the join and desync them from features
+    duplicated = annotations[
+        annotations.duplicated(subset=["plate", "well"], keep=False)
+    ]
+    if len(duplicated) > 0:
+        raise ValueError(
+            f"{well_annotations_fp} repeats (plate, well): "
+            f"{sorted(map(tuple, duplicated[['plate', 'well']].to_numpy()))}"
+        )
+
+    # join on strings so plate 1 and "1" cannot silently fail to match
+    keys = ["plate", "well"]
+    metadata = metadata.copy()
+    for col in keys:
+        metadata[col] = metadata[col].astype(str)
+        annotations[col] = annotations[col].astype(str)
+
+    data_wells = set(map(tuple, metadata[keys].drop_duplicates().to_numpy()))
+    map_wells = set(map(tuple, annotations[keys].drop_duplicates().to_numpy()))
+
+    # an unmapped well would become a NaN group that silently drops its cells
+    unmapped = sorted(data_wells - map_wells)
+    if unmapped:
+        raise ValueError(
+            f"{len(unmapped)} (plate, well) in the data are absent from "
+            f"{well_annotations_fp}: {unmapped}"
+        )
+
+    unused = sorted(map_wells - data_wells)
+    if unused:
+        print(f"Note: {len(unused)} annotated wells are not in the data: {unused}")
+
+    # merge returns a fresh RangeIndex; features still carry the original one
+    joined = metadata.merge(annotations, on=keys, how="left")
+    joined.index = metadata.index
+
+    return joined
+
+
 RESERVED_METADATA_PREFIXES = ("offset_",)
+# per-cell segmentation records (secondary object labels, nuclei count); not features
+RESERVED_METADATA_COLS = ("second_obj_ids", "num_nuclei")
 
 
 def is_reserved_metadata_col(col):
@@ -38,9 +150,10 @@ def is_reserved_metadata_col(col):
 
     Per-cell alignment-offset QC columns (offset_*) have screen-specific names (the
     alignment step/cycle count varies by screen), so they are matched by prefix rather
-    than enumerated in the metadata_cols file.
+    than enumerated in the metadata_cols file. Per-cell records written by secondary
+    object detection and by segmentation are reserved by name.
     """
-    return col.startswith(RESERVED_METADATA_PREFIXES)
+    return col in RESERVED_METADATA_COLS or col.startswith(RESERVED_METADATA_PREFIXES)
 
 
 def split_cell_data(
@@ -116,6 +229,11 @@ def split_cell_data(
 def channel_combo_subset(features, channel_combo, all_channels):
     """Filter features to include only columns from specified channel combination.
 
+    A column belongs to a channel when the channel name appears in it as whole
+    "_"-delimited tokens, longest name first, so "LIPID" does not claim "LIPID_Low"
+    columns and "DAPI" does not claim "DAPI2" columns. A column is removed when it
+    names any channel outside the combination.
+
     Args:
         features (pd.DataFrame): DataFrame containing feature data.
         channel_combo (list): List of channels to include.
@@ -125,21 +243,87 @@ def channel_combo_subset(features, channel_combo, all_channels):
         pd.DataFrame: DataFrame with features filtered to include only
             columns from the specified channel combination.
     """
-    # Find channels to remove (those not in channel_combo)
-    channels_to_remove = [ch for ch in all_channels if ch not in channel_combo]
+    channels_to_remove = {ch for ch in all_channels if ch not in channel_combo}
 
-    # Get all column names
-    columns = features.columns.tolist()
-
-    # Find columns to remove (those containing removed channel names)
-    columns_to_remove = [
-        col for col in columns if any(ch in col for ch in channels_to_remove)
+    columns_to_keep = [
+        col
+        for col in features.columns
+        if not channels_to_remove.intersection(column_channels(col, all_channels))
     ]
 
-    # Keep all columns except those from removed channels
-    columns_to_keep = [col for col in columns if col not in columns_to_remove]
-
     return features[columns_to_keep]
+
+
+def parse_channel_combo(channel_combo, all_channels):
+    """Split a "_"-joined channel combination string into known channel names.
+
+    Channel names may themselves contain "_", so the string is matched against
+    the known names (longest first) instead of being split on the delimiter.
+
+    Args:
+        channel_combo (str): Channel combination string, e.g. "DAPI_LIPID_Low_WGA".
+        all_channels (list): List of all available channel names.
+
+    Returns:
+        list: Channel names in the order they appear in the combination.
+
+    Raises:
+        ValueError: If the string cannot be fully parsed into known channel names.
+    """
+    names = sorted(set(all_channels), key=len, reverse=True)
+
+    def _parse(rest):
+        if rest == "":
+            return []
+        for name in names:
+            if rest == name or rest.startswith(name + "_"):
+                tail = _parse(rest[len(name) + 1 :])
+                if tail is not None:
+                    return [name] + tail
+        return None
+
+    parsed = _parse(channel_combo)
+    if parsed is None:
+        rest = channel_combo
+        while True:
+            name = next(
+                (n for n in names if rest == n or rest.startswith(n + "_")), None
+            )
+            if name is None:
+                break
+            rest = rest[len(name) + 1 :]
+        raise ValueError(
+            f"Channel combo '{channel_combo}' cannot be parsed into known channels "
+            f"{list(all_channels)}; unmatched text: '{rest}'"
+        )
+    return parsed
+
+
+def column_channels(column, all_channels):
+    """Return the channel names a feature column refers to.
+
+    Args:
+        column (str): Feature column name, e.g. "cell_correlation_DAPI_LIPID_Low".
+        all_channels (list): List of all available channel names.
+
+    Returns:
+        list: Channel names found as whole "_"-delimited tokens, longest match first.
+    """
+    tokens = str(column).split("_")
+    names = sorted(
+        (name.split("_") for name in set(all_channels)), key=len, reverse=True
+    )
+    found = []
+    i = 0
+    while i < len(tokens):
+        for name in names:
+            if tokens[i : i + len(name)] == name:
+                found.append("_".join(name))
+                i += len(name)
+                break
+        else:
+            i += 1
+    return found
 
 
 def get_feature_table_cols(feature_cols, extra_tags=None):
@@ -157,7 +341,7 @@ def get_feature_table_cols(feature_cols, extra_tags=None):
     # Define the specific tags to look for
     intensity_tags = [
         "mean",
-        "int",
+        "integrated",
         "mass_displacement",
         "mean_edge",
         "std_edge",
@@ -165,7 +349,8 @@ def get_feature_table_cols(feature_cols, extra_tags=None):
         "mean_frac_3",
     ]
     shape_tags = ["area", "solidity", "form_factor", "eccentricity"]
-    overlap_tags = ["manders"]
+    # Substring match — picks up *_correlation_* (Pearson/Spearman) and *manders* features
+    overlap_tags = ["manders", "correlation"]
     extra_tags = [tag.lower() for tag in extra_tags] if extra_tags else []
 
     # Define the specific compartments to look for

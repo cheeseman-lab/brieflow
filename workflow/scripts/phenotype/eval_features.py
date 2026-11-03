@@ -9,17 +9,16 @@ plt.rcParams.update(
 )
 
 from lib.phenotype.eval_features import plot_feature_heatmap
+from lib.shared.parquet_io import read_parquets
 
 
 # Load phenotype processing files
-phenotype_cp_min = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input.cells_paths], ignore_index=True
-)
+phenotype_cp_min = read_parquets(snakemake.input.cells_paths)
 
 # Load metadata for spatial heatmap plotting
-metadata = pd.concat(
-    [pd.read_parquet(p) for p in snakemake.input.metadata_paths], ignore_index=True
-).drop_duplicates(subset=["well", "tile"])
+metadata = read_parquets(snakemake.input.metadata_paths).drop_duplicates(
+    subset=["well", "tile"]
+)
 
 # Generate and save feature heatmaps
 min_feature_names = [col for col in phenotype_cp_min.columns if col.endswith("_min")]

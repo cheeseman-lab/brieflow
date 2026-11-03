@@ -16,63 +16,27 @@ plt.rcParams.update(
 )
 
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.parquet_io import read_parquet, read_parquets, write_parquet
 from lib.merge.format_merge import identify_single_gene_mappings
 from lib.merge.eval_merge import plot_sbs_ph_matching_heatmap, plot_cell_positions
 
 # Load deduplicated merge data for summary statistics
 merge_deduplicated = validate_dtypes(
-    pd.concat(
-        [pd.read_parquet(p) for p in snakemake.input.deduplicated_merge_paths],
-        ignore_index=True,
-    )
+    read_parquets(snakemake.input.deduplicated_merge_paths)
 )
 
 # Load formatted (pre-dedup) merge data for matching rate heatmaps
-merge_formatted = validate_dtypes(
-    pd.concat(
-        [pd.read_parquet(p) for p in snakemake.input.formatted_merge_paths],
-        ignore_index=True,
-    )
-)
-
-# Standardize coordinate column names (stitch uses global_i_0/global_j_0, fast uses i_0/j_0)
-if "global_i_0" in merge_deduplicated.columns:
-    merge_deduplicated = merge_deduplicated.rename(
-        columns={
-            "global_i_0": "i_0",
-            "global_j_0": "j_0",
-            "global_i_1": "i_1",
-            "global_j_1": "j_1",
-        }
-    )
+merge_formatted = validate_dtypes(read_parquets(snakemake.input.formatted_merge_paths))
 
 # Load SBS data
-sbs_cells = validate_dtypes(
-    pd.concat(
-        [pd.read_parquet(p) for p in snakemake.input.combine_cells_paths],
-        ignore_index=True,
-    )
-)
-sbs_info = validate_dtypes(
-    pd.concat(
-        [pd.read_parquet(p) for p in snakemake.input.sbs_info_paths],
-        ignore_index=True,
-    )
-)
+sbs_cells = validate_dtypes(read_parquets(snakemake.input.combine_cells_paths))
+sbs_info = validate_dtypes(read_parquets(snakemake.input.sbs_info_paths))
 
 # Load phenotype data
 phenotype_min_cp = validate_dtypes(
-    pd.concat(
-        [pd.read_parquet(p) for p in snakemake.input.min_phenotype_cp_paths],
-        ignore_index=True,
-    )
+    read_parquets(snakemake.input.min_phenotype_cp_paths)
 )
-phenotype_info = validate_dtypes(
-    pd.concat(
-        [pd.read_parquet(p) for p in snakemake.input.phenotype_info_paths],
-        ignore_index=True,
-    )
-)
+phenotype_info = validate_dtypes(read_parquets(snakemake.input.phenotype_info_paths))
 
 # Load metadata for spatial heatmap plotting
 sbs_metadata = pd.concat(

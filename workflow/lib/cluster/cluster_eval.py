@@ -14,6 +14,7 @@ import seaborn as sns
 
 from lib.shared.compartment_utils import add_compartment_path
 from lib.shared.file_utils import get_filename
+from lib.shared.parquet_io import read_parquet
 
 
 def find_optimal_resolution(
@@ -117,7 +118,7 @@ def find_optimal_resolution(
 
         if clustering_file.exists():
             clustering_df = (
-                pd.read_parquet(clustering_file)
+                read_parquet(clustering_file)
                 if clustering_file.suffix == ".parquet"
                 else pd.read_csv(clustering_file, sep="\t")
             )

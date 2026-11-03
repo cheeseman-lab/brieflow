@@ -14,6 +14,8 @@ from igraph import Graph
 import leidenalg
 import phate
 
+from lib.aggregate.cell_data_utils import CONTROL_SCOPES, GROUP_KEY_SEP, control_mask
+
 
 def phate_leiden_pipeline(
     aggregated_data,
@@ -176,7 +178,7 @@ def plot_phate_leiden_clusters(
         phate_leiden_clustering (pd.DataFrame): Output from phate_leiden_pipeline with
             'PHATE_0', 'PHATE_1', and 'cluster' columns.
         perturbation_name_col (str): Column name containing perturbation identifiers.
-        control_key (str): Prefix or value in perturbation_name_col that identifies controls.
+        control_key (str | list): Prefix or value in perturbation_name_col that identifies controls.
         figsize (tuple, optional): Figure dimensions (width, height). Defaults to (8, 8).
         clusters_of_interest (list or int, optional): Cluster ID(s) to highlight. If None,
             all clusters are colored. Defaults to None.
@@ -198,11 +200,11 @@ def plot_phate_leiden_clusters(
             clusters_of_interest = [clusters_of_interest]
 
     # Split data into experimental and control groups
-    control_mask = phate_leiden_clustering[perturbation_name_col].str.startswith(
-        control_key
+    is_control = control_mask(
+        phate_leiden_clustering[perturbation_name_col], control_key, match="startswith"
     )
-    control_data = phate_leiden_clustering[control_mask]
-    exp_data = phate_leiden_clustering[~control_mask]
+    control_data = phate_leiden_clustering[is_control]
+    exp_data = phate_leiden_clustering[~is_control]
 
     if clusters_of_interest is None:
         # Original behavior - plot all experimental data colored by cluster
@@ -303,16 +305,206 @@ def plot_phate_leiden_clusters(
     return fig
 
 
+def filter_by_perturbation_auc(
+    aggregated_data,
+    perturbation_name_col,
+    control_key,
+    auc_threshold,
+    control_scope="pooled",
+    reference_group=None,
+):
+    """Keep control rows and rows whose perturbation_auc clears a threshold.
+
+    Under "within_perturbation" each perturbation's null is its own arm in the
+    reference group, so those arms are kept whatever their AUC; dropping them would
+    leave the treated arms of the same perturbation with an empty pool and a NaN
+    potential.
+
+    Args:
+        aggregated_data (pd.DataFrame): Aggregated points with perturbation_auc.
+        perturbation_name_col (str): Perturbation name column, composite when
+            group_cols is set.
+        control_key (str | list): Control identifier, or a list of exact names.
+        auc_threshold (float | None): Minimum perturbation_auc, exclusive; None keeps
+            every row.
+        control_scope (str, optional): Cluster control scope. Defaults to "pooled".
+        reference_group (str, optional): Group key of the reference condition.
+            Defaults to None.
+
+    Returns:
+        pd.DataFrame: The rows kept.
+    """
+    if auc_threshold is None:
+        return aggregated_data
+
+    perturbations = aggregated_data[perturbation_name_col]
+    keep = control_mask(perturbations, control_key, match="startswith") | (
+        aggregated_data["perturbation_auc"] > auc_threshold
+    )
+    if control_scope == "within_perturbation" and reference_group is not None:
+        groups = perturbations.astype(str).str.split(GROUP_KEY_SEP, n=1).str[1]
+        keep |= groups == str(reference_group)
+    print(
+        f"Filtering aggregated data for perturbation AUC > {auc_threshold}: "
+        f"{int(keep.sum())} of {len(aggregated_data)} rows kept"
+    )
+
+    return aggregated_data[keep]
+
+
+def select_control_indices(
+    perturbation_values,
+    control_key,
+    control_scope="pooled",
+    reference_group=None,
+    group_cols=None,
+):
+    """Map every point to the control rows its null is drawn from.
+
+    "reference_group" pins the null to one fixed group whatever the point's own group,
+    so a library whose group is a treatment acting on the perturbation is scored against
+    the untreated control state rather than against a control cloud pooled across every
+    treatment.
+
+    "within_perturbation" makes every perturbation its own control: `X=treated` is
+    scored against `X=reference_group`, the same perturbation in the reference
+    condition. control_key plays no part in that scope, since the control is the
+    reference condition rather than any perturbation.
+
+    Args:
+        perturbation_values (pd.Series): Perturbation names, composite when group_cols is set.
+        control_key (str | list): Control identifier, or a list of exact names.
+        control_scope (str, optional): "pooled" scores every point against all controls,
+            "within_group" against controls sharing the point's own group,
+            "reference_group" against controls in `reference_group`,
+            "within_perturbation" against the point's own perturbation in
+            `reference_group`. Defaults to "pooled".
+        reference_group (str, optional): Group key the "reference_group" and
+            "within_perturbation" scopes pin the null to; several group_cols join
+            their values with GROUP_KEY_SEP. Defaults to None.
+        group_cols (list, optional): Columns folded into the composite key.
+            Defaults to None.
+
+    Returns:
+        dict: Point index label mapped to the control index labels scoring it.
+
+    Raises:
+        ValueError: If the scope is unknown, if "reference_group" or
+            "within_perturbation" is requested without group_cols or without a
+            reference_group, if "reference_group" is requested against ungrouped
+            perturbation names, or if the selected group matches no rows.
+    """
+    if control_scope not in CONTROL_SCOPES:
+        raise ValueError(f"Unknown control_scope: {control_scope}")
+
+    is_control = control_mask(perturbation_values, control_key)
+    control_indices = perturbation_values.index[is_control].tolist()
+
+    if control_scope == "pooled":
+        return {idx: control_indices for idx in perturbation_values.index}
+
+    point_keys = perturbation_values.astype(str).str.split(GROUP_KEY_SEP, n=1)
+    point_groups = point_keys.str[1]
+    control_groups = point_groups[is_control]
+
+    if control_scope == "within_perturbation":
+        if not group_cols or reference_group is None:
+            raise ValueError(
+                "control_scope 'within_perturbation' needs aggregate group_cols and "
+                "control_reference_group; without them points carry no reference to "
+                "pin the null to"
+            )
+        group_key = str(reference_group)
+        in_reference = point_groups == group_key
+        if not in_reference.any():
+            raise ValueError(
+                f"control_reference_group '{group_key}' is absent; "
+                f"groups present: {sorted(point_groups.dropna().unique())}"
+            )
+        reference_by_perturbation = (
+            perturbation_values.index[in_reference]
+            .to_series()
+            .groupby(point_keys.str[0][in_reference].to_numpy())
+            .apply(list)
+        )
+        # a perturbation with no reference arm gets an empty pool and a NaN potential
+        scoped_indices = {
+            idx: reference_by_perturbation.get(perturbation, [])
+            for idx, perturbation in point_keys.str[0].items()
+        }
+        unscored = sorted(
+            {p for p in point_keys.str[0] if p not in reference_by_perturbation.index}
+        )
+        print(
+            f"Scoring each point against its own perturbation in group '{group_key}': "
+            f"{len(reference_by_perturbation)} perturbations carry a reference arm"
+            + (f"; {len(unscored)} without one get NaN: {unscored}" if unscored else "")
+        )
+        return scoped_indices
+
+    if control_scope == "within_group":
+        if point_groups.isna().all():
+            return {idx: control_indices for idx in perturbation_values.index}
+        indices_by_group = {
+            group_key: group.index.tolist()
+            for group_key, group in control_groups.groupby(control_groups)
+        }
+        scoped_indices = {}
+        for idx, group_key in point_groups.items():
+            if group_key not in indices_by_group:
+                raise ValueError(f"No control cells found for group '{group_key}'")
+            scoped_indices[idx] = indices_by_group[group_key]
+
+        return scoped_indices
+
+    if not group_cols:
+        raise ValueError(
+            "control_scope 'reference_group' needs aggregate group_cols; "
+            "without them points carry no group to pin the null to"
+        )
+    if reference_group is None:
+        raise ValueError(
+            "control_scope 'reference_group' requires control_reference_group to be set"
+        )
+    if control_groups.isna().all():
+        raise ValueError(
+            "control_scope 'reference_group' needs grouped perturbation names; "
+            "without them points carry no group to pin the null to"
+        )
+
+    group_key = str(reference_group)
+    reference_indices = control_groups.index[control_groups == group_key].tolist()
+    print(
+        f"Restricting controls to group '{group_key}': {len(reference_indices)} of {len(control_indices)} rows"
+    )
+    if len(reference_indices) == 0:
+        raise ValueError(
+            f"control_reference_group '{group_key}' is absent from the control pool; "
+            f"control groups present: {sorted(control_groups.dropna().unique())}"
+        )
+
+    return {idx: reference_indices for idx in perturbation_values.index}
+
+
 def calculate_potential_to_nontargeting(
-    potential_df, control_key, distance_metric="euclidean", normalize=True
+    potential_df,
+    control_key,
+    distance_metric="euclidean",
+    normalize=True,
+    control_scope="pooled",
+    reference_group=None,
+    group_cols=None,
 ):
     """Calculate the average distance from each row to nontargeting controls.
 
     Args:
         potential_df (pd.DataFrame): DataFrame with gene_symbol_0 and potential columns
-        control_key (str): String pattern used to identify control rows
+        control_key (str | list): String pattern used to identify control rows
         distance_metric (str): Distance metric to use (default: 'euclidean')
         normalize (bool): Whether to min-max normalize the distances (default: True)
+        control_scope (str): Controls each row is scored against (default: 'pooled')
+        reference_group (str): Group the 'reference_group' scope pins the null to (default: None)
+        group_cols (list): Columns folded into the composite perturbation key (default: None)
 
     Returns:
         pd.DataFrame: DataFrame with gene_symbol_0, mean_potential_to_nontargeting,
@@ -326,11 +518,14 @@ def calculate_potential_to_nontargeting(
         col for col in potential_df.columns if col.startswith("potential_")
     ]
 
-    # Identify nontargeting control rows
-    nontargeting_mask = potential_df["gene_symbol_0"].str.contains(
-        control_key, na=False
+    # Identify the nontargeting control rows this scope names
+    control_indices = select_control_indices(
+        potential_df["gene_symbol_0"],
+        control_key,
+        control_scope,
+        reference_group,
+        group_cols,
     )
-    nontargeting_indices = potential_df.index[nontargeting_mask].tolist()
 
     # Extract only the potential values for calculation
     potential_values = potential_df[potential_cols].values
@@ -350,7 +545,7 @@ def calculate_potential_to_nontargeting(
 
         # Get distances from this row to all nontargeting controls
         distances_to_nontargeting = [
-            distance_df.loc[idx, control_idx] for control_idx in nontargeting_indices
+            distance_df.loc[idx, control_idx] for control_idx in control_indices[idx]
         ]
 
         # Calculate average distance

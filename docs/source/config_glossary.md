@@ -3,10 +3,13 @@
 The brieflow config holds all of the parameters used for a brieflow run.
 Each notebook is used to configure the parameter variables, which are then saved to the `config.yml`.
 Each analysis requires a specific `config.yml` and the associated files (pool dataframe, cell classification model, etc).
-An example config for the `main` branch is outlined in [tests/small_test_analysis/config/config.yml](https://github.com/cheeseman-lab/brieflow/blob/main/tests/small_test_analysis/config/config.yml).
-While all of the parameters are explicity outlined in each notebook, we provide additional comments on some here as well:
+A complete example is the small test's [tests/small_test_analysis/config/config.yml](https://github.com/cheeseman-lab/brieflow/blob/main/tests/small_test_analysis/config/config.yml).
+Every parameter is explained in the notebook that sets it; [Notebook Parameters](notebook_parameters.md) maps the important notebook variables to their config keys, and we comment on a few keys here as well:
 - `preprocess:sbs_samples_fp`/`preprocess:phenotype_samples_fp`: Path to dataframes with one entry for an SBS/phenotype file's path and the associated metadata (plate, well, tile, etc).
-- `sbs:df_design_path`: Path to dataframe with SBS pool design information regarding gene, sgRNA, oligo, etc.
+- `sbs:df_barcode_library_fp`: Path to the standardized barcode library that the SBS notebook builds from the raw design table (`DF_DESIGN_FP`): one row per guide with its barcode and target gene.
 - `*_combo_fp`: Path to dataframe with wildcards for file processing in a particular module.
 Each combination usually corresponds to a one process that needs to be done with Snakemake.
-For example, each plate, well, tile combination in `phenotype_combo_fp` corresponds to one ND2 -> tiff file conversion during preprocessing.
+For example, each plate, well, tile combination in `phenotype_combo_fp` corresponds to one raw file conversion during preprocessing.
+- `all:image_format`: `tiff` or `zarr`, the output layout for the whole run; absent means `tiff`. See [Output formats](3.running_modules.md#output-formats-tiff-and-zarr).
+- `all:zarr_max_levels`: set by `ZARR_MAX_LEVELS` in the preprocess notebook. Number of resolution levels written per converted image, `1` (the default when absent) meaning no pyramid. Each extra level costs disk and conversion time: on the small test, going from 1 to 5 levels added ~16% to the bytes per tile. Only read when `image_format: zarr`.
+- `merge:positions_image_qc`: with `merge:approach: positions`, also write per-well image readouts to `merge/eval/` (tile-overlap and phenotype-in-SBS overlays, a nuclei mosaic, their residuals and the fit table). Default `false`; the same overlays are in the merge notebook.

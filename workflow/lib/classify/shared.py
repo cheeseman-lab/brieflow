@@ -20,7 +20,8 @@ import tifffile
 from PIL import Image as PILImage
 from skimage import measure, segmentation
 
-from lib.shared.file_utils import get_filename
+from lib.shared.file_utils import get_filename, split_well
+from lib.shared.parquet_io import read_parquet
 
 
 def robust_norm(
@@ -128,15 +129,17 @@ def well_for_filename(well: Union[str, int]) -> str:
       - 'A01' -> 'A1'  (strip leading zeros)
       - 'b12' -> 'B12'
 
-    If the pattern doesn't match Letter+digits, returns uppercased string as-is.
+    Ids that are not Letter+digits are returned unchanged: Opera Phenix "r02c05"
+    has no unpadded form, and uppercasing it to "R02C05" built filenames that
+    matched nothing on disk.
     """
-    s = str(well).strip().upper()
-    m = re.match(r"^([A-Z])0*(\d{1,2})$", s)
+    s = str(well).strip()
+    m = re.match(r"^([A-Za-z])0*(\d{1,2})$", s)
     if not m:
         return s
     row, col = m.group(1), m.group(2)
     # int() removes any leading zeros
-    return f"{row}{int(col)}"
+    return f"{row.upper()}{int(col)}"
 
 
 def load_aligned_stack(
@@ -148,19 +151,26 @@ def load_aligned_stack(
     *,
     cache: Optional[Dict[Any, Any]] = None,
 ) -> np.ndarray:
-    """Load aligned TIFF stack as (C,H,W) with channels matching channel_names."""
+    """Load aligned image stack as (C,H,W) from TIFF or OME-Zarr."""
+    from lib.shared.image_io import read_image
+
     phenotype_output_fp = Path(phenotype_output_fp)
     key = (int(plate), str(well), int(tile))
     if cache is not None and key in cache:
         return cache[key]
 
     wname = well_for_filename(well)
-    # Backward-compat: also try zero-padded well variant if files were written that way
     m = re.match(r"^([A-Z])(\d{1,2})$", wname)
     wpad = f"{m.group(1)}{int(m.group(2)):02d}" if m else wname
+    # Split the raw well canonically (wname/wpad above are for the TIFF-fallback filename).
+    row, col = split_well(str(well))
+
+    # Try OME-Zarr HCS layout first, then TIFF
+    zarr_candidates = [
+        phenotype_output_fp / f"aligned_{plate}.zarr" / row / col / str(tile),
+    ]
     images_dir = phenotype_output_fp / "images"
-    # Prefer using shared filename builder; try both tiff and tif
-    candidates = [
+    tiff_candidates = [
         images_dir
         / get_filename(
             {"plate": plate, "well": wname, "tile": tile}, "aligned", "tiff"
@@ -172,12 +182,18 @@ def load_aligned_stack(
         images_dir
         / get_filename({"plate": plate, "well": wpad, "tile": tile}, "aligned", "tif"),
     ]
-    path = next((p for p in candidates if p.exists()), None)
-    if path is None:
-        raise FileNotFoundError(
-            f"Aligned TIFF not found for P-{plate} W-{wname} T-{tile}"
-        )
-    arr = tifffile.imread(path)
+
+    zarr_path = next((p for p in zarr_candidates if p.exists()), None)
+    if zarr_path is not None:
+        arr = read_image(zarr_path)
+    else:
+        tiff_path = next((p for p in tiff_candidates if p.exists()), None)
+        if tiff_path is None:
+            raise FileNotFoundError(
+                f"Aligned image not found for P-{plate} W-{wname} T-{tile}"
+            )
+        arr = tifffile.imread(tiff_path)
+
     if arr.ndim == 2:
         arr = arr[np.newaxis, ...]
     elif (
@@ -187,7 +203,7 @@ def load_aligned_stack(
     ):
         arr = np.moveaxis(arr, -1, 0)
     if arr.ndim != 3:
-        raise ValueError(f"Aligned TIFF must be 3D; got {arr.shape}")
+        raise ValueError(f"Aligned image must be 3D; got {arr.shape}")
     if arr.shape[0] != len(channel_names):
         raise ValueError("Channel count mismatch.")
     if cache is not None:
@@ -204,7 +220,9 @@ def load_mask_labels(
     *,
     cache: Optional[Dict[Any, Any]] = None,
 ) -> np.ndarray:
-    """Load 2D mask labels image for either 'vacuole' or 'cell' modes."""
+    """Load 2D mask labels image from TIFF or OME-Zarr."""
+    from lib.shared.image_io import read_image
+
     phenotype_output_fp = Path(phenotype_output_fp)
     mode_ = str(mode).lower()
     key = (mode_, int(plate), str(well), int(tile))
@@ -212,62 +230,53 @@ def load_mask_labels(
         return cache[key]
 
     wname = well_for_filename(well)
-    # Backward-compat: also try zero-padded well variant
     m = re.match(r"^([A-Z])(\d{1,2})$", wname)
     wpad = f"{m.group(1)}{int(m.group(2)):02d}" if m else wname
+    # Split the raw well canonically (wname/wpad above are for the TIFF-fallback filename).
+    row, col = split_well(str(well))
+
+    label_name = "identified_vacuoles" if mode_ == "vacuole" else "cells"
+
+    # Try OME-Zarr HCS layout first (labels nested inside aligned store)
+    zarr_candidates = [
+        phenotype_output_fp
+        / f"aligned_{plate}.zarr"
+        / row
+        / col
+        / str(tile)
+        / "labels"
+        / label_name,
+    ]
     images_dir = phenotype_output_fp / "images"
-    if mode_ == "vacuole":
-        candidates = [
-            images_dir
-            / get_filename(
-                {"plate": plate, "well": wname, "tile": tile},
-                "identified_vacuoles",
-                "tiff",
-            ),
-            images_dir
-            / get_filename(
-                {"plate": plate, "well": wname, "tile": tile},
-                "identified_vacuoles",
-                "tif",
-            ),
-            images_dir
-            / get_filename(
-                {"plate": plate, "well": wpad, "tile": tile},
-                "identified_vacuoles",
-                "tiff",
-            ),
-            images_dir
-            / get_filename(
-                {"plate": plate, "well": wpad, "tile": tile},
-                "identified_vacuoles",
-                "tif",
-            ),
-        ]
+    tiff_candidates = [
+        images_dir
+        / get_filename(
+            {"plate": plate, "well": wname, "tile": tile}, label_name, "tiff"
+        ),
+        images_dir
+        / get_filename(
+            {"plate": plate, "well": wname, "tile": tile}, label_name, "tif"
+        ),
+        images_dir
+        / get_filename(
+            {"plate": plate, "well": wpad, "tile": tile}, label_name, "tiff"
+        ),
+        images_dir
+        / get_filename({"plate": plate, "well": wpad, "tile": tile}, label_name, "tif"),
+    ]
+
+    zarr_path = next((p for p in zarr_candidates if p.exists()), None)
+    if zarr_path is not None:
+        labels = read_image(zarr_path)
     else:
-        candidates = [
-            images_dir
-            / get_filename(
-                {"plate": plate, "well": wname, "tile": tile}, "cells", "tiff"
-            ),
-            images_dir
-            / get_filename(
-                {"plate": plate, "well": wname, "tile": tile}, "cells", "tif"
-            ),
-            images_dir
-            / get_filename(
-                {"plate": plate, "well": wpad, "tile": tile}, "cells", "tiff"
-            ),
-            images_dir
-            / get_filename(
-                {"plate": plate, "well": wpad, "tile": tile}, "cells", "tif"
-            ),
-        ]
-    path = next((p for p in candidates if p.exists()), None)
-    if path is None:
-        raise FileNotFoundError(
-            f"Mask image not found for mode={mode_}, plate={plate}, well={wname}, tile={tile}."
-        )
-    labels = tifffile.imread(path)
+        tiff_path = next((p for p in tiff_candidates if p.exists()), None)
+        if tiff_path is None:
+            raise FileNotFoundError(
+                f"Mask image not found for mode={mode_}, plate={plate}, "
+                f"well={wname}, tile={tile}."
+            )
+        labels = tifffile.imread(tiff_path)
+
     if labels.ndim != 2:
         raise ValueError(f"Mask must be 2D; got {labels.shape}")
     if cache is not None:
@@ -307,8 +316,13 @@ def load_parquet(
     wname = well_for_filename(well)
     m = re.match(r"^([A-Z])(\d{1,2})$", wname)
     wpad = f"{m.group(1)}{int(m.group(2)):02d}" if m else wname
+    # Split the raw well canonically (wname/wpad above are for the TIFF-fallback filename).
+    row, col = split_well(str(well))
     if mode_ == "vacuole":
         candidates = [
+            # HCS nested layout
+            pq_dir / str(plate) / row / col / "phenotype_vacuoles.parquet",
+            # Flat layout
             pq_dir
             / get_filename(
                 {"plate": plate, "well": wname}, "phenotype_vacuoles", "parquet"
@@ -320,6 +334,10 @@ def load_parquet(
         ]
     else:
         candidates = [
+            # HCS nested layout
+            pq_dir / str(plate) / row / col / "phenotype_cp.parquet",
+            pq_dir / str(plate) / row / col / "phenotype_cp_min.parquet",
+            # Flat layout
             pq_dir
             / get_filename({"plate": plate, "well": wname}, "phenotype_cp", "parquet"),
             pq_dir
@@ -345,7 +363,7 @@ def load_parquet(
 
         available_cols = set(pq_reader.ParquetFile(pq).schema.names)
         columns = [c for c in columns if c in available_cols]
-    df = pd.read_parquet(pq, columns=columns)
+    df = read_parquet(pq, columns=columns)
     if cache is not None:
         cache[key] = df
     return df

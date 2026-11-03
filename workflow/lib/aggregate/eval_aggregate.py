@@ -59,7 +59,10 @@ def nas_summary(cell_data, vis_subsample=None):
 
 
 def summarize_cell_data(
-    cell_data: pd.DataFrame, classes: list, collapse_cols: list
+    cell_data: pd.DataFrame,
+    classes: list,
+    collapse_cols: list,
+    class_col: str = "class",
 ) -> pd.DataFrame:
     """Summarizes cell data by counting total cells, class-specific cells, and unique metric values.
 
@@ -67,6 +70,8 @@ def summarize_cell_data(
         cell_data (pd.DataFrame): DataFrame containing cell metadata.
         classes (list): List of class names to filter.
         collapse_cols (list): List of column names to count unique values.
+        class_col (str, optional): Column holding each cell's class, e.g. a per-well
+            annotation column when splitting by annotation. Defaults to "class".
 
     Returns:
         pd.DataFrame: Summary table with stage names and corresponding counts/percentages.
@@ -74,7 +79,7 @@ def summarize_cell_data(
     counts = [("Raw Data", len(cell_data))]
 
     for class_name in classes:
-        class_subset = cell_data[cell_data["class"] == class_name]
+        class_subset = cell_data[cell_data[class_col] == class_name]
         counts.append((f"{class_name} cells", len(class_subset)))
 
         for col in collapse_cols or []:

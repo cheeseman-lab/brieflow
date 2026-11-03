@@ -1,11 +1,12 @@
-from tifffile import imread
 import pandas as pd
+
+from lib.shared.image_io import read_image
 
 from lib.phenotype.extract_phenotype_second_objs import extract_phenotype_second_objs
 
 # Load inputs
-data_phenotype = imread(snakemake.input[0])
-second_obj_masks = imread(snakemake.input[1])
+data_phenotype = read_image(snakemake.input[0])
+second_obj_masks = read_image(snakemake.input[1])
 
 # Load only the second_obj_cell_mapping table from the combined dataframe
 combined_df = pd.read_csv(snakemake.input[2], sep="\t")
@@ -31,11 +32,16 @@ cell_summary_cols = [
 columns_to_drop = ["table_type"] + cell_summary_cols
 second_obj_cell_mapping_df = second_obj_cell_mapping_df.drop(columns=columns_to_drop)
 
+# Build wildcards dict, synthesizing 'well' from 'row'+'col' in zarr mode
+wc = dict(snakemake.wildcards)
+if "row" in wc and "col" in wc and "well" not in wc:
+    wc["well"] = wc["row"] + wc["col"]
+
 # Extract secondary object phenotype features
 second_obj_phenotype = extract_phenotype_second_objs(
     data_phenotype=data_phenotype,
     second_objs=second_obj_masks,
-    wildcards=snakemake.wildcards,
+    wildcards=wc,
     second_obj_cell_mapping_df=second_obj_cell_mapping_df,
     foci_channel=snakemake.params.foci_channel_index,
     channel_names=snakemake.params.channel_names,

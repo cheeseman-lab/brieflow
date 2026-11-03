@@ -39,6 +39,8 @@ _MSIGDB_CP_COLLECTION_BY_SPECIES = {
 
 import pandas as pd
 
+from lib.aggregate.cell_data_utils import control_mask
+
 
 def generate_string_pair_benchmark(
     aggregated_data, uniprot_data, gene_col="gene_symbol_0", species_id="9606"
@@ -413,17 +415,16 @@ def filter_complexes(
         group_df (pd.DataFrame): DataFrame with columns ['gene_name', 'group'].
         cluster_df (pd.DataFrame): DataFrame with perturbation data.
         perturbation_col_name (str): Column name for gene identifiers.
-        control_key (str, optional): Prefix for control perturbations to filter out.
+        control_key (str | list, optional): Substring, or list of exact names, marking controls.
 
     Returns:
         pd.DataFrame: Filtered group DataFrame.
     """
     # Generate the screening gene list directly from the cluster_df
-    gene_list = [
-        gene
-        for gene in cluster_df[perturbation_col_name].unique()
-        if control_key is None or control_key not in gene
-    ]
+    genes = cluster_df[perturbation_col_name].drop_duplicates()
+    if control_key is not None:
+        genes = genes[~control_mask(genes, control_key)]
+    gene_list = genes.tolist()
 
     # 1. Build a dictionary: complex -> set of genes
     complex_to_genes = group_df.groupby("group")["gene_name"].apply(set).to_dict()

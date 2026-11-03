@@ -1,10 +1,14 @@
 import pandas as pd
-from tifffile import imread, imwrite
 
 from lib.sbs.align_cycles import align_cycles
+from lib.shared.image_io import read_image, save_image
 
-# load image data
-image_data = [imread(file_path) for file_path in snakemake.input]
+# Validate required params
+if getattr(snakemake.params, "channel_names", None) is None:
+    raise ValueError("Required config parameter 'channel_names' is not set")
+
+# Load image data
+image_data = [read_image(file_path) for file_path in snakemake.input]
 
 # align cycles
 aligned_data, metrics = align_cycles(
@@ -19,18 +23,14 @@ aligned_data, metrics = align_cycles(
     return_metrics=True,
 )
 
-# Save the aligned data as a .tiff file
-imwrite(snakemake.output[0], aligned_data)
+# Save the aligned data
+save_image(aligned_data, snakemake.output[0])
 
-# Save alignment metrics to TSV (one row per tile)
+# Save alignment metrics to TSV (one row per tile); synthesize 'well' from 'row'+'col' in zarr mode
+wc = dict(snakemake.wildcards)
+if "row" in wc and "col" in wc and "well" not in wc:
+    wc["well"] = wc["row"] + wc["col"]
 metrics_df = pd.DataFrame(
-    [
-        {
-            "plate": snakemake.wildcards.plate,
-            "well": snakemake.wildcards.well,
-            "tile": snakemake.wildcards.tile,
-            **metrics,
-        }
-    ]
+    [{"plate": wc["plate"], "well": wc["well"], "tile": wc["tile"], **metrics}]
 )
 metrics_df.to_csv(snakemake.output[1], index=False, sep="\t")

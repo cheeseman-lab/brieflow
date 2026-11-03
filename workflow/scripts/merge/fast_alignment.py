@@ -1,5 +1,6 @@
 import pandas as pd
 from lib.shared.file_utils import validate_dtypes
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.merge.hash import (
     hash_cell_locations,
     multistep_alignment,
@@ -12,15 +13,20 @@ from lib.merge.merge_utils import (
     filter_low_score_seeds,
 )
 
+# Validate required params
+for _param_name in ["det_range", "score"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # Load dfs with metadata on well level
-phenotype_metadata = validate_dtypes(pd.read_parquet(snakemake.input[0]))
-sbs_metadata = validate_dtypes(pd.read_parquet(snakemake.input[1]))
+phenotype_metadata = validate_dtypes(read_parquet(snakemake.input[0]))
+sbs_metadata = validate_dtypes(read_parquet(snakemake.input[1]))
 
 # Apply coordinate alignment if transformation parameters are provided
 alignment_params = {
-    "flip_x": getattr(snakemake.params, "alignment_flip_x", False),
-    "flip_y": getattr(snakemake.params, "alignment_flip_y", False),
-    "rotate_90": getattr(snakemake.params, "alignment_rotate_90", False),
+    "flip_x": snakemake.params.alignment_flip_x,
+    "flip_y": snakemake.params.alignment_flip_y,
+    "rotate_90": snakemake.params.alignment_rotate_90,
 }
 
 # metadata_align center-aligns the two scopes' coordinate frames (translation only)
@@ -74,8 +80,8 @@ if not ph_filters:
 
 
 # Load phentoype/sbs info on well level
-phenotype_info = validate_dtypes(pd.read_parquet(snakemake.input[2]))
-sbs_info = validate_dtypes(pd.read_parquet(snakemake.input[3]))
+phenotype_info = validate_dtypes(read_parquet(snakemake.input[2]))
+sbs_info = validate_dtypes(read_parquet(snakemake.input[3]))
 
 # Derive fast alignment per well
 
@@ -94,8 +100,8 @@ sbs_info_hash = validate_dtypes(
 )
 
 # Get initial site configuration - exactly one must be provided
-initial_sbs_tiles = getattr(snakemake.params, "initial_sbs_tiles", None)
-initial_sites_param = getattr(snakemake.params, "initial_sites", None)
+initial_sbs_tiles = snakemake.params.initial_sbs_tiles
+initial_sites_param = snakemake.params.initial_sites
 
 # Validate exactly one is provided
 if (initial_sbs_tiles is None) == (initial_sites_param is None):
@@ -113,14 +119,10 @@ def _drop_none(d):
     return {k: v for k, v in d.items() if v is not None}
 
 
-ransac_kwargs = _drop_none(
-    {"random_state": getattr(snakemake.params, "ransac_random_state", None)}
-)
 evaluate_kwargs = (
     _drop_none(
         {
             "threshold_triangle": getattr(snakemake.params, "threshold_triangle", None),
-            "ransac_kwargs": ransac_kwargs or None,
         }
     )
     or None
@@ -225,4 +227,4 @@ well_alignment["plate"] = snakemake.params.plate
 well_alignment["well"] = snakemake.params.well
 
 # Save alignment data
-well_alignment.to_parquet(snakemake.output[0])
+write_parquet(well_alignment, snakemake.output[0])

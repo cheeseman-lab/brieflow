@@ -4,11 +4,14 @@ import pandas as pd
 import numpy as np
 
 from lib.aggregate.cell_classification import CellClassifier
+from lib.shared.parquet_io import read_parquet, write_parquet
 from lib.aggregate.cell_data_utils import (
     COMPARTMENT_PREFIXES,
     load_metadata_cols,
     split_cell_data,
     channel_combo_subset,
+    parse_channel_combo,
+    join_well_annotations,
     compartment_combo_subset,
 )
 from lib.shared.compartment_utils import add_compartment_metadata
@@ -104,19 +107,29 @@ def apply_confidence_thresholds(metadata, features, thresholds, class_col="class
     return metadata, features
 
 
+# Validate required params
+for _param_name in ["all_channels", "metadata_cols_fp"]:
+    if getattr(snakemake.params, _param_name, None) is None:
+        raise ValueError(f"Required config parameter '{_param_name}' is not set")
+
 # Load merge data
-cell_data = pd.read_parquet(snakemake.input[0])
+cell_data = read_parquet(snakemake.input[0])
 
 # Split data into metadata and features
 metadata_cols = load_metadata_cols(snakemake.params.metadata_cols_fp)
 metadata, features = split_cell_data(cell_data, metadata_cols)
 
+# join per-well annotations before splitting so they are available to split and group
+well_annotations_fp = snakemake.params.well_annotations_fp
+if well_annotations_fp is not None:
+    metadata = join_well_annotations(metadata, well_annotations_fp)
+
 # Classify cells only if classifier path is provided
-classifier_path = snakemake.params.get("classifier_path")
-confidence_thresholds = snakemake.params.get("confidence_thresholds")
-class_title = snakemake.params.get("class_title")  # e.g., "cell_stage"
-class_mapping = snakemake.params.get(
-    "class_mapping"
+classifier_path = snakemake.params.classifier_path
+confidence_thresholds = snakemake.params.confidence_thresholds
+class_title = snakemake.params.class_title  # e.g., "cell_stage"
+class_mapping = (
+    snakemake.params.class_mapping
 )  # e.g., {"label_to_class": {1: "Mitotic", 2: "Interphase"}}
 
 if classifier_path is not None:
@@ -172,11 +185,12 @@ for _, row in unique_specs.iterrows():
         cell_class_metadata = metadata
         cell_class_features = features
     else:
-        cell_class_mask = metadata["class"] == cell_class
+        split_values = metadata[snakemake.params.split_col].astype(str)
+        cell_class_mask = split_values == str(cell_class)
         cell_class_metadata = metadata[cell_class_mask]
         cell_class_features = features[cell_class_mask]
 
-    channel_combo_list = channel_combo.split("_")
+    channel_combo_list = parse_channel_combo(channel_combo, all_channels)
     compartment_combo_list = compartment_combo.split("-")
 
     filtered = channel_combo_subset(
@@ -207,4 +221,4 @@ for _, row in unique_specs.iterrows():
     dataset_fp = next(
         output for output in snakemake.output if Path(output).name == dataset_name
     )
-    cell_class_data.to_parquet(dataset_fp, index=False)
+    write_parquet(cell_class_data, dataset_fp)

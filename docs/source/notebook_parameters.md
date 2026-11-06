@@ -85,7 +85,7 @@ DAPI_CYCLE, CYTO_CYCLE, CYTO_CHANNEL (SBS)
   `sbs.dapi_cycle`, `sbs.cyto_cycle`; `CYTO_CHANNEL` feeds `sbs.cyto_index` · default `None`. Which cycle holds DAPI, and which cycle and channel mark cell boundaries for SBS segmentation. With a cellular stain, set `CYTO_CYCLE` equal to `DAPI_CYCLE`.
 
 SEGMENTATION_METHOD (SBS)
-  `sbs.segmentation_method` · default `"cellpose"`. `"cellpose"`, `"stardist"` or `"watershed"`.
+  `sbs.segmentation_method` · default `"cellpose"`. `"cellpose"`, `"stardist"` or `"watershed"`. `"stardist"` needs the `stardist` extra (see [installation](2.installation_analysis_setup.md)).
 
 SEGMENT_CELLS (SBS)
   `sbs.segment_cells` · default `True`. Segment cell bodies as well as nuclei. Set `False` when barcode spots are nuclear (DNA barcodes), which is faster.
@@ -137,7 +137,7 @@ CYTO_CHANNEL (phenotype)
   Feeds `phenotype.cyto_index` · default `None`. The channel that marks cell boundaries for cell segmentation.
 
 SEGMENTATION_METHOD (phenotype)
-  `phenotype.segmentation_method` · default `"cellpose"`. `"cellpose"` or `"stardist"`.
+  `phenotype.segmentation_method` · default `"cellpose"`. `"cellpose"` or `"stardist"`. `"stardist"` needs the `stardist` extra (see [installation](2.installation_analysis_setup.md)).
 
 SEGMENT_CELLS (phenotype)
   `phenotype.segment_cells` · default `True`. Segment cells as well as nuclei. `False` gives nuclear features only, faster.
@@ -167,7 +167,7 @@ SECOND_OBJ_CHANNEL
   Feeds `phenotype.second_obj_channel_index` · default `None`. The channel carrying the secondary objects.
 
 SECOND_OBJ_METHOD
-  `phenotype.second_obj_method` · default `"threshold"`. `"threshold"`, `"cellpose"` or `"stardist"`, each with its own size filter and method settings in the notebook.
+  `phenotype.second_obj_method` · default `"threshold"`. `"threshold"`, `"cellpose"` or `"stardist"` (needs the `stardist` extra), each with its own size filter and method settings in the notebook.
 ```
 
 ## Merge (`3_merge.py`)

@@ -1,5 +1,8 @@
 """Utility functions for handling files during preprocessing."""
 
+import functools
+import os
+
 import pandas as pd
 from typing import List, Union, Dict, Any
 
@@ -202,6 +205,80 @@ def collect_channel_z_ordered(df, channel_order, z):
     return files
 
 
+class SampleIndex:
+    """A sample table grouped by its filter columns, for repeated lookups.
+
+    The grouping is built once per set of filter columns, so each rule's input lookup
+    reads the few rows of one tile or well instead of filtering the whole table.
+    Lookups return exactly what :func:`get_sample_fps` returns on the full table.
+
+    Args:
+        samples_df (pd.DataFrame): Sample table.
+    """
+
+    KEYS = ("plate", "well", "tile", "cycle", "channel", "z")
+
+    def __init__(self, samples_df: pd.DataFrame):
+        """Store the table; groupings are built on first use."""
+        self.samples_df = samples_df
+        self._groups = {}
+
+    @property
+    def empty(self) -> bool:
+        """Whether the table has no rows."""
+        return self.samples_df.empty
+
+    @property
+    def columns(self):
+        """Columns of the table."""
+        return self.samples_df.columns
+
+    def subset(self, **filters) -> pd.DataFrame:
+        """Rows matching every filter in ``KEYS`` that is not None, in table order.
+
+        Args:
+            **filters: Column values to match, compared as strings; other keys are ignored.
+
+        Returns:
+            pd.DataFrame: Matching rows.
+        """
+        keys = tuple(
+            k
+            for k in self.KEYS
+            if filters.get(k) is not None and k in self.samples_df.columns
+        )
+        if not keys:
+            return self.samples_df
+        if keys not in self._groups:
+            df = self.samples_df
+            self._groups[keys] = {
+                key if isinstance(key, tuple) else (key,): group
+                for key, group in df.groupby(
+                    [df[k].astype(str) for k in keys], sort=False
+                )
+            }
+        value = tuple(str(filters[k]) for k in keys)
+        return self._groups[keys].get(value, self.samples_df.iloc[0:0])
+
+    def get_sample_fps(self, **kwargs) -> Union[str, List[str]]:
+        """:func:`get_sample_fps` on the rows matching the plain filters.
+
+        Args:
+            **kwargs: Arguments of :func:`get_sample_fps` other than the table.
+
+        Returns:
+            Union[str, List[str]]: Same as :func:`get_sample_fps` on the full table.
+        """
+        subset = self.subset(**kwargs)
+        # The subset already matches these filters; z also selects how planes are returned
+        applied = {
+            k: None
+            for k in ("plate", "well", "tile", "cycle", "channel")
+            if k in subset.columns
+        }
+        return get_sample_fps(subset, **{**kwargs, **applied})
+
+
 def get_metadata_wildcard_combos(
     samples_df: pd.DataFrame, metadata_samples_df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -228,6 +305,130 @@ def get_metadata_wildcard_combos(
         return pd.DataFrame()
 
 
+def metadata_from_convert(
+    image_type: str,
+    config: Dict[str, Any],
+    metadata_wildcard_combos: pd.DataFrame,
+    metadata_samples_df: pd.DataFrame,
+) -> bool:
+    """Whether each convert job also writes its tile's metadata table.
+
+    Holds for tile-organized ND2 and IMS inputs read from their image headers whose
+    metadata jobs map one to one onto convert jobs (no channel, z or round split), so
+    the metadata comes from the same raw files in the same job instead of opening
+    each file a second time.
+
+    Args:
+        image_type (str): 'sbs' or 'phenotype'.
+        config (Dict[str, Any]): Configuration dictionary.
+        metadata_wildcard_combos (pd.DataFrame): Wildcard combinations of the metadata jobs.
+        metadata_samples_df (pd.DataFrame): External metadata files, empty when none are used.
+
+    Returns:
+        bool: True when the convert rule writes the per-tile metadata table.
+    """
+    from lib.preprocess.preprocess import get_data_config
+
+    data_config = get_data_config(image_type, config)
+    convert_keys = {"plate", "well", "tile"} | (
+        {"cycle"} if image_type == "sbs" else set()
+    )
+    metadata_keys = set(metadata_wildcard_combos.columns) - {"row", "col"}
+    return (
+        data_config["data_format"] in ("nd2", "ims")
+        and data_config["image_data_organization"] == "tile"
+        and metadata_samples_df.empty
+        and metadata_keys == convert_keys
+    )
+
+
+def get_convert_mem_mb(input_mb: float, tiles_per_file: int = 1) -> int:
+    """Memory for one convert or metadata job: 1 GB plus three times one tile's raw size.
+
+    Args:
+        input_mb (float): Size of the job's input files in megabytes.
+        tiles_per_file (int, optional): Tiles each input file holds (a well-organized
+            job reads one tile of a whole-well file). Defaults to 1.
+
+    Returns:
+        int: Memory request in megabytes.
+    """
+    return int(1000 + 3 * input_mb / max(1, tiles_per_file))
+
+
+def get_ic_mem_mb(n_tiles: int, sample_fraction: float, tile_mb: float) -> int:
+    """Memory for one IC field job, scaled to the number of tiles it reads.
+
+    Peak memory measured at about five times the raw size of the tiles read; the
+    request uses six times plus 2 GB.
+
+    Args:
+        n_tiles (int): Converted tiles in the job's input.
+        sample_fraction (float): Fraction of tiles the IC field samples.
+        tile_mb (float): Raw size of one tile in megabytes.
+
+    Returns:
+        int: Memory request in megabytes.
+    """
+    n_read = max(1, int(n_tiles * sample_fraction)) if sample_fraction < 1 else n_tiles
+    return int(2000 + 6 * n_read * tile_mb)
+
+
+def estimate_tile_mb(well_samples_df: pd.DataFrame, tile_organized: bool) -> float:
+    """Raw size of one tile in megabytes, from the sample rows of one well (and cycle).
+
+    Tile-organized inputs measure the files of the first tile only; well-organized
+    inputs divide the well files' size by the positions of the first file, read from
+    its header. Unreadable files count as zero.
+
+    Args:
+        well_samples_df (pd.DataFrame): Sample rows of one well (and cycle).
+        tile_organized (bool): Whether each tile has its own files.
+
+    Returns:
+        float: Megabytes per tile.
+    """
+    if well_samples_df.empty:
+        return 0.0
+    if tile_organized and "tile" in well_samples_df.columns:
+        tiles = well_samples_df["tile"].astype(str)
+        well_samples_df = well_samples_df[tiles == tiles.iloc[0]]
+    fps = well_samples_df["sample_fp"].unique()
+    size = 0
+    for fp in fps:
+        try:
+            size += os.path.getsize(fp)
+        except OSError:
+            pass
+    return size / 1e6 / get_tiles_per_file(fps[0], tile_organized)
+
+
+@functools.lru_cache(maxsize=None)
+def get_tiles_per_file(sample_fp: str, tile_organized: bool) -> int:
+    """Number of tiles one raw file holds: 1 when tile-organized, else its ND2 positions.
+
+    Reads only the ND2 header, once per file; callers pass one file per well, since a
+    well's files share its positions. An unreadable header counts as 1 tile.
+
+    Args:
+        sample_fp (str): Raw image file.
+        tile_organized (bool): Whether each tile has its own files.
+
+    Returns:
+        int: Tiles in the file.
+    """
+    if tile_organized:
+        return 1
+    try:
+        import nd2
+        from lib.preprocess.preprocess import nd2_position_count
+
+        with nd2.ND2File(str(sample_fp)) as nd2_file:
+            return max(1, nd2_position_count(nd2_file))
+    except Exception:
+        return 1
+
+
 def get_output_pattern(wildcard_combos: pd.DataFrame) -> Dict[str, str]:
     """Get output pattern from wildcard combinations.
 
@@ -245,8 +446,8 @@ def get_output_pattern(wildcard_combos: pd.DataFrame) -> Dict[str, str]:
 def get_inputs_for_metadata_extraction(
     image_type: str,
     config: Dict[str, Any],
-    samples_df: pd.DataFrame,
-    metadata_samples_df: pd.DataFrame,
+    samples: "SampleIndex",
+    metadata_samples: "SampleIndex",
     wildcards,
 ) -> Dict[str, List[str]]:
     """Get appropriate inputs for metadata extraction rules.
@@ -254,8 +455,8 @@ def get_inputs_for_metadata_extraction(
     Args:
         image_type (str): 'sbs' or 'phenotype'
         config (Dict[str, Any]): Configuration dictionary
-        samples_df (pd.DataFrame): DataFrame with image file paths
-        metadata_samples_df (pd.DataFrame): DataFrame with metadata file paths
+        samples (SampleIndex): Index of the image file table
+        metadata_samples (SampleIndex): Index of the metadata file table
         wildcards: Snakemake wildcards object
 
     Returns:
@@ -285,14 +486,12 @@ def get_inputs_for_metadata_extraction(
 
     inputs = {"samples": [], "metadata": []}
 
-    if not metadata_samples_df.empty:
+    if not metadata_samples.empty:
         # Use external metadata files - no need for sample files
         metadata_filter_args = {
-            k: v for k, v in filter_args.items() if k in metadata_samples_df.columns
+            k: v for k, v in filter_args.items() if k in metadata_samples.columns
         }
-        inputs["metadata"] = [
-            get_sample_fps(metadata_samples_df, **metadata_filter_args)
-        ]
+        inputs["metadata"] = [metadata_samples.get_sample_fps(**metadata_filter_args)]
     else:
         # Extract from image files - no metadata files needed
         sample_filter_args = filter_args.copy()
@@ -306,7 +505,7 @@ def get_inputs_for_metadata_extraction(
                 f"{image_type}_channel_order"
             ]
 
-        inputs["samples"] = get_sample_fps(samples_df, **sample_filter_args)
+        inputs["samples"] = samples.get_sample_fps(**sample_filter_args)
         if isinstance(inputs["samples"], str):
             inputs["samples"] = [inputs["samples"]]
 

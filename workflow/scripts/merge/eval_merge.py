@@ -19,6 +19,7 @@ from lib.shared.file_utils import validate_dtypes
 from lib.shared.parquet_io import read_parquet, read_parquets, write_parquet
 from lib.merge.format_merge import identify_single_gene_mappings
 from lib.merge.eval_merge import plot_sbs_ph_matching_heatmap, plot_cell_positions
+from lib.shared.eval import save_figure
 
 # Load deduplicated merge data for summary statistics
 merge_deduplicated = validate_dtypes(
@@ -142,11 +143,10 @@ sbs_summary, fig = plot_sbs_ph_matching_heatmap(
     return_summary=True,
 )
 sbs_summary.to_csv(snakemake.output.sbs_to_ph_matching_rates_tsv, sep="\t", index=False)
-fig.savefig(
+save_figure(
+    fig,
     snakemake.output.sbs_to_ph_matching_rates_png,
-    dpi=300,
-    bbox_inches="tight",
-    transparent=True,
+    transparent=snakemake.params.transparent_figures,
 )
 
 # Eval phenotype matching rates (use phenotype_info - all segmented cells that went into merge)
@@ -160,31 +160,28 @@ ph_summary, fig = plot_sbs_ph_matching_heatmap(
     return_summary=True,
 )
 ph_summary.to_csv(snakemake.output.ph_to_sbs_matching_rates_tsv, sep="\t", index=False)
-fig.savefig(
+save_figure(
+    fig,
     snakemake.output.ph_to_sbs_matching_rates_png,
-    dpi=300,
-    bbox_inches="tight",
-    transparent=True,
+    transparent=snakemake.params.transparent_figures,
 )
 
 # Evaluate all formatted merge data
 fig = plot_cell_positions(merge_deduplicated, title="All Cells by Channel Min")
-fig.savefig(
+save_figure(
+    fig,
     snakemake.output.all_cells_by_channel_min,
-    dpi=300,
-    bbox_inches="tight",
-    transparent=True,
+    transparent=snakemake.params.transparent_figures,
 )
 fig = plot_cell_positions(
     merge_deduplicated.query("channels_min==0"),
     title="Cells with Channel Min = 0",
     color="red",
 )
-fig.savefig(
+save_figure(
+    fig,
     snakemake.output.cells_with_channel_min_0,
-    dpi=300,
-    bbox_inches="tight",
-    transparent=True,
+    transparent=snakemake.params.transparent_figures,
 )
 
 # Aggregate dedup stats across all wells (already loaded above)

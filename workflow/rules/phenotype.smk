@@ -230,6 +230,8 @@ rule eval_segmentation_phenotype:
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_segmentation_phenotype"],
+    params:
+        transparent_figures=config.get("all", {}).get("transparent_figures", False),
     script:
         "../scripts/shared/eval_segmentation.py"
 
@@ -252,6 +254,8 @@ rule eval_features:
         ),
     output:
         PHENOTYPE_OUTPUTS_MAPPED["eval_features"],
+    params:
+        transparent_figures=config.get("all", {}).get("transparent_figures", False),
     script:
         "../scripts/phenotype/eval_features.py"
 

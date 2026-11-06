@@ -205,6 +205,80 @@ def collect_channel_z_ordered(df, channel_order, z):
     return files
 
 
+class SampleIndex:
+    """A sample table grouped by its filter columns, for repeated lookups.
+
+    The grouping is built once per set of filter columns, so each rule's input lookup
+    reads the few rows of one tile or well instead of filtering the whole table.
+    Lookups return exactly what :func:`get_sample_fps` returns on the full table.
+
+    Args:
+        samples_df (pd.DataFrame): Sample table.
+    """
+
+    KEYS = ("plate", "well", "tile", "cycle", "channel", "z")
+
+    def __init__(self, samples_df: pd.DataFrame):
+        """Store the table; groupings are built on first use."""
+        self.samples_df = samples_df
+        self._groups = {}
+
+    @property
+    def empty(self) -> bool:
+        """Whether the table has no rows."""
+        return self.samples_df.empty
+
+    @property
+    def columns(self):
+        """Columns of the table."""
+        return self.samples_df.columns
+
+    def subset(self, **filters) -> pd.DataFrame:
+        """Rows matching every filter in ``KEYS`` that is not None, in table order.
+
+        Args:
+            **filters: Column values to match, compared as strings; other keys are ignored.
+
+        Returns:
+            pd.DataFrame: Matching rows.
+        """
+        keys = tuple(
+            k
+            for k in self.KEYS
+            if filters.get(k) is not None and k in self.samples_df.columns
+        )
+        if not keys:
+            return self.samples_df
+        if keys not in self._groups:
+            df = self.samples_df
+            self._groups[keys] = {
+                key if isinstance(key, tuple) else (key,): group
+                for key, group in df.groupby(
+                    [df[k].astype(str) for k in keys], sort=False
+                )
+            }
+        value = tuple(str(filters[k]) for k in keys)
+        return self._groups[keys].get(value, self.samples_df.iloc[0:0])
+
+    def get_sample_fps(self, **kwargs) -> Union[str, List[str]]:
+        """:func:`get_sample_fps` on the rows matching the plain filters.
+
+        Args:
+            **kwargs: Arguments of :func:`get_sample_fps` other than the table.
+
+        Returns:
+            Union[str, List[str]]: Same as :func:`get_sample_fps` on the full table.
+        """
+        subset = self.subset(**kwargs)
+        # The subset already matches these filters; z also selects how planes are returned
+        applied = {
+            k: None
+            for k in ("plate", "well", "tile", "cycle", "channel")
+            if k in subset.columns
+        }
+        return get_sample_fps(subset, **{**kwargs, **applied})
+
+
 def get_metadata_wildcard_combos(
     samples_df: pd.DataFrame, metadata_samples_df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -266,23 +340,6 @@ def metadata_from_convert(
         and metadata_samples_df.empty
         and metadata_keys == convert_keys
     )
-
-
-def select_samples(samples_df: pd.DataFrame, **filters) -> pd.DataFrame:
-    """Rows of a sample table matching every filter that is not None.
-
-    Args:
-        samples_df (pd.DataFrame): Sample table.
-        **filters: Column values to match, compared as strings.
-
-    Returns:
-        pd.DataFrame: Matching rows, in table order.
-    """
-    mask = pd.Series(True, index=samples_df.index)
-    for column, value in filters.items():
-        if value is not None and column in samples_df.columns:
-            mask &= samples_df[column].astype(str) == str(value)
-    return samples_df[mask]
 
 
 def get_convert_mem_mb(input_mb: float, tiles_per_file: int = 1) -> int:
@@ -389,8 +446,8 @@ def get_output_pattern(wildcard_combos: pd.DataFrame) -> Dict[str, str]:
 def get_inputs_for_metadata_extraction(
     image_type: str,
     config: Dict[str, Any],
-    samples_df: pd.DataFrame,
-    metadata_samples_df: pd.DataFrame,
+    samples: "SampleIndex",
+    metadata_samples: "SampleIndex",
     wildcards,
 ) -> Dict[str, List[str]]:
     """Get appropriate inputs for metadata extraction rules.
@@ -398,8 +455,8 @@ def get_inputs_for_metadata_extraction(
     Args:
         image_type (str): 'sbs' or 'phenotype'
         config (Dict[str, Any]): Configuration dictionary
-        samples_df (pd.DataFrame): DataFrame with image file paths
-        metadata_samples_df (pd.DataFrame): DataFrame with metadata file paths
+        samples (SampleIndex): Index of the image file table
+        metadata_samples (SampleIndex): Index of the metadata file table
         wildcards: Snakemake wildcards object
 
     Returns:
@@ -429,14 +486,12 @@ def get_inputs_for_metadata_extraction(
 
     inputs = {"samples": [], "metadata": []}
 
-    if not metadata_samples_df.empty:
+    if not metadata_samples.empty:
         # Use external metadata files - no need for sample files
         metadata_filter_args = {
-            k: v for k, v in filter_args.items() if k in metadata_samples_df.columns
+            k: v for k, v in filter_args.items() if k in metadata_samples.columns
         }
-        inputs["metadata"] = [
-            get_sample_fps(metadata_samples_df, **metadata_filter_args)
-        ]
+        inputs["metadata"] = [metadata_samples.get_sample_fps(**metadata_filter_args)]
     else:
         # Extract from image files - no metadata files needed
         sample_filter_args = filter_args.copy()
@@ -450,7 +505,7 @@ def get_inputs_for_metadata_extraction(
                 f"{image_type}_channel_order"
             ]
 
-        inputs["samples"] = get_sample_fps(samples_df, **sample_filter_args)
+        inputs["samples"] = samples.get_sample_fps(**sample_filter_args)
         if isinstance(inputs["samples"], str):
             inputs["samples"] = [inputs["samples"]]
 

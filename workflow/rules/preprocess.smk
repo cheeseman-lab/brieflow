@@ -1,8 +1,7 @@
 from lib.preprocess.file_utils import (
-    get_sample_fps,
+    SampleIndex,
     get_inputs_for_metadata_extraction,
     metadata_from_convert,
-    select_samples,
     get_convert_mem_mb,
     get_ic_mem_mb,
     estimate_tile_mb,
@@ -10,6 +9,12 @@ from lib.preprocess.file_utils import (
 )
 from lib.preprocess.preprocess import get_data_config, include_tile_in_input, get_expansion_values
 from lib.shared.target_utils import output_to_input
+
+# Sample tables indexed once, so input lookups never rescan them
+sbs_sample_index = SampleIndex(sbs_samples_df)
+phenotype_sample_index = SampleIndex(phenotype_samples_df)
+sbs_metadata_sample_index = SampleIndex(sbs_metadata_samples_df)
+phenotype_metadata_sample_index = SampleIndex(phenotype_metadata_samples_df)
 
 # Tile-organized header formats write each tile's metadata in its convert job
 SBS_METADATA_IN_CONVERT = metadata_from_convert(
@@ -28,7 +33,7 @@ if not SBS_METADATA_IN_CONVERT:
     rule extract_metadata_sbs:
         input:
             unpack(lambda wildcards: get_inputs_for_metadata_extraction(
-                "sbs", config, sbs_samples_df, sbs_metadata_samples_df, wildcards
+                "sbs", config, sbs_sample_index, sbs_metadata_sample_index, wildcards
             ))
         output:
             PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
@@ -41,7 +46,7 @@ if not SBS_METADATA_IN_CONVERT:
             mem_mb=lambda wildcards, input: get_convert_mem_mb(
                 input.size_mb,
                 get_tiles_per_file(
-                    select_samples(sbs_samples_df, plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
+                    sbs_sample_index.subset(plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
                     include_tile_in_input("sbs", config),
                 ),
             ),
@@ -75,7 +80,7 @@ if not PHENOTYPE_METADATA_IN_CONVERT:
     rule extract_metadata_phenotype:
         input:
             unpack(lambda wildcards: get_inputs_for_metadata_extraction(
-                "phenotype", config, phenotype_samples_df, phenotype_metadata_samples_df, wildcards
+                "phenotype", config, phenotype_sample_index, phenotype_metadata_sample_index, wildcards
             ))
         output:
             PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
@@ -88,7 +93,7 @@ if not PHENOTYPE_METADATA_IN_CONVERT:
             mem_mb=lambda wildcards, input: get_convert_mem_mb(
                 input.size_mb,
                 get_tiles_per_file(
-                    select_samples(phenotype_samples_df, plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
+                    phenotype_sample_index.subset(plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
                     include_tile_in_input("phenotype", config),
                 ),
             ),
@@ -119,8 +124,7 @@ rule combine_metadata_phenotype:
 # Convert SBS image files to the configured format
 rule convert_sbs:
     input:
-        lambda wildcards: get_sample_fps(
-            sbs_samples_df,
+        lambda wildcards: sbs_sample_index.get_sample_fps(
             plate=wildcards.plate,
             well=_get_well(wildcards),
             cycle=wildcards.cycle,
@@ -140,7 +144,7 @@ rule convert_sbs:
         mem_mb=lambda wildcards, input: get_convert_mem_mb(
             input.size_mb,
             get_tiles_per_file(
-                select_samples(sbs_samples_df, plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
+                sbs_sample_index.subset(plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
                 include_tile_in_input("sbs", config),
             ),
         ),
@@ -153,8 +157,7 @@ rule convert_sbs:
 # Convert phenotype image files to the configured format
 rule convert_phenotype:
     input:
-        lambda wildcards: get_sample_fps(
-            phenotype_samples_df,
+        lambda wildcards: phenotype_sample_index.get_sample_fps(
             plate=wildcards.plate,
             well=_get_well(wildcards),
             tile=wildcards.tile if include_tile_in_input("phenotype", config) else None,
@@ -173,7 +176,7 @@ rule convert_phenotype:
         mem_mb=lambda wildcards, input: get_convert_mem_mb(
             input.size_mb,
             get_tiles_per_file(
-                select_samples(phenotype_samples_df, plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
+                phenotype_sample_index.subset(plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
                 include_tile_in_input("phenotype", config),
             ),
         ),
@@ -202,7 +205,7 @@ rule calculate_ic_sbs:
             len(input),
             SAMPLE_FRACTION,
             estimate_tile_mb(
-                select_samples(sbs_samples_df, plate=wildcards.plate, well=_get_well(wildcards), cycle=wildcards.cycle),
+                sbs_sample_index.subset(plate=wildcards.plate, well=_get_well(wildcards), cycle=wildcards.cycle),
                 include_tile_in_input("sbs", config),
             ),
         ),
@@ -229,7 +232,7 @@ rule calculate_ic_phenotype:
             len(input),
             SAMPLE_FRACTION,
             estimate_tile_mb(
-                select_samples(phenotype_samples_df, plate=wildcards.plate, well=_get_well(wildcards)),
+                phenotype_sample_index.subset(plate=wildcards.plate, well=_get_well(wildcards)),
                 include_tile_in_input("phenotype", config),
             ),
         ),

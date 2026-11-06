@@ -1,4 +1,9 @@
-from lib.preprocess.file_utils import get_sample_fps, get_inputs_for_metadata_extraction
+from lib.preprocess.file_utils import (
+    get_first_tile_inputs,
+    get_inputs_for_metadata_extraction,
+    get_sample_fps,
+    get_well_tiles_and_cycles,
+)
 from lib.preprocess.preprocess import get_data_config, include_tile_in_input, get_expansion_values
 from lib.shared.target_utils import output_to_input
 
@@ -71,10 +76,39 @@ rule combine_metadata_phenotype:
         "../scripts/preprocess/combine_metadata.py"
 
 
+# Create the per-tile SBS images (cycles on C) of one well before its cycles are converted (zarr only)
+if IMG_FMT == "zarr":
+
+    rule create_sbs_image:
+        input:
+            unpack(
+                lambda wildcards: get_first_tile_inputs(
+                    sbs_samples_df, sbs_wildcard_combos, wildcards, config
+                )
+            ),
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["create_sbs_image"],
+        params:
+            tile=lambda wildcards: int(
+                get_well_tiles_and_cycles(sbs_wildcard_combos, wildcards)[0][0]
+            ),
+            cycles=lambda wildcards: get_well_tiles_and_cycles(
+                sbs_wildcard_combos, wildcards
+            )[1],
+            image_paths=lambda wildcards: [
+                PREPROCESS_SBS_IMAGE.format(
+                    plate=wildcards.plate, row=wildcards.row, col=wildcards.col, tile=tile
+                )
+                for tile in get_well_tiles_and_cycles(sbs_wildcard_combos, wildcards)[0]
+            ],
+        script:
+            "../scripts/preprocess/create_sbs_image.py"
+
+
 # Convert SBS image files to the configured format
 rule convert_sbs:
     input:
-        lambda wildcards: get_sample_fps(
+        images=lambda wildcards: get_sample_fps(
             sbs_samples_df,
             plate=wildcards.plate,
             well=_get_well(wildcards),
@@ -82,10 +116,22 @@ rule convert_sbs:
             tile=wildcards.tile if include_tile_in_input("sbs", config) else None,
             channel_order=config.get("preprocess", {}).get("sbs_channel_order"),
         ),
+        created=lambda wildcards: (
+            output_to_input(PREPROCESS_OUTPUTS["create_sbs_image"], wildcards=wildcards)
+            if IMG_FMT == "zarr"
+            else []
+        ),
     output:
         PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
     params:
         tile=lambda wildcards: int(wildcards.tile),
+        image_path=lambda wildcards: (
+            PREPROCESS_SBS_IMAGE.format(
+                plate=wildcards.plate, row=wildcards.row, col=wildcards.col, tile=wildcards.tile
+            )
+            if IMG_FMT == "zarr"
+            else None
+        ),
     script:
         "../scripts/preprocess/convert_image.py"
 
@@ -121,6 +167,17 @@ rule calculate_ic_sbs:
     params:
         threading=True,
         sample_fraction=config.get("preprocess", {}).get("sample_fraction", 1),
+        image_paths=lambda wildcards: (
+            output_to_input(
+                PREPROCESS_SBS_IMAGE,
+                wildcards=wildcards,
+                expansion_values=["tile"],
+                metadata_combos=sbs_wildcard_combos,
+            )
+            if IMG_FMT == "zarr"
+            else None
+        ),
+        cycle=lambda wildcards: wildcards.cycle if IMG_FMT == "zarr" else None,
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 

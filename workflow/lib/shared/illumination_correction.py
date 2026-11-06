@@ -26,6 +26,7 @@ def calculate_ic_field(
     slicer: slice = slice(None),
     sample_fraction: float = 1.0,
     n_jobs: int = 1,
+    cycle=None,
 ) -> np.ndarray:
     """Calculate illumination correction field for use with the apply_ic_field.
 
@@ -48,6 +49,8 @@ def calculate_ic_field(
             median filter. 1 (default) = serial; -1 uses all allocated CPUs. Bit-identical
             either way (read order and float summation order are preserved), and memory
             stays bounded by the 16-file read batch.
+        cycle (optional): Read this cycle from each file, for images that stack
+            sequencing cycles (see ``read_image``). Defaults to None (whole image).
 
     Returns:
         np.ndarray: The calculated illumination correction field.
@@ -60,7 +63,7 @@ def calculate_ic_field(
         files = random.Random(0).sample(files, sample_size)
 
     # Initialize data variable
-    data = read_image(files[0])[slicer] / len(files)
+    data = read_image(files[0], cycle=cycle)[slicer] / len(files)
 
     # Accumulate images using threading or sequential processing, averaging them
     if threading:
@@ -68,7 +71,7 @@ def calculate_ic_field(
         N = len(files)
         rest = files[1:]
         batch = 16
-        read_frame = lambda f: read_image(f)[slicer]
+        read_frame = lambda f: read_image(f, cycle=cycle)[slicer]
         for i in range(0, len(rest), batch):
             imgs = Parallel(n_jobs=n_jobs, backend="threading")(
                 delayed(read_frame)(f) for f in rest[i : i + batch]
@@ -77,7 +80,7 @@ def calculate_ic_field(
                 data += img / N
     else:
         for file in files[1:]:
-            data = accumulate_image(file, slicer, data, len(files))
+            data = accumulate_image(file, slicer, data, len(files), cycle=cycle)
 
     # Squeeze and convert data to uint16 (remove any dimensions of size 1)
     data = np.squeeze(data.astype(np.uint16))
@@ -193,7 +196,9 @@ def applyIJ_parallel(f, arr, n_jobs=-2, backend="threading", *args, **kwargs):
     return np.array(arr_).reshape(output_shape)
 
 
-def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.ndarray:
+def accumulate_image(
+    file: str, slicer: slice, data: np.ndarray, N: int, cycle=None
+) -> np.ndarray:
     """Accumulates an image's contribution by adding a sliced version of it to the provided data array.
 
     Args:
@@ -201,11 +206,12 @@ def accumulate_image(file: str, slicer: slice, data: np.ndarray, N: int) -> np.n
         slicer (slice): Slice object to select specific parts of the image.
         data (np.ndarray): The numpy array where the accumulated image data is stored.
         N (int): The number of files, used to average the data by dividing each image.
+        cycle (optional): Cycle to read from a cycle-stacked image. Defaults to None.
 
     Returns:
         np.ndarray: Updated image data with the new image accumulated.
     """
-    data += read_image(file)[slicer] / N
+    data += read_image(file, cycle=cycle)[slicer] / N
     return data
 
 

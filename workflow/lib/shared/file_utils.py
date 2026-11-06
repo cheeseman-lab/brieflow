@@ -72,8 +72,7 @@ def get_hcs_nested_path(
     Label stores:  ``aligned_{plate}.zarr/{row}/{col}/{tile}/{subdirectory}/{info_type}.zarr``
 
     Args:
-        data_location: Dict with ``plate``, ``row``, ``col``, ``tile``
-            (and optionally ``cycle``) keys.
+        data_location: Dict with ``plate``, ``row``, ``col`` and ``tile`` keys.
         info_type: Image name (e.g. ``"aligned"``, ``"nuclei"``).
         file_type: File extension (default ``"zarr"``).
         subdirectory: If set (e.g. ``"labels"``), nests inside the aligned
@@ -92,8 +91,6 @@ def get_hcs_nested_path(
         # No .zarr suffix on sub-groups — they're already inside a .zarr store.
         # e.g. aligned_1.zarr/A/1/0/labels/nuclei
         parts = [f"aligned_{plate}.{file_type}", row, col, tile]
-        if "cycle" in data_location:
-            parts.append(str(data_location["cycle"]))
         parts.extend([subdirectory, info_type])
         return str(Path(*parts))
 
@@ -101,8 +98,6 @@ def get_hcs_nested_path(
     # triggering Snakemake ChildIOException.
     # e.g. aligned_1.zarr/A/1/0/zarr.json
     parts = [f"{info_type}_{plate}.{file_type}", row, col, tile]
-    if "cycle" in data_location:
-        parts.append(str(data_location["cycle"]))
     parts.append("zarr.json")
     return str(Path(*parts))
 

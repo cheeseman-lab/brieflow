@@ -228,6 +228,43 @@ def get_metadata_wildcard_combos(
         return pd.DataFrame()
 
 
+def metadata_from_convert(
+    image_type: str,
+    config: Dict[str, Any],
+    metadata_wildcard_combos: pd.DataFrame,
+    metadata_samples_df: pd.DataFrame,
+) -> bool:
+    """Whether each convert job also writes its tile's metadata table.
+
+    Holds for tile-organized ND2 and IMS inputs read from their image headers whose
+    metadata jobs map one to one onto convert jobs (no channel, z or round split), so
+    the metadata comes from the same raw files in the same job instead of opening
+    each file a second time.
+
+    Args:
+        image_type (str): 'sbs' or 'phenotype'.
+        config (Dict[str, Any]): Configuration dictionary.
+        metadata_wildcard_combos (pd.DataFrame): Wildcard combinations of the metadata jobs.
+        metadata_samples_df (pd.DataFrame): External metadata files, empty when none are used.
+
+    Returns:
+        bool: True when the convert rule writes the per-tile metadata table.
+    """
+    from lib.preprocess.preprocess import get_data_config
+
+    data_config = get_data_config(image_type, config)
+    convert_keys = {"plate", "well", "tile"} | (
+        {"cycle"} if image_type == "sbs" else set()
+    )
+    metadata_keys = set(metadata_wildcard_combos.columns) - {"row", "col"}
+    return (
+        data_config["data_format"] in ("nd2", "ims")
+        and data_config["image_data_organization"] == "tile"
+        and metadata_samples_df.empty
+        and metadata_keys == convert_keys
+    )
+
+
 def get_output_pattern(wildcard_combos: pd.DataFrame) -> Dict[str, str]:
     """Get output pattern from wildcard combinations.
 

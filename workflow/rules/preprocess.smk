@@ -1,23 +1,37 @@
-from lib.preprocess.file_utils import get_sample_fps, get_inputs_for_metadata_extraction
+from lib.preprocess.file_utils import (
+    get_sample_fps,
+    get_inputs_for_metadata_extraction,
+    metadata_from_convert,
+)
 from lib.preprocess.preprocess import get_data_config, include_tile_in_input, get_expansion_values
 from lib.shared.target_utils import output_to_input
 
+# Tile-organized header formats write each tile's metadata in its convert job
+SBS_METADATA_IN_CONVERT = metadata_from_convert(
+    "sbs", config, sbs_metadata_wildcard_combos, sbs_metadata_samples_df
+)
+PHENOTYPE_METADATA_IN_CONVERT = metadata_from_convert(
+    "phenotype", config, phenotype_metadata_wildcard_combos, phenotype_metadata_samples_df
+)
+
 
 # Extract metadata for SBS images
-rule extract_metadata_sbs:
-    input:
-        unpack(lambda wildcards: get_inputs_for_metadata_extraction(
-            "sbs", config, sbs_samples_df, sbs_metadata_samples_df, wildcards
-        ))
-    output:
-        PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
-    params:
-        plate=lambda wildcards: wildcards.plate,
-        well=lambda wildcards: _get_well(wildcards),
-        tile=lambda wildcards: getattr(wildcards, 'tile', None),
-        cycle=lambda wildcards: getattr(wildcards, 'cycle', None),
-    script:
-        "../scripts/preprocess/extract_metadata.py"
+if not SBS_METADATA_IN_CONVERT:
+
+    rule extract_metadata_sbs:
+        input:
+            unpack(lambda wildcards: get_inputs_for_metadata_extraction(
+                "sbs", config, sbs_samples_df, sbs_metadata_samples_df, wildcards
+            ))
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"],
+        params:
+            plate=lambda wildcards: wildcards.plate,
+            well=lambda wildcards: _get_well(wildcards),
+            tile=lambda wildcards: getattr(wildcards, 'tile', None),
+            cycle=lambda wildcards: getattr(wildcards, 'cycle', None),
+        script:
+            "../scripts/preprocess/extract_metadata.py"
 
 
 # Combine metadata for SBS images
@@ -38,20 +52,22 @@ rule combine_metadata_sbs:
 
 
 # Extract metadata for phenotype images
-rule extract_metadata_phenotype:
-    input:
-        unpack(lambda wildcards: get_inputs_for_metadata_extraction(
-            "phenotype", config, phenotype_samples_df, phenotype_metadata_samples_df, wildcards
-        ))
-    output:
-        PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
-    params:
-        plate=lambda wildcards: wildcards.plate,
-        well=lambda wildcards: _get_well(wildcards),
-        tile=lambda wildcards: getattr(wildcards, 'tile', None),
-        round=lambda wildcards: getattr(wildcards, 'round', None),
-    script:
-        "../scripts/preprocess/extract_metadata.py"
+if not PHENOTYPE_METADATA_IN_CONVERT:
+
+    rule extract_metadata_phenotype:
+        input:
+            unpack(lambda wildcards: get_inputs_for_metadata_extraction(
+                "phenotype", config, phenotype_samples_df, phenotype_metadata_samples_df, wildcards
+            ))
+        output:
+            PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"],
+        params:
+            plate=lambda wildcards: wildcards.plate,
+            well=lambda wildcards: _get_well(wildcards),
+            tile=lambda wildcards: getattr(wildcards, 'tile', None),
+            round=lambda wildcards: getattr(wildcards, 'round', None),
+        script:
+            "../scripts/preprocess/extract_metadata.py"
 
 
 # Combine metadata for phenotype images
@@ -83,9 +99,14 @@ rule convert_sbs:
             channel_order=config.get("preprocess", {}).get("sbs_channel_order"),
         ),
     output:
-        PREPROCESS_OUTPUTS_MAPPED["convert_sbs"],
+        PREPROCESS_OUTPUTS_MAPPED["convert_sbs"]
+        + (PREPROCESS_OUTPUTS_MAPPED["extract_metadata_sbs"] if SBS_METADATA_IN_CONVERT else []),
     params:
         tile=lambda wildcards: int(wildcards.tile),
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: _get_well(wildcards),
+        metadata_tile=lambda wildcards: wildcards.tile,
+        cycle=lambda wildcards: wildcards.cycle,
     script:
         "../scripts/preprocess/convert_image.py"
 
@@ -101,9 +122,13 @@ rule convert_phenotype:
             channel_order=config.get("preprocess", {}).get("phenotype_channel_order"),
         ),
     output:
-        PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"],
+        PREPROCESS_OUTPUTS_MAPPED["convert_phenotype"]
+        + (PREPROCESS_OUTPUTS_MAPPED["extract_metadata_phenotype"] if PHENOTYPE_METADATA_IN_CONVERT else []),
     params:
         tile=lambda wildcards: int(wildcards.tile),
+        plate=lambda wildcards: wildcards.plate,
+        well=lambda wildcards: _get_well(wildcards),
+        metadata_tile=lambda wildcards: wildcards.tile,
     script:
         "../scripts/preprocess/convert_image.py"
 

@@ -30,6 +30,8 @@ if not SBS_METADATA_IN_CONVERT:
             well=lambda wildcards: _get_well(wildcards),
             tile=lambda wildcards: getattr(wildcards, 'tile', None),
             cycle=lambda wildcards: getattr(wildcards, 'cycle', None),
+        group:
+            "preprocess_sbs"
         script:
             "../scripts/preprocess/extract_metadata.py"
 
@@ -66,6 +68,8 @@ if not PHENOTYPE_METADATA_IN_CONVERT:
             well=lambda wildcards: _get_well(wildcards),
             tile=lambda wildcards: getattr(wildcards, 'tile', None),
             round=lambda wildcards: getattr(wildcards, 'round', None),
+        group:
+            "preprocess_phenotype"
         script:
             "../scripts/preprocess/extract_metadata.py"
 
@@ -107,6 +111,8 @@ rule convert_sbs:
         well=lambda wildcards: _get_well(wildcards),
         metadata_tile=lambda wildcards: wildcards.tile,
         cycle=lambda wildcards: wildcards.cycle,
+    group:
+        "preprocess_sbs"
     script:
         "../scripts/preprocess/convert_image.py"
 
@@ -129,6 +135,8 @@ rule convert_phenotype:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: _get_well(wildcards),
         metadata_tile=lambda wildcards: wildcards.tile,
+    group:
+        "preprocess_phenotype"
     script:
         "../scripts/preprocess/convert_image.py"
 

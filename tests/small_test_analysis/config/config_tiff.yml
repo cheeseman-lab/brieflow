@@ -1,0 +1,9 @@
+
+# ~BrieFlow TIFF output override~
+
+# Deep-merged on top of config.yml when running `run_brieflow.sh --tiff`.
+# Only the output format differs; all pipeline parameters come from config.yml.
+
+all:
+  root_fp: brieflow_output/
+  image_format: tiff

@@ -41,7 +41,7 @@ def load_config():
 
 def get_image_format():
     """Return the pipeline output image format, either ``tiff`` or ``zarr``."""
-    return load_config().get("all", {}).get("image_format", "tiff")
+    return load_config().get("all", {}).get("image_format", "zarr")
 
 
 def _deep_merge(base, overlay):

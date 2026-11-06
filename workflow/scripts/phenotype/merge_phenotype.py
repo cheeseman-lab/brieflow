@@ -1,3 +1,5 @@
+import pyarrow.parquet as pq
+
 from lib.shared.parquet_io import read_parquets, write_parquet
 
 
@@ -6,8 +8,9 @@ if getattr(snakemake.params, "channel_names", None) is None:
     raise ValueError("Required config parameter 'channel_names' is not set")
 
 
-# Concatenate the per-tile phenotype CellProfiler parquets
-phenotype_cp = read_parquets(list(snakemake.input))
+# Concatenate the per-tile CP parquets; 0-row tiles are skipped so ints stay ints
+tiles = [f for f in snakemake.input if pq.ParquetFile(f).metadata.num_rows > 0]
+phenotype_cp = read_parquets(tiles or list(snakemake.input))
 write_parquet(phenotype_cp, snakemake.output[0])
 
 

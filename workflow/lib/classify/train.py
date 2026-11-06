@@ -416,6 +416,7 @@ def plot_distribution_statistics(
     figsize=(10, 7),
     palette=None,
     dpi=300,
+    transparent_figures=False,
 ):
     """Plot distribution statistics for a target variable, optionally split by another variable.
 
@@ -431,6 +432,7 @@ def plot_distribution_statistics(
         figsize: tuple Figure size for plots.
         palette: str, list, or None Color palette for plots. If 'cell_classifier', uses custom cmap.
         dpi: int DPI for saved figures.
+        transparent_figures: bool Save figures with a transparent background instead of white.
 
     Returns:
         dict Summary statistics about the target variable distribution.
@@ -556,6 +558,7 @@ def plot_distribution_statistics(
             plt.gcf(),
             os.path.join(output_dir, f"{prefix}{target_col}_by_{split_col}.png"),
             dpi=dpi,
+            transparent=transparent_figures,
         )
         plt.close()
 
@@ -603,6 +606,7 @@ def plot_distribution_statistics(
             plt.gcf(),
             os.path.join(output_dir, f"{prefix}{target_col}_counts_by_{split_col}.png"),
             dpi=dpi,
+            transparent=transparent_figures,
         )
         plt.close()
 
@@ -642,6 +646,7 @@ def enhance_feature_selection(
     select_k_best=None,
     output_dir=None,
     prefix=None,
+    transparent_figures=False,
 ):
     """Enhance feature selection by removing low variance features, highly correlated features, and selecting top K features based on ANOVA F-value.
 
@@ -656,6 +661,7 @@ def enhance_feature_selection(
         select_k_best: int or None Number of top features to select based on ANOVA F-value. If None, skip this step.
         output_dir: str or None Directory to save plots and feature scores. If None, no plots are saved.
         prefix: str or None Prefix for saved plot filenames. If None, no prefix is added.
+        transparent_figures: bool Save figures with a transparent background instead of white.
 
     Returns:
         list List of final selected feature column names after enhancement.
@@ -726,7 +732,9 @@ def enhance_feature_selection(
             )
             plt.tight_layout()
             save_figure(
-                plt.gcf(), os.path.join(output_dir, f"{prefix}_correlation_matrix.png")
+                plt.gcf(),
+                os.path.join(output_dir, f"{prefix}_correlation_matrix.png"),
+                transparent=transparent_figures,
             )
             plt.close()
 
@@ -790,7 +798,9 @@ def enhance_feature_selection(
 
             plt.tight_layout()
             save_figure(
-                plt.gcf(), os.path.join(output_dir, f"{prefix}_top_features.png")
+                plt.gcf(),
+                os.path.join(output_dir, f"{prefix}_top_features.png"),
+                transparent=transparent_figures,
             )
             plt.close()
 
@@ -994,6 +1004,7 @@ class SciKitCellClassifier(CellClassifier):
         correlation_threshold=0.95,
         select_k_best=None,
         verbose=True,
+        transparent_figures=False,
     ):
         """Create and train a classifier, saving artifacts and returning a SciKitCellClassifier."""
         # Create output directory if needed
@@ -1040,6 +1051,7 @@ class SciKitCellClassifier(CellClassifier):
                 select_k_best=select_k_best,
                 output_dir=feature_dir,
                 prefix=prefix,
+                transparent_figures=transparent_figures,
             )
             if feature_dir:
                 feature_path = os.path.join(model_dir, f"{prefix}_features.txt")
@@ -1264,6 +1276,7 @@ class SciKitCellClassifier(CellClassifier):
                 class_names_display=display_names_order,
                 output_dir=eval_dir,
                 prefix=prefix if prefix is not None else model_type,
+                transparent_figures=transparent_figures,
             )
             if model_type in ["rf", "lgb", "xgb"] and feature_dir is not None:
                 cls._plot_feature_importance(
@@ -1271,6 +1284,7 @@ class SciKitCellClassifier(CellClassifier):
                     selected_features,
                     output_dir=feature_dir,
                     prefix=prefix if prefix is not None else model_type,
+                    transparent_figures=transparent_figures,
                 )
 
         if retrain_on_full_data:
@@ -1348,6 +1362,7 @@ class SciKitCellClassifier(CellClassifier):
         class_names_display,
         output_dir=".",
         prefix="model",
+        transparent_figures=False,
     ):
         """Plot confusion matrix and ROC curves using a fixed label order and display names."""
         # Ensure output directory exists
@@ -1380,7 +1395,9 @@ class SciKitCellClassifier(CellClassifier):
         ax.set_yticklabels(ax.get_yticklabels(), weight="bold")
         plt.tight_layout()
         save_figure(
-            plt.gcf(), os.path.join(output_dir, f"{prefix}_confusion_matrix.png")
+            plt.gcf(),
+            os.path.join(output_dir, f"{prefix}_confusion_matrix.png"),
+            transparent=transparent_figures,
         )
         plt.close()
 
@@ -1434,12 +1451,21 @@ class SciKitCellClassifier(CellClassifier):
         leg.get_frame().set_edgecolor("lightgray")
         plt.grid(True, alpha=0.3, linestyle="--")
         plt.tight_layout()
-        save_figure(plt.gcf(), os.path.join(output_dir, f"{prefix}_roc_curve.png"))
+        save_figure(
+            plt.gcf(),
+            os.path.join(output_dir, f"{prefix}_roc_curve.png"),
+            transparent=transparent_figures,
+        )
         plt.close()
 
     @staticmethod
     def _plot_feature_importance(
-        model, feature_names, top_n=20, output_dir=".", prefix="model"
+        model,
+        feature_names,
+        top_n=20,
+        output_dir=".",
+        prefix="model",
+        transparent_figures=False,
     ):
         """Plot feature importance for tree-based models.
 
@@ -1449,6 +1475,7 @@ class SciKitCellClassifier(CellClassifier):
             top_n: Number of top features to display. If None, display all.
             output_dir: Directory to save the plot.
             prefix: Prefix for the output file name.
+            transparent_figures: Save the plot with a transparent background instead of white.
 
         Returns:
             None
@@ -1532,7 +1559,9 @@ class SciKitCellClassifier(CellClassifier):
 
         plt.tight_layout()
         save_figure(
-            plt.gcf(), os.path.join(output_dir, f"{prefix}_feature_importance.png")
+            plt.gcf(),
+            os.path.join(output_dir, f"{prefix}_feature_importance.png"),
+            transparent=transparent_figures,
         )
 
         # Also save a CSV with the full feature importance ranking
@@ -1570,6 +1599,7 @@ def train_classifier_pipeline(
     generate_f1_heatmap: bool = True,
     generate_feature_vs_accuracy: bool = True,
     verbose: bool = True,
+    transparent_figures: bool = False,
 ) -> Dict[str, Any]:
     """Train classifiers for a specified categorical target using a structured pipeline.
 
@@ -1606,6 +1636,8 @@ def train_classifier_pipeline(
         generate_f1_heatmap: bool Whether to generate F1-score heatmap across models and classes. Default is True.
         generate_feature_vs_accuracy: bool Whether to plot number of features vs accuracy. Default is True.
         verbose: bool Whether to print progress messages. Default is True.
+        transparent_figures: bool Save plots with a transparent background instead of white
+            (config `all.transparent_figures`). Default is False.
 
     Returns:
         dict Dictionary containing:
@@ -1694,6 +1726,7 @@ def train_classifier_pipeline(
         figsize=(12, 8),
         palette=None,
         dpi=300,
+        transparent_figures=transparent_figures,
     )
 
     if verbose:
@@ -1748,6 +1781,7 @@ def train_classifier_pipeline(
                 correlation_threshold=enhance_params["correlation_threshold"],
                 select_k_best=enhance_params["select_k_best"],
                 verbose=False,
+                transparent_figures=transparent_figures,
             )
 
             # Report path
@@ -1897,7 +1931,7 @@ def train_classifier_pipeline(
                 out_fp = os.path.join(
                     plots_dir, f"{training_name}_accuracy_comparison.png"
                 )
-                save_figure(plt.gcf(), out_fp)
+                save_figure(plt.gcf(), out_fp, transparent=transparent_figures)
                 plt.close()
 
         # F1 heatmap
@@ -1936,7 +1970,7 @@ def train_classifier_pipeline(
                 )
                 plt.tight_layout()
                 out_fp = os.path.join(plots_dir, f"{training_name}_f1_heatmap.png")
-                save_figure(plt.gcf(), out_fp)
+                save_figure(plt.gcf(), out_fp, transparent=transparent_figures)
                 plt.close()
                 if verbose:
                     print(f"[pipeline] Saved plot: {out_fp}")

@@ -5,14 +5,18 @@ import matplotlib.pyplot as plt
 
 from lib.shared.file_utils import split_well
 
+# Standard plate formats as (rows, columns), smallest first: 6, 12, 24, 48, 96, 384 wells.
+PLATE_FORMATS = ((2, 3), (3, 4), (4, 6), (6, 8), (8, 12), (16, 24))
+
 
 def plot_plate_heatmap(df, metric=None, metadata=None, **kwargs):
     """Plot the heatmap of a summary DataFrame by well and tile in a plate layout.
 
     Tiles are plotted at their actual spatial positions from metadata using scatter.
     Wells are auto-detected from the data and placed in a grid of subplots by their
-    plate row and column (e.g. "A1", "A01" or Opera Phenix "r01c01"), so any plate
-    format keeps its shape; only the rows and columns present in the data are drawn.
+    plate row and column (e.g. "A1", "A01" or Opera Phenix "r01c01"). The grid is the
+    smallest standard plate (6 to 384 wells) that holds every well, with wells absent
+    from the data drawn as empty panels.
 
     Args:
         df (pandas.DataFrame):
@@ -51,10 +55,10 @@ def plot_plate_heatmap(df, metric=None, metadata=None, **kwargs):
     wells = sorted(df["well"].unique())
     if len(wells) == 1:
         fig, axes = plt.subplots(1, 1, figsize=(10, 10), squeeze=False)
-        positions = {wells[0]: (0, 0)}
+        positions, empty = {wells[0]: (0, 0)}, {}
         title_size = 24
     else:
-        positions, nr, nc = _plate_layout(wells)
+        positions, empty, nr, nc = _plate_layout(wells)
         panel = min(5.0, max(1.0, 15 / nc))
         fig, axes = plt.subplots(
             nr, nc, figsize=(panel * nc, max(10, panel * nr)), squeeze=False
@@ -109,10 +113,16 @@ def plot_plate_heatmap(df, metric=None, metadata=None, **kwargs):
         ax.set_title(f"Well {well}", fontsize=title_size)
         ax.axis("off")
 
-    # Hide unused axes
+    # Draw wells without data as empty panels and hide unused axes
     used = set(positions.values())
     for position, ax in np.ndenumerate(axes):
-        if position not in used:
+        if position in empty:
+            ax.set_title(f"Well {empty[position]}", fontsize=title_size, color="gray")
+            ax.set_xticks([])
+            ax.set_yticks([])
+            for spine in ax.spines.values():
+                spine.set_color("lightgray")
+        elif position not in used:
             ax.set_visible(False)
 
     fig.subplots_adjust(right=0.9)
@@ -147,16 +157,19 @@ def save_figure(fig, path, transparent=False, dpi=300):
 
 
 def _plate_layout(wells):
-    """Map each well to a (row, col) subplot position by its plate row and column.
+    """Map each well to a (row, col) subplot position on its plate.
 
-    Rows and columns absent from the data are skipped. Wells that do not parse as
-    plate positions fall back to a near-square grid in sorted order.
+    Wells are placed on the smallest standard plate that holds them all, and the
+    plate's other wells are returned as empty positions. Wells beyond a 384-well plate
+    use only the rows and columns present; wells that do not parse as plate positions
+    fall back to a near-square grid in sorted order.
 
     Args:
         wells (list): Well identifiers, e.g. "A1", "B03" or "r02c05".
 
     Returns:
-        tuple: Dict of well to (row, col), number of rows, number of columns.
+        tuple: Dict of well to (row, col), dict of empty (row, col) to well label,
+            number of rows, number of columns.
     """
     try:
         parsed = {well: _well_row_col(well) for well in wells}
@@ -164,13 +177,28 @@ def _plate_layout(wells):
         nc = int(np.ceil(np.sqrt(len(wells))))
         nr = int(np.ceil(len(wells) / nc))
         positions = {well: divmod(i, nc) for i, well in enumerate(sorted(wells))}
-        return positions, nr, nc
-    rows = sorted({r for r, _ in parsed.values()})
-    cols = sorted({c for _, c in parsed.values()})
-    positions = {
-        well: (rows.index(r), cols.index(c)) for well, (r, c) in parsed.items()
+        return positions, {}, nr, nc
+    max_row = max(r for r, _ in parsed.values())
+    max_col = max(c for _, c in parsed.values())
+    plate = next(
+        ((nr, nc) for nr, nc in PLATE_FORMATS if max_row <= nr and max_col <= nc), None
+    )
+    if plate is None:
+        rows = sorted({r for r, _ in parsed.values()})
+        cols = sorted({c for _, c in parsed.values()})
+        positions = {
+            well: (rows.index(r), cols.index(c)) for well, (r, c) in parsed.items()
+        }
+        return positions, {}, len(rows), len(cols)
+    positions = {well: (r - 1, c - 1) for well, (r, c) in parsed.items()}
+    used = set(positions.values())
+    empty = {
+        (r, c): _well_label(r + 1, c + 1, wells)
+        for r in range(plate[0])
+        for c in range(plate[1])
+        if (r, c) not in used
     }
-    return positions, len(rows), len(cols)
+    return positions, empty, plate[0], plate[1]
 
 
 def _well_row_col(well):
@@ -190,3 +218,28 @@ def _well_row_col(well):
         for letter in row.upper():
             row_num = row_num * 26 + ord(letter) - ord("A") + 1
     return row_num, int(col.lstrip("Cc"))
+
+
+def _well_label(row_num, col_num, wells):
+    """Format plate (row, column) numbers as a well id in the style of `wells`.
+
+    Args:
+        row_num (int): 1-based row number.
+        col_num (int): 1-based column number.
+        wells (list): Well ids from the data, e.g. "A1", "A01" or "r01c01".
+
+    Returns:
+        str: Well id, e.g. (2, 3) -> "B3", "B03" or "r02c03".
+    """
+    splits = [split_well(well) for well in wells]
+    row, col = splits[0]
+    width = max(len(c.lstrip("Cc")) for _, c in splits)
+    padded = any(c.lstrip("Cc").startswith("0") for _, c in splits)
+    col_text = f"{col_num:0{width}d}" if padded else str(col_num)
+    if row[0] in "Rr" and row[1:].isdigit():
+        return f"{row[0]}{row_num:0{len(row) - 1}d}{col[0]}{col_text}"
+    letters = ""
+    while row_num:
+        row_num, rem = divmod(row_num - 1, 26)
+        letters = chr(ord("A") + rem) + letters
+    return f"{letters}{col_text}"

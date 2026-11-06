@@ -29,6 +29,9 @@ IMAGE_FORMAT
 ZARR_MAX_LEVELS
   `all.zarr_max_levels` · default `1`. Resolution levels written for each converted raw image in `"zarr"` mode; `1` writes no pyramid. More levels make large tiles quick to browse in napari and cost disk (5 levels added ~16% on the small test). Pixels at full resolution never change. Ignored in `"tiff"` mode.
 
+TRANSPARENT_FIGURES
+  `all.transparent_figures` · default `False`. Set `True` to save the pipeline's plots (the PNGs in each `eval/` directory, in `cluster/` and from classifier training) with a transparent background, for example to import them into Illustrator. `False` saves them on white, which reads in both light and dark viewers.
+
 SBS_IMAGES_DIR_FP, PHENOTYPE_IMAGES_DIR_FP
   Not written; they feed the sample tables (`preprocess.sbs_samples_fp`, `preprocess.phenotype_samples_fp`) · default `None`. Directories holding the raw SBS and phenotype files. Leave one as `None` to process only the other arm.
 

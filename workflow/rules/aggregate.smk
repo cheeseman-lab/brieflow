@@ -194,6 +194,7 @@ rule eval_aggregate:
         compartment_combo=lambda wildcards: get_compartment_combo(
             wildcards, SPLIT_BY_COMPARTMENT, DEFAULT_COMPARTMENT_COMBO
         ),
+        transparent_figures=config.get("all", {}).get("transparent_figures", False),
     script:
         "../scripts/aggregate/eval_aggregate.py"
 

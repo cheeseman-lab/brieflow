@@ -13,6 +13,7 @@ from lib.shared.eval_segmentation import (
     plot_cell_density_heatmap,
 )
 from lib.shared.parquet_io import read_parquets
+from lib.shared.eval import save_figure
 
 
 # Get the segmentation overview
@@ -37,4 +38,4 @@ cell_density_summary, fig = plot_cell_density_heatmap(
     metadata=metadata,
 )
 cell_density_summary.to_csv(snakemake.output[1], index=False, sep="\t")
-fig.savefig(snakemake.output[2], dpi=300, bbox_inches="tight", transparent=True)
+save_figure(fig, snakemake.output[2], transparent=snakemake.params.transparent_figures)

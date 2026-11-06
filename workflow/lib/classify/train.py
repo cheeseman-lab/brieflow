@@ -19,6 +19,7 @@ import pandas as pd
 import seaborn as sns
 from lightgbm import LGBMClassifier
 
+from lib.shared.eval import save_figure
 from lib.shared.parquet_io import read_parquet
 from matplotlib.colors import LinearSegmentedColormap
 from scipy.stats import linregress
@@ -551,11 +552,10 @@ def plot_distribution_statistics(
                     color="white",
                 )
         plt.tight_layout()
-        plt.savefig(
+        save_figure(
+            plt.gcf(),
             os.path.join(output_dir, f"{prefix}{target_col}_by_{split_col}.png"),
             dpi=dpi,
-            bbox_inches="tight",
-            transparent=True,
         )
         plt.close()
 
@@ -599,11 +599,10 @@ def plot_distribution_statistics(
                     color="white",
                 )
         plt.tight_layout()
-        plt.savefig(
+        save_figure(
+            plt.gcf(),
             os.path.join(output_dir, f"{prefix}{target_col}_counts_by_{split_col}.png"),
             dpi=dpi,
-            bbox_inches="tight",
-            transparent=True,
         )
         plt.close()
 
@@ -726,11 +725,8 @@ def enhance_feature_selection(
                 fontweight="bold",
             )
             plt.tight_layout()
-            plt.savefig(
-                os.path.join(output_dir, f"{prefix}_correlation_matrix.png"),
-                dpi=300,
-                bbox_inches="tight",
-                transparent=True,
+            save_figure(
+                plt.gcf(), os.path.join(output_dir, f"{prefix}_correlation_matrix.png")
             )
             plt.close()
 
@@ -793,11 +789,8 @@ def enhance_feature_selection(
                 ax.text(v + max_score * 0.01, i, f"{v:.1f}", va="center", fontsize=9)
 
             plt.tight_layout()
-            plt.savefig(
-                os.path.join(output_dir, f"{prefix}_top_features.png"),
-                dpi=300,
-                bbox_inches="tight",
-                transparent=True,
+            save_figure(
+                plt.gcf(), os.path.join(output_dir, f"{prefix}_top_features.png")
             )
             plt.close()
 
@@ -1386,11 +1379,8 @@ class SciKitCellClassifier(CellClassifier):
         ax.set_xticklabels(ax.get_xticklabels(), weight="bold")
         ax.set_yticklabels(ax.get_yticklabels(), weight="bold")
         plt.tight_layout()
-        plt.savefig(
-            os.path.join(output_dir, f"{prefix}_confusion_matrix.png"),
-            dpi=300,
-            bbox_inches="tight",
-            transparent=True,
+        save_figure(
+            plt.gcf(), os.path.join(output_dir, f"{prefix}_confusion_matrix.png")
         )
         plt.close()
 
@@ -1444,12 +1434,7 @@ class SciKitCellClassifier(CellClassifier):
         leg.get_frame().set_edgecolor("lightgray")
         plt.grid(True, alpha=0.3, linestyle="--")
         plt.tight_layout()
-        plt.savefig(
-            os.path.join(output_dir, f"{prefix}_roc_curve.png"),
-            dpi=300,
-            bbox_inches="tight",
-            transparent=True,
-        )
+        save_figure(plt.gcf(), os.path.join(output_dir, f"{prefix}_roc_curve.png"))
         plt.close()
 
     @staticmethod
@@ -1546,11 +1531,8 @@ class SciKitCellClassifier(CellClassifier):
         plt.grid(axis="x", alpha=0.3, linestyle="--")
 
         plt.tight_layout()
-        plt.savefig(
-            os.path.join(output_dir, f"{prefix}_feature_importance.png"),
-            dpi=300,
-            bbox_inches="tight",
-            transparent=True,
+        save_figure(
+            plt.gcf(), os.path.join(output_dir, f"{prefix}_feature_importance.png")
         )
 
         # Also save a CSV with the full feature importance ranking
@@ -1915,7 +1897,7 @@ def train_classifier_pipeline(
                 out_fp = os.path.join(
                     plots_dir, f"{training_name}_accuracy_comparison.png"
                 )
-                plt.savefig(out_fp, dpi=300, bbox_inches="tight", transparent=True)
+                save_figure(plt.gcf(), out_fp)
                 plt.close()
 
         # F1 heatmap
@@ -1954,7 +1936,7 @@ def train_classifier_pipeline(
                 )
                 plt.tight_layout()
                 out_fp = os.path.join(plots_dir, f"{training_name}_f1_heatmap.png")
-                plt.savefig(out_fp, dpi=300, bbox_inches="tight", transparent=True)
+                save_figure(plt.gcf(), out_fp)
                 plt.close()
                 if verbose:
                     print(f"[pipeline] Saved plot: {out_fp}")

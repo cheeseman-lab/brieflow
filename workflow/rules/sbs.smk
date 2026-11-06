@@ -252,6 +252,8 @@ rule eval_segmentation_sbs:
         ),
     output:
         SBS_OUTPUTS_MAPPED["eval_segmentation_sbs"],
+    params:
+        transparent_figures=config.get("all", {}).get("transparent_figures", False),
     script:
         "../scripts/shared/eval_segmentation.py"
 
@@ -295,6 +297,7 @@ rule eval_mapping:
             else config.get("sbs", {}).get("prefix_col", "prefix")
         ),
         prefix_recomb=config.get("sbs", {}).get("prefix_recomb", "prefix_recomb"),
+        transparent_figures=config.get("all", {}).get("transparent_figures", False),
     script:
         "../scripts/sbs/eval_mapping.py"
 

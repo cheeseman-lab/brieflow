@@ -47,7 +47,7 @@ def final_merge(
     # cast keys to dedup's dtypes, or String plate/tile would silently match nothing
     cp = cp.with_columns([pl.col(k).cast(dedup_schema[k]) for k in KEYS])
 
-    merged = dedup.join(cp, on=KEYS, how="left")
+    merged = dedup.join(cp, on=KEYS, how="left", maintain_order="left")
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     # The hash-join builds on the ~1M-row CP side (~30 GB at 3,591 float columns).

@@ -1,16 +1,17 @@
 #!/bin/bash
 
 # Run the small test analysis.
-# Defaults to TIFF output. Pass --zarr to write OME-Zarr output instead;
-# config_zarr.yml is deep-merged on top of config.yml so both modes run the
-# identical pipeline parameters.
+# Defaults to OME-Zarr output. Pass --tiff to write TIFF output instead;
+# config_tiff.yml is deep-merged on top of config.yml so both modes run the
+# identical pipeline parameters. --zarr is accepted and selects the default.
 set -e
 
 CONFIGFILES="config/config.yml"
 for arg in "$@"; do
     case "$arg" in
-        --zarr) CONFIGFILES="config/config.yml config/config_zarr.yml" ;;
-        *) echo "Unknown argument: $arg (supported: --zarr)" >&2; exit 1 ;;
+        --tiff) CONFIGFILES="config/config.yml config/config_tiff.yml" ;;
+        --zarr) CONFIGFILES="config/config.yml" ;;
+        *) echo "Unknown argument: $arg (supported: --tiff, --zarr)" >&2; exit 1 ;;
     esac
 done
 

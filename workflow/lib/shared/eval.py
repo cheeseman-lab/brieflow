@@ -57,7 +57,7 @@ def plot_plate_heatmap(df, metric=None, metadata=None, **kwargs):
         positions, nr, nc = _plate_layout(wells)
         panel = min(5.0, max(1.0, 15 / nc))
         fig, axes = plt.subplots(
-            nr, nc, figsize=(panel * nc, panel * nr), squeeze=False
+            nr, nc, figsize=(panel * nc, max(10, panel * nr)), squeeze=False
         )
         title_size = min(24, 6 * panel)
 

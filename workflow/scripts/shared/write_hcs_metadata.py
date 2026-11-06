@@ -6,12 +6,14 @@ label annotations).
 
 After all plates are written, compute the screen-wide per-channel intensity
 percentiles (1st/99th) and summary statistics (mean/std/median) and write them
-into every field zarr.json under ``omero.channels[i]``.
+into every field zarr.json under ``omero.channels[i]``. Finally restore the
+timestamps of every rewritten zarr.json, which Snakemake tracks as rule outputs.
 """
 
 from pathlib import Path
 
 from lib.shared.hcs import (
+    restore_zarr_json_times,
     write_channel_intensity_statistics,
     write_field_image_metadata,
     write_hcs_metadata,
@@ -67,3 +69,9 @@ renderable_plates = [
     if Path(p).exists() and "preprocess" not in Path(p).parts
 ]
 write_channel_intensity_statistics(renderable_plates, threads=threads)
+
+# Rewritten zarr.json files are rule outputs; keep their times so the run stays complete
+existing_plates = [Path(p) for p in plate_zarr_dirs if Path(p).exists()]
+print(
+    f"Restored timestamps of {restore_zarr_json_times(existing_plates)} zarr.json files."
+)

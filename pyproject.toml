@@ -55,7 +55,7 @@ dependencies = [
   "zarr==3.1.6",
   "numcodecs==0.16.5",
   "dask[array]==2026.1.1",
-  "fsspec==2026.2.0",
+  "fsspec==2026.6.0",
   "iohub==0.3.0",
   "marimo==0.25.0",
 ]

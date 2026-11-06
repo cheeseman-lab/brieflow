@@ -8,7 +8,7 @@ from lib.preprocess.file_utils import (
     get_tiles_per_file,
 )
 from lib.preprocess.preprocess import get_data_config, include_tile_in_input, get_expansion_values
-from lib.shared.target_utils import output_to_input
+from lib.shared.target_utils import output_to_input, outputs_to_targets
 
 # Sample tables indexed once, so input lookups never rescan them
 sbs_sample_index = SampleIndex(sbs_samples_df)
@@ -243,9 +243,21 @@ rule calculate_ic_phenotype:
 # Assemble HCS plate-level metadata for zarr stores (zarr mode only)
 if IMG_FMT == "zarr":
 
+    # Each modality's finalize waits for its own images, combined metadata and IC fields
+    FINALIZE_INPUTS_SBS = list(dict.fromkeys(outputs_to_targets(
+        {k: v for k, v in PREPROCESS_OUTPUTS_SBS.items() if k != "extract_metadata_sbs"},
+        sbs_wildcard_combos,
+        PREPROCESS_OUTPUT_MAPPINGS,
+    )))
+    FINALIZE_INPUTS_PHENOTYPE = list(dict.fromkeys(outputs_to_targets(
+        {k: v for k, v in PREPROCESS_OUTPUTS_PHENOTYPE.items() if k != "extract_metadata_phenotype"},
+        phenotype_wildcard_combos,
+        PREPROCESS_OUTPUT_MAPPINGS,
+    )))
+
     rule finalize_hcs_preprocess_sbs:
         input:
-            PREPROCESS_TARGETS_ALL,
+            FINALIZE_INPUTS_SBS,
         output:
             touch(str(PREPROCESS_FP / ".hcs_done_sbs")),
         params:
@@ -259,7 +271,7 @@ if IMG_FMT == "zarr":
 
     rule finalize_hcs_preprocess_phenotype:
         input:
-            PREPROCESS_TARGETS_ALL,
+            FINALIZE_INPUTS_PHENOTYPE,
         output:
             touch(str(PREPROCESS_FP / ".hcs_done_phenotype")),
         params:

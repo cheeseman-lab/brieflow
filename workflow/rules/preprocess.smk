@@ -2,6 +2,11 @@ from lib.preprocess.file_utils import (
     get_sample_fps,
     get_inputs_for_metadata_extraction,
     metadata_from_convert,
+    select_samples,
+    get_convert_mem_mb,
+    get_ic_mem_mb,
+    estimate_tile_mb,
+    get_tiles_per_file,
 )
 from lib.preprocess.preprocess import get_data_config, include_tile_in_input, get_expansion_values
 from lib.shared.target_utils import output_to_input
@@ -13,6 +18,8 @@ SBS_METADATA_IN_CONVERT = metadata_from_convert(
 PHENOTYPE_METADATA_IN_CONVERT = metadata_from_convert(
     "phenotype", config, phenotype_metadata_wildcard_combos, phenotype_metadata_samples_df
 )
+
+SAMPLE_FRACTION = config.get("preprocess", {}).get("sample_fraction", 1)
 
 
 # Extract metadata for SBS images
@@ -30,6 +37,15 @@ if not SBS_METADATA_IN_CONVERT:
             well=lambda wildcards: _get_well(wildcards),
             tile=lambda wildcards: getattr(wildcards, 'tile', None),
             cycle=lambda wildcards: getattr(wildcards, 'cycle', None),
+        resources:
+            mem_mb=lambda wildcards, input: get_convert_mem_mb(
+                input.size_mb,
+                get_tiles_per_file(
+                    select_samples(sbs_samples_df, plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
+                    include_tile_in_input("sbs", config),
+                ),
+            ),
+            runtime="20m",
         group:
             "preprocess_sbs"
         script:
@@ -68,6 +84,15 @@ if not PHENOTYPE_METADATA_IN_CONVERT:
             well=lambda wildcards: _get_well(wildcards),
             tile=lambda wildcards: getattr(wildcards, 'tile', None),
             round=lambda wildcards: getattr(wildcards, 'round', None),
+        resources:
+            mem_mb=lambda wildcards, input: get_convert_mem_mb(
+                input.size_mb,
+                get_tiles_per_file(
+                    select_samples(phenotype_samples_df, plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
+                    include_tile_in_input("phenotype", config),
+                ),
+            ),
+            runtime="20m",
         group:
             "preprocess_phenotype"
         script:
@@ -111,6 +136,15 @@ rule convert_sbs:
         well=lambda wildcards: _get_well(wildcards),
         metadata_tile=lambda wildcards: wildcards.tile,
         cycle=lambda wildcards: wildcards.cycle,
+    resources:
+        mem_mb=lambda wildcards, input: get_convert_mem_mb(
+            input.size_mb,
+            get_tiles_per_file(
+                select_samples(sbs_samples_df, plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
+                include_tile_in_input("sbs", config),
+            ),
+        ),
+        runtime="20m",
     group:
         "preprocess_sbs"
     script:
@@ -135,6 +169,15 @@ rule convert_phenotype:
         plate=lambda wildcards: wildcards.plate,
         well=lambda wildcards: _get_well(wildcards),
         metadata_tile=lambda wildcards: wildcards.tile,
+    resources:
+        mem_mb=lambda wildcards, input: get_convert_mem_mb(
+            input.size_mb,
+            get_tiles_per_file(
+                select_samples(phenotype_samples_df, plate=wildcards.plate, well=_get_well(wildcards))["sample_fp"].iloc[0],
+                include_tile_in_input("phenotype", config),
+            ),
+        ),
+        runtime="20m",
     group:
         "preprocess_phenotype"
     script:
@@ -154,6 +197,15 @@ rule calculate_ic_sbs:
     params:
         threading=True,
         sample_fraction=config.get("preprocess", {}).get("sample_fraction", 1),
+    resources:
+        mem_mb=lambda wildcards, input: get_ic_mem_mb(
+            len(input),
+            SAMPLE_FRACTION,
+            estimate_tile_mb(
+                select_samples(sbs_samples_df, plate=wildcards.plate, well=_get_well(wildcards), cycle=wildcards.cycle),
+                include_tile_in_input("sbs", config),
+            ),
+        ),
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 
@@ -172,6 +224,15 @@ rule calculate_ic_phenotype:
     params:
         threading=True,
         sample_fraction=config.get("preprocess", {}).get("sample_fraction", 1),
+    resources:
+        mem_mb=lambda wildcards, input: get_ic_mem_mb(
+            len(input),
+            SAMPLE_FRACTION,
+            estimate_tile_mb(
+                select_samples(phenotype_samples_df, plate=wildcards.plate, well=_get_well(wildcards)),
+                include_tile_in_input("phenotype", config),
+            ),
+        ),
     script:
         "../scripts/preprocess/calculate_ic_field.py"
 

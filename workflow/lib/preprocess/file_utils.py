@@ -1,5 +1,8 @@
 """Utility functions for handling files during preprocessing."""
 
+import functools
+import os
+
 import pandas as pd
 from typing import List, Union, Dict, Any
 
@@ -263,6 +266,110 @@ def metadata_from_convert(
         and metadata_samples_df.empty
         and metadata_keys == convert_keys
     )
+
+
+def select_samples(samples_df: pd.DataFrame, **filters) -> pd.DataFrame:
+    """Rows of a sample table matching every filter that is not None.
+
+    Args:
+        samples_df (pd.DataFrame): Sample table.
+        **filters: Column values to match, compared as strings.
+
+    Returns:
+        pd.DataFrame: Matching rows, in table order.
+    """
+    mask = pd.Series(True, index=samples_df.index)
+    for column, value in filters.items():
+        if value is not None and column in samples_df.columns:
+            mask &= samples_df[column].astype(str) == str(value)
+    return samples_df[mask]
+
+
+def get_convert_mem_mb(input_mb: float, tiles_per_file: int = 1) -> int:
+    """Memory for one convert or metadata job: 1 GB plus three times one tile's raw size.
+
+    Args:
+        input_mb (float): Size of the job's input files in megabytes.
+        tiles_per_file (int, optional): Tiles each input file holds (a well-organized
+            job reads one tile of a whole-well file). Defaults to 1.
+
+    Returns:
+        int: Memory request in megabytes.
+    """
+    return int(1000 + 3 * input_mb / max(1, tiles_per_file))
+
+
+def get_ic_mem_mb(n_tiles: int, sample_fraction: float, tile_mb: float) -> int:
+    """Memory for one IC field job, scaled to the number of tiles it reads.
+
+    Peak memory measured at about five times the raw size of the tiles read; the
+    request uses six times plus 2 GB.
+
+    Args:
+        n_tiles (int): Converted tiles in the job's input.
+        sample_fraction (float): Fraction of tiles the IC field samples.
+        tile_mb (float): Raw size of one tile in megabytes.
+
+    Returns:
+        int: Memory request in megabytes.
+    """
+    n_read = max(1, int(n_tiles * sample_fraction)) if sample_fraction < 1 else n_tiles
+    return int(2000 + 6 * n_read * tile_mb)
+
+
+def estimate_tile_mb(well_samples_df: pd.DataFrame, tile_organized: bool) -> float:
+    """Raw size of one tile in megabytes, from the sample rows of one well (and cycle).
+
+    Tile-organized inputs measure the files of the first tile only; well-organized
+    inputs divide the well files' size by the positions of the first file, read from
+    its header. Unreadable files count as zero.
+
+    Args:
+        well_samples_df (pd.DataFrame): Sample rows of one well (and cycle).
+        tile_organized (bool): Whether each tile has its own files.
+
+    Returns:
+        float: Megabytes per tile.
+    """
+    if well_samples_df.empty:
+        return 0.0
+    if tile_organized and "tile" in well_samples_df.columns:
+        tiles = well_samples_df["tile"].astype(str)
+        well_samples_df = well_samples_df[tiles == tiles.iloc[0]]
+    fps = well_samples_df["sample_fp"].unique()
+    size = 0
+    for fp in fps:
+        try:
+            size += os.path.getsize(fp)
+        except OSError:
+            pass
+    return size / 1e6 / get_tiles_per_file(fps[0], tile_organized)
+
+
+@functools.lru_cache(maxsize=None)
+def get_tiles_per_file(sample_fp: str, tile_organized: bool) -> int:
+    """Number of tiles one raw file holds: 1 when tile-organized, else its ND2 positions.
+
+    Reads only the ND2 header, once per file; callers pass one file per well, since a
+    well's files share its positions. An unreadable header counts as 1 tile.
+
+    Args:
+        sample_fp (str): Raw image file.
+        tile_organized (bool): Whether each tile has its own files.
+
+    Returns:
+        int: Tiles in the file.
+    """
+    if tile_organized:
+        return 1
+    try:
+        import nd2
+        from lib.preprocess.preprocess import nd2_position_count
+
+        with nd2.ND2File(str(sample_fp)) as nd2_file:
+            return max(1, nd2_position_count(nd2_file))
+    except Exception:
+        return 1
 
 
 def get_output_pattern(wildcard_combos: pd.DataFrame) -> Dict[str, str]:

@@ -22,5 +22,5 @@ The full list of changes, with the pull request behind each, is in the [1.5.0 re
 ## Upgrading a run started on 1.5.0
 
 - Per-tile SBS `reads`, `cells` and `sbs_info` tables and phenotype `phenotype_cp` tables are now parquet files under `parquets/` instead of TSV files under `tsvs/`; see [Output formats](3.running_modules.md#output-formats-tiff-and-zarr).
-- A run started on 1.5.0 does not reuse those TSVs. After the update, Snakemake re-runs the steps that write these tables (`call_reads`, `call_cells`, `extract_sbs_info`, `extract_phenotype_cp`) and the steps downstream of them; images and segmentation masks are reused. Delete the old copies in `sbs/tsvs/` and `phenotype/tsvs/` when the run finishes, since nothing reads them.
+- A run started on 1.5.0 does not reuse those TSVs. After the update, Snakemake re-runs the steps that write these tables (`call_reads`, `call_cells`, `extract_sbs_info`, `extract_phenotype_cp`) and the steps downstream of them. Delete the old copies in `sbs/tsvs/` and `phenotype/tsvs/` when the run finishes, since nothing reads them.
 - Table values can differ from a 1.5.0 run in the last digits (about 1e-12): TSV rounded floats on the way to the next step, and parquet keeps them exact.

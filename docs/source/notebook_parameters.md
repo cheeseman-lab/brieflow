@@ -57,7 +57,7 @@ SBS_N_Z_PLANES, PHENOTYPE_N_Z_PLANES
   `preprocess.sbs_n_z_planes`, `preprocess.phenotype_n_z_planes` · default `None`. Number of z-planes per channel when TIFF files are split by plane; the planes are stacked and max-projected. Requires `"z"` in the path metadata and an explicit channel order.
 
 SAMPLE_FRACTION
-  `preprocess.sample_fraction` · default `1.0`. Fraction of tiles used to compute each {term}`IC field`. Lower it (for example `0.2`) to cut memory and time on large plates; the subset is drawn with a fixed seed.
+  `preprocess.sample_fraction` · default `0.1`. Fraction of tiles used to compute each {term}`IC field`; at least one tile is always used. Raise it toward `1.0` for wells with few tiles; the subset is drawn with a fixed seed.
 
 SBS_CHANNELS_METADATA, PHENOTYPE_CHANNELS_METADATA
   `preprocess.sbs_channels_metadata`, `preprocess.phenotype_channels_metadata` · default `None`. One dictionary per channel (name, index, type, description, optional biological annotation), written into the OME-Zarr plate metadata. Same length and order as the channel names.
@@ -177,7 +177,7 @@ MERGE_APPROACH
   `merge.approach` · default `"fast"`. `"fast"` or `"positions"`; the notebook runs only the chosen approach's section. Choose the {term}`positions approach <Positions merge>` at high phenotype magnification or when tiles hold too few cells for `fast`.
 
 INITIAL_SITES_APPROACH
-  Not written · default `None`. How the starting tile pairs are given: `"auto"` finds a phenotype tile for each of `INITIAL_SBS_TILES` from stage coordinates; `"manual"` takes explicit `INITIAL_SITES`.
+  Not written · default `"auto"`. How the starting tile pairs are given: `"auto"` finds a phenotype tile for each of `INITIAL_SBS_TILES` from stage coordinates; `"manual"` takes explicit `INITIAL_SITES`.
 
 INITIAL_SITES, INITIAL_SBS_TILES
   `merge.initial_sites`, `merge.initial_sbs_tiles` · default `None`. Starting pairs `[phenotype_tile, sbs_tile]`, or SBS tiles spread across the well. At least 5 pairs should pass `DET_RANGE` and the score threshold.
@@ -186,7 +186,7 @@ DET_RANGE
   `merge.det_range` · default `None`. The accepted range of the alignment's scale (determinant), which reflects the magnification ratio between phenotype and SBS images, for example `[0.06, 0.065]`.
 
 THRESHOLD
-  `merge.threshold` · default `None`. Maximum distance between a phenotype cell and an SBS cell for them to match, for example `2`.
+  `merge.threshold` · default `2`. Maximum distance between a phenotype cell and an SBS cell for them to match.
 
 FLIPUD, FLIPLR, ROT90
   `merge.flipud`, `merge.fliplr`, `merge.rot90` · default `False`, `False`, `0`. Tile orientation relative to the stage, used by the `positions` approach: a vertical flip, a horizontal flip, then `ROT90` counterclockwise quarter turns (as `numpy.rot90`). When the fit warns that another orientation lines up the tile overlaps better, set them to the one it names.
@@ -199,10 +199,10 @@ TRAINING_DATA_SOURCE
   Not written · default `"merge"`. Which features the classifier is trained on: `"merge"` or `"phenotype"` output.
 
 CLASS_TITLE
-  `classify.class_title` · default `"cell_stage"`. Name of the column holding the predicted class.
+  `classify.class_title` · default `None`. Name of the column holding the predicted class, for example `"cell_stage"`.
 
 CLASSIFICATION
-  Feeds `classify.class_mapping` · default `["Mitotic", "Interphase"]`. The classes to label and predict, numbered 1, 2, … in list order.
+  Feeds `classify.class_mapping` · default `None`. The classes to label and predict, numbered 1, 2, … in list order, for example `["Mitotic", "Interphase"]`.
 
 CONFIDENCE_THRESHOLDS
   `classify.confidence_thresholds`. Per-class confidence thresholds keyed by class number, each `{"threshold": float, "mode": str}`; the mode (`"exclude"` or `"reassign"`) sets how a prediction below the threshold is handled.
@@ -236,7 +236,7 @@ FILTER_QUERIES
   `aggregate.filter_queries` · default `None`. pandas query strings that cells must pass, for example `["mapped_single_gene == True"]`.
 
 PERTURBATION_NAME_COL
-  `aggregate.perturbation_name_col` · default `None`. Column that names each cell's {term}`perturbation <Perturbation>` and that profiles are aggregated on, usually `"gene_symbol_0"`.
+  `aggregate.perturbation_name_col` · default `"gene_symbol_0"`. Column that names each cell's {term}`perturbation <Perturbation>` and that profiles are aggregated on.
 
 PERTURBATION_ID_COL
   `aggregate.perturbation_id_col` · default `"cell_barcode_0"`. Column identifying each {term}`construct <Construct>`. Should essentially always be set; `None` collapses constructs to genes and makes bootstrap p-values under-dispersed.
@@ -245,7 +245,7 @@ CONTROL_KEY
   `aggregate.control_key` · default `None`. The {term}`control key <Control key>`, for example `"nontargeting"`. `CONTROL_NAME_COL` (`aggregate.control_name_col`) matches it against another column.
 
 BATCH_COLS
-  `aggregate.batch_cols` · default `None`. Metadata columns that define a batch for alignment and TVN, usually `["plate", "well"]`.
+  `aggregate.batch_cols` · default `["plate", "well"]`. Metadata columns that define a batch for alignment and TVN.
 
 TVN_BATCH_CORRECTION
   `aggregate.tvn_batch_correction` · default `True`. Fit {term}`TVN` per batch on that batch's controls. Set `False` when batches hold few control cells (it needs roughly ten per principal component per batch) or when only some batches contain controls.
@@ -254,7 +254,7 @@ SKIP_PERTURBATION_SCORE
   `aggregate.skip_perturbation_score` · default `False`. Skip {term}`perturbation scoring <Perturbation score>`; `PS_PROBABILITY_THRESHOLD` and `PS_PERCENTILE_THRESHOLD` set which cells it keeps.
 
 AGG_METHOD
-  `aggregate.agg_method` · default `None`. `"median"` (usual) or `"mean"`.
+  `aggregate.agg_method` · default `"median"`. `"median"` or `"mean"`.
 
 NUM_SIMS
   `aggregate.num_sims` · default `None`. Number of {term}`bootstrap <Bootstrap scoring>` simulations, for example `100000`. The bootstrap runs only for the cell classes and channel combos listed in `BOOTSTRAP_CELL_CLASS` and `BOOTSTRAP_CHANNEL_COMBO`.
@@ -264,13 +264,13 @@ NUM_SIMS
 
 ```{glossary}
 MIN_CELL_CUTOFFS
-  `cluster.min_cell_cutoffs` · default `None`. Minimum cells per perturbation for each cell class, for example `{"all": 5, "Interphase": 5, "Mitotic": 5}`. Lower it for rare classes.
+  `cluster.min_cell_cutoffs` · default `{"all": 0}`. Minimum cells per perturbation for each cell class, for example `{"all": 5, "Interphase": 5, "Mitotic": 5}`; `0` keeps every perturbation. Lower it for rare classes.
 
 SPECIES_ID (cluster)
   Not written; selects which {term}`benchmarks <Benchmarks>` are generated · default `"9606"` (human). NCBI taxonomy ID of the screen organism.
 
 PHATE_DISTANCE_METRIC
-  `cluster.phate_distance_metric` · default `None`. `"cosine"` (recommended) or `"euclidean"`.
+  `cluster.phate_distance_metric` · default `"cosine"`. `"cosine"` (recommended) or `"euclidean"`.
 
 PERTURBATION_AUC_THRESHOLD
   `cluster.perturbation_auc_threshold` · default `None`. Drop perturbations whose perturbation-score AUC is below this, for example `0.6`. Controls are always kept.

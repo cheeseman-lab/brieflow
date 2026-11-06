@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 # constants for extracting bases
+from lib.shared.file_utils import add_wildcard_columns
 from lib.sbs.constants import (
     CYCLE,
     CHANNEL,
@@ -59,8 +60,7 @@ def extract_bases(
     df_bases = format_bases(values, labels, positions, cycles, bases)
 
     # Add wildcard metadata to the DataFrame
-    for k, v in sorted(wildcards.items()):
-        df_bases[k] = v
+    add_wildcard_columns(df_bases, wildcards)
 
     if df_bases.empty:
         columns = [

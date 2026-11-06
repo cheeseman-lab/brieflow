@@ -1,5 +1,7 @@
 """Utility functions for extracting features from image data."""
 
+from lib.shared.file_utils import add_wildcard_columns
+
 # Basic features added to all feature extractions
 features_basic = {
     "area": lambda r: r.area,
@@ -38,8 +40,7 @@ def extract_features(data, labels, wildcards, features=None, multichannel=False)
     df = feature_table(data, labels, features)
 
     # Add wildcard metadata to the DataFrame
-    for k, v in sorted(wildcards.items()):
-        df[k] = v
+    add_wildcard_columns(df, wildcards)
 
     return df
 
@@ -75,7 +76,6 @@ def extract_features_bare(
 
     # Add wildcard metadata to the DataFrame if provided
     if wildcards is not None:
-        for k, v in sorted(wildcards.items()):
-            df[k] = v
+        add_wildcard_columns(df, wildcards)
 
     return df

@@ -2,6 +2,7 @@ import pandas as pd
 
 from lib.shared.extract_phenotype_minimal import extract_phenotype_minimal
 from lib.shared.image_io import read_image
+from lib.shared.parquet_io import write_parquet
 
 # Load nuclei data
 nuclei_data = read_image(snakemake.input[0])
@@ -39,4 +40,8 @@ if len(snakemake.input) > 2:
     )
 
 # save minimal phenotype data
-phenotype_minimal.to_csv(snakemake.output[0], index=False, sep="\t")
+# Shared script: SBS sbs_info writes parquet; phenotype phenotype_info stays TSV.
+if str(snakemake.output[0]).endswith(".parquet"):
+    write_parquet(phenotype_minimal, snakemake.output[0])
+else:
+    phenotype_minimal.to_csv(snakemake.output[0], index=False, sep="\t")

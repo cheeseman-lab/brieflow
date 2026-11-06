@@ -7,8 +7,12 @@ from lib.shared.image_io import read_image, save_image
 if getattr(snakemake.params, "channel_names", None) is None:
     raise ValueError("Required config parameter 'channel_names' is not set")
 
-# Load image data
-image_data = [read_image(file_path) for file_path in snakemake.input]
+# Load image data; in zarr mode each cycle is read from the tile's one SBS image
+image_path = getattr(snakemake.params, "image_path", None)
+if image_path:
+    image_data = [read_image(image_path, cycle=c) for c in snakemake.params.cycles]
+else:
+    image_data = [read_image(file_path) for file_path in snakemake.input]
 
 # align cycles
 aligned_data, metrics = align_cycles(

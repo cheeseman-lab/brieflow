@@ -42,7 +42,7 @@ for plate_zarr in plate_zarr_dirs:
         print(f"Writing HCS metadata for: {plate_path}")
         write_hcs_metadata(plate_path, channels_metadata=channels_metadata)
         total += 1
-        # Skip preprocess stores (extra cycle nesting)
+        # Preprocess stores get plate and well metadata only
         if "preprocess" not in plate_path.parts:
             write_field_image_metadata(
                 plate_path,

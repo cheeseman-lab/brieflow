@@ -16,6 +16,23 @@ rule align_sbs:
         SBS_OUTPUTS_MAPPED["align_sbs"][0],  # aligned image
         SBS_OUTPUTS_MAPPED["align_sbs"][1],  # alignment metrics TSV
     params:
+        image_path=lambda wildcards: (
+            PREPROCESS_SBS_IMAGE.format(
+                plate=wildcards.plate, row=wildcards.row, col=wildcards.col, tile=wildcards.tile
+            )
+            if IMG_FMT == "zarr"
+            else None
+        ),
+        cycles=lambda wildcards: (
+            output_to_input(
+                "{cycle}",
+                wildcards=wildcards,
+                expansion_values=["cycle"],
+                metadata_combos=sbs_wildcard_combos,
+            )
+            if IMG_FMT == "zarr"
+            else None
+        ),
         method=config.get("sbs", {}).get("alignment_method"),
         channel_names=config.get("sbs", {}).get("channel_names"),
         upsample_factor=config.get("sbs", {}).get("upsample_factor", 2),

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from snakemake.io import temp, directory
 from lib.shared.file_utils import get_image_output_path, get_data_output_path
 from lib.shared.target_utils import map_outputs, outputs_to_targets
@@ -27,6 +29,13 @@ _pp_metadata_phen_loc = {
 }
 _pp_combine_metadata_loc = {"plate": "{plate}", "well": "{well}"}
 
+# zarr SBS: one image per tile with cycles on C; convert jobs write their cycle and touch a flag
+PREPROCESS_SBS_IMAGE = str(
+    PREPROCESS_FP
+    / Path(get_image_output_path(_pp_phen_tile, "image", "zarr", image_subdir="sbs")).parent
+)
+_pp_sbs_flags = PREPROCESS_FP / "sbs" / "converted"
+
 PREPROCESS_OUTPUTS = {
     "extract_metadata_sbs": [
         PREPROCESS_FP / "metadata" / "sbs" / get_data_output_path(
@@ -49,10 +58,15 @@ PREPROCESS_OUTPUTS = {
         ),
     ],
     "convert_sbs": [
-        PREPROCESS_FP / get_image_output_path(_pp_sbs_tile, "image", IMG_FMT, image_subdir="sbs"),
+        _pp_sbs_flags / get_data_output_path(_pp_sbs_tile, "converted", "done", IMG_FMT)
+        if IMG_FMT == "zarr"
+        else PREPROCESS_FP / get_image_output_path(_pp_sbs_tile, "image", IMG_FMT, image_subdir="sbs"),
     ],
     "convert_phenotype": [
         PREPROCESS_FP / get_image_output_path(_pp_phen_tile, "image", IMG_FMT, image_subdir="phenotype"),
+    ],
+    "create_sbs_image": [
+        _pp_sbs_flags / get_data_output_path(_pp_combine_metadata_loc, "created", "done", IMG_FMT),
     ],
     "calculate_ic_sbs": [
         PREPROCESS_FP / "ic_fields" / "sbs" / get_data_output_path(_pp_sbs_ic, "ic_field", IC_EXT, IMG_FMT),
@@ -70,6 +84,7 @@ PREPROCESS_OUTPUT_MAPPINGS = {
     "combine_metadata_phenotype": None,
     "convert_sbs": None,
     "convert_phenotype": None,
+    "create_sbs_image": None,
     "calculate_ic_sbs": directory if IC_EXT == "zarr" else None,
     "calculate_ic_phenotype": directory if IC_EXT == "zarr" else None,
 }
@@ -85,7 +100,7 @@ PREPROCESS_OUTPUTS_MAPPED = map_outputs(PREPROCESS_OUTPUTS, PREPROCESS_OUTPUT_MA
 PREPROCESS_OUTPUTS_SBS = {
     rule_name: templates
     for rule_name, templates in PREPROCESS_OUTPUTS.items()
-    if "sbs" in rule_name
+    if "sbs" in rule_name and (IMG_FMT == "zarr" or rule_name != "create_sbs_image")
 }
 PREPROCESS_TARGETS_SBS = outputs_to_targets(
     PREPROCESS_OUTPUTS_SBS, sbs_wildcard_combos, PREPROCESS_OUTPUT_MAPPINGS

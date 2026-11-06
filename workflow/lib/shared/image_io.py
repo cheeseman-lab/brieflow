@@ -111,10 +111,12 @@ def _make_compressor(compression: Optional[str]):
 # ---------------------------------------------------------------------------
 
 
-def read_image(path: PathLike) -> np.ndarray:
+def read_image(path: PathLike, cycle: Optional[Union[int, str]] = None) -> np.ndarray:
     """Read an image from TIFF or OME-Zarr.
 
-    For OME-Zarr, returns the highest-resolution (level 0) array.
+    For OME-Zarr, returns the highest-resolution (level 0) array. ``cycle`` reads
+    one cycle of a store made by :func:`create_cycle_stacked_image`, as
+    ``(stain, Y, X)`` without the zero padding, or ``(Y, X)`` for a single stain.
     """
     p = Path(path)
     if not p.exists():
@@ -139,6 +141,10 @@ def read_image(path: PathLike) -> np.ndarray:
             ds_path = "0"
         if ds_path is None:
             raise ValueError("Could not find image data in OME-Zarr")
+        if cycle is not None:
+            index, n_stains = _cycle_slot(root, cycle)
+            arr = root[ds_path][0, index, :n_stains]
+            return arr[0] if n_stains == 1 else arr
         arr = root[ds_path][:]
         # Squeeze singleton dimensions added for 5D TCZYX OME-Zarr storage.
         # 5D TCZYX: squeeze T (always singleton), squeeze Z if singleton.
@@ -235,6 +241,128 @@ def save_image(
     raise ValueError(f"Unsupported output path: {out}")
 
 
+def create_cycle_stacked_image(
+    output_path: PathLike,
+    cycles: Sequence[Union[int, str]],
+    n_stains: Sequence[int],
+    shape: Tuple[int, int],
+    dtype,
+    *,
+    coarsening_factor: int = 2,
+    max_levels: int = 1,
+    compression: Optional[str] = None,
+) -> None:
+    """Create an empty OME-Zarr image that holds every sequencing cycle of one tile.
+
+    Each level is ``(1, cycle, stain, Y, X)``: cycles on C and the stains of a
+    cycle on Z, as in the SBS ``aligned`` stores, zero-padded to the largest
+    stain count. A chunk holds one cycle, so :func:`write_image_cycle` calls for
+    different cycles never share a chunk and can run at the same time. Only
+    metadata is written; ``attributes["brieflow"]`` records the cycle order and
+    the stain count of each cycle.
+
+    Args:
+        output_path: Image group to create, e.g. ``image_1.zarr/A/1/0``.
+        cycles: Cycle values, in channel order.
+        n_stains: Number of stains in each cycle.
+        shape: ``(Y, X)`` of one tile at full resolution.
+        dtype: Pixel data type.
+        coarsening_factor: Downsampling factor between levels.
+        max_levels: Number of pyramid levels.
+        compression: Codec spec, as for :func:`write_image_omezarr`.
+
+    Returns:
+        None.
+    """
+    axes = "TCZYX"
+    depth = max(n_stains)
+    coordinate_transformations, metadata = _image_metadata(
+        axes,
+        None,
+        coarsening_factor,
+        max_levels,
+        [f"cycle_{cycle}" for cycle in cycles],
+        False,
+        np.dtype(dtype),
+    )
+    axes_dicts = _axes_str_to_dicts(axes)
+    array_kwargs: Dict[str, Any] = {"dimension_names": [a["name"] for a in axes_dicts]}
+    compressor = _make_compressor(compression)
+    if compressor is not None:
+        array_kwargs["compressors"] = [compressor]
+
+    root = zarr.open_group(str(output_path), mode="w", zarr_format=ZARR_FORMAT)
+    y, x = shape
+    datasets = []
+    for i in range(max_levels):
+        root.create_array(
+            str(i),
+            shape=(1, len(cycles), depth, y, x),
+            chunks=(1, 1, depth, min(y, 1024), min(x, 1024)),
+            dtype=dtype,
+            fill_value=0,
+            **array_kwargs,
+        )
+        datasets.append(
+            {"path": str(i), "coordinateTransformations": coordinate_transformations[i]}
+        )
+        y, x = y // coarsening_factor, x // coarsening_factor
+    _write_image_metadata(root, datasets, axes_dicts, metadata, False)
+    root.attrs["brieflow"] = {
+        "cycles": [str(cycle) for cycle in cycles],
+        "n_stains": [int(n) for n in n_stains],
+    }
+
+
+def write_image_cycle(
+    image: np.ndarray,
+    output_path: PathLike,
+    cycle: Union[int, str],
+    *,
+    coarsening_factor: int = 2,
+) -> None:
+    """Write one cycle into a store made by :func:`create_cycle_stacked_image`.
+
+    Every level is written; each is downsampled exactly as
+    :func:`write_image_omezarr` downsamples a single-cycle image.
+
+    Args:
+        image: ``(stain, Y, X)`` array, or ``(Y, X)`` for a single stain.
+        output_path: Image group made by :func:`create_cycle_stacked_image`.
+        cycle: Cycle value, one of the store's cycles.
+        coarsening_factor: Downsampling factor between levels.
+
+    Returns:
+        None.
+
+    Raises:
+        ValueError: If the image does not match the stain count or tile shape
+            the store was created with.
+    """
+    root = zarr.open_group(str(output_path), mode="r+")
+    index, n_stains = _cycle_slot(root, cycle)
+    data = image[np.newaxis] if image.ndim == 2 else image
+    level0 = root["0"]
+    if data.shape[0] != n_stains or tuple(data.shape[-2:]) != tuple(level0.shape[-2:]):
+        raise ValueError(
+            f"Cycle {cycle} image has shape {image.shape}; the store at {output_path} "
+            f"expects {n_stains} stains of {tuple(level0.shape[-2:])}"
+        )
+    n_levels = len(root.attrs["ome"]["multiscales"][0]["datasets"])
+    y, x = data.shape[-2:]
+    level = da.from_array(
+        data[np.newaxis, :, np.newaxis],
+        chunks=(1, n_stains, 1, min(y, 1024), min(x, 1024)),
+    )
+    scaler = Scaler(
+        downscale=coarsening_factor, max_layer=n_levels - 1, labeled=False, order=1
+    )
+    for i in range(n_levels):
+        if i > 0:
+            level = scaler.resize_image(level)
+        root[str(i)][0, index, :n_stains] = level[0, :, 0].compute()
+
+
 # ---------------------------------------------------------------------------
 # OME-Zarr writing
 # ---------------------------------------------------------------------------
@@ -312,50 +440,15 @@ def write_image_omezarr(
     if coarsening_factor < 2:
         raise ValueError(f"coarsening_factor must be >= 2, got {coarsening_factor}")
 
-    ps = _parse_pixel_sizes(pixel_size_um)
-
-    coordinate_transformations = []
-    for i in range(max_levels):
-        scale_transform = [1.0] * len(axes)
-        if "Z" in axes and ps.get("z") is not None:
-            scale_transform[axes.find("Z")] = ps["z"]
-        if "Y" in axes and ps.get("y") is not None:
-            scale_transform[axes.find("Y")] = ps["y"] * (coarsening_factor**i)
-        if "X" in axes and ps.get("x") is not None:
-            scale_transform[axes.find("X")] = ps["x"] * (coarsening_factor**i)
-        coordinate_transformations.append([{"scale": scale_transform, "type": "scale"}])
-
-    metadata: Dict[str, Any] = {}
-    omero: Dict[str, Any] = {}
-
-    dtype_max = (
-        float(np.iinfo(image_data.dtype).max)
-        if np.issubdtype(image_data.dtype, np.integer)
-        else 1.0
+    coordinate_transformations, metadata = _image_metadata(
+        axes,
+        pixel_size_um,
+        coarsening_factor,
+        max_levels,
+        channel_names,
+        is_label,
+        image_data.dtype,
     )
-    default_window = {"start": 0.0, "end": dtype_max, "min": 0.0, "max": dtype_max}
-
-    if channel_names:
-        if is_label:
-            omero["channels"] = [
-                {"label": name, "active": True} for name in channel_names
-            ]
-        else:
-            omero["channels"] = [
-                {
-                    "label": name,
-                    "active": True,
-                    "color": DEFAULT_CHANNEL_COLORS[i % len(DEFAULT_CHANNEL_COLORS)],
-                    "window": dict(default_window),
-                }
-                for i, name in enumerate(channel_names)
-            ]
-    if any(v is not None for v in ps.values()):
-        omero["pixel_size"] = {k: v for k, v in ps.items() if v is not None}
-    if omero:
-        metadata["omero"] = omero
-    if is_label:
-        metadata["image-label"] = {"version": "0.5"}
 
     # ome_zarr only recognises lowercase axis names for type inference;
     # pass explicit dicts so uppercase names work without validation errors.
@@ -399,9 +492,74 @@ def write_image_omezarr(
             }
         )
 
+    _write_image_metadata(root, datasets, axes_dicts, metadata, is_label)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _image_metadata(
+    axes: str,
+    pixel_size_um,
+    coarsening_factor: int,
+    max_levels: int,
+    channel_names: Optional[List[str]],
+    is_label: bool,
+    dtype,
+) -> Tuple[List[List[Dict[str, Any]]], Dict[str, Any]]:
+    """Per-level scale transforms and the omero/image-label metadata of an image."""
+    ps = _parse_pixel_sizes(pixel_size_um)
+
+    coordinate_transformations = []
+    for i in range(max_levels):
+        scale_transform = [1.0] * len(axes)
+        if "Z" in axes and ps.get("z") is not None:
+            scale_transform[axes.find("Z")] = ps["z"]
+        if "Y" in axes and ps.get("y") is not None:
+            scale_transform[axes.find("Y")] = ps["y"] * (coarsening_factor**i)
+        if "X" in axes and ps.get("x") is not None:
+            scale_transform[axes.find("X")] = ps["x"] * (coarsening_factor**i)
+        coordinate_transformations.append([{"scale": scale_transform, "type": "scale"}])
+
+    metadata: Dict[str, Any] = {}
+    omero: Dict[str, Any] = {}
+
+    dtype_max = float(np.iinfo(dtype).max) if np.issubdtype(dtype, np.integer) else 1.0
+    default_window = {"start": 0.0, "end": dtype_max, "min": 0.0, "max": dtype_max}
+
+    if channel_names:
+        if is_label:
+            omero["channels"] = [
+                {"label": name, "active": True} for name in channel_names
+            ]
+        else:
+            omero["channels"] = [
+                {
+                    "label": name,
+                    "active": True,
+                    "color": DEFAULT_CHANNEL_COLORS[i % len(DEFAULT_CHANNEL_COLORS)],
+                    "window": dict(default_window),
+                }
+                for i, name in enumerate(channel_names)
+            ]
+    if any(v is not None for v in ps.values()):
+        omero["pixel_size"] = {k: v for k, v in ps.items() if v is not None}
+    if omero:
+        metadata["omero"] = omero
+    if is_label:
+        metadata["image-label"] = {"version": "0.5"}
+
+    return coordinate_transformations, metadata
+
+
+def _write_image_metadata(
+    root, datasets, axes_dicts, metadata: Dict[str, Any], is_label: bool
+) -> None:
+    """Write the multiscales block, then put omero/image-label under its ``ome`` key."""
     write_multiscales_metadata(root, datasets, CurrentFormat(), axes_dicts, **metadata)
 
-    # Put omero/image-label under the ``ome`` key write_multiscales_metadata created.
     ome_attrs = dict(root.attrs.get("ome", {}))
     if metadata:
         for k, v in metadata.items():
@@ -415,9 +573,15 @@ def write_image_omezarr(
     root.attrs["ome"] = ome_attrs
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def _cycle_slot(root, cycle) -> Tuple[int, int]:
+    """Channel index and stain count of ``cycle`` in a cycle-stacked image group."""
+    info = root.attrs.get("brieflow", {})
+    cycles = info.get("cycles", [])
+    if str(cycle) not in cycles:
+        raise ValueError(f"Cycle {cycle} is not in this image (cycles: {cycles})")
+    index = cycles.index(str(cycle))
+    return index, int(info["n_stains"][index])
+
 
 # Maps uppercase axis character → OME-NGFF axis type.
 _AXIS_TYPES: Dict[str, str] = {

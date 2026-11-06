@@ -313,6 +313,66 @@ def get_inputs_for_metadata_extraction(
     return inputs
 
 
+def get_well_tiles_and_cycles(wildcard_combos: pd.DataFrame, wildcards) -> tuple:
+    """Tiles and cycles of one SBS well, in the order of the wildcard combos.
+
+    Args:
+        wildcard_combos (pd.DataFrame): SBS wildcard combinations (zarr mode, with
+            ``row`` and ``col`` columns).
+        wildcards: Snakemake wildcards with ``plate``, ``row`` and ``col``.
+
+    Returns:
+        tuple: ``(tiles, cycles)``, two lists of strings without duplicates.
+    """
+    mask = (
+        (wildcard_combos["plate"] == str(wildcards.plate))
+        & (wildcard_combos["row"] == str(wildcards.row))
+        & (wildcard_combos["col"] == str(wildcards.col))
+    )
+    well_combos = wildcard_combos[mask]
+    return (
+        list(dict.fromkeys(well_combos["tile"])),
+        list(dict.fromkeys(well_combos["cycle"])),
+    )
+
+
+def get_first_tile_inputs(
+    samples_df: pd.DataFrame,
+    wildcard_combos: pd.DataFrame,
+    wildcards,
+    config: Dict[str, Any],
+) -> Dict[str, List[str]]:
+    """Raw files of the first tile of one SBS well, one input per cycle.
+
+    The image-creation step reads them for each cycle's stain count and the
+    tile shape.
+
+    Args:
+        samples_df (pd.DataFrame): SBS samples with raw file paths.
+        wildcard_combos (pd.DataFrame): SBS wildcard combinations.
+        wildcards: Snakemake wildcards with ``plate``, ``row`` and ``col``.
+        config (Dict[str, Any]): Configuration dictionary.
+
+    Returns:
+        Dict[str, List[str]]: ``{"cycle_<cycle>": [raw file paths]}``.
+    """
+    from lib.preprocess.preprocess import include_tile_in_input
+
+    tiles, cycles = get_well_tiles_and_cycles(wildcard_combos, wildcards)
+    inputs = {}
+    for cycle in cycles:
+        files = get_sample_fps(
+            samples_df,
+            plate=wildcards.plate,
+            well=f"{wildcards.row}{wildcards.col}",
+            cycle=cycle,
+            tile=tiles[0] if include_tile_in_input("sbs", config) else None,
+            channel_order=config.get("preprocess", {}).get("sbs_channel_order"),
+        )
+        inputs[f"cycle_{cycle}"] = [files] if isinstance(files, str) else list(files)
+    return inputs
+
+
 def get_tile_count_from_well(
     samples_df: pd.DataFrame,
     plate: Union[int, str] = None,

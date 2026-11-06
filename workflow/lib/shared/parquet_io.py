@@ -123,8 +123,7 @@ def write_parquet(
     Uses polars for faster writes when available, falls back to pandas.
     """
     if _HAS_POLARS:
-        # polars stringifies object columns holding numpy arrays (sbs_info "bounds"
-        # read back from a List column); as python lists they stay a List column.
+        # numpy-array cells (sbs_info "bounds") as lists stay a List column, not strings
         obj_cols = df.select_dtypes(include="object").columns
         if len(obj_cols):
             df = df.copy()

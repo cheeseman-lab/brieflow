@@ -44,8 +44,7 @@ def final_merge(
         cp = cp.drop(drop_cols)
     cp = cp.rename({"label": "cell_0"})
 
-    # phenotype parquets can carry plate/tile as String where dedup has Int64;
-    # without the cast the join silently matches nothing.
+    # cast keys to dedup's dtypes, or String plate/tile would silently match nothing
     cp = cp.with_columns([pl.col(k).cast(dedup_schema[k]) for k in KEYS])
 
     merged = dedup.join(cp, on=KEYS, how="left")

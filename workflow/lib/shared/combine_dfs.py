@@ -42,8 +42,7 @@ def _is_array_column(series):
 
 def _concat_polars(files):
     """Diagonal concat of the tiles, reproducing pandas' column union and order."""
-    # 0-row parquet tiles infer object columns as String, which cannot concat with a
-    # typed List column, so they only contribute their column names below.
+    # 0-row parquet tiles (String, not List, columns) only contribute column names
     kept = [
         (f, fmt)
         for f, fmt in files

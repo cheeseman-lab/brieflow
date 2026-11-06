@@ -5,10 +5,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
 import numpy as np
-from pandas.api.types import is_numeric_dtype
 
 from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
 from lib.aggregate.cell_data_utils import (
+    downcast_to_float32,
     load_metadata_cols,
     split_cell_data,
     control_mask,
@@ -122,13 +122,9 @@ for batch_idx, indices in enumerate(subset_indices):
     )
     print(f"Loaded batch shape: {batch_df.shape}")
 
-    # Convert numerical columns to float32
-    for col in batch_df.columns:
-        if is_numeric_dtype(batch_df[col]):
-            batch_df[col] = batch_df[col].astype("float32")
-
-    # Split metadata and features
+    # Split metadata and features; features and float metadata become float32
     metadata, features = split_cell_data(batch_df, metadata_cols)
+    metadata, features = downcast_to_float32(metadata, features)
     del batch_df
     gc.collect()
 
@@ -178,7 +174,8 @@ for batch_idx, indices in enumerate(subset_indices):
     aligned_table = pa.Table.from_pandas(aligned_batch, preserve_index=False)
     if writer is None:
         writer = pq.ParquetWriter(aligned_output, aligned_table.schema)
-    writer.write_table(aligned_table)
+    # an integer column with nulls in one batch arrives as float; match the first batch
+    writer.write_table(aligned_table.cast(writer.schema, safe=False))
 
     del aligned_table, aligned_batch
     gc.collect()

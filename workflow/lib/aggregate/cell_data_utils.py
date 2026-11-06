@@ -226,6 +226,27 @@ def split_cell_data(
     return metadata, features
 
 
+def downcast_to_float32(metadata, features):
+    """Cast features and float metadata to float32, keeping integer and bool metadata.
+
+    Identifiers such as ``plate``, ``tile``, ``col`` and cell labels stay integers
+    instead of becoming float32 alongside the features.
+
+    Args:
+        metadata (pd.DataFrame): Metadata columns from :func:`split_cell_data`.
+        features (pd.DataFrame): Feature columns from :func:`split_cell_data`.
+
+    Returns:
+        tuple: (metadata, features) with the casts applied.
+    """
+    float_cols = {
+        col: "float32"
+        for col in metadata.columns
+        if pd.api.types.is_float_dtype(metadata[col])
+    }
+    return metadata.astype(float_cols), features.astype("float32")
+
+
 def channel_combo_subset(features, channel_combo, all_channels):
     """Filter features to include only columns from specified channel combination.
 

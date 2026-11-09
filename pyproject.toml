@@ -41,6 +41,8 @@ dependencies = [
   "torch==2.11.0",
   "spotiflow==0.6.4",
   "stardist==0.9.2",
+  "tensorflow-cpu==2.20.0; sys_platform != 'darwin'",
+  "tensorflow==2.20.0; sys_platform == 'darwin'",
   "levenshtein==0.27.3",
   "imaris-ims-file-reader==0.1.8",
   "ipywidgets==8.1.8",

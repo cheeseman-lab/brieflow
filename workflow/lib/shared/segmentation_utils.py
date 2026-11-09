@@ -6,10 +6,15 @@ This module provides common functions used across different segmentation methods
 - center_pixels: Assign labels to center pixels of regions
 - relabel_array: Map values in an array based on a label dictionary
 - count_nuclei_per_cell: Count distinct nuclei contained in each cell
+- load_stardist_model: Load a pretrained StarDist model safely from parallel jobs
 
 These utilities are extracted from individual segmentation modules to avoid code duplication
 and ensure consistent behavior across different segmentation methods.
 """
+
+import fcntl
+import os
+from pathlib import Path
 
 import numpy as np
 from collections import defaultdict
@@ -252,3 +257,25 @@ def count_nuclei_per_cell(nuclei, cells):
         counts[region.label] = int(len(np.unique(contained)))
 
     return counts
+
+
+def load_stardist_model(model_type="2D_versatile_fluo"):
+    """Load a pretrained StarDist2D model, one process at a time.
+
+    Keras 3 re-extracts the cached model archive on every load, so parallel jobs could read a
+    half-written weights file. A lock file in the Keras model cache serializes the load.
+
+    Args:
+        model_type (str): Name of a pretrained StarDist2D model. Default is "2D_versatile_fluo".
+
+    Returns:
+        StarDist2D: The loaded model.
+    """
+    from stardist.models import StarDist2D
+
+    keras_home = Path(os.environ.get("KERAS_HOME", Path.home() / ".keras"))
+    lock_dir = keras_home / "models" / "StarDist2D"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    with open(lock_dir / ".load.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return StarDist2D.from_pretrained(model_type)

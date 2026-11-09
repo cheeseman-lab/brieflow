@@ -44,17 +44,10 @@ from lib.shared.segmentation_utils import load_stardist_model
 from lib.shared.segment_cellpose import (
     prepare_cellpose,
     create_cellpose_model,
-    CELLPOSE_4X,
+    cellpose_models_for,
+    cellpose_version_for_model,
 )
 import cv2
-
-# Check if Cellpose is available (for error messaging)
-try:
-    import cellpose
-
-    CELLPOSE_AVAILABLE = True
-except ImportError:
-    CELLPOSE_AVAILABLE = False
 
 
 def segment_second_objs_ml(
@@ -197,14 +190,7 @@ def segment_second_objs_ml(
         print(f"  Cell probability threshold: {cellprob_threshold}")
         print(f"  GPU: {gpu}")
 
-        # Check Cellpose availability
-        if not CELLPOSE_AVAILABLE:
-            raise ImportError(
-                "Cellpose is required for ML-based secondary object segmentation. "
-                "Install it with: pip install cellpose"
-            )
-
-        # Initialize Cellpose model (handles version detection and validation)
+        # Initialize Cellpose model from the version that runs model_type
         model = create_cellpose_model(model_type, gpu=gpu)
 
         # eval() returns (masks, flows, styles); diameter must be explicit for Cellpose 4.x
@@ -666,30 +652,20 @@ def estimate_second_obj_diameter(
     target_channel = image[second_obj_channel_index]
 
     if method == "cellpose":
-        # Check Cellpose availability
-        if not CELLPOSE_AVAILABLE:
-            raise ImportError(
-                "Cellpose is required for diameter estimation. "
-                "Install it with: pip install cellpose"
-            )
-
-        # Cellpose 4.x does not support automatic diameter estimation
-        if CELLPOSE_4X:
-            raise NotImplementedError(
-                "Automatic diameter estimation is not supported with Cellpose 4.x. "
-                "Please specify second_obj_diameter explicitly in your config, "
-                "or use method='manual' for threshold-based estimation, "
-                "or downgrade to Cellpose 3.x: pip install cellpose==3.1.0"
-            )
-
         model_type = kwargs.get("model_type", "cyto3")
         gpu = kwargs.get("gpu", False)
 
+        # Diameter estimation needs a Cellpose 3 model (Cellpose 4 has no size model)
+        if cellpose_version_for_model(model_type) == 4:
+            raise NotImplementedError(
+                f"Automatic diameter estimation needs a Cellpose 3 model; '{model_type}' "
+                "runs on Cellpose 4. Specify second_obj_diameter explicitly in your config, "
+                "or use method='manual' for threshold-based estimation."
+            )
+
         print(f"Estimating secondary object diameter using Cellpose {model_type}...")
 
-        # Cellpose 3.x: Use the old API which supports diameter estimation
-        from cellpose import models as cellpose_models
-
+        cellpose_models = cellpose_models_for(3, model_type)
         model = cellpose_models.Cellpose(gpu=gpu, model_type=model_type)
 
         # Run segmentation with automatic diameter estimation

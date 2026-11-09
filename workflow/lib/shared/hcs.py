@@ -384,34 +384,21 @@ def _get_store_index(store_path: Path) -> _StoreIndex:
 
 
 def _find_fields(index) -> list[tuple[str, str, str]]:
-    """Locate the (row, col, field) acquisitions recorded in a store index.
-
-    Prefers fields written at ``{row}/{col}/{field}``, and falls back to any
-    deeper node under such a prefix, which is how preprocess stores nest cycles.
-    """
-    strict, loose = [], []
-    seen_strict, seen_loose = set(), set()
-
+    """Locate the (row, col, field) image groups recorded in a store index."""
+    fields = []
     for rel in sorted(index.nodes):
         parts = rel.split("/") if rel else []
-        if len(parts) < 3:
+        if len(parts) != 3:
             continue
 
-        row, col, field = parts[0], parts[1], parts[2]
+        row, col, field = parts
         if not str(field).isdigit():
             continue
         if not any(p.match(f"{row}{col}") for p in WELL_ROWCOL_PATTERNS):
             continue
+        fields.append((row, col, field))
 
-        key = (row, col, field)
-        if len(parts) == 3 and key not in seen_strict:
-            seen_strict.add(key)
-            strict.append(key)
-        if key not in seen_loose:
-            seen_loose.add(key)
-            loose.append(key)
-
-    return strict if strict else loose
+    return fields
 
 
 def _column_order(label):

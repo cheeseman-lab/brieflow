@@ -1,0 +1,54 @@
+cff-version: 1.2.0
+message: "If you use Brieflow, please cite the article below."
+title: "Brieflow"
+abstract: "An integrated computational pipeline for high-throughput analysis of optical pooled screening data."
+type: software
+license: MIT
+repository-code: "https://github.com/cheeseman-lab/brieflow"
+url: "https://brieflow.readthedocs.io"
+authors:
+  - family-names: "Di Bernardo"
+    given-names: "Matteo"
+  - family-names: "Kern"
+    given-names: "Roshan S."
+  - family-names: "Cepeda Diaz"
+    given-names: "Ana Karla"
+  - family-names: "Mallar"
+    given-names: "Alexa"
+  - family-names: "Choi"
+    given-names: "Samuel J."
+  - family-names: "Nutter-Upham"
+    given-names: "Andrew"
+  - family-names: "Lourido"
+    given-names: "Sebastian"
+  - family-names: "Blainey"
+    given-names: "Paul C."
+  - family-names: "Cheeseman"
+    given-names: "Iain M."
+preferred-citation:
+  type: article
+  title: "Brieflow: an integrated computational pipeline for high-throughput analysis of optical pooled screening data"
+  authors:
+    - family-names: "Di Bernardo"
+      given-names: "Matteo"
+    - family-names: "Kern"
+      given-names: "Roshan S."
+    - family-names: "Cepeda Diaz"
+      given-names: "Ana Karla"
+    - family-names: "Mallar"
+      given-names: "Alexa"
+    - family-names: "Choi"
+      given-names: "Samuel J."
+    - family-names: "Nutter-Upham"
+      given-names: "Andrew"
+    - family-names: "Lourido"
+      given-names: "Sebastian"
+    - family-names: "Blainey"
+      given-names: "Paul C."
+    - family-names: "Cheeseman"
+      given-names: "Iain M."
+  journal: "Nature Communications"
+  volume: 17
+  start: 6997
+  year: 2026
+  doi: "10.1038/s41467-026-73643-7"

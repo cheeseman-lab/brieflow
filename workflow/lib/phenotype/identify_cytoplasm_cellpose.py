@@ -28,7 +28,7 @@ def identify_cytoplasm_cellpose(nuclei, cells):
             "`reconcile` (e.g. 'contained_in_cells' or 'consensus') in the config."
         )
 
-    # Vectorized form of the old loop; bit-identity pinned in test_identify_cytoplasm_cellpose.py
+    # Vectorized form of the per-label loop described above; output is identical
     cytoplasms = np.where(
         (nuclei > 0) & (nuclei >= cells) & np.isin(nuclei, cells), 0, cells
     )

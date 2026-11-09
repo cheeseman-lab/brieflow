@@ -5,7 +5,6 @@ import warnings
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
-from pandas.api.types import is_numeric_dtype
 from sklearn.decomposition import PCA
 import numpy as np
 
@@ -140,11 +139,7 @@ for i, indices in enumerate(subset_indices):
             batch_cols=snakemake.params.batch_cols,
         )
 
-    for col in subset_df.columns:
-        if is_numeric_dtype(subset_df[col]):
-            subset_df[col] = subset_df[col].astype("float32")
-
-    metadata, features = split_cell_data(subset_df, metadata_cols)
+    metadata, features = split_cell_data(subset_df, metadata_cols, float32=True)
     del subset_df
     gc.collect()
 
@@ -183,7 +178,8 @@ for i, indices in enumerate(subset_indices):
     aligned_cell_data = pa.Table.from_pandas(aligned_cell_data, preserve_index=False)
     if writer is None:
         writer = pq.ParquetWriter(snakemake.output[0], aligned_cell_data.schema)
-    writer.write_table(aligned_cell_data)
+    # an integer column with nulls in one batch arrives as float; match the first batch
+    writer.write_table(aligned_cell_data.cast(writer.schema, safe=False))
 
 # Close writer
 if writer is not None:

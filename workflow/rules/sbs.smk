@@ -23,6 +23,7 @@ rule align_sbs:
         skip_cycles_indices=config.get("sbs", {}).get("skip_cycles_indices"),
         manual_background_cycle_index=config.get("sbs", {}).get("manual_background_cycle_index"),
         manual_channel_mapping=config.get("sbs", {}).get("manual_channel_mapping"),
+        use_align_within_cycle=config.get("sbs", {}).get("use_align_within_cycle", True),
     script:
         "../scripts/sbs/align_cycles.py"
 

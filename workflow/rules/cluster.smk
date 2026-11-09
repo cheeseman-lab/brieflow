@@ -87,9 +87,10 @@ rule format_cluster_anndata:
             )
             for res in cluster_wildcard_combos["leiden_resolution"].unique()
         ],
+        # Bootstrapped combos always wait for their results, so the AnnData never depends on job order
         bootstrap_results=lambda wildcards: (
             ancient(_bootstrap_gene_results(wildcards))
-            if Path(_bootstrap_gene_results(wildcards)).exists()
+            if _bootstrap_gene_results(wildcards) in BOOTSTRAP_TARGETS_ALL
             else []
         ),
     output:

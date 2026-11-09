@@ -322,30 +322,17 @@ BOOTSTRAP_OUTPUTS = {
         "sample_sizes", "tsv"
     ),
 
-    # Construct-level outputs
-    "bootstrap_construct_nulls": AGGREGATE_FP
-    / "bootstrap"
-    / f"{BOOTSTRAP_COMBO_STEM}__constructs"
-    / "{gene}__{construct}__nulls.npy",
+    # Per-gene outputs: one row per construct, and the gene itself
     "bootstrap_construct_pvals": AGGREGATE_FP
     / "bootstrap"
     / f"{BOOTSTRAP_COMBO_STEM}__constructs"
-    / "{gene}__{construct}__pvals.tsv",
-
-    # Gene-level outputs
-    "bootstrap_gene_nulls": AGGREGATE_FP
-    / "bootstrap"
-    / f"{BOOTSTRAP_COMBO_STEM}__genes"
-    / "{gene}__nulls.npy",
+    / "{gene}__pvals.tsv",
     "bootstrap_gene_pvals": AGGREGATE_FP
     / "bootstrap"
     / f"{BOOTSTRAP_COMBO_STEM}__genes"
     / "{gene}__pvals.tsv",
 
-    # Completion flags
-    "construct_bootstrap_flag": AGGREGATE_FP
-    / "bootstrap"
-    / f"{BOOTSTRAP_COMBO_STEM}__construct_bootstrap_complete.flag",
+    # Completion flag
     "bootstrap_flag": AGGREGATE_FP
     / "bootstrap"
     / f"{BOOTSTRAP_COMBO_STEM}__bootstrap_complete.flag",

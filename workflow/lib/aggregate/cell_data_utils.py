@@ -13,6 +13,9 @@ from lib.phenotype.constants import DEFAULT_METADATA_COLS
 # in lib/shared/rule_utils.py), not a glob metacharacter, not regex-special
 GROUP_KEY_SEP = "="
 
+# control-pool scopes shared by the bootstrap null and the cluster potential
+CONTROL_SCOPES = ("pooled", "within_group", "reference_group", "within_perturbation")
+
 
 def load_metadata_cols(metadata_cols_fp, include_classification_cols=False):
     """Load metadata column names from a file.
@@ -84,13 +87,14 @@ def join_well_annotations(metadata, well_annotations_fp):
         well_annotations_fp (str): Path to a TSV with plate, well, and annotation columns.
 
     Returns:
-        pd.DataFrame: Metadata with the annotation columns added.
+        pd.DataFrame: Metadata with the annotation columns added, read as text.
 
     Raises:
         ValueError: If the map repeats a (plate, well), or if a (plate, well) present in
             the data has no row in the map.
     """
-    annotations = pd.read_csv(well_annotations_fp, sep="\t")
+    # read values as text so a numeric group (1, 2, 3) still matches the text cell_class
+    annotations = pd.read_csv(well_annotations_fp, sep="\t", dtype=str)
     for col in ("plate", "well"):
         if col not in annotations.columns:
             raise ValueError(
@@ -153,7 +157,11 @@ def is_reserved_metadata_col(col):
 
 
 def split_cell_data(
-    cell_data, metadata_cols, validate_dtypes=True, raise_on_invalid=True
+    cell_data,
+    metadata_cols,
+    validate_dtypes=True,
+    raise_on_invalid=True,
+    float32=False,
 ):
     """Splits the cell data into metadata and features.
 
@@ -164,6 +172,9 @@ def split_cell_data(
             have numeric dtypes. Defaults to True.
         raise_on_invalid (bool, optional): Whether to raise an error if invalid
             dtypes are found. If False, only prints a warning. Defaults to True.
+        float32 (bool, optional): Whether to cast the features and float metadata to
+            float32; integer and bool metadata (plate, tile, col, cell labels) keep
+            their dtype. Defaults to False.
 
     Returns:
         tuple: (metadata, features) where metadata is a DataFrame containing
@@ -219,11 +230,18 @@ def split_cell_data(
         else:
             print("All feature columns have valid numeric dtypes")
 
+    if float32:
+        return _downcast_to_float32(metadata, features)
     return metadata, features
 
 
 def channel_combo_subset(features, channel_combo, all_channels):
     """Filter features to include only columns from specified channel combination.
+
+    A column belongs to a channel when the channel name appears in it as whole
+    "_"-delimited tokens, longest name first, so "LIPID" does not claim "LIPID_Low"
+    columns and "DAPI" does not claim "DAPI2" columns. A column is removed when it
+    names any channel outside the combination.
 
     Args:
         features (pd.DataFrame): DataFrame containing feature data.
@@ -234,21 +252,87 @@ def channel_combo_subset(features, channel_combo, all_channels):
         pd.DataFrame: DataFrame with features filtered to include only
             columns from the specified channel combination.
     """
-    # Find channels to remove (those not in channel_combo)
-    channels_to_remove = [ch for ch in all_channels if ch not in channel_combo]
+    channels_to_remove = {ch for ch in all_channels if ch not in channel_combo}
 
-    # Get all column names
-    columns = features.columns.tolist()
-
-    # Find columns to remove (those containing removed channel names)
-    columns_to_remove = [
-        col for col in columns if any(ch in col for ch in channels_to_remove)
+    columns_to_keep = [
+        col
+        for col in features.columns
+        if not channels_to_remove.intersection(column_channels(col, all_channels))
     ]
 
-    # Keep all columns except those from removed channels
-    columns_to_keep = [col for col in columns if col not in columns_to_remove]
-
     return features[columns_to_keep]
+
+
+def parse_channel_combo(channel_combo, all_channels):
+    """Split a "_"-joined channel combination string into known channel names.
+
+    Channel names may themselves contain "_", so the string is matched against
+    the known names (longest first) instead of being split on the delimiter.
+
+    Args:
+        channel_combo (str): Channel combination string, e.g. "DAPI_LIPID_Low_WGA".
+        all_channels (list): List of all available channel names.
+
+    Returns:
+        list: Channel names in the order they appear in the combination.
+
+    Raises:
+        ValueError: If the string cannot be fully parsed into known channel names.
+    """
+    names = sorted(set(all_channels), key=len, reverse=True)
+
+    def _parse(rest):
+        if rest == "":
+            return []
+        for name in names:
+            if rest == name or rest.startswith(name + "_"):
+                tail = _parse(rest[len(name) + 1 :])
+                if tail is not None:
+                    return [name] + tail
+        return None
+
+    parsed = _parse(channel_combo)
+    if parsed is None:
+        rest = channel_combo
+        while True:
+            name = next(
+                (n for n in names if rest == n or rest.startswith(n + "_")), None
+            )
+            if name is None:
+                break
+            rest = rest[len(name) + 1 :]
+        raise ValueError(
+            f"Channel combo '{channel_combo}' cannot be parsed into known channels "
+            f"{list(all_channels)}; unmatched text: '{rest}'"
+        )
+    return parsed
+
+
+def column_channels(column, all_channels):
+    """Return the channel names a feature column refers to.
+
+    Args:
+        column (str): Feature column name, e.g. "cell_correlation_DAPI_LIPID_Low".
+        all_channels (list): List of all available channel names.
+
+    Returns:
+        list: Channel names found as whole "_"-delimited tokens, longest match first.
+    """
+    tokens = str(column).split("_")
+    names = sorted(
+        (name.split("_") for name in set(all_channels)), key=len, reverse=True
+    )
+    found = []
+    i = 0
+    while i < len(tokens):
+        for name in names:
+            if tokens[i : i + len(name)] == name:
+                found.append("_".join(name))
+                i += len(name)
+                break
+        else:
+            i += 1
+    return found
 
 
 def get_feature_table_cols(feature_cols, extra_tags=None):
@@ -438,3 +522,13 @@ def resolve_aggregate_combos(
         resolved.append({"channels": channels, "compartments": deduped})
 
     return resolved
+
+
+def _downcast_to_float32(metadata, features):
+    """Cast features and float metadata to float32, keeping integer and bool metadata."""
+    float_cols = {
+        col: "float32"
+        for col in metadata.columns
+        if pd.api.types.is_float_dtype(metadata[col])
+    }
+    return metadata.astype(float_cols), features.astype("float32")

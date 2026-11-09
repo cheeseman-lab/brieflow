@@ -9,8 +9,10 @@ plt.rcParams.update(
     }
 )
 
-from lib.aggregate.cell_data_utils import control_mask
-from lib.cluster.phate_leiden_clustering import phate_leiden_pipeline
+from lib.cluster.phate_leiden_clustering import (
+    filter_by_perturbation_auc,
+    phate_leiden_pipeline,
+)
 from lib.cluster.benchmark_clusters import (
     run_benchmark_analysis,
     save_json_results,
@@ -18,6 +20,7 @@ from lib.cluster.benchmark_clusters import (
 from lib.cluster.scrape_benchmarks import (
     filter_complexes,
 )
+from lib.shared.eval import save_figure
 
 # Validate required params
 for _param_name in ["perturbation_name_col", "control_key"]:
@@ -27,20 +30,14 @@ for _param_name in ["perturbation_name_col", "control_key"]:
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
 phate_leiden_clustering = pd.read_csv(snakemake.input[1], sep="\t")
 
-if snakemake.params.perturbation_auc_threshold is not None:
-    aggregated_data = aggregated_data[
-        (
-            control_mask(
-                aggregated_data[snakemake.params.perturbation_name_col],
-                snakemake.params.control_key,
-                match="startswith",
-            )
-        )
-        | (
-            aggregated_data["perturbation_auc"]
-            > snakemake.params.perturbation_auc_threshold
-        )
-    ]
+aggregated_data = filter_by_perturbation_auc(
+    aggregated_data,
+    snakemake.params.perturbation_name_col,
+    snakemake.params.control_key,
+    snakemake.params.perturbation_auc_threshold,
+    control_scope=snakemake.params.get("control_scope", "pooled"),
+    reference_group=snakemake.params.get("control_reference_group", None),
+)
 
 # create baseline data by shuffling columns independently
 shuffled_aggregated_data = aggregated_data.copy()
@@ -106,15 +103,23 @@ combined_tables["Real"].to_csv(snakemake.output[2], sep="\t", index=False)
 combined_tables["Shuffled"].to_csv(snakemake.output[3], sep="\t", index=False)
 save_json_results(global_metrics["Real"], snakemake.output[4])
 save_json_results(global_metrics["Shuffled"], snakemake.output[5])
-enrichment_pie_charts["Real"].savefig(
-    snakemake.output[6], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    enrichment_pie_charts["Real"],
+    snakemake.output[6],
+    transparent=snakemake.params.transparent_figures,
 )
-enrichment_pie_charts["Shuffled"].savefig(
-    snakemake.output[7], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    enrichment_pie_charts["Shuffled"],
+    snakemake.output[7],
+    transparent=snakemake.params.transparent_figures,
 )
-enrichment_bar_charts["Real"].savefig(
-    snakemake.output[8], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    enrichment_bar_charts["Real"],
+    snakemake.output[8],
+    transparent=snakemake.params.transparent_figures,
 )
-enrichment_bar_charts["Shuffled"].savefig(
-    snakemake.output[9], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    enrichment_bar_charts["Shuffled"],
+    snakemake.output[9],
+    transparent=snakemake.params.transparent_figures,
 )

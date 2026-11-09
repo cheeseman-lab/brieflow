@@ -2,7 +2,10 @@ import pandas as pd
 
 from lib.shared.image_io import read_image, save_image
 
-from lib.phenotype.segment_secondary_object import segment_second_objs_from_config
+from lib.phenotype.segment_secondary_object import (
+    nuclei_centroids_from_table,
+    segment_second_objs_from_config,
+)
 
 # Load input files
 data_phenotype = read_image(snakemake.input[0])
@@ -13,10 +16,7 @@ phenotype_info = pd.read_csv(snakemake.input[3], sep="\t")
 # Prepare nuclei centroids from phenotype info (for cell-nucleus distance calculations)
 nuclei_centroids_dict = None
 if "i" in phenotype_info.columns and "j" in phenotype_info.columns:
-    nuclei_centroids_dict = {
-        row.get("nuclei_id", idx): (row["i"], row["j"])
-        for idx, row in phenotype_info.iterrows()
-    }
+    nuclei_centroids_dict = nuclei_centroids_from_table(phenotype_info)
 
 # Dispatch segmentation (ML or classical) from the config params
 second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks = (

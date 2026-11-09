@@ -8,13 +8,14 @@ plt.rcParams.update(
     }
 )
 
-from lib.aggregate.cell_data_utils import control_mask
 from lib.cluster.cluster_eval import plot_cluster_sizes
 from lib.cluster.phate_leiden_clustering import (
+    filter_by_perturbation_auc,
     phate_leiden_pipeline,
     plot_phate_leiden_clusters,
     calculate_potential_to_nontargeting,
 )
+from lib.shared.eval import save_figure
 
 # Validate required params
 for _param_name in ["perturbation_name_col", "control_key"]:
@@ -24,23 +25,14 @@ for _param_name in ["perturbation_name_col", "control_key"]:
 # load aggregated data
 aggregated_data = pd.read_csv(snakemake.input[0], sep="\t")
 
-if snakemake.params.perturbation_auc_threshold is not None:
-    print(
-        f"Filtering aggregated data for perturbation AUC > {snakemake.params.perturbation_auc_threshold}"
-    )
-    aggregated_data = aggregated_data[
-        (
-            control_mask(
-                aggregated_data[snakemake.params.perturbation_name_col],
-                snakemake.params.control_key,
-                match="startswith",
-            )
-        )
-        | (
-            aggregated_data["perturbation_auc"]
-            > snakemake.params.perturbation_auc_threshold
-        )
-    ]
+aggregated_data = filter_by_perturbation_auc(
+    aggregated_data,
+    snakemake.params.perturbation_name_col,
+    snakemake.params.control_key,
+    snakemake.params.perturbation_auc_threshold,
+    control_scope=snakemake.params.get("control_scope", "pooled"),
+    reference_group=snakemake.params.get("control_reference_group", None),
+)
 
 # cluster aggregated data
 phate_leiden_clustering, potential_df = phate_leiden_pipeline(
@@ -99,8 +91,10 @@ phate_leiden_clustering.to_csv(snakemake.output[0], sep="\t", index=False)
 
 # plot cluster sizes
 cluster_size_fig = plot_cluster_sizes(phate_leiden_clustering)
-cluster_size_fig.savefig(
-    snakemake.output[1], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    cluster_size_fig,
+    snakemake.output[1],
+    transparent=snakemake.params.transparent_figures,
 )
 
 # plot clusters
@@ -109,6 +103,6 @@ clusters_fig = plot_phate_leiden_clusters(
     snakemake.params.perturbation_name_col,
     snakemake.params.control_key,
 )
-clusters_fig.savefig(
-    snakemake.output[2], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    clusters_fig, snakemake.output[2], transparent=snakemake.params.transparent_figures
 )

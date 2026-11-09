@@ -119,14 +119,10 @@ def _drop_none(d):
     return {k: v for k, v in d.items() if v is not None}
 
 
-ransac_kwargs = _drop_none(
-    {"random_state": getattr(snakemake.params, "ransac_random_state", None)}
-)
 evaluate_kwargs = (
     _drop_none(
         {
             "threshold_triangle": getattr(snakemake.params, "threshold_triangle", None),
-            "ransac_kwargs": ransac_kwargs or None,
         }
     )
     or None

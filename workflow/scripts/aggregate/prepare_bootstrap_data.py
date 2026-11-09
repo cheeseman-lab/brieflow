@@ -10,9 +10,12 @@ from lib.aggregate.cell_data_utils import (
     load_metadata_cols,
     split_cell_data,
     get_feature_table_cols,
-    control_mask,
 )
-from lib.aggregate.bootstrap import write_construct_data
+from lib.aggregate.bootstrap import (
+    bootstrap_control_mask,
+    within_perturbation_construct_mask,
+    write_construct_data,
+)
 from lib.shared.parquet_io import read_parquet
 
 # Validate required params
@@ -24,6 +27,8 @@ for _param_name in ["perturbation_name_col", "control_key", "metadata_cols_fp"]:
 perturbation_col = snakemake.params.perturbation_name_col
 perturbation_id_col = snakemake.params.perturbation_id_col or perturbation_col
 control_key = snakemake.params.control_key
+control_scope = snakemake.params.get("bootstrap_control_scope", "pooled")
+reference_group = snakemake.params.get("bootstrap_reference_group", None)
 exclusion_string = snakemake.params.exclusion_string
 metadata_cols_fp = snakemake.params.metadata_cols_fp
 bootstrap_features_fp = snakemake.params.bootstrap_features_fp
@@ -52,7 +57,14 @@ print(f"Construct table shape: {construct_table.shape}")
 print(f"Gene table shape: {gene_table.shape}")
 
 # Filter for control cells (already center-scaled)
-is_control = control_mask(all_features_cells[perturbation_col], control_key)
+is_control = bootstrap_control_mask(
+    all_features_cells,
+    perturbation_col,
+    control_key,
+    control_scope,
+    reference_group=reference_group,
+    group_cols=group_cols,
+)
 control_cells = all_features_cells[is_control]
 print(f"Control cells for bootstrap sampling: {len(control_cells)}")
 
@@ -128,6 +140,13 @@ construct_mask = pd.Series([True] * len(construct_table))
 if exclusion_string is not None:
     construct_mask = construct_mask & ~construct_table[perturbation_col].str.contains(
         exclusion_string, na=False
+    )
+if control_scope == "within_perturbation":
+    construct_mask = construct_mask & within_perturbation_construct_mask(
+        construct_table,
+        perturbation_col,
+        controls_metadata[perturbation_col],
+        reference_group,
     )
 
 construct_features_df = construct_table[construct_mask]

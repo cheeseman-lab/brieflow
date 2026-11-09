@@ -44,6 +44,7 @@ def segment_watershed(
     radius=15,
     return_counts=False,
     reconcile=None,
+    verbose=False,
 ):
     """Segment cells using watershed method.
 
@@ -58,6 +59,7 @@ def segment_watershed(
         radius (float, optional): Radius of disk for local thresholding. Default is 15.
         return_counts (bool, optional): Whether to return counts of nuclei and cells. Default is False.
         reconcile (str, optional): Method for reconciling nuclei and cells. Default is None.
+        verbose (bool, optional): Print the reconcile QC block (nuclei per cell, Segmentation QC). Default is False.
 
     Returns:
         tuple or numpy.ndarray: If 'cells' is True, returns tuple of nuclei and cell segmentation masks,
@@ -101,7 +103,9 @@ def segment_watershed(
     raw_nuclei = nuclei.copy()
     if reconcile:
         print(f"reconciling masks with method how={reconcile}")
-        nuclei, cells = reconcile_nuclei_cells(nuclei, cells, how=reconcile)
+        nuclei, cells = reconcile_nuclei_cells(
+            nuclei, cells, how=reconcile, verbose=verbose
+        )
         counts["reconciled_nuclei"] = len(np.unique(nuclei)) - 1
         counts["reconciled_cells"] = len(np.unique(cells)) - 1
 

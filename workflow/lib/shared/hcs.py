@@ -263,6 +263,34 @@ def write_channel_intensity_statistics(
     return total
 
 
+def restore_zarr_json_times(plate_paths: list[Path]) -> int:
+    """Give every rewritten zarr.json back the timestamps it had before metadata passes.
+
+    The field-level ``zarr.json`` of each image store is the Snakemake output of
+    the rule that wrote the image, so a metadata pass that rewrites it after the
+    downstream rules ran makes a finished run look stale and re-run those rules.
+    The store index records each file's access and modification times when it is
+    first walked; this restores them once every pass is done.
+
+    Args:
+        plate_paths: Plate zarr roots whose metadata was written in this process.
+
+    Returns:
+        Number of zarr.json files whose timestamps were restored.
+    """
+    restored = 0
+    for path in plate_paths:
+        index = _STORE_INDEX_CACHE.get(str(Path(path).resolve()))
+        if index is None:
+            continue
+        for rel, times in index.mtimes.items():
+            target = index.path(rel) / "zarr.json"
+            if target.exists():
+                os.utime(target, ns=times)
+                restored += 1
+    return restored
+
+
 def _read_zarr_json(path: Path):
     """Parse a zarr.json, returning None if it is missing or unreadable."""
     try:
@@ -284,6 +312,7 @@ class _StoreIndex:
     def __init__(self, root: Path):
         self.root = Path(root)
         self.nodes: dict[str, dict] = {}
+        self.mtimes: dict[str, tuple[int, int]] = {}
         self.dirty: set[str] = set()
         self._scan(self.root, "")
 
@@ -291,6 +320,8 @@ class _StoreIndex:
         meta = _read_zarr_json(directory / "zarr.json")
         if meta is not None:
             self.nodes[rel] = meta
+            stat = (directory / "zarr.json").stat()
+            self.mtimes[rel] = (stat.st_atime_ns, stat.st_mtime_ns)
             # An array's children are chunk directories; never walk them.
             if meta.get("node_type") == "array":
                 return

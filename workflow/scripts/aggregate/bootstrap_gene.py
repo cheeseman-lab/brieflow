@@ -1,111 +1,83 @@
-"""Aggregate construct-level bootstrap results to gene level."""
+"""Bootstrap one gene and each of its constructs, writing only p-values."""
 
-import numpy as np
 import pandas as pd
-import glob
 
-from lib.aggregate.bootstrap import load_construct_null_arrays, calculate_pvals
-from lib.aggregate.cell_data_utils import get_feature_table_cols
+from lib.aggregate.bootstrap import (
+    bootstrap_seed,
+    read_id_keyed_tsv,
+    run_gene_bootstrap,
+    select_control_pool,
+)
+from lib.shared.rule_utils import list_bootstrap_constructs
 
-# Get parameters from wildcards
 gene_id = snakemake.wildcards.gene
-cell_class = snakemake.wildcards.cell_class
-channel_combo = snakemake.wildcards.channel_combo
 num_sims = snakemake.params.num_sims
 perturbation_col = snakemake.params.perturbation_name_col
-bootstrap_features_fp = snakemake.params.bootstrap_features_fp
-bootstrap_extra_features = snakemake.params.get("bootstrap_extra_features", None)
+print(f"Running bootstrap for gene {gene_id} ({num_sims} simulations)")
 
-print(f"Running gene-level bootstrap aggregation for: {gene_id}")
+construct_ids = list_bootstrap_constructs(snakemake.input.bootstrap_data_dir).get(
+    gene_id
+)
+if not construct_ids:
+    raise ValueError(f"No construct data found for gene {gene_id}")
 
-# Build pattern for construct null files
-construct_nulls_pattern = snakemake.params.construct_nulls_pattern
-pattern = construct_nulls_pattern.replace("{construct}", "*")
+construct_features_df = read_id_keyed_tsv(snakemake.input.construct_features_arr)
+feature_names = construct_features_df.columns.tolist()
+sample_sizes = read_id_keyed_tsv(snakemake.input.sample_sizes)["cell_count"].astype(int)
+missing = [c for c in construct_ids if c not in sample_sizes.index]
+if missing:
+    raise ValueError(f"Constructs not found in sample sizes: {missing}")
 
-print(f"Looking for construct null files with pattern: {pattern}")
-construct_null_paths = glob.glob(pattern)
-
-if not construct_null_paths:
-    print(f"No construct null files found for gene {gene_id}")
-
-    # Create empty output files for genes with no constructs
-    np.save(snakemake.output[0], np.array([]))
-    pd.DataFrame({"gene": [gene_id], "error": ["No construct files found"]}).to_csv(
-        snakemake.output[1], sep="\t", index=False
-    )
-    print("Created empty output files for gene with no constructs")
-    exit(0)
-
-print(f"Found {len(construct_null_paths)} construct null files for gene {gene_id}")
-
-# Load construct null distributions
-construct_null_arrays = load_construct_null_arrays(construct_null_paths)
-
-# Load gene table to get observed gene values
-gene_table = pd.read_csv(snakemake.input.gene_table, sep="\t")
-gene_row = gene_table[gene_table[perturbation_col] == gene_id]
-
-if len(gene_row) == 0:
-    print(f"Gene {gene_id} not found in gene table")
-    print(f"Available genes: {sorted(gene_table[perturbation_col].unique())}")
-    raise ValueError(f"Gene {gene_id} not found in gene table")
-
-# Get available features from gene table (same filtering as prepare_bootstrap_data.py)
-all_features = [
-    col for col in gene_table.columns if col not in [perturbation_col, "cell_count"]
+controls_df = pd.read_csv(snakemake.input.controls_arr, sep="\t")
+construct_controls = [
+    select_control_pool(
+        controls_df,
+        construct_id,
+        snakemake.params.get("bootstrap_control_scope", "pooled"),
+        reference_group=snakemake.params.get("bootstrap_reference_group", None),
+        group_cols=snakemake.params.get("group_cols", None),
+        perturbation_id=gene_id,
+    ).values
+    for construct_id in construct_ids
 ]
 
-# Filter features for bootstrap analysis (must match prepare_bootstrap_data.py)
-if bootstrap_features_fp is not None:
-    # Read features from file (one feature per line)
-    print(f"Loading bootstrap features from: {bootstrap_features_fp}")
-    with open(bootstrap_features_fp, "r") as f:
-        requested_features = [line.strip() for line in f if line.strip()]
-    # Only keep features that exist in the data
-    available_features = [f for f in requested_features if f in all_features]
-else:
-    # Use get_feature_table_cols to filter to nucleus/cell intensity, shape, and overlap features
-    available_features = get_feature_table_cols(
-        all_features, extra_tags=bootstrap_extra_features
-    )
+gene_table = pd.read_csv(snakemake.input.gene_table, sep="\t")
+gene_row = gene_table[gene_table[perturbation_col].astype(str) == gene_id]
+if len(gene_row) == 0:
+    raise ValueError(f"Gene {gene_id} not found in gene table")
+missing_features = [f for f in feature_names if f not in gene_table.columns]
+if missing_features:
+    raise ValueError(f"Bootstrap features missing from gene table: {missing_features}")
 
-print(f"Using {len(available_features)} features for bootstrap analysis")
-
-# Get observed gene medians (now with filtered features)
-observed_gene_medians = gene_row[available_features].values[0].astype(float)
-total_cells = int(gene_row["cell_count"].iloc[0])
-
-print(f"Number of filtered features: {len(available_features)}")
-print(f"Construct null array shapes: {[arr.shape for arr in construct_null_arrays]}")
-
-# Aggregate construct null distributions to gene level
-print("Aggregating construct bootstrap results to gene level...")
-
-# Stack all construct null distributions and take median across constructs
-stacked_nulls = np.stack(construct_null_arrays)
-gene_null_medians = np.median(stacked_nulls, axis=0)
-
-# Calculate p-values
-p_vals = calculate_pvals(gene_null_medians, observed_gene_medians)
-
-print(
-    f"Gene-level aggregation complete! Aggregated {len(construct_null_arrays)} constructs"
+construct_pvals, gene_pvals = run_gene_bootstrap(
+    construct_features_df.loc[construct_ids, feature_names].to_numpy(dtype=float),
+    construct_controls,
+    sample_sizes.loc[construct_ids].tolist(),
+    gene_row[feature_names].to_numpy(dtype=float)[0],
+    num_sims,
+    bootstrap_seed(gene_id),
 )
 
-# Format results using the filtered features
-pval_df = pd.DataFrame(
+construct_df = pd.DataFrame(
     {
-        "gene": [gene_id],
-        "num_constructs": [len(construct_null_arrays)],
-        "total_cells": [total_cells],
-        "num_sims": [num_sims],
-        **{feature: [pval] for feature, pval in zip(available_features, p_vals)},
+        "gene": gene_id,
+        "construct": construct_ids,
+        "sample_size": sample_sizes.loc[construct_ids].to_numpy(),
+        "num_sims": num_sims,
     }
 )
+construct_df[feature_names] = construct_pvals
+construct_df.to_csv(snakemake.output.construct_pvals, sep="\t", index=False)
 
-# Save outputs
-print("Saving gene-level bootstrap results...")
-np.save(snakemake.output[0], gene_null_medians)
-pval_df.to_csv(snakemake.output[1], sep="\t", index=False)
+gene_df = pd.DataFrame(
+    {
+        "gene": [gene_id],
+        "num_constructs": [len(construct_ids)],
+        "total_cells": [int(gene_row["cell_count"].iloc[0])],
+        "num_sims": [num_sims],
+    }
+)
+gene_df[feature_names] = gene_pvals[None, :]
+gene_df.to_csv(snakemake.output.gene_pvals, sep="\t", index=False)
 
-print(f"Gene-level bootstrap analysis for {gene_id} complete!")
+print(f"Bootstrap for gene {gene_id} complete: {len(construct_ids)} constructs")

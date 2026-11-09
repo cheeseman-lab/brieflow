@@ -197,7 +197,9 @@ agg_exprs += [pl.first(c).alias(c) for c in _carry_groups]
 agg_exprs += [pl.median(c).alias(c) for c in feature_cols]
 
 lf = pl.scan_parquet(aligned_output)
-construct_agg = lf.group_by(pert_id_col).agg(agg_exprs).collect().to_pandas()
+construct_agg = (
+    lf.group_by(pert_id_col, maintain_order=True).agg(agg_exprs).collect().to_pandas()
+)
 
 construct_columns = [pert_id_col, pert_col]
 if _carry_control:

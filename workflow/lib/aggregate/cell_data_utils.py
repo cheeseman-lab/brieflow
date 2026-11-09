@@ -157,7 +157,11 @@ def is_reserved_metadata_col(col):
 
 
 def split_cell_data(
-    cell_data, metadata_cols, validate_dtypes=True, raise_on_invalid=True
+    cell_data,
+    metadata_cols,
+    validate_dtypes=True,
+    raise_on_invalid=True,
+    float32=False,
 ):
     """Splits the cell data into metadata and features.
 
@@ -168,6 +172,9 @@ def split_cell_data(
             have numeric dtypes. Defaults to True.
         raise_on_invalid (bool, optional): Whether to raise an error if invalid
             dtypes are found. If False, only prints a warning. Defaults to True.
+        float32 (bool, optional): Whether to cast the features and float metadata to
+            float32; integer and bool metadata (plate, tile, col, cell labels) keep
+            their dtype. Defaults to False.
 
     Returns:
         tuple: (metadata, features) where metadata is a DataFrame containing
@@ -223,28 +230,9 @@ def split_cell_data(
         else:
             print("All feature columns have valid numeric dtypes")
 
+    if float32:
+        return _downcast_to_float32(metadata, features)
     return metadata, features
-
-
-def downcast_to_float32(metadata, features):
-    """Cast features and float metadata to float32, keeping integer and bool metadata.
-
-    Identifiers such as ``plate``, ``tile``, ``col`` and cell labels stay integers
-    instead of becoming float32 alongside the features.
-
-    Args:
-        metadata (pd.DataFrame): Metadata columns from :func:`split_cell_data`.
-        features (pd.DataFrame): Feature columns from :func:`split_cell_data`.
-
-    Returns:
-        tuple: (metadata, features) with the casts applied.
-    """
-    float_cols = {
-        col: "float32"
-        for col in metadata.columns
-        if pd.api.types.is_float_dtype(metadata[col])
-    }
-    return metadata.astype(float_cols), features.astype("float32")
 
 
 def channel_combo_subset(features, channel_combo, all_channels):
@@ -534,3 +522,13 @@ def resolve_aggregate_combos(
         resolved.append({"channels": channels, "compartments": deduped})
 
     return resolved
+
+
+def _downcast_to_float32(metadata, features):
+    """Cast features and float metadata to float32, keeping integer and bool metadata."""
+    float_cols = {
+        col: "float32"
+        for col in metadata.columns
+        if pd.api.types.is_float_dtype(metadata[col])
+    }
+    return metadata.astype(float_cols), features.astype("float32")

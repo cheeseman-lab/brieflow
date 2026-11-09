@@ -8,7 +8,6 @@ import numpy as np
 
 from lib.aggregate.align import prepare_alignment_data, centerscale_on_controls
 from lib.aggregate.cell_data_utils import (
-    downcast_to_float32,
     load_metadata_cols,
     split_cell_data,
     control_mask,
@@ -122,9 +121,8 @@ for batch_idx, indices in enumerate(subset_indices):
     )
     print(f"Loaded batch shape: {batch_df.shape}")
 
-    # Split metadata and features; features and float metadata become float32
-    metadata, features = split_cell_data(batch_df, metadata_cols)
-    metadata, features = downcast_to_float32(metadata, features)
+    # Split metadata and features
+    metadata, features = split_cell_data(batch_df, metadata_cols, float32=True)
     del batch_df
     gc.collect()
 

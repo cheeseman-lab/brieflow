@@ -78,6 +78,9 @@ ALIGNMENT_METHOD
 SKIP_CYCLES
   Feeds `sbs.skip_cycles_indices` · default `None`. Cycle numbers to leave out, for example a failed cycle.
 
+USE_ALIGN_WITHIN_CYCLE
+  `sbs.use_align_within_cycle` · default `True`. Registers the base channels of each cycle to the first base channel before cycles are aligned. Set `False` when the channels of a cycle are already registered and the step shifts them by many pixels, leaving black bands in the aligned base channels: for example haze on one channel, or a very dim channel, on images with few spots. Leave it on otherwise; some screens rely on it to register base channels whose position changes from cycle to cycle.
+
 SPOT_DETECTION_METHOD
   `sbs.spot_detection_method` · default `"standard"`. `"standard"` finds spots from the standard deviation across cycles; `"spotiflow"` uses the Spotiflow deep-learning detector on one cycle.
 

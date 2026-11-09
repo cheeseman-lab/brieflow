@@ -15,11 +15,14 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, Dict, Optional, Union
 
-from stardist.models import StarDist2D
 from csbdeep.utils import normalize
 from skimage.segmentation import clear_border
 
-from lib.shared.segmentation_utils import count_nuclei_per_cell, reconcile_nuclei_cells
+from lib.shared.segmentation_utils import (
+    count_nuclei_per_cell,
+    load_stardist_model,
+    reconcile_nuclei_cells,
+)
 
 
 def segment_stardist(
@@ -196,8 +199,8 @@ def segment_stardist_multichannel(
             - (optional) counts (dict): Counts of nuclei and cells at different stages if return_counts is True.
     """
     # Initialize StarDist models for nuclei and cytoplasmic segmentation
-    model_nuclei = StarDist2D.from_pretrained(model_type)
-    model_cells = StarDist2D.from_pretrained(model_type)
+    model_nuclei = load_stardist_model(model_type)
+    model_cells = load_stardist_model(model_type)
 
     # Set default kwargs if not provided
     if nuclei_kwargs is None:
@@ -287,7 +290,7 @@ def segment_stardist_nuclei(
         Segmented nuclei masks
     """
     # Initialize StarDist model
-    model = StarDist2D.from_pretrained(model_type)
+    model = load_stardist_model(model_type)
     if gpu:
         model.config.use_gpu = True
 

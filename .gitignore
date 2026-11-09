@@ -9,10 +9,11 @@ __pycache__/
 # docs
 docs/build/
 
-# test analysis
+# test analysis (local tests are allowed but untracked; only small_test is tracked)
+tests/*
+!tests/small_test_analysis/
 tests/small_test_analysis/.snakemake/
 tests/small_test_analysis/brieflow_output/
-tests/small_test_analysis/brieflow_output_zarr/
 tests/small_test_analysis/small_test_data/
 
 # classifier dills — only dummy_classifier.dill is tracked; rebuild script and other models stay local

@@ -10,6 +10,8 @@ Every parameter is explained in the notebook that sets it; [Notebook Parameters]
 - `*_combo_fp`: Path to dataframe with wildcards for file processing in a particular module.
 Each combination usually corresponds to a one process that needs to be done with Snakemake.
 For example, each plate, well, tile combination in `phenotype_combo_fp` corresponds to one raw file conversion during preprocessing.
-- `all:image_format`: `tiff` or `zarr`, the output layout for the whole run; absent means `tiff`. See [Output formats](3.running_modules.md#output-formats-tiff-and-zarr).
+- `all:image_format`: `tiff` or `zarr`, the output layout for the whole run; absent means `zarr`. See [Output formats](3.running_modules.md#output-formats-tiff-and-zarr).
 - `all:zarr_max_levels`: set by `ZARR_MAX_LEVELS` in the preprocess notebook. Number of resolution levels written per converted image, `1` (the default when absent) meaning no pyramid. Each extra level costs disk and conversion time: on the small test, going from 1 to 5 levels added ~16% to the bytes per tile. Only read when `image_format: zarr`.
+- `all:transparent_figures`: set by `TRANSPARENT_FIGURES` in the preprocess notebook. Save the PNG plots in `eval/`, `cluster/` and the classifier outputs with a transparent background (for example to import into Illustrator) instead of white. Default `false` (also when absent).
 - `merge:positions_image_qc`: with `merge:approach: positions`, also write per-well image readouts to `merge/eval/` (tile-overlap and phenotype-in-SBS overlays, a nuclei mosaic, their residuals and the fit table). Default `false`; the same overlays are in the merge notebook.
+- `sbs:use_align_within_cycle`: set by `USE_ALIGN_WITHIN_CYCLE` in the SBS notebook. Whether `align_sbs` registers the base channels of each cycle to each other before aligning cycles. Default `true` when absent; set `false` to skip the step on data whose channels are already registered within each cycle.

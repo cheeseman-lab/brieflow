@@ -40,6 +40,7 @@ rule phate_leiden_clustering:
         group_cols=config.get("aggregate", {}).get("group_cols", []),
         uniprot_data_fp=config.get("cluster", {}).get("uniprot_data_fp"),
         perturbation_auc_threshold=config.get("cluster", {}).get("perturbation_auc_threshold"),
+        transparent_figures=config.get("all", {}).get("transparent_figures", False),
     script:
         "../scripts/cluster/phate_leiden_clustering.py"
 
@@ -62,6 +63,7 @@ rule benchmark_clusters:
         string_pair_benchmark_fp=config.get("cluster", {}).get("string_pair_benchmark_fp"),
         corum_group_benchmark_fp=config.get("cluster", {}).get("corum_group_benchmark_fp"),
         kegg_group_benchmark_fp=config.get("cluster", {}).get("kegg_group_benchmark_fp"),
+        transparent_figures=config.get("all", {}).get("transparent_figures", False),
     script:
         "../scripts/cluster/benchmark_clusters.py"
 
@@ -85,9 +87,10 @@ rule format_cluster_anndata:
             )
             for res in cluster_wildcard_combos["leiden_resolution"].unique()
         ],
+        # Bootstrapped combos always wait for their results, so the AnnData never depends on job order
         bootstrap_results=lambda wildcards: (
             ancient(_bootstrap_gene_results(wildcards))
-            if Path(_bootstrap_gene_results(wildcards)).exists()
+            if _bootstrap_gene_results(wildcards) in BOOTSTRAP_TARGETS_ALL
             else []
         ),
     output:

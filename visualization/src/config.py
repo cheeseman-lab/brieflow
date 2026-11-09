@@ -40,8 +40,14 @@ def load_config():
 
 
 def get_image_format():
-    """Return the pipeline output image format, either ``tiff`` or ``zarr``."""
-    return load_config().get("all", {}).get("image_format", "tiff")
+    """Return the pipeline output image format, either ``tiff`` or ``zarr``.
+
+    The ``IMAGE_FORMAT`` environment variable overrides the config, for runs that
+    set the format on the command line.
+    """
+    return os.environ.get("IMAGE_FORMAT") or load_config().get("all", {}).get(
+        "image_format", "zarr"
+    )
 
 
 def _deep_merge(base, overlay):

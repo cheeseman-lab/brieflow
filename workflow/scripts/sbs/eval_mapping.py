@@ -19,6 +19,7 @@ from lib.sbs.eval_mapping import (
     plot_barcode_prefix_matching,
     mapping_overview,
 )
+from lib.shared.eval import save_figure
 
 # Validate required params
 if getattr(snakemake.params, "df_barcode_library_fp", None) is None:
@@ -50,17 +51,17 @@ metadata = pd.concat(
 ).drop_duplicates(subset=["well", "tile"])
 
 _, fig = plot_mapping_vs_threshold(reads, barcodes, "peak", num_thresholds=10)
-fig.savefig(snakemake.output[0], dpi=300, bbox_inches="tight", transparent=True)
+save_figure(fig, snakemake.output[0], transparent=snakemake.params.transparent_figures)
 
 _, fig = plot_mapping_vs_threshold(reads, barcodes, "Q_min", num_thresholds=10)
-fig.savefig(snakemake.output[1], dpi=300, bbox_inches="tight", transparent=True)
+save_figure(fig, snakemake.output[1], transparent=snakemake.params.transparent_figures)
 
 fig = plot_read_mapping_heatmap(
     reads,
     barcodes,
     metadata=metadata,
 )
-fig.savefig(snakemake.output[2], dpi=300, bbox_inches="tight", transparent=True)
+save_figure(fig, snakemake.output[2], transparent=snakemake.params.transparent_figures)
 
 df_summary_one, fig = plot_cell_mapping_heatmap(
     cells,
@@ -72,7 +73,7 @@ df_summary_one, fig = plot_cell_mapping_heatmap(
     return_summary=True,
 )
 df_summary_one.to_csv(snakemake.output[3], index=False, sep="\t")
-fig.savefig(snakemake.output[4], dpi=300, bbox_inches="tight", transparent=True)
+save_figure(fig, snakemake.output[4], transparent=snakemake.params.transparent_figures)
 
 df_summary_any, fig = plot_cell_mapping_heatmap(
     cells,
@@ -84,13 +85,13 @@ df_summary_any, fig = plot_cell_mapping_heatmap(
     return_summary=True,
 )
 df_summary_any.to_csv(snakemake.output[5], index=False, sep="\t")
-fig.savefig(snakemake.output[6], dpi=300, bbox_inches="tight", transparent=True)
+save_figure(fig, snakemake.output[6], transparent=snakemake.params.transparent_figures)
 
 _, fig = plot_cell_metric_histogram(cells, sort_by=snakemake.params.sort_by)
-fig.savefig(snakemake.output[7], dpi=300, bbox_inches="tight", transparent=True)
+save_figure(fig, snakemake.output[7], transparent=snakemake.params.transparent_figures)
 
 _, fig = plot_gene_symbol_histogram(cells)
-fig.savefig(snakemake.output[8], dpi=300, bbox_inches="tight", transparent=True)
+save_figure(fig, snakemake.output[8], transparent=snakemake.params.transparent_figures)
 
 mapping_overview_df = mapping_overview(
     sbs_info, cells, sort_by=snakemake.params.sort_by
@@ -112,4 +113,4 @@ else:
         df_barcode_library,
         library_col=snakemake.params.library_barcode_col,
     )
-fig.savefig(snakemake.output[10], dpi=300, bbox_inches="tight", transparent=True)
+save_figure(fig, snakemake.output[10], transparent=snakemake.params.transparent_figures)

@@ -2,13 +2,13 @@
 # ~BrieFlow analysis configuration file~
 
 # All paths are resolved relative to the directory the workflow is run from.
-# This is the canonical base config (TIFF output). For OME-Zarr output, run with
-# `--zarr`, which deep-merges config_zarr.yml on top of this file.
+# This is the canonical config: OME-Zarr output, the default when
+# `all.image_format` is absent. `run_brieflow.sh --tiff` overrides the format.
 
 # Parameters:
 all:
   root_fp: brieflow_output/
-  image_format: tiff
+  zarr_max_levels: 5  # Pyramid resolution levels; 1 disables downsampling
 preprocess:
   sbs_data_format: nd2
   sbs_data_organization: tile

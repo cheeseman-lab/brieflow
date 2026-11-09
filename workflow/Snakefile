@@ -17,7 +17,7 @@ from lib.shared.file_utils import (
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
-IMG_FMT = config.get("all", {}).get("image_format", "tiff")
+IMG_FMT = config.get("all", {}).get("image_format", "zarr")
 
 # wildcard_constraints:
 #     row="[A-Za-z]+",

@@ -20,6 +20,7 @@ from lib.cluster.benchmark_clusters import (
 from lib.cluster.scrape_benchmarks import (
     filter_complexes,
 )
+from lib.shared.eval import save_figure
 
 # Validate required params
 for _param_name in ["perturbation_name_col", "control_key"]:
@@ -102,15 +103,23 @@ combined_tables["Real"].to_csv(snakemake.output[2], sep="\t", index=False)
 combined_tables["Shuffled"].to_csv(snakemake.output[3], sep="\t", index=False)
 save_json_results(global_metrics["Real"], snakemake.output[4])
 save_json_results(global_metrics["Shuffled"], snakemake.output[5])
-enrichment_pie_charts["Real"].savefig(
-    snakemake.output[6], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    enrichment_pie_charts["Real"],
+    snakemake.output[6],
+    transparent=snakemake.params.transparent_figures,
 )
-enrichment_pie_charts["Shuffled"].savefig(
-    snakemake.output[7], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    enrichment_pie_charts["Shuffled"],
+    snakemake.output[7],
+    transparent=snakemake.params.transparent_figures,
 )
-enrichment_bar_charts["Real"].savefig(
-    snakemake.output[8], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    enrichment_bar_charts["Real"],
+    snakemake.output[8],
+    transparent=snakemake.params.transparent_figures,
 )
-enrichment_bar_charts["Shuffled"].savefig(
-    snakemake.output[9], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    enrichment_bar_charts["Shuffled"],
+    snakemake.output[9],
+    transparent=snakemake.params.transparent_figures,
 )

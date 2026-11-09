@@ -10,6 +10,7 @@ plt.rcParams.update(
 
 from lib.phenotype.eval_features import plot_feature_heatmap
 from lib.shared.parquet_io import read_parquets
+from lib.shared.eval import save_figure
 
 
 # Load phenotype processing files
@@ -45,4 +46,4 @@ for feature_name in min_feature_names:
 
     # Save df summary and figure
     df_summary_one.to_csv(tsv_path, index=False, sep="\t")
-    fig.savefig(png_path, dpi=300, bbox_inches="tight", transparent=True)
+    save_figure(fig, png_path, transparent=snakemake.params.transparent_figures)

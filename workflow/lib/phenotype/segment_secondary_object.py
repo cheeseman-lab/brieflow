@@ -40,6 +40,7 @@ import pandas as pd
 from scipy import ndimage
 from skimage import filters, morphology, measure, segmentation, feature, exposure
 from skimage.segmentation import mark_boundaries
+from lib.shared.segmentation_utils import load_stardist_model
 from lib.shared.segment_cellpose import (
     prepare_cellpose,
     create_cellpose_model,
@@ -231,17 +232,8 @@ def segment_second_objs_ml(
         print(f"  NMS threshold: {nms_thresh}")
         print(f"  GPU: {gpu}")
 
-        # Import StarDist
-        try:
-            from stardist.models import StarDist2D
-        except ImportError:
-            raise ImportError(
-                "StarDist is required for ML-based secondary object segmentation. "
-                "Install it with: pip install stardist"
-            )
-
         # Initialize StarDist model
-        model = StarDist2D.from_pretrained(model_type)
+        model = load_stardist_model(model_type)
 
         # Run StarDist segmentation
         labeled_mask, details = model.predict_instances(

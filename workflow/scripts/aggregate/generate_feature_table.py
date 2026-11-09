@@ -97,8 +97,7 @@ print(f"Processing data in {num_batches} batch(es), ~{chunk_size} rows per batch
 aligned_output = snakemake.output[0]
 writer = None
 
-# Construct-level medians are computed lazily from the aligned parquet with
-# polars after the batch loop, so no per-construct accumulators are needed here.
+# Construct medians come from the aligned parquet after the loop, not accumulators
 # Process each batch
 for batch_idx, indices in enumerate(subset_indices):
     print(
@@ -180,18 +179,12 @@ if writer is not None:
     writer.close()
 print(f"\nSaved aligned cell data to: {aligned_output}")
 
-# TABLE 1: Construct-level table (one row per sgRNA).
-# Computed lazily from the aligned parquet — avoids holding all cell feature
-# vectors in memory across batches.
+# TABLE 1: Construct-level table (one row per sgRNA), from the aligned parquet
 print("\n=== Creating construct-level table ===")
 
-# Lazily aggregate construct-level medians from the aligned parquet with polars.
-# control_name_col drives the control/gene split below; carry it through the
-# aggregation when it is a column distinct from the ones already selected.
+# Carry control_name_col through the aggregation when it is a separate column
 _carry_control = control_name_col not in (pert_id_col, pert_col)
-# group_cols must survive the aggregation: pseudo-gene grouping below is scoped
-# per group label, and the accumulator that used to carry it is gone. Skip the
-# ones already aggregated under their own name.
+# Carry group_cols too: the pseudo-gene loop below is scoped per group label
 _aggregated = {pert_id_col, pert_col} | (
     {control_name_col} if _carry_control else set()
 )
@@ -200,9 +193,7 @@ agg_exprs = [pl.first(pert_col).alias(pert_col), pl.len().alias("cell_count")]
 if _carry_control:
     agg_exprs.append(pl.first(control_name_col).alias(control_name_col))
 agg_exprs += [pl.first(c).alias(c) for c in _carry_groups]
-# pl.median skips nulls, and pa.Table.from_pandas stores float NaN as a parquet
-# null, so this matches the np.nanmedian the accumulator used: the unified pool
-# schema carries NaN for columns a construct's well dropped.
+# pl.median skips nulls and the parquet stores NaN as null, as np.nanmedian did
 agg_exprs += [pl.median(c).alias(c) for c in feature_cols]
 
 lf = pl.scan_parquet(aligned_output)
@@ -215,8 +206,7 @@ construct_columns += ["cell_count"] + feature_cols
 construct_table = construct_agg[construct_columns].copy()
 construct_table["cell_count"] = construct_table["cell_count"].astype(int)
 
-# Rebuild the construct -> group-label map from the carried columns, keyed on
-# construct ID, for the per-group pseudo-gene loop.
+# Rebuild the construct -> group-label map for the per-group pseudo-gene loop
 if group_cols:
     _labels = construct_agg[group_cols[0]].astype(str)
     for col in group_cols[1:]:
@@ -274,10 +264,7 @@ if pseudogene_patterns:
     # Import the pseudo-gene grouping function
     from lib.aggregate.bootstrap import create_pseudogene_groups
 
-    # Pseudo-gene nulls must stay within a group: create_pseudogene_groups
-    # shuffles every matching construct into one pool, so calling it once over a
-    # multi-group table would build pseudo-genes that straddle groups and emit a
-    # pseudogene_id with no group suffix.
+    # Group pseudo-genes per group label, or they straddle groups and lose the suffix
     if group_cols:
         pseudogene_groups = []
         construct_groups = construct_table[pert_id_col].map(construct_group_map)

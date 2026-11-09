@@ -18,9 +18,3 @@ The full list of changes, with the pull request behind each, is in the [1.5.0 re
 - Start a new screen from the brieflow-analysis template and follow [Installation and Analysis Setup](2.installation_analysis_setup.md).
 - An existing screen keeps running the brieflow commit its submodule pins. To move it to 1.5.0, update the submodule, rebuild the environment, and configure each phase again in the marimo notebooks: the config keys and defaults changed, so a 1.4 `config.yml` is not reused as is.
 - The release notes list every renamed or removed config key.
-
-## Upgrading a run started on 1.5.0
-
-- Per-tile SBS `reads`, `cells` and `sbs_info` tables and phenotype `phenotype_cp` tables are now parquet files under `parquets/` instead of TSV files under `tsvs/`; see [Output formats](3.running_modules.md#output-formats-tiff-and-zarr).
-- A run started on 1.5.0 does not reuse those TSVs. After the update, Snakemake re-runs the steps that write these tables (`call_reads`, `call_cells`, `extract_sbs_info`, `extract_phenotype_cp`) and the steps downstream of them. Delete the old copies in `sbs/tsvs/` and `phenotype/tsvs/` when the run finishes, since nothing reads them.
-- Table values can differ from a 1.5.0 run in the last digits (about 1e-12): TSV rounded floats on the way to the next step, and parquet keeps them exact.

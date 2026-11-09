@@ -15,6 +15,7 @@ from lib.cluster.phate_leiden_clustering import (
     plot_phate_leiden_clusters,
     calculate_potential_to_nontargeting,
 )
+from lib.shared.eval import save_figure
 
 # Validate required params
 for _param_name in ["perturbation_name_col", "control_key"]:
@@ -90,8 +91,10 @@ phate_leiden_clustering.to_csv(snakemake.output[0], sep="\t", index=False)
 
 # plot cluster sizes
 cluster_size_fig = plot_cluster_sizes(phate_leiden_clustering)
-cluster_size_fig.savefig(
-    snakemake.output[1], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    cluster_size_fig,
+    snakemake.output[1],
+    transparent=snakemake.params.transparent_figures,
 )
 
 # plot clusters
@@ -100,6 +103,6 @@ clusters_fig = plot_phate_leiden_clusters(
     snakemake.params.perturbation_name_col,
     snakemake.params.control_key,
 )
-clusters_fig.savefig(
-    snakemake.output[2], dpi=300, bbox_inches="tight", transparent=True
+save_figure(
+    clusters_fig, snakemake.output[2], transparent=snakemake.params.transparent_figures
 )

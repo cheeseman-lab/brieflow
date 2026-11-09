@@ -63,6 +63,7 @@ preprocess:
       marker_type: "lectin"
       full_label: "cell membrane, WGA"
   sample_fraction: 1
+  fewer_jobs: true
   sbs_channel_order: null
   sbs_channel_order_flip: true
   sbs_combo_fp: config/sbs_combo.tsv

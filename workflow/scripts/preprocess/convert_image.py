@@ -1,15 +1,9 @@
 """Convert microscopy image files to the configured output format (TIFF or OME-Zarr).
 
 Uses the unified save_image() I/O layer which dispatches based on output path suffix.
-A second output, when the rule declares one, receives the tile's metadata table read
-from the same input files.
 """
 
-from lib.preprocess.preprocess import (
-    convert_to_array,
-    extract_metadata,
-    get_data_config,
-)
+from lib.preprocess.preprocess import convert_to_array, get_data_config
 from lib.shared.image_io import (
     CONVERT_ZARR_COMPRESSION,
     DEFAULT_MAX_LEVELS,
@@ -49,17 +43,3 @@ save_image(
     max_levels=all_config.get("zarr_max_levels", DEFAULT_MAX_LEVELS),
     compression=CONVERT_ZARR_COMPRESSION,
 )
-
-# Write the tile's metadata table when this rule also stands in for extract_metadata
-if len(snakemake.output) > 1:
-    metadata_df = extract_metadata(
-        list(snakemake.input),
-        plate=snakemake.params.plate,
-        well=snakemake.params.well,
-        tile=snakemake.params.metadata_tile,
-        cycle=getattr(snakemake.params, "cycle", None),
-        data_format=data_config["data_format"],
-        data_organization=data_config["image_data_organization"],
-        verbose=False,
-    )
-    metadata_df.to_csv(snakemake.output[1], index=False, sep="\t")

@@ -313,10 +313,11 @@ def metadata_from_convert(
 ) -> bool:
     """Whether each convert job also writes its tile's metadata table.
 
-    Holds for tile-organized ND2 and IMS inputs read from their image headers whose
-    metadata jobs map one to one onto convert jobs (no channel, z or round split), so
-    the metadata comes from the same raw files in the same job instead of opening
-    each file a second time.
+    Holds when ``preprocess.fewer_jobs`` is set, for tile-organized ND2 and IMS
+    inputs read from their image headers whose metadata jobs map one to one onto
+    convert jobs (no channel, z or round split), so the metadata comes from the same
+    raw files in the same job instead of opening each file a second time. Configs
+    without the key keep separate metadata jobs, so finished screens are not rerun.
 
     Args:
         image_type (str): 'sbs' or 'phenotype'.
@@ -335,7 +336,8 @@ def metadata_from_convert(
     )
     metadata_keys = set(metadata_wildcard_combos.columns) - {"row", "col"}
     return (
-        data_config["data_format"] in ("nd2", "ims")
+        bool(config.get("preprocess", {}).get("fewer_jobs", False))
+        and data_config["data_format"] in ("nd2", "ims")
         and data_config["image_data_organization"] == "tile"
         and metadata_samples_df.empty
         and metadata_keys == convert_keys

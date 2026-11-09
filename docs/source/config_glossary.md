@@ -6,6 +6,7 @@ Each analysis requires a specific `config.yml` and the associated files (pool da
 A complete example is the small test's [tests/small_test_analysis/config/config.yml](https://github.com/cheeseman-lab/brieflow/blob/main/tests/small_test_analysis/config/config.yml).
 Every parameter is explained in the notebook that sets it; [Notebook Parameters](notebook_parameters.md) maps the important notebook variables to their config keys, and we comment on a few keys here as well:
 - `preprocess:sbs_samples_fp`/`preprocess:phenotype_samples_fp`: Path to dataframes with one entry for an SBS/phenotype file's path and the associated metadata (plate, well, tile, etc).
+- `preprocess:fewer_jobs`: written `true` by the preprocess notebook. Tile-organized ND2 and IMS inputs then write each tile's metadata table in its convert job, and each modality's finalize waits only for its own outputs. Absent (older configs) means `false`, so a finished screen keeps its jobs and is not rerun.
 - `sbs:df_barcode_library_fp`: Path to the standardized barcode library that the SBS notebook builds from the raw design table (`DF_DESIGN_FP`): one row per guide with its barcode and target gene.
 - `*_combo_fp`: Path to dataframe with wildcards for file processing in a particular module.
 Each combination usually corresponds to a one process that needs to be done with Snakemake.

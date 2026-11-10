@@ -87,8 +87,10 @@ if config.get("phenotype", {}).get("second_obj_detection", False):
         input:
             # aligned phenotype image
             PHENOTYPE_OUTPUTS["align_phenotype"][0],
-            # cell segmentation map
-            PHENOTYPE_OUTPUTS["segment_phenotype"][1],
+            # parent segmentation map: cells, or nuclei when cells are not segmented
+            PHENOTYPE_OUTPUTS["segment_phenotype"][
+                1 if config.get("phenotype", {}).get("segment_cells", True) else 0
+            ],
             # cytoplasm mask
             PHENOTYPE_OUTPUTS["identify_cytoplasm"],
             # phenotype info with nuclei centroids

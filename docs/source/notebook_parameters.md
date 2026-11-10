@@ -117,6 +117,9 @@ CHEMISTRY
 CALL_READS_METHOD
   `sbs.call_reads_method` · default `"median"`. How intensities become reads: `"median"` or `"percentile"` for four-color; `"frac"` (recommended) or `"merfish"` for combinatorial.
 
+AMBIGUOUS_CALL
+  `sbs.combinatorial.ambiguous_call` · default `"N"` (`"nearest"` when the key is absent). Combinatorial `frac` only. What to call a cycle whose dye state is equally near two or more bases, for example all three dyes on when C and A each differ from it by one dye. `"N"` calls it `N` with quality 0, left out of `Q_MIN`, for `N_WILDCARD` and `RECOMB_MAX_N` to handle; `"nearest"` gives it to the first tied base in code order, which over-calls that base.
+
 THRESHOLD_READS
   `sbs.threshold_peaks` · default `50`. Minimum peak intensity for a spot to become a read. Tune it with the notebook's {term}`mapping rate` curve: higher is stricter.
 
@@ -128,6 +131,12 @@ SORT_CALLS
 
 ERROR_CORRECT, MAX_DISTANCE
   `sbs.error_correct`, `sbs.max_distance` · defaults `False`, `None`. Allow a called barcode to be corrected to a library barcode up to `MAX_DISTANCE` bases away. Can be used with combinatorial `frac` (start at `1`); must stay `False` with `merfish`.
+
+N_WILDCARD
+  `sbs.n_wildcard` · default `1` (`0`, off, when the key is absent). A barcode with up to this many `N` cycles maps to the one library barcode that agrees at every other cycle; it stays unmapped when none or several agree. Only `AMBIGUOUS_CALL = "N"` produces `N` cycles.
+
+RECOMB_MAX_N
+  `sbs.recomb_max_n` · default `2` (`0` when the key is absent). `BARCODE_TYPE = "multi"` only. `N` cycles in the recombination barcode count as unknown, not as mismatches: up to this many are skipped when it is compared with the expected barcode, and with more the read is left unchecked (`no_recomb` is NaN). The recombination quality ignores `N` cycles.
 ```
 
 ## Phenotype (`2_phenotype.py`)

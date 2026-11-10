@@ -4,7 +4,7 @@ Brieflow is a [Snakemake](https://snakemake.readthedocs.io) pipeline for analyzi
 It is written to run on a Slurm cluster, and also runs on a single machine or a cloud VM.
 
 Brieflow is used together with [brieflow-analysis](https://github.com/cheeseman-lab/brieflow-analysis), a template repository that holds one screen's notebooks, configuration and run script.
-These docs describe brieflow 1.5.0, for labs and core facilities setting up a screen and for existing users moving from the Jupyter notebooks to the marimo notebooks ([What's New in 1.5.0](whats_new.md)).
+These docs describe brieflow 1.5.1, for labs and core facilities setting up a screen and for existing users moving from the Jupyter notebooks to the marimo notebooks ([What's New](whats_new.md)).
 
 ## The pipeline at a glance
 
@@ -29,7 +29,7 @@ The whole pipeline can also be driven by an agent.
 
 ## Where to start
 
-- Upgrading from 1.4: [What's New in 1.5.0](whats_new.md).
+- Upgrading from 1.4 or 1.5.0: [What's New](whats_new.md).
 - New to brieflow: read [Brieflow and Brieflow Analysis](0.brieflow_brieflow_analysis.md), then [Installation and Analysis Setup](2.installation_analysis_setup.md), and run the small test.
 - Setting up a screen: [Installation and Analysis Setup](2.installation_analysis_setup.md), [Working with the Notebooks](notebook_editor_setup.md), then [Running a Screen](3.running_modules.md).
 - Looking up a term or a notebook parameter: the [Glossary](glossary.md) and [Notebook Parameters](notebook_parameters.md).

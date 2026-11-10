@@ -6,7 +6,7 @@ project = "brieflow"
 copyright = "2025, Matteo Di Bernardo, Roshan Kern"
 author = "Matteo Di Bernardo, Roshan Kern"
 version = "1.5"
-release = "1.5.0"
+release = "1.5.1"
 
 # -- General configuration ---------------------------------------------------
 

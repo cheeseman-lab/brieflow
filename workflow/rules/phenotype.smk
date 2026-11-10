@@ -101,8 +101,10 @@ if config.get("phenotype", {}).get("second_obj_detection", False):
             # updated cytoplasm masks
             PHENOTYPE_OUTPUTS_MAPPED["identify_second_objs"][2],
         params:
-            # Pass all secondary object parameters from config
-            second_obj_params=config.get("phenotype", {}),
+            # this object's parameters: flat config keys overridden by its spec
+            second_obj_params=lambda wildcards: SECOND_OBJS[
+                wildcards.get("second_obj", "second_obj")
+            ],
         script:
             "../scripts/phenotype/identify_second_objs.py"
 
@@ -176,10 +178,16 @@ if config.get("phenotype", {}).get("second_obj_detection", False):
         input:
             # main phenotype data
             PHENOTYPE_OUTPUTS["extract_phenotype_cp"],
-            # secondary object data
-            PHENOTYPE_OUTPUTS["identify_second_objs"][1],
+            # secondary object data, one table per object
+            expand(
+                PHENOTYPE_OUTPUTS["identify_second_objs"][1],
+                second_obj=list(SECOND_OBJS),
+                allow_missing=True,
+            ),
         output:
             PHENOTYPE_OUTPUTS_MAPPED["merge_second_objs_phenotype_cp"],
+        params:
+            second_obj_names=list(SECOND_OBJS),
         script:
             "../scripts/phenotype/merge_second_objs_phenotype_cp.py"
 

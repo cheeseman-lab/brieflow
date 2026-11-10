@@ -16,6 +16,7 @@ from lib.shared.compartment_utils import (
     normalize_compartment_combo_table,
 )
 from lib.shared.file_utils import get_filename
+from lib.shared.rule_utils import get_second_obj_params
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -313,7 +314,8 @@ def get_aggregate_stats(config, n_rows=10000, include_batch_effects=False):
     aggregate_combo_fp = Path(config["aggregate"]["aggregate_combo_fp"])
     split_by_compartment = config["aggregate"].get("split_by_compartment", False)
     default_compartment_combo = get_default_compartment_combo(
-        config.get("phenotype", {}).get("second_obj_detection", False)
+        config.get("phenotype", {}).get("second_obj_detection", False),
+        list(get_second_obj_params(config.get("phenotype", {}))),
     )
     aggregate_combos = normalize_compartment_combo_table(
         pd.read_csv(aggregate_combo_fp, sep="\t"),
@@ -617,7 +619,8 @@ def get_cluster_stats(config):
         "split_by_compartment", False
     )
     default_compartment_combo = get_default_compartment_combo(
-        config.get("phenotype", {}).get("second_obj_detection", False)
+        config.get("phenotype", {}).get("second_obj_detection", False),
+        list(get_second_obj_params(config.get("phenotype", {}))),
     )
     cluster_combos = normalize_compartment_combo_table(
         pd.read_csv(cluster_combo_fp, sep="\t"),

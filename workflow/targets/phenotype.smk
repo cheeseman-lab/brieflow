@@ -22,6 +22,12 @@ _plate = {"plate": "{plate}"}
 _phen_well_expand = ["row", "col"] if PHENOTYPE_IMG_FMT == "zarr" else ["well"]
 _phen_tile_expand = ["row", "col", "tile"] if PHENOTYPE_IMG_FMT == "zarr" else ["well", "tile"]
 
+# Named secondary objects share one {second_obj} wildcard; the flat form keeps its fixed "second_obj" paths
+SECOND_OBJ_NAMES = list(SECOND_OBJS)
+_named_objs = SECOND_OBJ_NAMES != ["second_obj"]
+_obj = "{second_obj}" if _named_objs else "second_obj"
+_updated_cytoplasms = "{second_obj}_updated_cytoplasms" if _named_objs else "updated_cytoplasms"
+
 
 PHENOTYPE_OUTPUTS = {
     "apply_ic_field_phenotype": [
@@ -47,18 +53,18 @@ PHENOTYPE_OUTPUTS = {
         PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_info", "parquet", PHENOTYPE_IMG_FMT),
     ],
     "identify_second_objs": [
-        PHENOTYPE_FP / get_image_output_path(_tile, "identified_second_objs", PHENOTYPE_IMG_FMT, subdirectory="labels"),
-        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "cell_second_obj_table", "tsv", PHENOTYPE_IMG_FMT),
-        PHENOTYPE_FP / get_image_output_path(_tile, "updated_cytoplasms", PHENOTYPE_IMG_FMT, subdirectory="labels"),
+        PHENOTYPE_FP / get_image_output_path(_tile, f"identified_{_obj}s", PHENOTYPE_IMG_FMT, subdirectory="labels"),
+        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, f"cell_{_obj}_table", "tsv", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / get_image_output_path(_tile, _updated_cytoplasms, PHENOTYPE_IMG_FMT, subdirectory="labels"),
     ],
     "extract_phenotype_cp": [
         PHENOTYPE_FP / "parquets" / get_data_output_path(_tile, "phenotype_cp", "parquet", PHENOTYPE_IMG_FMT),
     ],
     "extract_phenotype_second_objs": [
-        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_second_objs", "tsv", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, f"phenotype_{_obj}s", "tsv", PHENOTYPE_IMG_FMT),
     ],
     "merge_phenotype_second_objs": [
-        PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_second_objs", "parquet", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / "parquets" / get_data_output_path(_well, f"phenotype_{_obj}s", "parquet", PHENOTYPE_IMG_FMT),
     ],
     "merge_second_objs_phenotype_cp": [
         PHENOTYPE_FP / "parquets" / get_data_output_path(_tile, "phenotype_with_second_objs", "parquet", PHENOTYPE_IMG_FMT),
@@ -120,5 +126,10 @@ else:
 PHENOTYPE_OUTPUTS_MAPPED = map_outputs(PHENOTYPE_OUTPUTS_FILTERED, PHENOTYPE_OUTPUT_MAPPINGS_FILTERED)
 
 PHENOTYPE_TARGETS_ALL = outputs_to_targets(
-    PHENOTYPE_OUTPUTS_FILTERED, phenotype_wildcard_combos, PHENOTYPE_OUTPUT_MAPPINGS_FILTERED
+    {
+        rule_name: [path for output in outputs for path in expand(str(output), second_obj=SECOND_OBJ_NAMES, allow_missing=True)]
+        for rule_name, outputs in PHENOTYPE_OUTPUTS_FILTERED.items()
+    },
+    phenotype_wildcard_combos,
+    PHENOTYPE_OUTPUT_MAPPINGS_FILTERED,
 )

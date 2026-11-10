@@ -14,6 +14,7 @@ from lib.shared.file_utils import (
     split_well_to_cols,
     get_well_from_wildcards,
 )
+from lib.shared.rule_utils import get_second_obj_params
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])
@@ -35,9 +36,14 @@ wildcard_constraints:
 SPLIT_BY_COMPARTMENT = config.get("aggregate", {}).get(
     "split_by_compartment", False
 )
+SECOND_OBJS = get_second_obj_params(config.get("phenotype", {}))
 DEFAULT_COMPARTMENT_COMBO = get_default_compartment_combo(
-    config.get("phenotype", {}).get("second_obj_detection", False)
+    config.get("phenotype", {}).get("second_obj_detection", False), list(SECOND_OBJS)
 )
+
+# keeps {second_obj} from matching other phenotype outputs (e.g. phenotype_with_second_objs)
+wildcard_constraints:
+    second_obj="|".join(SECOND_OBJS),
 
 # Get paths to the sample and combo files dfs
 SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])

@@ -143,6 +143,8 @@ def join_well_annotations(metadata, well_annotations_fp):
 RESERVED_METADATA_PREFIXES = ("offset_",)
 # per-cell segmentation records (secondary object labels, nuclei count); not features
 RESERVED_METADATA_COLS = ("second_obj_ids", "num_nuclei")
+# label lists of named secondary objects (<name>_ids)
+RESERVED_METADATA_SUFFIXES = ("_ids",)
 
 
 def is_reserved_metadata_col(col):
@@ -151,9 +153,14 @@ def is_reserved_metadata_col(col):
     Per-cell alignment-offset QC columns (offset_*) have screen-specific names (the
     alignment step/cycle count varies by screen), so they are matched by prefix rather
     than enumerated in the metadata_cols file. Per-cell records written by secondary
-    object detection and by segmentation are reserved by name.
+    object detection and by segmentation are reserved by name, and a named secondary
+    object's label list by its ``_ids`` suffix.
     """
-    return col in RESERVED_METADATA_COLS or col.startswith(RESERVED_METADATA_PREFIXES)
+    return (
+        col in RESERVED_METADATA_COLS
+        or col.startswith(RESERVED_METADATA_PREFIXES)
+        or col.endswith(RESERVED_METADATA_SUFFIXES)
+    )
 
 
 def split_cell_data(
@@ -431,13 +438,14 @@ def compartment_combo_subset(
         features (pd.DataFrame): Feature columns (metadata already split out).
         compartment_combo (list[str]): Compartments to keep, e.g. ["cell", "nucleus"].
         all_compartments (list[str]): Compartments present in the input. Used to
-            determine which prefixes to exclude.
+            determine which prefixes to exclude; a named secondary object ``<name>``
+            selects columns starting with ``<name>_``.
 
     Returns:
         pd.DataFrame: features without columns belonging to excluded compartments.
     """
     excluded = [c for c in all_compartments if c not in compartment_combo]
-    excluded_prefixes = [COMPARTMENT_PREFIXES[c] for c in excluded]
+    excluded_prefixes = [COMPARTMENT_PREFIXES.get(c, f"{c}_") for c in excluded]
 
     cols_to_drop = [
         col

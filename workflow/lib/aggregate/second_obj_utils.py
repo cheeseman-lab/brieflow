@@ -4,6 +4,8 @@ This module provides functions to merge cell-level data with per-object secondar
 object data using configurable aggregation strategies.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
 from typing import Literal, List
@@ -69,6 +71,35 @@ def aggregate_second_obj_data(
 
     return strategy_functions[agg_strategy](
         cells_df.copy(), second_objs_df, cells_merge_keys, second_objs_merge_keys
+    )
+
+
+def prefix_second_obj_columns(
+    df: pd.DataFrame, name: str, key_cols: List[str]
+) -> pd.DataFrame:
+    """Prefix a named secondary object's columns with its name.
+
+    A leading ``second_obj_`` is replaced by ``<name>_`` and other columns gain the
+    ``<name>_`` prefix, so ``second_obj_area`` becomes ``granule_area`` and
+    ``num_second_objs`` becomes ``granule_num_second_objs``. The flat form's implicit
+    name ``second_obj`` leaves the columns unchanged.
+
+    Args:
+        df (pd.DataFrame): Per-cell or per-object secondary object table.
+        name (str): Secondary object name.
+        key_cols (List[str]): Merge-key columns to leave unchanged.
+
+    Returns:
+        pd.DataFrame: ``df`` with renamed columns.
+    """
+    if name == "second_obj":
+        return df
+    return df.rename(
+        columns={
+            col: re.sub(r"^(second_obj_)?", f"{name}_", col)
+            for col in df.columns
+            if col not in key_cols
+        }
     )
 
 

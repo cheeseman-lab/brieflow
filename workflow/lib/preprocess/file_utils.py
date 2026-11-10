@@ -221,8 +221,11 @@ def get_metadata_wildcard_combos(
         ]
         return metadata_samples_df[metadata_columns].drop_duplicates().astype(str)
     elif not samples_df.empty:
-        # Use image file structure for metadata extraction
-        return samples_df.drop(columns=["sample_fp"]).drop_duplicates().astype(str)
+        # One metadata job per plate, well and cycle or round; it reads every tile's files
+        keys = [
+            c for c in ("plate", "well", "cycle", "round") if c in samples_df.columns
+        ]
+        return samples_df[keys].drop_duplicates().astype(str)
     else:
         # Both DataFrames are empty - return empty DataFrame (no samples to process)
         return pd.DataFrame()
@@ -261,10 +264,6 @@ def get_inputs_for_metadata_extraction(
     Returns:
         Dict[str, List[str]]: Dictionary with 'samples' and 'metadata' keys containing file lists
     """
-    from lib.preprocess.preprocess import get_data_config
-
-    data_config = get_data_config(image_type, config)
-
     # Build filter arguments from available wildcards
     filter_args = {}
     for attr in ["plate", "well", "tile", "cycle", "round", "z"]:
@@ -295,22 +294,62 @@ def get_inputs_for_metadata_extraction(
         ]
     else:
         # Extract from image files - no metadata files needed
-        sample_filter_args = filter_args.copy()
-        if data_config["image_data_organization"] == "well":
-            # Remove tile for well organization
-            sample_filter_args.pop("tile", None)
-
-        # Add channel order if specified
-        if f"{image_type}_channel_order" in config.get("preprocess", {}):
-            sample_filter_args["channel_order"] = config["preprocess"][
-                f"{image_type}_channel_order"
-            ]
-
-        inputs["samples"] = get_sample_fps(samples_df, **sample_filter_args)
-        if isinstance(inputs["samples"], str):
-            inputs["samples"] = [inputs["samples"]]
+        inputs["samples"] = [
+            fp
+            for _, fps in get_metadata_sample_fps(
+                image_type, config, samples_df, filter_args
+            )
+            for fp in fps
+        ]
 
     return inputs
+
+
+def get_metadata_sample_fps(
+    image_type: str,
+    config: Dict[str, Any],
+    samples_df: pd.DataFrame,
+    filter_args: Dict[str, Any],
+) -> List[tuple]:
+    """Image files of one metadata job, grouped by tile.
+
+    A metadata job covers a plate, well and cycle or round. Tile-organized inputs
+    return each tile's files in the order :func:`get_sample_fps` gives them for that
+    tile; a well-organized input returns its well files under tile ``None``.
+
+    Args:
+        image_type (str): 'sbs' or 'phenotype'
+        config (Dict[str, Any]): Configuration dictionary
+        samples_df (pd.DataFrame): DataFrame with image file paths
+        filter_args (Dict[str, Any]): plate, well and cycle or round_order of the job
+
+    Returns:
+        List[tuple]: ``(tile, [file, ...])`` pairs, tiles in table order.
+    """
+    from lib.preprocess.preprocess import get_data_config
+
+    args = {k: v for k, v in filter_args.items() if k != "tile"}
+    if f"{image_type}_channel_order" in config.get("preprocess", {}):
+        args["channel_order"] = config["preprocess"][f"{image_type}_channel_order"]
+
+    def as_list(fps):
+        return [fps] if isinstance(fps, str) else list(fps)
+
+    if get_data_config(image_type, config)["image_data_organization"] == "well":
+        return [(None, as_list(get_sample_fps(samples_df, **args)))]
+    rows = samples_df
+    for key, arg in (
+        ("plate", "plate"),
+        ("well", "well"),
+        ("cycle", "cycle"),
+        ("round", "round_order"),
+    ):
+        if arg in args and key in rows.columns:
+            rows = rows[rows[key].astype(str) == str(args[arg])]
+    return [
+        (tile, as_list(get_sample_fps(tile_rows, **args)))
+        for tile, tile_rows in rows.groupby("tile", sort=False)
+    ]
 
 
 def get_tile_count_from_well(

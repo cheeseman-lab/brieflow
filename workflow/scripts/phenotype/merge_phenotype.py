@@ -1,8 +1,6 @@
-import pandas as pd
-from joblib import Parallel, delayed
+import pyarrow.parquet as pq
 
-from lib.shared.file_utils import read_tsv_safe
-from lib.shared.parquet_io import write_parquet
+from lib.shared.parquet_io import read_parquets, write_parquet
 
 
 # Validate required params
@@ -10,12 +8,9 @@ if getattr(snakemake.params, "channel_names", None) is None:
     raise ValueError("Required config parameter 'channel_names' is not set")
 
 
-# Load, concatenate, and save the phenotype CellProfiler data
-arr_reads = Parallel(n_jobs=snakemake.threads)(
-    delayed(read_tsv_safe)(file) for file in snakemake.input
-)
-valid_dfs = [df for df in arr_reads if not df.empty]
-phenotype_cp = pd.concat(valid_dfs) if valid_dfs else pd.DataFrame()
+# Concatenate the per-tile CP parquets; 0-row tiles are skipped so ints stay ints
+tiles = [f for f in snakemake.input if pq.ParquetFile(f).metadata.num_rows > 0]
+phenotype_cp = read_parquets(tiles or list(snakemake.input))
 write_parquet(phenotype_cp, snakemake.output[0])
 
 

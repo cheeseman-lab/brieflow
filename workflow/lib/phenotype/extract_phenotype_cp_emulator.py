@@ -21,6 +21,7 @@ from lib.external.cp_emulator import (
     neighbor_measurements,
 )
 from lib.shared.feature_extraction import extract_features, extract_features_bare
+from lib.shared.file_utils import add_wildcard_columns
 from lib.shared.log_filter import log_ndi
 from lib.phenotype.constants import DEFAULT_METADATA_COLS
 
@@ -276,8 +277,7 @@ def extract_phenotype_cp_emulator(
     result_df = pd.concat(dfs, axis=1, join="outer", sort=False).reset_index()
 
     # Add wildcards metadata at the END (they'll be reordered later)
-    for k, v in sorted(wildcards.items()):
-        result_df[k] = v
+    add_wildcard_columns(result_df, wildcards)
 
     # Apply column ordering
     result_df = order_dataframe_columns(result_df)

@@ -508,6 +508,25 @@ def get_well_from_wildcards(wildcards):
     return None
 
 
+def add_wildcard_columns(df, wildcards):
+    """Attach wildcard values as columns, casting digit-only values to int.
+
+    Snakemake passes wildcards as strings. ``pd.read_csv`` used to re-infer
+    plate/tile/cycle as int64 on read; parquet keeps the string, which breaks merges
+    against the int64 metadata tables.
+
+    Args:
+        df (pandas.DataFrame): Frame to annotate, modified in place.
+        wildcards (dict): Wildcard values from Snakemake.
+
+    Returns:
+        pandas.DataFrame: The same frame, for chaining.
+    """
+    for k, v in sorted(wildcards.items()):
+        df[k] = int(v) if isinstance(v, str) and v.isdigit() else v
+    return df
+
+
 def validate_data_type(data_type):
     """Validate data type parameter.
 

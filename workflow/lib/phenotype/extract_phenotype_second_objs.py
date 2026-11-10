@@ -21,6 +21,7 @@ from lib.external.cp_emulator import (
     neighbor_measurements,
 )
 from lib.shared.feature_extraction import extract_features, extract_features_bare
+from lib.shared.file_utils import add_wildcard_columns
 from lib.shared.log_filter import log_ndi
 from lib.phenotype.constants import DEFAULT_METADATA_COLS
 
@@ -170,8 +171,7 @@ def extract_phenotype_second_objs(
         second_obj_df = second_obj_features.rename(columns={"label": "second_obj_id"})
 
     # Add wildcards metadata at the END (they'll be reordered later)
-    for k, v in sorted(wildcards.items()):
-        second_obj_df[k] = v
+    add_wildcard_columns(second_obj_df, wildcards)
 
     # Apply column ordering
     second_obj_df = order_dataframe_columns_second_objs(second_obj_df)

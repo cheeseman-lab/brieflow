@@ -52,7 +52,7 @@ PHENOTYPE_OUTPUTS = {
         PHENOTYPE_FP / get_image_output_path(_tile, "updated_cytoplasms", PHENOTYPE_IMG_FMT, subdirectory="labels"),
     ],
     "extract_phenotype_cp": [
-        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_cp", "tsv", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / "parquets" / get_data_output_path(_tile, "phenotype_cp", "parquet", PHENOTYPE_IMG_FMT),
     ],
     "extract_phenotype_second_objs": [
         PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_second_objs", "tsv", PHENOTYPE_IMG_FMT),
@@ -61,7 +61,7 @@ PHENOTYPE_OUTPUTS = {
         PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_second_objs", "parquet", PHENOTYPE_IMG_FMT),
     ],
     "merge_second_objs_phenotype_cp": [
-        PHENOTYPE_FP / "tsvs" / get_data_output_path(_tile, "phenotype_with_second_objs", "tsv", PHENOTYPE_IMG_FMT),
+        PHENOTYPE_FP / "parquets" / get_data_output_path(_tile, "phenotype_with_second_objs", "parquet", PHENOTYPE_IMG_FMT),
     ],
     "merge_phenotype_cp": [
         PHENOTYPE_FP / "parquets" / get_data_output_path(_well, "phenotype_cp", "parquet", PHENOTYPE_IMG_FMT),

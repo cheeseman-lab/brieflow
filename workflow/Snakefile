@@ -30,6 +30,8 @@ wildcard_constraints:
     col=r"[A-Za-z]*\d+",
     tile=r"[0-9]+",
     plate=r"[0-9]+",
+    # keeps {well} from matching "A1_T-0" in "_"-delimited TIFF tile names
+    well=r"[^_/]+",
 SPLIT_BY_COMPARTMENT = config.get("aggregate", {}).get(
     "split_by_compartment", False
 )

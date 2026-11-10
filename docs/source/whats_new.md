@@ -10,6 +10,9 @@ A maintenance release on top of 1.5.0; the [1.5.1 release notes](https://github.
 ### Main changes
 
 - **OME-Zarr by default.** A config without `all.image_format` now writes {term}`OME-Zarr`, as the preprocess notebook already did. TIFF and zarr runs both write to `brieflow_output/`. See [Output formats](3.running_modules.md#output-formats-tiff-and-zarr).
+- **Cellpose 3 and 4 together.** Both install with brieflow, and `CELLPOSE_MODEL` picks the version: `cpsam` runs Cellpose 4, the other models Cellpose 3.1.0. No separate Cellpose 4 install; installing brieflow needs `git` and network access.
+- **Parquet per-tile tables.** The per-tile tables later steps combine (SBS `reads`, `cells`, `sbs_info`; phenotype `phenotype_cp`) are parquet under `parquets/`, and the final merge streams through polars.
+- **Metadata once per well.** Preprocess extracts image-header metadata in one job per well (and cycle or round) instead of one per tile.
 - **Finished runs stay finished.** Running a finished screen again has nothing to do. Before, zarr runs re-ran segmentation and everything after it.
 - **Cluster waits for the bootstrap.** For a combo with a bootstrap, cluster always runs after it, so `cluster.h5ad` always carries the bootstrap p-values.
 - **StarDist in every install.** StarDist and a CPU build of TensorFlow install with brieflow.

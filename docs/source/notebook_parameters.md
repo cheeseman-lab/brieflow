@@ -183,6 +183,12 @@ SECOND_OBJ_CHANNEL
 
 SECOND_OBJ_METHOD
   `phenotype.second_obj_method` · default `"threshold"`. `"threshold"`, `"cellpose"` or `"stardist"`, each with its own size filter and method settings in the notebook.
+
+SECOND_OBJ_CELLPOSE_MODEL
+  `phenotype.second_obj_cellpose_model` · default `"cyto3"`. Cellpose model for `SECOND_OBJ_METHOD = "cellpose"`: a model name, or the path to a fine-tuned model (for example from [goudacell](goudacell.md)), whose weights pick the Cellpose version.
+
+SECOND_OBJS
+  `phenotype.second_objs` · default `{}`. Several named secondary objects, as `{name: {"channel": ..., <config key>: value}}`, for example `{"granule": {"channel": "G3BP1", "threshold_method": "otsu_three_peak_mid_bg"}}`. Each entry overrides the secondary-object settings above for that object; `{}` keeps one object from those settings. Names are lowercase snake_case and cannot be or start with `cell_`, `nucleus_`, `cytoplasm_` or `second_obj_`. Every column of a named object starts with `<name>_` (`second_obj_area` becomes `granule_area`), and each name is its own {term}`compartment <Compartment>`.
 ```
 
 ## Merge (`3_merge.py`)

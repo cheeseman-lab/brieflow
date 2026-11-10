@@ -64,6 +64,7 @@ notebook_editor_setup.md
 3.running_modules.md
 4.visualization.md
 brieflow_auto.md
+goudacell.md
 example_analyses.md
 ```
 

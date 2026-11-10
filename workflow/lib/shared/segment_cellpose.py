@@ -9,34 +9,24 @@ This module provides functions for segmenting microscopy images using the Cellpo
 4. Mask Processing: Manipulating and refining segmentation masks.
 5. Utility Functions: Supporting operations for image analysis and segmentation tasks.
 
-COMPATIBILITY NOTE:
-This module supports both Cellpose 3.x and 4.x with automatic version detection:
+CELLPOSE VERSIONS:
+The model name picks the Cellpose version, and both are installed with brieflow:
 
-Cellpose 3.x (3.1.0):
-- Supports models: cyto3, nuclei, cyto2
-- Supports automatic diameter estimation
-- CPSAM model NOT supported
+- cyto3, cyto2, cyto, nuclei: Cellpose 3.1.0, imported as the `cellpose3` package.
+  Supports automatic diameter estimation.
+- cpsam: Cellpose 4 (Cellpose-SAM), imported as the `cellpose` package. No diameter estimation.
+- A path to a trained model runs on the version whose network the weights file holds.
 
-Cellpose 4.x (4.0.4+):
-- Supports ONLY cpsam model
-- Standard models (cyto3, nuclei) NOT supported in 4.x
-- Automatic diameter estimation NOT supported (specify diameters in config)
-- Upgrade: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0
-
-The code will automatically detect your Cellpose version and raise clear errors
-for incompatible model/version combinations.
-
+An unknown model name, or a model whose package is missing, raises an error naming both.
 """
 
+import importlib
 import sys
 from functools import lru_cache
 
 import numpy as np
 import pandas as pd
 
-import cellpose
-from cellpose.models import CellposeModel
-from cellpose import models as cellpose_models
 from skimage.util import img_as_ubyte
 from skimage.segmentation import clear_border
 
@@ -46,14 +36,12 @@ from lib.shared.segmentation_utils import (
     reconcile_nuclei_cells,
 )
 
-# Detect Cellpose version for compatibility checks
-try:
-    CELLPOSE_VERSION = tuple(map(int, cellpose.version.split(".")[:2]))
-except (AttributeError, ValueError):
-    # Fallback to safe default for backward compatibility
-    CELLPOSE_VERSION = (3, 0)
+CELLPOSE3_MODELS = ("cyto3", "cyto2", "cyto", "nuclei")
+CELLPOSE4_MODELS = ("cpsam",)
+CELLPOSE_PACKAGES = {3: "cellpose3", 4: "cellpose"}
 
-CELLPOSE_4X = CELLPOSE_VERSION >= (4, 0)
+# Kept for notebooks that import it: the model name, not the install, now picks the version
+CELLPOSE_4X = False
 
 
 # Patches per forward pass; changes speed, not the result. Override via cellpose_kwargs
@@ -62,56 +50,91 @@ _SEG_BATCH_SIZE = 32
 
 # Per worker process: build each Cellpose model once, reuse across tiles
 @lru_cache(maxsize=8)
-def create_cellpose_model(model_type: str, gpu: bool = False) -> CellposeModel:
-    r"""Create a CellposeModel with version-aware initialization.
-
-    Handles differences between Cellpose 3.x and 4.x APIs and validates
-    model compatibility with the installed Cellpose version.
+def create_cellpose_model(model_type: str, gpu: bool = False):
+    r"""Create a CellposeModel from the Cellpose version that runs model_type.
 
     Args:
-        model_type (str): Cellpose model type to use (e.g., 'cyto3', 'nuclei', 'cpsam')
-            or a path to a custom trained model (e.g., 'models/my_custom_model').
-            - Cellpose 3.x: Supports 'cyto3', 'nuclei', 'cyto2'
-            - Cellpose 4.x: Only supports 'cpsam'
-            - Custom model paths (containing '/' or '\\') are supported in both versions
+        model_type (str): Cellpose model name or a path to a custom trained model
+            (e.g., 'models/my_custom_model').
+            - Cellpose 3.1.0 (`cellpose3` package): 'cyto3', 'cyto2', 'cyto', 'nuclei'
+            - Cellpose 4 (`cellpose` package): 'cpsam'
+            - Custom model paths (containing '/' or '\\') run on the version that trained them
         gpu (bool, optional): Whether to use GPU for inference. Default is False.
 
     Returns:
         CellposeModel: Initialized Cellpose model ready for inference.
 
     Raises:
-        ValueError: If model_type is incompatible with installed Cellpose version.
+        ValueError: If model_type is not a known Cellpose model or a Cellpose weights file.
+        ImportError: If the Cellpose package that runs model_type is not installed.
     """
-    # Check if model_type is a custom model path (contains path separators)
-    is_custom_model = model_type is not None and (
-        "/" in model_type or "\\" in model_type
+    version = cellpose_version_for_model(model_type)
+    models = cellpose_models_for(version, model_type)
+    if version == 4 or is_custom_model(model_type):
+        return models.CellposeModel(pretrained_model=model_type, gpu=gpu)
+    return models.CellposeModel(model_type=model_type, gpu=gpu)
+
+
+def cellpose_version_for_model(model_type):
+    """Return the Cellpose major version (3 or 4) that runs a model.
+
+    Args:
+        model_type (str): Cellpose model name or path to a custom trained model.
+
+    Returns:
+        int: 3 for Cellpose 3.1.0 (`cellpose3`), 4 for Cellpose 4 (`cellpose`).
+
+    Raises:
+        ValueError: If model_type is not a known Cellpose model or a Cellpose weights file.
+    """
+    if model_type in CELLPOSE3_MODELS:
+        return 3
+    if model_type in CELLPOSE4_MODELS:
+        return 4
+    if is_custom_model(model_type):
+        return _custom_model_version(model_type)
+    raise ValueError(
+        f"Unknown Cellpose model '{model_type}'. Use one of "
+        f"{', '.join(CELLPOSE3_MODELS)} (Cellpose 3.1.0, package cellpose3), "
+        f"{', '.join(CELLPOSE4_MODELS)} (Cellpose 4, package cellpose), "
+        "or a path to a trained Cellpose model."
     )
 
-    # Validate compatibility
-    # Custom model paths are allowed with any Cellpose version
-    if CELLPOSE_4X and model_type not in ("cpsam", None) and not is_custom_model:
-        raise ValueError(
-            f"Model '{model_type}' requires Cellpose 3.x. "
-            f"Cellpose 4.x only supports the 'cpsam' model. "
-            f"Either change your config to use model='cpsam', "
-            f"or downgrade Cellpose: uv pip install cellpose==3.1.0"
-        )
-    if not CELLPOSE_4X and model_type == "cpsam":
-        raise ValueError(
-            f"CPSAM model requires Cellpose 4.x. "
-            f"You have Cellpose {'.'.join(map(str, CELLPOSE_VERSION))}. "
-            f"Upgrade with: uv pip install cellpose==4.0.4 torch==2.7.0 torchvision==0.22.0"
-        )
 
-    # Version-aware initialization
-    # Custom model paths use pretrained_model parameter in both versions
-    if CELLPOSE_4X:
-        return CellposeModel(pretrained_model=model_type, gpu=gpu)
-    elif is_custom_model:
-        # For Cellpose 3.x with custom models, use pretrained_model
-        return CellposeModel(pretrained_model=model_type, gpu=gpu)
-    else:
-        return CellposeModel(model_type=model_type, gpu=gpu)
+def cellpose_models_for(version, model_type):
+    """Import the models module of the Cellpose package for a Cellpose major version.
+
+    Args:
+        version (int): 3 for Cellpose 3.1.0 (`cellpose3`), 4 for Cellpose 4 (`cellpose`).
+        model_type (str): The model that needs it, named in errors.
+
+    Returns:
+        module: `cellpose3.models` or `cellpose.models`.
+
+    Raises:
+        ImportError: If the package is missing, or `cellpose` is not Cellpose 4.
+    """
+    package = CELLPOSE_PACKAGES[version]
+    try:
+        root = importlib.import_module(package)
+        models = importlib.import_module(f"{package}.models")
+    except ImportError as error:
+        raise ImportError(
+            f"Cellpose model '{model_type}' needs Cellpose {version} (package {package}), "
+            f"which is not installed. Reinstall brieflow to get it: uv pip install -e ."
+        ) from error
+    installed = str(getattr(root, "version", "0")).split(".")[0]
+    if installed != str(version):
+        raise ImportError(
+            f"Cellpose model '{model_type}' needs Cellpose {version} (package {package}), "
+            f"but {package} {root.version} is installed. Reinstall brieflow: uv pip install -e ."
+        )
+    return models
+
+
+def is_custom_model(model_type):
+    """Return True if model_type is a path to a trained model rather than a model name."""
+    return model_type is not None and ("/" in model_type or "\\" in model_type)
 
 
 def segment_cellpose(
@@ -327,8 +350,8 @@ def estimate_diameters(
 ):
     """Estimate optimal cell diameter using Cellpose's diameter estimation.
 
-    Note: Only supported with Cellpose 3.x. Cellpose 4.x does not have SizeModel.
-          With Cellpose 4.x, you must specify nuclei_diameter and cell_diameter in config.
+    Note: Only supported for Cellpose 3 models (Cellpose 3.1.0 has the SizeModel).
+          With cpsam (Cellpose 4), specify nuclei_diameter and cell_diameter in config.
 
     Args:
         data (numpy.ndarray): Multichannel image data
@@ -345,19 +368,16 @@ def estimate_diameters(
         tuple: Estimated diameters for (nuclei, cells)
 
     Raises:
-        NotImplementedError: If using Cellpose 4.x (SizeModel not available)
+        NotImplementedError: If cellpose_model runs on Cellpose 4 (no SizeModel)
     """
-    # Check version compatibility
-    if CELLPOSE_4X:
+    if cellpose_version_for_model(cellpose_model) == 4:
         raise NotImplementedError(
-            "Automatic diameter estimation is not supported with Cellpose 4.x. "
-            "SizeModel is not available in Cellpose 4.x. "
-            "Please specify nuclei_diameter and cell_diameter explicitly in your config, "
-            "or downgrade to Cellpose 3.x: uv pip install cellpose==3.1.0"
+            f"Automatic diameter estimation needs a Cellpose 3 model; '{cellpose_model}' "
+            "runs on Cellpose 4, which has no size model. "
+            "Specify nuclei_diameter and cell_diameter explicitly in your config."
         )
-
-    # Import SizeModel only for Cellpose 3.x (doesn't exist in 4.x)
-    from cellpose.models import SizeModel
+    cellpose_models = cellpose_models_for(3, cellpose_model)
+    CellposeModel, SizeModel = cellpose_models.CellposeModel, cellpose_models.SizeModel
 
     # Prepare RGB image
     log_kwargs = cellpose_kwargs.pop(
@@ -439,9 +459,10 @@ def segment_cellpose_rgb(
     Raises:
         ValueError: If model is incompatible with installed Cellpose version
     """
-    # Create Cellpose models using version-aware helper
-    # Nuclei model: "cpsam" for 4.x, "nuclei" for 3.x
-    nuclei_model_type = "cpsam" if CELLPOSE_4X else "nuclei"
+    # Nuclei model follows the cell model's Cellpose version: "cpsam" for 4, "nuclei" for 3
+    nuclei_model_type = (
+        "cpsam" if cellpose_version_for_model(cellpose_model) == 4 else "nuclei"
+    )
     model_dapi = create_cellpose_model(nuclei_model_type, gpu=gpu)
     model_cyto = create_cellpose_model(cellpose_model, gpu=gpu)
 
@@ -463,7 +484,7 @@ def segment_cellpose_rgb(
     # Segment cells using cell-specific parameters
     # For CPSAM (Cellpose 4.x), use all 3 channels: [red/helper, green/cyto, blue/DAPI]
     # For standard models (Cellpose 3.x), use [green/cyto, blue/DAPI]
-    if CELLPOSE_4X and cellpose_model == "cpsam":
+    if cellpose_model == "cpsam":
         # CPSAM can use all 3 channels
         cells, _, _ = model_cyto.eval(
             rgb, diameter=cell_diameter, channels=[1, 2, 3], **cell_kwargs
@@ -548,7 +569,7 @@ def segment_cellpose_nuclei_rgb(
     Returns:
         numpy.ndarray: Labeled segmentation mask of nuclei.
     """
-    # Create Cellpose model using version-aware helper
+    # Create the Cellpose model from the version that runs it
     model = create_cellpose_model(cellpose_model, gpu=gpu)
 
     # Segment nuclei using CellposeModel from the RGB image
@@ -571,3 +592,25 @@ def segment_cellpose_nuclei_rgb(
 
     # Return the segmented nuclei
     return nuclei
+
+
+@lru_cache(maxsize=8)
+def _custom_model_version(path):
+    """Read which Cellpose network (3: CPnet, 4: Cellpose-SAM) a weights file holds."""
+    import torch
+
+    try:
+        keys = torch.load(path, map_location="cpu", weights_only=True, mmap=True).keys()
+    except FileNotFoundError:
+        raise
+    except Exception:
+        # Files saved without the zip format cannot be memory-mapped; other files hold no weights
+        try:
+            keys = torch.load(path, map_location="cpu", weights_only=True).keys()
+        except Exception:
+            keys = ()
+    if any(key.startswith("downsample.") for key in keys):
+        return 3
+    if any(key.startswith("encoder.") for key in keys):
+        return 4
+    raise ValueError(f"'{path}' is not a Cellpose 3 or Cellpose 4 model weights file.")

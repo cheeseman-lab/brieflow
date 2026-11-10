@@ -61,7 +61,7 @@ Reconcile
 
 Cellpose
 cpsam
-  [Cellpose](https://www.cellpose.org) is a deep-learning segmentation model. brieflow installs Cellpose 3 (models such as `cyto3`, the default); `cpsam` is the Cellpose-SAM model of Cellpose 4, installed separately, and slow without a GPU.
+  [Cellpose](https://www.cellpose.org) is a deep-learning segmentation model. brieflow installs Cellpose 3.1.0 (models such as `cyto3`, the default, from the `cellpose3` package) and Cellpose 4, whose Cellpose-SAM model `cpsam` is slow without a GPU. The model name picks the version.
 
 Secondary object
   An object segmented inside cells in addition to nuclei and cells, such as an intracellular pathogen, an organelle or foci, switched on by `SECOND_OBJ_DETECTION` in the phenotype notebook. Each object gets its own features and is assigned to the cell that contains it.

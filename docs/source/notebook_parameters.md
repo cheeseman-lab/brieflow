@@ -97,7 +97,7 @@ SEGMENT_CELLS (SBS)
   `sbs.segment_cells` · default `True`. Segment cell bodies as well as nuclei. Set `False` when barcode spots are nuclear (DNA barcodes), which is faster.
 
 CELLPOSE_MODEL
-  `sbs.cellpose_model` or `phenotype.cellpose_model` · default `"cyto3"`. Cellpose model: `"cyto3"`, `"cyto2"`, `"cyto"`, `"nuclei"`, `"cpsam"` (needs Cellpose 4 and ideally a GPU), or a custom model path. With `SEGMENT_CELLS = False` this model segments the nuclei; with `SEGMENT_CELLS = True` nuclei use the `nuclei` model (Cellpose 3) or `cpsam` (Cellpose 4).
+  `sbs.cellpose_model` or `phenotype.cellpose_model` · default `"cyto3"`. Cellpose model, which also picks the Cellpose version: `"cyto3"`, `"cyto2"`, `"cyto"` or `"nuclei"` run on Cellpose 3.1.0; `"cpsam"` runs on Cellpose 4 (ideally on a GPU). Both versions are installed with brieflow. A custom model path runs on the version whose network the weights file holds. Any other name raises an error. With `SEGMENT_CELLS = False` this model segments the nuclei; with `SEGMENT_CELLS = True` nuclei use the `nuclei` model for Cellpose 3 models and `cpsam` for `cpsam`.
 
 GPU (SBS)
   `sbs.gpu` · default `False`. Run SBS segmentation on a GPU, in the notebook and in the pipeline.

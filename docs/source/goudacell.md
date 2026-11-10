@@ -21,7 +21,7 @@ phenotype:
       size_filter_method: area
       second_obj_min_size: 3
       second_obj_max_size: 400
-      max_total_objects: null
+      max_total_objects: 5000
 ```
 
-The `granule` entry is the setting that scored best in one held-out benchmark of small cytoplasmic granules (F1 0.75 at IoU 0.5 on three labelled images), ahead of Cellpose and StarDist models on the same images. It is one experiment, not a default: other objects, stains and microscopes need their own tuning. `max_total_objects: null` turns off the failsafe that empties a tile with more than 1000 objects, which dense granule tiles exceed. A fine-tuned model for secondary objects goes in `second_obj_cellpose_model` (`SECOND_OBJ_CELLPOSE_MODEL`) with `second_obj_method: cellpose`.
+The `granule` entry is the setting that scored best in one held-out benchmark of small cytoplasmic granules (F1 0.75 at IoU 0.5 on three labelled images), ahead of Cellpose and StarDist models on the same images. It is one experiment, not a default: other objects, stains and microscopes need their own tuning. `max_total_objects: 5000` raises the failsafe that empties a tile with more than 1000 objects, which dense granule tiles exceed; keep a limit, because a tile without cells can threshold into tens of thousands of noise objects. A fine-tuned model for secondary objects goes in `second_obj_cellpose_model` (`SECOND_OBJ_CELLPOSE_MODEL`) with `second_obj_method: cellpose`.

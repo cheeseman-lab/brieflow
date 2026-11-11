@@ -520,10 +520,14 @@ def get_second_obj_params(phenotype_config: Dict[str, Any]) -> Dict[str, Dict]:
         if derived_from is not None:
             ops = set(derived_from)
             sources = derived_second_obj_sources(params[name])
-            if ops not in ({"overlap"}, {"parent_minus"}) or not sources:
+            if (
+                ops not in ({"overlap"}, {"parent_minus"}, {"touching"})
+                or not sources
+                or (ops == {"touching"} and len(sources) < 2)
+            ):
                 raise ValueError(
-                    f"Secondary object {name!r}: 'from' takes one of overlap or "
-                    "parent_minus with a list of object names"
+                    f"Secondary object {name!r}: 'from' takes one of overlap, "
+                    "parent_minus or touching (at least two) with a list of object names"
                 )
             # sources must be defined earlier, which also rules out cycles
             earlier = list(specs)[: list(specs).index(name)]

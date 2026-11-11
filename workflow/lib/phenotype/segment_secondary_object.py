@@ -663,11 +663,19 @@ def derive_second_objs(source_masks, parent_masks, operation):
         parent_masks (numpy.ndarray): Parent masks (cells, or nuclei without cells).
         operation (str): ``overlap`` keeps pixels inside every source, one object per
             connected patch; ``parent_minus`` keeps each parent minus the union of the
-            sources, one object per parent labeled as the parent.
+            sources, one object per parent labeled as the parent; ``touching`` keeps the
+            whole objects of the first source that overlap or border (edge or corner) an
+            object of any other source.
 
     Returns:
         numpy.ndarray: Label mask of the derived objects.
     """
+    if operation == "touching":
+        kept, *others = source_masks
+        near = ndimage.binary_dilation(
+            np.any([mask > 0 for mask in others], axis=0), structure=np.ones((3, 3))
+        )
+        return np.where(np.isin(kept, np.unique(kept[near & (kept > 0)])), kept, 0)
     inside = np.stack([mask > 0 for mask in source_masks])
     if operation == "overlap":
         return measure.label(inside.all(axis=0))

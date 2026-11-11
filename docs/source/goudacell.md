@@ -15,13 +15,19 @@ phenotype:
   second_objs:
     granule:
       second_obj_channel_index: 2
-      threshold_method: otsu_three_peak_mid_bg
+      threshold_method: cell_median_mad
+      threshold_k: 5
       threshold_smoothing_scale: 0.7
       declump_method: none
       size_filter_method: area
       second_obj_min_size: 3
-      second_obj_max_size: 400
+      second_obj_max_size: 1000
       max_total_objects: 5000
+    puncta:
+      second_obj_channel_index: 1
+      second_obj_mode: count
+      foci_radius: 2
+      foci_threshold: 5
 ```
 
-The `granule` entry is the setting that scored best in one held-out benchmark of small cytoplasmic granules (F1 0.75 at IoU 0.5 on three labelled images), ahead of Cellpose and StarDist models on the same images. It is one experiment, not a default: other objects, stains and microscopes need their own tuning. `max_total_objects: 5000` raises the failsafe that empties a tile with more than 1000 objects, which dense granule tiles exceed; keep a limit, because a tile without cells can threshold into tens of thousands of noise objects. A fine-tuned model for secondary objects goes in `second_obj_cellpose_model` (`SECOND_OBJ_CELLPOSE_MODEL`) with `second_obj_method: cellpose`.
+The `granule` entry comes from one experiment on small cytoplasmic stress granules, not a default. `cell_median_mad` places the cutoff `threshold_k` robust standard deviations above each tile's in-cell median, so a tile with no granules (for example a knockdown that loses them) calls few objects, and a brighter or dimmer tile calls about the same number. A per-tile Otsu threshold kept calling objects in the same fields with the granules removed. In that experiment the counts matched a per-image threshold on labelled images, which is not ground truth, and the smallest perinuclear granules at a late time point stayed unsolved by every method tried. Check the masks on your own tiles. `max_total_objects: 5000` raises the failsafe that empties a tile with more than 1000 objects; keep a limit, because a tile without cells can threshold into tens of thousands of noise objects. The `puncta` entry counts spots per cell instead of measuring each one (`<name>_count` and per-channel totals and means), which is enough for puncta and centrosomes and much faster. A fine-tuned model for secondary objects goes in `second_obj_cellpose_model` (`SECOND_OBJ_CELLPOSE_MODEL`) with `second_obj_method: cellpose`.

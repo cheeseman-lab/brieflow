@@ -137,9 +137,6 @@ if config.get("phenotype", {}).get("second_obj_detection", False):
             mode=lambda wildcards: SECOND_OBJS[
                 wildcards.get("second_obj", "second_obj")
             ].get("second_obj_mode", "segment"),
-            texture_intensity_range=config.get("phenotype", {}).get(
-                "texture_intensity_range"
-            ),
             custom_features=config.get("phenotype", {}).get("custom_features"),
             second_obj_names=list(SECOND_OBJS),
         script:
@@ -186,13 +183,12 @@ rule extract_phenotype_cp:
         channel_names=config.get("phenotype", {}).get("channel_names"),
         cp_method=config.get("phenotype", {}).get("cp_method"),
         segment_cells=config.get("phenotype", {}).get("segment_cells", True),
-        custom_features=config.get("phenotype", {}).get("custom_features"),
-        texture_intensity_range=config.get("phenotype", {}).get(
-            "texture_intensity_range"
-        ),
-        second_obj_names=list(SECOND_OBJS)
-        if config.get("phenotype", {}).get("second_obj_detection", False)
-        else [],
+        # features on a named secondary object are measured in extract_phenotype_second_objs
+        custom_features=[
+            definition
+            for definition in config.get("phenotype", {}).get("custom_features") or []
+            if definition.get("compartment", "nucleus") not in SECOND_OBJS
+        ],
     script:
         "../scripts/phenotype/extract_phenotype.py"
 

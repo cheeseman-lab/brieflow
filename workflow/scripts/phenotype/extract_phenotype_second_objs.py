@@ -1,5 +1,4 @@
 import pandas as pd
-from lib.external.cp_emulator import set_texture_intensity_range
 
 from lib.shared.image_io import read_image
 
@@ -7,9 +6,6 @@ from lib.phenotype.extract_phenotype_second_objs import extract_phenotype_second
 from lib.shared.file_utils import add_wildcard_columns
 from lib.shared.feature_extraction import extract_features_bare
 from lib.phenotype.custom_features import load_custom_features
-
-# Fixed intensity range for texture features (None keeps the dtype range)
-set_texture_intensity_range(snakemake.params.texture_intensity_range)
 
 # Load inputs
 data_phenotype = read_image(snakemake.input[0])
@@ -58,8 +54,7 @@ else:
         channel_names=snakemake.params.channel_names,
     )
 
-# Custom features declared on this object; columns become second_obj_custom_* so
-# aggregate's <name>_ prefix gives <name>_custom_*
+# This object's custom features as second_obj_custom_* (aggregate makes <name>_custom_*)
 name = wc.get("second_obj", "second_obj")
 object_features = load_custom_features(
     snakemake.params.custom_features, snakemake.params.second_obj_names

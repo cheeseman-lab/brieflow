@@ -1,5 +1,6 @@
 from lib.shared.file_utils import get_image_output_path, get_data_output_path
 from lib.shared.target_utils import map_outputs, outputs_to_targets
+from lib.shared.rule_utils import derived_second_obj_sources, get_second_obj_params
 from snakemake.io import directory
 
 
@@ -23,10 +24,15 @@ _phen_well_expand = ["row", "col"] if PHENOTYPE_IMG_FMT == "zarr" else ["well"]
 _phen_tile_expand = ["row", "col", "tile"] if PHENOTYPE_IMG_FMT == "zarr" else ["well", "tile"]
 
 # Named secondary objects share one {second_obj} wildcard; the flat form keeps its fixed "second_obj" paths
+SECOND_OBJS = get_second_obj_params(config["phenotype"])
 SECOND_OBJ_NAMES = list(SECOND_OBJS)
 _named_objs = SECOND_OBJ_NAMES != ["second_obj"]
 _obj = "{second_obj}" if _named_objs else "second_obj"
 _updated_cytoplasms = "{second_obj}_updated_cytoplasms" if _named_objs else "updated_cytoplasms"
+
+# keeps {second_obj} from matching other phenotype outputs (e.g. phenotype_with_second_objs)
+wildcard_constraints:
+    second_obj="|".join(SECOND_OBJ_NAMES),
 
 
 PHENOTYPE_OUTPUTS = {

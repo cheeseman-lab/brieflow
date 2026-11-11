@@ -1,10 +1,6 @@
 from lib.shared.image_io import read_image
 import pandas as pd
 from lib.shared.parquet_io import write_parquet
-from lib.external.cp_emulator import set_texture_intensity_range
-
-# Fixed intensity range for texture features (None keeps the dtype range)
-set_texture_intensity_range(snakemake.params.texture_intensity_range)
 
 # foci_channel_index intentionally omitted — extract_phenotype_cp_emulator handles foci_channel=None
 for _param_name in ["cp_method", "channel_names"]:
@@ -24,12 +20,7 @@ if not segment_cells:
     cytoplasms = None
 
 cp_method = snakemake.params.cp_method
-# Named secondary objects measure their own custom features in extract_phenotype_second_objs
-custom_feature_definitions = [
-    d
-    for d in getattr(snakemake.params, "custom_features", None) or []
-    if d.get("compartment", "nucleus") not in snakemake.params.second_obj_names
-]
+custom_feature_definitions = getattr(snakemake.params, "custom_features", None)
 
 # Build wildcards dict, synthesizing 'well' from 'row'+'col' in zarr mode
 wc = dict(snakemake.wildcards)

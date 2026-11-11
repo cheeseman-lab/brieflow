@@ -1483,11 +1483,33 @@ def masked_pftas(intensity_image):
     return pftas(intensity_image, T=T)
 
 
+TEXTURE_INTENSITY_RANGE = None
+
+
+def set_texture_intensity_range(intensity_range):
+    """Set a fixed (low, high) intensity range mapped to 0–255 before texture features.
+
+    None keeps the dtype-range conversion (``img_as_ubyte``), which leaves dim uint16
+    channels with only a few grey levels. One range for the whole screen keeps texture
+    comparable across cells, tiles and wells.
+
+    Args:
+        intensity_range (tuple or None): (low, high) in raw intensity units.
+    """
+    global TEXTURE_INTENSITY_RANGE
+    TEXTURE_INTENSITY_RANGE = tuple(intensity_range) if intensity_range else None
+
+
 @catch_runtime
 def ubyte_haralick(intensity_image, **kwargs):
     with catch_warnings():
         simplefilter("ignore", category=UserWarning)
-        ubyte_image = img_as_ubyte(intensity_image)
+        if TEXTURE_INTENSITY_RANGE is None:
+            ubyte_image = img_as_ubyte(intensity_image)
+        else:
+            low, high = TEXTURE_INTENSITY_RANGE
+            scaled = (intensity_image.astype(float) - low) / (high - low)
+            ubyte_image = (np.clip(scaled, 0, 1) * 255).astype(np.uint8)
     try:
         features = haralick(ubyte_image, **kwargs)
     except ValueError:

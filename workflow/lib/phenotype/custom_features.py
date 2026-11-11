@@ -29,7 +29,7 @@ def custom_feature_column(
     return f"{compartment}_{CUSTOM_FEATURE_PREFIX}_{name}_{source_hash}"
 
 
-def register_custom_features(features):
+def register_custom_features(features, second_obj_names=()):
     """Convert feature functions into config-serializable definitions.
 
     Each function is stored as its own source text so the workflow, which runs in a
@@ -43,7 +43,10 @@ def register_custom_features(features):
             returning a single number, matching the foci_features convention. Each
             must define or import every name it uses. An entry may instead be a
             (function, compartment) pair, where compartment is one of "nucleus",
-            "cell", or "cytoplasm"; a bare function is measured on the nucleus.
+            "cell", "cytoplasm" or a named secondary object; a bare function is
+            measured on the nucleus.
+        second_obj_names (sequence, optional): Named secondary objects that may be
+            declared as compartments.
 
     Returns:
         list: Definitions with name, source, hash, compartment, and column keys.
@@ -74,7 +77,7 @@ def register_custom_features(features):
                 f"got {func!r}"
             )
 
-        compartment = _validated_compartment(name, compartment)
+        compartment = _validated_compartment(name, compartment, second_obj_names)
         if (name, compartment) in registered:
             raise ValueError(
                 f"Custom feature '{name}' is registered more than once on the "
@@ -113,7 +116,7 @@ def register_custom_features(features):
     return definitions
 
 
-def load_custom_features(definitions):
+def load_custom_features(definitions, second_obj_names=()):
     """Rebuild registered features as per-compartment feature dictionaries for extraction.
 
     Sources are executed in an empty namespace, matching the self-contained definitions
@@ -121,10 +124,12 @@ def load_custom_features(definitions):
 
     Args:
         definitions (list or None): Definitions produced by register_custom_features.
+        second_obj_names (sequence, optional): Named secondary objects that may be
+            declared as compartments.
 
     Returns:
         dict: Mapping of compartment to a mapping of namespaced column name to feature
-            function, in CUSTOM_FEATURE_COMPARTMENTS order.
+            function, in CUSTOM_FEATURE_COMPARTMENTS then second_obj_names order.
 
     Raises:
         ValueError: If a definition declares an unknown compartment, or its source does
@@ -135,7 +140,9 @@ def load_custom_features(definitions):
     for definition in definitions or []:
         name = definition["name"]
         compartment = _validated_compartment(
-            name, definition.get("compartment", DEFAULT_CUSTOM_FEATURE_COMPARTMENT)
+            name,
+            definition.get("compartment", DEFAULT_CUSTOM_FEATURE_COMPARTMENT),
+            second_obj_names,
         )
         namespace = {}
         exec(definition["source"], namespace)
@@ -153,28 +160,30 @@ def load_custom_features(definitions):
 
     return {
         compartment: features[compartment]
-        for compartment in CUSTOM_FEATURE_COMPARTMENTS
+        for compartment in (*CUSTOM_FEATURE_COMPARTMENTS, *second_obj_names)
         if compartment in features
     }
 
 
-def _validated_compartment(name, compartment):
+def _validated_compartment(name, compartment, second_obj_names=()):
     """Check that a declared compartment is one the extraction measures on.
 
     Args:
         name (str): Name of the feature function.
         compartment (str): Declared compartment.
+        second_obj_names (sequence, optional): Named secondary objects also accepted.
 
     Returns:
         str: The declared compartment.
 
     Raises:
-        ValueError: If the compartment is not one of CUSTOM_FEATURE_COMPARTMENTS.
+        ValueError: If the compartment is not a base compartment or named object.
     """
-    if compartment not in CUSTOM_FEATURE_COMPARTMENTS:
+    allowed = [*CUSTOM_FEATURE_COMPARTMENTS, *second_obj_names]
+    if compartment not in allowed:
         raise ValueError(
             f"Custom feature '{name}' declares unknown compartment {compartment!r}, "
-            f"expected one of {list(CUSTOM_FEATURE_COMPARTMENTS)}"
+            f"expected one of {allowed}"
         )
 
     return compartment

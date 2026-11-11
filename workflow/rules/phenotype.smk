@@ -95,6 +95,15 @@ if config.get("phenotype", {}).get("second_obj_detection", False):
             PHENOTYPE_OUTPUTS["identify_cytoplasm"],
             # phenotype info with nuclei centroids
             PHENOTYPE_OUTPUTS["extract_phenotype_info"],
+            # source object masks of a derived object (none for detected objects)
+            lambda wildcards: [
+                str(PHENOTYPE_OUTPUTS["identify_second_objs"][0]).format(
+                    **{**dict(wildcards), "second_obj": source}
+                )
+                for source in derived_second_obj_sources(
+                    SECOND_OBJS[wildcards.get("second_obj", "second_obj")]
+                )
+            ],
         output:
             # secondary object mask
             PHENOTYPE_OUTPUTS_MAPPED["identify_second_objs"][0],
@@ -125,6 +134,14 @@ if config.get("phenotype", {}).get("second_obj_detection", False):
         params:
             foci_channel_index=config.get("phenotype", {}).get("foci_channel_index"),
             channel_names=config.get("phenotype", {}).get("channel_names"),
+            mode=lambda wildcards: SECOND_OBJS[
+                wildcards.get("second_obj", "second_obj")
+            ].get("second_obj_mode", "segment"),
+            texture_intensity_range=config.get("phenotype", {}).get(
+                "texture_intensity_range"
+            ),
+            custom_features=config.get("phenotype", {}).get("custom_features"),
+            second_obj_names=list(SECOND_OBJS),
         script:
             "../scripts/phenotype/extract_phenotype_second_objs.py"
 
@@ -170,6 +187,12 @@ rule extract_phenotype_cp:
         cp_method=config.get("phenotype", {}).get("cp_method"),
         segment_cells=config.get("phenotype", {}).get("segment_cells", True),
         custom_features=config.get("phenotype", {}).get("custom_features"),
+        texture_intensity_range=config.get("phenotype", {}).get(
+            "texture_intensity_range"
+        ),
+        second_obj_names=list(SECOND_OBJS)
+        if config.get("phenotype", {}).get("second_obj_detection", False)
+        else [],
     script:
         "../scripts/phenotype/extract_phenotype.py"
 

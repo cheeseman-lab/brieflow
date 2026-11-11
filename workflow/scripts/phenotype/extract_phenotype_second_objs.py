@@ -1,8 +1,15 @@
 import pandas as pd
+from lib.external.cp_emulator import set_texture_intensity_range
 
 from lib.shared.image_io import read_image
 
 from lib.phenotype.extract_phenotype_second_objs import extract_phenotype_second_objs
+from lib.shared.file_utils import add_wildcard_columns
+from lib.shared.feature_extraction import extract_features_bare
+from lib.phenotype.custom_features import load_custom_features
+
+# Fixed intensity range for texture features (None keeps the dtype range)
+set_texture_intensity_range(snakemake.params.texture_intensity_range)
 
 # Load inputs
 data_phenotype = read_image(snakemake.input[0])
@@ -37,15 +44,35 @@ wc = dict(snakemake.wildcards)
 if "row" in wc and "col" in wc and "well" not in wc:
     wc["well"] = wc["row"] + wc["col"]
 
-# Extract secondary object phenotype features
-second_obj_phenotype = extract_phenotype_second_objs(
-    data_phenotype=data_phenotype,
-    second_objs=second_obj_masks,
-    wildcards=wc,
-    second_obj_cell_mapping_df=second_obj_cell_mapping_df,
-    foci_channel=snakemake.params.foci_channel_index,
-    channel_names=snakemake.params.channel_names,
-)
+# Count mode keeps the per-spot table from identify; segment mode extracts full features
+if snakemake.params.mode == "count":
+    second_obj_phenotype = second_obj_cell_mapping_df
+    add_wildcard_columns(second_obj_phenotype, wc)
+else:
+    second_obj_phenotype = extract_phenotype_second_objs(
+        data_phenotype=data_phenotype,
+        second_objs=second_obj_masks,
+        wildcards=wc,
+        second_obj_cell_mapping_df=second_obj_cell_mapping_df,
+        foci_channel=snakemake.params.foci_channel_index,
+        channel_names=snakemake.params.channel_names,
+    )
+
+# Custom features declared on this object; columns become second_obj_custom_* so
+# aggregate's <name>_ prefix gives <name>_custom_*
+name = wc.get("second_obj", "second_obj")
+object_features = load_custom_features(
+    snakemake.params.custom_features, snakemake.params.second_obj_names
+).get(name)
+if object_features and len(second_obj_phenotype):
+    custom_df = extract_features_bare(
+        data_phenotype, second_obj_masks, features=object_features, multichannel=True
+    ).rename(columns=lambda c: c.replace(f"{name}_custom_", "second_obj_custom_", 1))
+    second_obj_phenotype = second_obj_phenotype.merge(
+        custom_df.rename(columns={"label": "second_obj_id"}),
+        on="second_obj_id",
+        how="left",
+    )
 
 # Save results
 second_obj_phenotype.to_csv(snakemake.output[0], sep="\t", index=False)

@@ -512,4 +512,37 @@ def get_second_obj_params(phenotype_config: Dict[str, Any]) -> Dict[str, Dict]:
                 "cellpose",
                 "stardist",
             )
+        if params[name].get("second_obj_mode", "segment") not in ("segment", "count"):
+            raise ValueError(
+                f"Secondary object {name!r}: second_obj_mode must be 'segment' or 'count'"
+            )
+        derived_from = (spec or {}).get("from")
+        if derived_from is not None:
+            ops = set(derived_from)
+            sources = derived_second_obj_sources(params[name])
+            if ops not in ({"overlap"}, {"parent_minus"}) or not sources:
+                raise ValueError(
+                    f"Secondary object {name!r}: 'from' takes one of overlap or "
+                    "parent_minus with a list of object names"
+                )
+            # sources must be defined earlier, which also rules out cycles
+            earlier = list(specs)[: list(specs).index(name)]
+            if any(source not in earlier for source in sources):
+                raise ValueError(
+                    f"Secondary object {name!r}: 'from' must name objects defined "
+                    f"before it ({earlier})"
+                )
     return params
+
+
+def derived_second_obj_sources(second_obj_params: Dict[str, Any]) -> List[str]:
+    """Names of the objects a derived secondary object is built from.
+
+    Args:
+        second_obj_params (Dict[str, Any]): One object's parameters.
+
+    Returns:
+        List[str]: Source object names; empty for an object detected from a channel.
+    """
+    derived_from = second_obj_params.get("from") or {}
+    return [source for sources in derived_from.values() for source in sources]

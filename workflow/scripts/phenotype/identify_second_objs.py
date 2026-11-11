@@ -26,6 +26,7 @@ second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks = (
         cytoplasm_masks=cytoplasms,
         second_obj_params=snakemake.params.second_obj_params,
         nuclei_centroids=nuclei_centroids_dict,
+        source_masks=[read_image(fp) for fp in snakemake.input[4:]],
     )
 )
 

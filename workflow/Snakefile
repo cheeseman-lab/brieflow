@@ -14,7 +14,7 @@ from lib.shared.file_utils import (
     split_well_to_cols,
     get_well_from_wildcards,
 )
-from lib.shared.rule_utils import get_second_obj_params
+from lib.shared.rule_utils import derived_second_obj_sources, get_second_obj_params
 
 # Get the general configuration options
 ROOT_FP = Path(config["all"]["root_fp"])

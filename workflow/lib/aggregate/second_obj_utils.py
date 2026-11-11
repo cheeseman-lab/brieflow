@@ -74,15 +74,26 @@ def aggregate_second_obj_data(
     )
 
 
+# Named objects get readable cell-summary names (<name>_count, ...); the flat form keeps main's names
+READABLE_SUMMARY_COLUMNS = {
+    "has_second_obj": "present",
+    "num_second_objs": "count",
+    "second_obj_ids": "ids",
+    "total_second_obj_area": "total_area",
+    "second_obj_area_ratio": "area_ratio",
+    "mean_second_obj_diameter": "mean_diameter",
+}
+
+
 def prefix_second_obj_columns(
     df: pd.DataFrame, name: str, key_cols: List[str]
 ) -> pd.DataFrame:
     """Prefix a named secondary object's columns with its name.
 
     A leading ``second_obj_`` is replaced by ``<name>_`` and other columns gain the
-    ``<name>_`` prefix, so ``second_obj_area`` becomes ``granule_area`` and
-    ``num_second_objs`` becomes ``granule_num_second_objs``. The flat form's implicit
-    name ``second_obj`` leaves the columns unchanged.
+    ``<name>_`` prefix, so ``second_obj_area`` becomes ``granule_area``. Cell-summary
+    columns take readable names (``num_second_objs`` becomes ``granule_count``). The flat
+    form's implicit name ``second_obj`` leaves the columns unchanged.
 
     Args:
         df (pd.DataFrame): Per-cell or per-object secondary object table.
@@ -96,7 +107,9 @@ def prefix_second_obj_columns(
         return df
     return df.rename(
         columns={
-            col: re.sub(r"^(second_obj_)?", f"{name}_", col)
+            col: re.sub(
+                r"^(second_obj_)?", f"{name}_", READABLE_SUMMARY_COLUMNS.get(col, col)
+            )
             for col in df.columns
             if col not in key_cols
         }

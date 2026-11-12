@@ -173,7 +173,7 @@ FOCI_CHANNEL
   Feeds `phenotype.foci_channel_index` · default `None`. Channel (or list of channels) in which to measure foci, for example `"GH2AX"`. `None` skips foci features.
 
 CUSTOM_FEATURES
-  `phenotype.custom_features` (the function source) · default `[]`. Extra per-cell measurement functions, each measured on the nucleus or a declared compartment. Requires `CP_METHOD = "cp_emulator"`.
+  `phenotype.custom_features` (the function source) · default `[]`. Extra per-cell measurement functions, each measured on the nucleus or a declared compartment. A named secondary object can be the compartment, e.g. `(fn, "nucleoplasm")`; its values land in that object's table as `<name>_custom_<fn>_<hash>`. Requires `CP_METHOD = "cp_emulator"` for nucleus, cell and cytoplasm.
 
 SECOND_OBJ_DETECTION
   `phenotype.second_obj_detection` · default `False`. Turn on {term}`secondary object <Secondary object>` detection.
@@ -183,6 +183,17 @@ SECOND_OBJ_CHANNEL
 
 SECOND_OBJ_METHOD
   `phenotype.second_obj_method` · default `"threshold"`. `"threshold"`, `"cellpose"` or `"stardist"`, each with its own size filter and method settings in the notebook.
+
+SECOND_OBJ_CELLPOSE_MODEL, SECOND_OBJ_STARDIST_MODEL
+  `phenotype.second_obj_cellpose_model` · default `"cyto3"`; `phenotype.second_obj_stardist_model` · default `"2D_versatile_fluo"`. The model for `SECOND_OBJ_METHOD = "cellpose"` or `"stardist"`, as for cells. A Cellpose model can be the path to a fine-tuned model (for example from [goudacell](goudacell.md)), whose weights pick the Cellpose version.
+
+SECOND_OBJS
+  `phenotype.second_objs` · default `{}`. Several named secondary objects, as `{name: {"channel": ..., <config key>: value}}`, for example `{"granule": {"channel": "G3BP1", "threshold_method": "otsu_three_peak_mid_bg"}}`. Each entry overrides the secondary-object settings above for that object; `{}` keeps one object from those settings. Names are lowercase snake_case and cannot be or start with `cell_`, `nucleus_`, `cytoplasm_` or `second_obj_`. Every column of a named object starts with `<name>_` (`second_obj_area` becomes `granule_area`; per-cell summaries read `<name>_count`, `<name>_present`, `<name>_total_area`), and each name is its own {term}`compartment <Compartment>`.
+
+  Per-object keys beyond the settings above:
+  - `second_obj_mode`: `"segment"` (default) measures every object; `"count"` only counts spots per cell (`foci_radius`, default 3; `foci_threshold`, default 10) and adds their count, area and per-channel intensity to the cell. Use it for puncta and centrosomes.
+  - `threshold_method: "cell_median_mad"` with `threshold_k` (default 5): a threshold set by each tile's noise inside cells, so a tile without objects calls few.
+  - `from`: an object built from objects listed before it: `{"overlap": [a, b]}` (where they overlap), `{"touching": [a, b]}` (the whole `a` objects that overlap or border a `b`) or `{"parent_minus": [a, b]}` (each cell or nucleus without them, e.g. nucleoplasm as a baseline).
 ```
 
 ## Merge (`3_merge.py`)

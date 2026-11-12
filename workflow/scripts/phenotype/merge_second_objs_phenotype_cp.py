@@ -1,18 +1,23 @@
 import pandas as pd
 
 from lib.shared.parquet_io import read_parquet, write_parquet
+from lib.aggregate.second_obj_utils import prefix_second_obj_columns
 
 # Load the datasets (extract_phenotype_cp writes parquet; identify_second_objs tsv)
 phenotype_data = read_parquet(snakemake.input[0])
+merged_data = phenotype_data.copy()
 
-# Load the combined secondary object file and extract cell summary data
-combined_second_obj_df = pd.read_csv(snakemake.input[1], sep="\t")
-cell_summary_df = combined_second_obj_df[
-    combined_second_obj_df["table_type"] == "cell_summary"
-].copy()
+# Merge each secondary object's cell summary, one table per object
+for name, table_fp in zip(snakemake.params.second_obj_names, snakemake.input[1:]):
+    combined_second_obj_df = pd.read_csv(table_fp, sep="\t")
+    cell_summary_df = combined_second_obj_df[
+        combined_second_obj_df["table_type"] == "cell_summary"
+    ].copy()
 
-# Check if we have phenotype data and cell summary data
-if len(phenotype_data) > 0 and len(cell_summary_df) > 0:
+    if len(phenotype_data) == 0 or len(cell_summary_df) == 0:
+        print(f"No {name} cell summary data to merge")
+        continue
+
     # Filter to only keep cell_summary columns (and table_type)
     cell_summary_columns = [
         col
@@ -32,8 +37,11 @@ if len(phenotype_data) > 0 and len(cell_summary_df) > 0:
     # Drop the table_type column
     cell_summary_df = cell_summary_df.drop(columns=["table_type"])
 
+    # Named objects prefix their columns with the name; the flat form keeps today's columns
+    cell_summary_df = prefix_second_obj_columns(cell_summary_df, name, ["cell_id"])
+
     # Merge on cell_id (secondary objects) = label (phenotype)
-    merged_data = phenotype_data.merge(
+    merged_data = merged_data.merge(
         cell_summary_df, left_on="label", right_on="cell_id", how="left"
     )
 
@@ -41,22 +49,13 @@ if len(phenotype_data) > 0 and len(cell_summary_df) > 0:
     merged_data = merged_data.drop("cell_id", axis=1)
 
     print(
-        f"Merged {len(phenotype_data)} phenotype records with {len(cell_summary_df)} secondary object records"
+        f"Merged {len(phenotype_data)} phenotype records with {len(cell_summary_df)} {name} records"
     )
 
-elif len(phenotype_data) > 0:
-    # No cell summary data available, just use phenotype data
-    merged_data = phenotype_data.copy()
-    print(
-        f"No secondary object data available - using phenotype data only ({len(phenotype_data)} records)"
-    )
-
-else:
-    # Both datasets are empty - create an empty DataFrame
+if len(phenotype_data) == 0:
+    # Phenotype data is empty - create an empty DataFrame
     merged_data = pd.DataFrame()
-    print(
-        "Both phenotype and secondary object datasets are empty - creating empty output"
-    )
+    print("Phenotype dataset is empty - creating empty output")
 
 # Save the merged dataset
 write_parquet(merged_data, snakemake.output[0])

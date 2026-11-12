@@ -64,14 +64,14 @@ cpsam
   [Cellpose](https://www.cellpose.org) is a deep-learning segmentation model. brieflow installs Cellpose 3.1.0 (models such as `cyto3`, the default, from the `cellpose3` package) and Cellpose 4, whose Cellpose-SAM model `cpsam` is slow without a GPU. The model name picks the version.
 
 Secondary object
-  An object segmented inside cells in addition to nuclei and cells, such as an intracellular pathogen, an organelle or foci, switched on by `SECOND_OBJ_DETECTION` in the phenotype notebook. Each object gets its own features and is assigned to the cell that contains it.
+  An object segmented inside cells in addition to nuclei and cells, such as an intracellular pathogen, an organelle or foci, switched on by `SECOND_OBJ_DETECTION` in the phenotype notebook. Each object gets its own features and is assigned to the cell that contains it, or to its nucleus when cells are not segmented. `SECOND_OBJS` names several kinds of object (for example `granule`), each with its own settings and columns starting with `<name>_`.
 
 CP emulator
 cp_measure
   The two feature extractors in the phenotype module, chosen by `CP_METHOD`. `cp_emulator` (the default) reimplements CellProfiler-style measurements following Feldman et al. 2019; `cp_measure` calls the [cp_measure](https://github.com/afermg/cp_measure) package, a Python port of CellProfiler's measurements.
 
 Compartment
-  The region a feature is measured in: `nucleus`, `cell`, `cytoplasm`, or `second_obj` for secondary objects. Feature names start with it, for example `nucleus_DAPI_mean`.
+  The region a feature is measured in: `nucleus`, `cell`, `cytoplasm`, or `second_obj` for secondary objects (or each object's name with `SECOND_OBJS`). Feature names start with it, for example `nucleus_DAPI_mean`.
 ```
 
 ## Barcodes and perturbations

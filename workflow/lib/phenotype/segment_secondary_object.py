@@ -262,6 +262,7 @@ def segment_second_objs(
     # Pre-processing
     threshold_smoothing_scale=1.3488,
     threshold_method="otsu_two_peak",
+    threshold_k=5,
     use_morphological_opening=True,
     opening_disk_radius=1,
     fill_holes="both",
@@ -306,6 +307,8 @@ def segment_second_objs(
             - "otsu_three_peak_mid_bg": 3-class Otsu, keeps only highest intensity class
             - "otsu_three_peak_mid_fg": 3-class Otsu, keeps middle and high intensity classes
             - "min_cross_entropy": Minimum cross entropy (Li) thresholding
+            - "cell_median_mad": median + threshold_k robust SDs of the pixels in cells
+        threshold_k (float, optional): Robust-SD multiple for "cell_median_mad" (default: 5).
         use_morphological_opening (bool, optional): Apply opening to separate weakly connected objects (default: True).
         opening_disk_radius (int, optional): Radius of disk structuring element for opening (default: 1).
         fill_holes (str, optional): When to fill holes in segmented objects (default: "both").
@@ -391,7 +394,10 @@ def segment_second_objs(
 
     # Apply selected threshold method
     thresh, binary_mask = apply_threshold_method(
-        second_obj_smooth, method=threshold_method
+        second_obj_smooth,
+        method=threshold_method,
+        mask=cell_masks > 0,
+        threshold_k=threshold_k,
     )
 
     # Fill holes after thresholding (if enabled)
@@ -479,11 +485,12 @@ def segment_second_objs(
 
     # Fill holes after declumping, claiming only background pixels so a fill can't overwrite a neighboring object
     if fill_holes in ["declump", "both"]:
-        unique_labels = np.unique(declumped[declumped > 0])
-        for label in unique_labels:
-            mask = declumped == label
-            filled = ndimage.binary_fill_holes(mask)
-            declumped[filled & (declumped == 0)] = label
+        # a hole lies inside its object's bounding box, so fill within that box only
+        boxes = ndimage.find_objects(declumped)
+        for label in np.unique(declumped[declumped > 0]):
+            box = declumped[boxes[label - 1]]
+            filled = ndimage.binary_fill_holes(box == label)
+            box[filled & (box == 0)] = label
 
     # Apply shared post-processing pipeline: size filtering, cell association, statistics, cytoplasm updates
     post_results = _postprocess_secondary_objects(
@@ -522,11 +529,13 @@ def segment_second_objs_from_config(
     cytoplasm_masks,
     second_obj_params,
     nuclei_centroids=None,
+    source_masks=None,
 ):
     """Dispatch secondary-object segmentation (ML or classical) from a config param dict.
 
-    Routes the phenotype config's second-object parameters to segment_second_objs_ml or
-    segment_second_objs, passing only ML-specific params to the ML path.
+    Routes the phenotype config's second-object parameters to count_second_objs (``second_obj_mode:
+    count``), segment_second_objs_ml or segment_second_objs, passing only ML-specific params
+    to the ML path.
 
     Args:
         image (numpy.ndarray): Phenotype image (CHANNELS, I, J).
@@ -534,10 +543,38 @@ def segment_second_objs_from_config(
         cytoplasm_masks (numpy.ndarray): Cytoplasm segmentation masks.
         second_obj_params (dict): Second-object parameters from config["phenotype"].
         nuclei_centroids (dict, optional): Cell nuclei centroids for distance calculations.
+        source_masks (list, optional): Masks of the objects a derived object (``from``)
+            is built from, in config order.
 
     Returns:
         tuple: (second_obj_masks, cell_second_obj_table, updated_cytoplasm_masks).
     """
+    if second_obj_params.get("from"):
+        (operation,) = second_obj_params["from"]
+        return _postprocess_secondary_objects(
+            derive_second_objs(source_masks, cell_masks, operation),
+            cell_masks,
+            cytoplasm_masks,
+            second_obj_min_size=0,
+            second_obj_max_size=np.inf,
+            size_filter_method="area",
+            max_objects_per_cell=np.inf,
+            overlap_threshold=second_obj_params.get("overlap_threshold", 0.1),
+            nuclei_centroids=nuclei_centroids,
+            max_total_objects=None,
+        )
+
+    if second_obj_params.get("second_obj_mode", "segment") == "count":
+        return count_second_objs(
+            image=image,
+            second_obj_channel_index=second_obj_params["second_obj_channel_index"],
+            cell_masks=cell_masks,
+            cytoplasm_masks=cytoplasm_masks,
+            foci_radius=second_obj_params.get("foci_radius", 3),
+            foci_threshold=second_obj_params.get("foci_threshold", 10),
+            channel_names=second_obj_params.get("channel_names"),
+        )
+
     common_params = {
         "image": image,
         "second_obj_channel_index": second_obj_params["second_obj_channel_index"],
@@ -600,6 +637,7 @@ def segment_second_objs_from_config(
             "threshold_smoothing_scale", 1.3488
         ),
         "threshold_method": second_obj_params.get("threshold_method", "otsu_two_peak"),
+        "threshold_k": second_obj_params.get("threshold_k", 5),
         "use_morphological_opening": second_obj_params.get(
             "use_morphological_opening", True
         ),
@@ -615,6 +653,105 @@ def segment_second_objs_from_config(
         "proportion_threshold": second_obj_params.get("proportion_threshold", 0.4),
     }
     return segment_second_objs(**common_params, **cv_params)
+
+
+def derive_second_objs(source_masks, parent_masks, operation):
+    """Build a derived object's labels from other objects' masks.
+
+    Args:
+        source_masks (list): Label masks of the source objects.
+        parent_masks (numpy.ndarray): Parent masks (cells, or nuclei without cells).
+        operation (str): ``overlap`` keeps pixels inside every source, one object per
+            connected patch; ``parent_minus`` keeps each parent minus the union of the
+            sources, one object per parent labeled as the parent; ``touching`` keeps the
+            whole objects of the first source that overlap or border (edge or corner) an
+            object of any other source.
+
+    Returns:
+        numpy.ndarray: Label mask of the derived objects.
+    """
+    if operation == "touching":
+        kept, *others = source_masks
+        near = ndimage.binary_dilation(
+            np.any([mask > 0 for mask in others], axis=0), structure=np.ones((3, 3))
+        )
+        return np.where(np.isin(kept, np.unique(kept[near & (kept > 0)])), kept, 0)
+    inside = np.stack([mask > 0 for mask in source_masks])
+    if operation == "overlap":
+        return measure.label(inside.all(axis=0))
+    if operation == "parent_minus":
+        return np.where(inside.any(axis=0), 0, parent_masks)
+    raise ValueError(f"Unknown derived object operation: {operation}")
+
+
+def count_second_objs(
+    image,
+    second_obj_channel_index,
+    cell_masks,
+    cytoplasm_masks,
+    foci_radius=3,
+    foci_threshold=10,
+    channel_names=None,
+):
+    """Count spots per parent instead of segmenting full secondary objects.
+
+    Spots are detected with ``find_foci`` on one channel; each spot is assigned to the
+    parent under its centroid. Only per-spot position, area and per-channel mean intensity
+    are measured, so cost does not grow with a full feature set per spot.
+
+    Args:
+        image (numpy.ndarray): Phenotype image (CHANNELS, I, J).
+        second_obj_channel_index (int): Channel to detect spots in.
+        cell_masks (numpy.ndarray): Parent masks (cells, or nuclei without cells).
+        cytoplasm_masks (numpy.ndarray): Cytoplasm masks, returned unchanged.
+        foci_radius (int): Top-hat disk and LoG sigma for ``find_foci``.
+        foci_threshold (float): Threshold on the top-hat LoG image.
+        channel_names (list, optional): Channel names; defaults to ``ch<index>``.
+
+    Returns:
+        tuple: (spot labels, {"cell_summary", "second_obj_cell_mapping"} tables,
+            cytoplasm_masks).
+    """
+    from lib.phenotype.extract_phenotype_cp_emulator import find_foci
+
+    names = channel_names or [f"ch{c}" for c in range(image.shape[0])]
+    spots = find_foci(image[second_obj_channel_index], foci_radius, foci_threshold)
+    props = pd.DataFrame(
+        measure.regionprops_table(
+            spots,
+            intensity_image=np.moveaxis(image, 0, -1),
+            properties=("label", "centroid", "area", "intensity_mean"),
+        )
+    )
+    props.columns = ["second_obj_id", "i", "j", "area"] + [f"{n}_mean" for n in names]
+    centroid = props[["i", "j"]].round().astype(int).to_numpy()
+    props["cell_id"] = cell_masks[centroid[:, 0], centroid[:, 1]] if len(props) else []
+    mapping = props[props["cell_id"] > 0].reset_index(drop=True)
+
+    cell_ids = np.unique(cell_masks[cell_masks > 0])
+    total = mapping.assign(
+        **{f"{n}_total": mapping[f"{n}_mean"] * mapping["area"] for n in names}
+    ).groupby("cell_id")
+    summary = pd.DataFrame({"cell_id": cell_ids}).set_index("cell_id")
+    summary["count"] = total.size()
+    summary["total_area"] = total["area"].sum()
+    for n in names:
+        summary[f"{n}_total"] = total[f"{n}_total"].sum()
+        summary[f"{n}_mean"] = total[f"{n}_mean"].mean()
+    summary = summary.fillna(
+        {"count": 0, "total_area": 0, **{f"{n}_total": 0 for n in names}}
+    ).reset_index()
+    summary["count"] = summary["count"].astype(int)
+    # second_obj_ prefix so named objects become <name>_count, <name>_<ch>_mean, ...
+    summary = summary.rename(
+        columns={c: f"second_obj_{c}" for c in summary.columns if c != "cell_id"}
+    )
+
+    return (
+        spots,
+        {"cell_summary": summary, "second_obj_cell_mapping": mapping},
+        cytoplasm_masks,
+    )
 
 
 def estimate_second_obj_diameter(
@@ -708,7 +845,7 @@ def estimate_second_obj_diameter(
         raise ValueError(f"Unknown method: {method}. Use 'cellpose' or 'manual'")
 
 
-def apply_threshold_method(image, method="otsu_two_peak"):
+def apply_threshold_method(image, method="otsu_two_peak", mask=None, threshold_k=5):
     """Apply specified thresholding method to an image.
 
     Args:
@@ -720,6 +857,10 @@ def apply_threshold_method(image, method="otsu_two_peak"):
             - 'otsu_three_peak_mid_bg': 3-class Otsu, middle class as background.
             - 'otsu_three_peak_mid_fg': 3-class Otsu, middle class as foreground.
             - 'min_cross_entropy': Minimum cross entropy (Li) thresholding.
+            - 'cell_median_mad': median + threshold_k robust SDs (1.4826·MAD) of the
+              pixels inside ``mask``; no pixels or MAD 0 gives an empty mask.
+        mask (ndarray, optional): Pixels the cell_median_mad statistics use (cells > 0).
+        threshold_k (float): Robust-SD multiple for cell_median_mad.
 
     Returns:
         tuple:
@@ -748,11 +889,21 @@ def apply_threshold_method(image, method="otsu_two_peak"):
         threshold = filters.threshold_li(image)
         binary_mask = image > threshold
 
+    elif method == "cell_median_mad":
+        values = image[mask] if mask is not None else image.ravel()
+        median = np.median(values) if values.size else np.nan
+        mad = np.median(np.abs(values - median)) if values.size else 0
+        if mad == 0:
+            # no cell pixels or a flat channel: call nothing rather than half the cells
+            return np.nan, np.zeros(image.shape, dtype=bool)
+        threshold = median + threshold_k * 1.4826 * mad
+        binary_mask = image > threshold
+
     else:
         raise ValueError(
             f"Unknown threshold method: {method}. "
             f"Valid options: 'otsu_two_peak', 'otsu_three_peak_mid_bg', "
-            f"'otsu_three_peak_mid_fg', 'min_cross_entropy'"
+            f"'otsu_three_peak_mid_fg', 'min_cross_entropy', 'cell_median_mad'"
         )
 
     return threshold, binary_mask
@@ -1477,14 +1628,15 @@ def _postprocess_secondary_objects(
     )
 
     # Create valid secondary objects mask with renumbered labels
-    labeled_second_objs = np.zeros_like(second_obj_masks)
-    for i, lbl in enumerate(valid_labels, start=1):
-        labeled_second_objs[second_obj_masks == lbl] = i
+    relabel = np.zeros(second_obj_masks.max() + 1, dtype=second_obj_masks.dtype)
+    relabel[valid_labels] = np.arange(1, len(valid_labels) + 1)
+    labeled_second_objs = relabel[second_obj_masks]
 
     num_second_objs = len(valid_labels)
 
-    # Get cell IDs
+    # Get cell IDs and areas
     cell_ids = np.unique(cell_masks[cell_masks > 0])
+    cell_areas = np.bincount(cell_masks.ravel())
 
     # Prepare nuclei centroids - this is for cell nuclei distance calculations
     nuclei_centroids_dict = None
@@ -1493,6 +1645,8 @@ def _postprocess_secondary_objects(
             nuclei_centroids_dict = nuclei_centroids_from_table(nuclei_centroids)
         else:
             nuclei_centroids_dict = nuclei_centroids
+        nuc_ids = list(nuclei_centroids_dict)
+        nuc_ij = np.array([nuclei_centroids_dict[n] for n in nuc_ids], dtype=float)
 
     # Pre-compute region properties for all secondary objects
     second_obj_regions = {
@@ -1514,7 +1668,6 @@ def _postprocess_secondary_objects(
             continue
 
         region = second_obj_regions[second_obj_id]
-        second_obj_mask = labeled_second_objs == second_obj_id
         second_obj_area = region.area
         second_obj_centroid = region.centroid
 
@@ -1532,14 +1685,14 @@ def _postprocess_secondary_objects(
         if nuclei_centroids_dict is not None:
             min_dist = np.inf
             nearest_nucleus_id = None
-            for nuc_id, nuc_centroid in nuclei_centroids_dict.items():
-                dist = np.sqrt(
-                    (second_obj_centroid[0] - nuc_centroid[0]) ** 2
-                    + (second_obj_centroid[1] - nuc_centroid[1]) ** 2
+            if len(nuc_ids):
+                dists = np.sqrt(
+                    (second_obj_centroid[0] - nuc_ij[:, 0]) ** 2
+                    + (second_obj_centroid[1] - nuc_ij[:, 1]) ** 2
                 )
-                if dist < min_dist:
-                    min_dist = dist
-                    nearest_nucleus_id = nuc_id
+                nearest = int(np.argmin(dists))
+                min_dist = dists[nearest]
+                nearest_nucleus_id = nuc_ids[nearest]
 
             mapping_entry["distance_to_nucleus"] = (
                 min_dist if min_dist != np.inf else None
@@ -1557,9 +1710,8 @@ def _postprocess_secondary_objects(
             if second_objs_per_cell[cell_id] >= max_objects_per_cell:
                 continue
 
-            # Calculate overlap efficiently
-            cell_mask = cell_masks == cell_id
-            overlap = np.sum(second_obj_mask & cell_mask)
+            # overlap within the object's bounding box only
+            overlap = np.sum(region.image & (cell_masks[region.slice] == cell_id))
 
             if overlap > 0:
                 overlap_ratio = overlap / second_obj_area
@@ -1585,7 +1737,7 @@ def _postprocess_secondary_objects(
         cell_summary = []
 
         for cell_id in cell_ids:
-            cell_area = np.sum(cell_masks == cell_id)
+            cell_area = cell_areas[cell_id]
 
             # Initialize basic cell summary
             summary_entry = {
@@ -1645,7 +1797,7 @@ def _postprocess_secondary_objects(
         # Handle case with no secondary objects
         cell_summary = []
         for cell_id in cell_ids:
-            cell_area = np.sum(cell_masks == cell_id)
+            cell_area = cell_areas[cell_id]
             summary_entry = {
                 "cell_id": cell_id,
                 "has_second_obj": False,
@@ -1671,11 +1823,10 @@ def _postprocess_secondary_objects(
     }
 
     # Create associated secondary object masks
-    associated_second_objs = np.zeros_like(labeled_second_objs)
-    for mapping in second_obj_cell_mapping:
-        second_obj_id = mapping["second_obj_id"]
-        second_obj_mask = labeled_second_objs == second_obj_id
-        associated_second_objs[second_obj_mask] = second_obj_id
+    kept_ids = [m["second_obj_id"] for m in second_obj_cell_mapping]
+    keep = np.zeros(num_second_objs + 1, dtype=labeled_second_objs.dtype)
+    keep[kept_ids] = kept_ids
+    associated_second_objs = keep[labeled_second_objs]
 
     # Print statistics
     total_kept = len(second_obj_cell_mapping)
@@ -1691,12 +1842,13 @@ def _postprocess_secondary_objects(
     updated_cytoplasm_masks = None
     if cytoplasm_masks is not None:
         updated_cytoplasm_masks = cytoplasm_masks.copy()
-        for mapping in second_obj_cell_mapping:
-            second_obj_id = mapping["second_obj_id"]
-            cell_id = mapping["cell_id"]
-            second_obj_mask = associated_second_objs == second_obj_id
-            cytoplasm_mask = updated_cytoplasm_masks == cell_id
-            updated_cytoplasm_masks[cytoplasm_mask & second_obj_mask] = 0
+        # remove each kept object's pixels from its own cell's cytoplasm
+        parent = np.zeros(num_second_objs + 1, dtype=cytoplasm_masks.dtype)
+        parent[kept_ids] = [m["cell_id"] for m in second_obj_cell_mapping]
+        own = (associated_second_objs > 0) & (
+            updated_cytoplasm_masks == parent[associated_second_objs]
+        )
+        updated_cytoplasm_masks[own] = 0
         print(
             f"Updated cytoplasm masks by removing {len(second_obj_cell_mapping)} secondary object regions"
         )

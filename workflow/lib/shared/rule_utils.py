@@ -458,3 +458,95 @@ def get_cluster_control_key(config: Dict[str, Any]) -> Any:
     return config.get("cluster", {}).get("control_key") or config.get(
         "aggregate", {}
     ).get("control_key")
+
+
+SECOND_OBJ_NAME_PATTERN = re.compile(r"[a-z][a-z0-9]*(_[a-z0-9]+)*")
+RESERVED_COMPARTMENTS = ("cell", "nucleus", "cytoplasm")
+
+
+def get_second_obj_params(phenotype_config: Dict[str, Any]) -> Dict[str, Dict]:
+    """Get secondary-object parameters keyed by object name.
+
+    The flat form (no ``second_objs`` key) is the single object ``second_obj``. With
+    ``second_objs: {name: spec}``, each object's parameters are the flat phenotype keys
+    overridden by its spec; a spec that sets ``second_obj_method`` also sets
+    ``use_ml_segmentation`` to match.
+
+    Args:
+        phenotype_config (Dict[str, Any]): The ``phenotype`` config section.
+
+    Returns:
+        Dict[str, Dict]: Object name to its secondary-object parameters, in config order.
+
+    Raises:
+        ValueError: If a name is not lowercase snake_case, is or starts with a
+            compartment (``cell_``, ``nucleus_``, ``cytoplasm_``) or ``second_obj_``, or
+            is a ``<name>_`` prefix of another name.
+    """
+    specs = phenotype_config.get("second_objs")
+    if not specs:
+        return {"second_obj": phenotype_config}
+
+    for name in specs:
+        if (
+            not SECOND_OBJ_NAME_PATTERN.fullmatch(name)
+            or name in RESERVED_COMPARTMENTS
+            or name.startswith(
+                tuple(f"{c}_" for c in (*RESERVED_COMPARTMENTS, "second_obj"))
+            )
+            or any(other.startswith(f"{name}_") for other in specs)
+        ):
+            raise ValueError(
+                f"Invalid secondary object name {name!r}: use lowercase snake_case, "
+                "do not start with cell, nucleus, cytoplasm or second_obj_, and do not "
+                "use one name followed by '_' as the start of another"
+            )
+
+    shared = {k: v for k, v in phenotype_config.items() if k != "second_objs"}
+    params = {}
+    for name, spec in specs.items():
+        params[name] = {**shared, **(spec or {})}
+        # a per-object method switches the ML path unless the spec sets it explicitly
+        if "second_obj_method" in (spec or {}) and "use_ml_segmentation" not in spec:
+            params[name]["use_ml_segmentation"] = spec["second_obj_method"] in (
+                "cellpose",
+                "stardist",
+            )
+        if params[name].get("second_obj_mode", "segment") not in ("segment", "count"):
+            raise ValueError(
+                f"Secondary object {name!r}: second_obj_mode must be 'segment' or 'count'"
+            )
+        derived_from = (spec or {}).get("from")
+        if derived_from is not None:
+            ops = set(derived_from)
+            sources = derived_second_obj_sources(params[name])
+            if (
+                ops not in ({"overlap"}, {"parent_minus"}, {"touching"})
+                or not sources
+                or (ops == {"touching"} and len(sources) < 2)
+            ):
+                raise ValueError(
+                    f"Secondary object {name!r}: 'from' takes one of overlap, "
+                    "parent_minus or touching (at least two) with a list of object names"
+                )
+            # sources must be defined earlier, which also rules out cycles
+            earlier = list(specs)[: list(specs).index(name)]
+            if any(source not in earlier for source in sources):
+                raise ValueError(
+                    f"Secondary object {name!r}: 'from' must name objects defined "
+                    f"before it ({earlier})"
+                )
+    return params
+
+
+def derived_second_obj_sources(second_obj_params: Dict[str, Any]) -> List[str]:
+    """Names of the objects a derived secondary object is built from.
+
+    Args:
+        second_obj_params (Dict[str, Any]): One object's parameters.
+
+    Returns:
+        List[str]: Source object names; empty for an object detected from a channel.
+    """
+    derived_from = second_obj_params.get("from") or {}
+    return [source for sources in derived_from.values() for source in sources]

@@ -5,18 +5,19 @@ from pathlib import Path
 import pandas as pd
 
 
-def get_default_compartment_combo(second_obj_detection: bool) -> str:
+def get_default_compartment_combo(phenotype_config: dict) -> str:
     """Return the all-compartments combo for the configured phenotype run.
 
     Args:
-        second_obj_detection: Whether secondary-object detection is enabled.
+        phenotype_config: The ``phenotype`` config section; with secondary-object
+            detection on, each named object (or ``second_obj``) is a compartment.
 
     Returns:
         The hyphen-delimited all-compartments combo.
     """
     compartments = ["cell", "nucleus", "cytoplasm"]
-    if second_obj_detection:
-        compartments.append("second_obj")
+    if phenotype_config.get("second_obj_detection", False):
+        compartments.extend(phenotype_config.get("second_objs") or ["second_obj"])
     return "-".join(compartments)
 
 

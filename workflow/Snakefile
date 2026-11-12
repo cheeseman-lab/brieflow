@@ -35,9 +35,7 @@ wildcard_constraints:
 SPLIT_BY_COMPARTMENT = config.get("aggregate", {}).get(
     "split_by_compartment", False
 )
-DEFAULT_COMPARTMENT_COMBO = get_default_compartment_combo(
-    config.get("phenotype", {}).get("second_obj_detection", False)
-)
+DEFAULT_COMPARTMENT_COMBO = get_default_compartment_combo(config.get("phenotype", {}))
 
 # Get paths to the sample and combo files dfs
 SBS_SAMPLES_FP = Path(config["preprocess"]["sbs_samples_fp"])

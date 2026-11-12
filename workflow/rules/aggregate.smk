@@ -18,10 +18,12 @@ if SECOND_OBJ_DETECTION:
                 wildcards={"plate": wildcards.plate, "well": wildcards.well},
                 expansion_values=_agg_well_expand,
                 metadata_combos=merge_wildcard_combos,
+                subset_values={"second_obj": list(SECOND_OBJS)},
             )),
         output:
             AGGREGATE_OUTPUTS_MAPPED["aggregate_cells_second_objs"],
         params:
+            second_obj_names=list(SECOND_OBJS),
             agg_strategy=config.get("aggregate", {}).get(
                 "second_obj_agg_strategy", "none"
             ),
@@ -54,6 +56,7 @@ rule split_datasets:
         split_col=config.get("aggregate", {}).get("split_col", "class"),
         aggregate_wildcard_combos=aggregate_wildcard_combos,
         split_by_compartment=SPLIT_BY_COMPARTMENT,
+        second_obj_names=list(SECOND_OBJS) if SECOND_OBJ_DETECTION else [],
     script:
         "../scripts/aggregate/split_datasets.py"
 
